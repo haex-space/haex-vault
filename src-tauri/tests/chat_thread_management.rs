@@ -6,10 +6,10 @@ use std::sync::Arc;
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 use uuid::Uuid;
 
-use holzi_lib::identity::{haex_migration_source, installation_id_path, HaexBootstrap};
-use holzi_lib::storage::chat_messages::{self, ChatMessage, FinishReason, MessageRole};
-use holzi_lib::storage::chat_threads::{self, ChatThread};
-use holzi_lib::storage::query;
+use haex_lib::identity::{haex_migration_source, installation_id_path, HaexBootstrap};
+use haex_lib::storage::chat_messages::{self, ChatMessage, FinishReason, MessageRole};
+use haex_lib::storage::chat_threads::{self, ChatThread};
+use haex_lib::storage::query;
 
 const PASSPHRASE: &str = "chat-thread-management";
 

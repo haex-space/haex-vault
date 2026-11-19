@@ -16,8 +16,8 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 
 use agent_browser_scene::{agent, content, scene, Scene};
-use holzi_lib::agent_browser::cdp::Connection;
-use holzi_lib::agent_browser::error::BrowserError;
+use haex_lib::agent_browser::cdp::Connection;
+use haex_lib::agent_browser::error::BrowserError;
 
 /// A session of the test's own on the agent's tab, in the page's world: what the page sees.
 async fn page_session(scene: &Scene) -> (std::sync::Arc<Connection>, String) {

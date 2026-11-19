@@ -15,12 +15,12 @@
 use std::sync::Arc;
 
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
-use holzi_lib::identity::{
+use haex_lib::identity::{
     haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
-use holzi_lib::storage::models::{self as models_store, IntegrityStatus, ModelRow, SourceKind};
-use holzi_lib::storage::providers::{insert_provider, Provider, ProviderCapability, ProviderKind};
-use holzi_lib::storage::query;
+use haex_lib::storage::models::{self as models_store, IntegrityStatus, ModelRow, SourceKind};
+use haex_lib::storage::providers::{insert_provider, Provider, ProviderCapability, ProviderKind};
+use haex_lib::storage::query;
 use uuid::Uuid;
 
 async fn open_test_db(name: &str) -> (tempfile::TempDir, Arc<Database>) {

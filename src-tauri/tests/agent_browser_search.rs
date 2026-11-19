@@ -12,10 +12,10 @@ mod agent_browser_scene;
 use serde_json::json;
 
 use agent_browser_scene::{content, scene_with};
-use holzi_lib::agent_browser::prompts::BrowserPromptKind;
-use holzi_lib::caller::Caller;
-use holzi_lib::chat::tools::permission::PermissionMode;
-use holzi_lib::mcp_server::grants::SiteLevel;
+use haex_lib::agent_browser::prompts::BrowserPromptKind;
+use haex_lib::caller::Caller;
+use haex_lib::chat::tools::permission::PermissionMode;
+use haex_lib::mcp_server::grants::SiteLevel;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_search_opens_the_result_page_and_an_off_browser_asks_first() {

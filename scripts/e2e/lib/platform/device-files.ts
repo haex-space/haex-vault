@@ -115,7 +115,7 @@ export function deviceFiles(
   const path = (name: string) => `${folder}/${name}`
   /** Runs `use` with a fresh file of this machine and removes it afterwards. */
   const throughLocal = <T>(use: (local: string) => T): T => {
-    const dir = mkdtempSync(join(tmpdir(), 'holzi-e2e-adb-'))
+    const dir = mkdtempSync(join(tmpdir(), 'haex-e2e-adb-'))
     try {
       return use(join(dir, 'content'))
     } finally {

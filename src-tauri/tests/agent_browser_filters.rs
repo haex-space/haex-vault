@@ -16,8 +16,8 @@ use std::time::{Duration, Instant};
 use serde_json::json;
 
 use agent_browser_scene::{content, scene_with, Scene};
-use holzi_lib::agent_browser::filters::{LiveFilter, TrackerFilter};
-use holzi_lib::mcp_server::grants::SiteLevel;
+use haex_lib::agent_browser::filters::{LiveFilter, TrackerFilter};
+use haex_lib::mcp_server::grants::SiteLevel;
 
 const LIST: &str =
     "/ads/\n/blocked.html$document\n/ad-popup.html$document\n||localhost^$image,domain=127.0.0.1\n";

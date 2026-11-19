@@ -17,5 +17,5 @@ result of `extension_opener_take` is in `#request` as JSON, the number of calls 
 After a change:
 
 ```sh
-HOLZI_WRITE_E2E_FIXTURES=1 cargo test --manifest-path src-tauri/Cargo.toml --test extension_e2e_fixtures
+HAEX_WRITE_E2E_FIXTURES=1 cargo test --manifest-path src-tauri/Cargo.toml --test extension_e2e_fixtures
 ```

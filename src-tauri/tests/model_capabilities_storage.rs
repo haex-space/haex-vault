@@ -20,14 +20,14 @@ use haex_crdt::{
 };
 use uuid::Uuid;
 
-use holzi_lib::adapters::AttachmentKind;
-use holzi_lib::identity::{haex_migration_source, installation_id_path, HaexBootstrap};
-use holzi_lib::model_capabilities::{
+use haex_lib::adapters::AttachmentKind;
+use haex_lib::identity::{haex_migration_source, installation_id_path, HaexBootstrap};
+use haex_lib::model_capabilities::{
     ModelCapabilities, ReasoningControl, ReasoningOption, ThinkingStyle, ToolSupport, ToolUse,
     ToolUseBasis,
 };
-use holzi_lib::storage::models::{self as models_store, IntegrityStatus, ModelRow, SourceKind};
-use holzi_lib::storage::query;
+use haex_lib::storage::models::{self as models_store, IntegrityStatus, ModelRow, SourceKind};
+use haex_lib::storage::query;
 
 const PASSPHRASE: &str = "model-capabilities-storage-test";
 

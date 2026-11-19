@@ -4,7 +4,7 @@
 
 use std::path::{Path, PathBuf};
 
-use holzi_lib::files::picked::{Opener, PickedFile};
+use haex_lib::files::picked::{Opener, PickedFile};
 use tauri_plugin_fs::FilePath;
 
 /// Opens paths with `std::fs`, as the file plugin does on a desktop.

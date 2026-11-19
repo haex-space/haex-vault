@@ -16,12 +16,12 @@ use std::sync::{Arc, Mutex};
 use serde_json::Value;
 use tokio::sync::mpsc;
 
-use holzi_lib::adapters::cli_delegate::autonomy::AutonomyMode;
-use holzi_lib::adapters::cli_delegate::{
+use haex_lib::adapters::cli_delegate::autonomy::AutonomyMode;
+use haex_lib::adapters::cli_delegate::{
     CliDelegateAdapter, DelegateChatContext, DelegateVendor, EventEmitter, PendingToolApprovals,
 };
-use holzi_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
-use holzi_lib::cli_tools::runtime::DelegateRuntime;
+use haex_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
+use haex_lib::cli_tools::runtime::DelegateRuntime;
 
 fn write_stub(dir: &Path, name: &str, script: &str) -> std::path::PathBuf {
     let path = dir.join(name);
@@ -61,7 +61,7 @@ fn base_request(model_id: &str, autonomy_mode: AutonomyMode) -> ChatRequest {
     }
 }
 
-async fn drain_to_done(mut stream: holzi_lib::adapters::AdapterStream) {
+async fn drain_to_done(mut stream: haex_lib::adapters::AdapterStream) {
     while let Some(chunk) = stream.next().await {
         match chunk.expect("no stream error expected") {
             StreamChunk::Done { .. } => return,

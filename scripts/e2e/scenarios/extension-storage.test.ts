@@ -15,8 +15,8 @@ import { KEY } from '../lib/settings.ts'
 import type { Page } from '../lib/page.ts'
 import { errorToasts } from '../lib/toasts.ts'
 
-const USERS_BUCKET = 'holzi-ext-e2e'
-const PROPOSED_BUCKET = 'holzi-ext-two'
+const USERS_BUCKET = 'haex-ext-e2e'
+const PROPOSED_BUCKET = 'haex-ext-two'
 
 /** Starts a bridge request in the probe without waiting; `answer` reads its answer later. */
 async function begin(

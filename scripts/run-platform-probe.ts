@@ -35,7 +35,7 @@ if (!binary) {
 }
 
 const child = spawn(binary, [], {
-  env: { ...process.env, HOLZI_PROBE: '1' },
+  env: { ...process.env, HAEX_PROBE: '1' },
   stdio: ['ignore', 'pipe', 'pipe'],
 })
 let output = ''

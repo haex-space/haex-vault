@@ -1,4 +1,4 @@
-// Every process the suite starts carries an environment marker, `HOLZI_E2E_RUN`, and the environment is
+// Every process the suite starts carries an environment marker, `HAEX_E2E_RUN`, and the environment is
 // inherited by everything below it, including WebKit's helper processes and a relaunched application.
 // A run's processes are found by that marker alone, never by name, path or command line, so a
 // maintainer's own Holzi (even the same binary) is never matched (FR-008).
@@ -15,7 +15,7 @@ import {
 import { dirname, join } from 'node:path'
 import { createInterface } from 'node:readline'
 
-export const MARKER_ENV = 'HOLZI_E2E_RUN'
+export const MARKER_ENV = 'HAEX_E2E_RUN'
 
 export interface ParsedMarker {
   runnerPid: number

@@ -46,10 +46,10 @@ const DUPLICATE: &[u8] = b"duplicate";
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// The environment variable of [`app_bind_addr`].
-const E2E_LOOPBACK: &str = "HOLZI_E2E_SYNC_LOOPBACK";
+const E2E_LOOPBACK: &str = "HAEX_E2E_SYNC_LOOPBACK";
 
 /// Where the app binds its endpoints: every interface (`None`). A debug build started with
-/// `HOLZI_E2E_SYNC_LOOPBACK=1` binds loopback only: the e2e suite sets it for the devices on Linux
+/// `HAEX_E2E_SYNC_LOOPBACK=1` binds loopback only: the e2e suite sets it for the devices on Linux
 /// beside an emulated phone (spec 043), so they reach the phone only through the run's iroh relay.
 /// The emulator's own network loses a burst of large UDP packets and then the whole direct path,
 /// which a real phone's network does not. A release build ignores the variable.

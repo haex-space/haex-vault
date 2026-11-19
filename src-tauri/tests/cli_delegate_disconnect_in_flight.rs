@@ -21,12 +21,12 @@ use std::sync::{Arc, Mutex};
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 use uuid::Uuid;
 
-use holzi_lib::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
-use holzi_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
-use holzi_lib::cli_tools::runtime::DelegateRuntime;
-use holzi_lib::identity::{haex_migration_source, installation_id_path, HaexBootstrap};
-use holzi_lib::storage::providers::{self as storage, Provider, ProviderCapability, ProviderKind};
-use holzi_lib::storage::query;
+use haex_lib::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
+use haex_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
+use haex_lib::cli_tools::runtime::DelegateRuntime;
+use haex_lib::identity::{haex_migration_source, installation_id_path, HaexBootstrap};
+use haex_lib::storage::providers::{self as storage, Provider, ProviderCapability, ProviderKind};
+use haex_lib::storage::query;
 
 const PASSPHRASE: &str = "cli-delegate-disconnect-in-flight-test";
 const STUB_TRANSCRIPT: &str = r#"{"type":"system","subtype":"init"}

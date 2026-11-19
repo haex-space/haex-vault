@@ -13,13 +13,13 @@ use tool_loop_fixture::*;
 
 use std::sync::Arc;
 
-use holzi_lib::adapters::types::{ChatRole, ToolCall as LlmToolCall};
-use holzi_lib::adapters::StreamChunk;
-use holzi_lib::chat::session::ChatState;
-use holzi_lib::chat::tools::RiskClass;
-use holzi_lib::chat::turn::MAX_TOOL_ROUNDS;
-use holzi_lib::storage::chat_messages::{FinishReason, MessageRole};
-use holzi_lib::storage::preferences::{self, PrefScope};
+use haex_lib::adapters::types::{ChatRole, ToolCall as LlmToolCall};
+use haex_lib::adapters::StreamChunk;
+use haex_lib::chat::session::ChatState;
+use haex_lib::chat::tools::RiskClass;
+use haex_lib::chat::turn::MAX_TOOL_ROUNDS;
+use haex_lib::storage::chat_messages::{FinishReason, MessageRole};
+use haex_lib::storage::preferences::{self, PrefScope};
 use uuid::Uuid;
 
 #[tokio::test]

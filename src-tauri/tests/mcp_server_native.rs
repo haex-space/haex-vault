@@ -12,12 +12,12 @@ use mcp_fixture::*;
 use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 
-use holzi_lib::caller::Caller;
-use holzi_lib::chat::tools::action_tool::AgentActionDef;
-use holzi_lib::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
-use holzi_lib::chat::tools::permission::PermissionMode;
-use holzi_lib::mcp_server::grants::{OperateLevel, Rights};
-use holzi_lib::mcp_server::hello::CloseReason;
+use haex_lib::caller::Caller;
+use haex_lib::chat::tools::action_tool::AgentActionDef;
+use haex_lib::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
+use haex_lib::chat::tools::permission::PermissionMode;
+use haex_lib::mcp_server::grants::{OperateLevel, Rights};
+use haex_lib::mcp_server::hello::CloseReason;
 
 /// Keeps every call it got.
 #[derive(Default)]

@@ -272,11 +272,11 @@ control's own data — never its displayed text).
 
 `pnpm test:e2e` sets the environment before it spawns `node --test` over the scenario files:
 `E2E_RUN_DIR`, `E2E_APP`, `E2E_CLOSE_BEHAVIOR`, `E2E_TOOLS` (JSON), `E2E_SCENARIO_TIMEOUT_MS`,
-`E2E_TIME_SCALE`, `E2E_KEEP`, `HOLZI_E2E_RUN` (the run's process marker). `scripts/e2e/lib/scenario.ts`
+`E2E_TIME_SCALE`, `E2E_KEEP`, `HAEX_E2E_RUN` (the run's process marker). `scripts/e2e/lib/scenario.ts`
 reads it once, in `readEnv()`. A scenario file is not meant to be run any other way.
 
 `local-model-answer` runs a real model (Qwen3 0.6B, about 480 MB): `lib/local-model.ts` fetches it once,
-pinned and checked by its SHA-256, into `~/.cache/holzi-e2e/models` (or `E2E_MODEL_CACHE`).
+pinned and checked by its SHA-256, into `~/.cache/haex-e2e/models` (or `E2E_MODEL_CACHE`).
 
 ## The run directory
 
@@ -288,12 +288,12 @@ directory too. Full shape: [`contracts/report.md`](../../specs/016-e2e-testing/c
 
 ## Troubleshooting a leftover run
 
-Every process the suite starts carries `HOLZI_E2E_RUN` in its environment, so a killed run's leftovers
+Every process the suite starts carries `HAEX_E2E_RUN` in its environment, so a killed run's leftovers
 are found and removed by the next one automatically — never by matching a process by name or path, so
 your own Holzi is never touched. To check by hand:
 
 ```sh
-grep -l HOLZI_E2E_RUN /proc/*/environ 2>/dev/null
+grep -l HAEX_E2E_RUN /proc/*/environ 2>/dev/null
 ```
 
 Anything this prints beyond the current run is a leftover; the next `pnpm test:e2e` sweeps and reports it

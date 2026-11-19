@@ -9,10 +9,10 @@ use std::time::Duration;
 
 use mcp_fixture::{call, error_code, fixture, fixture_with};
 
-use holzi_lib::mcp_server::agent_log::Outcome;
-use holzi_lib::mcp_server::grants::{OperateLevel, Rights};
-use holzi_lib::mcp_server::hello::CloseReason;
-use holzi_lib::mcp_server::prompts::{CallDecision, CallEffect};
+use haex_lib::mcp_server::agent_log::Outcome;
+use haex_lib::mcp_server::grants::{OperateLevel, Rights};
+use haex_lib::mcp_server::hello::CloseReason;
+use haex_lib::mcp_server::prompts::{CallDecision, CallEffect};
 
 /// Reading and changing in the scopes of the test catalog.
 fn all_rights() -> Rights {

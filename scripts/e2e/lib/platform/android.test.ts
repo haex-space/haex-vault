@@ -317,7 +317,7 @@ describe('redirectWorks', () => {
     const works = await redirectWorks(
       'emu',
       5000,
-      async () => (++tries < 2 ? '' : 'holzi-e2e-reach\n'),
+      async () => (++tries < 2 ? '' : 'haex-e2e-reach\n'),
       fake.run,
     )
     assert.equal(works, true)
@@ -378,7 +378,7 @@ describe('copying a vault file from the phone (stage 2)', () => {
     })
 
   it('copies the vault and what it keeps beside it to a Linux device, never the lock', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'holzi-android-copy-'))
+    const root = mkdtempSync(join(tmpdir(), 'haex-android-copy-'))
     try {
       const source = new AndroidData(createAdb('emu', phoneWith().run))
       await source.copyVaultFile('v', new LinuxData(root))
@@ -395,7 +395,7 @@ describe('copying a vault file from the phone (stage 2)', () => {
   })
 
   it('leaves nothing behind when a file arrives only in part', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'holzi-android-copy-'))
+    const root = mkdtempSync(join(tmpdir(), 'haex-android-copy-'))
     try {
       const fake = phoneWith({
         [`${runAs} stat -c %s vaults/v/vault.db.vault-id`]: '9',
@@ -420,7 +420,7 @@ describe('copying a vault file from the phone (stage 2)', () => {
   })
 
   it('reads a file again when adb lost the device in the middle of the transfer', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'holzi-android-copy-'))
+    const root = mkdtempSync(join(tmpdir(), 'haex-android-copy-'))
     try {
       const phone = phoneWith({ '-s emu get-state': 'device\n' })
       let cut = true

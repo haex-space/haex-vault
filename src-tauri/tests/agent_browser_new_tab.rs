@@ -17,10 +17,10 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 
 use agent_browser_scene::{content, scene_with, Scene};
-use holzi_lib::agent_browser::error::BrowserError;
-use holzi_lib::agent_browser::prompts::BrowserPromptKind;
-use holzi_lib::chat::tools::native_action::NativeReply;
-use holzi_lib::mcp_server::grants::SiteLevel;
+use haex_lib::agent_browser::error::BrowserError;
+use haex_lib::agent_browser::prompts::BrowserPromptKind;
+use haex_lib::chat::tools::native_action::NativeReply;
+use haex_lib::mcp_server::grants::SiteLevel;
 
 /// The number of the element named `name` on the page of `reply`.
 fn element(reply: &NativeReply, name: &str) -> Value {

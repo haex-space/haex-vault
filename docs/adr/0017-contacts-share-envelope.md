@@ -21,7 +21,7 @@ confirmed vault identity, and rejects a stale existing-contact preview before wr
 
 Signed cards are stored by a hash of their canonical payload, so several cards from one vault can
 coexist and the verified addresses are derived from the stored cards. Migration 0043 rebuilds that
-table and intentionally drops the old rows; `HOLZI_TRIGGER_VERSION` becomes 28. Desktop processes
+table and intentionally drops the old rows; `HAEX_TRIGGER_VERSION` becomes 28. Desktop processes
 hand off deep links through `<AppLocalData>/link-inbox/`. Agent sharing is a destructive action
 with a fresh user confirmation for every call.
 

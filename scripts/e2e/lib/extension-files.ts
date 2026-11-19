@@ -4,6 +4,6 @@ import { deviceFiles as platformDeviceFiles } from './platform/device-files.ts'
 import type { DeviceFiles } from './platform/device-files.ts'
 
 /** A fresh folder of the device under test for files the app reads and writes (see `platform/device-files.ts`). */
-export function deviceFiles(prefix = 'holzi-ext-files-'): DeviceFiles {
+export function deviceFiles(prefix = 'haex-ext-files-'): DeviceFiles {
   return platformDeviceFiles(prefix)
 }

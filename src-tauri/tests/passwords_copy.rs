@@ -9,15 +9,15 @@ use std::sync::Arc;
 
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 
-use holzi_lib::identity::{
+use haex_lib::identity::{
     haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
-use holzi_lib::passwords::access::Caller;
-use holzi_lib::passwords::copy::{CopyOptions, CopyTitle};
-use holzi_lib::passwords::model::{ItemInput, ItemPatch, Patch, SecretField, Target, TargetKind};
-use holzi_lib::passwords::service::PasswordsService;
-use holzi_lib::vault_gate::VaultGate;
-use holzi_lib::HaexError;
+use haex_lib::passwords::access::Caller;
+use haex_lib::passwords::copy::{CopyOptions, CopyTitle};
+use haex_lib::passwords::model::{ItemInput, ItemPatch, Patch, SecretField, Target, TargetKind};
+use haex_lib::passwords::service::PasswordsService;
+use haex_lib::vault_gate::VaultGate;
+use haex_lib::HaexError;
 
 fn service() -> (tempfile::TempDir, Database, PasswordsService) {
     let dir = tempfile::tempdir().expect("tempdir");

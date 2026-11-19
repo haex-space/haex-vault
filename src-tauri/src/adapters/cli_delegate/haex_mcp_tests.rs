@@ -155,12 +155,12 @@ fn codex_calls_the_tools_of_haex_without_its_own_question() {
 #[test]
 fn codex_paths_are_escaped_as_toml_strings() {
     let server = HaexServer::new(
-        r#"C:\Program Files\holzi "beta"\holzi.exe"#.to_owned(),
+        r#"C:\Program Files\holzi "beta"\haex.exe"#.to_owned(),
         vec!["line\nbreak\u{7f}".to_owned()],
         (),
     );
     let config = codex_config(&server);
-    assert!(config.contains(r#"command = "C:\\Program Files\\holzi \"beta\"\\holzi.exe""#));
+    assert!(config.contains(r#"command = "C:\\Program Files\\holzi \"beta\"\\haex.exe""#));
     assert!(config.contains(r#"args = ["line\u000Abreak\u007F"]"#));
 }
 

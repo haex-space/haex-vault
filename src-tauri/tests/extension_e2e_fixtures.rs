@@ -2,7 +2,7 @@
 //! built with the one implementation of the bundle format (`haex-bundle`) and a test key derived
 //! from a public seed: it signs these fixtures only and must never be trusted elsewhere.
 //!
-//! The committed `.xt` files must equal what this builds; `HOLZI_WRITE_E2E_FIXTURES=1` rewrites
+//! The committed `.xt` files must equal what this builds; `HAEX_WRITE_E2E_FIXTURES=1` rewrites
 //! them after a change.
 
 use std::path::{Path, PathBuf};
@@ -179,14 +179,14 @@ fn the_committed_e2e_bundles_are_what_this_builds() {
     ];
     for (file, built) in bundles {
         let path = dir().join(file);
-        if std::env::var_os("HOLZI_WRITE_E2E_FIXTURES").is_some() {
+        if std::env::var_os("HAEX_WRITE_E2E_FIXTURES").is_some() {
             std::fs::write(&path, &built).expect("write fixture");
         }
         let committed =
-            std::fs::read(&path).expect("fixture (HOLZI_WRITE_E2E_FIXTURES=1 builds it)");
+            std::fs::read(&path).expect("fixture (HAEX_WRITE_E2E_FIXTURES=1 builds it)");
         assert!(
             committed == built,
-            "{file} is stale; rebuild with HOLZI_WRITE_E2E_FIXTURES=1"
+            "{file} is stale; rebuild with HAEX_WRITE_E2E_FIXTURES=1"
         );
     }
 }

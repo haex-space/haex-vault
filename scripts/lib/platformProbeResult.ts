@@ -1,7 +1,7 @@
 /** Judging the one result line of the platform probe (spec 044, T007). */
 
 /** `platform_probe::RESULT_MARKER` in Rust. */
-export const RESULT_MARKER = 'HOLZI_PROBE_RESULT'
+export const RESULT_MARKER = 'HAEX_PROBE_RESULT'
 
 /** T007's desktop runner limit; the probe itself gives up after 90 s. */
 export const PROBE_TIMEOUT_MS = 120_000

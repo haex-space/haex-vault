@@ -10,12 +10,12 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 
 use bridge_fixture::*;
-use holzi_lib::browser_bridge::approvals::Status;
-use holzi_lib::browser_bridge::declaration::BridgeAccess;
-use holzi_lib::browser_bridge::prompts::{BridgeAnswer, BridgeQuestion, WriteAnswer};
-use holzi_lib::browser_bridge::protocol::PROTOCOL_VERSION;
-use holzi_lib::passwords::access::Caller;
-use holzi_lib::passwords::model::{ItemInput, PresetInput};
+use haex_lib::browser_bridge::approvals::Status;
+use haex_lib::browser_bridge::declaration::BridgeAccess;
+use haex_lib::browser_bridge::prompts::{BridgeAnswer, BridgeQuestion, WriteAnswer};
+use haex_lib::browser_bridge::protocol::PROTOCOL_VERSION;
+use haex_lib::passwords::access::Caller;
+use haex_lib::passwords::model::{ItemInput, PresetInput};
 
 fn tags(list: &[&str]) -> Vec<String> {
     list.iter().map(|t| (*t).to_owned()).collect()
@@ -482,7 +482,7 @@ async fn a_reader_is_asked_before_it_writes_and_a_no_changes_nothing() {
             .list_headers(&Caller::User, &[])
             .await
             .map(|h| match h {
-                holzi_lib::passwords::service::Headers::Items(items) => items.len(),
+                haex_lib::passwords::service::Headers::Items(items) => items.len(),
                 _ => usize::MAX,
             })
             .expect("headers"),
@@ -579,7 +579,7 @@ async fn a_declaration_without_writing_is_refused_without_a_question() {
     let (id, _) = fx.next_question().await;
     fx.answer_with(
         &id,
-        BridgeAnswer::Approval(holzi_lib::browser_bridge::prompts::ApprovalAnswer {
+        BridgeAnswer::Approval(haex_lib::browser_bridge::prompts::ApprovalAnswer {
             allow: true,
             remember: true,
             access: Some(BridgeAccess::Read),

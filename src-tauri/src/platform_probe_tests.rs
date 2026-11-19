@@ -118,14 +118,14 @@ fn the_report_reads_the_window_shape() {
 #[test]
 fn the_result_line_starts_with_the_marker() {
     let line = result_line(&serde_json::json!({ "ok": true }));
-    assert_eq!(line, r#"HOLZI_PROBE_RESULT {"ok":true}"#);
+    assert_eq!(line, r#"HAEX_PROBE_RESULT {"ok":true}"#);
 }
 
 #[test]
 fn the_init_script_names_the_port_and_the_media() {
     assert_eq!(
         init_script(41873, &serde_json::json!({ "pdf": "http://127.0.0.1:1/t" })),
-        r#"window.__HOLZI_PROBE__ = Object.freeze({ port: 41873, media: {"pdf":"http://127.0.0.1:1/t"} });"#
+        r#"window.__HAEX_PROBE__ = Object.freeze({ port: 41873, media: {"pdf":"http://127.0.0.1:1/t"} });"#
     );
 }
 

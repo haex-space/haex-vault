@@ -1,7 +1,7 @@
 // A real model for the scenarios that run one on the device (spec 070 T040): the catalog's smallest,
 // Qwen3 0.6B, pinned to a revision and checked by its SHA-256, the file `llamacpp-platforms.yml`
 // loads too. It is fetched once into a cache folder of this machine (`E2E_MODEL_CACHE`, else
-// `~/.cache/holzi-e2e/models`), which CI keeps between runs.
+// `~/.cache/haex-e2e/models`), which CI keeps between runs.
 import { createHash } from 'node:crypto'
 import {
   createReadStream,
@@ -47,7 +47,7 @@ export async function pinnedModelFile(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<string> {
   const folder =
-    env.E2E_MODEL_CACHE || join(homedir(), '.cache', 'holzi-e2e', 'models')
+    env.E2E_MODEL_CACHE || join(homedir(), '.cache', 'haex-e2e', 'models')
   mkdirSync(folder, { recursive: true })
   const path = join(folder, `${model.sha256}-${model.filename}`)
   if (existsSync(path)) {

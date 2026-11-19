@@ -24,11 +24,11 @@ use serde_json::{json, Value};
 
 use agent_browser_fixture::Seen;
 use agent_browser_scene::{content, scene_with, Scene};
-use holzi_lib::agent_browser::prompts::BrowserPromptKind as Kind;
-use holzi_lib::agent_browser::read::NOTE;
-use holzi_lib::chat::tools::native_action::{NativeError, NativeReply};
-use holzi_lib::chat::tools::permission::PermissionMode;
-use holzi_lib::mcp_server::grants::SiteLevel;
+use haex_lib::agent_browser::prompts::BrowserPromptKind as Kind;
+use haex_lib::agent_browser::read::NOTE;
+use haex_lib::chat::tools::native_action::{NativeError, NativeReply};
+use haex_lib::chat::tools::permission::PermissionMode;
+use haex_lib::mcp_server::grants::SiteLevel;
 
 /// What a page's injected text asks the agent to do besides submitting.
 enum Lure {

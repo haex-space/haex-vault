@@ -18,11 +18,11 @@ use tauri::test::{mock_builder, mock_context, noop_assets};
 use tokio::sync::Mutex;
 
 use chosen_files::{chosen, Paths};
-use holzi_lib::chat::session::ChatState;
-use holzi_lib::instances::{create_instance_core, import_instance_core};
-use holzi_lib::state::AppState;
-use holzi_lib::vault_gate::VaultGate;
-use holzi_lib::HaexError;
+use haex_lib::chat::session::ChatState;
+use haex_lib::instances::{create_instance_core, import_instance_core};
+use haex_lib::state::AppState;
+use haex_lib::vault_gate::VaultGate;
+use haex_lib::HaexError;
 
 /// `XDG_DATA_HOME` is process-wide, so the tests take turns.
 static TURN: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -44,7 +44,7 @@ fn session() -> (AppState, ChatState) {
 }
 
 fn vaults_dir(app: &tauri::AppHandle<tauri::test::MockRuntime>) -> PathBuf {
-    holzi_lib::instances::paths::vault_paths(app)
+    haex_lib::instances::paths::vault_paths(app)
         .expect("vault paths")
         .vaults_dir()
 }

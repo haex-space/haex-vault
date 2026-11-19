@@ -4,7 +4,7 @@
 //! model catalog, so the desktop scenarios remain in the quickstart. These
 //! tests exercise the generation hand-off that the resolver relies on.
 
-use holzi_lib::chat::session::{ChatState, ModelLoadStatus};
+use haex_lib::chat::session::{ChatState, ModelLoadStatus};
 
 #[test]
 fn a_vault_transition_resets_status_and_rejects_the_previous_load() {

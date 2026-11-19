@@ -15,13 +15,13 @@ mod agent_browser_scene;
 use serde_json::json;
 
 use agent_browser_scene::{content, scene_with, Scene};
-use holzi_lib::agent_browser::prompts::BrowserPromptKind;
-use holzi_lib::agent_browser::sites::Site;
-use holzi_lib::caller::Caller;
-use holzi_lib::chat::tools::native_action::NativeReply;
-use holzi_lib::mcp_server::grants::{PasswordLevel, PasswordRights, SiteGrant, SiteLevel};
-use holzi_lib::passwords::model::{ItemInput, KeyValueInput};
-use holzi_lib::passwords::service::PasswordsService;
+use haex_lib::agent_browser::prompts::BrowserPromptKind;
+use haex_lib::agent_browser::sites::Site;
+use haex_lib::caller::Caller;
+use haex_lib::chat::tools::native_action::NativeReply;
+use haex_lib::mcp_server::grants::{PasswordLevel, PasswordRights, SiteGrant, SiteLevel};
+use haex_lib::passwords::model::{ItemInput, KeyValueInput};
+use haex_lib::passwords::service::PasswordsService;
 
 const IBAN: &str = "DE89370400440532013000";
 const CARD: &str = "4111111111111111";

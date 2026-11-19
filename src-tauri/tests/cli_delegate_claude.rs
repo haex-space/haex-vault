@@ -15,9 +15,9 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::sync::{Arc, Mutex};
 
-use holzi_lib::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
-use holzi_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
-use holzi_lib::cli_tools::runtime::DelegateRuntime;
+use haex_lib::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
+use haex_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
+use haex_lib::cli_tools::runtime::DelegateRuntime;
 
 /// Canned `stream-json` transcript matching the real event shapes
 /// captured live in research.md §1.

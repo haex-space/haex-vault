@@ -55,7 +55,7 @@ function text(page: Page, testid: string): Promise<string> {
 scenario('extension-encrypted-device', { timeoutMs: 300_000 }, async (ctx) => {
   const group = await ctx.group({ users: { anna: ['laptop'] } })
   const page = group.device('anna/laptop').page
-  const device = deviceFiles('holzi-ext-encrypted-device-')
+  const device = deviceFiles('haex-ext-encrypted-device-')
   ctx.onTeardown(() => device.remove())
   device.write('offen.txt', 'offen')
 

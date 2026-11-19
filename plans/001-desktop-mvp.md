@@ -297,7 +297,7 @@ Zusätzlich in PR #27 gefunden und dokumentiert (Follow-up-Kandidaten):
 - **`list_installed_models` per-slug tolerance** (Slice D, siehe oben) — behoben: ein Slug, dessen `canonical_model_file` mit einem Ambiguity-Error scheitert, wird jetzt übersprungen statt die gesamte Liste fehlschlagen zu lassen. Mirrort das Muster aus `resolve_default_model`.
 - **T060 formal-verifiziert** (Slice D) — `preferences_roundtrip::deleting_known_device_cascades_into_preferences` benennt jetzt explizit FR-017/US5 im Docstring.
 
-Damit ist aus [tasks.md](../specs/002-onboarding-model-prefs/tasks.md) nur noch **Slice E (T045 idempotencyKey)** offen — braucht Migration 0013 (`chat_messages.idempotency_key`) + `HOLZI_TRIGGER_VERSION`-Bump + Contract-Änderung an `send_message`, daher als eigener PR geplant statt mit PR #29 gebündelt.
+Damit ist aus [tasks.md](../specs/002-onboarding-model-prefs/tasks.md) nur noch **Slice E (T045 idempotencyKey)** offen — braucht Migration 0013 (`chat_messages.idempotency_key`) + `HAEX_TRIGGER_VERSION`-Bump + Contract-Änderung an `send_message`, daher als eigener PR geplant statt mit PR #29 gebündelt.
 
 Bewusst nicht in diesem PR: vollständiges Claude-Code-artiges Config-Panel (Modell + Effort + Thinking-Toggle + Skills etc.) — eigener Folge-PR, sobald Preferences-Infrastruktur steht. Ebenso weiter deferred: OpenAI/Google/Groq-Adapter, Tool-Calling-Loop + MCP-Client (letzterer adressiert das Halluzinations-Problem kleiner lokaler Modelle grundsätzlich und braucht eine eigene Design-Runde).
 

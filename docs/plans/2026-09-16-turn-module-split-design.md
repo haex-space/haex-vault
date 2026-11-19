@@ -106,7 +106,7 @@ in `turn/mod.rs` bleiben gültig:
 
 - `super::turn::{now_ms, run_turn, start_step_stream, StreamStartError}`
   (aus `chat/commands.rs`)
-- `holzi_lib::chat::turn::{run_turn, MAX_TOOL_ROUNDS, MAX_RETRY_ATTEMPTS}`
+- `haex_lib::chat::turn::{run_turn, MAX_TOOL_ROUNDS, MAX_RETRY_ATTEMPTS}`
   (aus `tests/chat_tool_loop_*.rs`, `tests/common/tool_loop_fixture.rs`)
 
 ## Nicht-Ziele

@@ -289,13 +289,13 @@ fn closing_between_synthesis_and_queueing_does_not_wait_for_playback() {
 }
 
 /// Needs a Pocket model and a reference recording:
-/// `HOLZI_TTS_MODEL_DIR=<dir with the files of tts/files.rs> HOLZI_TTS_REFERENCE=<mono wav>`.
-/// With `HOLZI_TTS_SAVE_DIR=<dir>` it also writes one sample per rate there to listen to.
+/// `HAEX_TTS_MODEL_DIR=<dir with the files of tts/files.rs> HAEX_TTS_REFERENCE=<mono wav>`.
+/// With `HAEX_TTS_SAVE_DIR=<dir>` it also writes one sample per rate there to listen to.
 #[test]
 #[ignore = "needs a Pocket model and a reference recording, see the doc comment"]
 fn pocket_speaks_and_follows_the_rate() {
-    let dir = PathBuf::from(std::env::var("HOLZI_TTS_MODEL_DIR").expect("HOLZI_TTS_MODEL_DIR"));
-    let wav = std::env::var("HOLZI_TTS_REFERENCE").expect("HOLZI_TTS_REFERENCE");
+    let dir = PathBuf::from(std::env::var("HAEX_TTS_MODEL_DIR").expect("HAEX_TTS_MODEL_DIR"));
+    let wav = std::env::var("HAEX_TTS_REFERENCE").expect("HAEX_TTS_REFERENCE");
     let wave = sherpa_onnx::Wave::read(&wav).expect("reference decodes");
     let reference = Reference {
         samples: wave.samples().to_vec(),
@@ -320,7 +320,7 @@ fn pocket_speaks_and_follows_the_rate() {
             / 3.0
             / 24_000.0
     };
-    if let Ok(save) = std::env::var("HOLZI_TTS_SAVE_DIR") {
+    if let Ok(save) = std::env::var("HAEX_TTS_SAVE_DIR") {
         for rate in [0.75, 1.0, 1.5] {
             let samples = model.generate(text, &reference, rate).expect("speaks");
             let path = PathBuf::from(&save).join(format!("rate-{rate}.wav"));

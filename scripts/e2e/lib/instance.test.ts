@@ -58,7 +58,7 @@ describe('buildInstanceEnv', () => {
   it('cuts the application off from the desktop session and marks the run', () => {
     const env = buildInstanceEnv(root, 'the-marker', parent)
     assert.equal(env.DBUS_SESSION_BUS_ADDRESS, 'disabled:')
-    assert.equal(env.HOLZI_E2E_RUN, 'the-marker')
+    assert.equal(env.HAEX_E2E_RUN, 'the-marker')
     assert.equal(env.GDK_BACKEND, 'x11')
     assert.equal(env.WAYLAND_DISPLAY, undefined)
     assert.equal(env.DISPLAY, undefined)

@@ -13,9 +13,9 @@ fn a_missing_model_is_unavailable_not_a_crash() {
     ));
 }
 
-/// `HOLZI_PARAKEET_DIR` points at an unpacked `sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8`.
+/// `HAEX_PARAKEET_DIR` points at an unpacked `sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8`.
 fn model_dir() -> PathBuf {
-    PathBuf::from(std::env::var("HOLZI_PARAKEET_DIR").expect("HOLZI_PARAKEET_DIR is set"))
+    PathBuf::from(std::env::var("HAEX_PARAKEET_DIR").expect("HAEX_PARAKEET_DIR is set"))
 }
 
 fn fixture(name: &str) -> CanonicalPcm {
@@ -29,7 +29,7 @@ fn fixture(name: &str) -> CanonicalPcm {
 }
 
 #[tokio::test]
-#[ignore = "needs the Parakeet model (~490 MB) in HOLZI_PARAKEET_DIR"]
+#[ignore = "needs the Parakeet model (~490 MB) in HAEX_PARAKEET_DIR"]
 async fn transcribes_german_and_english_fixtures() {
     let adapter = ParakeetAdapter::load_from_dir(&model_dir()).expect("model loads");
 
@@ -52,7 +52,7 @@ async fn transcribes_german_and_english_fixtures() {
 }
 
 #[tokio::test]
-#[ignore = "needs the Parakeet model (~490 MB) in HOLZI_PARAKEET_DIR"]
+#[ignore = "needs the Parakeet model (~490 MB) in HAEX_PARAKEET_DIR"]
 async fn silence_gives_no_text() {
     let adapter = ParakeetAdapter::load_from_dir(&model_dir()).expect("model loads");
     let silence = CanonicalPcm {
@@ -62,7 +62,7 @@ async fn silence_gives_no_text() {
 }
 
 #[tokio::test]
-#[ignore = "needs the Parakeet model (~490 MB) in HOLZI_PARAKEET_DIR"]
+#[ignore = "needs the Parakeet model (~490 MB) in HAEX_PARAKEET_DIR"]
 async fn too_little_audio_gives_no_text_instead_of_a_crash() {
     let adapter = ParakeetAdapter::load_from_dir(&model_dir()).expect("model loads");
     for len in [0, 1, 160, super::sherpa::MIN_SAMPLES - 1] {

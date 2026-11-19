@@ -25,7 +25,7 @@ CASCADE`).**
 
 - Migration `0044_sync_rules` creates `haex_sync_rules_no_sync`, `haex_sync_rule_files_no_sync`,
   `haex_sync_rule_pending_no_sync`, `haex_sync_runs_no_sync` and `haex_sync_run_items_no_sync`
-  (spec 061 data-model.md). No CRDT triggers, no change of `HOLZI_TRIGGER_VERSION`.
+  (spec 061 data-model.md). No CRDT triggers, no change of `HAEX_TRIGGER_VERSION`.
 - Every query filters on the current `vault_device_uuid`. A vault file copied to another device gets a new
   `vault_device_uuid` there (ADR 0001, bootstrap), so the copy sees no rules and runs none.
 - The log depth setting stays a normal per-device preference (`PrefScope::Device`), since it is one row.

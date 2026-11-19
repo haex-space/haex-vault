@@ -14,11 +14,11 @@ use std::cell::Cell;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use holzi_lib::tts::catalog::{get, CatalogFile, TtsCatalogEntry};
-use holzi_lib::tts::local::{Engine, Reference};
-use holzi_lib::tts::qwen::generate::FRAMES_PER_SECOND;
-use holzi_lib::tts::qwen::{Placement, QwenModel};
-use holzi_lib::tts::voices::{builtin, reference};
+use haex_lib::tts::catalog::{get, CatalogFile, TtsCatalogEntry};
+use haex_lib::tts::local::{Engine, Reference};
+use haex_lib::tts::qwen::generate::FRAMES_PER_SECOND;
+use haex_lib::tts::qwen::{Placement, QwenModel};
+use haex_lib::tts::voices::{builtin, reference};
 
 /// The six sentences of the spec 066 R23 listening comparison.
 const R23: [&str; 6] = [
@@ -185,7 +185,7 @@ impl Engine for Counting<'_> {
         text: &str,
         reference: &Reference,
         rate: f32,
-    ) -> Result<Vec<f32>, holzi_lib::tts::TtsError> {
+    ) -> Result<Vec<f32>, haex_lib::tts::TtsError> {
         self.model.generate(text, reference, rate)
     }
 
@@ -200,7 +200,7 @@ impl Engine for Counting<'_> {
         rate: f32,
         attempt: u32,
         cancelled: &dyn Fn() -> bool,
-    ) -> Result<Vec<f32>, holzi_lib::tts::TtsError> {
+    ) -> Result<Vec<f32>, haex_lib::tts::TtsError> {
         self.calls.lock().expect("calls").push(attempt);
         self.model
             .speak_part(words, reference, rate, attempt, cancelled)
@@ -256,8 +256,8 @@ fn two_hundred() -> Vec<String> {
 #[test]
 #[ignore = "needs the Qwen3-TTS files, see the module doc; takes about half an hour on a processor"]
 fn two_hundred_sentences() {
-    use holzi_lib::tts::check::Level;
-    use holzi_lib::tts::speaker::{speak_sentence, Voices};
+    use haex_lib::tts::check::Level;
+    use haex_lib::tts::speaker::{speak_sentence, Voices};
 
     let model = load(Placement::Cpu);
     let counting = Counting {
@@ -308,9 +308,9 @@ fn two_hundred_sentences() {
 #[test]
 #[ignore = "needs the Qwen3-TTS files, see the module doc"]
 fn verdicts() {
-    use holzi_lib::tts::check::{judge, max_secs, min_secs, Level, SpeechShare};
-    use holzi_lib::tts::parts::{plain, split};
-    use holzi_lib::tts::spoken::spoken_protected;
+    use haex_lib::tts::check::{judge, max_secs, min_secs, Level, SpeechShare};
+    use haex_lib::tts::parts::{plain, split};
+    use haex_lib::tts::spoken::spoken_protected;
 
     let model = load(Placement::Cpu);
     let speech = Level;

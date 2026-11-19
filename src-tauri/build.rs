@@ -30,8 +30,8 @@ fn embed_windows_manifest() {
 /// Applies the host bridge's matching libc/interpreter and ordered runtime paths.
 /// Native builds and non-Linux targets retain their toolchain defaults.
 fn configure_nix_devshell_linker() {
-    println!("cargo:rerun-if-env-changed=HOLZI_NIX_DYNAMIC_LINKER");
-    println!("cargo:rerun-if-env-changed=HOLZI_NIX_RUNTIME_LIBRARY_PATH");
+    println!("cargo:rerun-if-env-changed=HAEX_NIX_DYNAMIC_LINKER");
+    println!("cargo:rerun-if-env-changed=HAEX_NIX_RUNTIME_LIBRARY_PATH");
     let is_linux = std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("linux");
     if !is_linux || !is_nix_toolchain() {
         return;
@@ -48,9 +48,9 @@ fn configure_nix_devshell_linker() {
         "configure_nix_devshell_linker: no known host dynamic-linker path for \
          CARGO_CFG_TARGET_ARCH={target_arch:?} (only x86_64 is supported)"
     );
-    let dynamic_linker = std::env::var("HOLZI_NIX_DYNAMIC_LINKER")
+    let dynamic_linker = std::env::var("HAEX_NIX_DYNAMIC_LINKER")
         .expect("run Nix builds through scripts/with-nix-host-bridge.sh");
-    let runtime_path = std::env::var("HOLZI_NIX_RUNTIME_LIBRARY_PATH")
+    let runtime_path = std::env::var("HAEX_NIX_RUNTIME_LIBRARY_PATH")
         .expect("host bridge must supply the selected libc and host library directories");
     assert!(
         std::path::Path::new(&dynamic_linker).is_absolute()
@@ -85,7 +85,7 @@ fn configure_nix_devshell_linker() {
     }
 
     // Host WebKit children must not inherit the devShell's Nix library path.
-    println!("cargo:rustc-env=HOLZI_NIX_DEVSHELL_LINKER=1");
+    println!("cargo:rustc-env=HAEX_NIX_DEVSHELL_LINKER=1");
 }
 
 /// `RUSTC` is set by Cargo for build scripts, but isn't guaranteed to be an

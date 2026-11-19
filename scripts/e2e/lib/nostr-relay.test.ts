@@ -55,6 +55,6 @@ describe('a relay that can go down and come back', () => {
   })
 
   it('names the variable the binary reads its port from', () => {
-    assert.equal(PORT_VARIABLE, 'HOLZI_E2E_RELAY_PORT')
+    assert.equal(PORT_VARIABLE, 'HAEX_E2E_RELAY_PORT')
   })
 })

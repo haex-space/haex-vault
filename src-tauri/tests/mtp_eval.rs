@@ -1,8 +1,8 @@
 //! Spec 079: the MTP drafter with the real files. Skipped by default (`#[ignore]`):
 //!
 //! ```text
-//! HOLZI_TEST_GGUF=<models>/gemma-4-E2B-it-Q4_K_M.gguf \
-//! HOLZI_LLAMACPP_DRAFTER=<models>/mtp-gemma-4-E2B-it.gguf \
+//! HAEX_TEST_GGUF=<models>/gemma-4-E2B-it-Q4_K_M.gguf \
+//! HAEX_LLAMACPP_DRAFTER=<models>/mtp-gemma-4-E2B-it.gguf \
 //!   cargo test --manifest-path src-tauri/Cargo.toml --features llm-llamacpp-cuda \
 //!   --test mtp_eval -- --ignored --nocapture
 //! ```
@@ -17,8 +17,8 @@ use std::path::PathBuf;
 use std::sync::OnceLock;
 use std::time::Instant;
 
-use holzi_lib::llm::llamacpp::generate::{generate, Job};
-use holzi_lib::llm::llamacpp::model::{LoadOptions, LoadedModel};
+use haex_lib::llm::llamacpp::generate::{generate, Job};
+use haex_lib::llm::llamacpp::model::{LoadOptions, LoadedModel};
 use llama_cpp_2::context::params::{LlamaContextParams, LlamaContextType};
 use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::llama_backend::LlamaBackend;
@@ -266,10 +266,10 @@ fn first_difference(a: &str, b: &str) -> Option<usize> {
 }
 
 #[test]
-#[ignore = "needs HOLZI_TEST_GGUF (Gemma 4) and HOLZI_LLAMACPP_DRAFTER (its mtp-*.gguf)"]
+#[ignore = "needs HAEX_TEST_GGUF (Gemma 4) and HAEX_LLAMACPP_DRAFTER (its mtp-*.gguf)"]
 fn mtp_spike() {
-    let model = load(&path_from_env("HOLZI_TEST_GGUF"));
-    let drafter = load(&path_from_env("HOLZI_LLAMACPP_DRAFTER"));
+    let model = load(&path_from_env("HAEX_TEST_GGUF"));
+    let drafter = load(&path_from_env("HAEX_LLAMACPP_DRAFTER"));
     for swa_full in [false, true] {
         println!("== swa_full = {swa_full}");
         let mut all_removals_work = true;
@@ -336,7 +336,7 @@ fn long_prompt() -> String {
 /// The four requests of research R1 and the long prompt, through holzi's loader and token loop.
 fn app_run(drafter: Option<PathBuf>) -> AppRun {
     let loaded = LoadedModel::load(
-        &path_from_env("HOLZI_TEST_GGUF"),
+        &path_from_env("HAEX_TEST_GGUF"),
         LoadOptions {
             drafter,
             ..LoadOptions::default()
@@ -409,12 +409,12 @@ fn json_of(answer: &str) -> Option<serde_json::Value> {
 }
 
 #[test]
-#[ignore = "needs HOLZI_TEST_GGUF (Gemma 4) and HOLZI_LLAMACPP_DRAFTER (its mtp-*.gguf)"]
+#[ignore = "needs HAEX_TEST_GGUF (Gemma 4) and HAEX_LLAMACPP_DRAFTER (its mtp-*.gguf)"]
 fn mtp_speed() {
     println!("== without the drafter");
     let plain = app_run(None);
     println!("== with the drafter");
-    let drafted = app_run(Some(path_from_env("HOLZI_LLAMACPP_DRAFTER")));
+    let drafted = app_run(Some(path_from_env("HAEX_LLAMACPP_DRAFTER")));
     let gain = drafted.rate / plain.rate;
     println!(
         "{:.1} -> {:.1} tok/s, {gain:.2}x; first token {:.0} -> {:.0} ms, after the long prompt {:.0} -> {:.0} ms",

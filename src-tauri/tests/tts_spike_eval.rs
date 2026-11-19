@@ -2,9 +2,9 @@
 //! sherpa-onnx in the six spoken languages. Skipped by default (`#[ignore]`): it needs the models
 //! and reference recordings on disk.
 //!
-//!   HOLZI_TTS_EVAL_MODELS="en=<dir>,de=<dir>,…" \
-//!   HOLZI_TTS_EVAL_REFS=<dir with <lang>.wav, one native speaker each> \
-//!   HOLZI_PARAKEET_DIR=<unpacked sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8> \
+//!   HAEX_TTS_EVAL_MODELS="en=<dir>,de=<dir>,…" \
+//!   HAEX_TTS_EVAL_REFS=<dir with <lang>.wav, one native speaker each> \
+//!   HAEX_PARAKEET_DIR=<unpacked sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8> \
 //!     cargo test --release --manifest-path src-tauri/Cargo.toml --test tts_spike_eval \
 //!       -- --ignored --nocapture
 //!
@@ -22,8 +22,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use holzi_lib::stt::sherpa::ParakeetAdapter;
-use holzi_lib::stt::{CanonicalPcm, SttAdapter, SAMPLE_RATE_HZ};
+use haex_lib::stt::sherpa::ParakeetAdapter;
+use haex_lib::stt::{CanonicalPcm, SttAdapter, SAMPLE_RATE_HZ};
 use serde_json::json;
 use sherpa_onnx::{
     GenerationConfig, LinearResampler, OfflineTts, OfflineTtsConfig, OfflineTtsModelConfig,
@@ -141,10 +141,10 @@ fn word_errors(reference: &[String], hypothesis: &[String]) -> usize {
 #[tokio::test]
 #[ignore = "needs Pocket TTS models, reference recordings and Parakeet, see the module doc"]
 async fn pocket_tts_in_six_languages() {
-    let models = env::var("HOLZI_TTS_EVAL_MODELS").expect("HOLZI_TTS_EVAL_MODELS is set");
-    let refs = PathBuf::from(env::var("HOLZI_TTS_EVAL_REFS").expect("HOLZI_TTS_EVAL_REFS is set"));
+    let models = env::var("HAEX_TTS_EVAL_MODELS").expect("HAEX_TTS_EVAL_MODELS is set");
+    let refs = PathBuf::from(env::var("HAEX_TTS_EVAL_REFS").expect("HAEX_TTS_EVAL_REFS is set"));
     let parakeet = ParakeetAdapter::load_from_dir(Path::new(
-        &env::var("HOLZI_PARAKEET_DIR").expect("HOLZI_PARAKEET_DIR is set"),
+        &env::var("HAEX_PARAKEET_DIR").expect("HAEX_PARAKEET_DIR is set"),
     ))
     .expect("Parakeet loads");
     let out = Path::new(env!("CARGO_MANIFEST_DIR")).join("target/eval/tts");

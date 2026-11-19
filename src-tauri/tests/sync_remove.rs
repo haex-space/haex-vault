@@ -46,7 +46,7 @@ async fn describe_peers(
 /// both lists no longer name it.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_removed_device_gets_nothing_new_while_the_others_keep_syncing() {
-    use holzi_lib::sync::commands::{remove_device_now, this_device, ThisDevice};
+    use haex_lib::sync::commands::{remove_device_now, this_device, ThisDevice};
 
     let _turn = TURN.lock().await;
     let relay = nostr_sdk::local_relay::MockRelay::run()
@@ -118,8 +118,8 @@ async fn a_removed_device_gets_nothing_new_while_the_others_keep_syncing() {
     let removed_runtime = runtime_of(&b).await;
     let removed = tokio::time::timeout(Duration::from_secs(40), async {
         loop {
-            holzi_lib::sync::reconnect_missing(&removed_runtime.node, &removed_runtime.replica);
-            let place = holzi_lib::storage::query::read(&b.database(), |r| {
+            haex_lib::sync::reconnect_missing(&removed_runtime.node, &removed_runtime.replica);
+            let place = haex_lib::storage::query::read(&b.database(), |r| {
                 this_device(r, &b.keys.device_pubkey)
             })
             .expect("read place");
@@ -131,8 +131,8 @@ async fn a_removed_device_gets_nothing_new_while_the_others_keep_syncing() {
     })
     .await
     .unwrap_or_else(|_| {
-        let rows = holzi_lib::storage::query::read(&b.database(), |r| {
-            holzi_lib::sync::presence::load_all(r)
+        let rows = haex_lib::storage::query::read(&b.database(), |r| {
+            haex_lib::sync::presence::load_all(r)
         })
         .expect("read presence");
         let names = [a.keys.device_pubkey, b.keys.device_pubkey, c.keys.device_pubkey];
@@ -160,7 +160,7 @@ async fn a_removed_device_gets_nothing_new_while_the_others_keep_syncing() {
 /// and no device removes itself.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn only_a_main_device_removes_and_never_itself() {
-    use holzi_lib::sync::commands::remove_device_now;
+    use haex_lib::sync::commands::remove_device_now;
 
     let _turn = TURN.lock().await;
     let relay = nostr_sdk::local_relay::MockRelay::run()
@@ -174,14 +174,14 @@ async fn only_a_main_device_removes_and_never_itself() {
     let itself = remove_device_now(&main_runtime, a.keys.device_pubkey).await;
     assert!(matches!(
         itself,
-        Err(holzi_lib::error::HaexError::InvalidInput { .. })
+        Err(haex_lib::error::HaexError::InvalidInput { .. })
     ));
 
     let linked_runtime = runtime_of(&b).await;
     let refused = remove_device_now(&linked_runtime, a.keys.device_pubkey).await;
     assert!(matches!(
         refused,
-        Err(holzi_lib::error::HaexError::NotMainDevice)
+        Err(haex_lib::error::HaexError::NotMainDevice)
     ));
     assert_eq!(listed(&a).len(), 2, "nothing was removed");
 

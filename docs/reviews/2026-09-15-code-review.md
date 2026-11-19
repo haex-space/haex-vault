@@ -130,7 +130,7 @@ git diff --check a874bd6...HEAD
 ```
 
 Results: 227 Rust tests passed with default CPU features (3 ignored — all three
-need `HOLZI_TEST_GGUF` pointing at an operator-provided GGUF), 214 passed
+need `HAEX_TEST_GGUF` pointing at an operator-provided GGUF), 214 passed
 without default features, and 19 frontend replay tests passed. Rustfmt, Clippy with warnings
 denied on both feature sets, ESLint, Nuxt typecheck, the documentation
 regression, the documentation validator and the patch whitespace check all

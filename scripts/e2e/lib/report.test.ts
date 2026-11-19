@@ -21,7 +21,7 @@ import type { RunFacts } from './report.ts'
 import type { ScenarioResult } from './scenario.ts'
 
 const application = {
-  path: '/app/holzi',
+  path: '/app/haex',
   source: 'built' as const,
   closeBehavior: 'exit' as const,
   closeBehaviorFrom: 'path' as const,
@@ -258,10 +258,7 @@ describe('formatSummary', () => {
       result('c', 'skipped', { skipReason: 'r' }),
     ])
     const last = formatSummary(report).join('\n')
-    assert.match(
-      last,
-      /Application: \/app\/holzi \(closes by exit, from path\)/,
-    )
+    assert.match(last, /Application: \/app\/haex \(closes by exit, from path\)/)
     assert.match(last, /FAILED \(1 failed, 1 skipped, 1 passed\)/)
   })
 

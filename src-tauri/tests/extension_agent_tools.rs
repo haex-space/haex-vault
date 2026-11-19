@@ -16,17 +16,17 @@ use std::sync::Arc;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-use holzi_lib::adapters::types::ToolCall as LlmToolCall;
-use holzi_lib::adapters::StreamChunk;
-use holzi_lib::chat::session::ChatState;
-use holzi_lib::chat::tools::availability::ToolAvailability;
-use holzi_lib::chat::tools::offer::first_offer;
-use holzi_lib::extensions::agent_tools::defs::load;
-use holzi_lib::extensions::agent_tools::registration::register_extension_tools;
-use holzi_lib::extensions::agent_tools::tool::Links;
-use holzi_lib::extensions::bridge::frames::FrameRegistry;
-use holzi_lib::storage::chat_messages::MessageRole;
-use holzi_lib::storage::known_devices;
+use haex_lib::adapters::types::ToolCall as LlmToolCall;
+use haex_lib::adapters::StreamChunk;
+use haex_lib::chat::session::ChatState;
+use haex_lib::chat::tools::availability::ToolAvailability;
+use haex_lib::chat::tools::offer::first_offer;
+use haex_lib::extensions::agent_tools::defs::load;
+use haex_lib::extensions::agent_tools::registration::register_extension_tools;
+use haex_lib::extensions::agent_tools::tool::Links;
+use haex_lib::extensions::bridge::frames::FrameRegistry;
+use haex_lib::storage::chat_messages::MessageRole;
+use haex_lib::storage::known_devices;
 
 const QUESTION: &str = "Wie viele Einträge habe ich?";
 const COUNT: &str = "x_agenttools_count_entries";

@@ -19,9 +19,9 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use holzi_lib::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
-use holzi_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
-use holzi_lib::cli_tools::runtime::DelegateRuntime;
+use haex_lib::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
+use haex_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
+use haex_lib::cli_tools::runtime::DelegateRuntime;
 
 /// The program of a real installation for these manual checks: set the variable to the path of the
 /// tool (one the tool manager installed in a vault, or any copy). There is no host lookup (spec 094).

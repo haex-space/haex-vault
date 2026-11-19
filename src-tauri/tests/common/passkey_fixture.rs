@@ -9,17 +9,17 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 
-use holzi_lib::identity::{
+use haex_lib::identity::{
     haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
-use holzi_lib::passwords::access::{Caller, Grant, GrantAction, Scope};
-use holzi_lib::passwords::model::ItemInput;
-use holzi_lib::passwords::model_passkeys::{
+use haex_lib::passwords::access::{Caller, Grant, GrantAction, Scope};
+use haex_lib::passwords::model::ItemInput;
+use haex_lib::passwords::model_passkeys::{
     PasskeyConfirmRequest, PasskeyCreateRequest, PasskeyCreated, PasskeyTarget, UserPresence,
 };
-use holzi_lib::passwords::passkey_links;
-use holzi_lib::passwords::service::PasswordsService;
-use holzi_lib::vault_gate::VaultGate;
+use haex_lib::passwords::passkey_links;
+use haex_lib::passwords::service::PasswordsService;
+use haex_lib::vault_gate::VaultGate;
 
 pub const ORIGIN: &str = "https://login.example.com";
 pub const RP: &str = "example.com";

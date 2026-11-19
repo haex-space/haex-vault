@@ -3,7 +3,7 @@
 //! with its direction to `specs/018-extension-agent-tools/contracts/transcripts/<name>.jsonl`. The
 //! vault-sdk replays them against its own server, so both sides speak the same protocol.
 //!
-//! The committed files must equal what this records; `HOLZI_WRITE_MCP_TRANSCRIPTS=1` rewrites them.
+//! The committed files must equal what this records; `HAEX_WRITE_MCP_TRANSCRIPTS=1` rewrites them.
 //! Versions in `clientInfo` and `serverInfo` are replaced by `<version>`, so a release of holzi or
 //! rmcp does not change a transcript.
 
@@ -50,7 +50,7 @@ fn jsonl(messages: &[(Direction, Value)]) -> String {
 fn settle(name: &str, messages: &[(Direction, Value)]) {
     let path = transcript_dir().join(format!("{name}.jsonl"));
     let recorded = jsonl(messages);
-    if std::env::var_os("HOLZI_WRITE_MCP_TRANSCRIPTS").is_some() {
+    if std::env::var_os("HAEX_WRITE_MCP_TRANSCRIPTS").is_some() {
         std::fs::create_dir_all(transcript_dir()).expect("transcript dir");
         std::fs::write(&path, recorded).expect("write transcript");
         return;
@@ -58,7 +58,7 @@ fn settle(name: &str, messages: &[(Direction, Value)]) {
     let committed = std::fs::read_to_string(&path).unwrap_or_default();
     assert_eq!(
         committed, recorded,
-        "{name}.jsonl is stale; rerun with HOLZI_WRITE_MCP_TRANSCRIPTS=1"
+        "{name}.jsonl is stale; rerun with HAEX_WRITE_MCP_TRANSCRIPTS=1"
     );
 }
 

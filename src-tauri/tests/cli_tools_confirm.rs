@@ -10,12 +10,12 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
-use holzi_lib::adapters::cli_delegate::connect_codex::run_device_auth;
-use holzi_lib::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
-use holzi_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
-use holzi_lib::cli_tools::runtime::DelegateRuntime;
-use holzi_lib::instances::vault_paths::VaultPaths;
-use holzi_lib::vault_gate::ChildRegistry;
+use haex_lib::adapters::cli_delegate::connect_codex::run_device_auth;
+use haex_lib::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
+use haex_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
+use haex_lib::cli_tools::runtime::DelegateRuntime;
+use haex_lib::instances::vault_paths::VaultPaths;
+use haex_lib::vault_gate::ChildRegistry;
 
 const VERSION: &str = "1.0.0";
 

@@ -2,7 +2,7 @@ name: Desktop release
 
 # Installers for Linux, Windows and macOS. `release.yml` calls this workflow for a tag `v*` and
 # publishes the installers together with the Android APKs once the whole CI is green; this file
-# only builds and uploads them as artifacts (`holzi-desktop-<platform>`). `workflow_dispatch`
+# only builds and uploads them as artifacts (`haex-desktop-<platform>`). `workflow_dispatch`
 # builds them without a release. A pull request that changes this file builds them too, so a
 # change to the workflow is tried before a tag depends on it.
 #
@@ -221,7 +221,7 @@ jobs:
         run: |
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           $dumpbin = & $vswhere -latest -products * -find 'VC\Tools\MSVC\**\bin\Hostx64\x64\dumpbin.exe' | Select-Object -First 1
-          $exe = Get-ChildItem "src-tauri\target\$env:TARGET\release\*.exe" | Where-Object { $_.Name -in 'holzi.exe', 'HaexVault.exe' } | Select-Object -First 1
+          $exe = Get-ChildItem "src-tauri\target\$env:TARGET\release\*.exe" | Where-Object { $_.Name -in 'haex.exe', 'HaexVault.exe' } | Select-Object -First 1
           $dlls = & $dumpbin /nologo /dependents $exe.FullName | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '\.dll$' }
           $dlls
           $runtime = $dlls | Where-Object { $_ -match '^(vcruntime|msvcp|vcomp|concrt)\d+' }
@@ -257,7 +257,7 @@ jobs:
       - name: Upload the installers
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: holzi-desktop-${{ matrix.name }}
+          name: haex-desktop-${{ matrix.name }}
           path: ${{ runner.temp }}/installers/*
           if-no-files-found: error
           retention-days: 30

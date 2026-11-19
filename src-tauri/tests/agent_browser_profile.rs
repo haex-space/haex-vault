@@ -15,15 +15,15 @@ use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 use serde_json::{json, Value};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use holzi_lib::agent_browser::cdp::Connection;
-use holzi_lib::agent_browser::cookies::{self, CookieRef, CookieTarget};
-use holzi_lib::agent_browser::dns::DnsSettings;
-use holzi_lib::agent_browser::locate::{find, Os, System};
-use holzi_lib::agent_browser::profile::Workdir;
-use holzi_lib::agent_browser::profile_store::{dir, ProfileStore};
-use holzi_lib::agent_browser::{AgentBrowser, StartConfig};
-use holzi_lib::identity::{haex_migration_source, installation_id_path, HaexBootstrap};
-use holzi_lib::vault_gate::{VaultDb, VaultGate};
+use haex_lib::agent_browser::cdp::Connection;
+use haex_lib::agent_browser::cookies::{self, CookieRef, CookieTarget};
+use haex_lib::agent_browser::dns::DnsSettings;
+use haex_lib::agent_browser::locate::{find, Os, System};
+use haex_lib::agent_browser::profile::Workdir;
+use haex_lib::agent_browser::profile_store::{dir, ProfileStore};
+use haex_lib::agent_browser::{AgentBrowser, StartConfig};
+use haex_lib::identity::{haex_migration_source, installation_id_path, HaexBootstrap};
+use haex_lib::vault_gate::{VaultDb, VaultGate};
 
 /// A vault with its content key (genesis), as a freshly created instance has.
 fn vault(dir: &Path, name: &str) -> VaultDb {
@@ -35,12 +35,12 @@ fn vault(dir: &Path, name: &str) -> VaultDb {
         bootstrap: Arc::new(HaexBootstrap::new(id_file.clone())),
         signature_provider: Arc::new(NoopSignatureProvider),
         migration_source: haex_migration_source(),
-        trigger_version: holzi_lib::identity::HAEX_TRIGGER_VERSION,
+        trigger_version: haex_lib::identity::HAEX_TRIGGER_VERSION,
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
     })
     .expect("open the vault");
-    holzi_lib::sync::genesis::run_after_open(&database, &id_file, true);
+    haex_lib::sync::genesis::run_after_open(&database, &id_file, true);
     VaultGate::new()
         .vault_db(Arc::new(database))
         .expect("open the gate")

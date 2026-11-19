@@ -16,11 +16,11 @@ use std::sync::LazyLock;
 use tauri::test::{mock_builder, mock_context, noop_assets};
 use tokio::sync::Mutex;
 
-use holzi_lib::chat::session::ChatState;
-use holzi_lib::instances::{create_instance_core, open_instance_core};
-use holzi_lib::state::AppState;
-use holzi_lib::vault_gate::{VaultGate, VaultPhase};
-use holzi_lib::HaexError;
+use haex_lib::chat::session::ChatState;
+use haex_lib::instances::{create_instance_core, open_instance_core};
+use haex_lib::state::AppState;
+use haex_lib::vault_gate::{VaultGate, VaultPhase};
+use haex_lib::HaexError;
 
 /// `XDG_DATA_HOME` is process-wide, so tests that set it take turns. `tokio::sync::Mutex::new`
 /// is not `const`, hence the `LazyLock` (a plain `static` initializer would not compile).

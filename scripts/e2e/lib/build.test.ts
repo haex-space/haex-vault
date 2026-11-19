@@ -33,26 +33,26 @@ describe('the target directory and the debug binary', () => {
     )
   })
 
-  it('names the debug binary holzi', () => {
+  it('names the debug binary haex', () => {
     assert.equal(
       debugBinaryPath('/repo', {}),
-      '/repo/src-tauri/target/debug/holzi',
+      '/repo/src-tauri/target/debug/haex',
     )
   })
 })
 
 describe('classifyCloseBehavior', () => {
   it('reads the behavior from the profile directory in the path', () => {
-    assert.deepEqual(classifyCloseBehavior('/x/target/debug/holzi'), {
+    assert.deepEqual(classifyCloseBehavior('/x/target/debug/haex'), {
       closeBehavior: 'exit',
       from: 'path',
     })
-    assert.deepEqual(classifyCloseBehavior('/x/target/release/holzi'), {
+    assert.deepEqual(classifyCloseBehavior('/x/target/release/haex'), {
       closeBehavior: 'relaunch',
       from: 'path',
     })
     assert.deepEqual(
-      classifyCloseBehavior('/x/target/aarch64-apple-darwin/release/holzi'),
+      classifyCloseBehavior('/x/target/aarch64-apple-darwin/release/haex'),
       {
         closeBehavior: 'relaunch',
         from: 'path',
@@ -61,7 +61,7 @@ describe('classifyCloseBehavior', () => {
   })
 
   it('takes an explicit value when the path says nothing', () => {
-    assert.deepEqual(classifyCloseBehavior('/x/out/holzi', 'relaunch'), {
+    assert.deepEqual(classifyCloseBehavior('/x/out/haex', 'relaunch'), {
       closeBehavior: 'relaunch',
       from: 'flag',
     })
@@ -69,28 +69,28 @@ describe('classifyCloseBehavior', () => {
 
   it('fails and says how to state the behavior when neither the path nor a flag does', () => {
     assert.throws(
-      () => classifyCloseBehavior('/x/out/holzi'),
+      () => classifyCloseBehavior('/x/out/haex'),
       /--close-behavior/,
     )
     assert.throws(
-      () => classifyCloseBehavior('/x/debug/release/holzi'),
+      () => classifyCloseBehavior('/x/debug/release/haex'),
       /--close-behavior/,
     )
   })
 
   it('rejects an explicit value that conflicts with the path', () => {
     assert.throws(
-      () => classifyCloseBehavior('/x/target/debug/holzi', 'relaunch'),
+      () => classifyCloseBehavior('/x/target/debug/haex', 'relaunch'),
       /conflicts/,
     )
     assert.throws(
-      () => classifyCloseBehavior('/x/target/release/holzi', 'exit'),
+      () => classifyCloseBehavior('/x/target/release/haex', 'exit'),
       /conflicts/,
     )
   })
 
   it('reports the flag as the source when it agrees with the path', () => {
-    assert.deepEqual(classifyCloseBehavior('/x/target/debug/holzi', 'exit'), {
+    assert.deepEqual(classifyCloseBehavior('/x/target/debug/haex', 'exit'), {
       closeBehavior: 'exit',
       from: 'flag',
     })
@@ -102,7 +102,7 @@ describe('resolveApplication', () => {
     const dir = mkdtempSync(join(tmpdir(), 'e2e-build-'))
     try {
       mkdirSync(join(dir, 'target', profile), { recursive: true })
-      const path = join(dir, 'target', profile, 'holzi')
+      const path = join(dir, 'target', profile, 'haex')
       writeFileSync(path, '#!/bin/sh\n')
       chmodSync(path, mode)
       fn(path)
@@ -114,7 +114,7 @@ describe('resolveApplication', () => {
   it('describes the debug build the suite makes itself when no path is given', () => {
     const app = resolveApplication({ repoRoot: '/repo', env: {} })
     assert.deepEqual(app, {
-      path: '/repo/src-tauri/target/debug/holzi',
+      path: '/repo/src-tauri/target/debug/haex',
       source: 'built',
       closeBehavior: 'exit',
       closeBehaviorFrom: 'path',
@@ -143,7 +143,7 @@ describe('resolveApplication', () => {
         resolveApplication({
           repoRoot: '/repo',
           env: {},
-          appPath: '/no/such/holzi',
+          appPath: '/no/such/haex',
         }),
       /does not exist/,
     )

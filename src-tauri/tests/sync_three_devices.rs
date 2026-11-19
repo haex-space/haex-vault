@@ -14,7 +14,7 @@
 //!
 //! `cargo test --manifest-path src-tauri/Cargo.toml --test sync_three_devices -- --ignored --nocapture`
 //!
-//! The seed is printed; `HOLZI_LOAD_SEED=<n>` replays a run.
+//! The seed is printed; `HAEX_LOAD_SEED=<n>` replays a run.
 
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -24,14 +24,14 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::{compare_hlc_strings, Database};
 use uuid::Uuid;
 
-use holzi_lib::identity::installation_id_path;
-use holzi_lib::instances::vault_config::vault_config;
-use holzi_lib::storage::query::{self, Query};
-use holzi_lib::sync::change::Page;
-use holzi_lib::sync::inbound::Inbox;
-use holzi_lib::sync::outbound::serve_pull_with_budget;
-use holzi_lib::sync::progress;
-use holzi_lib::sync::replica::Replica;
+use haex_lib::identity::installation_id_path;
+use haex_lib::instances::vault_config::vault_config;
+use haex_lib::storage::query::{self, Query};
+use haex_lib::sync::change::Page;
+use haex_lib::sync::inbound::Inbox;
+use haex_lib::sync::outbound::serve_pull_with_budget;
+use haex_lib::sync::progress;
+use haex_lib::sync::replica::Replica;
 
 /// Writes of the run; each insert batch and each title update counts as one
 /// change here, and one batch holds several rows, so the cells are far more.
@@ -279,9 +279,9 @@ fn check(model: &Model, devs: &[Dev], context: &str) {
     }
 }
 
-/// Reads `HOLZI_LOAD_SEED` as a `u64`, defaulting to `0xC0FFEE` if absent or invalid.
+/// Reads `HAEX_LOAD_SEED` as a `u64`, defaulting to `0xC0FFEE` if absent or invalid.
 fn seed() -> u64 {
-    std::env::var("HOLZI_LOAD_SEED")
+    std::env::var("HAEX_LOAD_SEED")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(0xC0FFEE)
@@ -293,7 +293,7 @@ fn seed() -> u64 {
 #[ignore = "slow and random: run on request, see the module docs"]
 fn three_devices_converge_over_changing_ways_with_cut_transfers() {
     let seed = seed();
-    println!("sync_three_devices: seed {seed} (HOLZI_LOAD_SEED replays it)");
+    println!("sync_three_devices: seed {seed} (HAEX_LOAD_SEED replays it)");
     let mut rng = Rng(seed | 1);
     let devs = [Dev::new(), Dev::new(), Dev::new()];
     let mut model = Model::default();

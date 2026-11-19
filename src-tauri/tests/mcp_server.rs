@@ -10,10 +10,10 @@ use std::time::Duration;
 use serde_json::json;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use holzi_lib::mcp_server::grants::{default_rights, OperateLevel, Rights};
-use holzi_lib::mcp_server::hello::CloseReason;
-use holzi_lib::mcp_server::helper::exit;
-use holzi_lib::mcp_server::session::INSTRUCTIONS_WAITING;
+use haex_lib::mcp_server::grants::{default_rights, OperateLevel, Rights};
+use haex_lib::mcp_server::hello::CloseReason;
+use haex_lib::mcp_server::helper::exit;
+use haex_lib::mcp_server::session::INSTRUCTIONS_WAITING;
 use mcp_fixture::*;
 
 // ---------------------------------------------------------------------------
@@ -44,7 +44,7 @@ async fn an_unknown_agent_waits_without_tools_and_gets_them_after_the_registrati
         default_rights(),
         "reading is preset (FR-009)"
     );
-    fx.register(&id, holzi_lib::agent_profiles::STANDARD_PROFILE_ID);
+    fx.register(&id, haex_lib::agent_profiles::STANDARD_PROFILE_ID);
     wait_for_tools(&agent).await;
 
     // The preset reads everywhere, so only the reading actions show.

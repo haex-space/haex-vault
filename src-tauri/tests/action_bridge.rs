@@ -16,16 +16,16 @@ use action_fixture::*;
 
 use std::time::Duration;
 
-use holzi_lib::adapters::types::ChatRequest;
-use holzi_lib::adapters::types::ToolCall as LlmToolCall;
-use holzi_lib::adapters::StreamChunk;
-use holzi_lib::chat::session::ChatState;
-use holzi_lib::chat::tools::action_bridge::{
+use haex_lib::adapters::types::ChatRequest;
+use haex_lib::adapters::types::ToolCall as LlmToolCall;
+use haex_lib::adapters::StreamChunk;
+use haex_lib::chat::session::ChatState;
+use haex_lib::chat::tools::action_bridge::{
     ActionBridge, ActionOutcomeWire, ActionReply, ACTION_FAILED_MESSAGE, EVENT_ACTION_CALL_REQUEST,
 };
-use holzi_lib::chat::tools::offer::core_offer;
-use holzi_lib::storage::chat_messages::{self as msg_store, ChatMessage, MessageRole};
-use holzi_lib::storage::query;
+use haex_lib::chat::tools::offer::core_offer;
+use haex_lib::storage::chat_messages::{self as msg_store, ChatMessage, MessageRole};
+use haex_lib::storage::query;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -40,7 +40,7 @@ fn tool_call(id: &str, name: &str) -> StreamChunk {
 }
 
 /// Supplies the stub model's final text and completion metadata after the tool round.
-fn final_answer() -> Vec<Result<StreamChunk, holzi_lib::adapters::StreamError>> {
+fn final_answer() -> Vec<Result<StreamChunk, haex_lib::adapters::StreamError>> {
     vec![
         Ok(StreamChunk::Delta {
             content: "final answer".to_string(),
@@ -72,7 +72,7 @@ async fn start_turn(chat_state: ChatState, calls: Vec<StreamChunk>) -> Turn {
 /// Starts a turn over scripted `steps` and also returns the requests the model received.
 async fn start_turn_with_steps(
     chat_state: ChatState,
-    steps: Vec<Vec<Result<StreamChunk, holzi_lib::adapters::StreamError>>>,
+    steps: Vec<Vec<Result<StreamChunk, haex_lib::adapters::StreamError>>>,
 ) -> (Turn, Arc<std::sync::Mutex<Vec<ChatRequest>>>) {
     let db = open_db();
     let thread_id = Uuid::new_v4();
@@ -373,7 +373,7 @@ fn tool_names(request: &ChatRequest) -> Vec<&str> {
 fn hidden_action(
     tool_name: &str,
     action_id: &str,
-) -> holzi_lib::chat::tools::action_tool::AgentActionDef {
+) -> haex_lib::chat::tools::action_tool::AgentActionDef {
     let mut def = action_def(tool_name, action_id, "read");
     def.core = false;
     def.description = format!("hidden action {action_id}");
@@ -389,7 +389,7 @@ fn registry_with_search(chat_state: &ChatState) {
     register_action(chat_state, hidden_action("drawer_two", "drawer.two"));
     let defs = chat_state.tool_registry.lock().unwrap().action_defs();
     chat_state.tool_registry.lock().unwrap().register(Arc::new(
-        holzi_lib::chat::tools::find_actions::FindActionsTool::new(defs),
+        haex_lib::chat::tools::find_actions::FindActionsTool::new(defs),
     ));
 }
 

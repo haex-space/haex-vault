@@ -12,18 +12,18 @@ use std::sync::Arc;
 
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 
-use holzi_lib::identity::{
+use haex_lib::identity::{
     haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
-use holzi_lib::passwords::access::{Caller, Grant, GrantAction, Scope};
-use holzi_lib::passwords::model::{
+use haex_lib::passwords::access::{Caller, Grant, GrantAction, Scope};
+use haex_lib::passwords::model::{
     CopyField, ItemInput, ItemPatch, KeyValueInput, Patch, SecretField, Target, TargetKind,
     TextField,
 };
-use holzi_lib::passwords::model_references::{RefMarkKind, RefStatus};
-use holzi_lib::passwords::service::{Headers, PasswordsService};
-use holzi_lib::vault_gate::VaultGate;
-use holzi_lib::HaexError;
+use haex_lib::passwords::model_references::{RefMarkKind, RefStatus};
+use haex_lib::passwords::service::{Headers, PasswordsService};
+use haex_lib::vault_gate::VaultGate;
+use haex_lib::HaexError;
 
 const MARKER: &str = "SECRET-MARKER-REFERENCES";
 

@@ -3,7 +3,7 @@ name: Android release
 # Spec 043 (contracts/ci.md, research R15): signed release APKs. `release.yml` calls this workflow
 # for a tag `v*` and publishes the APKs together with the desktop installers once the whole CI is
 # green; this file only builds and checks them and uploads them as the artifact
-# `holzi-android-release`. `workflow_dispatch` builds and checks them without a release, for
+# `haex-android-release`. `workflow_dispatch` builds and checks them without a release, for
 # trying the signature. The signing key exists only as the secrets
 # ANDROID_KEY_BASE64 (the keystore, base64), ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD; the
 # variable ANDROID_CERT_SHA256 holds the public fingerprint of its certificate. Without them the
@@ -151,7 +151,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          keystore="$RUNNER_TEMP/holzi-release.keystore"
+          keystore="$RUNNER_TEMP/haex-release.keystore"
           printf '%s' "$KEY_BASE64" | base64 --decode > "$keystore"
           {
             printf 'storeFile=%s\n' "$keystore"
@@ -164,7 +164,7 @@ jobs:
 
       - name: Remove the signing key
         if: always()
-        run: rm -f "$RUNNER_TEMP/holzi-release.keystore" src-tauri/gen/android/keystore.properties
+        run: rm -f "$RUNNER_TEMP/haex-release.keystore" src-tauri/gen/android/keystore.properties
 
       # Every APK must carry exactly the certificate whose fingerprint the repository publishes.
       - name: Check the signatures
@@ -201,7 +201,7 @@ jobs:
       - name: Upload the APKs
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: holzi-android-release
+          name: haex-android-release
           path: ${{ runner.temp }}/apks/*.apk
           if-no-files-found: error
           retention-days: 30

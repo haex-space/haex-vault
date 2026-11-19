@@ -30,8 +30,8 @@ function sleeper(
   detached = false,
 ): ChildProcess & { pid: number } {
   const env = { ...process.env }
-  delete env.HOLZI_E2E_RUN
-  if (marker) env.HOLZI_E2E_RUN = marker
+  delete env.HAEX_E2E_RUN
+  if (marker) env.HAEX_E2E_RUN = marker
   const child = spawn('sleep', ['60'], { env, stdio: 'ignore', detached })
   spawned.push(child)
   assert.ok(child.pid !== undefined)
@@ -208,7 +208,7 @@ describe(
           'sh',
           ['-c', 'echo hello; echo oops >&2'],
           {
-            env: { ...process.env, HOLZI_E2E_RUN: marker },
+            env: { ...process.env, HAEX_E2E_RUN: marker },
             logFile,
           },
         )

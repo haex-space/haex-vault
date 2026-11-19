@@ -23,15 +23,15 @@ use tauri::test::{get_ipc_response, mock_builder, mock_context, noop_assets, INV
 use tauri::webview::InvokeRequest;
 use tokio_util::sync::CancellationToken;
 
-use holzi_lib::adapters::types::{AdapterStream, ChatRequest};
-use holzi_lib::adapters::{AdapterError, ProviderAdapter, ProviderModel};
-use holzi_lib::chat::session::{ActiveSession, ChatState};
-use holzi_lib::identity::{haex_migration_source, installation_id_path, HaexBootstrap};
-use holzi_lib::instances::close::{begin_close, finish_close, CloseContext, CloseTimings};
-use holzi_lib::storage::providers::ProviderKind;
-use holzi_lib::vault_gate::{CloseEffects, ClosePolicy, DrainOutcome, VaultDb, VaultGate};
-use holzi_lib::voice::VoiceState;
-use holzi_lib::{ActiveInstanceHandle, AppState};
+use haex_lib::adapters::types::{AdapterStream, ChatRequest};
+use haex_lib::adapters::{AdapterError, ProviderAdapter, ProviderModel};
+use haex_lib::chat::session::{ActiveSession, ChatState};
+use haex_lib::identity::{haex_migration_source, installation_id_path, HaexBootstrap};
+use haex_lib::instances::close::{begin_close, finish_close, CloseContext, CloseTimings};
+use haex_lib::storage::providers::ProviderKind;
+use haex_lib::vault_gate::{CloseEffects, ClosePolicy, DrainOutcome, VaultDb, VaultGate};
+use haex_lib::voice::VoiceState;
+use haex_lib::{ActiveInstanceHandle, AppState};
 
 const VAULT: &str = "vault-a";
 
@@ -546,7 +546,7 @@ async fn a_request_running_when_the_close_starts_ends_with_vault_closed() {
         .await
         .expect("the request ended at once")
         .expect("the task ended");
-    assert!(matches!(result, Err(holzi_lib::HaexError::VaultClosed)));
+    assert!(matches!(result, Err(haex_lib::HaexError::VaultClosed)));
 }
 
 /// Set by the command below; a vault command must never run once the close has started.

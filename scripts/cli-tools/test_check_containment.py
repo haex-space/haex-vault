@@ -68,13 +68,13 @@ class TraceTest(unittest.TestCase):
         allowed = {
             "residuals": [
                 {"vendor": "claude", "pattern": r"/tmp/cc-socks-[0-9]+(/[0-9]+\.sock)?"},
-                {"vendor": "*", "pattern": r"/tmp/holzi-[0-9a-f]{12}\.sock"},
+                {"vendor": "*", "pattern": r"/tmp/haex-[0-9a-f]{12}\.sock"},
             ]
         }
         found = [
             ("mkdir", "/tmp/cc-socks-1000"),
             ("write", "/tmp/cc-socks-1000/4242.sock"),
-            ("write", "/tmp/holzi-0123456789ab.sock"),
+            ("write", "/tmp/haex-0123456789ab.sock"),
             ("write", "/home/someone/.claude.json"),
         ]
         self.assertEqual(

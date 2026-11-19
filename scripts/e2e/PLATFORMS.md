@@ -11,16 +11,16 @@ is added by a file beside `lib/platform/linux.ts`; no scenario changes.
 ## Android (spec 043)
 
 Run it with an emulator or a phone attached (one device, or name it with `ANDROID_SERIAL`). The
-devShell brings the emulator of the CI (`holzi-emulator`: API 35, `google_apis`, x86_64), the
+devShell brings the emulator of the CI (`haex-emulator`: API 35, `google_apis`, x86_64), the
 chromedriver of its web view and `iroh-relay`, so in `nix develop`:
 
 ```sh
-holzi-emulator -no-window -no-snapshot-save &   # adb sees it as emulator-5554
+haex-emulator -no-window -no-snapshot-save &   # adb sees it as emulator-5554
 pnpm test:e2e --platform android --apk app-x86_64-debug.apk --grep files-basic
 ```
 
 `--grep` takes part of a scenario name. When only tests change, the debug APK of a CI run (artifact
-`holzi-android-debug`) saves the Android build. Outside the devShell, name chromedriver by
+`haex-android-debug`) saves the Android build. Outside the devShell, name chromedriver by
 `E2E_CHROMEDRIVER` (Chrome for Testing, the major version of the device's web view) and `iroh-relay`
 by `E2E_IROH_RELAY` (`cargo install iroh-relay --version <its version in src-tauri/Cargo.lock>
 --features server --locked`). The run also needs the Linux tools of a Linux run: it builds the Linux
@@ -50,7 +50,7 @@ app for the other devices of a group, and its preflight stops without them.
   build a Linux run makes (`group.ts`, `runsOnPhone`). The phone sits behind the emulator's network,
   so the devices of a group meet through a local iroh relay (`iroh-relay --dev`,
   [`lib/iroh-relay.ts`](lib/iroh-relay.ts)) instead of the closed port a Linux run uses; the Linux
-  devices bind loopback only (`HOLZI_E2E_SYNC_LOOPBACK=1`, debug builds), since the emulator's network
+  devices bind loopback only (`HAEX_E2E_SYNC_LOOPBACK=1`, debug builds), since the emulator's network
   loses the direct path under load. A file a
   scenario hands to a device is staged on the phone only for the device that runs there
   (`onDevice`). A vault file copies from the phone to a Linux device; the other way is not needed

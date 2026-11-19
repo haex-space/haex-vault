@@ -70,7 +70,7 @@ jobs:
             echo "::error::model checksum $actual, expected $MODEL_SHA256"
             exit 1
           fi
-          echo "HOLZI_TEST_GGUF=$model" >> "$GITHUB_ENV"
+          echo "HAEX_TEST_GGUF=$model" >> "$GITHUB_ENV"
 
       # Skip tool use because the smallest model calls tools unreliably. The speed test prints figures for `research.md`.
       - name: Load the model and answer

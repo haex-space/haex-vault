@@ -22,8 +22,8 @@ probe() {
   # A rerun must not mistake a result left by an older process for this run's result.
   adb shell run-as "$package" rm -f cache/platform-probe-result.txt cache/platform-probe-started.txt
   # Read by `platform_probe::requested` through `getprop`; the shell user may set `debug.*`.
-  adb shell setprop debug.holzi.probe 1
-  echo "debug.holzi.probe=$(adb shell getprop debug.holzi.probe)"
+  adb shell setprop debug.haex.probe 1
+  echo "debug.haex.probe=$(adb shell getprop debug.haex.probe)"
   adb shell am start -n "$package/.MainActivity"
 
   # The probe writes its line into holzi's cache directory (`platform_probe::RESULT_FILE`); a debug
@@ -31,14 +31,14 @@ probe() {
   : > "$result"
   for _ in $(seq 1 50); do
     if adb shell run-as "$package" cat cache/platform-probe-result.txt > "$result" 2>/dev/null \
-      && grep -q HOLZI_PROBE_RESULT "$result"; then
+      && grep -q HAEX_PROBE_RESULT "$result"; then
       break
     fi
     sleep 3
   done
-  adb shell setprop debug.holzi.probe 0
+  adb shell setprop debug.haex.probe 0
 
-  if ! grep -q HOLZI_PROBE_RESULT "$result"; then
+  if ! grep -q HAEX_PROBE_RESULT "$result"; then
     echo "no result; started marker: $(adb shell run-as "$package" cat cache/platform-probe-started.txt 2>&1 || true)"
     echo "process: $(adb shell pidof "$package" || echo 'not running')"
     adb logcat -d -s holzi-probe || true

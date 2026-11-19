@@ -5,7 +5,7 @@ mod chosen_files;
 
 use chosen_files::{chosen, Paths};
 
-use holzi_lib::models::import::{cleanup_staging_in_dir, copy_into_managed};
+use haex_lib::models::import::{cleanup_staging_in_dir, copy_into_managed};
 
 #[tokio::test]
 async fn reimporting_the_managed_file_preserves_its_contents() {

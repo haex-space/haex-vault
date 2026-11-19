@@ -12,19 +12,19 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use holzi_lib::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
-use holzi_lib::adapters::{
+use haex_lib::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
+use haex_lib::adapters::{
     AdapterStream, ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk,
 };
-use holzi_lib::cli_tools::catalog::{Artifact, ArtifactKind, Catalog};
-use holzi_lib::cli_tools::containment::EnvContainment;
-use holzi_lib::cli_tools::install::{install, InstallContext};
-use holzi_lib::cli_tools::platform::PlatformKey;
-use holzi_lib::cli_tools::record::Record;
-use holzi_lib::cli_tools::runtime::{DelegateTools, RuntimeSource};
-use holzi_lib::cli_tools::uses::vendor_in_use;
-use holzi_lib::instances::vault_paths::VaultPaths;
-use holzi_lib::vault_gate::ChildRegistry;
+use haex_lib::cli_tools::catalog::{Artifact, ArtifactKind, Catalog};
+use haex_lib::cli_tools::containment::EnvContainment;
+use haex_lib::cli_tools::install::{install, InstallContext};
+use haex_lib::cli_tools::platform::PlatformKey;
+use haex_lib::cli_tools::record::Record;
+use haex_lib::cli_tools::runtime::{DelegateTools, RuntimeSource};
+use haex_lib::cli_tools::uses::vendor_in_use;
+use haex_lib::instances::vault_paths::VaultPaths;
+use haex_lib::vault_gate::ChildRegistry;
 use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
 use wiremock::matchers::{method, path};

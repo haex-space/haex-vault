@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use holzi_lib::extensions::bridge::dispatch::METHODS;
+use haex_lib::extensions::bridge::dispatch::METHODS;
 
 fn methods_section() -> String {
     let contract = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -43,7 +43,7 @@ fn no_method_reaches_the_model_side() {
             );
         }
         assert!(
-            method.module.starts_with("holzi_lib::extensions::"),
+            method.module.starts_with("haex_lib::extensions::"),
             "{} lives in {}",
             method.name,
             method.module
@@ -93,7 +93,7 @@ fn the_methods_and_events_of_channels_are_in_both_contracts() {
     .expect("the bridge contract");
     for method in peers {
         assert_eq!(
-            method.module, "holzi_lib::extensions::peers::bridge",
+            method.module, "haex_lib::extensions::peers::bridge",
             "{}",
             method.name
         );

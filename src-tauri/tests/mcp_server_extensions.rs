@@ -16,14 +16,14 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 
 use extension_frame::{choice, install_agent_tools, InMemoryFrame};
-use holzi_lib::chat::tools::{Tool, ToolRegistry};
-use holzi_lib::extensions::agent_tools::defs::{load, ExtensionToolDef};
-use holzi_lib::extensions::agent_tools::registration::register_extension_tools;
-use holzi_lib::extensions::agent_tools::tool::Links;
-use holzi_lib::extensions::bridge::frames::FrameRegistry;
-use holzi_lib::mcp_server::grants::{default_rights, Rights};
-use holzi_lib::mcp_server::hello::CloseReason;
-use holzi_lib::mcp_server::prompts::CallDecision;
+use haex_lib::chat::tools::{Tool, ToolRegistry};
+use haex_lib::extensions::agent_tools::defs::{load, ExtensionToolDef};
+use haex_lib::extensions::agent_tools::registration::register_extension_tools;
+use haex_lib::extensions::agent_tools::tool::Links;
+use haex_lib::extensions::bridge::frames::FrameRegistry;
+use haex_lib::mcp_server::grants::{default_rights, Rights};
+use haex_lib::mcp_server::hello::CloseReason;
+use haex_lib::mcp_server::prompts::CallDecision;
 use mcp_fixture::*;
 
 const COUNT: &str = "x_agenttools_count_entries";

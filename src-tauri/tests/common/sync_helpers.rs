@@ -10,9 +10,9 @@ use std::time::Duration;
 
 use tauri::Manager;
 
-use holzi_lib::storage::query;
-use holzi_lib::sync::device_list;
-use holzi_lib::sync::registry::{SyncRegistry, SyncRuntime};
+use haex_lib::storage::query;
+use haex_lib::sync::device_list;
+use haex_lib::sync::registry::{SyncRegistry, SyncRuntime};
 
 use crate::sync_fixture::Instance;
 

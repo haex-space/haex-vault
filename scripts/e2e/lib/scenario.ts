@@ -511,7 +511,7 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): E2EEnv {
         : toTools(JSON.parse(need('E2E_TOOLS'))),
     scenarioTimeoutMs: Number(source.E2E_SCENARIO_TIMEOUT_MS ?? '60000'),
     timeScale,
-    marker: need('HOLZI_E2E_RUN'),
+    marker: need('HAEX_E2E_RUN'),
     keep: source.E2E_KEEP === '1',
     android:
       platform === 'android'

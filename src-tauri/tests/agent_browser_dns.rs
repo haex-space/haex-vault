@@ -15,9 +15,9 @@ use std::net::ToSocketAddrs;
 use serde_json::json;
 
 use agent_browser_scene::{scene_with, Scene};
-use holzi_lib::agent_browser::dns::{DnsMode, DnsProvider, DnsSettings};
-use holzi_lib::agent_browser::error::BrowserError;
-use holzi_lib::mcp_server::grants::SiteLevel;
+use haex_lib::agent_browser::dns::{DnsMode, DnsProvider, DnsSettings};
+use haex_lib::agent_browser::error::BrowserError;
+use haex_lib::mcp_server::grants::SiteLevel;
 
 /// A provider that nothing listens at: the discard port of this machine.
 const DEAD: &str = "https://127.0.0.1:9/dns-query";

@@ -244,7 +244,7 @@ use voice::{
 /// and runtime paths. Those paths resolve this process's libraries before main;
 /// clearing the environment here protects subsequently spawned host processes.
 fn clear_inherited_nix_library_path() {
-    if option_env!("HOLZI_NIX_DEVSHELL_LINKER").is_some() {
+    if option_env!("HAEX_NIX_DEVSHELL_LINKER").is_some() {
         std::env::remove_var("LD_LIBRARY_PATH");
     }
 }

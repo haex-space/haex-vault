@@ -5,7 +5,7 @@ import { KEY, openSettings, waitForLocation } from '../lib/settings.ts'
 import { listKeys, startRustfs } from '../lib/rustfs.ts'
 import { errorToasts } from '../lib/toasts.ts'
 
-const BUCKET = 'holzi-e2e'
+const BUCKET = 'haex-e2e'
 
 type Overview = {
   connections: Array<{

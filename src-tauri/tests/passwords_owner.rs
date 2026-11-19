@@ -8,16 +8,16 @@ use std::sync::Arc;
 
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 
-use holzi_lib::identity::{
+use haex_lib::identity::{
     haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
-use holzi_lib::passwords::access::{Caller, Grant, GrantAction, Scope};
-use holzi_lib::passwords::copy::{CopyOptions, CopyTitle};
-use holzi_lib::passwords::model::{ItemInput, ItemPatch, Patch, SecretField, Target, TargetKind};
-use holzi_lib::passwords::model_references::RefMarkKind;
-use holzi_lib::passwords::service::{Headers, PasswordsService};
-use holzi_lib::vault_gate::VaultGate;
-use holzi_lib::HaexError;
+use haex_lib::passwords::access::{Caller, Grant, GrantAction, Scope};
+use haex_lib::passwords::copy::{CopyOptions, CopyTitle};
+use haex_lib::passwords::model::{ItemInput, ItemPatch, Patch, SecretField, Target, TargetKind};
+use haex_lib::passwords::model_references::RefMarkKind;
+use haex_lib::passwords::service::{Headers, PasswordsService};
+use haex_lib::vault_gate::VaultGate;
+use haex_lib::HaexError;
 
 const SECRET: &str = "s3-secret-owner-marker";
 
@@ -309,7 +309,7 @@ async fn the_cloud_storage_tag_opens_no_owned_entry_but_a_chosen_one_keeps_its_g
     // chose for a connection. Rule Z14 still hides its own from everyone else, also from a grant
     // for that tag; an entry the user chose stays an ordinary entry that such a grant reaches.
     let (_dir, service) = service();
-    let tag = holzi_lib::remote_storage::credentials::TAG.to_string();
+    let tag = haex_lib::remote_storage::credentials::TAG.to_string();
     let entry = |title: &str| ItemInput {
         title: Some(title.to_string()),
         username: Some("access-key".to_string()),

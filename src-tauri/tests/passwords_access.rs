@@ -11,14 +11,14 @@ use std::sync::Arc;
 
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 
-use holzi_lib::identity::{
+use haex_lib::identity::{
     haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
-use holzi_lib::passwords::access::{Caller, Grant, GrantAction, Scope};
-use holzi_lib::passwords::model::{ItemInput, ItemPatch, KeyValueInput, Patch};
-use holzi_lib::passwords::service::{Headers, PasswordsService};
-use holzi_lib::vault_gate::VaultGate;
-use holzi_lib::HaexError;
+use haex_lib::passwords::access::{Caller, Grant, GrantAction, Scope};
+use haex_lib::passwords::model::{ItemInput, ItemPatch, KeyValueInput, Patch};
+use haex_lib::passwords::service::{Headers, PasswordsService};
+use haex_lib::vault_gate::VaultGate;
+use haex_lib::HaexError;
 
 const MARKER: &str = "SECRET-MARKER-ACCESS";
 
@@ -119,7 +119,7 @@ fn outside_callers() -> Vec<Caller> {
     ]
 }
 
-fn items_of(headers: Headers) -> Vec<holzi_lib::passwords::model::ItemHeader> {
+fn items_of(headers: Headers) -> Vec<haex_lib::passwords::model::ItemHeader> {
     match headers {
         Headers::Items(items) => items,
         Headers::Agent(_) => panic!("expected item headers"),
@@ -458,7 +458,7 @@ async fn the_built_in_agent_sees_titles_tags_and_folders_only_and_nothing_else()
             .reveal(
                 &Caller::BuiltinAgent,
                 seeded.s3.clone(),
-                holzi_lib::passwords::model::SecretField::Password
+                haex_lib::passwords::model::SecretField::Password
             )
             .await,
         Err(HaexError::PasswordsForbidden)
@@ -639,9 +639,9 @@ async fn an_external_agent_searches_only_the_entries_of_its_grant() {
     assert!(matches!(refused, Err(HaexError::PasswordsForbidden)));
 }
 
-fn id_target(id: &str) -> holzi_lib::passwords::model::Target {
-    holzi_lib::passwords::model::Target {
-        kind: holzi_lib::passwords::model::TargetKind::Item,
+fn id_target(id: &str) -> haex_lib::passwords::model::Target {
+    haex_lib::passwords::model::Target {
+        kind: haex_lib::passwords::model::TargetKind::Item,
         id: id.to_string(),
     }
 }
@@ -696,7 +696,7 @@ async fn delete_needs_a_write_grant_and_an_entry_in_scope_and_only_moves_to_the_
             .reveal(
                 &Caller::User,
                 id.clone(),
-                holzi_lib::passwords::model::SecretField::Password,
+                haex_lib::passwords::model::SecretField::Password,
             )
             .await
             .expect("data intact");

@@ -4,7 +4,7 @@
 //! column change).
 //!
 //! Mirrors the Etappe-0 wegwerf-crate assertions, but exercises the real
-//! production code in `holzi_lib::identity::HaexBootstrap` + `MigrationSource`,
+//! production code in `haex_lib::identity::HaexBootstrap` + `MigrationSource`,
 //! not a spike.
 
 // These tests read raw vault state (counts, CRDT columns, the delete log) that
@@ -19,11 +19,11 @@ use haex_crdt::crdt::columns::HLC_TIMESTAMP_COLUMN;
 use haex_crdt::rusqlite::params;
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, ScanFilters, SqlCipherKey};
 
-use holzi_lib::identity::{
+use haex_lib::identity::{
     haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
     VAULT_SCOPE_UUID,
 };
-use holzi_lib::storage::known_devices;
+use haex_lib::storage::known_devices;
 
 const PASSPHRASE: &str = "etappe1-integration-test";
 
@@ -94,9 +94,9 @@ fn bootstrap_genesis_and_reopen_reuse_uuid() {
         "the bootstrap leaves vault_identity to the sync setup"
     );
     let installation =
-        holzi_lib::identity::read_or_mint_installation_uuid(&installation_id_file).expect("id");
+        haex_lib::identity::read_or_mint_installation_uuid(&installation_id_file).expect("id");
     let state =
-        holzi_lib::sync::genesis::ensure_sync_state(&db, installation, true).expect("sync state");
+        haex_lib::sync::genesis::ensure_sync_state(&db, installation, true).expect("sync state");
     assert!(state.vault_pubkey.is_some() && state.is_main);
     let ident_count: i64 = db
         .with_connection(|c| {
@@ -160,7 +160,7 @@ fn known_devices_row_syncs_via_row_pks() {
     // trigger (HLC not initialised inside the bootstrap transaction — see
     // contract §"Vault identity and device model" and Etappe-0 finding).
     let installation_uuid =
-        holzi_lib::identity::read_or_mint_installation_uuid(&installation_id_file)
+        haex_lib::identity::read_or_mint_installation_uuid(&installation_id_file)
             .expect("read installation id");
 
     db.write(|tx| known_devices::update_alias(tx, installation_uuid, "renamed"))
@@ -221,7 +221,7 @@ fn concurrent_installation_uuid_mint_uses_first_writer() {
             let path = installation_id_file.clone();
             thread::spawn(move || {
                 start.wait();
-                holzi_lib::identity::read_or_mint_installation_uuid(&path)
+                haex_lib::identity::read_or_mint_installation_uuid(&path)
             })
         })
         .collect();
@@ -238,7 +238,7 @@ fn concurrent_installation_uuid_mint_uses_first_writer() {
 
     assert!(uuids.iter().all(|uuid| *uuid == uuids[0]));
     assert_eq!(
-        holzi_lib::identity::read_or_mint_installation_uuid(&installation_id_file)
+        haex_lib::identity::read_or_mint_installation_uuid(&installation_id_file)
             .expect("persisted installation id"),
         uuids[0]
     );

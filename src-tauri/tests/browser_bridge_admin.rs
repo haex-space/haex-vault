@@ -11,18 +11,18 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 
 use bridge_fixture::*;
-use holzi_lib::browser_bridge::admin::{BridgeClientUpdate, BridgeClientView, ClientAdmin};
-use holzi_lib::browser_bridge::approvals::{self, Status};
-use holzi_lib::browser_bridge::declaration::BridgeAccess;
-use holzi_lib::browser_bridge::prompts::{
+use haex_lib::browser_bridge::admin::{BridgeClientUpdate, BridgeClientView, ClientAdmin};
+use haex_lib::browser_bridge::approvals::{self, Status};
+use haex_lib::browser_bridge::declaration::BridgeAccess;
+use haex_lib::browser_bridge::prompts::{
     ApprovalAnswer, BridgeAnswer, BridgeQuestion, WriteAnswer,
 };
-use holzi_lib::browser_bridge::protocol::PROTOCOL_VERSION;
-use holzi_lib::browser_bridge::runtime::Notice;
-use holzi_lib::browser_bridge::server::Running;
-use holzi_lib::error::HaexError;
-use holzi_lib::passwords::access::Caller;
-use holzi_lib::passwords::model::ItemInput;
+use haex_lib::browser_bridge::protocol::PROTOCOL_VERSION;
+use haex_lib::browser_bridge::runtime::Notice;
+use haex_lib::browser_bridge::server::Running;
+use haex_lib::error::HaexError;
+use haex_lib::passwords::access::Caller;
+use haex_lib::passwords::model::ItemInput;
 
 fn admin(fx: &Fixture, bridge: Option<&Running>) -> ClientAdmin {
     ClientAdmin {

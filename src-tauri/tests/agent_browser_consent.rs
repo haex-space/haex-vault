@@ -19,9 +19,9 @@ use std::time::{Duration, Instant};
 use serde_json::json;
 
 use agent_browser_scene::{content, scene_with, Scene};
-use holzi_lib::agent_browser::sites::Site;
-use holzi_lib::chat::tools::native_action::NativeReply;
-use holzi_lib::mcp_server::grants::{SiteGrant, SiteLevel};
+use haex_lib::agent_browser::sites::Site;
+use haex_lib::chat::tools::native_action::NativeReply;
+use haex_lib::mcp_server::grants::{SiteGrant, SiteLevel};
 
 async fn open(scene: &Scene, path: &str) -> NativeReply {
     scene

@@ -24,10 +24,10 @@ pub const PRESET_NAME: &str = "Haex Marketplace";
 pub const PRESET_URL: &str = "https://marketplace.haex.space";
 
 /// The environment variable that points the preset at a local test marketplace.
-const E2E_MARKETPLACE_URL: &str = "HOLZI_E2E_MARKETPLACE_URL";
+const E2E_MARKETPLACE_URL: &str = "HAEX_E2E_MARKETPLACE_URL";
 
 /// The address of the preset: `PRESET_URL`, or in a debug build (the E2E suite builds one) the
-/// value of `HOLZI_E2E_MARKETPLACE_URL` when it is set. A release build ignores the variable
+/// value of `HAEX_E2E_MARKETPLACE_URL` when it is set. A release build ignores the variable
 /// (research R15).
 pub fn preset_url() -> String {
     preset_url_for(

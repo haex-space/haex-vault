@@ -19,33 +19,33 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use holzi_lib::agent_profiles::{store, Subject, STANDARD_PROFILE_ID};
-use holzi_lib::chat::tools::action_bridge::{ActionBridge, ActionReply};
-use holzi_lib::chat::tools::action_catalog::{ActionCatalog, ExtensionToolCatalog};
-use holzi_lib::chat::tools::action_tool::AgentActionDef;
-use holzi_lib::chat::tools::native_action::NativeExecutors;
-use holzi_lib::chat::tools::Tool as ChatTool;
-use holzi_lib::identity::{
+use haex_lib::agent_profiles::{store, Subject, STANDARD_PROFILE_ID};
+use haex_lib::chat::tools::action_bridge::{ActionBridge, ActionReply};
+use haex_lib::chat::tools::action_catalog::{ActionCatalog, ExtensionToolCatalog};
+use haex_lib::chat::tools::action_tool::AgentActionDef;
+use haex_lib::chat::tools::native_action::NativeExecutors;
+use haex_lib::chat::tools::Tool as ChatTool;
+use haex_lib::identity::{
     haex_migration_source, installation_id_path, read_or_mint_installation_uuid, HaexBootstrap,
     HAEX_TRIGGER_VERSION,
 };
-use holzi_lib::mcp_server::agent_log::{self, AgentLogEntry};
-use holzi_lib::mcp_server::connection::now_millis;
-use holzi_lib::mcp_server::delegates::DelegateHub;
-use holzi_lib::mcp_server::endpoint::{self, endpoint_name};
-use holzi_lib::mcp_server::grants::Rights;
-use holzi_lib::mcp_server::helper::{self, HelperArgs, HelperEnv};
-use holzi_lib::mcp_server::prompts::{
+use haex_lib::mcp_server::agent_log::{self, AgentLogEntry};
+use haex_lib::mcp_server::connection::now_millis;
+use haex_lib::mcp_server::delegates::DelegateHub;
+use haex_lib::mcp_server::endpoint::{self, endpoint_name};
+use haex_lib::mcp_server::grants::Rights;
+use haex_lib::mcp_server::helper::{self, HelperArgs, HelperEnv};
+use haex_lib::mcp_server::prompts::{
     new_registration_prompts, CallDecision, CallPrompts, CallQuestion, RegistrationAnswer,
     RegistrationDecision, RegistrationPrompts, RegistrationQuestion,
 };
-use holzi_lib::mcp_server::registry;
-use holzi_lib::mcp_server::server::{start, Limits, Notice, Running, StartArgs};
-use holzi_lib::prompt_park::PromptPark;
-use holzi_lib::storage::known_devices;
-use holzi_lib::storage::preferences::{self, PrefScope};
-use holzi_lib::vault_events::{changes_channel, VaultChanges};
-use holzi_lib::vault_gate::{VaultDb, VaultGate};
+use haex_lib::mcp_server::registry;
+use haex_lib::mcp_server::server::{start, Limits, Notice, Running, StartArgs};
+use haex_lib::prompt_park::PromptPark;
+use haex_lib::storage::known_devices;
+use haex_lib::storage::preferences::{self, PrefScope};
+use haex_lib::vault_events::{changes_channel, VaultChanges};
+use haex_lib::vault_gate::{VaultDb, VaultGate};
 
 pub const WAIT: Duration = Duration::from_secs(5);
 
@@ -144,7 +144,7 @@ pub fn fixture_with(call_timeout: Duration) -> Fixture {
         .expect("set the chat permission mode");
     let installation =
         read_or_mint_installation_uuid(&installation_id_path(dir.path())).expect("installation");
-    let device = holzi_lib::storage::query::read(&database, |q| {
+    let device = haex_lib::storage::query::read(&database, |q| {
         known_devices::get_vault_device_uuid(q, installation)
     })
     .expect("read")

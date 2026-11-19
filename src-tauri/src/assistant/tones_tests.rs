@@ -131,12 +131,12 @@ fn only_listening_and_secret_ignore_the_switch() {
     assert_eq!(always, [ToneId::Listening, ToneId::Secret]);
 }
 
-/// Writes every tone, with a second of silence in between, to `HOLZI_TONES_SAVE_DIR/tones.wav`
+/// Writes every tone, with a second of silence in between, to `HAEX_TONES_SAVE_DIR/tones.wav`
 /// for listening.
 #[test]
 #[ignore = "writes a WAV for listening, see the doc comment"]
 fn save_the_tones_for_listening() {
-    let dir = std::env::var("HOLZI_TONES_SAVE_DIR").expect("HOLZI_TONES_SAVE_DIR");
+    let dir = std::env::var("HAEX_TONES_SAVE_DIR").expect("HAEX_TONES_SAVE_DIR");
     let mut all = Vec::new();
     for tone in ToneId::ALL {
         all.extend(render(tone, RATE));

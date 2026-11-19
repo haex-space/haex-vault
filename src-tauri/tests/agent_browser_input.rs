@@ -15,11 +15,11 @@ mod agent_browser_scene;
 use serde_json::{json, Value};
 
 use agent_browser_scene::{content, scene_with, Scene};
-use holzi_lib::agent_browser::prompts::BrowserPromptKind;
-use holzi_lib::agent_browser::sites::Site;
-use holzi_lib::chat::tools::native_action::NativeReply;
-use holzi_lib::chat::tools::permission::PermissionMode;
-use holzi_lib::mcp_server::grants::{SiteGrant, SiteLevel};
+use haex_lib::agent_browser::prompts::BrowserPromptKind;
+use haex_lib::agent_browser::sites::Site;
+use haex_lib::chat::tools::native_action::NativeReply;
+use haex_lib::chat::tools::permission::PermissionMode;
+use haex_lib::mcp_server::grants::{SiteGrant, SiteLevel};
 
 fn find(reply: &NativeReply, name: &str) -> Option<Value> {
     content(reply)["elements"]

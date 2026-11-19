@@ -17,19 +17,19 @@ use std::sync::Arc;
 use haex_crdt::rusqlite::params;
 use haex_crdt::Database;
 
-use holzi_lib::identity::installation_id_path;
-use holzi_lib::instances::vault_config::vault_config;
-use holzi_lib::passwords::access::Caller;
-use holzi_lib::passwords::model::{
+use haex_lib::identity::installation_id_path;
+use haex_lib::instances::vault_config::vault_config;
+use haex_lib::passwords::access::Caller;
+use haex_lib::passwords::model::{
     ItemInput, ItemPatch, KeyValueInput, Patch, SecretField, Target, TargetKind,
 };
-use holzi_lib::passwords::pass::model::PassInput;
-use holzi_lib::passwords::service::PasswordsService;
-use holzi_lib::passwords::{tags, ATTACHMENT_LIMIT_BYTES};
-use holzi_lib::sync::inbound::Inbox;
-use holzi_lib::sync::outbound::serve_pull_with_budget;
-use holzi_lib::sync::replica::Replica;
-use holzi_lib::vault_gate::VaultGate;
+use haex_lib::passwords::pass::model::PassInput;
+use haex_lib::passwords::service::PasswordsService;
+use haex_lib::passwords::{tags, ATTACHMENT_LIMIT_BYTES};
+use haex_lib::sync::inbound::Inbox;
+use haex_lib::sync::outbound::serve_pull_with_budget;
+use haex_lib::sync::replica::Replica;
+use haex_lib::vault_gate::VaultGate;
 
 const MARKER: &str = "SECRET-MARKER-SYNC";
 /// Pages of 8 MiB, so a 25 MiB attachment travels as one oversized page (a group never splits).
@@ -479,7 +479,7 @@ async fn a_parent_delete_alone_cascades_with_a_marker_for_every_child() {
 /// change of the entry) and resolves once the source arrives.
 #[tokio::test]
 async fn a_reference_that_arrives_before_its_source_resolves_once_the_source_is_there() {
-    use holzi_lib::passwords::model_references::{RefMarkKind, RefStatus};
+    use haex_lib::passwords::model_references::{RefMarkKind, RefStatus};
     let laptop = Dev::new();
     let phone = Dev::new();
     let source = create(&laptop, full_item("Konto", &[])).await;

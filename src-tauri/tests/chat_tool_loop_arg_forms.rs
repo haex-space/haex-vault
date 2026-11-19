@@ -14,13 +14,13 @@ use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use holzi_lib::adapters::types::{ChatMessage as LlmMessage, ChatRole, ToolCall as LlmToolCall};
-use holzi_lib::adapters::types::{ChatRequest, ToolSpec};
-use holzi_lib::adapters::StreamChunk;
-use holzi_lib::chat::session::ChatState;
-use holzi_lib::chat::tools::{ApprovalDecision, RiskClass, Tool, ToolOrigin, ToolResult};
-use holzi_lib::storage::chat_messages::{self as msg_store, MessageRole};
-use holzi_lib::storage::query;
+use haex_lib::adapters::types::{ChatMessage as LlmMessage, ChatRole, ToolCall as LlmToolCall};
+use haex_lib::adapters::types::{ChatRequest, ToolSpec};
+use haex_lib::adapters::StreamChunk;
+use haex_lib::chat::session::ChatState;
+use haex_lib::chat::tools::{ApprovalDecision, RiskClass, Tool, ToolOrigin, ToolResult};
+use haex_lib::storage::chat_messages::{self as msg_store, MessageRole};
+use haex_lib::storage::query;
 
 const MARK: &str = "x_mail_mark_messages";
 

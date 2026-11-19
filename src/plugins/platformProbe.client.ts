@@ -5,7 +5,7 @@ import { runMediaProbe, type ProbeMedia } from '~/lib/platformProbeMedia'
 
 declare global {
   interface Window {
-    __HOLZI_PROBE__?: { port: number; media?: ProbeMedia }
+    __HAEX_PROBE__?: { port: number; media?: ProbeMedia }
   }
 }
 
@@ -14,7 +14,7 @@ declare global {
  * draws the media files Rust serves, and reports through IPC, which no network rule can block.
  */
 export default defineNuxtPlugin(() => {
-  const probe = window.__HOLZI_PROBE__
+  const probe = window.__HAEX_PROBE__
   if (!probe) return
   const violations: string[] = []
   document.addEventListener('securitypolicyviolation', (event) => {

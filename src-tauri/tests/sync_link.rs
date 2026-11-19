@@ -17,14 +17,14 @@ use haex_crdt::Database;
 use iroh::RelayMode;
 use tokio::sync::Mutex;
 
-use holzi_lib::identity::installation_id_path;
-use holzi_lib::instances::paths::{get_app_local_data, get_instance_path};
-use holzi_lib::instances::vault_config::vault_config;
-use holzi_lib::storage::query::{self, Query};
-use holzi_lib::sync::link::host_task::LinkHost;
-use holzi_lib::sync::link::join_task::{JoinArgs, JoinConfig, LinkJoin};
-use holzi_lib::sync::link::status::{LinkFailure, LinkJoinState, LinkingStage};
-use holzi_lib::sync::{device_list, keys};
+use haex_lib::identity::installation_id_path;
+use haex_lib::instances::paths::{get_app_local_data, get_instance_path};
+use haex_lib::instances::vault_config::vault_config;
+use haex_lib::storage::query::{self, Query};
+use haex_lib::sync::link::host_task::LinkHost;
+use haex_lib::sync::link::join_task::{JoinArgs, JoinConfig, LinkJoin};
+use haex_lib::sync::link::status::{LinkFailure, LinkJoinState, LinkingStage};
+use haex_lib::sync::{device_list, keys};
 
 #[path = "common/sync_fixture.rs"]
 mod sync_fixture;
@@ -65,7 +65,7 @@ impl NewInstallation {
         code: &str,
         relay_url: &str,
         search_timeout: Duration,
-    ) -> Result<LinkJoinState, holzi_lib::error::HaexError> {
+    ) -> Result<LinkJoinState, haex_lib::error::HaexError> {
         self.select();
         let emit = Arc::new(|_: &LinkJoinState| {});
         self.join
@@ -161,7 +161,7 @@ async fn the_text_of_a_code_carries_the_vaults_name_and_servers() {
         .create_code(&runtime, "Familie")
         .await
         .expect("a code");
-    let parsed = holzi_lib::sync::link::text::parse(&info.text).expect("the text reads");
+    let parsed = haex_lib::sync::link::text::parse(&info.text).expect("the text reads");
 
     assert_eq!(parsed.code.display(), info.code);
     assert_eq!(parsed.vault_name.as_deref(), Some("Familie"));
@@ -223,7 +223,7 @@ async fn a_new_installation_links_as_a_linked_device() {
         Ok((
             secret,
             title,
-            holzi_lib::sync::envelopes::held_keys(r)?.len(),
+            haex_lib::sync::envelopes::held_keys(r)?.len(),
             devices,
         ))
     })
@@ -445,7 +445,7 @@ async fn a_linked_device_cannot_show_a_code() {
 
     assert!(matches!(
         refused,
-        Err(holzi_lib::error::HaexError::NotMainDevice)
+        Err(haex_lib::error::HaexError::NotMainDevice)
     ));
 
     // The node of a runtime held here would outlive the drain.

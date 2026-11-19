@@ -2,8 +2,8 @@
 //! and run
 //!
 //! ```text
-//! HOLZI_PERF_S3=http://127.0.0.1:<port> HOLZI_PERF_KEY=<key> HOLZI_PERF_SECRET=<secret> \
-//!   HOLZI_PERF_BUCKET=<bucket> [HOLZI_PERF_LARGE=1] \
+//! HAEX_PERF_S3=http://127.0.0.1:<port> HAEX_PERF_KEY=<key> HAEX_PERF_SECRET=<secret> \
+//!   HAEX_PERF_BUCKET=<bucket> [HAEX_PERF_LARGE=1] \
 //!   cargo test --lib -- --ignored files::encrypted::perf --nocapture
 //! ```
 //!
@@ -37,16 +37,16 @@ fn access() -> Access {
         location: Location {
             protocol: Protocol::S3,
             provider_kind: ProviderKind::Rustfs,
-            endpoint: env("HOLZI_PERF_S3"),
+            endpoint: env("HAEX_PERF_S3"),
             endpoint_scope: EndpointScope::Local,
             region: "us-east-1".to_owned(),
             addressing: Addressing::Path,
-            bucket: env("HOLZI_PERF_BUCKET"),
+            bucket: env("HAEX_PERF_BUCKET"),
             host_key: None,
         },
         credentials: Credentials::S3(S3Credentials {
-            access_key_id: env("HOLZI_PERF_KEY"),
-            secret_access_key: Zeroizing::new(env("HOLZI_PERF_SECRET")),
+            access_key_id: env("HAEX_PERF_KEY"),
+            secret_access_key: Zeroizing::new(env("HAEX_PERF_SECRET")),
             session_token: None,
         }),
     }
@@ -149,7 +149,7 @@ async fn perf_against_a_real_provider() {
     let (first, second) = opens(&db, &format!("{base}/Tausend"), 1_000).await;
     println!("  first open {first:?} (< 5 s), second {second:?} (< 1 s)");
 
-    if std::env::var("HOLZI_PERF_LARGE").is_ok() {
+    if std::env::var("HAEX_PERF_LARGE").is_ok() {
         println!("SC-003 10 000 entries:");
         create_encrypted_folder(&window, &base, "Zehntausend")
             .await
