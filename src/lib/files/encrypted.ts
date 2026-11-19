@@ -18,7 +18,7 @@ export type EncryptedEntry = {
 }
 
 /** The prefixes of extension areas in a storage (spec 038 FR-010); no encrypted folder goes there. */
-const EXTENSION_AREAS = ['/holzi-ext/', '/holzi-ext-dev/']
+const EXTENSION_AREAS = ['/haex-ext/', '/haex-ext-dev/']
 
 export type EncryptHereInput = {
   source: SourceRef

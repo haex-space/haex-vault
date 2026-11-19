@@ -412,7 +412,7 @@ describe('runCli on Android', () => {
       assert.equal(input.env.E2E_PLATFORM, 'android')
       assert.equal(input.env.ANDROID_SERIAL, 'emu')
       assert.equal(input.env.E2E_CHROMEDRIVER, '/cd')
-      assert.equal(input.env.E2E_APP, 'com.haex.holzi')
+      assert.equal(input.env.E2E_APP, 'space.haex.vault')
       assert.equal(input.env.E2E_CLOSE_BEHAVIOR, 'exit')
       assert.equal(input.env.HAEX_E2E_SYNC_LOOPBACK, '1')
       assert.equal(input.env.E2E_LINUX_APP, '/repo/src-tauri/target/debug/haex')

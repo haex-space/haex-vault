@@ -135,7 +135,7 @@ async function onUnlocked(name: string) {
 </script>
 
 <template>
-  <main class="holzi-safe-area holzi-keyboard-room flex min-h-screen flex-col">
+  <main class="haex-safe-area haex-keyboard-room flex min-h-screen flex-col">
     <!-- Positioned inside the safe area, so the language choice stays below the status bar. -->
     <div
       class="relative flex w-full flex-1 flex-col items-center justify-center gap-6 p-8"

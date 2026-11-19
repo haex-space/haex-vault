@@ -64,10 +64,10 @@ test('not inside an encrypted folder and not in an extension area', () => {
     false,
   )
   for (const path of [
-    '/holzi-ext',
-    '/holzi-ext/v/e',
-    '/holzi-ext-dev/',
-    '/holzi-ext-dev/x',
+    '/haex-ext',
+    '/haex-ext/v/e',
+    '/haex-ext-dev/',
+    '/haex-ext-dev/x',
   ]) {
     assert.equal(
       canCreateEncrypted({ source: storage, path, inEncrypted: false }),

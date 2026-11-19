@@ -40,8 +40,8 @@ app for the other devices of a group, and its preflight stops without them.
 - **Services**: every port of the run's services (Nostr test relay, stand-in provider, RustFS, extension
   dev server) is made reachable on the device as `127.0.0.1:<port>` with `adb reverse`
   ([`lib/platform/reach.ts`](lib/platform/reach.ts)), so all devices use the same URLs.
-- **URLs**: `tauri://localhost` is `http://tauri.localhost` and `holzi-ext://localhost` is
-  `http://holzi-ext.localhost` on Android; the page maps what scenarios name.
+- **URLs**: `tauri://localhost` is `http://tauri.localhost` and `haex-ext://localhost` is
+  `http://haex-ext.localhost` on Android; the page maps what scenarios name.
 - **Not on Android**: [`platform-exclusions.ts`](platform-exclusions.ts) lists the scenarios that do not
   run there, as `excluded` (with the requirement and a counter case) or `pending` (with the stage of
   spec 043 that makes them run); `pnpm check:e2e-exclusions` checks the list and prints the share.

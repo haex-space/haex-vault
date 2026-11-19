@@ -16,7 +16,7 @@ interface Layout {
 
 const LAYOUT = `
   const root = document.documentElement
-  const inset = (side) => parseFloat(getComputedStyle(root).getPropertyValue('--holzi-inset-' + side)) || 0
+  const inset = (side) => parseFloat(getComputedStyle(root).getPropertyValue('--haex-inset-' + side)) || 0
   const desktop = document.querySelector('[data-testid="wm-desktop"]').getBoundingClientRect()
   return {
     width: window.innerWidth,

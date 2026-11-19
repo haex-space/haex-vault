@@ -16,7 +16,7 @@ use std::sync::{Mutex, PoisonError};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
-use tauri_plugin_holzi_android::HolziAndroidExt;
+use tauri_plugin_haex_android::HaexAndroidExt;
 use ts_rs::TS;
 
 use crate::error::{HaexError, Result};
@@ -226,7 +226,7 @@ pub fn watch<R: Runtime>(app: &AppHandle<R>) {
     };
     app.manage(SharedFiles::new(dir));
     let handle = app.clone();
-    let watched = app.holzi_android().watch_shared_files(move |json| {
+    let watched = app.haex_android().watch_shared_files(move |json| {
         let Ok(incoming) = serde_json::from_str::<Incoming>(&json) else {
             log::warn!("shared files: a report could not be read");
             return;

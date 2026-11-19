@@ -170,7 +170,7 @@ fn keys_of_the_provider_outside_the_area_are_not_listed() {
             .put(&access, "elsewhere/secret.txt", b"x".to_vec(), soon),
     )
     .expect("put");
-    let other_area = format!("holzi-ext/{}/{}/x", Uuid::nil(), Uuid::nil());
+    let other_area = format!("haex-ext/{}/{}/x", Uuid::nil(), Uuid::nil());
     block_on(s.fake.put(&access, &other_area, b"x".to_vec(), soon)).expect("put");
     let listed = s
         .call(

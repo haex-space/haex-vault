@@ -116,7 +116,7 @@ pub const SHIM: &str = r#"(() => {
   listen('message', (event) => {
     if (event.source !== host) return;
     const data = event.data;
-    if (!data || data.type !== 'holzi:frame:init' || !event.ports || !event.ports[0]) return;
+    if (!data || data.type !== 'haex:frame:init' || !event.ports || !event.ports[0]) return;
     const fresh = port === null;
     if (port) port.close();
     port = event.ports[0];

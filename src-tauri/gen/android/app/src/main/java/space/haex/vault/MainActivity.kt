@@ -1,4 +1,4 @@
-package com.haex.holzi
+package space.haex.vault
 
 import android.content.Intent
 import android.os.Bundle

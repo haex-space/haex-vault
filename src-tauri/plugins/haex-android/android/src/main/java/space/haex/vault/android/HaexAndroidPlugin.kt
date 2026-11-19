@@ -1,4 +1,4 @@
-package space.haex.holzi.android
+package space.haex.vault.android
 
 import android.Manifest
 import android.app.Activity
@@ -84,7 +84,7 @@ class ShortcutArgs {
         ),
     ]
 )
-class HolziAndroidPlugin(private val activity: Activity) : Plugin(activity) {
+class HaexAndroidPlugin(private val activity: Activity) : Plugin(activity) {
     @Volatile private var insetsChannel: Channel? = null
     @Volatile private var lastInsets: JSObject? = null
     private val contacts by lazy { ContactsProvider(activity) }

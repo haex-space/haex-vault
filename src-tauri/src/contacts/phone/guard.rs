@@ -4,7 +4,7 @@
 
 use std::collections::BTreeSet;
 
-use tauri_plugin_holzi_android::contacts::{PhoneAccount, RawIndex};
+use tauri_plugin_haex_android::contacts::{PhoneAccount, RawIndex};
 
 use super::store::Link;
 

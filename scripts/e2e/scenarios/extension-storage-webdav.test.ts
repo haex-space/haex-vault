@@ -179,7 +179,7 @@ scenario(
     assert.equal(put.error, undefined, JSON.stringify(put))
     const onServer = await listTree(webdav, `/${FOLDER}/`)
     const file = onServer.find((path) => path.endsWith('/a/b.txt')) ?? ''
-    assert.match(file, /^holzi-ext\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/a\/b\.txt$/)
+    assert.match(file, /^haex-ext\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/a\/b\.txt$/)
     const area = file.slice(0, -'a/b.txt'.length)
     const got = await probeRequest(
       page,

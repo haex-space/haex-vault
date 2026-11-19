@@ -1,4 +1,4 @@
-package space.haex.holzi.android
+package space.haex.vault.android
 
 import android.provider.ContactsContract.CommonDataKinds
 

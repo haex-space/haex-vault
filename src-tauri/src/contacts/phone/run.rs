@@ -5,7 +5,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use tauri_plugin_holzi_android::contacts::RawIndex;
+use tauri_plugin_haex_android::contacts::RawIndex;
 use uuid::Uuid;
 
 use super::apply::Planned;

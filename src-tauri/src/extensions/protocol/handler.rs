@@ -1,4 +1,4 @@
-//! The `holzi-ext` URI scheme (research R12): `<base>/<extId>/<path>` serves a file of the bundle
+//! The `haex-ext` URI scheme (research R12): `<base>/<extId>/<path>` serves a file of the bundle
 //! an open frame of that extension runs, read from the vault and hashed again.
 //!
 //! The extension is chosen by the path alone, never by Origin, Referer or a "last extension" cache
@@ -172,7 +172,7 @@ fn into_response(served: Served) -> Response<Vec<u8>> {
         builder = builder.header(header::CONTENT_SECURITY_POLICY, csp);
     }
     builder.body(served.body).unwrap_or_else(|error| {
-        log::error!("holzi-ext response: {error}");
+        log::error!("haex-ext response: {error}");
         let mut response = Response::new(Vec::new());
         *response.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
         response
@@ -193,7 +193,7 @@ fn respond<R: Runtime>(app: &AppHandle<R>, request: &Request<Vec<u8>>) -> Respon
     ))
 }
 
-/// Registers the `holzi-ext` scheme on the app builder. Each request is answered off the async
+/// Registers the `haex-ext` scheme on the app builder. Each request is answered off the async
 /// executor, because it reads the vault.
 pub fn register<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
     builder.register_asynchronous_uri_scheme_protocol(super::SCHEME, |ctx, request, responder| {

@@ -228,8 +228,8 @@ async function consumeDeepLink(): Promise<void> {
 
 <template>
   <div
-    class="holzi-safe-area flex h-screen min-h-0 flex-col"
-    :class="{ 'holzi-keyboard-room': wm.compact }"
+    class="haex-safe-area flex h-screen min-h-0 flex-col"
+    :class="{ 'haex-keyboard-room': wm.compact }"
   >
     <SyncCopyNotice />
     <FilesAgentPermissionDialog @ready="resolvePermissionDialogReady" />

@@ -2,7 +2,7 @@
 //! go to the phone only with a target, into the target's account; a removed target deletes the
 //! contact on the phone or lets it go; a target set again finds what the phone kept.
 
-use tauri_plugin_holzi_android::contacts::Op;
+use tauri_plugin_haex_android::contacts::Op;
 
 use super::*;
 use crate::contacts::model::{ContactInput, ContactPatch, Head, TargetInput, ValueInput};

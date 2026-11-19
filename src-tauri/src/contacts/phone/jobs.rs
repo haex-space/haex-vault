@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use tauri_plugin_holzi_android::contacts::{RawData, RawIndex};
+use tauri_plugin_haex_android::contacts::{RawData, RawIndex};
 
 use super::apply::Planned;
 use super::gather::Gathered;

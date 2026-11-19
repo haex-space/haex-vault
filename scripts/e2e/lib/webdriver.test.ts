@@ -33,12 +33,12 @@ describe('WebDriverClient', () => {
     const other = new WebDriverClient(driver.url)
     const before = driver.requests.length
     await other.newSession({
-      'goog:chromeOptions': { androidPackage: 'com.haex.holzi' },
+      'goog:chromeOptions': { androidPackage: 'space.haex.vault' },
     })
     assert.deepEqual(driver.requests[before]?.body, {
       capabilities: {
         alwaysMatch: {
-          'goog:chromeOptions': { androidPackage: 'com.haex.holzi' },
+          'goog:chromeOptions': { androidPackage: 'space.haex.vault' },
         },
       },
     })

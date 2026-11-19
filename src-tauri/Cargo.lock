@@ -3536,7 +3536,7 @@ dependencies = [
  "tauri-plugin-deep-link",
  "tauri-plugin-dialog",
  "tauri-plugin-fs",
- "tauri-plugin-holzi-android",
+ "tauri-plugin-haex-android",
  "tauri-plugin-log",
  "tauri-plugin-notification",
  "tauri-plugin-opener",
@@ -9930,7 +9930,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tauri-plugin-holzi-android"
+name = "tauri-plugin-haex-android"
 version = "0.1.0"
 dependencies = [
  "log",

@@ -7,7 +7,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Map, Value as Json};
-use tauri_plugin_holzi_android::contacts::{Op, Target};
+use tauri_plugin_haex_android::contacts::{Op, Target};
 
 use super::gather::Gathered;
 use super::write::{Batch, Batches, MAX_OPS};

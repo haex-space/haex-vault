@@ -3,7 +3,7 @@
 // `pm clear` does not touch the Contacts Provider, so every scenario removes its raw contacts.
 import type { Adb } from './adb.ts'
 
-const PACKAGE = 'com.haex.holzi'
+const PACKAGE = 'space.haex.vault'
 const READ = 'android.permission.READ_CONTACTS'
 const WRITE = 'android.permission.WRITE_CONTACTS'
 const RAW_CONTACTS = 'content://com.android.contacts/raw_contacts'

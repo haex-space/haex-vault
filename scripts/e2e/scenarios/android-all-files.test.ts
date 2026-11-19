@@ -20,7 +20,7 @@ const TITLES = translations('files.allAccess.title')
 const BACK_AGAIN_MS = 3_000
 /** How often the back key is pressed before the scenario comes back through the app's task. */
 const BACK_PRESSES = 2
-const HOLZI = 'com.haex.holzi'
+const HAEX = 'space.haex.vault'
 
 scenario('android-all-files', { needs: { phone: true } }, async (ctx) => {
   const instance = await ctx.startInstance({ withoutAllFiles: true })
@@ -53,7 +53,7 @@ scenario('android-all-files', { needs: { phone: true } }, async (ctx) => {
     await ctx.waitFor(
       'holzi in front again',
       () => {
-        if (phone.frontPackage() === HOLZI) return Promise.resolve(true)
+        if (phone.frontPackage() === HAEX) return Promise.resolve(true)
         if (performance.now() - pressedAt > BACK_AGAIN_MS) {
           if (presses < BACK_PRESSES) {
             phone.back()

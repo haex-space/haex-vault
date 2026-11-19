@@ -84,8 +84,8 @@ describe('the phone address book of the scenarios', () => {
     assert.deepEqual(
       fake.calls.filter((call) => call.includes(' pm grant')),
       [
-        '-s emu shell pm grant com.haex.holzi android.permission.READ_CONTACTS',
-        '-s emu shell pm grant com.haex.holzi android.permission.WRITE_CONTACTS',
+        '-s emu shell pm grant space.haex.vault android.permission.READ_CONTACTS',
+        '-s emu shell pm grant space.haex.vault android.permission.WRITE_CONTACTS',
       ],
     )
     assert.ok(

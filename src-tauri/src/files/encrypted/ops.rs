@@ -198,7 +198,7 @@ pub async fn create_encrypted_folder(
         return Err(in_encrypted());
     }
     let parent = folder_prefix(path)?;
-    if ["holzi-ext/", "holzi-ext-dev/"]
+    if ["haex-ext/", "haex-ext-dev/"]
         .iter()
         .any(|area| parent.starts_with(area))
     {

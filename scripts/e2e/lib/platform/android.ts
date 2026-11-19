@@ -21,7 +21,7 @@ import {
   VAULT_DIR as LINUX_VAULT_DIR,
 } from './linux.ts'
 
-export const PACKAGE = 'com.haex.holzi'
+export const PACKAGE = 'space.haex.vault'
 const ACTIVITY = `${PACKAGE}/.MainActivity`
 /** Where the app keeps its vault files, relative to its data directory (`get_app_local_data`). */
 const VAULT_DIR = 'vaults'
@@ -31,12 +31,12 @@ const sleep = (ms: number) =>
 
 /**
  * The app's pages on Android are served from `http://tauri.localhost` and extension frames from
- * `http://holzi-ext.localhost` (Tauri's custom protocols on Android); scenarios name the desktop URLs.
+ * `http://haex-ext.localhost` (Tauri's custom protocols on Android); scenarios name the desktop URLs.
  */
 export function mapAndroidUrl(url: string): string {
   return url
     .replace(/^tauri:\/\/localhost/, 'http://tauri.localhost')
-    .replace(/^holzi-ext:\/\/localhost/, 'http://holzi-ext.localhost')
+    .replace(/^haex-ext:\/\/localhost/, 'http://haex-ext.localhost')
 }
 
 /**

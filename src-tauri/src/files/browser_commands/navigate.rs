@@ -22,7 +22,7 @@ use crate::files::peer::contacts::FilesContactShares;
 use crate::files::state::FilesState;
 use crate::files::{Entry, EntryKind, FilesError, FilesErrorCode, SourceRef};
 use crate::state::AppState;
-use tauri_plugin_holzi_android::HolziAndroidExt;
+use tauri_plugin_haex_android::HaexAndroidExt;
 
 /// A known place for the sidebar.
 #[derive(Debug, Clone, Serialize, TS)]
@@ -116,7 +116,7 @@ pub async fn files_sources(
 pub async fn files_all_access(app: AppHandle) -> Result<bool, FilesError> {
     blocking(move || {
         Ok(app
-            .holzi_android()
+            .haex_android()
             .all_files_access()
             .unwrap_or_else(|error| {
                 log::warn!("files: the access to all files could not be checked: {error}");
@@ -131,7 +131,7 @@ pub async fn files_all_access(app: AppHandle) -> Result<bool, FilesError> {
 #[tauri::command]
 pub async fn files_request_all_access(app: AppHandle) -> Result<(), FilesError> {
     blocking(move || {
-        app.holzi_android()
+        app.haex_android()
             .request_all_files_access()
             .map_err(|error| {
                 log::warn!("files: the setting for all files could not be opened: {error}");

@@ -125,7 +125,7 @@ scenario('extension-isolation', { timeoutMs: 180_000 }, async (ctx) => {
   await inFrame(
     instance,
     probe,
-    `location.href = 'holzi-ext://localhost' + arguments[0] + location.search; return true`,
+    `location.href = 'haex-ext://localhost' + arguments[0] + location.search; return true`,
     [notesPath],
   )
   await settle(3_000)

@@ -20,7 +20,7 @@ use crate::files::{EncryptedState, EntryKind, FilesError, FilesErrorCode};
 pub const MAX_FOLDERS: usize = 10_000;
 
 /// The areas of extensions in a bucket (spec 038 FR-010): no encrypted folder is made there.
-const AREAS: [&str; 2] = ["holzi-ext", "holzi-ext-dev"];
+const AREAS: [&str; 2] = ["haex-ext", "haex-ext-dev"];
 
 fn not_found() -> FilesError {
     FilesError::new(FilesErrorCode::NotFound, "not found")

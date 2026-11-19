@@ -59,7 +59,7 @@ test('an Android mail intent of the SENDTO action reaches the plugin as a view',
     /android\.intent\.action\.SENDTO[\s\S]*?<data android:scheme="mailto" \/>/,
   )
   const activity = read(
-    'gen/android/app/src/main/java/com/haex/holzi/MainActivity.kt',
+    'gen/android/app/src/main/java/space/haex/vault/MainActivity.kt',
   )
   assert.ok(activity.includes('Intent.ACTION_SENDTO'))
   assert.ok(activity.includes('intent.action = Intent.ACTION_VIEW'))

@@ -23,7 +23,7 @@ use super::hello::{
 pub const FLAG: &str = "--mcp-agent";
 
 /// Tauri's identifier (`tauri.conf.json`); the helper finds holzi's config directory with it.
-pub const APP_IDENTIFIER: &str = "com.haex.holzi";
+pub const APP_IDENTIFIER: &str = "space.haex.vault";
 
 /// How long the helper waits for the app's reply to its greeting.
 const REPLY_DEADLINE: Duration = Duration::from_secs(5);

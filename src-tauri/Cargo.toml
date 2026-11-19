@@ -85,7 +85,7 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-opener = "2.5.4"
 # Spec 043 (ADR-0010): everything only Android has; a no-op on every other platform.
-tauri-plugin-holzi-android = { path = "plugins/holzi-android" }
+tauri-plugin-haex-android = { path = "plugins/haex-android" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 thiserror = "2"
