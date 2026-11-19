@@ -107,9 +107,9 @@ fn the_normal_sign_in_screen_is_not_an_error() {
 
 // A connect flow confirms the version it ran only when the token is obtained (spec 094 FR-022).
 
-use tokio::sync::{mpsc, Notify};
+use tokio::sync::{Notify, mpsc};
 
-use super::connect_claude::{submit_claude_code, ClaudeConnectSession, ReaderEvent};
+use super::connect_claude::{ClaudeConnectSession, ReaderEvent, submit_claude_code};
 use crate::cli_tools::runtime::DelegateRuntime;
 use crate::instances::vault_paths::VaultPaths;
 
@@ -180,7 +180,9 @@ async fn a_code_the_program_does_not_accept_ends_the_wait_at_once_and_confirms_n
 }
 
 /// A writer that remembers each write with the time it happened.
-struct Recorder(Arc<std::sync::Mutex<Vec<(std::time::Instant, Vec<u8>)>>>);
+type RecordedWrites = Arc<std::sync::Mutex<Vec<(std::time::Instant, Vec<u8>)>>>;
+
+struct Recorder(RecordedWrites);
 
 impl std::io::Write for Recorder {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
