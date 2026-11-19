@@ -275,7 +275,7 @@ jobs:
     name: Rust checks (${{ matrix.features }})
     runs-on: ubuntu-24.04
     needs: changes
-    timeout-minutes: 60
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -799,7 +799,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: changes
     if: needs.changes.outputs.non_docs == 'true'
-    timeout-minutes: 90
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
