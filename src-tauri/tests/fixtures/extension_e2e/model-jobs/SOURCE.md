@@ -32,5 +32,5 @@ model needs a photo of a page. The stand-in recognises a test mode by its mark `
 
 ```sh
 src-tauri/tests/fixtures/extension_e2e/model-jobs/build.sh
-HOLZI_WRITE_E2E_FIXTURES=1 cargo test --manifest-path src-tauri/Cargo.toml --test extension_e2e_fixtures
+HAEX_WRITE_E2E_FIXTURES=1 cargo test --manifest-path src-tauri/Cargo.toml --test extension_e2e_fixtures
 ```
