@@ -7,7 +7,7 @@
 
 use std::time::Duration;
 
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 use crate::adapters::types::AttachmentKind;
@@ -16,9 +16,9 @@ use crate::cli_tools::runtime::DelegateRuntime;
 use crate::model_capabilities::{ModelCapabilities, ReasoningControl, ReasoningOption};
 use crate::vault_gate::ChildRegistry;
 
+use super::codex::{build_command, build_request, read_line, write_message, Line};
+use super::process::{configure_process_group, map_spawn_error, ChildLifecycle};
 use super::DelegateVendor;
-use super::codex::{Line, build_command, build_request, read_line, write_message};
-use super::process::{ChildLifecycle, configure_process_group, map_spawn_error};
 
 const CLIENT_NAME: &str = "holzi";
 const CLIENT_VERSION: &str = env!("CARGO_PKG_VERSION");

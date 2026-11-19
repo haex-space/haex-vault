@@ -4,7 +4,7 @@
 
 use serde_json::json;
 
-use super::{LEGACY_MODEL_ID, list_models, parse_models};
+use super::{list_models, parse_models, LEGACY_MODEL_ID};
 use crate::adapters::types::AttachmentKind;
 use crate::model_capabilities::ReasoningControl;
 
