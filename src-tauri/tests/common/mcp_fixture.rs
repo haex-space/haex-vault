@@ -134,6 +134,14 @@ pub fn fixture_with(call_timeout: Duration) -> Fixture {
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
     })
     .expect("open the vault");
+    // MCP tests exercise an agent's approval mode; the chat-wide gate is explicitly Auto so it
+    // does not add a second, unrelated prompt to every action.
+    database
+        .write(|tx| {
+            preferences::insert_or_update(tx, PrefScope::Vault, "chat.permission_mode", "auto")?;
+            Ok(())
+        })
+        .expect("set the chat permission mode");
     let installation =
         read_or_mint_installation_uuid(&installation_id_path(dir.path())).expect("installation");
     let device = holzi_lib::storage::query::read(&database, |q| {
@@ -144,13 +152,6 @@ pub fn fixture_with(call_timeout: Duration) -> Fixture {
     let db = VaultGate::new()
         .vault_db(Arc::new(database))
         .expect("open the gate");
-    // MCP tests exercise an agent's approval mode; the chat-wide gate is explicitly Auto so it
-    // does not add a second, unrelated prompt to every action.
-    db.write(|tx| {
-        preferences::insert_or_update(tx, PrefScope::Vault, "chat.permission_mode", "auto")?;
-        Ok(())
-    })
-    .expect("set the chat permission mode");
     let prompts = new_registration_prompts();
     let (tell, asked) = mpsc::unbounded_channel();
     prompts.set_emitter(Arc::new(
