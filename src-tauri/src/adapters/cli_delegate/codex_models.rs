@@ -7,7 +7,7 @@
 
 use std::time::Duration;
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 use crate::adapters::types::AttachmentKind;
@@ -16,9 +16,9 @@ use crate::cli_tools::runtime::DelegateRuntime;
 use crate::model_capabilities::{ModelCapabilities, ReasoningControl, ReasoningOption};
 use crate::vault_gate::ChildRegistry;
 
-use super::codex::{build_command, build_request, read_line, write_message, Line};
-use super::process::{configure_process_group, map_spawn_error, ChildLifecycle};
 use super::DelegateVendor;
+use super::codex::{Line, build_command, build_request, read_line, write_message};
+use super::process::{ChildLifecycle, configure_process_group, map_spawn_error};
 
 const CLIENT_NAME: &str = "holzi";
 const CLIENT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -124,6 +124,13 @@ pub(super) async fn list_models(
     // so it needs no place in the registry of the vault's children.
     let mut child = ChildLifecycle::spawn(&mut command, &ChildRegistry::default())
         .map_err(|error| map_spawn_error(DelegateVendor::Codex, error))?;
+    // Keep draining stderr while the protocol runs. The app-server's stderr is piped by
+    // `build_command`; leaving it unread can fill the pipe and block model/list before its timeout.
+    let stderr_task = child
+        .child_mut()
+        .stderr
+        .take()
+        .map(|stderr| tokio::spawn(super::codex::read_limited(stderr)));
     let outcome = match (
         child.child_mut().stdin.take(),
         child.child_mut().stdout.take(),
@@ -142,6 +149,9 @@ pub(super) async fn list_models(
         }),
     };
     child.terminate_and_reap().await;
+    if let Some(stderr_task) = stderr_task {
+        let _stderr_bytes = stderr_task.await.unwrap_or_default();
+    }
 
     let models = outcome?;
     // A run that answered has proven the version it ran (spec 094 FR-022).
