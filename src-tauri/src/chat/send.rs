@@ -491,18 +491,9 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         (AutonomyMode::Standard, Vec::new())
     };
     let clock = Clock::now(turn.utc_offset_minutes.unwrap_or(0));
-    // The assistant's name, as the model is to write it (design 2026-11-16), ahead of the rest.
-    let given_prompt = [
-        Some(crate::assistant_name::current().prompt_line()),
-        turn.system_prompt.clone(),
-    ]
-    .into_iter()
-    .flatten()
-    .collect::<Vec<_>>()
-    .join("\n\n");
     let prompt_for = |tools: &[crate::adapters::types::ToolSpec]| {
         system_prompt_with(
-            Some(&given_prompt),
+            turn.system_prompt.as_deref(),
             tools,
             Some(clock),
             reply_language,

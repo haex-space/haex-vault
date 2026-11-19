@@ -52,8 +52,9 @@ delegate child of that vendor is live in this vault. holzi never calls this by i
 ### `cli_tools_remove(vendor: string) -> CliToolStatus`
 
 Removes all installed versions of that vendor in this vault (the home folder and other vendors are untouched). Fails with
-`cli_tools.in_use` while a delegate child of that vendor is live in this vault. The stored credential is unaffected
-(spec 094 US4).
+`cli_tools.in_use` while a delegate child of that vendor is live in this vault. The command does not touch the stored
+provider: the settings action `settings.delegate.remove` calls it first and deletes the provider row only when it
+succeeded, so a refused removal cuts nothing.
 
 ## Events (emitted to the app, one listener in `useCliTools`)
 

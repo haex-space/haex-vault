@@ -124,8 +124,7 @@ impl TurnRunner<'_> {
     /// otherwise be persisted and shown as if it were the model's own
     /// reply.
     async fn persist_interim_text(&mut self, assembled: String) -> Result<(), ()> {
-        let assembled =
-            crate::assistant_name::current().spelled_in(&strip_leaked_tool_call_markup(&assembled));
+        let assembled = strip_leaked_tool_call_markup(&assembled);
         if assembled.trim().is_empty() {
             return Ok(());
         }

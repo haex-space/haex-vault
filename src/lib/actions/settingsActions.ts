@@ -536,6 +536,18 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
     scope: 'guardrails',
     effect: 'write',
   }),
+  setting({
+    id: 'settings.delegate.remove',
+    description:
+      "Remove a delegate provider: delete the vendor's program from this vault and cut the connection. User only.",
+    input: {
+      type: 'object',
+      properties: { vendor: VENDOR },
+      required: ['vendor'],
+    },
+    scope: 'guardrails',
+    effect: 'write',
+  }),
   ...SETTINGS_SERVER_ACTIONS,
   ...BROWSER_BRIDGE_ACTIONS,
 ]
