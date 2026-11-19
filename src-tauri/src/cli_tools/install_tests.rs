@@ -687,6 +687,7 @@ async fn an_update_whose_download_fails_leaves_the_version_in_use_and_no_staging
 }
 
 #[tokio::test]
+#[cfg(unix)]
 async fn a_program_that_is_busy_for_a_moment_is_started_after_it() {
     use std::os::unix::fs::PermissionsExt;
 
