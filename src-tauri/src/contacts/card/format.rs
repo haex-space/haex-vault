@@ -1,5 +1,5 @@
 //! The Visitenkarte as data and as text (spec 051 FR-009, FR-011, contracts/contact-card.md): a
-//! postcard struct signed by the vault identity, as `holzi:card:` and base64url of
+//! postcard struct signed by the vault identity, as `haex:card:` and base64url of
 //! `len(u16 BE) ‖ postcard ‖ signature`, at most 2,048 characters. A card carries no key and no
 //! secret: the vault's public key, its devices with their network ids, the Nostr-Relays, a name and
 //! the values the person chose.
@@ -14,7 +14,7 @@ use crate::sync::keys::hex;
 use crate::sync::signing::{self, Domain};
 
 /// The start of a card's text.
-pub const PREFIX: &str = "holzi:card:";
+pub const PREFIX: &str = "haex:card:";
 /// Most characters of a card's text.
 pub const MAX_TEXT: usize = 2048;
 /// Most Nostr-Relays on a card.

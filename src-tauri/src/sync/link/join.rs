@@ -1,5 +1,5 @@
 //! The new installation's side of a link (spec 024, FR-023 to FR-025,
-//! research R11, contracts/sync-protocol.md `holzi-link/1`).
+//! research R11, contracts/sync-protocol.md `haex-link/1`).
 //!
 //! [`run`] is the message exchange on one open stream. The vault it fills
 //! was created by the caller with the user's own passphrase, which never

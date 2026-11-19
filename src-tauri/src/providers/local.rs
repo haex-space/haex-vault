@@ -26,13 +26,13 @@ const LEGACY_LOCAL_TRANSCRIPTION_ADAPTER: &str = "whisper-local";
 /// id, so the devices of a synced vault share one row instead of each
 /// adding its own (spec 024).
 pub fn local_provider_id() -> Uuid {
-    Uuid::new_v5(&Uuid::NAMESPACE_URL, b"holzi:provider/local/chat")
+    Uuid::new_v5(&Uuid::NAMESPACE_URL, b"haex:provider/local/chat")
 }
 
 /// Fixed id of the bundled local transcription provider; see
 /// [`local_provider_id`].
 pub fn local_transcription_provider_id() -> Uuid {
-    Uuid::new_v5(&Uuid::NAMESPACE_URL, b"holzi:provider/local/transcription")
+    Uuid::new_v5(&Uuid::NAMESPACE_URL, b"haex:provider/local/transcription")
 }
 
 /// Returns the local chat provider's id, creating the row if missing.

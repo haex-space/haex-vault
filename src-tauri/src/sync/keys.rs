@@ -41,13 +41,13 @@ pub fn random_secret_key() -> Zeroizing<[u8; 32]> {
 }
 
 /// Derives the vault identity from a seed (research R3):
-/// `HKDF-SHA256(ikm = seed, salt = "holzi", info = "holzi/vault-identity/v1" ‖ counter)`,
+/// `HKDF-SHA256(ikm = seed, salt = "haex", info = "haex/vault-identity/v1" ‖ counter)`,
 /// counting up until the output is a valid secp256k1 scalar. Every copy of a
 /// vault computes the same identity from the same seed.
 pub fn derive_vault_identity(seed: &[u8; 32]) -> Zeroizing<[u8; 32]> {
-    let hkdf = Hkdf::<Sha256>::new(Some(b"holzi"), seed);
+    let hkdf = Hkdf::<Sha256>::new(Some(b"haex"), seed);
     for counter in 0u32.. {
-        let mut info = b"holzi/vault-identity/v1".to_vec();
+        let mut info = b"haex/vault-identity/v1".to_vec();
         info.extend_from_slice(&counter.to_be_bytes());
         let mut okm = Zeroizing::new([0u8; 32]);
         hkdf.expand(&info, okm.as_mut())

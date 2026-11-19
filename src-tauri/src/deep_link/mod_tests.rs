@@ -9,7 +9,7 @@ fn only_a_known_link_of_the_scheme_is_a_share() {
         "haex-vault://other/AAAA",
         "haexvault://contact/AAAA",
         "https://example.com/haex-vault://contact/AAAA",
-        "holzi:card:AAAA",
+        "haex:card:AAAA",
         "tel:+491701234567",
         "https://example.com/mailto:ben@example.com",
     ] {

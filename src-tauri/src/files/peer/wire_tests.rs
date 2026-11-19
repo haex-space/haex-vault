@@ -1,4 +1,4 @@
-//! The heads of `haex-vault-files/1` (contracts/files-protocol.md): a round trip, the size limit, and
+//! The heads of `haex-files/1` (contracts/files-protocol.md): a round trip, the size limit, and
 //! a stream that ends inside a head.
 
 use super::{read_head, write_head, Caller, Op, Reply, Request, WireEntry, WireKind, VERSION};

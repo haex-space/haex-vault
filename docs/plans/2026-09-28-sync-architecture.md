@@ -285,7 +285,7 @@ author_vault_npub, value)`.
 
 - **Scope**: the whole vault except `_no_sync` tables. No permission checks between own devices;
   trust comes from the vault identity.
-- **Transport**: an iroh ALPN, working name `holzi-sync/1`. Handshake: both sides present their
+- **Transport**: an iroh ALPN, working name `haex-sync/1`. Handshake: both sides present their
   device key and prove possession of it; the peer accepts only devices on its own vault's current
   device list.
 - **Exchange**: swap version vectors, stream the missing sealed batches in both directions, apply
@@ -631,15 +631,15 @@ by ciphertext hash from a signed file index. Only the way a device obtains acces
 
 Spec numbers 017–021 are reserved for agent control; the next free numbers start at 024.
 
-| Spec | Scope                                                                                                                                                                                                      | Depends on                                 |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| 024  | Real secp256k1 vault identity and device keys, main and linked devices, device list, linking, iroh endpoint, presence via Nostr, `holzi-sync/1` between own devices (plane 1), authorship fix in haex-crdt | —                                          |
-| 025  | Removed; replaced by spec 061 (sync rules). Was: own-device file sync, file index, objects, conflict copies                                                                                                | 024                                        |
-| 026  | Blind relay: mailboxes, sequence cursors, client snapshots, signed member lists, iroh relay, storage backend A                                                                                             | 024                                        |
-| 027  | Spaces: member lists, invites, capabilities, key epochs, revocation, rotation                                                                                                                              | 025, 026                                   |
-| 028  | Data shares: shareable declaration schema, prefix validation, closure computation, sender/receiver guards                                                                                                  | 024, 026, extension table storage in holzi |
-| 029  | Storage backend B: own S3, scoped tokens, versioning                                                                                                                                                       | 027, 030                                   |
-| 034  | Password manager: integral secret store (e.g. S3 credentials), usable by extensions with permission, synced and recoverable like other vault data                                                          | 024                                        |
+| Spec | Scope                                                                                                                                                                                                     | Depends on                                 |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 024  | Real secp256k1 vault identity and device keys, main and linked devices, device list, linking, iroh endpoint, presence via Nostr, `haex-sync/1` between own devices (plane 1), authorship fix in haex-crdt | —                                          |
+| 025  | Removed; replaced by spec 061 (sync rules). Was: own-device file sync, file index, objects, conflict copies                                                                                               | 024                                        |
+| 026  | Blind relay: mailboxes, sequence cursors, client snapshots, signed member lists, iroh relay, storage backend A                                                                                            | 024                                        |
+| 027  | Spaces: member lists, invites, capabilities, key epochs, revocation, rotation                                                                                                                             | 025, 026                                   |
+| 028  | Data shares: shareable declaration schema, prefix validation, closure computation, sender/receiver guards                                                                                                 | 024, 026, extension table storage in holzi |
+| 029  | Storage backend B: own S3, scoped tokens, versioning                                                                                                                                                      | 027, 030                                   |
+| 034  | Password manager: integral secret store (e.g. S3 credentials), usable by extensions with permission, synced and recoverable like other vault data                                                         | 024                                        |
 
 Structural items that belong in 024 even though only the vault-internal scope exists then: the real
 `SignatureProvider` seam, the sealed-batch format with `scope_id`/`key_id`, the allow-list that keeps

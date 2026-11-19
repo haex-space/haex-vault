@@ -5,7 +5,7 @@ Abhängigkeiten: iroh 1.3.0, nostr 0.45.5 (nip44, nip59), nostr-sdk 0.45.4.
 
 ## R1 Ebene des Protokolls: Fensterpfade statt Objekt-Schlüssel
 
-**Decision**: Das Protokoll `haex-vault-files/1` spricht in **Fensterpfaden** (`/a/b`) und Dateibrowser-
+**Decision**: Das Protokoll `haex-files/1` spricht in **Fensterpfaden** (`/a/b`) und Dateibrowser-
 Begriffen (auflisten, Angaben, Bereich lesen, hochladen, Ordner anlegen, umbenennen, verschieben,
 löschen). Das bedienende Gerät führt jede Anfrage über **dieselbe Schicht wie der Dateibrowser** aus:
 `StorageFiles` mit dem Scope für verschlüsselte Ordner (`files/storage_source.rs:173`,
@@ -69,7 +69,7 @@ unter `/`.
 Einschluss mit `local_fs::resolve`/`resolve_below` (`remote_storage/local_fs.rs:17`, `:63`), die
 `..`, symbolische Links nach außen und unter Windows `:` schon ablehnen (FR-006).
 
-## R4 Handshake von `haex-vault-files/1`
+## R4 Handshake von `haex-files/1`
 
 **Decision** (angepasst 2026-10-23): Der erste Stream jeder Verbindung läuft durch
 `sync::foreign_auth` (Spec 057, `sync/foreign_auth.rs`) mit
@@ -101,8 +101,8 @@ Spec.
 ## R5 Server im Endpoint
 
 **Decision** (angepasst 2026-10-23): `SyncNode::bind_with` und `Protocols` (Spec 057,
-`sync/endpoint_protocols.rs`) registrieren `FILES_ALPN = b"haex-vault-files/1"` (`sync/wire.rs`,
-Namensschema von Spec 054 wie `haex-vault-ext-peer/1`) neben `holzi-sync/1`. Der Handler
+`sync/endpoint_protocols.rs`) registrieren `FILES_ALPN = b"haex-files/1"` (`sync/wire.rs`,
+Namensschema von Spec 054 wie `haex-ext-peer/1`) neben `holzi-sync/1`. Der Handler
 `FilesProtocol` bekommt `NodeTasks` (Tracker und Cancel-Token der Sitzung) und startet jede Verbindung
 auf dem Tracker, wie `PeerProtocol` (`extensions/peers/admission.rs`), damit Sperren laufende Anfragen
 beendet (FR-044). Ausgehend: `SyncNode::dial_alpn(addr, FILES_ALPN)`. `sync::service::run` baut die
@@ -218,7 +218,7 @@ werden Geräte von Kontakten nicht angewählt (FR-029). Neue Typnamen mit Präfi
 ## R14 ADR
 
 **Decision**: ADR 0015 „Datei-Zugriff zwischen eigenen Geräten“ hält das akzeptierte Risiko fest
-(Spec Assumptions), dazu, dass `haex-vault-files/1` fremde Vaults zulässt, `holzi-sync/1` nicht.
+(Spec Assumptions), dazu, dass `haex-files/1` fremde Vaults zulässt, `holzi-sync/1` nicht.
 
 ## R16 Live-Aktualisierung
 

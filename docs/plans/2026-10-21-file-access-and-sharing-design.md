@@ -59,7 +59,7 @@ device loses access once a newer list was seen.
 
 ## Protocol
 
-A second ALPN `haex-vault-files/1` on the iroh endpoint of the vault session, next to `holzi-sync/1`.
+A second ALPN `haex-files/1` on the iroh endpoint of the vault session, next to `haex-sync/1`.
 
 Handshake: device key, then the signed device list. Classification:
 

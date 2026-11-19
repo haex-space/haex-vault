@@ -86,7 +86,7 @@ fn nip44_v2_matches_the_reference_vector() {
 #[test]
 fn the_key_id_is_the_tagged_hash_prefix() {
     let key = [5u8; 32];
-    let digest: [u8; 32] = Sha256::digest([b"holzi-key-id/v1".as_slice(), &key].concat()).into();
+    let digest: [u8; 32] = Sha256::digest([b"haex-key-id/v1".as_slice(), &key].concat()).into();
     assert_eq!(key_id(&key), digest[..16]);
 }
 

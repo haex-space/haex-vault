@@ -33,6 +33,6 @@ reachable: boolean,
  */
 skipped: number, blocked: boolean,
 /**
- * The share is an old `holzi:card:` text.
+ * The share is an old `haex:card:` text.
  */
 legacyCard: boolean, };

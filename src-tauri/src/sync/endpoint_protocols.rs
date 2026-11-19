@@ -1,4 +1,4 @@
-//! Further protocols on the session endpoint beside `holzi-sync/1` (spec 057 research R1; spec 056
+//! Further protocols on the session endpoint beside `haex-sync/1` (spec 057 research R1; spec 056
 //! extends `bind` the same way).
 //!
 //! iroh takes the ALPNs of a [`Router`](iroh::protocol::Router) from its handlers when it spawns,
@@ -26,18 +26,18 @@ pub struct NodeTasks {
 
 type BuildHandler = Box<dyn FnOnce(NodeTasks) -> Box<dyn DynProtocolHandler> + Send>;
 
-/// Protocol handlers to register beside `holzi-sync/1`, each by its ALPN.
+/// Protocol handlers to register beside `haex-sync/1`, each by its ALPN.
 #[derive(Default)]
 pub struct Protocols(Vec<(&'static [u8], BuildHandler)>);
 
 impl Protocols {
-    /// Adds the handler `build` makes for `alpn`. `holzi-sync/1` stays the node's own.
+    /// Adds the handler `build` makes for `alpn`. `haex-sync/1` stays the node's own.
     pub fn with<H: ProtocolHandler>(
         mut self,
         alpn: &'static [u8],
         build: impl FnOnce(NodeTasks) -> H + Send + 'static,
     ) -> Self {
-        debug_assert_ne!(alpn, SYNC_ALPN, "holzi-sync/1 is the node's own protocol");
+        debug_assert_ne!(alpn, SYNC_ALPN, "haex-sync/1 is the node's own protocol");
         self.0
             .push((alpn, Box::new(move |tasks| Box::new(build(tasks)))));
         self

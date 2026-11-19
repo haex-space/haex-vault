@@ -78,7 +78,7 @@ fn every_domain_has_a_distinct_versioned_tag() {
 
 #[test]
 fn the_digest_is_sha256_of_tag_then_bytes() {
-    let expected: [u8; 32] = Sha256::digest(b"holzi-device-auth/v1abc").into();
+    let expected: [u8; 32] = Sha256::digest(b"haex-device-auth/v1abc").into();
     assert_eq!(digest(Domain::DeviceAuth, b"abc"), expected);
 }
 

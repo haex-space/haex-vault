@@ -20,9 +20,9 @@ fn two_copies_of_a_seed_derive_the_same_valid_identity() {
 #[test]
 fn the_derivation_is_hkdf_sha256_with_counter_zero_first() {
     let seed = [1u8; 32];
-    let hkdf = Hkdf::<Sha256>::new(Some(b"holzi"), &seed);
+    let hkdf = Hkdf::<Sha256>::new(Some(b"haex"), &seed);
     let mut expected = [0u8; 32];
-    hkdf.expand(b"holzi/vault-identity/v1\0\0\0\0", &mut expected)
+    hkdf.expand(b"haex/vault-identity/v1\0\0\0\0", &mut expected)
         .expect("expand");
     assert_eq!(derive_vault_identity(&seed).as_slice(), expected);
 }

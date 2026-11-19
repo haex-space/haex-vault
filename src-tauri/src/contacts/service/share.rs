@@ -39,7 +39,7 @@ impl ContactsService {
     }
 
     /// What reading a share in would do; nothing is stored (FR-021). Also reads an old
-    /// `holzi:card:` text. `target` is the person's choice; without it a vault that is on a contact
+    /// `haex:card:` text. `target` is the person's choice; without it a vault that is on a contact
     /// already selects that contact.
     pub async fn share_preview(
         &self,

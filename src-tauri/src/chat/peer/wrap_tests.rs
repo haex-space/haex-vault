@@ -139,7 +139,7 @@ fn a_rumor_over_24_kib_or_a_text_over_4000_characters_is_refused() {
         &text,
         Vec::new(),
         "aa",
-        "holzi:card:x",
+        "haex:card:x",
         To::Direct("bb".into()),
         at,
     )
@@ -179,7 +179,7 @@ fn the_envelope_reads_back_and_an_unknown_type_does_not() {
         "Kommst du?",
         Vec::new(),
         "aa",
-        "holzi:card:x",
+        "haex:card:x",
         To::Direct("bb".into()),
         5,
     )

@@ -170,7 +170,7 @@ is bounded by that server (R12).
 
 **Alternatives considered**: direct transfer over a new ALPN `haex-vault-chat/1` when both sides are
 online, Blossom otherwise (the first plan draft; rejected by the operator for a single Nostr path);
-spec 056's `haex-vault-files/1` (cannot deliver to a contact without a read-write share,
+spec 056's `haex-files/1` (cannot deliver to a contact without a read-write share,
 files/peer/serve/check.rs:21-29).
 
 ## R8 Files over Nostr-Relays without Blossom

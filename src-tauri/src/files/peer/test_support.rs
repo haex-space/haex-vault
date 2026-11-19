@@ -1,5 +1,5 @@
 //! Devices in one process for the tests of file access (spec 056 T026): each a device of a vault
-//! (`Member`) on a loopback endpoint without relays, serving `haex-vault-files/1` over a temporary
+//! (`Member`) on a loopback endpoint without relays, serving `haex-files/1` over a temporary
 //! folder that stands for its file system, with holzi's own places in a folder of their own.
 
 // These tests insert devices and cards directly, which the CRDT write path does not expose.
@@ -41,7 +41,7 @@ pub(crate) struct Device {
 }
 
 impl Device {
-    /// `member`'s device, serving `haex-vault-files/1`.
+    /// `member`'s device, serving `haex-files/1`.
     pub(crate) async fn of(member: Member) -> Self {
         Self::serving(member, None).await
     }
@@ -129,7 +129,7 @@ impl Device {
         path
     }
 
-    /// Dials `other` on `haex-vault-files/1`.
+    /// Dials `other` on `haex-files/1`.
     pub(crate) async fn link_to(&self, other: &Device) -> Result<PeerLink, DialError> {
         PeerLink::open(&self.node, &self.ctx.local(), other.node.addr()).await
     }

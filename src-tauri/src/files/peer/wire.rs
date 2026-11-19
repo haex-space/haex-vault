@@ -1,4 +1,4 @@
-//! The messages of `haex-vault-files/1` after the exchange of [`crate::sync::foreign_auth`]
+//! The messages of `haex-files/1` after the exchange of [`crate::sync::foreign_auth`]
 //! (contracts/files-protocol.md): `Welcome` on the first stream, then one bi-stream per request with
 //! a head ([`write_head`], [`read_head`]: length and postcard, at most [`HEAD_LIMIT`]) and, for a
 //! read, the raw bytes after the answer's head.

@@ -36,7 +36,7 @@ pub(crate) fn stored(q: &mut impl Query) -> Result<Option<format::SignedCard>> {
     Ok(bytes.and_then(|bytes| format::from_bytes(bytes).ok()))
 }
 
-/// The stored own card as `holzi:card:` text, for tests that hand it to another vault.
+/// The stored own card as `haex:card:` text, for tests that hand it to another vault.
 #[cfg(test)]
 pub(crate) fn stored_text(q: &mut impl Query) -> Result<Option<String>> {
     Ok(stored(q)?.map(|card| card.text()))

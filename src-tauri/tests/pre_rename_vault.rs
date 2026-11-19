@@ -25,6 +25,8 @@ use holzi_lib::contacts::service::{Caller, ContactsService};
 use holzi_lib::instances::import_instance_core;
 use holzi_lib::passwords::service::{Headers, PasswordsService};
 use holzi_lib::state::AppState;
+use holzi_lib::storage::query::{self, Query};
+use holzi_lib::sync::{device_list, device_view, keys};
 use holzi_lib::vault_gate::VaultGate;
 
 const PASSPHRASE: &str = "pre-rename-test-passphrase";
@@ -211,6 +213,39 @@ async fn a_vault_from_before_the_rename_opens_with_its_data() {
         .expect("count");
     assert_eq!(binaries, 1, "the attachment of the router entry");
     assert!(providers >= 1, "the chat provider");
+
+    // The signatures of the old file (spec 054 S3, FR-016): the texts they were signed under
+    // changed with the rename, so the stored device list no longer verifies. That must stay a
+    // state, not an abort: the vault opened above, the passwords read, and the device view still
+    // answers (with no device, as for a vault without a valid list).
+    let (stored, valid) = query::read(&db, |q| {
+        let vault_key = keys::vault_pubkey(q)?.expect("the old vault has an identity");
+        let rows = device_list::load_all(q)?;
+        let valid = device_list::valid_lists(&rows, &vault_key);
+        Ok((rows.len(), valid.len()))
+    })
+    .expect("read the device lists");
+    assert!(stored >= 1, "the old file carries a signed device list");
+    assert_eq!(
+        valid, 0,
+        "its signature is under the old texts and no longer verifies"
+    );
+    let own = query::read(&db, |q| {
+        q.query_row(
+            "SELECT installation_uuid FROM device_keys_no_sync LIMIT 1",
+            &[],
+            |r| r.get::<_, String>(0),
+        )
+    })
+    .expect("read the own installation");
+    if let Some(own) = own {
+        let installation = own.parse().expect("an installation uuid");
+        let devices = query::read(&db, |q| {
+            device_view::load(q, installation, &std::collections::HashSet::new())
+        })
+        .expect("the device view answers");
+        assert!(devices.is_empty(), "no valid list, so no device is listed");
+    }
 
     assert_eq!(checksum(&file), before, "the chosen file is only read");
     drop(db);

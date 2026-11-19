@@ -4,7 +4,7 @@
 //! One endpoint per session, built after unlocking with the stored endpoint
 //! key and `presets::Minimal`: no n0 address publishing; addresses come
 //! from presence (user story 1, step 5) into a `MemoryLookup`. A `Router`
-//! accepts `holzi-sync/1`; the accepting side opens the handshake stream.
+//! accepts `haex-sync/1`; the accepting side opens the handshake stream.
 //! Per device at most one connection lives: when both dial each other at
 //! once, the connection dialed by the smaller endpoint id stays.
 //!
@@ -182,7 +182,7 @@ impl SyncNode {
         .await
     }
 
-    /// [`Self::bind`], accepting `protocols` beside `holzi-sync/1`.
+    /// [`Self::bind`], accepting `protocols` beside `haex-sync/1`.
     pub async fn bind_with(
         replica: Arc<Replica>,
         keys: DeviceKeys,

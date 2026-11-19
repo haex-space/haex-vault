@@ -89,7 +89,7 @@ pub enum Protocol {
     #[ts(skip)]
     Local,
     /// Another own device or a received file share (spec 056 research R2): reached over
-    /// `haex-vault-files/1` by its own store, never saved as a connection and never offered.
+    /// `haex-files/1` by its own store, never saved as a connection and never offered.
     #[serde(skip)]
     #[ts(skip)]
     Peer,

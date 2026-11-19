@@ -254,7 +254,7 @@ async fn fetch_claude_models(
 ) -> Result<Vec<ProviderModel>, AdapterError> {
     let client = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(15))
-        .user_agent(concat!("holzi/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("haex/", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(|e| AdapterError::Http {
             reason: format!("build reqwest client: {e}"),

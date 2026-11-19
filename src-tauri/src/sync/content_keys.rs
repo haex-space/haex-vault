@@ -1,6 +1,6 @@
 //! Content keys of the scope "vault" (spec 024, FR-015, research R9).
 //!
-//! A content key is 32 random bytes with `key_id = SHA-256("holzi-key-id/v1" ‖
+//! A content key is 32 random bytes with `key_id = SHA-256("haex-key-id/v1" ‖
 //! key)[0..16]` and a generation. A generation (`vault_key_generations`) is
 //! bound to the device list that issues it and authorized by a main device of
 //! that list. The key itself only travels in envelopes (`vault_key_envelopes`):
@@ -68,10 +68,10 @@ impl ContentKey {
     }
 }
 
-/// `SHA-256("holzi-key-id/v1" ‖ key)[0..16]`.
+/// `SHA-256("haex-key-id/v1" ‖ key)[0..16]`.
 pub fn key_id(key: &[u8; 32]) -> [u8; 16] {
     let digest: [u8; 32] = Sha256::new()
-        .chain_update(b"holzi-key-id/v1")
+        .chain_update(b"haex-key-id/v1")
         .chain_update(key)
         .finalize()
         .into();

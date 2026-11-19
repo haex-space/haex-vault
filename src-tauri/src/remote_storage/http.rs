@@ -43,7 +43,7 @@ pub(crate) async fn pinned_client(
         .redirect(reqwest::redirect::Policy::none())
         .no_proxy()
         .connect_timeout(Duration::from_secs(30))
-        .user_agent(concat!("holzi/", env!("CARGO_PKG_VERSION")));
+        .user_agent(concat!("haex/", env!("CARGO_PKG_VERSION")));
     if let Some(host) = &pinned.host {
         builder = builder.resolve_to_addrs(host, &pinned.addrs);
     }

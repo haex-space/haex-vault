@@ -21,25 +21,25 @@ pub enum Domain {
     LinkResume,
     /// A Visitenkarte of the vault (spec 051, contracts/contact-card.md).
     ContactCard,
-    /// A device of another vault proving itself on `haex-vault-ext-peer/1` (spec 057 research R4).
+    /// A device of another vault proving itself on `haex-ext-peer/1` (spec 057 research R4).
     ExtPeerAuth,
-    /// A device proving itself on `haex-vault-files/1` (spec 056 research R4).
+    /// A device proving itself on `haex-files/1` (spec 056 research R4).
     FilesAuth,
 }
 
 impl Domain {
     pub fn tag(self) -> &'static [u8] {
         match self {
-            Domain::DeviceAuth => b"holzi-device-auth/v1",
-            Domain::DeviceList => b"holzi-device-list/v1",
-            Domain::KeyGeneration => b"holzi-key-generation/v1",
-            Domain::KeyEnvelope => b"holzi-key-envelope/v1",
-            Domain::Admission => b"holzi-admission/v1",
-            Domain::Link => b"holzi-link/v1",
-            Domain::LinkResume => b"holzi-link-resume/v1",
-            Domain::ContactCard => b"holzi-contact-card/v1",
-            Domain::ExtPeerAuth => b"haex-vault-ext-peer-auth/v1",
-            Domain::FilesAuth => b"haex-vault-files-auth/v1",
+            Domain::DeviceAuth => b"haex-device-auth/v1",
+            Domain::DeviceList => b"haex-device-list/v1",
+            Domain::KeyGeneration => b"haex-key-generation/v1",
+            Domain::KeyEnvelope => b"haex-key-envelope/v1",
+            Domain::Admission => b"haex-admission/v1",
+            Domain::Link => b"haex-link/v1",
+            Domain::LinkResume => b"haex-link-resume/v1",
+            Domain::ContactCard => b"haex-contact-card/v1",
+            Domain::ExtPeerAuth => b"haex-ext-peer-auth/v1",
+            Domain::FilesAuth => b"haex-files-auth/v1",
         }
     }
 }

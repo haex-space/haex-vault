@@ -225,7 +225,7 @@ pub enum ContactShareChoice {
     Update,
     Skip,
     Keep,
-    /// Only for the addresses of an old `holzi:card:` text.
+    /// Only for the addresses of an old `haex:card:` text.
     Replace,
 }
 
@@ -300,7 +300,7 @@ pub struct ContactSharePreview {
     /// Details left out because they did not validate.
     pub skipped: u32,
     pub blocked: bool,
-    /// The share is an old `holzi:card:` text.
+    /// The share is an old `haex:card:` text.
     pub legacy_card: bool,
 }
 

@@ -1,5 +1,5 @@
 //! Linking a new installation to a vault (spec 024, user story 5,
-//! research R11, contracts/sync-protocol.md `holzi-link/1`).
+//! research R11, contracts/sync-protocol.md `haex-link/1`).
 
 pub mod code;
 pub mod error;

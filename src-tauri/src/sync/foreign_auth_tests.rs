@@ -340,7 +340,7 @@ async fn a_proof_for_another_protocol_or_domain_does_not_verify() {
     let (ana, ben) = (Side::new(Member::genesis()), Side::new(Member::genesis()));
     for other in [
         Purpose {
-            alpn: b"holzi-files/1",
+            alpn: b"haex-files/1",
             domain: Domain::ExtPeerAuth,
         },
         Purpose {

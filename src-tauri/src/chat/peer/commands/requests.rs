@@ -25,7 +25,7 @@ pub struct AnswerArgs {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RequestCard {
-    /// `holzi:card:…`, read in by spec 060's preview on "Annehmen".
+    /// `haex:card:…`, read in by spec 060's preview on "Annehmen".
     pub card_text: String,
 }
 

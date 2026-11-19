@@ -1,4 +1,4 @@
-//! The requesting side of `haex-vault-files/1`: one verified connection to a serving device
+//! The requesting side of `haex-files/1`: one verified connection to a serving device
 //! ([`PeerLink`]) that sends a request per bi-stream, and the seam that finds such a link for a
 //! target ([`PeerLinks`]). Finding the address (presence for own devices, the knock for contacts)
 //! and keeping one link per device belong to the implementations of the seam.
@@ -25,7 +25,7 @@ pub struct PeerLink {
 }
 
 impl PeerLink {
-    /// Dials `addr` on `haex-vault-files/1` and runs the exchange.
+    /// Dials `addr` on `haex-files/1` and runs the exchange.
     pub async fn open(
         node: &SyncNode,
         local: &Local<'_>,

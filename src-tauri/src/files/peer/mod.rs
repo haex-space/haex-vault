@@ -1,4 +1,4 @@
-//! File access between devices over `haex-vault-files/1` (spec 056): the serving side
+//! File access between devices over `haex-files/1` (spec 056): the serving side
 //! ([`serve`]), the requesting side ([`client`], [`store`]), and what both share ([`wire`],
 //! [`handshake`]). Devices prove themselves with [`crate::sync::foreign_auth`] (spec 057); the
 //! serving device decides on every request (FR-005).

@@ -150,7 +150,7 @@ impl LinkCode {
     /// The key pair the joiner's meeting is sent to (contracts/
     /// nostr-events.md): the host subscribes to it while the code is valid.
     pub fn rendezvous_keys(&self) -> Result<(SecretKey, PublicKey), CodeError> {
-        let okm = self.expand(None, b"holzi/link/rendezvous/v1");
+        let okm = self.expand(None, b"haex/link/rendezvous/v1");
         let secret = SecretKey::from_slice(okm.as_slice()).map_err(|_| CodeError::Character)?;
         let public = Keys::new(secret.clone()).public_key();
         Ok((secret, public))
@@ -172,7 +172,7 @@ impl LinkCode {
 
     /// Initializes HMAC-SHA256 with the proof key derived from this code.
     fn proof_mac(&self) -> Hmac<Sha256> {
-        let key = self.expand(None, b"holzi/link/proof/v1");
+        let key = self.expand(None, b"haex/link/proof/v1");
         Hmac::<Sha256>::new_from_slice(key.as_slice()).expect("HMAC takes any key length")
     }
 
@@ -181,7 +181,7 @@ impl LinkCode {
     pub fn session_secret(&self, nonce_h: &[u8; 32], nonce_n: &[u8; 32]) -> Zeroizing<[u8; 32]> {
         self.expand(
             Some(&[nonce_h.as_slice(), nonce_n.as_slice()].concat()),
-            b"holzi/link/session/v1",
+            b"haex/link/session/v1",
         )
     }
 }
@@ -202,7 +202,7 @@ impl Transcript {
     /// Encodes the protocol label, length-prefixed fields and role for the proof.
     fn bytes(&self, role: Role) -> Vec<u8> {
         [
-            b"holzi-link/v1".to_vec(),
+            b"haex-link/v1".to_vec(),
             lp(&self.nonce_h),
             lp(&self.nonce_n),
             lp(&self.endpoint_h),
@@ -238,7 +238,7 @@ fn resume_hmac(secret: &[u8; 32]) -> Hmac<Sha256> {
 /// Encodes the resume protocol label and length-prefixed link id and state.
 fn resume_bytes(link_id: &[u8; 32], state: &str) -> Vec<u8> {
     [
-        b"holzi-link-resume/v1".to_vec(),
+        b"haex-link-resume/v1".to_vec(),
         lp(link_id),
         lp(state.as_bytes()),
     ]

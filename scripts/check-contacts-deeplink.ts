@@ -26,7 +26,7 @@ test('a foreign scheme, another host or no payload is ignored', () => {
     'haexvault://contact/AAAA',
     'https://example.com/?haex-vault://contact/AAAA',
     'mailto:ben@example.com',
-    'holzi:card:AAAA',
+    'haex:card:AAAA',
     null,
     42,
   ]) {

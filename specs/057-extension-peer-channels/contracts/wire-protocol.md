@@ -1,6 +1,6 @@
-# Contract: iroh-Protokoll `haex-vault-ext-peer/1`
+# Contract: iroh-Protokoll `haex-ext-peer/1`
 
-ALPN `haex-vault-ext-peer/1` (`sync/wire.rs`, `EXT_PEER_ALPN`; schon mit dem Präfix nach Spec 054) am Endpoint der Vault-Sitzung (research R1). **Eine QUIC-Verbindung je Kanal.** Der
+ALPN `haex-ext-peer/1` (`sync/wire.rs`, `EXT_PEER_ALPN`; schon mit dem Präfix nach Spec 054) am Endpoint der Vault-Sitzung (research R1). **Eine QUIC-Verbindung je Kanal.** Der
 erste Bi-Stream, vom Wählenden geöffnet, ist Handshake und danach Steuerstream; schnelle Nachrichten
 sind QUIC-Datagramme.
 
@@ -21,7 +21,7 @@ Wählender   → Proof { v, sig: [u8;64] }
 Annehmender → Proof { v, sig: [u8;64] }
 ```
 
-`sig` mit dem Geräteschlüssel, `Domain::ExtPeerAuth` (`haex-vault-ext-peer-auth/v1`), über
+`sig` mit dem Geräteschlüssel, `Domain::ExtPeerAuth` (`haex-ext-peer-auth/v1`), über
 `lp(nonce_dial) ‖ lp(nonce_accept) ‖ lp(own endpoint) ‖ lp(other endpoint) ‖ lp(vault) ‖ lp(alpn)`.
 
 Prüfung je Seite, jede Abweichung → schließen ohne Grund:

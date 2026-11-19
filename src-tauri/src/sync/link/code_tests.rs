@@ -96,7 +96,7 @@ fn each_purpose_derives_its_own_key() {
     assert_ne!(public, other_public);
     assert_ne!(
         secret.to_secret_bytes(),
-        code.expand(None, b"holzi/link/proof/v1").as_slice()
+        code.expand(None, b"haex/link/proof/v1").as_slice()
     );
 }
 

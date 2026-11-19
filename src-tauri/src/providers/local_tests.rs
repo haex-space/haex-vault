@@ -143,3 +143,16 @@ fn an_older_legacy_row_wins_over_an_existing_fixed_row() {
     assert_eq!((fixed.name.as_str(), fixed.created_at), ("legacy 10", 10));
     assert_eq!(local_chat_ids(&db), vec![local_provider_id()]);
 }
+
+/// The ids are UUIDv5 over fixed texts; the expected values come from Python's `uuid` (spec 054 S3).
+#[test]
+fn the_local_provider_ids_have_fixed_values() {
+    assert_eq!(
+        local_provider_id().to_string(),
+        "49e0c716-77d8-5fab-90aa-cfa350575950"
+    );
+    assert_eq!(
+        local_transcription_provider_id().to_string(),
+        "9a578e87-046a-5d03-af47-4b74fd3b91b6"
+    );
+}

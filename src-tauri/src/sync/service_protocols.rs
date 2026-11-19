@@ -1,4 +1,4 @@
-//! The protocols the session's endpoint serves beside `holzi-sync/1`: the channels between
+//! The protocols the session's endpoint serves beside `haex-sync/1`: the channels between
 //! extensions (spec 057) and file access between devices (spec 056).
 
 use std::sync::Arc;
@@ -24,7 +24,7 @@ pub struct PeerDeps {
 }
 
 /// A handle on the open vault, holzi's own places and this device's `vault_device_uuid`, for
-/// `haex-vault-files/1`.
+/// `haex-files/1`.
 pub struct FilesDeps {
     pub db: VaultDb,
     /// The vault's changes, which the shares this device serves follow.
@@ -56,7 +56,7 @@ pub fn files_deps<R: Runtime>(
     }))
 }
 
-/// The handler of `haex-vault-ext-peer/1` for the endpoint (spec 057 research R1), when the session has
+/// The handler of `haex-ext-peer/1` for the endpoint (spec 057 research R1), when the session has
 /// an extension host.
 pub fn peer_protocols<R: Runtime>(
     peers: Option<PeerDeps>,
@@ -87,7 +87,7 @@ pub fn peer_protocols<R: Runtime>(
     (protocols, Some(ctx))
 }
 
-/// `protocols` with the handler of `haex-vault-files/1` (spec 056 research R5), when the session
+/// `protocols` with the handler of `haex-files/1` (spec 056 research R5), when the session
 /// serves files, and what its own links to other devices prove themselves with.
 pub fn file_protocols(
     protocols: Protocols,

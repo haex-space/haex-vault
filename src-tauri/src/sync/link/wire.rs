@@ -1,4 +1,4 @@
-//! Messages of `holzi-link/1` (contracts/sync-protocol.md, research R11).
+//! Messages of `haex-link/1` (contracts/sync-protocol.md, research R11).
 //!
 //! Frames are those of the sync protocol (`u32 BE length ‖ postcard`), with
 //! the 64 KiB limit until both proofs checked out and 4 MiB after.
@@ -41,7 +41,7 @@ impl Drop for SecretBytes {
     }
 }
 
-/// Every message of `holzi-link/1`.
+/// Every message of `haex-link/1`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LinkMessage {
     /// H → N: the first message; the code counts as used once it is sent.

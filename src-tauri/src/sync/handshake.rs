@@ -1,4 +1,4 @@
-//! The mutual handshake of `holzi-sync/1` (contracts/sync-protocol.md §1,
+//! The mutual handshake of `haex-sync/1` (contracts/sync-protocol.md §1,
 //! FR-009, FR-029, FR-030, research R6, R14).
 //!
 //! The accepting side A opens the first stream:

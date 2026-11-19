@@ -1,4 +1,4 @@
-//! Frames and messages of `holzi-sync/1` (contracts/sync-protocol.md,
+//! Frames and messages of `haex-sync/1` (contracts/sync-protocol.md,
 //! research R6).
 //!
 //! A frame is `u32 BE length ‖ postcard(message)`. The length is checked
@@ -13,13 +13,13 @@ use crate::sync::change::Page;
 use crate::sync::progress::Vector;
 
 /// ALPN of the sync protocol; the version is part of it (research R14).
-pub const SYNC_ALPN: &[u8] = b"holzi-sync/1";
+pub const SYNC_ALPN: &[u8] = b"haex-sync/1";
 /// ALPN of linking a new installation (user story 5).
-pub const LINK_ALPN: &[u8] = b"holzi-link/1";
+pub const LINK_ALPN: &[u8] = b"haex-link/1";
 /// ALPN of channels between extensions on devices of different vaults (spec 057 research R1).
-pub const EXT_PEER_ALPN: &[u8] = b"haex-vault-ext-peer/1";
+pub const EXT_PEER_ALPN: &[u8] = b"haex-ext-peer/1";
 /// ALPN of file access between own devices and file shares with contacts (spec 056 research R5).
-pub const FILES_ALPN: &[u8] = b"haex-vault-files/1";
+pub const FILES_ALPN: &[u8] = b"haex-files/1";
 
 /// Largest frame before the handshake accepted the peer.
 pub const HANDSHAKE_FRAME_LIMIT: usize = 64 * 1024;
@@ -91,7 +91,7 @@ pub enum ResyncReason {
     TombstonesExpired,
 }
 
-/// Every message of `holzi-sync/1`.
+/// Every message of `haex-sync/1`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Message {
     Challenge {

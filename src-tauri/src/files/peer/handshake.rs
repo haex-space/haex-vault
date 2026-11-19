@@ -1,4 +1,4 @@
-//! The first stream of a `haex-vault-files/1` connection (spec 056 research R4): the exchange of
+//! The first stream of a `haex-files/1` connection (spec 056 research R4): the exchange of
 //! [`foreign_auth`] (spec 057), then the serving device's [`Welcome`] with the mode, or the end of
 //! the connection without a reason.
 
@@ -13,7 +13,7 @@ use crate::sync::signing::Domain;
 use crate::sync::wire::FILES_ALPN;
 use crate::vault_gate::VaultDb;
 
-/// What the proofs of `haex-vault-files/1` are bound to.
+/// What the proofs of `haex-files/1` are bound to.
 pub const PURPOSE: Purpose = Purpose {
     alpn: FILES_ALPN,
     domain: Domain::FilesAuth,
