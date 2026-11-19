@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use tauri::{AppHandle, Emitter};
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::models::download::download_to_file;
 use crate::models::hash::sha256_file;
 
@@ -58,8 +58,8 @@ impl PinnedFile {
             && std::fs::metadata(path).is_ok_and(|m| m.len() == self.bytes)
     }
 
-    fn failed(&self, what: &str, error: impl std::fmt::Display) -> HolziError {
-        HolziError::SpeechFailed {
+    fn failed(&self, what: &str, error: impl std::fmt::Display) -> HaexError {
+        HaexError::SpeechFailed {
             reason: format!("{what} {}: {error}", self.label),
         }
     }
@@ -120,7 +120,7 @@ impl PinnedFile {
             .map_err(|e| self.failed("check", e))?;
         if hash != self.sha256 {
             let _ = std::fs::remove_file(&path);
-            return Err(HolziError::SpeechFailed {
+            return Err(HaexError::SpeechFailed {
                 reason: format!("{} is damaged (its checksum does not match)", self.label),
             });
         }

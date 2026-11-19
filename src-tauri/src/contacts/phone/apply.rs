@@ -148,7 +148,7 @@ pub fn finish(
             &contact.side.values,
         );
     }
-    for raw in found.from_holzi.values().flatten() {
+    for raw in found.from_haex.values().flatten() {
         if gathered.index.get(raw).is_some_and(|raw| !raw.deleted) {
             batches.delete(*raw);
         }
@@ -289,7 +289,7 @@ impl Written<'_> {
         };
         let loaded = item.loaded.as_ref().unwrap_or(&empty);
         let (head, values) = sides::after(&loaded.side, &item.plan);
-        let updated_at = if item.import || item.plan.changes_holzi() {
+        let updated_at = if item.import || item.plan.changes_haex() {
             self.now.to_owned()
         } else {
             loaded.updated_at.clone()
@@ -334,7 +334,7 @@ impl Written<'_> {
             counts.imported += 1;
         } else if item.merge {
             counts.merged += 1;
-        } else if item.plan.changes_holzi() {
+        } else if item.plan.changes_haex() {
             counts.updated += 1;
         }
         if !item.plan.ops.is_empty() {
@@ -352,12 +352,12 @@ impl Written<'_> {
         taken: Option<&String>,
         previous: Option<&Link>,
     ) -> Option<String> {
-        let holzi = item.loaded.as_ref().and_then(|loaded| loaded.photo.clone());
+        let haex = item.loaded.as_ref().and_then(|loaded| loaded.photo.clone());
         if let Some(hash) = taken.or_else(|| self.photos.get(&item.contact_id)) {
             return Some(hash.clone());
         }
-        if item.merge || holzi.is_none() {
-            return holzi;
+        if item.merge || haex.is_none() {
+            return haex;
         }
         previous.and_then(|link| link.photo_base.clone())
     }
@@ -434,7 +434,7 @@ impl Written<'_> {
             }
             counts.deleted += 1;
         }
-        for raws in found.from_holzi.values() {
+        for raws in found.from_haex.values() {
             let mut any = false;
             for raw in raws {
                 let gone = self.answers.deleted.contains(raw)

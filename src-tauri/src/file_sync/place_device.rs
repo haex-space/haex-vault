@@ -322,7 +322,7 @@ impl Place for DevicePlace {
             let (folder, name) = split(&path);
             let part = place
                 .at(folder)?
-                .join(format!(".{name}.holzi-part-{}", uuid::Uuid::new_v4()));
+                .join(format!(".{name}.haex-part-{}", uuid::Uuid::new_v4()));
             std::fs::write(&part, text).map_err(|error| io_error(error, &part))?;
             std::fs::rename(&part, &at).map_err(|error| {
                 let _ = std::fs::remove_file(&part);

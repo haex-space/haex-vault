@@ -34,8 +34,8 @@ impl TestLinks {
 #[async_trait]
 impl Links for TestLinks {
     async fn open(&self, _: Uuid) -> Result<(Arc<FrameSession>, Arc<McpLink>), String> {
-        let to_holzi = Arc::clone(&self.session);
-        let to_extension = serve_json(move |message| to_holzi.mcp.deliver(message));
+        let to_haex = Arc::clone(&self.session);
+        let to_extension = serve_json(move |message| to_haex.mcp.deliver(message));
         let link = self
             .session
             .mcp

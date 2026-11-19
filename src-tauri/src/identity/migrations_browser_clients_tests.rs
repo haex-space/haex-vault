@@ -12,7 +12,7 @@ use haex_crdt::Database;
 use super::migrations_browser_clients::SYNCED_TABLES;
 use super::migrations_extensions_tests::{has_hlc_column, unique_indexes};
 use super::migrations_tests::{migration_source_before, open, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 fn assert_schema(db: &Database) {
     for table in SYNCED_TABLES {
@@ -46,7 +46,7 @@ async fn migration_0038_gives_a_fresh_vault_the_browser_client_table() {
             dir.path(),
             "browser-clients-fresh",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_schema(&db);
         assert_eq!(
@@ -75,7 +75,7 @@ async fn migration_0038_upgrades_a_vault_from_the_schema_before_it() {
             dir.path(),
             "browser-clients-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_schema(&db);
     })

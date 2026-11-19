@@ -17,7 +17,7 @@ import { runAction } from '../lib/settings.ts'
 // The bucket is checked directly each time.
 // Needs Docker for RustFS; skipped without it.
 
-const BUCKET = 'holzi-files-e2e'
+const BUCKET = 'haex-files-e2e'
 
 async function setName(instance: FlowInstance, name: string) {
   await instance.exec(
@@ -52,7 +52,7 @@ scenario(
     const instance = await ctx.startInstance()
     await createAndUnlock(instance, { name: 'e2e-files-storage' })
     // After the start: on Android it clears the app's data, where the folder lives.
-    const device = deviceFiles('holzi-storage-')
+    const device = deviceFiles('haex-storage-')
     ctx.onTeardown(() => device.remove())
     device.write('hoch.txt', 'vom Gerät')
     const storageId = await connectStorage(instance, rustfs, BUCKET, 'Fotos')

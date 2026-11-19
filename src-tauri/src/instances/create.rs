@@ -14,7 +14,7 @@ use ts_rs::TS;
 
 use crate::chat::events::emit_model_load_status;
 use crate::chat::session::ChatState;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::identity::installation_id_path;
 use crate::state::{ActiveInstanceHandle, AppState};
 use crate::voice::VoiceState;
@@ -72,10 +72,10 @@ pub async fn create_instance_core<R: Runtime>(
     // The folder is made atomically (`create_dir`) — a parallel create in flight, or a vault of
     // that name, fails with AlreadyExists here, before any Database::open work.
     reserve(&db_path).map_err(|e| match e.kind() {
-        std::io::ErrorKind::AlreadyExists => HolziError::NameConflict {
+        std::io::ErrorKind::AlreadyExists => HaexError::NameConflict {
             name: name.to_string(),
         },
-        _ => HolziError::from(e),
+        _ => HaexError::from(e),
     })?;
 
     // From here on, any early return MUST take back every file of the vault (`cleanup`).
@@ -90,7 +90,7 @@ pub async fn create_instance_core<R: Runtime>(
         Ok(result) => result,
         Err(e) => {
             take_back(&db_path);
-            return Err(HolziError::CrdtInit {
+            return Err(HaexError::CrdtInit {
                 reason: format!("database open task failed: {e}"),
             });
         }

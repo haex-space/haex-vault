@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use super::mail::{self, MailRequest};
 use super::requests::{park_and_announce, TAKE_TIMEOUT};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::extensions::bridge::dispatch::Emit;
 use crate::extensions::bundle::OpenerKind;
 use crate::extensions::commands::frames::WindowEmitter;
@@ -37,8 +37,7 @@ pub async fn opener_mail_open(
     extension_id: String,
     link: String,
 ) -> Result<()> {
-    let extension_id =
-        Uuid::parse_str(&extension_id).map_err(|_| HolziError::OpenerNotAvailable)?;
+    let extension_id = Uuid::parse_str(&extension_id).map_err(|_| HaexError::OpenerNotAvailable)?;
     let db = active_database(&state)?;
     let device = current_device_uuid(&app, &db)?;
     let host = state.extensions();
@@ -55,7 +54,7 @@ pub async fn opener_mail_open(
         )
     })
     .await
-    .map_err(|e| HolziError::InvalidInput {
+    .map_err(|e| HaexError::InvalidInput {
         reason: format!("opener task: {e}"),
     })?
 }
@@ -72,7 +71,7 @@ pub(crate) fn open_mail(
 ) -> Result<()> {
     let request = mail::parse(link)?;
     if !opens_mail(db, device, extension_id)? {
-        return Err(HolziError::OpenerNotAvailable);
+        return Err(HaexError::OpenerNotAvailable);
     }
     park_and_announce(host, emitter, extension_id, request, timeout);
     Ok(())

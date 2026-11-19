@@ -3,7 +3,7 @@ use serde_json::json;
 use super::*;
 
 #[test]
-fn codes_are_those_the_vault_sdk_knows_plus_holzis_own() {
+fn codes_are_those_the_vault_sdk_knows_plus_haexs_own() {
     let codes = [
         (ExtensionErrorCode::SecurityViolation, 1000),
         (ExtensionErrorCode::NotFound, 1001),

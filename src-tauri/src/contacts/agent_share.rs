@@ -17,12 +17,12 @@ use super::agent_share_confirm::{
 };
 use super::share::build;
 use super::share::model::{
-    ContactShareHolzi, ContactShareHolziChoice, ContactShareOptions, ContactShareSelection,
+    ContactShareHaex, ContactShareHaexChoice, ContactShareOptions, ContactShareSelection,
 };
 use crate::chat::tools::native_action::{
     builtin_only, NativeCall, NativeError, NativeExecutor, NativeReply,
 };
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::files::agent::prompt::PermissionPrompt;
 use crate::files::permissions::BUILTIN_AGENT;
 use crate::state::AppState;
@@ -33,7 +33,7 @@ pub const SHARE_ACTION_IDS: &[&str] = &["contacts.share"];
 
 /// What the executor needs from the running app.
 pub trait ContactsShareEnv: Send + Sync {
-    fn database(&self) -> Result<VaultDb, HolziError>;
+    fn database(&self) -> Result<VaultDb, HaexError>;
 
     /// The question about the permission "Kontakte lesen".
     fn prompt(&self) -> PermissionPrompt;
@@ -74,7 +74,7 @@ struct Proposal {
     organization: Option<bool>,
     job_title: Option<bool>,
     note: Option<bool>,
-    holzi: Option<ContactShareHolziChoice>,
+    haex: Option<ContactShareHaexChoice>,
 }
 
 /// A contact the agent may not read, or none: the same answer (spec 051 FR-030).
@@ -98,15 +98,15 @@ fn everything(options: &ContactShareOptions) -> ContactShareSelection {
         organization: options.head.organization.is_some(),
         job_title: options.head.job_title.is_some(),
         note: options.head.note.is_some(),
-        holzi: match &options.holzi {
-            ContactShareHolzi::None
-            | ContactShareHolzi::Own {
+        haex: match &options.haex {
+            ContactShareHaex::None
+            | ContactShareHaex::Own {
                 can_sign: false, ..
-            } => ContactShareHolziChoice::None,
-            ContactShareHolzi::Card { .. } => ContactShareHolziChoice::Card,
-            ContactShareHolzi::Own {
+            } => ContactShareHaexChoice::None,
+            ContactShareHaex::Card { .. } => ContactShareHaexChoice::Card,
+            ContactShareHaex::Own {
                 devices, relays, ..
-            } => ContactShareHolziChoice::Own {
+            } => ContactShareHaexChoice::Own {
                 devices: devices
                     .iter()
                     .map(|device| device.device_pubkey.clone())
@@ -129,17 +129,17 @@ fn restrict(
             values.push(id.clone());
         }
     }
-    let holzi = match (&wanted.holzi, &all.holzi) {
-        (ContactShareHolziChoice::Card, ContactShareHolziChoice::Card) => {
-            ContactShareHolziChoice::Card
+    let haex = match (&wanted.haex, &all.haex) {
+        (ContactShareHaexChoice::Card, ContactShareHaexChoice::Card) => {
+            ContactShareHaexChoice::Card
         }
         (
-            ContactShareHolziChoice::Own { devices, relays },
-            ContactShareHolziChoice::Own {
+            ContactShareHaexChoice::Own { devices, relays },
+            ContactShareHaexChoice::Own {
                 devices: offered_devices,
                 relays: offered_relays,
             },
-        ) => ContactShareHolziChoice::Own {
+        ) => ContactShareHaexChoice::Own {
             devices: devices
                 .iter()
                 .filter(|device| offered_devices.contains(device))
@@ -151,7 +151,7 @@ fn restrict(
                 .cloned()
                 .collect(),
         },
-        _ => ContactShareHolziChoice::None,
+        _ => ContactShareHaexChoice::None,
     };
     ContactShareSelection {
         values,
@@ -160,7 +160,7 @@ fn restrict(
         organization: wanted.organization && all.organization,
         job_title: wanted.job_title && all.job_title,
         note: wanted.note && all.note,
-        holzi,
+        haex,
     }
 }
 
@@ -177,7 +177,7 @@ impl Proposal {
                 organization: self.organization.unwrap_or(all.organization),
                 job_title: self.job_title.unwrap_or(all.job_title),
                 note: self.note.unwrap_or(all.note),
-                holzi: self.holzi.unwrap_or(all.holzi),
+                haex: self.haex.unwrap_or(all.haex),
             },
         )
     }
@@ -219,7 +219,7 @@ impl<E: ContactsShareEnv + 'static> NativeExecutor for ContactsShareAgent<E> {
             .get(&input.contact_id, cancel)
             .await
             .map_err(|error| match error {
-                HolziError::ContactsNotFound | HolziError::ContactsForbidden => no_contact(),
+                HaexError::ContactsNotFound | HaexError::ContactsForbidden => no_contact(),
                 _ => failed("the contact could not be read"),
             })?;
 
@@ -285,7 +285,7 @@ impl TauriContactsShareEnv {
 }
 
 impl ContactsShareEnv for TauriContactsShareEnv {
-    fn database(&self) -> Result<VaultDb, HolziError> {
+    fn database(&self) -> Result<VaultDb, HaexError> {
         self.app.state::<AppState>().database()
     }
 

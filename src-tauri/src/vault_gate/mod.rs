@@ -25,7 +25,7 @@ use tokio_util::sync::CancellationToken;
 use tokio_util::task::task_tracker::TaskTrackerToken;
 use tokio_util::task::TaskTracker;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 pub(crate) use children::kill_process_tree;
 pub use children::{ChildGuard, ChildRegistry};
@@ -207,8 +207,8 @@ impl VaultGate {
     pub fn ensure_can_open(&self) -> Result<()> {
         match self.phase() {
             VaultPhase::Idle => Ok(()),
-            VaultPhase::Active => Err(HolziError::VaultAlreadyActive),
-            VaultPhase::Closing => Err(HolziError::VaultClosed),
+            VaultPhase::Active => Err(HaexError::VaultAlreadyActive),
+            VaultPhase::Closing => Err(HaexError::VaultClosed),
         }
     }
 
@@ -221,8 +221,8 @@ impl VaultGate {
                 *phase = VaultPhase::Active;
                 Ok(())
             }
-            VaultPhase::Active => Err(HolziError::VaultAlreadyActive),
-            VaultPhase::Closing => Err(HolziError::VaultClosed),
+            VaultPhase::Active => Err(HaexError::VaultAlreadyActive),
+            VaultPhase::Closing => Err(HaexError::VaultClosed),
         }
     }
 
@@ -308,7 +308,7 @@ impl VaultGate {
         self.with_admission(|_| Ok(()))?;
         tokio::select! {
             biased;
-            _ = self.inner.cancel.cancelled() => Err(HolziError::VaultClosed),
+            _ = self.inner.cancel.cancelled() => Err(HaexError::VaultClosed),
             out = fut => Ok(out),
         }
     }
@@ -319,7 +319,7 @@ impl VaultGate {
     ) -> Result<T> {
         let phase = self.phase_lock();
         if *phase == VaultPhase::Closing {
-            return Err(HolziError::VaultClosed);
+            return Err(HaexError::VaultClosed);
         }
         operation(&Admission {
             gate: self,

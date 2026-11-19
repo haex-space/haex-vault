@@ -16,14 +16,14 @@ use super::model::{ItemInput, KeyValueInput, Target, TargetKind};
 use super::passkeys::{self, PasskeyInput};
 use super::test_support::open_test_vault;
 use super::trash;
-use crate::error::HolziError;
+use crate::error::HaexError;
 
 fn write<R>(
     db: &Database,
     f: impl FnOnce(&mut haex_crdt::CrdtTransaction<'_>) -> crate::error::Result<R>,
 ) -> crate::error::Result<R> {
     db.write(|tx| f(tx).map_err(haex_crdt::Error::from))
-        .map_err(HolziError::from)
+        .map_err(HaexError::from)
 }
 
 fn item_target(id: &str) -> Target {
@@ -407,7 +407,7 @@ fn only_what_is_in_the_trash_can_be_deleted_for_good_by_the_user_path() {
     let (_dir, db) = open_test_vault();
     let id = item_in(&db, None);
     let live = write(&db, |tx| trash::delete_permanently(tx, &[item_target(&id)]));
-    assert!(matches!(live, Err(HolziError::InvalidInput { reason }) if reason == "not_in_trash"));
+    assert!(matches!(live, Err(HaexError::InvalidInput { reason }) if reason == "not_in_trash"));
     assert_eq!(
         count(&db, "SELECT COUNT(*) FROM haex_passwords_item_details"),
         1
@@ -415,7 +415,7 @@ fn only_what_is_in_the_trash_can_be_deleted_for_good_by_the_user_path() {
     let missing = write(&db, |tx| {
         trash::delete_permanently(tx, &[item_target("nope")])
     });
-    assert!(matches!(missing, Err(HolziError::PasswordsNotFound)));
+    assert!(matches!(missing, Err(HaexError::PasswordsNotFound)));
 }
 
 #[test]
@@ -467,7 +467,7 @@ fn the_trash_row_itself_cannot_be_trashed_restored_or_deleted() {
         }),
     ] {
         assert!(
-            matches!(result, Err(HolziError::InvalidInput { .. })),
+            matches!(result, Err(HaexError::InvalidInput { .. })),
             "{result:?}"
         );
     }

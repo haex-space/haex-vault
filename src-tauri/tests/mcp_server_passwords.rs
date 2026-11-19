@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 use holzi_lib::caller::Caller;
 use holzi_lib::chat::tools::action_tool::AgentActionDef;
-use holzi_lib::error::HolziError;
+use holzi_lib::error::HaexError;
 use holzi_lib::mcp_server::grants::{default_rights, PasswordLevel, PasswordRights, Rights};
 use holzi_lib::mcp_server::hello::CloseReason;
 use holzi_lib::mcp_server::prompts::CallDecision;
@@ -35,7 +35,7 @@ struct Env {
 
 #[async_trait]
 impl PasswordsAgentEnv for Env {
-    fn service(&self) -> Result<PasswordsService, HolziError> {
+    fn service(&self) -> Result<PasswordsService, HaexError> {
         Ok(PasswordsService::new(self.db.clone()))
     }
 

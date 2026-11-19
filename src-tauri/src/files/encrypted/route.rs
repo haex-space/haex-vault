@@ -354,7 +354,7 @@ fn head_entry(head: &FolderHead, path: String) -> Entry {
         mime: None,
         symlink: false,
         no_access: false,
-        holzi_owned: false,
+        haex_owned: false,
         encrypted: Some(EncryptedInfo {
             role: EncryptedRole::Folder,
             state: head.state,

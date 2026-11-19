@@ -5,9 +5,9 @@
 //!
 //! `DROP TABLE` fires no triggers, so no delete marker reaches other devices: every device drops
 //! its own copy when it runs this migration. The migrations that created or changed the table stay
-//! as they are. `HOLZI_TRIGGER_VERSION` is raised as for every change of the tracked tables.
+//! as they are. `HAEX_TRIGGER_VERSION` is raised as for every change of the tracked tables.
 
 /// The migration `0059_drop_agent_files`; registered in
-/// [`super::migrations::holzi_migration_source`].
+/// [`super::migrations::haex_migration_source`].
 pub const DROP_AGENT_FILES_0059: &str = r#"DROP TABLE agent_file_permissions;
 "#;

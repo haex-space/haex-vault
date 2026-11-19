@@ -4,13 +4,13 @@
 //! `haex_passwords_pass_barcodes`. The satellites keyed by the item id (free fields, folders, tags,
 //! attachments, history) serve both types unchanged.
 //!
-//! The tables are CRDT-tracked, so [`super::migrations::HOLZI_TRIGGER_VERSION`] is raised with it.
+//! The tables are CRDT-tracked, so [`super::migrations::HAEX_TRIGGER_VERSION`] is raised with it.
 //! No UNIQUE constraint besides the primary keys and no `WITHOUT ROWID` (spec 034 FR-037). The
 //! foreign keys cascade locally; `trash::purge_item` still deletes the rows first, since the sync
 //! applies remote deletes without foreign keys. `parent_id` has **no** foreign key: the parent may
 //! not have arrived by sync yet, and a purge clears the link explicitly (research R8).
 
-/// The migration `0061_passwords_pass`; registered in [`super::migrations::holzi_migration_source`].
+/// The migration `0061_passwords_pass`; registered in [`super::migrations::haex_migration_source`].
 pub const PASSWORDS_PASS_0061: &str = r#"ALTER TABLE haex_passwords_item_details ADD COLUMN kind TEXT NOT NULL DEFAULT 'login';
 --> statement-breakpoint
 CREATE TABLE haex_passwords_pass_details (

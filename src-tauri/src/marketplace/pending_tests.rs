@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use super::*;
-use crate::error::HolziError;
+use crate::error::HaexError;
 
 const IDLE: Duration = Duration::from_secs(600);
 
@@ -15,8 +15,8 @@ fn bundle(tag: &str) -> PendingBundle {
     }
 }
 
-fn missing(error: HolziError) -> bool {
-    matches!(error, HolziError::Marketplace { reason } if reason == kinds::PENDING_MISSING)
+fn missing(error: HaexError) -> bool {
+    matches!(error, HaexError::Marketplace { reason } if reason == kinds::PENDING_MISSING)
 }
 
 fn put(slot: &Arc<PendingSlot>, tag: &str, closing: &CancellationToken) -> Uuid {

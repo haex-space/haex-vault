@@ -23,11 +23,11 @@ use crate::cli_tools::runtime::{DelegateRuntime, RunFolder};
 
 use super::approval_bridge;
 use super::autonomy::{self, ApprovalRequestPayload, AutonomyMode, NetworkContext};
-use super::holzi_mcp;
+use super::haex_mcp;
 use super::process::{configure_process_group, map_spawn_error, ChildLifecycle};
 use super::{build_transcript_prompt, DelegateChatContext, DelegateVendor};
 
-const CLIENT_NAME: &str = "holzi";
+const CLIENT_NAME: &str = "haex";
 const CLIENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(30);
 pub(super) const MAX_STDERR_BYTES: usize = 64 * 1024;
@@ -81,7 +81,7 @@ pub(super) fn haex_startup_of(method: &str, params: &Value) -> Option<HaexStartu
     if method != "mcpServer/startupStatus/updated" {
         return None;
     }
-    if params.get("name").and_then(Value::as_str) != Some(holzi_mcp::SERVER_NAME) {
+    if params.get("name").and_then(Value::as_str) != Some(haex_mcp::SERVER_NAME) {
         return None;
     }
     match params.get("status").and_then(Value::as_str)? {
@@ -475,8 +475,8 @@ pub(super) async fn spawn_codex_app_server(
         })?;
 
     // holzi's own server for a registered delegate (spec 021 R7).
-    let holzi = holzi_mcp::server_for(&context, DelegateVendor::Codex, req.thread_id, &model).await;
-    holzi_mcp::write_codex_config(tmp.path(), holzi.as_ref()).await?;
+    let haex = haex_mcp::server_for(&context, DelegateVendor::Codex, req.thread_id, &model).await;
+    haex_mcp::write_codex_config(tmp.path(), haex.as_ref()).await?;
 
     let mut command = build_command(&runtime, &tmp);
     configure_process_group(&mut command);
@@ -540,9 +540,9 @@ pub(super) async fn spawn_codex_app_server(
             // Codex's equivalent of Claude's `--append-system-prompt-file`
             // (spec.md FR-010) — holzi passes context explicitly rather
             // than relying on file-based discovery.
-            "developerInstructions": holzi_mcp::with_instruction(
+            "developerInstructions": haex_mcp::with_instruction(
                 req.system_prompt.as_deref(),
-                holzi.is_some(),
+                haex.is_some(),
             ),
         });
         if autonomy_mode == AutonomyMode::Ungated {
@@ -600,7 +600,7 @@ pub(super) async fn spawn_codex_app_server(
         }
         // The turn lists the tools of the session as it begins: with HaexVault's server still
         // starting it would begin without them.
-        if holzi.is_some() {
+        if haex.is_some() {
             wait_for_haex_server(
                 &mut stdin,
                 &mut lines,
@@ -655,7 +655,7 @@ pub(super) async fn spawn_codex_app_server(
     let join = tokio::spawn(async move {
         let _tmp = tmp;
         // holzi's pass for this start ends with it.
-        let _holzi = holzi;
+        let _haex = haex;
         let start = Instant::now();
         let mut ttft_ms = None;
         let mut last_usage: Option<(Option<usize>, Option<usize>)> = None;

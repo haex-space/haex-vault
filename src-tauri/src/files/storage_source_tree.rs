@@ -15,7 +15,7 @@ use crate::files::{Entry, EntryKind, FilesError, FilesErrorCode};
 use crate::remote_storage::{case_clash, DirListing, StorageError};
 
 /// The start of the name an entry has between the two steps of a rename that changes only case.
-const RENAMING: &str = ".holzi-rename-";
+const RENAMING: &str = ".haex-rename-";
 
 /// The folder of `key` (a file, or a folder ending in `/`) as a prefix, and its name in it.
 fn split_key(key: &str) -> (&str, &str) {

@@ -96,9 +96,9 @@ pub enum TtsError {
     Invalid { reason: String },
 }
 
-impl From<TtsError> for crate::error::HolziError {
+impl From<TtsError> for crate::error::HaexError {
     fn from(err: TtsError) -> Self {
-        crate::error::HolziError::SpeechFailed {
+        crate::error::HaexError::SpeechFailed {
             reason: err.to_string(),
         }
     }

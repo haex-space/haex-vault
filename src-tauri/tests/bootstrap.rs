@@ -1,10 +1,10 @@
-//! Etappe 1 acceptance test: `HolziBootstrap` at the pinned haex-crdt 0.4.0
+//! Etappe 1 acceptance test: `HaexBootstrap` at the pinned haex-crdt 0.4.0
 //! revision produces a stable identity across genesis → close → reopen, and
 //! the `installation_uuid` PK is carried in `row_pks` (never as a mutable
 //! column change).
 //!
 //! Mirrors the Etappe-0 wegwerf-crate assertions, but exercises the real
-//! production code in `holzi_lib::identity::HolziBootstrap` + `MigrationSource`,
+//! production code in `holzi_lib::identity::HaexBootstrap` + `MigrationSource`,
 //! not a spike.
 
 // These tests read raw vault state (counts, CRDT columns, the delete log) that
@@ -20,7 +20,7 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, ScanFilters, SqlCipherKey};
 
 use holzi_lib::identity::{
-    holzi_migration_source, installation_id_path, HolziBootstrap, HOLZI_TRIGGER_VERSION,
+    haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
     VAULT_SCOPE_UUID,
 };
 use holzi_lib::storage::known_devices;
@@ -37,10 +37,10 @@ fn make_config(
         path: db_path,
         key: SqlCipherKey::new(PASSPHRASE),
         create_if_missing,
-        bootstrap: Arc::new(HolziBootstrap::new(installation_id).with_alias("test")),
+        bootstrap: Arc::new(HaexBootstrap::new(installation_id).with_alias("test")),
         signature_provider: Arc::new(NoopSignatureProvider),
-        migration_source: holzi_migration_source(),
-        trigger_version: HOLZI_TRIGGER_VERSION,
+        migration_source: haex_migration_source(),
+        trigger_version: HAEX_TRIGGER_VERSION,
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
     }

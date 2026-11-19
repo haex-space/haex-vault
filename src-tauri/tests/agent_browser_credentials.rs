@@ -82,7 +82,7 @@ async fn login_tab(scene: &Scene) -> String {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn holzi_fills_a_login_the_agent_never_sees() {
+async fn haex_fills_a_login_the_agent_never_sees() {
     let Some(scene) = scene_with(true, SiteLevel::Operate).await else {
         return;
     };
@@ -161,7 +161,7 @@ async fn holzi_fills_a_login_the_agent_never_sees() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn holzi_creates_a_login_the_agent_never_sees() {
+async fn haex_creates_a_login_the_agent_never_sees() {
     let Some(scene) = scene_with(true, SiteLevel::Operate).await else {
         return;
     };

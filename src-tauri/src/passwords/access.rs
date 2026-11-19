@@ -12,7 +12,7 @@
 use std::collections::BTreeSet;
 
 use super::ids::fold;
-use crate::error::HolziError;
+use crate::error::HaexError;
 
 pub use crate::caller::Caller;
 
@@ -175,11 +175,11 @@ pub enum Denied {
     NotFound,
 }
 
-impl From<Denied> for HolziError {
+impl From<Denied> for HaexError {
     fn from(denied: Denied) -> Self {
         match denied {
-            Denied::Forbidden => HolziError::PasswordsForbidden,
-            Denied::NotFound => HolziError::PasswordsNotFound,
+            Denied::Forbidden => HaexError::PasswordsForbidden,
+            Denied::NotFound => HaexError::PasswordsNotFound,
         }
     }
 }

@@ -26,7 +26,7 @@ use super::references::{
     ReferenceError,
 };
 use super::{clock, snapshots};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
 /// Who resolves: the source of a placeholder must be visible to this caller (FR-047).
@@ -48,9 +48,9 @@ impl Reader<'static> {
     }
 }
 
-impl From<ReferenceError> for HolziError {
+impl From<ReferenceError> for HaexError {
     fn from(error: ReferenceError) -> Self {
-        HolziError::PasswordsReference {
+        HaexError::PasswordsReference {
             reason: error.as_str().to_string(),
         }
     }
@@ -119,7 +119,7 @@ pub fn resolve_or_error(
     field: Field,
     text: &str,
 ) -> Result<Zeroizing<String>> {
-    resolve_value(q, reader, item_id, field, text)?.map_err(HolziError::from)
+    resolve_value(q, reader, item_id, field, text)?.map_err(HaexError::from)
 }
 
 /// The texts of an entry's reference fields as a save leaves them.
@@ -199,7 +199,7 @@ pub fn validate(q: &mut impl Query, item_id: &str, texts: &FieldTexts) -> Result
     }
     let mut lookup = |id: &str, kind: &RefKind| raw_value(q, id, kind);
     match find_cycle(&item_id.to_ascii_lowercase(), &fields, &mut lookup)? {
-        Some(source_item_id) => Err(HolziError::PasswordsReferenceCycle { source_item_id }),
+        Some(source_item_id) => Err(HaexError::PasswordsReferenceCycle { source_item_id }),
         None => Ok(()),
     }
 }

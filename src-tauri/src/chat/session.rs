@@ -486,11 +486,12 @@ impl ChatState {
     /// Reject overlapping operations before they can replace another turn's
     /// cancellation handles or carry a loaded adapter into a different vault.
     pub fn acquire_operation(&self) -> crate::error::Result<tokio::sync::OwnedMutexGuard<()>> {
-        self.operation.clone().try_lock_owned().map_err(|_| {
-            crate::error::HolziError::InvalidInput {
+        self.operation
+            .clone()
+            .try_lock_owned()
+            .map_err(|_| crate::error::HaexError::InvalidInput {
                 reason: "a chat or vault operation is still in progress".into(),
-            }
-        })
+            })
     }
 
     /// Whether a chat turn, model load or vault transition holds the operation lock right now. The

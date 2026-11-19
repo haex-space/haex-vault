@@ -154,7 +154,7 @@ async fn delete_moves_the_file_into_the_trash() {
     let done = w.resolve(SyncRulePendingChoice::Delete).await;
     assert_eq!(done.counts.deleted, 1, "{done:?}");
     assert!(!w.target.join("sub/x.txt").exists());
-    assert!(w.target.join(".holzi-trash/run1/sub/x.txt").is_file());
+    assert!(w.target.join(".haex-trash/run1/sub/x.txt").is_file());
     assert!(w.pending().await.is_empty());
     assert!(w.state().is_empty());
 }
@@ -214,7 +214,7 @@ async fn a_file_back_on_the_other_side_is_not_deleted() {
 async fn a_failing_delete_keeps_the_file_and_its_row() {
     let w = world().await;
     // A file where the rule trash would be: the move into it fails.
-    std::fs::write(w.target.join(".holzi-trash"), "im Weg").unwrap();
+    std::fs::write(w.target.join(".haex-trash"), "im Weg").unwrap();
     let done = w.resolve(SyncRulePendingChoice::Delete).await;
     assert_eq!(done.failures.len(), 1, "{done:?}");
     assert!(w.target.join("sub/x.txt").is_file());

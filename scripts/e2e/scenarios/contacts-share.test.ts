@@ -159,7 +159,7 @@ scenario('contacts-share', { timeoutMs: 240_000 }, async (ctx) => {
   )
   assert.equal(preview.target.id, header!.id, 'the same contact')
   const addresses = preview.items.find(
-    (item) => item.item.type === 'holziAddresses',
+    (item) => item.item.type === 'haexAddresses',
   )
   assert.ok(addresses, 'the share carries addresses')
   assert.ok(
@@ -204,7 +204,7 @@ scenario('contacts-share', { timeoutMs: 240_000 }, async (ctx) => {
     head: { givenName: 'Carla' },
     values: [
       {
-        kind: 'holzi_nostr_relay',
+        kind: 'haex_nostr_relay',
         label: 'other',
         value: 'wss://relay.example.org',
       },
@@ -214,9 +214,9 @@ scenario('contacts-share', { timeoutMs: 240_000 }, async (ctx) => {
   await mara.click('contacts-back')
   await mara.waitForDisplayed(`contacts-row-${typed}`)
   await mara.click(`contacts-row-${typed}`)
-  await mara.waitForDisplayed('contacts-holzi-addresses', 15_000)
+  await mara.waitForDisplayed('contacts-haex-addresses', 15_000)
   const marked = await mara.exec<string>(
-    `return document.querySelector('[data-testid="contacts-holzi-addresses"]')?.textContent ?? ''`,
+    `return document.querySelector('[data-testid="contacts-haex-addresses"]')?.textContent ?? ''`,
   )
   assert.ok(marked.includes('unbestätigt'), marked)
   ctx.step('a holzi address typed in by hand shows as unconfirmed')

@@ -221,7 +221,7 @@ scenario(
       !left.some((path) => path.startsWith(`${area}a`)),
       `the emptied folder a/ is gone: ${left.join(', ')}`,
     )
-    assert.ok(!left.some((path) => path.includes('.holzi-part-')))
+    assert.ok(!left.some((path) => path.includes('.haex-part-')))
     ctx.step('objects in the extension’s own area, round trip against WebDAV')
 
     const login = await createEntry(page, {

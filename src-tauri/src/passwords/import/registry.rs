@@ -4,7 +4,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 #[derive(Default)]
 pub struct ImportRegistry {
@@ -38,11 +38,11 @@ impl ImportRegistry {
 
     /// Takes the slot; a second import while one runs is refused.
     pub fn begin(self: &Arc<Self>) -> Result<RunGuard> {
-        let mut slot = self.current.lock().map_err(|_| HolziError::CrdtInit {
+        let mut slot = self.current.lock().map_err(|_| HaexError::CrdtInit {
             reason: "import registry poisoned".to_string(),
         })?;
         if slot.is_some() {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: "import_running".to_string(),
             });
         }

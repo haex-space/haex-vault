@@ -17,7 +17,7 @@ use uuid::Uuid;
 pub use super::declared_view::DeclaredPermissionView;
 use super::effective::{effective_bundle, live_bundles, retire, same_version_others};
 use super::install_source::InstallOrigin;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::extensions::bundle::store::{store_blobs, write_registry_rows, BundleIds};
 use crate::extensions::bundle::{limits, verify_bundle, BundleRejection, Manifest, VerifiedBundle};
 use crate::extensions::ids::{extension_id, TablePrefix};
@@ -147,14 +147,14 @@ pub fn publisher_fingerprint(public_key: &str) -> String {
 /// Reads a chosen `.xt` file: where its size is known it is checked before a byte is read,
 /// otherwise reading stops one byte past the limit. Blocking.
 pub fn read_bundle_file(opener: &impl Opener, file: &PickedFile) -> Result<Vec<u8>> {
-    let unreadable = || HolziError::ExtensionInstall {
+    let unreadable = || HaexError::ExtensionInstall {
         reason: "unreadable".into(),
     };
-    let too_large = || HolziError::ExtensionInstall {
+    let too_large = || HaexError::ExtensionInstall {
         reason: haex_bundle::ErrorKind::ArchiveTooLarge.as_str().into(),
     };
     let source = picked::open_read(opener, file).map_err(|error| match error {
-        HolziError::InvalidInput { .. } => error,
+        HaexError::InvalidInput { .. } => error,
         _ => unreadable(),
     })?;
     let metadata = source.metadata().map_err(|_| unreadable())?;
@@ -401,7 +401,7 @@ pub fn install(
         name: manifest.name.clone(),
     };
     if super::start::dev_prefix_here(db, &prefix)? {
-        return Err(HolziError::ExtensionInstall {
+        return Err(HaexError::ExtensionInstall {
             reason: "dev_prefix_conflict".into(),
         });
     }
@@ -416,7 +416,7 @@ pub fn install(
     })?;
     let is_downgrade = current.is_some_and(|c| manifest.version < c.version);
     if is_downgrade && !confirmed {
-        return Err(HolziError::ExtensionInstall {
+        return Err(HaexError::ExtensionInstall {
             reason: "downgrade_not_confirmed".into(),
         });
     }
@@ -428,7 +428,7 @@ pub fn install(
     let ids = db.write_blocking(move |tx| {
         // Again in the write: a development version may have been loaded since the check above.
         if crate::extensions::dev::prefixes(tx)?.contains(&prefix.to_string()) {
-            return Err(HolziError::ExtensionInstall {
+            return Err(HaexError::ExtensionInstall {
                 reason: "dev_prefix_conflict".into(),
             }
             .into());
@@ -461,8 +461,8 @@ pub fn install(
     Ok(Installed { ids })
 }
 
-fn not_confirmed_replacement() -> HolziError {
-    HolziError::ExtensionInstall {
+fn not_confirmed_replacement() -> HaexError {
+    HaexError::ExtensionInstall {
         reason: "replace_not_confirmed".into(),
     }
 }

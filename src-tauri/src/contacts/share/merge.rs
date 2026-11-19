@@ -17,11 +17,11 @@ use super::preview::{plan, Payload, Plan};
 use crate::contacts::card::received;
 use crate::contacts::model::{Contact, Head, Origin};
 use crate::contacts::store;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::passwords::clock;
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::ShareInvalid {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::ShareInvalid {
         reason: reason.to_owned(),
     }
 }
@@ -77,7 +77,7 @@ fn decisions_by_item<'a>(
 
 /// Reads the share in as a new contact or into an existing one, as chosen. `preview_revision` is
 /// the revision of the preview the person saw; an existing target must still be what it was
-/// ([`HolziError::SharePreviewStale`]). Returns the contact as it is stored afterwards.
+/// ([`HaexError::SharePreviewStale`]). Returns the contact as it is stored afterwards.
 pub fn apply(
     tx: &mut CrdtTransaction<'_>,
     text: &str,
@@ -88,7 +88,7 @@ pub fn apply(
 ) -> Result<Contact> {
     let plan = plan(tx, text, target)?;
     if plan.target.is_some() && preview_revision != plan.preview.target_revision.as_deref() {
-        return Err(HolziError::SharePreviewStale);
+        return Err(HaexError::SharePreviewStale);
     }
     if plan.preview.blocked {
         return Err(invalid("the vault is blocked"));
@@ -165,7 +165,7 @@ pub fn apply(
                 }
                 _ => {}
             },
-            Payload::Holzi => {
+            Payload::Haex => {
                 let card = plan
                     .decoded
                     .card
@@ -179,7 +179,7 @@ pub fn apply(
                         let older = received::stored(tx, &card.card.vault)?
                             .is_some_and(|(_, old)| card.card.issued_at <= old.card.issued_at);
                         if older {
-                            return Err(HolziError::CardOlder);
+                            return Err(HaexError::CardOlder);
                         }
                         received::replace(tx, &contact_id, card)?;
                     }

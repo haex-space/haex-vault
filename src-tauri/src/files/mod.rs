@@ -59,7 +59,7 @@ pub enum FilesErrorCode {
     Exists,
     IntoItself,
     NoSpace,
-    HolziOwned,
+    HaexOwned,
     NoAccess,
     NotFound,
     Binary,
@@ -168,7 +168,7 @@ pub struct Entry {
     /// The system denies access.
     pub no_access: bool,
     /// In one of holzi's own places: read-only for the user (FR-037).
-    pub holzi_owned: bool,
+    pub haex_owned: bool,
     /// An encrypted folder or an entry in one (spec 048).
     pub encrypted: Option<EncryptedInfo>,
     /// A conflict copy after the format's rules; the name holds the addition already.

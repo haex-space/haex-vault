@@ -10,7 +10,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use super::*;
-use crate::identity::{holzi_migration_source, HolziBootstrap, HOLZI_TRIGGER_VERSION};
+use crate::identity::{haex_migration_source, HaexBootstrap, HAEX_TRIGGER_VERSION};
 use crate::state::{ActiveInstanceHandle, AppState};
 use crate::storage::query;
 
@@ -22,10 +22,10 @@ fn open_test_state(passphrase: &str) -> (tempfile::TempDir, AppState, Uuid) {
             path: dir.path().join("vault.db"),
             key: SqlCipherKey::new(passphrase),
             create_if_missing: true,
-            bootstrap: Arc::new(HolziBootstrap::new(install_path.clone())),
+            bootstrap: Arc::new(HaexBootstrap::new(install_path.clone())),
             signature_provider: Arc::new(NoopSignatureProvider),
-            migration_source: holzi_migration_source(),
-            trigger_version: HOLZI_TRIGGER_VERSION,
+            migration_source: haex_migration_source(),
+            trigger_version: HAEX_TRIGGER_VERSION,
             max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
             max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
         })
@@ -187,7 +187,7 @@ async fn an_oversized_session_is_rejected_as_too_large() {
     turn(&state, device, true).await;
     let big = json!({ "version": 1, "padding": "x".repeat(wm_session::MAX_SESSION_BYTES) });
     let result = session_save(db_of(&state), device, big).await;
-    assert!(matches!(result, Err(HolziError::SessionTooLarge { .. })));
+    assert!(matches!(result, Err(HaexError::SessionTooLarge { .. })));
 }
 
 #[tokio::test]

@@ -88,24 +88,24 @@ fn names_windows_forbids_are_refused_everywhere() {
 }
 
 #[test]
-fn nothing_changes_in_holzis_own_places() {
+fn nothing_changes_in_haexs_own_places() {
     let (_dir, real) = folder();
     std::fs::create_dir(real.join("eigen")).unwrap();
     std::fs::write(real.join("eigen/a.txt"), "a").unwrap();
     let own = OwnPlaces::new(vec![real.join("eigen")]);
     let error = create_folder(&real.join("eigen"), "neu", &own).unwrap_err();
-    assert_eq!(error.code, FilesErrorCode::HolziOwned);
+    assert_eq!(error.code, FilesErrorCode::HaexOwned);
     let error = rename(&real.join("eigen/a.txt"), "b.txt", &own).unwrap_err();
-    assert_eq!(error.code, FilesErrorCode::HolziOwned);
+    assert_eq!(error.code, FilesErrorCode::HaexOwned);
     assert!(real.join("eigen/a.txt").exists());
 }
 
 #[test]
-fn renaming_a_folder_that_holds_holzis_data_is_refused() {
+fn renaming_a_folder_that_holds_haexs_data_is_refused() {
     let (_dir, real) = folder();
     std::fs::create_dir_all(real.join("share/holzi")).unwrap();
     let own = OwnPlaces::new(vec![real.join("share/holzi")]);
     let error = rename(&real.join("share"), "weg", &own).unwrap_err();
-    assert_eq!(error.code, FilesErrorCode::HolziOwned);
+    assert_eq!(error.code, FilesErrorCode::HaexOwned);
     assert!(real.join("share/holzi").is_dir());
 }

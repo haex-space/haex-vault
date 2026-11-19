@@ -54,7 +54,7 @@ export function problemLabelKey(
 /** The three values two devices compare before they sync (spec 059); `VaultDevice.schema` has them. */
 export type SchemaFacts = {
   protocol: number
-  holziMigration: number
+  haexMigration: number
   crdtTrigger: number
 }
 
@@ -63,7 +63,7 @@ export type SchemaField = keyof SchemaFacts
 /** The values in the order the list shows them. */
 export const SCHEMA_FIELDS: readonly SchemaField[] = [
   'protocol',
-  'holziMigration',
+  'haexMigration',
   'crdtTrigger',
 ]
 
@@ -86,7 +86,7 @@ export function schemaDiff(
         : 'higher'
   return {
     protocol: order('protocol'),
-    holziMigration: order('holziMigration'),
+    haexMigration: order('haexMigration'),
     crdtTrigger: order('crdtTrigger'),
   }
 }

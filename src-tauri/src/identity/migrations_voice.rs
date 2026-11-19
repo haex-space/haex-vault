@@ -11,10 +11,10 @@
 //! [`super::migrations_contacts`]); readers order by `(thread_id, seq, id)`. There is no cascading
 //! foreign key: deleting a thread deletes its entries explicitly in the same CRDT write so each gets
 //! its own delete marker. The new column and table raise
-//! [`super::migrations::HOLZI_TRIGGER_VERSION`].
+//! [`super::migrations::HAEX_TRIGGER_VERSION`].
 
 /// The migration `0050_voice_conversations`; registered in
-/// [`super::migrations::holzi_migration_source`].
+/// [`super::migrations::haex_migration_source`].
 pub const VOICE_0050: &str = r#"ALTER TABLE chat_threads ADD COLUMN origin TEXT;
 --> statement-breakpoint
 CREATE TABLE voice_transcript_entries (

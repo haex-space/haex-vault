@@ -10,7 +10,7 @@ use haex_crdt::Database;
 
 use super::migrations_extensions_tests::{has_hlc_column, unique_indexes};
 use super::migrations_tests::{column_names, migration_source_before, open, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 const VOICES: &str = "haex_tts_voices";
 const BINARIES: &str = "haex_tts_voices_binaries";
@@ -54,7 +54,7 @@ fn assert_schema(db: &Database) {
 async fn migration_0052_gives_a_fresh_vault_the_voice_tables() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
-        let db = open(dir.path(), "voices-fresh", true, holzi_migration_source());
+        let db = open(dir.path(), "voices-fresh", true, haex_migration_source());
         assert_schema(&db);
     })
     .await
@@ -69,12 +69,7 @@ async fn migration_0052_adds_the_voice_tables_to_an_existing_vault() {
         let db = open(dir.path(), "voices-upgrade", true, before);
         assert!(!table_exists(&db, VOICES), "{VOICES} is not there yet");
         drop(db);
-        let db = open(
-            dir.path(),
-            "voices-upgrade",
-            false,
-            holzi_migration_source(),
-        );
+        let db = open(dir.path(), "voices-upgrade", false, haex_migration_source());
         assert_schema(&db);
     })
     .await

@@ -22,7 +22,7 @@ fn png(shade: u8) -> Vec<u8> {
 }
 
 #[tokio::test]
-async fn a_photo_set_in_holzi_goes_to_the_phone_once() {
+async fn a_photo_set_in_haex_goes_to_the_phone_once() {
     let rig = Rig::new();
     let raw = rig.book.add(GOOGLE, vec![name("Anna", "Beck")]);
     rig.start();

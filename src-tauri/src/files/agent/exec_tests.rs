@@ -45,7 +45,7 @@ async fn sources_name_the_device_and_only_granted_storages() {
 }
 
 #[tokio::test]
-async fn a_list_leaves_holzis_own_places_out() {
+async fn a_list_leaves_haexs_own_places_out() {
     let scene = Scene::new(None);
     let list = scene
         .run(
@@ -72,11 +72,11 @@ async fn a_list_leaves_holzis_own_places_out() {
 
 #[cfg(unix)]
 #[tokio::test]
-async fn links_to_holzis_own_data_are_hidden_from_list_and_search() {
+async fn links_to_haexs_own_data_are_hidden_from_list_and_search() {
     let scene = Scene::new(None);
     std::os::unix::fs::symlink(scene.path("holzi/vault.db"), scene.path("link-to-vault.db"))
         .unwrap();
-    std::os::unix::fs::symlink(scene.path("holzi"), scene.path("link-to-holzi")).unwrap();
+    std::os::unix::fs::symlink(scene.path("holzi"), scene.path("link-to-haex")).unwrap();
 
     let list = scene
         .run(
@@ -87,7 +87,7 @@ async fn links_to_holzis_own_data_are_hidden_from_list_and_search() {
         .expect("list");
     assert!(!names(&list, "entries")
         .iter()
-        .any(|name| { name == "link-to-vault.db" || name == "link-to-holzi" }));
+        .any(|name| { name == "link-to-vault.db" || name == "link-to-haex" }));
 
     let found = scene
         .run(
@@ -130,7 +130,7 @@ async fn text_is_read_up_to_its_limit_and_other_files_get_a_note() {
 }
 
 #[tokio::test]
-async fn a_search_finds_names_and_never_holzis_own_files() {
+async fn a_search_finds_names_and_never_haexs_own_files() {
     let scene = Scene::new(None);
     let found = scene
         .run(
@@ -165,7 +165,7 @@ async fn a_search_finds_names_and_never_holzis_own_files() {
 
 /// SC-005: every way to holzi's own files is refused without content.
 #[tokio::test]
-async fn holzis_own_files_are_blocked_however_they_are_named() {
+async fn haexs_own_files_are_blocked_however_they_are_named() {
     let scene = Scene::new(None);
     // Only Unix adds the links below.
     #[cfg_attr(not(unix), allow(unused_mut))]

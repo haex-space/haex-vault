@@ -11,7 +11,7 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::Database;
 
 use super::migrations_tests::{migration_source_before, open, own_columns, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 const TABLE: &str = "haex_passwords_passkey_links";
 
@@ -97,7 +97,7 @@ async fn migration_0026_gives_a_fresh_vault_the_link_table() {
             dir.path(),
             "passkey-links-fresh",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_links_schema(&db);
     })
@@ -123,7 +123,7 @@ async fn migration_0026_upgrades_a_vault_from_before_it_and_a_second_open_change
             dir.path(),
             "passkey-links-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_links_schema(&db);
         insert_link(&db);
@@ -133,7 +133,7 @@ async fn migration_0026_upgrades_a_vault_from_before_it_and_a_second_open_change
             dir.path(),
             "passkey-links-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_links_schema(&again);
         assert_eq!(
@@ -153,7 +153,7 @@ async fn a_link_goes_with_its_passkey_or_its_entry() {
             dir.path(),
             "passkey-links-cascade",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         insert_link(&db);
         db.with_connection(|conn| {

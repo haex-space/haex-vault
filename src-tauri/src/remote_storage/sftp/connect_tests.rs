@@ -158,7 +158,7 @@ async fn a_server_that_never_answers_runs_into_the_deadline() {
 }
 
 #[tokio::test]
-async fn an_address_holzi_never_reaches_is_not_dialled() {
+async fn an_address_haex_never_reaches_is_not_dialled() {
     let refused = connect(
         resolver(&[]).as_ref(),
         &access("sftp://169.254.169.254", None, password("password")),

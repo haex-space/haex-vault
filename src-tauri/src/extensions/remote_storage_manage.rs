@@ -19,7 +19,7 @@ use super::remote_storage::{
     check_storage, invalid, item, not_found, overview, provider, service, text,
 };
 use super::remote_storage_dialog::{ask, open, Dialog, DialogKind, StorageAnswer};
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::passwords::clock::unix_millis;
 use crate::remote_storage::model::{ConnectionInput, CredentialsInput, StorageInput};
 use crate::remote_storage::service::StorageService;
@@ -56,12 +56,12 @@ pub(super) fn cancelled() -> BridgeError {
 }
 
 /// The extension's error for an error of the storage service; never its endpoint or region.
-pub(super) fn from_service(error: HolziError) -> BridgeError {
+pub(super) fn from_service(error: HaexError) -> BridgeError {
     match error {
-        HolziError::StorageTestFailed { outcome, .. } => provider(kind_of(outcome)),
-        HolziError::StorageInvalid { field } => invalid(&format!("invalid {field}")),
-        HolziError::StorageNotFound => not_found(),
-        HolziError::StorageCredentialsUnavailable { .. } => provider("accessDenied"),
+        HaexError::StorageTestFailed { outcome, .. } => provider(kind_of(outcome)),
+        HaexError::StorageInvalid { field } => invalid(&format!("invalid {field}")),
+        HaexError::StorageNotFound => not_found(),
+        HaexError::StorageCredentialsUnavailable { .. } => provider("accessDenied"),
         _ => BridgeError::new(ExtensionErrorCode::Database, "database unavailable"),
     }
 }
@@ -110,7 +110,7 @@ pub(super) fn with_credentials<T>(
     let mut typed = first;
     loop {
         match save(typed) {
-            Err(HolziError::StorageTestFailed {
+            Err(HaexError::StorageTestFailed {
                 outcome,
                 leftover_key,
                 host_key,

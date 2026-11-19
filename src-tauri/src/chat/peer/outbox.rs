@@ -11,7 +11,7 @@ use haex_crdt::CrdtTransaction;
 use serde::{Deserialize, Serialize};
 
 use super::ids;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
 /// The waits after the first attempts; every later one waits the last.
@@ -291,13 +291,13 @@ pub fn next_due(q: &mut impl Query) -> Result<Option<i64>> {
 }
 
 fn to_json<T: Serialize + ?Sized>(value: &T) -> Result<String> {
-    serde_json::to_string(value).map_err(|e| HolziError::InvalidInput {
+    serde_json::to_string(value).map_err(|e| HaexError::InvalidInput {
         reason: format!("outbox: {e}"),
     })
 }
 
 fn from_json<T: for<'de> Deserialize<'de>>(text: &str) -> Result<T> {
-    serde_json::from_str(text).map_err(|e| HolziError::InvalidInput {
+    serde_json::from_str(text).map_err(|e| HaexError::InvalidInput {
         reason: format!("outbox: {e}"),
     })
 }

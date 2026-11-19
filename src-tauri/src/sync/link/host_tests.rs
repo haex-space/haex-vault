@@ -280,7 +280,7 @@ async fn another_schema_version_ends_the_link_before_the_user_is_asked() {
     let joiner = newcomer();
     let code = LinkCode::generate();
     let mut newer = local_schema();
-    newer.holzi_migration += 1;
+    newer.haex_migration += 1;
 
     let outcome = link(
         &main,

@@ -141,7 +141,7 @@ fn a_refused_bundle_is_a_preview_with_its_error_and_an_install_error() {
     assert!(preview.error.is_some());
     assert!(matches!(
         v.install(&bytes, vec![], false),
-        Err(HolziError::ExtensionInstall { .. })
+        Err(HaexError::ExtensionInstall { .. })
     ));
 }
 
@@ -321,7 +321,7 @@ fn a_downgrade_needs_a_confirmation_and_then_retires_the_newer_bundle() {
     assert!(v.preview(&older).existing.unwrap().is_downgrade);
     assert!(matches!(
         v.install(&older, vec![], false),
-        Err(HolziError::ExtensionInstall { ref reason }) if reason == "downgrade_not_confirmed"
+        Err(HaexError::ExtensionInstall { ref reason }) if reason == "downgrade_not_confirmed"
     ));
     assert_eq!(v.effective(ext), "2.0.0");
 
@@ -381,7 +381,7 @@ fn the_same_version_with_other_content_replaces_only_after_a_confirmation() {
     assert!(v.preview(&other).replaces_same_version);
     assert!(matches!(
         v.install(&other, vec![], false),
-        Err(HolziError::ExtensionInstall { ref reason }) if reason == "replace_not_confirmed"
+        Err(HaexError::ExtensionInstall { ref reason }) if reason == "replace_not_confirmed"
     ));
     assert_eq!(effective_id(&v, first.extension_id), first.bundle_id);
 

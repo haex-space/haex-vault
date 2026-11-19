@@ -11,7 +11,7 @@ use haex_crdt::Database;
 use super::migrations_chat_ratchet::DEVICE_TABLES;
 use super::migrations_extensions_tests::has_hlc_column;
 use super::migrations_tests::{column_names, migration_source_before, open, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 fn assert_schema(db: &Database) {
     for table in DEVICE_TABLES {
@@ -44,7 +44,7 @@ fn assert_schema(db: &Database) {
 async fn migration_0063_gives_a_fresh_vault_the_ratchet_tables() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
-        let db = open(dir.path(), "ratchet-fresh", true, holzi_migration_source());
+        let db = open(dir.path(), "ratchet-fresh", true, haex_migration_source());
         assert_schema(&db);
     })
     .await
@@ -71,7 +71,7 @@ async fn migration_0063_keeps_the_outbox_rows() {
         .expect("seed");
         drop(db);
 
-        let db = open(dir.path(), "ratchet-upgrade", false, holzi_migration_source());
+        let db = open(dir.path(), "ratchet-upgrade", false, haex_migration_source());
         assert_schema(&db);
         let row: (String, i64, String, Option<i64>, i64) = db
             .with_connection(|conn| {

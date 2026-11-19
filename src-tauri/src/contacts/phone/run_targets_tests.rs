@@ -82,7 +82,7 @@ fn inserts(ops: &[Op]) -> usize {
 }
 
 #[tokio::test]
-async fn a_contact_made_in_holzi_reaches_the_phone_only_with_a_target() {
+async fn a_contact_made_in_haex_reaches_the_phone_only_with_a_target() {
     let rig = active();
     create(
         &rig,

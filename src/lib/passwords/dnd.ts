@@ -2,9 +2,9 @@
 // title or a value. Pure, so it is checked without a browser.
 
 /** A folder dragged inside the sidebar tree. */
-export const FOLDER_MIME = 'application/x-holzi-passwords-folder'
+export const FOLDER_MIME = 'application/x-haex-passwords-folder'
 /** Entries dragged from the list onto a folder. */
-export const ITEMS_MIME = 'application/x-holzi-passwords-items'
+export const ITEMS_MIME = 'application/x-haex-passwords-items'
 
 /** The text that carries the dragged entries. */
 export function itemsPayload(ids: readonly string[]): string {

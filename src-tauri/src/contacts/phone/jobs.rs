@@ -8,7 +8,7 @@ use tauri_plugin_holzi_android::contacts::{RawData, RawIndex};
 use super::apply::Planned;
 use super::gather::Gathered;
 use super::mapping::{map_raw, PhoneSide};
-use super::reconcile::{next_base, reconcile, HolziSide, RawSide};
+use super::reconcile::{next_base, reconcile, HaexSide, RawSide};
 use super::sides::Loaded;
 use super::store::{Base, Target};
 use crate::contacts::model::{Origin, OriginKind};
@@ -104,8 +104,8 @@ pub fn plan_job(
         Job::Import { contact_id, .. } => (contact_id.clone(), true, false),
     };
     let (mut raws, mut index) = (Vec::new(), Vec::new());
-    let holzi = loaded.get(&contact_id);
-    if !import && holzi.is_none() {
+    let haex = loaded.get(&contact_id);
+    if !import && haex.is_none() {
         return None;
     }
     if !import {
@@ -140,7 +140,7 @@ pub fn plan_job(
         let base = if import {
             Base::default()
         } else {
-            merge_base(holzi, &now)
+            merge_base(haex, &now)
         };
         raws.push(raw_side(raw, gathered, base, Some(now)));
         index.push(raw.clone());
@@ -150,14 +150,14 @@ pub fn plan_job(
     }
     let target = gathered.target_of(&contact_id);
     let primary = primary(&raws, &index, target);
-    let empty = HolziSide::default();
-    let side = holzi.map_or(&empty, |loaded| &loaded.side);
+    let empty = HaexSide::default();
+    let side = haex.map_or(&empty, |loaded| &loaded.side);
     let plan = reconcile(side, &raws, primary, import || merge);
     Some(Planned {
         contact_id,
         plan,
         raws,
-        loaded: holzi.cloned(),
+        loaded: haex.cloned(),
         import,
         merge,
         index,

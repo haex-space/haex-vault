@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use super::*;
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::marketplace::kinds;
 use crate::marketplace::model::MarketplaceAuthType;
 use crate::marketplace::store::{PRESET_ID, PRESET_NAME};
@@ -33,9 +33,9 @@ fn pw(db: &VaultDb) -> PasswordsService {
     PasswordsService::new(db.clone())
 }
 
-fn reason(error: HolziError) -> String {
+fn reason(error: HaexError) -> String {
     match error {
-        HolziError::Marketplace { reason } => reason,
+        HaexError::Marketplace { reason } => reason,
         other => panic!("not a marketplace error: {other:?}"),
     }
 }
@@ -84,7 +84,7 @@ async fn an_address_that_is_no_http_address_is_refused() {
     }
     assert!(matches!(
         save(&db, &pw(&db), input("   ", "https://market.example"), 1).await,
-        Err(HolziError::InvalidInput { .. })
+        Err(HaexError::InvalidInput { .. })
     ));
     assert!(order(&db).await.is_empty(), "nothing was written");
 }

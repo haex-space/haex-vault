@@ -8,20 +8,20 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
 
 use super::mapping::{group_value_id, GROUP};
-use super::reconcile::{HolziSide, HolziValue, Plan};
+use super::reconcile::{HaexSide, HaexValue, Plan};
 use super::store::{changed_millis, hlc_millis};
 use crate::contacts::ids::member_id;
 use crate::contacts::kinds;
 use crate::contacts::model::{Head, Origin};
 use crate::contacts::service::MAX_NOTE_BYTES;
 use crate::contacts::store::{self, HEAD_COLUMNS};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
 /// A contact of holzi as the run sees it.
 #[derive(Debug, Clone)]
 pub struct Loaded {
-    pub side: HolziSide,
+    pub side: HaexSide,
     pub updated_at: String,
     pub photo: Option<String>,
 }
@@ -98,7 +98,7 @@ fn cut(text: &str, limit: usize, bytes: bool) -> String {
 pub fn load(q: &mut impl Query, contact_id: &str) -> Result<Option<Loaded>> {
     let contact = match store::load(q, contact_id) {
         Ok(contact) => contact,
-        Err(HolziError::ContactsNotFound) => return Ok(None),
+        Err(HaexError::ContactsNotFound) => return Ok(None),
         Err(error) => return Err(error),
     };
     let head_millis = head_millis(q, contact_id)?;
@@ -108,7 +108,7 @@ pub fn load(q: &mut impl Query, contact_id: &str) -> Result<Option<Loaded>> {
             continue;
         }
         let millis = changed_millis(q, "haex_contacts_values", &value.id, &["label", "value"])?;
-        values.push(HolziValue {
+        values.push(HaexValue {
             id: value.id,
             kind: value.kind,
             label: value.label,
@@ -118,7 +118,7 @@ pub fn load(q: &mut impl Query, contact_id: &str) -> Result<Option<Loaded>> {
     }
     for group in contact.groups {
         let member = member_id(&group.id, contact_id);
-        values.push(HolziValue {
+        values.push(HaexValue {
             id: group_value_id(&group.name),
             kind: GROUP.to_owned(),
             label: String::new(),
@@ -127,7 +127,7 @@ pub fn load(q: &mut impl Query, contact_id: &str) -> Result<Option<Loaded>> {
         });
     }
     Ok(Some(Loaded {
-        side: HolziSide {
+        side: HaexSide {
             head: head_map(&contact.head),
             head_millis,
             values,
@@ -209,7 +209,7 @@ pub fn apply(tx: &mut CrdtTransaction<'_>, contact_id: &str, plan: &Plan, now: &
         }
         store::delete_value(tx, id)?;
     }
-    if plan.changes_holzi() {
+    if plan.changes_haex() {
         store::touch(tx, contact_id, now)?;
     }
     Ok(())
@@ -260,7 +260,7 @@ fn leave_group(tx: &mut CrdtTransaction<'_>, contact_id: &str, name: &str) -> Re
 }
 
 /// holzi's head fields and phone values after a plan.
-pub fn after(side: &HolziSide, plan: &Plan) -> (BTreeMap<String, String>, Vec<HolziValue>) {
+pub fn after(side: &HaexSide, plan: &Plan) -> (BTreeMap<String, String>, Vec<HaexValue>) {
     let mut head = side.head.clone();
     for (column, value) in &plan.head {
         match value {
@@ -268,7 +268,7 @@ pub fn after(side: &HolziSide, plan: &Plan) -> (BTreeMap<String, String>, Vec<Ho
             None => head.remove(column),
         };
     }
-    let mut values: Vec<HolziValue> = side
+    let mut values: Vec<HaexValue> = side
         .values
         .iter()
         .filter(|value| !plan.deletes.contains(&value.id))

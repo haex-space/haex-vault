@@ -15,7 +15,7 @@ use super::model::{
 use super::references::Field;
 use super::references_db::{resolve_or_error, resolve_value, Reader};
 use super::totp::{code_at, remaining_seconds};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
 /// A value on its way to the clipboard. It is zeroed when dropped and prints no value.
@@ -44,7 +44,7 @@ fn column(q: &mut impl Query, item_id: &str, column: &'static str) -> Result<Zer
     let sql = format!("SELECT {column} FROM haex_passwords_item_details WHERE id = ?1");
     let cell = q
         .query_row(&sql, params![item_id], |r| r.get::<_, Option<String>>(0))?
-        .ok_or(HolziError::PasswordsNotFound)?;
+        .ok_or(HaexError::PasswordsNotFound)?;
     Ok(Zeroizing::new(cell.unwrap_or_default()))
 }
 
@@ -66,7 +66,7 @@ fn key_value(
                 ))
             },
         )?
-        .ok_or(HolziError::PasswordsNotFound)?;
+        .ok_or(HaexError::PasswordsNotFound)?;
     Ok((
         key.unwrap_or_default(),
         Zeroizing::new(cell.unwrap_or_default()),

@@ -15,7 +15,7 @@ use uuid::Uuid;
 use zeroize::Zeroizing;
 
 /// The comment of a key holzi generates.
-const COMMENT: &str = "holzi";
+const COMMENT: &str = "haex";
 
 /// How long a generated key waits for its connection to be saved.
 const PENDING_FOR: Duration = Duration::from_secs(30 * 60);

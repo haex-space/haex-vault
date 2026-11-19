@@ -11,7 +11,7 @@ fromPhone: number,
 /**
  * Contacts deleted in holzi that would go from the phone.
  */
-fromHolzi: number,
+fromHaex: number,
 /**
  * Contacts linked on this phone.
  */

@@ -9,7 +9,7 @@
 use nostr::event::Kind;
 use serde::{Deserialize, Serialize};
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::sync::keys::random_bytes;
 
 /// The rumor kind of chat events.
@@ -124,7 +124,7 @@ pub fn new_event_id() -> String {
 pub fn checked_text(text: &str) -> Result<&str> {
     let text = text.trim();
     if text.is_empty() {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "a message needs a text".into(),
         });
     }
@@ -138,7 +138,7 @@ pub fn checked_text(text: &str) -> Result<&str> {
 /// most [`MAX_ATTACHMENTS`]).
 pub fn checked_body(text: &str, attachments: usize) -> Result<&str> {
     if attachments > MAX_ATTACHMENTS {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "chat.file.tooMany".into(),
         });
     }
@@ -175,7 +175,7 @@ pub fn message(
 
 /// The JSON of a rumor's content, refused when it is over [`MAX_RUMOR_BYTES`].
 pub fn encode<T: Serialize>(value: &T) -> Result<String> {
-    let json = serde_json::to_string(value).map_err(|e| HolziError::InvalidInput {
+    let json = serde_json::to_string(value).map_err(|e| HaexError::InvalidInput {
         reason: format!("the chat event does not encode: {e}"),
     })?;
     if json.len() > MAX_RUMOR_BYTES {
@@ -185,8 +185,8 @@ pub fn encode<T: Serialize>(value: &T) -> Result<String> {
 }
 
 /// "chat.error.tooLarge" (FR-012).
-pub fn too_large() -> HolziError {
-    HolziError::InvalidInput {
+pub fn too_large() -> HaexError {
+    HaexError::InvalidInput {
         reason: "chat.error.tooLarge".into(),
     }
 }

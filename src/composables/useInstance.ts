@@ -8,7 +8,7 @@ import type { ChangePassphraseArgs } from '@bindings/ChangePassphraseArgs'
 
 /**
  * Thin wrapper around the Tauri command surface. Each function is a
- * one-shot `invoke()` that re-throws typed HolziError on failure.
+ * one-shot `invoke()` that re-throws typed HaexError on failure.
  */
 export function useInstance() {
   async function activeNameAsync(): Promise<string | null> {

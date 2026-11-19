@@ -211,7 +211,7 @@ pub fn is_valid_depth(value: &str) -> bool {
 
 fn scope(device: &str) -> Result<PrefScope> {
     let uuid =
-        uuid::Uuid::parse_str(device).map_err(|_| crate::error::HolziError::InvalidInput {
+        uuid::Uuid::parse_str(device).map_err(|_| crate::error::HaexError::InvalidInput {
             reason: "the device is no UUID".to_owned(),
         })?;
     Ok(PrefScope::Device(uuid))

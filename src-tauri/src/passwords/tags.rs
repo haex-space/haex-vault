@@ -11,7 +11,7 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
 
 use super::ids::{fold, item_tag_id, tag_id};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
 /// The longest tag name, in characters.
@@ -21,12 +21,12 @@ pub const MAX_TAG_NAME_CHARS: usize = 64;
 pub fn validate_name(name: &str) -> Result<String> {
     let trimmed = name.trim();
     if trimmed.is_empty() {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "empty".to_string(),
         });
     }
     if trimmed.chars().count() > MAX_TAG_NAME_CHARS {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "too_long".to_string(),
         });
     }
@@ -104,14 +104,14 @@ pub fn rename_tag(tx: &mut CrdtTransaction<'_>, id: &str, name: &str) -> Result<
             Ok((r.get(0)?, r.get(1)?))
         })?;
     let Some((_, current)) = all.iter().find(|(tag, _)| tag == id) else {
-        return Err(HolziError::PasswordsNotFound);
+        return Err(HaexError::PasswordsNotFound);
     };
     let wanted = fold(&name);
     if all
         .iter()
         .any(|(tag, stored)| tag != id && fold(stored) == wanted)
     {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "exists".to_string(),
         });
     }
@@ -131,7 +131,7 @@ pub fn set_color(tx: &mut CrdtTransaction<'_>, id: &str, color: Option<&str>) ->
         params![color, id],
     )?;
     if changed == 0 {
-        return Err(HolziError::PasswordsNotFound);
+        return Err(HaexError::PasswordsNotFound);
     }
     Ok(())
 }
@@ -152,7 +152,7 @@ pub fn delete_tag(tx: &mut CrdtTransaction<'_>, id: &str) -> Result<()> {
     }
     let removed = tx.execute("DELETE FROM haex_passwords_tags WHERE id = ?1", params![id])?;
     if removed == 0 {
-        return Err(HolziError::PasswordsNotFound);
+        return Err(HaexError::PasswordsNotFound);
     }
     Ok(())
 }
@@ -238,7 +238,7 @@ pub fn bulk_set(
             )?
             .unwrap_or(0);
         if exists == 0 {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: "target_missing".to_string(),
             });
         }

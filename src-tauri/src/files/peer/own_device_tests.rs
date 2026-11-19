@@ -137,7 +137,7 @@ async fn copying_onto_a_taken_name_asks_and_keeps_both() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn holzis_own_data_is_read_but_never_changed_from_another_device() {
+async fn haexs_own_data_is_read_but_never_changed_from_another_device() {
     let (main, linked) = own_pair().await;
     std::fs::write(main.own_place().join("vault.db"), b"x").expect("own file");
     let (files, _, _) = device(&linked, &main, Caller::User).await;

@@ -78,7 +78,7 @@ pub(crate) fn add_phone(
                  VALUES (?1, ?2, ?3, 1)",
                 haex_crdt::rusqlite::params![uuid::Uuid::new_v4().to_string(), id, alias],
             )?;
-            let to = |error: crate::error::HolziError| haex_crdt::Error::from(error);
+            let to = |error: crate::error::HaexError| haex_crdt::Error::from(error);
             state::enable(tx, &id).map_err(to)?;
             if let Some(first) = accounts.first() {
                 state::set_target(tx, &id, first).map_err(to)?;

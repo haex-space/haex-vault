@@ -58,7 +58,7 @@ async fn only_the_user_reads_the_text_of_an_attachment() {
         .service
         .attachment_text(&Caller::BuiltinAgent, s.attachment.clone())
         .await;
-    assert!(matches!(refused, Err(HolziError::PasswordsForbidden)));
+    assert!(matches!(refused, Err(HaexError::PasswordsForbidden)));
 }
 
 #[tokio::test]
@@ -68,7 +68,7 @@ async fn the_text_of_an_unknown_attachment_is_not_found() {
         .service
         .attachment_text(&Caller::User, "unknown".to_owned())
         .await;
-    assert!(matches!(missing, Err(HolziError::PasswordsNotFound)));
+    assert!(matches!(missing, Err(HaexError::PasswordsNotFound)));
 }
 
 #[tokio::test]
@@ -80,7 +80,7 @@ async fn an_image_attachment_has_no_text() {
         .await;
     assert!(matches!(
         refused,
-        Err(HolziError::InvalidInput { reason }) if reason == "not_text"
+        Err(HaexError::InvalidInput { reason }) if reason == "not_text"
     ));
 }
 
@@ -102,7 +102,7 @@ async fn only_the_user_gets_the_bytes_of_a_pdf_attachment() {
         .service
         .attachment_pdf(&Caller::BuiltinAgent, s.attachment.clone())
         .await;
-    assert!(matches!(refused, Err(HolziError::PasswordsForbidden)));
+    assert!(matches!(refused, Err(HaexError::PasswordsForbidden)));
 }
 
 #[tokio::test]
@@ -114,7 +114,7 @@ async fn a_text_attachment_is_no_pdf() {
         .await;
     assert!(matches!(
         refused,
-        Err(HolziError::InvalidInput { reason }) if reason == "not_pdf"
+        Err(HaexError::InvalidInput { reason }) if reason == "not_pdf"
     ));
 }
 
@@ -240,6 +240,6 @@ async fn only_the_user_copies_an_attachment() {
             true,
         )
         .await;
-    assert!(matches!(refused, Err(HolziError::PasswordsForbidden)));
+    assert!(matches!(refused, Err(HaexError::PasswordsForbidden)));
     assert!(files_below(root.path()).is_empty());
 }

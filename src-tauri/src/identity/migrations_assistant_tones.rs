@@ -7,10 +7,10 @@
 //! for which occasion is the device preference `assistant.tones.custom`. Like the icon sets
 //! ([`super::migrations_icon_sets`]) the table carries no UNIQUE constraint (a conflict would halt
 //! the sync) and a row never changes: replacing a tone is a new row and the delete of the old. The
-//! new CRDT table raises [`super::migrations::HOLZI_TRIGGER_VERSION`].
+//! new CRDT table raises [`super::migrations::HAEX_TRIGGER_VERSION`].
 
 /// The migration `0051_assistant_tones`; registered in
-/// [`super::migrations::holzi_migration_source`].
+/// [`super::migrations::haex_migration_source`].
 pub const ASSISTANT_TONES_0051: &str = r#"CREATE TABLE haex_assistant_tones (
   id TEXT PRIMARY KEY NOT NULL,
   name TEXT NOT NULL,

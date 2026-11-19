@@ -75,7 +75,7 @@ export async function prepareSftp(
   const reserved = await reservePort()
   const port = reserved.port
   reachFromDevice(port)
-  const base = mkdtempSync(join(tmpdir(), 'holzi-sftp-'))
+  const base = mkdtempSync(join(tmpdir(), 'haex-sftp-'))
   const keys = join(base, 'keys')
   const root = join(base, 'data')
   mkdirSync(keys)

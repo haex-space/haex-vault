@@ -213,24 +213,24 @@ fn the_start_of_haexs_mcp_server_is_read_from_its_status_notification() {
     let status = |name: &str, status: &str| json!({"name": name, "status": status});
 
     assert_eq!(
-        haex_startup_of(method, &status("holzi", "ready")),
+        haex_startup_of(method, &status("haex", "ready")),
         Some(HaexStartup::Ready)
     );
     assert_eq!(
-        haex_startup_of(method, &status("holzi", "failed")),
+        haex_startup_of(method, &status("haex", "failed")),
         Some(HaexStartup::Failed)
     );
     assert_eq!(
-        haex_startup_of(method, &status("holzi", "cancelled")),
+        haex_startup_of(method, &status("haex", "cancelled")),
         Some(HaexStartup::Failed)
     );
     // Still starting: not a result.
-    assert_eq!(haex_startup_of(method, &status("holzi", "starting")), None);
+    assert_eq!(haex_startup_of(method, &status("haex", "starting")), None);
     // Another server, another notification, a notification without a status: not ours.
     assert_eq!(haex_startup_of(method, &status("other", "ready")), None);
     assert_eq!(
-        haex_startup_of("turn/started", &status("holzi", "ready")),
+        haex_startup_of("turn/started", &status("haex", "ready")),
         None
     );
-    assert_eq!(haex_startup_of(method, &json!({"name": "holzi"})), None);
+    assert_eq!(haex_startup_of(method, &json!({"name": "haex"})), None);
 }

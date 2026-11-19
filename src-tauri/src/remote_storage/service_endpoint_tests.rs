@@ -8,7 +8,7 @@
 use super::model::StorageInput;
 use super::service_tests::{count, entries, input, ops, setup, typed};
 use super::{EndpointScope, TestOutcome};
-use crate::error::HolziError;
+use crate::error::HaexError;
 
 #[tokio::test]
 async fn the_scope_of_an_endpoint_is_fixed_when_it_is_set() {
@@ -40,7 +40,7 @@ async fn the_scope_of_an_endpoint_is_fixed_when_it_is_set() {
             id: None,
             connection_id: view.id.clone(),
             name: "Fotos".to_owned(),
-            bucket: "holzi-test".to_owned(),
+            bucket: "haex-test".to_owned(),
             create_folder: false,
         })
         .await
@@ -64,7 +64,7 @@ async fn an_endpoint_without_addresses_fails_its_test_and_saves_nothing() {
     nowhere.endpoint = Some("https://nowhere.example.com".to_owned());
     assert!(matches!(
         s.service.save_connection(nowhere).await,
-        Err(HolziError::StorageTestFailed {
+        Err(HaexError::StorageTestFailed {
             outcome: TestOutcome::Unreachable,
             leftover_key: None,
             ..

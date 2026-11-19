@@ -12,7 +12,7 @@ export function useFilesFolderFacts(
 ) {
   const { statAsync } = useFiles()
   const folderEntry = ref<Entry | null>(null)
-  const folderOwned = computed(() => folderEntry.value?.holziOwned ?? false)
+  const folderOwned = computed(() => folderEntry.value?.haexOwned ?? false)
   const folderEncrypted = computed(() => !!folderEntry.value?.encrypted)
   const folderForeign = computed(
     () => folderEntry.value?.encrypted?.foreign ?? 0,

@@ -384,7 +384,7 @@ pub const RESULT_FILE: &str = "platform-probe-result.txt";
 fn emit<R: Runtime>(app: &AppHandle<R>, line: &str) {
     println!("{line}");
     let _ = std::io::stdout().flush();
-    log::info!(target: "holzi-probe", "{line}");
+    log::info!(target: "haex-probe", "{line}");
     note(app, RESULT_FILE, line);
 }
 

@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use tokio::sync::Notify;
 use uuid::Uuid;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::sync::keys::{hex, DeviceKeys};
 
 /// This device in the open vault.
@@ -92,7 +92,7 @@ impl PeerRegistry {
 
     /// The session, or an error while the chat of the open vault has not started.
     pub fn require(&self) -> Result<Arc<Session>> {
-        self.get().ok_or_else(|| HolziError::NotFound {
+        self.get().ok_or_else(|| HaexError::NotFound {
             name: "chat session".into(),
         })
     }

@@ -78,7 +78,7 @@ test('not inside an encrypted folder and not in an extension area', () => {
   assert.equal(
     canCreateEncrypted({
       source: storage,
-      path: '/holzi-extra',
+      path: '/haex-extra',
       inEncrypted: false,
     }),
     true,

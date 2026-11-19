@@ -7,7 +7,7 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
 
 use super::Problem;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::passwords::ids::fold;
 use crate::passwords::model::{AttentionKind, PresetInput};
 use crate::passwords::passkeys::{self, InsertOutcome, PasskeyInput};
@@ -109,7 +109,7 @@ fn write_presets(
                 names.push(name);
                 outcome.presets.push(id);
             }
-            Err(HolziError::InvalidInput { .. }) => outcome.problems.push(Problem::field(
+            Err(HaexError::InvalidInput { .. }) => outcome.problems.push(Problem::field(
                 AttentionKind::ValueNotStorable,
                 &format!("generator preset {}", preset.name),
             )),

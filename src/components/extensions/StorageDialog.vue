@@ -23,7 +23,7 @@ const root = ref<HTMLElement | null>(null)
 const proposal = computed(() => props.request.proposal)
 const connections = computed(() => proposal.value.connections ?? [])
 /** Reka reserves the empty radio value for clearing the group, so use a non-empty sentinel. */
-const NEW_CREDENTIALS_VALUE = '__holzi_new_credentials__'
+const NEW_CREDENTIALS_VALUE = '__haex_new_credentials__'
 /** For a new storage: an existing connection, or the sentinel for new credentials. */
 const chosen = ref(connections.value[0]?.id ?? NEW_CREDENTIALS_VALUE)
 /** For a change: new credentials in holzi's window. */

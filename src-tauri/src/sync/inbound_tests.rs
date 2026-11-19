@@ -88,7 +88,7 @@ fn after_a_pull_neither_side_sees_more_even_after_device_local_writes() {
     a.db()
         .write(|tx| {
             tx.execute(
-                "INSERT INTO holzi_maintenance_no_sync (task) VALUES ('x')",
+                "INSERT INTO haex_maintenance_no_sync (task) VALUES ('x')",
                 &[],
             )?;
             Ok(())
@@ -124,7 +124,7 @@ fn device_local_rows_never_travel() {
     a.db()
         .write(|tx| {
             tx.execute(
-                "INSERT INTO holzi_maintenance_no_sync (task) VALUES ('only-a')",
+                "INSERT INTO haex_maintenance_no_sync (task) VALUES ('only-a')",
                 &[],
             )?;
             Ok(())
@@ -136,7 +136,7 @@ fn device_local_rows_never_travel() {
 
     let local: i64 = query::read(b.db(), |r| {
         r.query_row(
-            "SELECT COUNT(*) FROM holzi_maintenance_no_sync WHERE task = 'only-a'",
+            "SELECT COUNT(*) FROM haex_maintenance_no_sync WHERE task = 'only-a'",
             &[],
             |row| row.get(0),
         )
@@ -296,7 +296,7 @@ fn uhlc_now() -> u64 {
 #[test]
 fn a_table_this_device_does_not_sync_aborts_without_progress() {
     let b = Device::new();
-    for table in ["no_such_table", "holzi_maintenance_no_sync"] {
+    for table in ["no_such_table", "haex_maintenance_no_sync"] {
         let (origin, change) = foreign_change(table);
         let result = Inbox::new().receive(&b.replica, page_with(change));
         assert!(matches!(result, Err(InboundError::UnknownTable(t)) if t == table));

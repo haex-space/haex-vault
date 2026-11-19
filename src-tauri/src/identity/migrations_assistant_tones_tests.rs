@@ -9,7 +9,7 @@ use haex_crdt::Database;
 
 use super::migrations_extensions_tests::{has_hlc_column, unique_indexes};
 use super::migrations_tests::{column_names, migration_source_before, open, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 const TONES: &str = "haex_assistant_tones";
 
@@ -42,7 +42,7 @@ fn assert_schema(db: &Database) {
 async fn migration_0051_gives_a_fresh_vault_the_tone_table() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
-        let db = open(dir.path(), "tones-fresh", true, holzi_migration_source());
+        let db = open(dir.path(), "tones-fresh", true, haex_migration_source());
         assert_schema(&db);
     })
     .await
@@ -57,7 +57,7 @@ async fn migration_0051_adds_the_tone_table_to_an_existing_vault() {
         let db = open(dir.path(), "tones-upgrade", true, before);
         assert!(!table_exists(&db, TONES), "{TONES} is not there yet");
         drop(db);
-        let db = open(dir.path(), "tones-upgrade", false, holzi_migration_source());
+        let db = open(dir.path(), "tones-upgrade", false, haex_migration_source());
         assert_schema(&db);
     })
     .await

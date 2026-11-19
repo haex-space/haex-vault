@@ -7,7 +7,7 @@ use serde::Serialize;
 use ts_rs::TS;
 
 use super::backend::{DriveError, DriveSecret};
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::passwords::access::Caller;
 use crate::passwords::ids::{fold, fold_for_search};
 use crate::passwords::model::{ItemHeader, ItemInput, ItemPatch};
@@ -184,9 +184,9 @@ async fn headers(passwords: &PasswordsService) -> Result<Vec<ItemHeader>, DriveE
     }
 }
 
-fn from_passwords(error: HolziError) -> DriveError {
+fn from_passwords(error: HaexError) -> DriveError {
     match error {
-        HolziError::NoActiveInstance | HolziError::VaultClosed => DriveError::NoVault,
+        HaexError::NoActiveInstance | HaexError::VaultClosed => DriveError::NoVault,
         other => DriveError::Failed(other.to_string()),
     }
 }

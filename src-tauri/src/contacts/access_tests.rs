@@ -17,7 +17,7 @@ fn outside_callers() -> Vec<Caller> {
 }
 
 #[test]
-fn the_user_and_holzi_functions_need_no_grant() {
+fn the_user_and_haex_functions_need_no_grant() {
     for caller in [Caller::User, Caller::Internal { feature: "phone" }] {
         assert_eq!(authorize_list(&caller, &[]), Ok(Scope::All));
         assert_eq!(authorize_read(&caller, &[], &[]), Ok(()));
@@ -119,12 +119,12 @@ fn only_the_user_passes_require_user() {
 #[test]
 fn denials_map_to_the_contacts_errors() {
     assert!(matches!(
-        HolziError::from(Denied::NotFound),
-        HolziError::ContactsNotFound
+        HaexError::from(Denied::NotFound),
+        HaexError::ContactsNotFound
     ));
     assert!(matches!(
-        HolziError::from(Denied::Forbidden),
-        HolziError::ContactsForbidden
+        HaexError::from(Denied::Forbidden),
+        HaexError::ContactsForbidden
     ));
 }
 
@@ -153,10 +153,10 @@ fn all_except_nothing_is_all() {
 }
 
 #[test]
-fn holzi_functions_pass_require_holzi_but_no_outside_caller_does() {
-    assert_eq!(require_holzi(&Caller::User), Ok(()));
-    assert_eq!(require_holzi(&Caller::Internal { feature: "x" }), Ok(()));
+fn haex_functions_pass_require_haex_but_no_outside_caller_does() {
+    assert_eq!(require_haex(&Caller::User), Ok(()));
+    assert_eq!(require_haex(&Caller::Internal { feature: "x" }), Ok(()));
     for caller in outside_callers() {
-        assert_eq!(require_holzi(&caller), Err(Denied::Forbidden));
+        assert_eq!(require_haex(&caller), Err(Denied::Forbidden));
     }
 }

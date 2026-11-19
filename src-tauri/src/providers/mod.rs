@@ -30,7 +30,7 @@ use crate::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, Del
 use crate::adapters::openai_compatible::OpenAiCompatibleAdapter;
 use crate::adapters::{AdapterError, ProviderAdapter, ProviderModel};
 use crate::cli_tools::runtime::{DelegateTools, RuntimeSource};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::model_capabilities::ModelCapabilities;
 use crate::state::AppState;
 use crate::state_utils::active_database;
@@ -119,7 +119,7 @@ pub async fn refresh_provider_models(
     let provider = db
         .read(move |r| storage::get_provider(r, provider_id))
         .await?
-        .ok_or_else(|| HolziError::InvalidInput {
+        .ok_or_else(|| HaexError::InvalidInput {
             reason: format!("provider {provider_id} not found"),
         })?;
 
@@ -222,7 +222,7 @@ async fn do_refresh_with(
         })
         .await?;
     if !credentials_match {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "provider credentials changed during model refresh; try again".into(),
         });
     }
@@ -285,27 +285,26 @@ pub(crate) fn build_adapter_with_tools(
 ) -> Result<Box<dyn ProviderAdapter>> {
     match provider.kind {
         ProviderKind::ApiKey => {
-            let base_url =
-                provider
-                    .base_url
-                    .as_deref()
-                    .ok_or_else(|| HolziError::InvalidInput {
-                        reason: "api_key provider is missing base_url".into(),
-                    })?;
+            let base_url = provider
+                .base_url
+                .as_deref()
+                .ok_or_else(|| HaexError::InvalidInput {
+                    reason: "api_key provider is missing base_url".into(),
+                })?;
             let key = provider
                 .credentials
                 .as_ref()
                 .map(|credentials| {
                     std::str::from_utf8(credentials.as_slice())
                         .map(str::to_string)
-                        .map_err(|e| HolziError::InvalidInput {
+                        .map_err(|e| HaexError::InvalidInput {
                             reason: format!("api_key credentials are not UTF-8: {e}"),
                         })
                 })
                 .transpose()?;
             let adapter: Box<dyn ProviderAdapter> = match provider.adapter.as_deref() {
                 Some("anthropic") => {
-                    let api_key = key.ok_or_else(|| HolziError::InvalidInput {
+                    let api_key = key.ok_or_else(|| HaexError::InvalidInput {
                         reason: "api_key provider is missing credentials".into(),
                     })?;
                     Box::new(
@@ -318,12 +317,12 @@ pub(crate) fn build_adapter_with_tools(
                         .map_err(map_adapter_error)?,
                 ),
                 Some(other) => {
-                    return Err(HolziError::InvalidInput {
+                    return Err(HaexError::InvalidInput {
                         reason: format!("unsupported provider adapter: {other}"),
                     });
                 }
                 None => {
-                    return Err(HolziError::InvalidInput {
+                    return Err(HaexError::InvalidInput {
                         reason: "api_key provider is missing adapter".into(),
                     });
                 }
@@ -335,14 +334,14 @@ pub(crate) fn build_adapter_with_tools(
                 .adapter
                 .as_deref()
                 .and_then(DelegateVendor::parse)
-                .ok_or_else(|| HolziError::InvalidInput {
+                .ok_or_else(|| HaexError::InvalidInput {
                     reason: "cli_delegate provider has an invalid or missing adapter".into(),
                 })?;
             let credentials =
                 provider
                     .credentials
                     .clone()
-                    .ok_or_else(|| HolziError::InvalidInput {
+                    .ok_or_else(|| HaexError::InvalidInput {
                         reason: "cli_delegate provider is missing credentials".into(),
                     })?;
             // The tool is the vault's own installation, looked up at each start (spec 094); a
@@ -365,7 +364,7 @@ pub(crate) fn build_adapter_with_tools(
                     .for_provider(provider.id),
             ))
         }
-        ProviderKind::Local => Err(HolziError::InvalidInput {
+        ProviderKind::Local => Err(HaexError::InvalidInput {
             reason: "refresh does not apply to local providers".into(),
         }),
     }
@@ -384,10 +383,10 @@ fn key_is_optional(adapter: Option<&str>) -> bool {
 fn validate_adapter(adapter: Option<&str>) -> Result<()> {
     match adapter {
         Some("anthropic") | Some(OPENAI_COMPATIBLE) => Ok(()),
-        Some(other) => Err(HolziError::InvalidInput {
+        Some(other) => Err(HaexError::InvalidInput {
             reason: format!("unsupported provider adapter: {other}"),
         }),
-        None => Err(HolziError::InvalidInput {
+        None => Err(HaexError::InvalidInput {
             reason: "api_key provider requires adapter".into(),
         }),
     }
@@ -418,37 +417,35 @@ pub(crate) fn compose_model_row(provider_id: Uuid, fetched_at: i64, m: ProviderM
     }
 }
 
-pub(crate) fn map_adapter_error(err: AdapterError) -> HolziError {
+pub(crate) fn map_adapter_error(err: AdapterError) -> HaexError {
     // Surface `InvalidCredentials` as its own kind so the frontend can
     // render "Ungültige Zugangsdaten" per plan §"Anbietermodelle".
     // Other adapter errors ride the generic `InvalidInput` bucket for
-    // now — a dedicated `HolziError::Provider*` variant lands with the
+    // now — a dedicated `HaexError::Provider*` variant lands with the
     // chat integration in slice (b), when the UI needs finer control.
     match err {
-        AdapterError::InvalidCredentials => HolziError::InvalidInput {
+        AdapterError::InvalidCredentials => HaexError::InvalidInput {
             reason: "provider rejected credentials".into(),
         },
-        AdapterError::Http { reason } => HolziError::InvalidInput {
+        AdapterError::Http { reason } => HaexError::InvalidInput {
             reason: format!("provider transport error: {reason}"),
         },
-        AdapterError::Status { status, body } => HolziError::InvalidInput {
+        AdapterError::Status { status, body } => HaexError::InvalidInput {
             reason: format!("provider returned {status}: {body}"),
         },
-        AdapterError::Parse { reason } => HolziError::InvalidInput {
+        AdapterError::Parse { reason } => HaexError::InvalidInput {
             reason: format!("provider response parse error: {reason}"),
         },
-        AdapterError::Unavailable { reason } => HolziError::InvalidInput {
+        AdapterError::Unavailable { reason } => HaexError::InvalidInput {
             reason: format!("backend unavailable: {reason}"),
         },
-        AdapterError::UntrustedCertificate { reason } => {
-            HolziError::UntrustedCertificate { reason }
-        }
+        AdapterError::UntrustedCertificate { reason } => HaexError::UntrustedCertificate { reason },
     }
 }
 
-fn format_holzi_error(err: &HolziError) -> String {
+fn format_haex_error(err: &HaexError) -> String {
     match err {
-        HolziError::InvalidInput { reason } => reason.clone(),
+        HaexError::InvalidInput { reason } => reason.clone(),
         other => other.to_string(),
     }
 }

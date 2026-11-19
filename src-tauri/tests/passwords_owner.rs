@@ -9,7 +9,7 @@ use std::sync::Arc;
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 
 use holzi_lib::identity::{
-    holzi_migration_source, installation_id_path, HolziBootstrap, HOLZI_TRIGGER_VERSION,
+    haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
 use holzi_lib::passwords::access::{Caller, Grant, GrantAction, Scope};
 use holzi_lib::passwords::copy::{CopyOptions, CopyTitle};
@@ -17,7 +17,7 @@ use holzi_lib::passwords::model::{ItemInput, ItemPatch, Patch, SecretField, Targ
 use holzi_lib::passwords::model_references::RefMarkKind;
 use holzi_lib::passwords::service::{Headers, PasswordsService};
 use holzi_lib::vault_gate::VaultGate;
-use holzi_lib::HolziError;
+use holzi_lib::HaexError;
 
 const SECRET: &str = "s3-secret-owner-marker";
 
@@ -27,10 +27,10 @@ fn service() -> (tempfile::TempDir, PasswordsService) {
         path: dir.path().join("vault.db"),
         key: SqlCipherKey::new("passwords-owner"),
         create_if_missing: true,
-        bootstrap: Arc::new(HolziBootstrap::new(installation_id_path(dir.path()))),
+        bootstrap: Arc::new(HaexBootstrap::new(installation_id_path(dir.path()))),
         signature_provider: Arc::new(NoopSignatureProvider),
-        migration_source: holzi_migration_source(),
-        trigger_version: HOLZI_TRIGGER_VERSION,
+        migration_source: haex_migration_source(),
+        trigger_version: HAEX_TRIGGER_VERSION,
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
     })
@@ -109,18 +109,18 @@ async fn an_owned_entry_is_out_of_reach_for_a_caller_with_a_grant_for_everything
             service
                 .read_secret_item(&caller, &all(), owned.clone())
                 .await,
-            Err(HolziError::PasswordsNotFound)
+            Err(HaexError::PasswordsNotFound)
         ));
         let token = "irrelevant".to_string();
         assert!(matches!(
             service
                 .update_item(&caller, &all(), owned.clone(), token, ItemPatch::default())
                 .await,
-            Err(HolziError::PasswordsNotFound)
+            Err(HaexError::PasswordsNotFound)
         ));
         assert!(matches!(
             service.delete_item(&caller, &all(), owned.clone()).await,
-            Err(HolziError::PasswordsNotFound)
+            Err(HaexError::PasswordsNotFound)
         ));
     }
 
@@ -202,14 +202,14 @@ async fn a_placeholder_pointing_at_an_owned_entry_resolves_only_for_the_user() {
 }
 
 #[tokio::test]
-async fn only_a_holzi_function_creates_owned_entries_and_only_the_owner_deletes_them_for_good() {
+async fn only_a_haex_function_creates_owned_entries_and_only_the_owner_deletes_them_for_good() {
     let (_dir, service) = service();
     for caller in [Caller::User, extension()] {
         assert!(matches!(
             service
                 .create_owned_item(&caller, ItemInput::default())
                 .await,
-            Err(HolziError::PasswordsForbidden)
+            Err(HaexError::PasswordsForbidden)
         ));
     }
     let owned = create_owned(&service).await;
@@ -246,13 +246,13 @@ async fn only_a_holzi_function_creates_owned_entries_and_only_the_owner_deletes_
         service
             .delete_owned_item(&Caller::Internal { feature: "other" }, owned.clone())
             .await,
-        Err(HolziError::PasswordsNotFound)
+        Err(HaexError::PasswordsNotFound)
     ));
     assert!(matches!(
         service
             .delete_owned_item(&Caller::User, owned.clone())
             .await,
-        Err(HolziError::PasswordsForbidden)
+        Err(HaexError::PasswordsForbidden)
     ));
     service
         .delete_owned_item(&STORAGE, owned.clone())
@@ -260,7 +260,7 @@ async fn only_a_holzi_function_creates_owned_entries_and_only_the_owner_deletes_
         .expect("the owner deletes it");
     assert!(matches!(
         service.get_item(&Caller::User, owned).await,
-        Err(HolziError::PasswordsNotFound)
+        Err(HaexError::PasswordsNotFound)
     ));
 }
 
@@ -342,7 +342,7 @@ async fn the_cloud_storage_tag_opens_no_owned_entry_but_a_chosen_one_keeps_its_g
             service
                 .read_secret_item(&extension(), &grants, owned.clone())
                 .await,
-            Err(HolziError::PasswordsNotFound)
+            Err(HaexError::PasswordsNotFound)
         ));
         let read = service
             .read_secret_item(&extension(), &grants, chosen.clone())

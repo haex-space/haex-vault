@@ -6,7 +6,7 @@
 //! syncs like any other (lifecycle step 6 of `Database::open`). It is `INSERT OR IGNORE` because a
 //! newer device may have synced the row to this vault before this device ran the migration.
 
-/// The migration `0042_contacts_self`; registered in [`super::migrations::holzi_migration_source`].
+/// The migration `0042_contacts_self`; registered in [`super::migrations::haex_migration_source`].
 /// The id in the SQL is [`crate::contacts::ids::SELF_CONTACT_ID`]; a test keeps the two equal.
 pub const CONTACTS_SELF_0042: &str = "INSERT OR IGNORE INTO haex_contacts \
   (id, origin_kind, origin_device, origin_caller, created_at, updated_at) \

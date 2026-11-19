@@ -15,7 +15,7 @@ use super::kind::EntryType;
 use super::model::{GroupPatch, ItemInput, Patch, Target, TargetKind};
 use super::test_support::open_test_vault;
 use super::{trash, WALLET_GROUP_ID};
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::storage::query;
 
 fn write<R>(
@@ -23,7 +23,7 @@ fn write<R>(
     f: impl FnOnce(&mut haex_crdt::CrdtTransaction<'_>) -> crate::error::Result<R>,
 ) -> crate::error::Result<R> {
     db.write(|tx| f(tx).map_err(haex_crdt::Error::from))
-        .map_err(HolziError::from)
+        .map_err(HaexError::from)
 }
 
 fn folder(db: &Database, name: &str, parent: Option<&str>) -> String {
@@ -48,7 +48,7 @@ fn target(kind: TargetKind, id: &str) -> Target {
 
 fn reason_of<R: std::fmt::Debug>(result: crate::error::Result<R>) -> String {
     match result {
-        Err(HolziError::InvalidInput { reason }) => reason,
+        Err(HaexError::InvalidInput { reason }) => reason,
         other => panic!("expected InvalidInput, got {other:?}"),
     }
 }

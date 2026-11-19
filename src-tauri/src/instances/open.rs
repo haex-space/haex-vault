@@ -17,7 +17,7 @@ use ts_rs::TS;
 
 use crate::chat::events::emit_model_load_status;
 use crate::chat::session::ChatState;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::identity::installation_id_path;
 use crate::state::{ActiveInstanceHandle, AppState};
 use crate::voice::VoiceState;
@@ -67,14 +67,14 @@ pub async fn open_instance_core<R: Runtime>(
     let installation_id_file = installation_id_path(&app_local_data);
 
     if !db_path.exists() {
-        return Err(HolziError::NotFound {
+        return Err(HaexError::NotFound {
             name: name.to_string(),
         });
     }
     // A pending marker means Genesis for this name never completed —
     // treat the file as non-instance until startup cleanup runs.
     if pending_marker.exists() {
-        return Err(HolziError::NotFound {
+        return Err(HaexError::NotFound {
             name: name.to_string(),
         });
     }
@@ -106,7 +106,7 @@ pub async fn open_instance_core<R: Runtime>(
                     )
                 })
                 .await
-                .map_err(|e| HolziError::CrdtInit {
+                .map_err(|e| HaexError::CrdtInit {
                     reason: format!("database open task failed: {e}"),
                 })?
             }
@@ -193,7 +193,7 @@ pub(super) fn open_existing_database(
         let mut config = vault_config(passphrase, db_path, installation_id_file, false);
         if !legacy.is_empty() {
             config.migration_source =
-                crate::identity::holzi_migration_source_with_legacy_names(&legacy);
+                crate::identity::haex_migration_source_with_legacy_names(&legacy);
         }
         match Database::open(config) {
             Err(CrdtError::MigrationMissingFromSource { name, .. })
@@ -216,12 +216,12 @@ pub(super) fn open_existing_database(
             crate::marketplace::seed::ensure_preset(&db);
             Ok(Arc::new(db))
         }
-        Err(e) if is_wrong_passphrase(&e) => Err(HolziError::WrongPassphrase),
+        Err(e) if is_wrong_passphrase(&e) => Err(HaexError::WrongPassphrase),
         // A held `fs2` lock maps to `VaultAlreadyOpenElsewhere` in `From<CrdtError>`.
         Err(e) => {
             // The frontend folds several kinds into one message; the log keeps the real one.
             log::warn!("open vault failed: {e}");
-            Err(HolziError::from(e))
+            Err(HaexError::from(e))
         }
     }
 }

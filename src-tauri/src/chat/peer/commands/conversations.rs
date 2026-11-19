@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::chat::peer::store::{self, Conversation, ListFilter};
 use crate::contacts::card::received;
 use crate::contacts::ids::is_self;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::state::AppState;
 use crate::state_utils::active_database;
 use crate::storage::query::Query;
@@ -123,25 +123,25 @@ pub async fn chat_conversation_delete(state: State<'_, AppState>, args: ThreadAr
 fn own_vault(q: &mut impl Query) -> Result<String> {
     keys::vault_pubkey(q)?
         .map(|vault| hex(&vault))
-        .ok_or_else(|| HolziError::NotFound {
+        .ok_or_else(|| HaexError::NotFound {
             name: "vault identity".into(),
         })
 }
 
 fn thread_id(raw: &str) -> Result<Uuid> {
-    Uuid::parse_str(raw).map_err(|_| HolziError::InvalidInput {
+    Uuid::parse_str(raw).map_err(|_| HaexError::InvalidInput {
         reason: "threadId must be a valid UUID".into(),
     })
 }
 
-fn no_card() -> HolziError {
-    HolziError::InvalidInput {
+fn no_card() -> HaexError {
+    HaexError::InvalidInput {
         reason: "the contact has no confirmed Visitenkarte of another vault".into(),
     }
 }
 
-fn not_found(id: Uuid) -> HolziError {
-    HolziError::NotFound {
+fn not_found(id: Uuid) -> HaexError {
+    HaexError::NotFound {
         name: id.to_string(),
     }
 }

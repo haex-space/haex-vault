@@ -12,7 +12,7 @@ use super::items;
 use super::model::{GroupPatch, ItemInput, Patch, Target, TargetKind};
 use super::test_support::open_test_vault;
 use super::trash;
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::storage::query;
 
 fn write<R>(
@@ -20,14 +20,14 @@ fn write<R>(
     f: impl FnOnce(&mut haex_crdt::CrdtTransaction<'_>) -> crate::error::Result<R>,
 ) -> crate::error::Result<R> {
     db.write(|tx| f(tx).map_err(haex_crdt::Error::from))
-        .map_err(HolziError::from)
+        .map_err(HaexError::from)
 }
 
 fn read<R>(
     db: &Database,
     f: impl FnOnce(&mut query::Reader<'_, '_>) -> crate::error::Result<R>,
 ) -> crate::error::Result<R> {
-    query::read(db, |q| f(q).map_err(haex_crdt::Error::from)).map_err(HolziError::from)
+    query::read(db, |q| f(q).map_err(haex_crdt::Error::from)).map_err(HaexError::from)
 }
 
 fn group(db: &Database, name: &str, parent: Option<&str>) -> String {
@@ -79,7 +79,7 @@ fn parent_of(db: &Database, group_id: &str) -> Option<String> {
 
 fn reason_of<R: std::fmt::Debug>(result: crate::error::Result<R>) -> String {
     match result {
-        Err(HolziError::InvalidInput { reason }) => reason,
+        Err(HaexError::InvalidInput { reason }) => reason,
         other => panic!("expected InvalidInput, got {other:?}"),
     }
 }
@@ -354,5 +354,5 @@ fn update_group_changes_only_what_is_given_and_keeps_a_name() {
     let missing = write(&db, |tx| {
         groups::update_group(tx, "nope", &GroupPatch::default())
     });
-    assert!(matches!(missing, Err(HolziError::PasswordsNotFound)));
+    assert!(matches!(missing, Err(HaexError::PasswordsNotFound)));
 }

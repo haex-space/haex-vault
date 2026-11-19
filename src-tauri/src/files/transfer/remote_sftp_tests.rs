@@ -58,7 +58,7 @@ async fn scene() -> (TestServer, Side) {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_copy_inside_one_sftp_storage_streams_through_holzi_in_parts() {
+async fn a_copy_inside_one_sftp_storage_streams_through_haex_in_parts() {
     let (server, side) = scene().await;
     let Side::Storage(files) = &side else {
         unreachable!()

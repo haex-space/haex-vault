@@ -30,7 +30,7 @@ async fn a_redirect_is_not_followed() {
 }
 
 #[tokio::test]
-async fn an_address_holzi_never_reaches_gets_no_client() {
+async fn an_address_haex_never_reaches_gets_no_client() {
     let url = Url::parse("http://169.254.169.254/").expect("url");
     let refused = pinned_client(&url, EndpointScope::Local, resolver(&[]).as_ref()).await;
     assert_eq!(refused.err(), Some(StorageError::Network));

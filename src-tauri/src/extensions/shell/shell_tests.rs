@@ -217,7 +217,7 @@ fn a_granted_shell_runs_echo_resizes_and_reports_its_end() {
 }
 
 #[test]
-fn a_shell_does_not_inherit_holzis_own_variables() {
+fn a_shell_does_not_inherit_haexs_own_variables() {
     // Names nobody else sets; the test process is holzi's process here.
     std::env::set_var("WEBKIT_HOLZI_SHELL_PROBE", "leak");
     std::env::set_var("LD_HOLZI_SHELL_PROBE", "leak");

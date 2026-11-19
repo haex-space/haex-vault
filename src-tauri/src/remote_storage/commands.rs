@@ -157,7 +157,7 @@ pub async fn storage_ssh_key_generate(state: State<'_, AppState>) -> Result<Gene
     let (key_id, public_key) =
         keys::pending()
             .generate()
-            .map_err(|_| crate::error::HolziError::StorageInvalid {
+            .map_err(|_| crate::error::HaexError::StorageInvalid {
                 field: "credentials".to_owned(),
             })?;
     Ok(GeneratedKey { key_id, public_key })

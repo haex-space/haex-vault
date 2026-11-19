@@ -35,7 +35,7 @@ pub async fn passwords_item_usage(
         service.item_usage(&Caller::User, &args.item_id)
     })
     .await
-    .map_err(|e| crate::error::HolziError::Io {
+    .map_err(|e| crate::error::HaexError::Io {
         reason: e.to_string(),
     })??;
     Ok(ItemUsageResult { features })

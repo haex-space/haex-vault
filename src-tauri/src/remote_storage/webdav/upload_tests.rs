@@ -65,12 +65,12 @@ async fn a_refused_put_comes_back_with_its_temporary_file() {
     let sessions = Sessions::default();
     let resolver: Arc<dyn crate::remote_storage::address::Resolver> = resolver(&[]);
     let id = sessions
-        .begin(resolver, &access(&server), ".holzi-part-1".to_owned())
+        .begin(resolver, &access(&server), ".haex-part-1".to_owned())
         .expect("begin");
     // The server may refuse before it read the body, then the part finds the stream closed.
     let _ = sessions.part(&id, b"x".to_vec(), soon()).await;
     let (part, outcome) = sessions.finish(&id, soon()).await.expect("known");
-    assert_eq!(part, ".holzi-part-1");
+    assert_eq!(part, ".haex-part-1");
     assert!(
         matches!(
             outcome,
@@ -102,7 +102,7 @@ async fn a_part_the_server_does_not_take_in_time_breaks_the_session() {
     access.location.bucket = String::new();
     let sessions = Sessions::default();
     let id = sessions
-        .begin(resolver(&[]), &access, ".holzi-part-2".to_owned())
+        .begin(resolver(&[]), &access, ".haex-part-2".to_owned())
         .expect("begin");
     let mut outcome = Ok(());
     for _ in 0..64 {
@@ -132,7 +132,7 @@ async fn an_answer_that_does_not_come_in_time_is_timed_out() {
         .await;
     let sessions = Sessions::default();
     let id = sessions
-        .begin(resolver(&[]), &access(&server), ".holzi-part-3".to_owned())
+        .begin(resolver(&[]), &access(&server), ".haex-part-3".to_owned())
         .expect("begin");
     sessions
         .part(&id, b"x".to_vec(), soon())

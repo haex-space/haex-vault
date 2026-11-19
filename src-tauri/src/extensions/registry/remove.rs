@@ -15,7 +15,7 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::vault_gate::VaultDb;
 
 /// Sets `purge_data` and a new `purge_hlc` on the row of `extension_id`: the transformer stamps
@@ -49,7 +49,7 @@ pub fn remove(db: &VaultDb, extension_id: Uuid, delete_data: bool, now_ms: i64) 
             "SELECT COUNT(*) FROM extensions WHERE id = ?1 AND state = 'installed'",
             &ext,
         )? {
-            return Err(HolziError::ExtensionNotFound.into());
+            return Err(HaexError::ExtensionNotFound.into());
         }
         tx.execute(
             "UPDATE extensions SET state = 'removed', updated_at = ?2 WHERE id = ?1",
@@ -94,7 +94,7 @@ pub fn purge_kept_data(db: &VaultDb, extension_id: Uuid, now_ms: i64) -> Result<
              WHERE id = ?1 AND state = 'removed' AND purge_data = 0",
             &ext,
         )? {
-            return Err(HolziError::ExtensionNotFound.into());
+            return Err(HaexError::ExtensionNotFound.into());
         }
         tx.execute(
             "UPDATE extensions SET updated_at = ?2 WHERE id = ?1",
@@ -119,7 +119,7 @@ pub fn set_enabled(db: &VaultDb, extension_id: Uuid, enabled: bool, now_ms: i64)
             "SELECT COUNT(*) FROM extensions WHERE id = ?1 AND state = 'installed'",
             &ext,
         )? {
-            return Err(HolziError::ExtensionNotFound.into());
+            return Err(HaexError::ExtensionNotFound.into());
         }
         tx.execute(
             "UPDATE extensions SET enabled = ?2, updated_at = ?3 \

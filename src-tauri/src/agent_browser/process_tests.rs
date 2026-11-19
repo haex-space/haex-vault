@@ -19,7 +19,7 @@ fn launch(workdir: PathBuf, headless: bool) -> Launch {
 fn a_headless_start_reports_the_end_and_the_error_output() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
-        dir.path().join("holzi-stderr.log"),
+        dir.path().join("haex-stderr.log"),
         format!("{}\nFATAL: no display\n", "x".repeat(3000)),
     )
     .unwrap();

@@ -18,7 +18,7 @@ use crate::remote_storage::{
     Protocol, ProviderKind, StorageError,
 };
 
-const PART: &str = r"^/dav/Fotos/(sub/)?\.holzi-part-[0-9a-f-]+$";
+const PART: &str = r"^/dav/Fotos/(sub/)?\.haex-part-[0-9a-f-]+$";
 
 fn access(server: &MockServer) -> Access {
     Access {
@@ -180,7 +180,7 @@ const FOLDER: &str = r#"<?xml version="1.0"?><d:multistatus xmlns:d="DAV:">
 <d:response><d:href>/dav/Fotos/Urlaub/</d:href><d:propstat><d:prop>
 <d:resourcetype><d:collection/></d:resourcetype></d:prop>
 <d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
-<d:response><d:href>/dav/Fotos/.holzi-part-1234</d:href><d:propstat><d:prop><d:resourcetype/>
+<d:response><d:href>/dav/Fotos/.haex-part-1234</d:href><d:propstat><d:prop><d:resourcetype/>
 <d:getcontentlength>9</d:getcontentlength></d:prop>
 <d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
 </d:multistatus>"#;
@@ -351,7 +351,7 @@ const OLD_PART: &str = r#"<?xml version="1.0"?><d:multistatus xmlns:d="DAV:">
 <d:response><d:href>/dav/Fotos/</d:href><d:propstat><d:prop>
 <d:resourcetype><d:collection/></d:resourcetype></d:prop>
 <d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
-<d:response><d:href>/dav/Fotos/.holzi-part-alt</d:href><d:propstat><d:prop><d:resourcetype/>
+<d:response><d:href>/dav/Fotos/.haex-part-alt</d:href><d:propstat><d:prop><d:resourcetype/>
 <d:getcontentlength>9</d:getcontentlength>
 <d:getlastmodified>Mon, 12 Oct 2020 10:00:00 GMT</d:getlastmodified></d:prop>
 <d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
@@ -369,7 +369,7 @@ async fn a_listing_deletes_an_old_temporary_file_and_ignores_a_failed_delete() {
         .mount(&server)
         .await;
     Mock::given(method("DELETE"))
-        .and(path("/dav/Fotos/.holzi-part-alt"))
+        .and(path("/dav/Fotos/.haex-part-alt"))
         .respond_with(ResponseTemplate::new(500))
         .expect(1)
         .mount(&server)

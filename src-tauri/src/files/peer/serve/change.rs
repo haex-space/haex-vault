@@ -95,7 +95,7 @@ pub async fn delete(ctx: &ServeContext, at: &Located) -> Result<bool, FailCode> 
 fn remove(path: &Path, how: Removal) -> Result<(), FailCode> {
     entries::remove(path, how).map_err(|error: FilesError| match error.code {
         FilesErrorCode::NotFound => FailCode::NotFound,
-        FilesErrorCode::NoAccess | FilesErrorCode::HolziOwned => FailCode::Refused,
+        FilesErrorCode::NoAccess | FilesErrorCode::HaexOwned => FailCode::Refused,
         _ => FailCode::SourceUnavailable,
     })
 }

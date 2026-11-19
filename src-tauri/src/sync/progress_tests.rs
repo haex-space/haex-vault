@@ -73,7 +73,7 @@ fn a_write_to_a_device_local_table_does_not_move_own_progress() {
         .db()
         .write(|tx| {
             tx.execute(
-                "INSERT INTO holzi_maintenance_no_sync (task) VALUES ('test-task')",
+                "INSERT INTO haex_maintenance_no_sync (task) VALUES ('test-task')",
                 &[],
             )?;
             Ok(())

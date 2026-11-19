@@ -419,7 +419,7 @@
     "toolNotice": {
       "unverified": "Noch hat niemand geprüft, ob dieses Modell holzi bedienen kann. Es bekommt die Werkzeuge trotzdem; antwortet es seltsam, probiere ein anderes Modell.",
       "unsupported": "Dieses Modell kann keine Werkzeuge aufrufen und chattet deshalb ohne sie. Ein Modell, das es kann, etwa Claude oder ein Qwen3-Modell, kann für dich Einstellungen ändern und Apps öffnen.",
-      "delegateOff": "{name} erreicht holzi-Werkzeuge nur über den MCP-Zugang, und der ist auf diesem Gerät aus. Du schaltest ihn in den Einstellungen unter KI → Externer Zugang ein.",
+      "delegateOff": "{name} erreicht haex-Werkzeuge nur über den MCP-Zugang, und der ist auf diesem Gerät aus. Du schaltest ihn in den Einstellungen unter KI → Externer Zugang ein.",
       "delegateStatusUnknown": "Der MCP-Zugang für {name} konnte gerade nicht geprüft werden.",
       "retry": "Erneut prüfen"
     },
@@ -2438,7 +2438,7 @@
     "untitled": "(ohne Titel)",
     "unknownType": {
       "title": "Dieser Eintrag braucht ein neueres holzi",
-      "body": "Er wurde von einer neueren holzi-Version mit einem Typ gespeichert, den diese Version nicht kennt. Er bleibt unverändert erhalten. Aktualisiere holzi auf diesem Gerät, um ihn zu öffnen.",
+      "body": "Er wurde von einer neueren haex-Version mit einem Typ gespeichert, den diese Version nicht kennt. Er bleibt unverändert erhalten. Aktualisiere holzi auf diesem Gerät, um ihn zu öffnen.",
       "badge": "Neueres holzi nötig"
     },
     "expired": "Abgelaufen",
@@ -3317,7 +3317,7 @@
     "empty": "Dieser Ordner ist leer.",
     "loading": "Ordner wird geladen …",
     "symlink": "Verknüpfung",
-    "holziOwned": "Eigene Daten von holzi, nur lesen",
+    "haexOwned": "Eigene Daten von holzi, nur lesen",
     "search": {
       "placeholder": "In diesem Ordner suchen",
       "clear": "Suche leeren",
@@ -3583,7 +3583,7 @@
       "binary": "Das ist keine Textdatei.",
       "tooLarge": "Zu groß, um sie hier zu zeigen.",
       "broken": "Dieses Bild lässt sich nicht zeigen.",
-      "holziOwned": "Eigene Daten von holzi lassen sich nicht ändern.",
+      "haexOwned": "Eigene Daten von holzi lassen sich nicht ändern.",
       "readOnly": "Dieser Ort ist nur lesbar.",
       "blocked": "Nicht verfügbar.",
       "notGranted": "Nicht freigegeben.",
@@ -4104,9 +4104,9 @@
       "event": "Datum",
       "relation": "Beziehung",
       "custom": "Eigene Angabe",
-      "holzi_vault": "Vault-Identität",
-      "holzi_nostr_relay": "Nostr-Relay",
-      "holzi_iroh": "iroh-Adresse"
+      "haex_vault": "Vault-Identität",
+      "haex_nostr_relay": "Nostr-Relay",
+      "haex_iroh": "iroh-Adresse"
     },
     "labels": {
       "home": "Privat",
@@ -4136,8 +4136,8 @@
       "sister": "Schwester",
       "spouse": "Ehepartner"
     },
-    "holziAddresses": {
-      "title": "holzi-Adressen",
+    "haexAddresses": {
+      "title": "haex-Adressen",
       "unconfirmed": "unbestätigt"
     },
     "fields": {
@@ -4153,8 +4153,8 @@
       "note": "Notiz"
     },
     "origin": {
-      "holzi": "In holzi angelegt auf {device}",
-      "holziBy": "In holzi angelegt auf {device} von {caller}",
+      "haex": "In holzi angelegt auf {device}",
+      "haexBy": "In holzi angelegt auf {device} von {caller}",
       "phone": "Vom Telefon {device} übernommen ({account})",
       "card": "Aus einer Visitenkarte, eingelesen auf {device}",
       "thisDevice": "diesem Gerät",
@@ -4196,7 +4196,7 @@
       "merged": "Kein Kontakt wird zusammengeführt | Ein Kontakt wird zusammengeführt | {count} Kontakte werden zusammengeführt",
       "uncertain": "Vielleicht dieselbe Person",
       "onPhone": "Im Telefon:",
-      "inHolzi": "Im Adressbuch:",
+      "inHaex": "Im Adressbuch:",
       "apart": "Getrennt lassen",
       "merge": "Zusammenführen",
       "later": "Später",
@@ -4207,7 +4207,7 @@
       "title": "Viele Kontakte löschen?",
       "description": "Der Abgleich würde viele Kontakte auf einmal löschen und ist deshalb angehalten.",
       "fromPhone": "Kein Kontakt | Ein Kontakt wurde im Telefon gelöscht und ginge aus dem Adressbuch | {count} Kontakte wurden im Telefon gelöscht und gingen aus dem Adressbuch",
-      "fromHolzi": "Kein Kontakt | Ein Kontakt wurde in holzi gelöscht und ginge aus dem Telefon | {count} Kontakte wurden in holzi gelöscht und gingen aus dem Telefon",
+      "fromHaex": "Kein Kontakt | Ein Kontakt wurde in holzi gelöscht und ginge aus dem Telefon | {count} Kontakte wurden in holzi gelöscht und gingen aus dem Telefon",
       "later": "Später",
       "keep": "Behalten",
       "delete": "Löschen",
@@ -4229,7 +4229,7 @@
     "targets": {
       "title": "Abgleich mit Telefonen",
       "question": "Auch aufs Telefon?",
-      "onlyHolzi": "Nur in holzi: Der Kontakt kommt auf kein Telefon.",
+      "onlyHaex": "Nur in holzi: Der Kontakt kommt auf kein Telefon.",
       "unnamedPhone": "Telefon",
       "targetAccount": "Zielkonto des Telefons",
       "removeTitle": "Nicht mehr mit {phone} abgleichen?",
@@ -4252,7 +4252,7 @@
       "year": "JJJJ"
     },
     "card": {
-      "confirmed": "Bestätigte holzi-Adressen",
+      "confirmed": "Bestätigte haex-Adressen",
       "confirmedAt": "bestätigt am {at}"
     },
     "import": {
@@ -4263,10 +4263,10 @@
       "scan": "Scannen",
       "preview": "Vorschau",
       "vault": "Wird in der Vault „{vault}“ gespeichert.",
-      "identityNew": "„Bestätigt“ belegt nur, dass diese holzi-Adressen zur Vault {npub} gehören, nicht, wer die Person ist.",
+      "identityNew": "„Bestätigt“ belegt nur, dass diese haex-Adressen zur Vault {npub} gehören, nicht, wer die Person ist.",
       "identityMatches": "Passt zur Vault dieses Kontakts.",
       "identityMismatch": "Dieser Kontakt gehört zu einer anderen Vault ({npub}). Seine Vault-Identität wird nie ersetzt; wähle einen neuen Kontakt.",
-      "unreachable": "Dieser Kontakt ist nicht über holzi erreichbar: Die Weitergabe enthält keine holzi-Adressen.",
+      "unreachable": "Dieser Kontakt ist nicht über holzi erreichbar: Die Weitergabe enthält keine haex-Adressen.",
       "skipped": "Eine ungültige Angabe wurde übergangen. | {count} ungültige Angaben wurden übergangen.",
       "legacy": "Das ist eine Visitenkarte im älteren Format.",
       "target": "Wohin?",
@@ -4290,7 +4290,7 @@
       },
       "replaces": "Ersetzt",
       "replacesOne": "Ersetzt: {value}",
-      "replaceHint": "Ersetzt die gespeicherten holzi-Adressen dieser Vault durch die dieser Karte.",
+      "replaceHint": "Ersetzt die gespeicherten haex-Adressen dieser Vault durch die dieser Karte.",
       "addresses": "Vault {npub} · {devices} Geräte, {relays} Relays, davon neu: {newDevices} Geräte, {newRelays} Relays",
       "summary": "{added} hinzufügen, {updated} aktualisieren, {skipped} nicht übernehmen",
       "accept": "Übernehmen",
@@ -4311,9 +4311,9 @@
       "noName": "Der Kontakt hat keinen Namen; beim Empfänger bleibt er leer.",
       "all": "Alle",
       "none": "Keine",
-      "ownAddresses": "Meine holzi-Adressen",
+      "ownAddresses": "Meine haex-Adressen",
       "identity": "Vault-Identität, geht immer mit",
-      "linkedDevice": "Auf diesem Gerät können keine holzi-Adressen mitgehen, weil nur ein Hauptgerät sie unterschreiben kann. Teile von einem Hauptgerät aus, wenn sie mitgehen sollen.",
+      "linkedDevice": "Auf diesem Gerät können keine haex-Adressen mitgehen, weil nur ein Hauptgerät sie unterschreiben kann. Teile von einem Hauptgerät aus, wenn sie mitgehen sollen.",
       "confirmedRow": "{devices} Geräte, {relays} Relays · bestätigt am {at}",
       "confirmedHint": "Der ursprüngliche Nachweis des Kontakts geht unverändert mit. Er enthält auch Angaben, die der Kontakt selbst dafür freigegeben hat; Geräte und Relays gehen nur gemeinsam mit.",
       "photoHint": "Fotos werden nicht per Link, Zwischenablage oder QR-Code weitergegeben.",
@@ -4405,7 +4405,7 @@
       "port": "Port",
       "portHint": "Muss in der Erweiterung gleich eingestellt sein. Standard: 19455",
       "state": "Zustand",
-      "portInUseHint": "Port {port} ist belegt, etwa von einer anderen holzi-Instanz oder von HaexVault 2.x. Wähle einen anderen Port und stelle ihn auch in der Erweiterung ein.",
+      "portInUseHint": "Port {port} ist belegt, etwa von einer anderen haex-Instanz oder von HaexVault 2.x. Wähle einen anderen Port und stelle ihn auch in der Erweiterung ein.",
       "portInvalid": "Der Port muss zwischen 1024 und 65535 liegen.",
       "changePort": "Anderen Port wählen",
       "outdatedClient": "Eine veraltete Version von haex-pass wollte sich verbinden. Bitte aktualisiere die Erweiterung auf 1.4.0 oder neuer.",
@@ -4532,7 +4532,7 @@
     "state": {
       "off": "Aus",
       "running": "Bereit",
-      "inUse": "Eine andere holzi-Instanz bedient diese Vault",
+      "inUse": "Eine andere haex-Instanz bedient diese Vault",
       "noVault": "Keine Vault geöffnet",
       "notAvailable": "Auf diesem Gerät nicht verfügbar"
     },

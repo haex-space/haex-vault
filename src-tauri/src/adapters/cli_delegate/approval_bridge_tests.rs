@@ -12,7 +12,7 @@ use super::approval_bridge::request_approval;
 use super::autonomy::{ApprovalRequestPayload, AutonomyMode};
 use super::{EventEmitter, PendingToolApprovals};
 use crate::chat::tools::ApprovalDecision;
-use crate::identity::{holzi_migration_source, installation_id_path, HolziBootstrap};
+use crate::identity::{haex_migration_source, installation_id_path, HaexBootstrap};
 use crate::storage::chat_messages::{self as msg_store, MessageRole};
 use crate::storage::preferences::{self, PrefScope};
 use crate::storage::query;
@@ -33,9 +33,9 @@ fn open_vault(dir: &Path) -> Database {
         path: dir.join("vault.db"),
         key: SqlCipherKey::new(PASSPHRASE),
         create_if_missing: true,
-        bootstrap: Arc::new(HolziBootstrap::new(installation_id).with_alias("test")),
+        bootstrap: Arc::new(HaexBootstrap::new(installation_id).with_alias("test")),
         signature_provider: Arc::new(NoopSignatureProvider),
-        migration_source: holzi_migration_source(),
+        migration_source: haex_migration_source(),
         trigger_version: haex_crdt::DEFAULT_TRIGGER_VERSION,
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,

@@ -19,7 +19,7 @@ use super::sides::{self, Loaded};
 use super::store::{self, RunRow, Target};
 use super::{MassDecision, MassDelete, PairDecision, Paused, PhoneBook, ReviewPlan, RunSummary};
 use crate::contacts::store as contacts_store;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::vault_gate::VaultDb;
 
 /// How a run was started.
@@ -41,8 +41,8 @@ pub const REVIEW: &str = "review";
 pub const ACTIVE: &str = "active";
 pub const PAUSED: &str = "paused";
 
-fn off() -> HolziError {
-    HolziError::ContactsInvalid {
+fn off() -> HaexError {
+    HaexError::ContactsInvalid {
         reason: "the sync with the phone is off".to_owned(),
     }
 }
@@ -150,7 +150,7 @@ pub fn run(
             _ => {
                 let held = MassDelete {
                     from_phone: count(found.from_phone.len()),
-                    from_holzi: count(found.from_holzi.len()),
+                    from_haex: count(found.from_haex.len()),
                     linked: count(linked),
                 };
                 let paused_row = RunRow {
@@ -203,7 +203,7 @@ fn keep(db: &VaultDb, device: &str, found: &Deletions) -> Result<()> {
     let raws: Vec<i64> = found
         .from_phone
         .values()
-        .chain(found.from_holzi.values())
+        .chain(found.from_haex.values())
         .flatten()
         .copied()
         .collect();
@@ -247,7 +247,7 @@ fn sync(
     let deleted: BTreeSet<&String> = found
         .from_phone
         .keys()
-        .chain(found.from_holzi.keys())
+        .chain(found.from_haex.keys())
         .chain(found.untargeted.keys())
         .collect();
 
@@ -295,7 +295,7 @@ fn sync(
         let Some(updated_at) = gathered.updated_at.get(&link.contact_id) else {
             continue;
         };
-        let dirty = *updated_at != link.base.holzi_updated_at;
+        let dirty = *updated_at != link.base.haex_updated_at;
         if (dirty || changed_contacts.contains(link.contact_id.as_str()))
             && !deleted.contains(&link.contact_id)
         {

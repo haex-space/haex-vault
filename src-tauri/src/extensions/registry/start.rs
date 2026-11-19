@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use super::effective::{effective_bundle, retired_above, EffectiveBundle};
 use super::status::{self, DeviceStatus};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::extensions::bundle::store::{verify_stored_bundle, BundleIds, StoredBundleState};
 use crate::extensions::bundle::{Manifest, VerifiedBundle};
 use crate::extensions::ids::TablePrefix;
@@ -49,8 +49,8 @@ pub(super) fn registration(q: &mut impl Query, extension_id: Uuid) -> Result<Reg
     })
 }
 
-fn not_ready(status: DeviceStatus) -> HolziError {
-    HolziError::ExtensionNotReady {
+fn not_ready(status: DeviceStatus) -> HaexError {
+    HaexError::ExtensionNotReady {
         status: status.as_str().to_owned(),
     }
 }
@@ -196,8 +196,8 @@ pub(crate) fn dev_prefix_here(db: &VaultDb, prefix: &TablePrefix) -> Result<bool
 /// Checks and prepares `extension_id` on `device`. Blocking: run it on a blocking thread.
 pub fn start(db: &VaultDb, extension_id: Uuid, device: Uuid, now_ms: i64) -> Result<Started> {
     match db.read_blocking(move |q| Ok(registration(q, extension_id)))?? {
-        Registration::Missing => return Err(HolziError::ExtensionNotFound),
-        Registration::Disabled => return Err(HolziError::ExtensionDisabled),
+        Registration::Missing => return Err(HaexError::ExtensionNotFound),
+        Registration::Disabled => return Err(HaexError::ExtensionDisabled),
         Registration::Enabled => {}
     }
 

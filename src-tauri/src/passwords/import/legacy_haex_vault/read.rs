@@ -15,7 +15,7 @@ use super::history::read_history;
 use super::icons::map_icon;
 use crate::error::Result;
 use crate::passwords::import::{
-    check_otp, holzi_time, push_tag, IconRef, ImportAttachment, ImportItem, ImportModel, Problem,
+    check_otp, haex_time, push_tag, IconRef, ImportAttachment, ImportItem, ImportModel, Problem,
 };
 use crate::passwords::model::{AttentionKind, KeyValueInput, PresetInput};
 use crate::passwords::passkeys::PasskeyInput;
@@ -176,8 +176,8 @@ pub(super) fn to_model(conn: &Connection) -> Result<ImportModel> {
             otp_algorithm: get(11)?,
             expires_at: expiry(get(12)?.as_deref(), &mut problems),
             autofill_aliases: aliases(get(13)?.as_deref(), &mut problems),
-            created_at: holzi_time(get(14)?.as_deref()),
-            updated_at: holzi_time(get(15)?.as_deref()),
+            created_at: haex_time(get(14)?.as_deref()),
+            updated_at: haex_time(get(15)?.as_deref()),
             trashed: group_ref.as_deref().is_some_and(|g| folders.in_trash(g)),
             group_ref,
             history: history.remove(&id).unwrap_or_default(),
@@ -234,7 +234,7 @@ fn expiry(text: Option<&str>, problems: &mut Vec<Problem>) -> Option<String> {
     if is_date {
         return Some(text.to_string());
     }
-    match holzi_time(Some(text)) {
+    match haex_time(Some(text)) {
         Some(time) => Some(time.chars().take(10).collect()),
         None => {
             problems.push(Problem::field(
@@ -367,8 +367,8 @@ fn passkeys(conn: &Connection) -> Result<HashMap<Option<String>, Vec<PasskeyInpu
                     .and_then(|icon| map_icon(&icon).map(str::to_string)),
                 color: r.get(13)?,
                 nickname: r.get(14)?,
-                created_at: holzi_time(r.get::<_, Option<String>>(15)?.as_deref()),
-                last_used_at: holzi_time(r.get::<_, Option<String>>(16)?.as_deref()),
+                created_at: haex_time(r.get::<_, Option<String>>(15)?.as_deref()),
+                last_used_at: haex_time(r.get::<_, Option<String>>(16)?.as_deref()),
             })
         })
         .and_then(Iterator::collect)

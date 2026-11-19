@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tauri::AppHandle;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::file_sync::place_device::hex;
 use crate::models::download::download_to_file;
 
@@ -83,8 +83,8 @@ fn is_hex(text: &str, len: usize) -> bool {
     text.len() == len && text.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
-fn failed(what: &str, error: impl std::fmt::Display) -> HolziError {
-    HolziError::SpeechFailed {
+fn failed(what: &str, error: impl std::fmt::Display) -> HaexError {
+    HaexError::SpeechFailed {
         reason: format!("{what} of the wake word models: {error}"),
     }
 }

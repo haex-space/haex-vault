@@ -76,14 +76,14 @@ fn a_folder_without_access_is_marked() {
 }
 
 #[test]
-fn entries_in_holzis_own_places_are_marked() {
+fn entries_in_haexs_own_places_are_marked() {
     let (_dir, real) = real_tempdir();
     std::fs::create_dir(real.join("holzi")).unwrap();
     std::fs::create_dir(real.join("anderes")).unwrap();
     let own = OwnPlaces::new(vec![real.join("holzi")]);
     let entries = list(&real, &own).unwrap();
-    assert!(by_name(&entries, "holzi").holzi_owned);
-    assert!(!by_name(&entries, "anderes").holzi_owned);
+    assert!(by_name(&entries, "holzi").haex_owned);
+    assert!(!by_name(&entries, "anderes").haex_owned);
 }
 
 #[test]

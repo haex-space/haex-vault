@@ -281,9 +281,9 @@ async fn mirror_moves_a_deleted_file_into_the_rule_trash() {
     assert_eq!(report.counts.deleted, 1);
     assert_eq!(
         report.trashed[0].to,
-        Trashed::Rule(".holzi-trash/run1/x.txt".to_owned())
+        Trashed::Rule(".haex-trash/run1/x.txt".to_owned())
     );
-    assert!(w.target.join(".holzi-trash/run1/x.txt").is_file());
+    assert!(w.target.join(".haex-trash/run1/x.txt").is_file());
     assert!(!w.target.join("x.txt").exists());
     assert_eq!(w.run().await.counts.copied, 0, "the trash is not synced");
 }
@@ -719,7 +719,7 @@ async fn a_run_is_logged_with_its_files_and_a_waiting_run_with_its_reason() {
     assert_eq!(deleted[0].trash_kind, Some(SyncRuleTrashKind::Rule));
     assert_eq!(
         deleted[0].trash_path.as_deref(),
-        Some(".holzi-trash/run1/x.txt")
+        Some(".haex-trash/run1/x.txt")
     );
 }
 
@@ -842,7 +842,7 @@ async fn two_way_a_deletion_is_mirrored_into_the_trash_of_the_other_side() {
     std::fs::remove_file(w.target.join("x.txt")).unwrap();
     let report = w.run().await;
     assert_eq!(report.counts.deleted, 1, "{report:?}");
-    assert!(w.source.join(".holzi-trash/run1/x.txt").is_file());
+    assert!(w.source.join(".haex-trash/run1/x.txt").is_file());
     assert_eq!(names(&w.target), ["bleibt.txt"]);
     let again = w.run().await;
     assert_eq!(again.counts.copied, 0, "the rule trash is never synced");

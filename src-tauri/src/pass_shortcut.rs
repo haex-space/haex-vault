@@ -8,7 +8,7 @@ use tauri::AppHandle;
 use tauri_plugin_holzi_android::HolziAndroidExt;
 use uuid::Uuid;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// The longest label; a launcher cuts a long one anyway.
 pub const MAX_LABEL_CHARS: usize = 40;
@@ -51,15 +51,15 @@ pub fn pass_shortcut_supported(app: AppHandle) -> bool {
 /// confirm; nothing is said here when it did.
 #[tauri::command]
 pub fn pass_shortcut_pin(app: AppHandle, id: String, label: String) -> Result<()> {
-    let id = pass_id(&id).ok_or_else(|| HolziError::InvalidInput {
+    let id = pass_id(&id).ok_or_else(|| HaexError::InvalidInput {
         reason: "not the id of a pass".to_owned(),
     })?;
-    let label = clean_label(&label).ok_or_else(|| HolziError::InvalidInput {
+    let label = clean_label(&label).ok_or_else(|| HaexError::InvalidInput {
         reason: "the shortcut needs a name".to_owned(),
     })?;
     app.holzi_android()
         .pin_pass_shortcut(&id, &label)
-        .map_err(|reason| HolziError::Io { reason })
+        .map_err(|reason| HaexError::Io { reason })
 }
 
 #[cfg(test)]

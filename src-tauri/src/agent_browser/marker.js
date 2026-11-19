@@ -2,7 +2,7 @@
 // document of the tab's main frame from its own isolated world: a bar in a closed shadow root with
 // the agent's name, "Eingreifen" (or "Zurückgeben" while the user has the tab) and "Stoppen", and a
 // prefix on the tab's title. The page shares the DOM but not this world: it cannot reach the bar's
-// buttons, cannot call the binding `__holzi`, and its synthetic events are not trusted. It can
+// buttons, cannot call the binding `__haex`, and its synthetic events are not trusted. It can
 // remove the bar; the bar comes back a few times, and holzi's own window stays the binding place
 // to stop (FR-015).
 //
@@ -12,7 +12,7 @@
 // paused or steering again), the script updates the bar that is there.
 // Rust wraps the declaration in parentheses and calls it, so nothing here calls it.
 // eslint-disable-next-line no-unused-vars
-function holziMarker(config) {
+function haexMarker(config) {
   // A key that only changes a modifier (Alt, Super, Ctrl, Shift) is not the user working in the
   // page: Alt+Tab or the Super key to leave the browser reaches the focused page as a trusted key
   // press first, and must not take the browser from the agent.
@@ -33,12 +33,12 @@ function holziMarker(config) {
   // Installed once per document, though the marker runs again with each new state. Only the
   // window's own focus counts: an element of the page that gets the focus (a field clicked or
   // reached with Tab) must not make the next press look like a focus click.
-  if (globalThis.__holziFocusedAt === undefined) {
+  if (globalThis.__haexFocusedAt === undefined) {
     // No focus yet: a press in the first moments of a document is the user's, not a focus click.
-    globalThis.__holziFocusedAt = -Infinity
+    globalThis.__haexFocusedAt = -Infinity
     window.addEventListener('focus', (event) => {
       if (event.target === window)
-        globalThis.__holziFocusedAt = performance.now()
+        globalThis.__haexFocusedAt = performance.now()
     })
   }
   // Whether a trusted press or key is the user working in the page. The first press within
@@ -47,8 +47,8 @@ function holziMarker(config) {
   const byUser = (event) => {
     if (!event.isTrusted) return false
     if (event.type === 'keydown') return !MODIFIER_KEYS.includes(event.key)
-    if (performance.now() - globalThis.__holziFocusedAt < FOCUS_CLICK_MS) {
-      globalThis.__holziFocusedAt = -Infinity
+    if (performance.now() - globalThis.__haexFocusedAt < FOCUS_CLICK_MS) {
+      globalThis.__haexFocusedAt = -Infinity
       return false
     }
     return true
@@ -56,17 +56,17 @@ function holziMarker(config) {
   if (window !== window.top) {
     // Input in an embedded frame does not bubble to the main frame. Install only the input
     // listener here: the visible marker and title belong to the main frame.
-    if (!globalThis.__holziInputListener) {
+    if (!globalThis.__haexInputListener) {
       const noticed = (event) => {
-        if (byUser(event)) globalThis.__holzi('input')
+        if (byUser(event)) globalThis.__haex('input')
       }
       window.addEventListener('pointerdown', noticed, true)
       window.addEventListener('keydown', noticed, true)
-      globalThis.__holziInputListener = noticed
+      globalThis.__haexInputListener = noticed
     }
     return
   }
-  if (globalThis.__holziMarker) return globalThis.__holziMarker.update(config)
+  if (globalThis.__haexMarker) return globalThis.__haexMarker.update(config)
   const MAX_RESTORES = 20
   let restores = 0
   let current = config
@@ -79,7 +79,7 @@ function holziMarker(config) {
     return element
   }
 
-  const host = styled(document.createElement('holzi-agent-marker'), {
+  const host = styled(document.createElement('haex-agent-marker'), {
     all: 'initial',
     position: 'fixed',
     top: '8px',
@@ -125,7 +125,7 @@ function holziMarker(config) {
   const pressed = (what) => (event) => {
     if (!event.isTrusted) return
     event.stopPropagation()
-    globalThis.__holzi(what())
+    globalThis.__haex(what())
   }
   steer.addEventListener(
     'click',
@@ -149,7 +149,7 @@ function holziMarker(config) {
   const noticed = (event) => {
     if (!byUser(event) || current.paused) return
     if (event.composedPath().includes(host)) return
-    globalThis.__holzi('input')
+    globalThis.__haex('input')
   }
   window.addEventListener('pointerdown', noticed, true)
   window.addEventListener('keydown', noticed, true)
@@ -159,7 +159,7 @@ function holziMarker(config) {
   const leaveFullscreen = () => {
     if (!document.fullscreenElement || current.paused) return
     document.exitFullscreen().catch(() => {})
-    globalThis.__holzi('fullscreen')
+    globalThis.__haex('fullscreen')
   }
   document.addEventListener('fullscreenchange', leaveFullscreen)
   // Fullscreen that began before this bar was there, or while the user had the tab.
@@ -193,7 +193,7 @@ function holziMarker(config) {
     characterData: true,
   })
 
-  globalThis.__holziMarker = {
+  globalThis.__haexMarker = {
     get prefix() {
       return current.prefix
     },
@@ -210,7 +210,7 @@ function holziMarker(config) {
       host.remove()
       if (document.title.startsWith(current.prefix))
         document.title = document.title.slice(current.prefix.length)
-      delete globalThis.__holziMarker
+      delete globalThis.__haexMarker
     },
   }
 
@@ -219,5 +219,5 @@ function holziMarker(config) {
     place()
     prefixed()
   }
-  globalThis.__holzi('hello')
+  globalThis.__haex('hello')
 }

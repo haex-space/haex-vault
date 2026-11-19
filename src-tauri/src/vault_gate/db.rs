@@ -15,7 +15,7 @@ use haex_crdt::{CrdtTransaction, Database, GuardedWriteOptions, ReadOnlyConnecti
 use tokio::sync::Notify;
 use tokio_util::task::task_tracker::TaskTrackerToken;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Reader;
 
 /// A handle to the vault database that keeps the gate's tracker non-empty while any clone is
@@ -51,7 +51,7 @@ impl VaultDb {
         let this = self.clone();
         tauri::async_runtime::spawn_blocking(move || this.write_blocking(f))
             .await
-            .map_err(|e| HolziError::CrdtInit {
+            .map_err(|e| HaexError::CrdtInit {
                 reason: format!("vault write join: {e}"),
             })?
     }
@@ -65,7 +65,7 @@ impl VaultDb {
         let this = self.clone();
         tauri::async_runtime::spawn_blocking(move || this.read_blocking(f))
             .await
-            .map_err(|e| HolziError::CrdtInit {
+            .map_err(|e| HaexError::CrdtInit {
                 reason: format!("vault read join: {e}"),
             })?
     }

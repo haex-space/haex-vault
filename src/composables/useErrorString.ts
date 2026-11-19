@@ -195,7 +195,7 @@ export function useErrorString() {
       }
       if (typeof kind === 'string' && HF_ERROR_KINDS.has(kind))
         return t(hfErrorKey(e))
-      // HolziError variants serialize as `{ kind, ...fields }` with no
+      // HaexError variants serialize as `{ kind, ...fields }` with no
       // Display-rendered message on the wire (see src-tauri/src/error.rs) —
       // `reason` is the closest thing to human-readable text most variants
       // carry. Falls back to the raw shape only for the few fieldless

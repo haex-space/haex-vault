@@ -104,7 +104,7 @@ scenario(
     )
     assert.deepEqual(
       (await listKeys(rustfs, BUCKET)).filter((k) =>
-        k.startsWith('holzi-test/'),
+        k.startsWith('haex-test/'),
       ),
       [],
       'no test object stays in the bucket',

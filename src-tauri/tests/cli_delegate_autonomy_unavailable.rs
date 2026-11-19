@@ -4,7 +4,7 @@
 //! before any stream is returned — rather than a generic spawn/stream
 //! failure or a silent fallback to `Standard` (spec FR-013/SC-006). The
 //! command boundary's mapping of `AdapterError::Unavailable` to
-//! `HolziError::InvalidInput` is 007's own existing, unrelated-to-this-
+//! `HaexError::InvalidInput` is 007's own existing, unrelated-to-this-
 //! feature behavior and is not re-tested here.
 
 #![cfg(unix)]
@@ -62,7 +62,7 @@ EOF
             )),
             emit: std::sync::Arc::new(|_: &str, _: serde_json::Value| {}),
             database: None,
-            holzi: None,
+            haex: None,
             deny_rules: Vec::new(),
             tools: None,
         }),
@@ -141,7 +141,7 @@ sys.stdin.readline()
             )),
             emit: std::sync::Arc::new(|_: &str, _: serde_json::Value| {}),
             database: None,
-            holzi: None,
+            haex: None,
             deny_rules: Vec::new(),
             tools: None,
         }),

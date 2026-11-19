@@ -106,9 +106,9 @@ async fn the_user_sees_the_agent_and_stops_it() {
     let seen = in_page(
         &connection,
         &session,
-        "({ marker: !!document.querySelector('holzi-agent-marker'), \
-            open: document.querySelector('holzi-agent-marker')?.shadowRoot ?? null, \
-            binding: typeof window.__holzi, title: document.title })",
+        "({ marker: !!document.querySelector('haex-agent-marker'), \
+            open: document.querySelector('haex-agent-marker')?.shadowRoot ?? null, \
+            binding: typeof window.__haex, title: document.title })",
     )
     .await;
     assert_eq!(seen["marker"], true, "{seen}");
@@ -127,9 +127,9 @@ async fn the_user_sees_the_agent_and_stops_it() {
     let back = in_page(
         &connection,
         &session,
-        "(async () => { document.querySelector('holzi-agent-marker').remove(); \
+        "(async () => { document.querySelector('haex-agent-marker').remove(); \
             await new Promise((r) => setTimeout(r, 100)); \
-            return !!document.querySelector('holzi-agent-marker') })()",
+            return !!document.querySelector('haex-agent-marker') })()",
     )
     .await;
     assert_eq!(back, true, "the marker came back");
@@ -138,7 +138,7 @@ async fn the_user_sees_the_agent_and_stops_it() {
     in_page(
         &connection,
         &session,
-        "(() => { const host = document.querySelector('holzi-agent-marker'); host.click(); \
+        "(() => { const host = document.querySelector('haex-agent-marker'); host.click(); \
             host.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true })); })()",
     )
     .await;
@@ -149,7 +149,7 @@ async fn the_user_sees_the_agent_and_stops_it() {
     let rect = in_page(
         &connection,
         &session,
-        "(() => { const r = document.querySelector('holzi-agent-marker').getBoundingClientRect(); \
+        "(() => { const r = document.querySelector('haex-agent-marker').getBoundingClientRect(); \
             return { x: r.right - 30, y: r.top + r.height / 2 } })()",
     )
     .await;
@@ -168,7 +168,7 @@ async fn the_user_sees_the_agent_and_stops_it() {
         in_page(
             &connection,
             &session,
-            "!document.querySelector('holzi-agent-marker') && !document.title.startsWith('[Agent]')",
+            "!document.querySelector('haex-agent-marker') && !document.title.startsWith('[Agent]')",
         )
         .await
             == true

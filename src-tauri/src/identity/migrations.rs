@@ -1,4 +1,4 @@
-//! holzi-owned migrations shipped via `MigrationSource`.
+//! haex-owned migrations shipped via `MigrationSource`.
 //!
 //! Maintainability exception (spaex 500-LoC rule): migration SQL and its
 //! versioned ordering are intentionally co-located so the schema history stays
@@ -6,7 +6,7 @@
 //! family into `identity_migrations.rs` and `conversation_migrations.rs`, while
 //! retaining this file as the ordered `MigrationSource`.
 //!
-//! Contract: `tauri-commands.md` §"holzi-owned data layer". Slices a and b
+//! Contract: `tauri-commands.md` §"haex-owned data layer". Slices a and b
 //! land seven tables: identity (`vault_identity`, `known_devices`) plus the
 //! Etappe-2 tables (`providers`, `models`, `chat_threads`, `chat_messages`,
 //! `device_downloaded_models_no_sync`) and their supporting indexes.
@@ -23,7 +23,7 @@
 //! its tracked-*column* list in at creation time, and the installer
 //! early-returns on a vault whose stored trigger version is already
 //! current — so a migration that adds a column to an existing tracked
-//! table must bump [`HOLZI_TRIGGER_VERSION`] as well, or the new column
+//! table must bump [`HAEX_TRIGGER_VERSION`] as well, or the new column
 //! stays untracked on every already-provisioned vault.
 //!
 //! `device_downloaded_models_no_sync` has the `_no_sync` suffix on the
@@ -56,6 +56,7 @@ use super::migrations_extensions::DEV_EXTENSION_KV_0024;
 use super::migrations_extensions::EXTENSIONS_0023;
 use super::migrations_extensions::SYNC_PARKING_0025;
 use super::migrations_file_shares::FILE_SHARES_0039;
+use super::migrations_haex_names::HAEX_NAMES_0065;
 use super::migrations_icon_sets::FILE_ICON_SETS_0036;
 use super::migrations_marketplaces::MARKETPLACES_0048;
 use super::migrations_mcp_agents::MCP_AGENTS_0045;
@@ -152,10 +153,10 @@ use super::migrations_voice::VOICE_0050;
 ///   CRDT-tracked `haex_passwords_pass_details` and `haex_passwords_pass_barcodes`.
 /// - 41: `0062_extension_default_model` (spec 055) dropped the CRDT-tracked `extension_model_order`
 ///   and added the CRDT-tracked `extension_default_model`.
-pub const HOLZI_TRIGGER_VERSION: i32 = 41;
+pub const HAEX_TRIGGER_VERSION: i32 = 41;
 
 /// Returns the frozen holzi migration set at the pinned haex-crdt revision.
-pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
+pub fn haex_migration_source() -> Arc<StaticMigrationSource> {
     let mut m: BTreeMap<MigrationName, String> = BTreeMap::new();
 
     // vault_identity — singleton row inserted at Genesis by the bootstrap
@@ -372,7 +373,7 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     // `tool_call_id`, `tool_input` and `tool_source`; its paired
     // `tool_result` row carries `tool_call_id` and `tool_is_error`. All
     // five are nullable — `user`/`assistant`/`system` rows leave them NULL
-    // (data-model.md). Bumps HOLZI_TRIGGER_VERSION to 6.
+    // (data-model.md). Bumps HAEX_TRIGGER_VERSION to 6.
     m.insert(
         MigrationName::from("0014_chat_messages_tool_columns"),
         "ALTER TABLE chat_messages ADD COLUMN tool_name TEXT;\n\
@@ -402,7 +403,7 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     // gets a `backfill_source_kind` sibling that reclassifies local-provider
     // rows into `catalog`/`imported` from the compiled catalog id list,
     // since a SQL-only migration cannot see that list. Bumps
-    // HOLZI_TRIGGER_VERSION to 7.
+    // HAEX_TRIGGER_VERSION to 7.
     m.insert(
         MigrationName::from("0015_models_add_huggingface_source"),
         "ALTER TABLE models ADD COLUMN hf_repo TEXT;\n\
@@ -427,7 +428,7 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     // external STT service). `find_local_provider` narrows on this column
     // too (providers/local.rs) — without it, adding the local transcription
     // row would make that lookup ambiguous between the two `kind = 'local'`
-    // rows. Bumps HOLZI_TRIGGER_VERSION to 8.
+    // rows. Bumps HAEX_TRIGGER_VERSION to 8.
     m.insert(
         MigrationName::from("0016_providers_add_capability"),
         "ALTER TABLE providers ADD COLUMN capability TEXT NOT NULL DEFAULT 'chat';".to_string(),
@@ -436,7 +437,7 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     // Autonomous Delegate Mode (spec 009): a `chat_messages` row now records
     // which `AutonomyMode` its turn ran under — `standard`/`ungated`/
     // `gated_permissive`, or `NULL` for legacy and non-delegate rows
-    // (data-model.md Decision B). Bumps HOLZI_TRIGGER_VERSION to 9.
+    // (data-model.md Decision B). Bumps HAEX_TRIGGER_VERSION to 9.
     m.insert(
         MigrationName::from("0017_chat_messages_add_autonomy_mode"),
         "ALTER TABLE chat_messages ADD COLUMN autonomy_mode TEXT;".to_string(),
@@ -447,7 +448,7 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     // adapter hint). `NULL` means "not determined yet" — never "unsupported"
     // — so pre-existing rows need no backfill here; provider rows are filled
     // by their next refresh and local rows by `backfill_local_capabilities`.
-    // Bumps HOLZI_TRIGGER_VERSION to 10.
+    // Bumps HAEX_TRIGGER_VERSION to 10.
     m.insert(
         MigrationName::from("0018_models_add_capabilities"),
         "ALTER TABLE models ADD COLUMN capabilities_json TEXT;".to_string(),
@@ -462,7 +463,7 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     // workspace or window cascades to its windows/tabs at the database
     // level (I7). All three tables also carry the ADR-0001 FK to
     // `known_devices(vault_device_uuid) ON DELETE CASCADE`. Bumps
-    // HOLZI_TRIGGER_VERSION to 11.
+    // HAEX_TRIGGER_VERSION to 11.
     m.insert(
         MigrationName::from("0019_shell_layout"),
         "CREATE TABLE workspaces (\
@@ -521,7 +522,7 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     // sessions move to the device-local `wm_sessions_no_sync` (one JSON
     // row per device; `_no_sync` keeps it out of sync entirely). The
     // maintenance row asks the first open to `VACUUM` the dropped
-    // content out of the file's free pages. No `HOLZI_TRIGGER_VERSION`
+    // content out of the file's free pages. No `HAEX_TRIGGER_VERSION`
     // bump: dropping a CRDT table and adding `_no_sync` tables install no
     // triggers.
     m.insert(
@@ -556,7 +557,7 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     // fires no triggers, so no delete marker reaches other devices (as in
     // 0020). The rebuilt table stays empty until the identity is published
     // with its first HLC. The other tables are new. Bumps
-    // HOLZI_TRIGGER_VERSION to 12: the rebuilt and the four new CRDT tables
+    // HAEX_TRIGGER_VERSION to 12: the rebuilt and the four new CRDT tables
     // need their triggers on every existing vault.
     m.insert(
         MigrationName::from("0021_own_device_sync"),
@@ -846,7 +847,7 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
         DEFAULT_MODEL_0062.to_owned(),
     );
     // Spec 095: device sessions of the chat with contacts; only `_no_sync` tables, so
-    // HOLZI_TRIGGER_VERSION stays.
+    // HAEX_TRIGGER_VERSION stays.
     m.insert(
         MigrationName::from("0063_chat_ratchet"),
         CHAT_RATCHET_0063.to_owned(),
@@ -855,6 +856,11 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0064_sync_runs_timing"),
         SYNC_RUNS_TIMING_0064.to_owned(),
+    );
+    // Spec 054: the app was renamed; the names it stored in a vault follow.
+    m.insert(
+        MigrationName::from("0065_haex_names"),
+        HAEX_NAMES_0065.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

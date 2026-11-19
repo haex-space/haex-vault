@@ -15,7 +15,7 @@ use crate::contacts::model::TargetInput;
 use crate::contacts::phone::state::{self, PhoneSummary};
 use crate::contacts::phone::Account;
 use crate::contacts::{ids, store, targets};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
 /// Which contacts a change of targets is for.
@@ -41,8 +41,8 @@ pub enum OnPhone {
     Keep,
 }
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::ContactsInvalid {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::ContactsInvalid {
         reason: reason.to_owned(),
     }
 }
@@ -135,9 +135,9 @@ impl ContactsService {
                 for id in &chosen {
                     // The own contact is never written to a phone (spec 060 FR-006).
                     if ids::is_self(id) {
-                        return Err(HolziError::ContactsSelf.into());
+                        return Err(HaexError::ContactsSelf.into());
                     }
-                    store::group_ids_if_exists(tx, id)?.ok_or(HolziError::ContactsNotFound)?;
+                    store::group_ids_if_exists(tx, id)?.ok_or(HaexError::ContactsNotFound)?;
                     targets::set(tx, id, &device, (&account.0, &account.1))?;
                 }
                 Ok(())

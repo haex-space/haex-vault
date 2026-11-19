@@ -70,7 +70,7 @@ fn a_contact_needs_the_grant_read_for_this_request() {
 }
 
 #[test]
-fn holzis_own_data_is_read_only_for_the_user_and_closed_to_everyone_else() {
+fn haexs_own_data_is_read_only_for_the_user_and_closed_to_everyone_else() {
     assert_eq!(own_data(Mode::OwnDevice, Caller::User, false, true), Ok(()));
     assert_eq!(
         own_data(Mode::OwnDevice, Caller::User, true, true),

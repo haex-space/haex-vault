@@ -17,7 +17,7 @@ export type HeadRow = (typeof HEAD_ROWS)[number]
 
 export type ShareDevice = { devicePubkey: string }
 
-export type ShareHolzi =
+export type ShareHaex =
   | { kind: 'none' }
   | { kind: 'card' }
   | { kind: 'own'; canSign: boolean; devices: ShareDevice[]; relays: string[] }
@@ -25,12 +25,12 @@ export type ShareHolzi =
 export type ShareOptions = {
   rows: ShareRow[]
   head: Partial<Record<HeadRow, string | null>>
-  holzi: ShareHolzi
+  haex: ShareHaex
   name: string
   canShare: boolean
 }
 
-export type HolziChoice =
+export type HaexChoice =
   | { kind: 'none' }
   | { kind: 'card' }
   | { kind: 'own'; devices: string[]; relays: string[] }
@@ -42,7 +42,7 @@ export type ShareSelection = {
   organization: boolean
   jobTitle: boolean
   note: boolean
-  holzi: HolziChoice
+  haex: HaexChoice
 }
 
 function hasHead(options: ShareOptions, row: HeadRow): boolean {
@@ -52,7 +52,7 @@ function hasHead(options: ShareOptions, row: HeadRow): boolean {
 /** Everything the dialog offers, chosen (FR-009). The own vault's identity always goes along, so
  * the own choice exists even with no device and no relay. */
 export function selectAll(options: ShareOptions): ShareSelection {
-  const holzi = options.holzi
+  const haex = options.haex
   return {
     values: options.rows.map((row) => row.id),
     displayName: hasHead(options, 'displayName'),
@@ -60,14 +60,14 @@ export function selectAll(options: ShareOptions): ShareSelection {
     organization: hasHead(options, 'organization'),
     jobTitle: hasHead(options, 'jobTitle'),
     note: hasHead(options, 'note'),
-    holzi:
-      holzi.kind === 'own'
+    haex:
+      haex.kind === 'own'
         ? {
             kind: 'own',
-            devices: holzi.devices.map((device) => device.devicePubkey),
-            relays: [...holzi.relays],
+            devices: haex.devices.map((device) => device.devicePubkey),
+            relays: [...haex.relays],
           }
-        : holzi.kind === 'card'
+        : haex.kind === 'card'
           ? { kind: 'card' }
           : { kind: 'none' },
   }
@@ -82,8 +82,8 @@ export function selectNone(options: ShareOptions): ShareSelection {
     organization: false,
     jobTitle: false,
     note: false,
-    holzi:
-      options.holzi.kind === 'own'
+    haex:
+      options.haex.kind === 'own'
         ? { kind: 'own', devices: [], relays: [] }
         : { kind: 'none' },
   }
@@ -112,11 +112,10 @@ export function toggleHead(
 /** The one choice of a foreign contact's confirmed addresses: the original proof goes or not,
  * devices and relays never separately (FR-013). */
 export function toggleCard(selection: ShareSelection): ShareSelection {
-  if (selection.holzi.kind === 'own') return selection
+  if (selection.haex.kind === 'own') return selection
   return {
     ...selection,
-    holzi:
-      selection.holzi.kind === 'card' ? { kind: 'none' } : { kind: 'card' },
+    haex: selection.haex.kind === 'card' ? { kind: 'none' } : { kind: 'card' },
   }
 }
 
@@ -124,12 +123,12 @@ export function toggleDevice(
   selection: ShareSelection,
   devicePubkey: string,
 ): ShareSelection {
-  if (selection.holzi.kind !== 'own') return selection
+  if (selection.haex.kind !== 'own') return selection
   return {
     ...selection,
-    holzi: {
-      ...selection.holzi,
-      devices: toggled(selection.holzi.devices, devicePubkey),
+    haex: {
+      ...selection.haex,
+      devices: toggled(selection.haex.devices, devicePubkey),
     },
   }
 }
@@ -138,12 +137,12 @@ export function toggleRelay(
   selection: ShareSelection,
   relay: string,
 ): ShareSelection {
-  if (selection.holzi.kind !== 'own') return selection
+  if (selection.haex.kind !== 'own') return selection
   return {
     ...selection,
-    holzi: {
-      ...selection.holzi,
-      relays: toggled(selection.holzi.relays, relay),
+    haex: {
+      ...selection.haex,
+      relays: toggled(selection.haex.relays, relay),
     },
   }
 }
@@ -157,12 +156,10 @@ export function canBuild(
   if (options.name) return true
   if (selection.values.length > 0) return true
   if (HEAD_ROWS.some((row) => selection[row])) return true
-  const holzi = selection.holzi
-  if (holzi.kind === 'card') return true
+  const haex = selection.haex
+  if (haex.kind === 'card') return true
   return (
-    holzi.kind === 'own' &&
-    options.holzi.kind === 'own' &&
-    options.holzi.canSign
+    haex.kind === 'own' && options.haex.kind === 'own' && options.haex.canSign
   )
 }
 
@@ -171,13 +168,13 @@ export function toArgs(selection: ShareSelection): ShareSelection {
   return {
     ...selection,
     values: [...selection.values],
-    holzi:
-      selection.holzi.kind === 'own'
+    haex:
+      selection.haex.kind === 'own'
         ? {
             kind: 'own',
-            devices: [...selection.holzi.devices],
-            relays: [...selection.holzi.relays],
+            devices: [...selection.haex.devices],
+            relays: [...selection.haex.relays],
           }
-        : { kind: selection.holzi.kind },
+        : { kind: selection.haex.kind },
   }
 }

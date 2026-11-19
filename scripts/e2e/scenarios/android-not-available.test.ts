@@ -95,7 +95,7 @@ scenario('android-not-available', { needs: { phone: true } }, async (ctx) => {
   // The counter case of `extension-encrypted-device`: an extension reaches an encrypted folder on
   // the device only with file access to its place (spec 048 US7), and a phone has no free paths, so
   // even a stored permission there leaves it refused and nobody asked.
-  const device = deviceFiles('holzi-not-available-')
+  const device = deviceFiles('haex-not-available-')
   ctx.onTeardown(() => device.remove())
   device.write('offen.txt', 'offen')
   unwrap(

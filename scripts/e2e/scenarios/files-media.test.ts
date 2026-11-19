@@ -54,7 +54,7 @@ const pdfCanvas = (instance: FlowInstance) =>
   )
 
 scenario('files-media', { timeoutMs: 240_000 }, async (ctx) => {
-  const files = deviceFiles('holzi-media-')
+  const files = deviceFiles('haex-media-')
   try {
     const instance = await ctx.startInstance()
     await createAndUnlock(instance, { name: 'e2e-files-media' })

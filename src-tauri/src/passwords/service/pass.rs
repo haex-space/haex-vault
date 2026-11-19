@@ -4,7 +4,7 @@
 //! the history, and no value of a code reaches a log line or an error.
 
 use super::{require_user, PasswordsService};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::passwords::access::Caller;
 use crate::passwords::model::{ItemDetail, Patch};
 use crate::passwords::pass::codes::{draw, CodeFormat};
@@ -136,7 +136,7 @@ impl PasswordsService {
             .read(move |q| {
                 require_pass(q, &item_id)?;
                 let code =
-                    store::code_of(q, &item_id, &code_id)?.ok_or(HolziError::PasswordsNotFound)?;
+                    store::code_of(q, &item_id, &code_id)?.ok_or(HaexError::PasswordsNotFound)?;
                 let drawing = match (&code.flag, CodeFormat::parse(&code.format)) {
                     (None, Some(format)) => draw(format, &code.value).ok(),
                     _ => None,
@@ -166,7 +166,7 @@ impl PasswordsService {
 /// type is refused.
 fn require_pass(q: &mut impl crate::storage::query::Query, item_id: &str) -> Result<()> {
     match store::entry_type(q, item_id)? {
-        None => Err(HolziError::PasswordsNotFound),
+        None => Err(HaexError::PasswordsNotFound),
         Some(kind) if kind.is_pass() => Ok(()),
         Some(kind) => Err(store::not_a_pass(&kind)),
     }

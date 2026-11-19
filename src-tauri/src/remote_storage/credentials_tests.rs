@@ -12,7 +12,7 @@ use super::{
     store, Addressing, ConnectionRow, Credentials, CredentialsState, EndpointScope,
     PasswordCredentials, Protocol, ProviderKind, SshKeyCredentials,
 };
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::passwords::access::Caller;
 use crate::passwords::model::{Target, TargetKind};
 use crate::passwords::service::PasswordsService;
@@ -83,7 +83,7 @@ async fn an_entry_the_user_deleted_is_missing_and_one_not_yet_arrived_is_syncing
     let (_dir, db) = vault();
     let passwords = PasswordsService::new(db.clone());
     let unavailable = |result| match result {
-        Err(HolziError::StorageCredentialsUnavailable { state }) => state,
+        Err(HaexError::StorageCredentialsUnavailable { state }) => state,
         other => panic!("unexpected {other:?}"),
     };
 
@@ -250,7 +250,7 @@ async fn an_entry_without_the_fields_of_the_protocol_is_missing() {
         .expect("create");
     // A key login has no password, which WebDAV needs.
     match credentials::read(&passwords, &db, &id, Protocol::WebDav).await {
-        Err(HolziError::StorageCredentialsUnavailable { state }) => {
+        Err(HaexError::StorageCredentialsUnavailable { state }) => {
             assert_eq!(state, CredentialsState::Missing);
         }
         other => panic!("unexpected {other:?}"),

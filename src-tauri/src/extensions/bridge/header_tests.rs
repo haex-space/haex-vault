@@ -334,7 +334,7 @@ fn collapse_group_is_a_text_of_1_to_64_characters() {
 }
 
 #[test]
-fn a_test_id_is_for_holzis_own_apps() {
+fn a_test_id_is_for_haexs_own_apps() {
     let message = refused(
         json!({"end": [{"type": "button", "id": "a", "label": "L", "text": "T", "testId": "x"}]}),
     );

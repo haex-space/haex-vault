@@ -11,7 +11,7 @@ fn samples() -> Vec<Message> {
     };
     let schema = SchemaVersion {
         protocol: 1,
-        holzi_migration: 21,
+        haex_migration: 21,
         crdt_trigger: 13,
     };
     vec![
@@ -156,7 +156,7 @@ fn challenge(v: u8, schema: SchemaVersion) -> Message {
 
 const SCHEMA: SchemaVersion = SchemaVersion {
     protocol: 2,
-    holzi_migration: 40,
+    haex_migration: 40,
     crdt_trigger: 27,
 };
 

@@ -13,7 +13,7 @@ use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 use super::migrations_agent_profiles::SYNCED_TABLES;
 use super::migrations_extensions_tests::{has_hlc_column, unique_indexes};
 use super::migrations_tests::{migration_source_before, open, table_exists};
-use crate::identity::{holzi_migration_source, installation_id_path, HolziBootstrap};
+use crate::identity::{haex_migration_source, installation_id_path, HaexBootstrap};
 
 fn columns(db: &Database, table: &str) -> Vec<String> {
     db.with_connection(|conn| {
@@ -85,7 +85,7 @@ async fn migration_0054_gives_a_fresh_vault_the_profile_tables() {
             dir.path(),
             "agent-profiles-fresh",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_schema(&db);
     })
@@ -101,7 +101,7 @@ async fn migration_0055_adds_non_unique_profile_id_indexes() {
             dir.path(),
             "agent-profile-indexes",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         db.with_connection(|conn| {
             for (table, index) in [
@@ -145,7 +145,7 @@ async fn migration_0054_upgrades_a_vault_from_the_schema_before_it() {
             dir.path(),
             "agent-profiles-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_schema(&db);
     })
@@ -161,7 +161,7 @@ async fn migration_0054_upgrades_trigger_version_34_and_tracks_deletes_on_all_ta
             path: dir.path().join("vault.db"),
             key: SqlCipherKey::new("agent-profiles-trigger-upgrade"),
             create_if_missing: true,
-            bootstrap: std::sync::Arc::new(HolziBootstrap::new(installation_id_path(dir.path()))),
+            bootstrap: std::sync::Arc::new(HaexBootstrap::new(installation_id_path(dir.path()))),
             signature_provider: std::sync::Arc::new(NoopSignatureProvider),
             migration_source: migration_source_before("0054_agent_profiles"),
             trigger_version: 34,
@@ -174,7 +174,7 @@ async fn migration_0054_upgrades_trigger_version_34_and_tracks_deletes_on_all_ta
             dir.path(),
             "agent-profiles-trigger-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         db.write(|tx| {
             tx.execute(
@@ -255,7 +255,7 @@ async fn a_second_member_row_with_the_same_id_is_refused() {
             dir.path(),
             "agent-profiles-member-pk",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         db.with_connection(|conn| {
             conn.execute(
@@ -283,7 +283,7 @@ async fn deleting_a_row_leaves_a_delete_marker() {
             dir.path(),
             "agent-profiles-marker",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         db.with_connection(|conn| {
             conn.execute(

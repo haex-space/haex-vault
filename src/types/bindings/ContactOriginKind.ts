@@ -3,4 +3,4 @@
 /**
  * Where a contact came from (FR-018a). Set when the contact is created, never changed.
  */
-export type ContactOriginKind = "holzi" | "phone" | "card";
+export type ContactOriginKind = "haex" | "phone" | "card";

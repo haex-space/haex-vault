@@ -11,10 +11,10 @@
 //! (research R6). The `_no_sync` tables hold what only this device does: its outbox, the wraps it
 //! has seen, its cursors at the Nostr-Relays, its uploads to a Blossom-Server, the files it keeps and
 //! incomplete group invitations. New CRDT tables and columns raise
-//! [`super::migrations::HOLZI_TRIGGER_VERSION`].
+//! [`super::migrations::HAEX_TRIGGER_VERSION`].
 
 /// The migration `0049_chat_contacts`; registered in
-/// [`super::migrations::holzi_migration_source`].
+/// [`super::migrations::haex_migration_source`].
 pub const CHAT_CONTACTS_0049: &str = r#"ALTER TABLE chat_threads ADD COLUMN kind TEXT NOT NULL DEFAULT 'agent';
 --> statement-breakpoint
 ALTER TABLE chat_threads ADD COLUMN state TEXT NOT NULL DEFAULT 'active';

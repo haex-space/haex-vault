@@ -63,17 +63,17 @@ fn only_an_installed_extension_can_be_disabled_and_only_kept_data_purged() {
     let ext = a.install(&bundle("1.0.0", &[INIT]));
     assert!(matches!(
         purge_kept_data(&a.vault, ext, now()),
-        Err(crate::error::HolziError::ExtensionNotFound)
+        Err(crate::error::HaexError::ExtensionNotFound)
     ));
     remove(&a.vault, ext, false, now()).expect("remove");
     assert!(matches!(
         set_enabled(&a.vault, ext, false, now()),
-        Err(crate::error::HolziError::ExtensionNotFound)
+        Err(crate::error::HaexError::ExtensionNotFound)
     ));
     purge_kept_data(&a.vault, ext, now()).expect("purge");
     assert!(matches!(
         purge_kept_data(&a.vault, ext, now()),
-        Err(crate::error::HolziError::ExtensionNotFound)
+        Err(crate::error::HaexError::ExtensionNotFound)
     ));
 }
 

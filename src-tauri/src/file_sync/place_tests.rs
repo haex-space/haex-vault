@@ -10,5 +10,5 @@ fn split_names_the_folder_and_the_name() {
 
 #[test]
 fn trash_keeps_the_path_below_the_run() {
-    assert_eq!(trash_path("run1", "a/b.txt"), ".holzi-trash/run1/a/b.txt");
+    assert_eq!(trash_path("run1", "a/b.txt"), ".haex-trash/run1/a/b.txt");
 }

@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use tauri::{AppHandle, State};
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::state::AppState;
 use crate::tts;
 
@@ -82,7 +82,7 @@ pub fn write_vad_model(dir: &Path) -> std::io::Result<PathBuf> {
 /// The pause detection model's path on this device, written there if needed.
 pub fn vad_model_path(app: &AppHandle) -> Result<PathBuf> {
     let dir = crate::models::paths::slug_dir(app, SILERO_VAD_SLUG)?;
-    write_vad_model(&dir).map_err(|e| HolziError::InvalidInput {
+    write_vad_model(&dir).map_err(|e| HaexError::InvalidInput {
         reason: format!("write the pause detection model: {e}"),
     })
 }
@@ -123,7 +123,7 @@ pub async fn assistant_readiness(
         (stt_model, voice, vad_model_path(&app_for_disk).is_ok())
     })
     .await
-    .map_err(|e| HolziError::InvalidInput {
+    .map_err(|e| HaexError::InvalidInput {
         reason: format!("check the assistant's models: {e}"),
     })?;
     let chat_model = crate::chat::default_model::resolve_default_model(app.clone(), state)

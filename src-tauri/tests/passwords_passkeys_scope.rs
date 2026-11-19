@@ -13,7 +13,7 @@ use haex_crdt::rusqlite::params;
 
 use holzi_lib::passwords::access::{Caller, Grant, GrantAction, Scope};
 use holzi_lib::passwords::model_passkeys::PasskeyListRequest;
-use holzi_lib::HolziError;
+use holzi_lib::HaexError;
 
 use passkey_fixture::{confirm_request, create_request, extension, fixture, RP};
 
@@ -47,7 +47,7 @@ async fn two_passkeys_need_a_choice_but_one_reached_twice_is_one_candidate() {
         .service
         .passkey_confirm(&Caller::User, &[], confirm_request(&[]))
         .await;
-    let Err(HolziError::PasswordsPasskeyChoiceRequired { candidates }) = choice else {
+    let Err(HaexError::PasswordsPasskeyChoiceRequired { candidates }) = choice else {
         panic!("two passkeys need a choice: {choice:?}");
     };
     assert_eq!(candidates.len(), 2);
@@ -118,30 +118,30 @@ async fn the_scope_decides_which_passkeys_exist_for_a_caller() {
         .service
         .passkey_confirm(&ext, &none, confirm_request(&[]))
         .await;
-    assert!(matches!(missing, Err(HolziError::PasswordsNotFound)));
+    assert!(matches!(missing, Err(HaexError::PasswordsNotFound)));
     let no_grant = fx
         .service
         .passkey_list(&ext, &[], PasskeyListRequest::default())
         .await;
-    assert!(matches!(no_grant, Err(HolziError::PasswordsForbidden)));
+    assert!(matches!(no_grant, Err(HaexError::PasswordsForbidden)));
     let agent = fx
         .service
         .passkey_list(&Caller::BuiltinAgent, &[], PasskeyListRequest::default())
         .await;
-    assert!(matches!(agent, Err(HolziError::PasswordsForbidden)));
+    assert!(matches!(agent, Err(HaexError::PasswordsForbidden)));
 
     let (writer, grants) = extension("a", GrantAction::ReadWrite);
     let outside = fx
         .service
         .passkey_create(&writer, &grants, create_request(&b, &[-7]))
         .await;
-    assert!(matches!(outside, Err(HolziError::PasswordsNotFound)));
+    assert!(matches!(outside, Err(HaexError::PasswordsNotFound)));
     let (reader, grants) = extension("a", GrantAction::Read);
     let read_only = fx
         .service
         .passkey_create(&reader, &grants, create_request(&a, &[-7]))
         .await;
-    assert!(matches!(read_only, Err(HolziError::PasswordsForbidden)));
+    assert!(matches!(read_only, Err(HaexError::PasswordsForbidden)));
 }
 
 #[tokio::test]
@@ -158,7 +158,7 @@ async fn a_link_counts_only_when_target_and_source_are_readable() {
         .service
         .passkey_confirm(&only_a, &grants, confirm_request(&[]))
         .await;
-    assert!(matches!(hidden, Err(HolziError::PasswordsNotFound)));
+    assert!(matches!(hidden, Err(HaexError::PasswordsNotFound)));
 
     let both = [Grant::new(GrantAction::Read, Scope::tags(["a", "b"]))];
     let mut through_target = confirm_request(&[]);

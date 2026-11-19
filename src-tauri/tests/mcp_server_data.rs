@@ -22,7 +22,7 @@ use holzi_lib::chat::tools::native_action::{NativeCall, NativeError, NativeExecu
 use holzi_lib::contacts::agent_actions::{ContactsActions, ContactsAgentEnv};
 use holzi_lib::contacts::model::{ContactInput, Head};
 use holzi_lib::contacts::service::ContactsService;
-use holzi_lib::error::HolziError;
+use holzi_lib::error::HaexError;
 use holzi_lib::files::agent::prompt::PermissionPrompt;
 use holzi_lib::mcp_server::grants::{default_rights, AccessLevel, Rights};
 use holzi_lib::mcp_server::hello::CloseReason;
@@ -84,11 +84,11 @@ impl NativeExecutor for BuiltinOnly {
 struct Env(VaultDb, Uuid);
 
 impl ContactsAgentEnv for Env {
-    fn database(&self) -> Result<VaultDb, HolziError> {
+    fn database(&self) -> Result<VaultDb, HaexError> {
         Ok(self.0.clone())
     }
 
-    fn device(&self) -> BoxFuture<'_, Result<Uuid, HolziError>> {
+    fn device(&self) -> BoxFuture<'_, Result<Uuid, HaexError>> {
         Box::pin(async move { Ok(self.1) })
     }
 

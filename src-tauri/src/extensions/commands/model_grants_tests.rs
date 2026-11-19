@@ -426,7 +426,7 @@ fn only_a_model_the_extension_may_use_can_become_the_default() {
     // Never granted, and revoked after the list was loaded: both are refused and nothing changes.
     assert!(matches!(
         set_default(&s, Some(s.id(1))),
-        Err(HolziError::InvalidInput { .. })
+        Err(HaexError::InvalidInput { .. })
     ));
     revoke(
         &s.ctx.db,
@@ -439,7 +439,7 @@ fn only_a_model_the_extension_may_use_can_become_the_default() {
     .unwrap();
     assert!(matches!(
         set_default(&s, Some(s.id(0))),
-        Err(HolziError::InvalidInput { .. })
+        Err(HaexError::InvalidInput { .. })
     ));
     assert_eq!(default_of(&s), None, "the revocation took the default away");
     set_default(&s, None).unwrap();
@@ -521,7 +521,7 @@ fn a_wrong_effort_or_model_id_is_refused() {
             1,
         );
         assert!(
-            matches!(refused, Err(HolziError::InvalidInput { .. })),
+            matches!(refused, Err(HaexError::InvalidInput { .. })),
             "{effort}"
         );
     }

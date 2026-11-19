@@ -6,13 +6,13 @@
 //! old row could not get its key in SQL. **Confirmed holzi addresses of existing contacts go with
 //! it and come back when their card is read again**; the contacts stay. `DROP TABLE` fires no
 //! triggers, so no delete marker reaches other devices (precedent: `0021_own_device_sync`), and
-//! `HOLZI_TRIGGER_VERSION` is raised so the new table gets its triggers on every existing vault.
+//! `HAEX_TRIGGER_VERSION` is raised so the new table gets its triggers on every existing vault.
 //!
 //! The table has no UNIQUE constraint, which would halt the sync on a conflict: the primary key
 //! `hash` makes the same card one row on every device, and the index on `vault_pubkey` is plain.
 
 /// The migration `0043_contacts_cards_hash`; registered in
-/// [`super::migrations::holzi_migration_source`].
+/// [`super::migrations::haex_migration_source`].
 pub const CONTACTS_CARDS_0043: &str = r#"DROP TABLE haex_contacts_cards;
 --> statement-breakpoint
 CREATE TABLE haex_contacts_cards (

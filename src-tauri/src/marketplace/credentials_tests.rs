@@ -89,9 +89,9 @@ fn row(id: &str, auth: MarketplaceAuthType, item: Option<&str>, url: &str) -> Ma
     }
 }
 
-fn reason(error: HolziError) -> String {
+fn reason(error: HaexError) -> String {
     match error {
-        HolziError::Marketplace { reason } => reason,
+        HaexError::Marketplace { reason } => reason,
         other => panic!("not a marketplace error: {other:?}"),
     }
 }
@@ -217,7 +217,7 @@ async fn the_form_creates_a_tagged_entry_only_the_user_and_this_module_see() {
         .await
         .unwrap_err();
     assert!(
-        matches!(hidden, HolziError::PasswordsNotFound),
+        matches!(hidden, HaexError::PasswordsNotFound),
         "rule Z14: another holzi function does not see it"
     );
     assert!(matches!(
@@ -335,7 +335,7 @@ async fn a_refused_form_leaves_no_entry_behind() {
     nameless.new_credentials = Some(typed(None, "pass"));
     assert!(matches!(
         save(&db, &pw, nameless, 2).await.unwrap_err(),
-        HolziError::InvalidInput { .. }
+        HaexError::InvalidInput { .. }
     ));
 
     let mut missing = input("Nothing", MarketplaceAuthType::Bearer);

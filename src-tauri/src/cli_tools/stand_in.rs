@@ -6,7 +6,7 @@
 use std::sync::RwLock;
 
 use super::catalog::Catalog;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 static STAND_IN: RwLock<Option<&'static Catalog>> = RwLock::new(None);
 
@@ -19,12 +19,12 @@ pub fn e2e_stand_in_cli_tools(catalog_json: String) -> Result<()> {
 
 fn install(catalog_json: &str, allowed: bool) -> Result<()> {
     if !allowed {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "a stand-in catalog exists only in debug builds".to_string(),
         });
     }
     let catalog =
-        Catalog::parse_loopback(catalog_json).map_err(|error| HolziError::InvalidInput {
+        Catalog::parse_loopback(catalog_json).map_err(|error| HaexError::InvalidInput {
             reason: error.to_string(),
         })?;
     // A scenario sets its stand-in once, so the few bytes a call leaks do not add up.
@@ -43,17 +43,17 @@ pub fn e2e_confirm_cli_tool(
     vendor: String,
 ) -> Result<()> {
     if !cfg!(debug_assertions) {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "a confirmation by hand exists only in debug builds".to_string(),
         });
     }
     let tools = super::tools_of_open_vault(&app, &state)?;
     let runtime = tools
         .runtime(&vendor)
-        .map_err(|error| HolziError::InvalidInput {
+        .map_err(|error| HaexError::InvalidInput {
             reason: error.reason(),
         })?;
-    runtime.confirm().map_err(|error| HolziError::InvalidInput {
+    runtime.confirm().map_err(|error| HaexError::InvalidInput {
         reason: format!("cli_tools.io_error: {error}"),
     })
 }

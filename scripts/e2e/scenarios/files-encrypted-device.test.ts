@@ -47,7 +47,7 @@ const textOf = (instance: FlowInstance, hook: string) =>
 scenario('files-encrypted-device', { timeoutMs: 420_000 }, async (ctx) => {
   const instance = await ctx.startInstance()
   await createAndUnlock(instance, { name: 'e2e-files-encrypted-device' })
-  const device = deviceFiles('holzi-encrypted-device-')
+  const device = deviceFiles('haex-encrypted-device-')
   ctx.onTeardown(() => device.remove())
   const png = solidPng(64, 48, [40, 120, 220])
   device.write('notiz.txt', NOTE)

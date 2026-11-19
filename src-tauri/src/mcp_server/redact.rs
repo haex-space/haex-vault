@@ -1,6 +1,6 @@
 //! What the user may read about a call (spec 021 FR-022, FR-028, research R10): the inputs as the
 //! call prompt and the agent log show them. An input field the schema marks with
-//! `"x-holzi-secret": true` becomes `•••`, and so does a credential inside a raw command line or an
+//! `"x-haex-secret": true` becomes `•••`, and so does a credential inside a raw command line or an
 //! argument list (`--token=abc`, `--password abc`, `GITHUB_TOKEN=abc`, `Bearer abc`,
 //! `https://user:pw@host`), whatever the schema says. Values over 200 characters are cut.
 
@@ -33,7 +33,7 @@ fn redact_fields(schema: &Value, fields: &Map<String, Value>) -> Map<String, Val
             let field = properties
                 .and_then(|properties| properties.get(name))
                 .unwrap_or(&Value::Null);
-            let secret = field.get("x-holzi-secret").and_then(Value::as_bool) == Some(true);
+            let secret = field.get("x-haex-secret").and_then(Value::as_bool) == Some(true);
             let shown = if secret {
                 Value::String(SECRET_PLACEHOLDER.to_owned())
             } else {

@@ -9,7 +9,7 @@ use std::path::PathBuf;
 #[cfg(feature = "voice")]
 use tauri::{AppHandle, Emitter, State};
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::hardware;
 #[cfg(feature = "voice")]
 use crate::state::AppState;
@@ -54,7 +54,7 @@ pub async fn stt_recommend_tiers() -> Result<[SttTierRecommendation; 3]> {
         crate::platform::capabilities().model_presets,
         SUPPORTED_ENGINES,
     )?
-    .ok_or_else(|| HolziError::CatalogEntryNotFound {
+    .ok_or_else(|| HaexError::CatalogEntryNotFound {
         id: "<empty stt catalog>".to_string(),
     })
 }
@@ -105,7 +105,7 @@ pub async fn list_installed_stt_models(app: AppHandle) -> Result<Vec<InstalledSt
             .collect::<std::result::Result<Vec<_>, _>>()
     })
     .await
-    .map_err(|e| HolziError::CrdtInit {
+    .map_err(|e| HaexError::CrdtInit {
         reason: format!("resolve installed STT model directories: {e}"),
     })??;
 
@@ -130,7 +130,7 @@ pub async fn list_installed_stt_models() -> Result<Vec<InstalledSttModel>> {
 /// Pure/`AppHandle`-free on purpose so the error-mapping is directly
 /// unit-testable. `pub` for the same reason as [`scan_installed`].
 pub fn resolve_catalog_entry(catalog_id: &str) -> Result<&'static SttCatalogEntry> {
-    catalog::get(catalog_id)?.ok_or_else(|| HolziError::CatalogEntryNotFound {
+    catalog::get(catalog_id)?.ok_or_else(|| HaexError::CatalogEntryNotFound {
         id: catalog_id.to_string(),
     })
 }
@@ -160,7 +160,7 @@ pub async fn download_stt_model(
         super::files::resolve_model_dir(&app_for_dir, entry)
     })
     .await
-    .map_err(|e| HolziError::CrdtInit {
+    .map_err(|e| HaexError::CrdtInit {
         reason: format!("resolve STT model directory: {e}"),
     })??;
     let model_id = entry.id.clone();

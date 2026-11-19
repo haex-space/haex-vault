@@ -1,11 +1,11 @@
 //! The connection test (spec 038 FR-003, FR-004, SC-004, research R9): write, read, list and
-//! delete a test object `holzi-test/<UUID>`. Reading alone would call a read-only key suitable,
+//! delete a test object `haex-test/<UUID>`. Reading alone would call a read-only key suitable,
 //! and an extension could then not upload. The object is deleted also after a failed step; when
 //! that delete fails too, the result names its key, which is all holzi can do.
 //!
 //! On WebDAV and SFTP (spec 050 research R10) the test first asks for the folder of the storage, so
 //! a missing folder is `folderMissing` without any write, and afterwards removes the folder
-//! `holzi-test/` again when it is empty.
+//! `haex-test/` again when it is empty.
 
 use std::time::Duration;
 
@@ -22,7 +22,7 @@ pub const TEST_TIME: Duration = Duration::from_secs(15);
 pub const CLEANUP_TIME: Duration = Duration::from_secs(5);
 
 /// The prefix of test objects; a test never writes elsewhere.
-pub const TEST_PREFIX: &str = "holzi-test/";
+pub const TEST_PREFIX: &str = "haex-test/";
 
 const CONTENT: &[u8] = b"holzi storage test";
 

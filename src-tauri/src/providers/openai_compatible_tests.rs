@@ -12,7 +12,7 @@ use super::capabilities::{set_user_capabilities, SetUserCapabilitiesArgs};
 use super::providers_tests::open_vault;
 use super::{build_adapter, do_refresh, validate_adapter, OPENAI_COMPATIBLE};
 use crate::adapters::AttachmentKind;
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::model_capabilities::{ModelCapabilities, ReasoningControl};
 use crate::storage::models as models_store;
 use crate::storage::providers::{
@@ -50,7 +50,7 @@ fn the_adapter_id_is_accepted_and_a_lookalike_is_not() {
     assert!(validate_adapter(Some(OPENAI_COMPATIBLE)).is_ok());
     assert!(matches!(
         validate_adapter(Some("openai")),
-        Err(HolziError::InvalidInput { .. })
+        Err(HaexError::InvalidInput { .. })
     ));
 }
 
@@ -91,7 +91,7 @@ fn an_anthropic_provider_still_needs_its_key() {
     anthropic.adapter = Some("anthropic".to_string());
 
     match build_adapter(&anthropic, None) {
-        Err(HolziError::InvalidInput { reason }) => assert!(reason.contains("credentials")),
+        Err(HaexError::InvalidInput { reason }) => assert!(reason.contains("credentials")),
         Err(other) => panic!("unexpected error: {other}"),
         Ok(_) => panic!("a missing key must fail"),
     }
@@ -245,7 +245,7 @@ async fn bad_effort_levels_and_an_unknown_model_are_refused() {
         assert!(
             matches!(
                 set_user_capabilities(&gate, levels(bad.clone())).await,
-                Err(HolziError::InvalidInput { .. })
+                Err(HaexError::InvalidInput { .. })
             ),
             "{bad:?}"
         );
@@ -271,7 +271,7 @@ async fn bad_effort_levels_and_an_unknown_model_are_refused() {
             }
         )
         .await,
-        Err(HolziError::InvalidInput { .. })
+        Err(HaexError::InvalidInput { .. })
     ));
 }
 
@@ -297,7 +297,7 @@ async fn a_model_of_another_provider_kind_takes_no_statement() {
     .await;
 
     assert!(
-        matches!(refused, Err(HolziError::InvalidInput { ref reason }) if reason.contains("OpenAI-compatible")),
+        matches!(refused, Err(HaexError::InvalidInput { ref reason }) if reason.contains("OpenAI-compatible")),
         "{refused:?}"
     );
     assert_eq!(stored(&db, &id), None, "nothing written");

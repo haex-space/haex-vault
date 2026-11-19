@@ -25,7 +25,7 @@ use crate::adapters::cli_delegate::connect_claude::{
 };
 use crate::adapters::cli_delegate::connect_codex::run_device_auth;
 use crate::adapters::cli_delegate::DelegateVendor;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::state::AppState;
 use crate::state_utils::active_database;
 use crate::storage::providers::{self as storage, Provider, ProviderCapability, ProviderKind};
@@ -107,7 +107,7 @@ pub async fn connect_cli_delegate(
     connect_state: State<'_, DelegateConnectState>,
     args: ConnectCliDelegateArgs,
 ) -> Result<ConnectCliDelegateResult> {
-    let vendor = DelegateVendor::parse(&args.vendor).ok_or_else(|| HolziError::InvalidInput {
+    let vendor = DelegateVendor::parse(&args.vendor).ok_or_else(|| HaexError::InvalidInput {
         reason: format!("unknown cli_delegate vendor \"{}\"", args.vendor),
     })?;
 
@@ -344,7 +344,7 @@ fn spawn_claude_auto_completion(
                             status: "error",
                             url: None,
                             code: None,
-                            message: Some(super::format_holzi_error(&error)),
+                            message: Some(super::format_haex_error(&error)),
                         },
                     };
                 let event = if progress.status == "success" {
@@ -397,7 +397,7 @@ pub async fn submit_cli_delegate_code(
     args: SubmitCliDelegateCodeArgs,
 ) -> Result<ProviderPayload> {
     let mut guard = connect_state.pending_claude.lock().await;
-    let mut session = guard.take().ok_or_else(|| HolziError::InvalidInput {
+    let mut session = guard.take().ok_or_else(|| HaexError::InvalidInput {
         reason: "no claude connect flow is currently awaiting a code".into(),
     })?;
 
@@ -412,7 +412,7 @@ pub async fn submit_cli_delegate_code(
             // code. Dropping it stops the program; the user connects again for a new link.
             drop(session);
             return Err(match error {
-                crate::adapters::AdapterError::InvalidCredentials => HolziError::InvalidInput {
+                crate::adapters::AdapterError::InvalidCredentials => HaexError::InvalidInput {
                     reason: format!("{CODE_REJECTED}: the sign-in code was not accepted"),
                 },
                 other => map_adapter_error(other),
@@ -480,7 +480,7 @@ pub(super) async fn write_delegate_provider(
         match existing {
             Some(id) => {
                 let mut provider =
-                    storage::get_provider(tx, id)?.ok_or_else(|| HolziError::CrdtInit {
+                    storage::get_provider(tx, id)?.ok_or_else(|| HaexError::CrdtInit {
                         reason: "cli_delegate provider vanished during reconnect".into(),
                     })?;
                 provider.base_url = None;
@@ -506,7 +506,7 @@ pub(super) async fn write_delegate_provider(
         }
     })
     .await?
-    .ok_or_else(|| HolziError::CrdtInit {
+    .ok_or_else(|| HaexError::CrdtInit {
         reason: "cli_delegate provider vanished immediately after being written".into(),
     })
 }

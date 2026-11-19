@@ -95,7 +95,7 @@ pub struct Deletions {
     /// Contacts whose raw contacts on this phone are all gone: deleted on the phone.
     pub from_phone: BTreeMap<String, Vec<i64>>,
     /// Raw contacts whose contact holzi deleted, by that contact.
-    pub from_holzi: BTreeMap<String, Vec<i64>>,
+    pub from_haex: BTreeMap<String, Vec<i64>>,
     /// Links to drop without deleting anything: one raw contact of several gone, or its account
     /// left the phone (FR-026), or a raw contact gone whose contact no longer has this phone as a
     /// target.
@@ -108,7 +108,7 @@ pub struct Deletions {
 
 impl Deletions {
     pub fn count(&self) -> usize {
-        self.from_phone.len() + self.from_holzi.len()
+        self.from_phone.len() + self.from_haex.len()
     }
 }
 
@@ -158,7 +158,7 @@ pub fn deletions(gathered: &Gathered) -> Deletions {
             continue;
         }
         if !gathered.updated_at.contains_key(&link.contact_id) {
-            out.from_holzi
+            out.from_haex
                 .entry(link.contact_id.clone())
                 .or_default()
                 .push(link.raw_contact_id);
@@ -173,7 +173,7 @@ pub fn deletions(gathered: &Gathered) -> Deletions {
     for raw in &gathered.classified.new {
         if let Some(contact) = gathered.known.get(&raw.id) {
             if !gathered.updated_at.contains_key(contact) {
-                out.from_holzi
+                out.from_haex
                     .entry(contact.clone())
                     .or_default()
                     .push(raw.id);

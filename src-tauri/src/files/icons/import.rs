@@ -382,7 +382,7 @@ pub fn prepare(files: &dyn Files, fallback_name: &str) -> Result<Prepared, Impor
         theme.insert("light".to_owned(), light);
     }
     let mut roles = Map::new();
-    if let Some(given) = manifest["x-holzi"]["roles"].as_object() {
+    if let Some(given) = manifest["x-haex"]["roles"].as_object() {
         for (key, id) in given {
             if IconRole::from_key(key).is_some() && id.as_str().is_some_and(|id| keep.contains(id))
             {
@@ -391,7 +391,7 @@ pub fn prepare(files: &dyn Files, fallback_name: &str) -> Result<Prepared, Impor
         }
     }
 
-    let origin = &manifest["x-holzi"]["origin"];
+    let origin = &manifest["x-haex"]["origin"];
     let pick = |own: Option<&str>, fallback: &Value, max: usize| {
         line(
             own.filter(|v| !v.trim().is_empty())
@@ -413,7 +413,7 @@ pub fn prepare(files: &dyn Files, fallback_name: &str) -> Result<Prepared, Impor
         500,
     );
     theme.insert(
-        "x-holzi".to_owned(),
+        "x-haex".to_owned(),
         json!({ "roles": roles, "origin": { "author": author, "license": license, "source": source } }),
     );
     let name = [

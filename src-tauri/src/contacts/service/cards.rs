@@ -6,7 +6,7 @@ use super::{Caller, ContactsService};
 use crate::contacts::access::require_user;
 use crate::contacts::card::format::SignedCard;
 use crate::contacts::card::received::{self, BlockedVault};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// What the address book knows of a vault, for holzi's own handshakes with its devices.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,8 +26,8 @@ pub enum VaultCard {
 /// 057) and file shares (spec 056).
 const CARD_LOOKUP_FEATURES: [&str; 2] = ["extensionPeers", "fileShares"];
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::ContactsInvalid {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::ContactsInvalid {
         reason: reason.to_owned(),
     }
 }
@@ -38,7 +38,7 @@ impl ContactsService {
     pub async fn card_of_vault(&self, caller: &Caller, vault: [u8; 32]) -> Result<VaultCard> {
         match caller {
             Caller::Internal { feature } if CARD_LOOKUP_FEATURES.contains(feature) => {}
-            _ => return Err(HolziError::ContactsForbidden),
+            _ => return Err(HaexError::ContactsForbidden),
         }
         self.db()
             .read(move |q| {

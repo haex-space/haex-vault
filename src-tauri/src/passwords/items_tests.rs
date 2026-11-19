@@ -11,7 +11,7 @@ use haex_crdt::Database;
 use super::items::{self, otp_params_of};
 use super::model::{ItemInput, ItemPatch, KeyValueInput, KeyValuePatch, OtpState, Patch};
 use super::test_support::{open_test_vault, MARKER};
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::storage::query;
 
 fn write<R>(
@@ -19,14 +19,14 @@ fn write<R>(
     f: impl FnOnce(&mut haex_crdt::CrdtTransaction<'_>) -> crate::error::Result<R>,
 ) -> crate::error::Result<R> {
     db.write(|tx| f(tx).map_err(haex_crdt::Error::from))
-        .map_err(HolziError::from)
+        .map_err(HaexError::from)
 }
 
 fn read<R>(
     db: &Database,
     f: impl FnOnce(&mut query::Reader<'_, '_>) -> crate::error::Result<R>,
 ) -> crate::error::Result<R> {
-    query::read(db, |q| f(q).map_err(haex_crdt::Error::from)).map_err(HolziError::from)
+    query::read(db, |q| f(q).map_err(haex_crdt::Error::from)).map_err(HaexError::from)
 }
 
 fn full_input() -> ItemInput {
@@ -346,12 +346,12 @@ fn a_stale_token_or_a_missing_entry_is_a_conflict() {
     let stale = write(&db, |tx| items::update_item(tx, &id, &first, &patch));
     assert!(matches!(
         stale,
-        Err(HolziError::PasswordsConflict { reason }) if reason == "changed"
+        Err(HaexError::PasswordsConflict { reason }) if reason == "changed"
     ));
     let missing = write(&db, |tx| items::update_item(tx, "nope", &first, &patch));
     assert!(matches!(
         missing,
-        Err(HolziError::PasswordsConflict { reason }) if reason == "deleted"
+        Err(HaexError::PasswordsConflict { reason }) if reason == "deleted"
     ));
     assert_eq!(detail(&db, &id).header.title.as_deref(), Some("A"));
 }
@@ -383,7 +383,7 @@ fn an_otp_secret_is_normalised_and_validated() {
     let refused = write(&db, |tx| items::update_item(tx, &id, &stamp, &bad));
     assert!(matches!(
         refused,
-        Err(HolziError::InvalidInput { reason }) if reason == "otpSecret"
+        Err(HaexError::InvalidInput { reason }) if reason == "otpSecret"
     ));
     assert_eq!(detail(&db, &id).header.title, None, "nothing was written");
     // The same on create: an invalid secret is refused, nothing is stored.
@@ -397,7 +397,7 @@ fn an_otp_secret_is_normalised_and_validated() {
             None,
         )
     });
-    assert!(matches!(created, Err(HolziError::InvalidInput { .. })));
+    assert!(matches!(created, Err(HaexError::InvalidInput { .. })));
     let overview = read(&db, |q| items::load_overview(q)).expect("overview");
     assert_eq!(overview.headers.len(), 1);
 }
@@ -420,7 +420,7 @@ fn a_value_that_arrives_invalid_is_reported_and_can_be_fixed() {
     assert_eq!(d.otp_state, OtpState::Invalid, "get_item does not fail");
     assert!(d.has_otp_secret);
     let code = read(&db, |q| otp_params_of(q, &id).map(|_| ()));
-    assert!(matches!(code, Err(HolziError::InvalidInput { .. })));
+    assert!(matches!(code, Err(HaexError::InvalidInput { .. })));
     // An update that does not touch the TOTP is not blocked by it.
     let stamp = d.header.updated_at.expect("stamp");
     let rename = ItemPatch {

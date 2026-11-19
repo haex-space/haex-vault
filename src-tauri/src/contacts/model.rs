@@ -17,7 +17,7 @@ use crate::patch::Patch;
 #[serde(rename_all = "camelCase")]
 pub enum OriginKind {
     /// Created in holzi, by the user or an agent.
-    Holzi,
+    Haex,
     /// Taken over from a phone's address book.
     Phone,
     /// Created from a business card.
@@ -27,7 +27,7 @@ pub enum OriginKind {
 impl OriginKind {
     pub fn as_str(self) -> &'static str {
         match self {
-            OriginKind::Holzi => "holzi",
+            OriginKind::Haex => "haex",
             OriginKind::Phone => "phone",
             OriginKind::Card => "card",
         }
@@ -35,7 +35,7 @@ impl OriginKind {
 
     pub fn parse(text: &str) -> Option<Self> {
         match text {
-            "holzi" => Some(OriginKind::Holzi),
+            "haex" => Some(OriginKind::Haex),
             "phone" => Some(OriginKind::Phone),
             "card" => Some(OriginKind::Card),
             _ => None,

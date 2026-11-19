@@ -6,7 +6,7 @@ use percent_encoding::percent_decode_str;
 use serde::Serialize;
 use ts_rs::TS;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 pub const SCHEME: &str = "mailto:";
 
@@ -36,8 +36,8 @@ pub struct MailRequest {
     pub body: String,
 }
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::OpenerLinkInvalid {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::OpenerLinkInvalid {
         reason: reason.to_owned(),
     }
 }
@@ -89,7 +89,7 @@ fn add_addresses(into: &mut Vec<String>, text: &str) -> Result<()> {
         into.push(address);
     }
     if into.len() > MAX_RECIPIENTS {
-        return Err(HolziError::OpenerLinkTooLarge);
+        return Err(HaexError::OpenerLinkTooLarge);
     }
     Ok(())
 }
@@ -98,7 +98,7 @@ fn add_addresses(into: &mut Vec<String>, text: &str) -> Result<()> {
 /// the first `body` count.
 pub fn parse(link: &str) -> Result<MailRequest> {
     if link.len() > MAX_LINK_BYTES {
-        return Err(HolziError::OpenerLinkTooLarge);
+        return Err(HaexError::OpenerLinkTooLarge);
     }
     let rest = link
         .get(..SCHEME.len())
@@ -132,11 +132,11 @@ pub fn parse(link: &str) -> Result<MailRequest> {
         return Err(invalid("line_break"));
     }
     if request.subject.chars().count() > MAX_SUBJECT_CHARS {
-        return Err(HolziError::OpenerLinkTooLarge);
+        return Err(HaexError::OpenerLinkTooLarge);
     }
     request.body = body.unwrap_or_default().replace("\r\n", "\n");
     if request.body.len() > MAX_BODY_BYTES {
-        return Err(HolziError::OpenerLinkTooLarge);
+        return Err(HaexError::OpenerLinkTooLarge);
     }
     Ok(request)
 }

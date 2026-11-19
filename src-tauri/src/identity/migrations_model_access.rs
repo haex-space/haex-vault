@@ -6,11 +6,11 @@
 //! own device. It carries no UNIQUE constraint (a conflict would halt the sync, as in
 //! [`super::migrations_storage`]): the id derives from the extension and the model
 //! (`extensions::ids::model_order_id`), so two devices that rank the same model write the same
-//! row. The column of `extension_limits` raises [`super::migrations::HOLZI_TRIGGER_VERSION`], as
+//! row. The column of `extension_limits` raises [`super::migrations::HAEX_TRIGGER_VERSION`], as
 //! does the new table.
 
 /// The migration `0037_extension_model_access`; registered in
-/// [`super::migrations::holzi_migration_source`].
+/// [`super::migrations::haex_migration_source`].
 pub const MODEL_ACCESS_0037: &str = "CREATE TABLE extension_model_order (\
   id TEXT PRIMARY KEY NOT NULL, \
   extension_id TEXT NOT NULL REFERENCES extensions(id) ON DELETE CASCADE, \

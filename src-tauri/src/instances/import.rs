@@ -11,7 +11,7 @@ use ts_rs::TS;
 
 use crate::chat::events::emit_model_load_status;
 use crate::chat::session::ChatState;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::files::picked::{self, Opener, PickedFile};
 use crate::identity::installation_id_path;
 use crate::state::AppState;
@@ -94,23 +94,23 @@ fn reserve_name(paths: &VaultPaths, base: &str) -> Result<(String, std::path::Pa
             Err(error) => return Err(error.into()),
         }
     }
-    Err(HolziError::NameConflict {
+    Err(HaexError::NameConflict {
         name: base.to_string(),
     })
 }
 
 /// A database that opened but is no vault of holzi: another app's SQLCipher file, or a holzi
 /// file from a version this one cannot read.
-fn not_a_vault(error: HolziError) -> HolziError {
+fn not_a_vault(error: HaexError) -> HaexError {
     match error {
-        HolziError::WrongPassphrase
-        | HolziError::NotEnoughSpace
-        | HolziError::Unreadable
-        | HolziError::AlreadyOnThisDevice { .. }
-        | HolziError::VaultAlreadyOpenElsewhere => error,
+        HaexError::WrongPassphrase
+        | HaexError::NotEnoughSpace
+        | HaexError::Unreadable
+        | HaexError::AlreadyOnThisDevice { .. }
+        | HaexError::VaultAlreadyOpenElsewhere => error,
         other => {
             log::warn!("import_instance: the chosen file is no vault: {other}");
-            HolziError::NotAValidInstance {
+            HaexError::NotAValidInstance {
                 reason: "not a vault of holzi".to_string(),
             }
         }
@@ -145,17 +145,17 @@ pub async fn import_instance_core<R: Runtime>(
         let db = open_existing_database(passphrase.as_str(), &copy_path, &installation_id_file)
             .map_err(not_a_vault)?;
         let fingerprint =
-            vault_id::fingerprint(&db).ok_or_else(|| HolziError::NotAValidInstance {
+            vault_id::fingerprint(&db).ok_or_else(|| HaexError::NotAValidInstance {
                 reason: "no vault identity".to_string(),
             })?;
         if let Some(other) = vault_id::owner_of(&open_dir, &fingerprint, &own_name) {
-            return Err(HolziError::AlreadyOnThisDevice { name: other });
+            return Err(HaexError::AlreadyOnThisDevice { name: other });
         }
         vault_id::write(&copy_path, &db)?;
         Ok(db)
     })
     .await
-    .map_err(|error| HolziError::CrdtInit {
+    .map_err(|error| HaexError::CrdtInit {
         reason: format!("import task failed: {error}"),
     })
     .and_then(|result| result);

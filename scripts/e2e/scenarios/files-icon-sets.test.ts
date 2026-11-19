@@ -36,7 +36,7 @@ const openFolder = (instance: FlowInstance, folder: string) =>
   })
 
 scenario('files-icon-sets', { timeoutMs: 300_000 }, async (ctx) => {
-  const files = deviceFiles('holzi-icons-')
+  const files = deviceFiles('haex-icons-')
   try {
     const group = await ctx.group({ users: { anna: ['laptop'] } })
     const device = group.device('anna/laptop')

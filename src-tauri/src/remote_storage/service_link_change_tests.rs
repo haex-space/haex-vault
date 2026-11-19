@@ -9,7 +9,7 @@
 use super::model::{CredentialsInput, StorageInput};
 use super::service_tests::{count, entries, input, setup, typed, Setup};
 use super::{Credentials, CredentialsState};
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::passwords::access::Caller;
 use crate::passwords::model::{ItemInput, ItemPatch, Patch, Target, TargetKind};
 use crate::passwords::service::PasswordsService;
@@ -53,7 +53,7 @@ async fn connect(s: &Setup, credentials: Option<CredentialsInput>) -> (String, S
             id: None,
             connection_id: connection.id.clone(),
             name: "Ablage".to_owned(),
-            bucket: "holzi-test".to_owned(),
+            bucket: "haex-test".to_owned(),
             create_folder: false,
         })
         .await
@@ -110,7 +110,7 @@ async fn a_changed_value_of_the_entry_applies_on_the_next_call() {
 }
 
 #[tokio::test]
-async fn removing_connections_keeps_a_chosen_entry_and_takes_holzis_own_with_the_last_one() {
+async fn removing_connections_keeps_a_chosen_entry_and_takes_haexs_own_with_the_last_one() {
     let s = setup();
     let id = chosen(&s).await;
     let (first, _) = connect(&s, link(&id)).await;
@@ -163,7 +163,7 @@ async fn an_entry_in_the_trash_or_deleted_asks_for_new_credentials_without_a_val
         let error = s.service.access_of(&storage).await.expect_err("no access");
         assert!(matches!(
             error,
-            HolziError::StorageCredentialsUnavailable {
+            HaexError::StorageCredentialsUnavailable {
                 state: CredentialsState::Missing
             }
         ));

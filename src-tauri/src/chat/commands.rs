@@ -12,7 +12,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use uuid::Uuid;
 
 use crate::chat::tools::ApprovalDecision;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::state::AppState;
 use crate::state_utils::active_database;
 use crate::storage::models as models_store;
@@ -90,7 +90,7 @@ pub async fn inspect_attachment(
         crate::chat::attachments::classify_attachment(&app, &path)
     })
     .await
-    .map_err(|e| HolziError::CrdtInit {
+    .map_err(|e| HaexError::CrdtInit {
         reason: format!("classify_attachment join: {e}"),
     })??;
 
@@ -128,7 +128,7 @@ pub async fn read_attachment_preview(
         crate::chat::attachments::read_image_preview(&app, &path)
     })
     .await
-    .map_err(|e| HolziError::Io {
+    .map_err(|e| HaexError::Io {
         reason: format!("read_attachment_preview join: {e}"),
     })??;
     Ok(tauri::ipc::Response::new(bytes))
@@ -212,7 +212,7 @@ pub fn abort_turn(chat_state: &ChatState) -> Result<()> {
         let mut guard = chat_state
             .current_generation
             .lock()
-            .map_err(|e| HolziError::CrdtInit {
+            .map_err(|e| HaexError::CrdtInit {
                 reason: format!("chat.current_generation mutex poisoned: {e}"),
             })?;
         if let Some(abort) = guard.take() {
@@ -227,7 +227,7 @@ pub fn abort_turn(chat_state: &ChatState) -> Result<()> {
         let guard = chat_state
             .turn_cancellation
             .lock()
-            .map_err(|e| HolziError::CrdtInit {
+            .map_err(|e| HaexError::CrdtInit {
                 reason: format!("chat.turn_cancellation mutex poisoned: {e}"),
             })?;
         if let Some(token) = guard.as_ref() {
@@ -242,14 +242,14 @@ pub fn abort_turn(chat_state: &ChatState) -> Result<()> {
             chat_state
                 .pending_tool_approvals
                 .lock()
-                .map_err(|e| HolziError::CrdtInit {
+                .map_err(|e| HaexError::CrdtInit {
                     reason: format!("chat.pending_tool_approvals mutex poisoned: {e}"),
                 })?;
         let mut cancelled =
             chat_state
                 .cancelled_tool_approvals
                 .lock()
-                .map_err(|e| HolziError::CrdtInit {
+                .map_err(|e| HaexError::CrdtInit {
                     reason: format!("chat.cancelled_tool_approvals mutex poisoned: {e}"),
                 })?;
         cancelled.extend(pending.keys().copied());
@@ -295,7 +295,7 @@ fn resolve_tool_permission(chat: &ChatState, args: RespondToolPermissionArgs) ->
         let mut pending = chat
             .pending_tool_approvals
             .lock()
-            .map_err(|e| HolziError::CrdtInit {
+            .map_err(|e| HaexError::CrdtInit {
                 reason: format!("chat.pending_tool_approvals mutex poisoned: {e}"),
             })?;
         pending.remove(&args.request_id)
@@ -304,14 +304,14 @@ fn resolve_tool_permission(chat: &ChatState, args: RespondToolPermissionArgs) ->
         if chat
             .cancelled_tool_approvals
             .lock()
-            .map_err(|e| HolziError::CrdtInit {
+            .map_err(|e| HaexError::CrdtInit {
                 reason: format!("chat.cancelled_tool_approvals mutex poisoned: {e}"),
             })?
             .contains(&args.request_id)
         {
             return Ok(());
         }
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: format!("no pending tool permission request: {}", args.request_id),
         });
     };

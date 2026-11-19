@@ -431,7 +431,7 @@ async fn no_answer_or_a_cancelled_turn_changes_nothing() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn holzis_own_places_and_contacts_shares_are_refused_before_asking() {
+async fn haexs_own_places_and_contacts_shares_are_refused_before_asking() {
     let scene = Scene::new();
     scene.permit(true);
     let own = draft(&format!("{OWN}/vaults"), "/home/b");

@@ -22,7 +22,7 @@ const measure = (
   done: string,
 ) =>
   instance.exec<boolean>(
-    `window.__holziMeasured = new Promise((resolve) => {
+    `window.__haexMeasured = new Promise((resolve) => {
        let start = 0
        const ready = () => start > 0 && (${done})
        document.addEventListener(arguments[0], () => (start = performance.now()), {
@@ -41,7 +41,7 @@ const measure = (
   )
 
 scenario('files-split-large', { timeoutMs: 300_000 }, async (ctx) => {
-  const files = deviceFiles('holzi-split-large-', { E2E_PLATFORM: 'linux' })
+  const files = deviceFiles('haex-split-large-', { E2E_PLATFORM: 'linux' })
   try {
     const instance = await ctx.startInstance()
     await createAndUnlock(instance, { name: 'e2e-files-split-large' })
@@ -88,7 +88,7 @@ scenario('files-split-large', { timeoutMs: 300_000 }, async (ctx) => {
     )
     await instance.click(entryIn('right', 'a.txt'))
     const selectedMs = Math.round(
-      await instance.exec<number>('return window.__holziMeasured'),
+      await instance.exec<number>('return window.__haexMeasured'),
     )
     assert.ok(
       selectedMs <= LIMIT_MS * HARD_FACTOR,
@@ -104,7 +104,7 @@ scenario('files-split-large', { timeoutMs: 300_000 }, async (ctx) => {
     )
     await doubleClick(instance, entryIn('right', 'sub'))
     const navigatedMs = Math.round(
-      await instance.exec<number>('return window.__holziMeasured'),
+      await instance.exec<number>('return window.__haexMeasured'),
     )
     assert.ok(
       navigatedMs <= LIMIT_MS * HARD_FACTOR,

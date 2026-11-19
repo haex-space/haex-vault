@@ -10,7 +10,7 @@ use tauri_plugin_holzi_android::contacts::{
 use super::{Book, FakeGroup, FakePhoneBook, FakeRaw};
 use crate::contacts::phone::write::MAX_OPS;
 use crate::contacts::phone::{PhoneBook, MAX_READ};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 pub(super) fn merge_fields(target: &mut Map<String, Json>, fields: &Map<String, Json>) {
     for (key, value) in fields {
@@ -246,8 +246,8 @@ impl Book {
     }
 }
 
-fn missing(what: &str) -> HolziError {
-    HolziError::PhoneContactsFailed {
+fn missing(what: &str) -> HaexError {
+    HaexError::PhoneContactsFailed {
         reason: format!("no such {what}"),
     }
 }

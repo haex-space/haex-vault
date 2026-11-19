@@ -10,7 +10,7 @@ use haex_crdt::Database;
 use super::model::PresetInput;
 use super::presets;
 use super::test_support::open_test_vault;
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::storage::query;
 
 fn write<R>(
@@ -18,7 +18,7 @@ fn write<R>(
     f: impl FnOnce(&mut haex_crdt::CrdtTransaction<'_>) -> crate::error::Result<R>,
 ) -> crate::error::Result<R> {
     db.write(|tx| f(tx).map_err(haex_crdt::Error::from))
-        .map_err(HolziError::from)
+        .map_err(HaexError::from)
 }
 
 fn list(db: &Database) -> Vec<super::model::Preset> {
@@ -65,7 +65,7 @@ fn a_new_preset_has_the_defaults_of_the_table() {
 fn a_name_is_required_and_the_length_is_in_range() {
     let (_dir, db) = open_test_vault();
     let blank = write(&db, |tx| presets::save(tx, &input("   ")));
-    assert!(matches!(blank, Err(HolziError::InvalidInput { reason }) if reason == "name"));
+    assert!(matches!(blank, Err(HaexError::InvalidInput { reason }) if reason == "name"));
     for length in [0, 257] {
         let result = write(&db, |tx| {
             presets::save(
@@ -77,7 +77,7 @@ fn a_name_is_required_and_the_length_is_in_range() {
             )
         });
         assert!(
-            matches!(result, Err(HolziError::InvalidInput { reason }) if reason == "length"),
+            matches!(result, Err(HaexError::InvalidInput { reason }) if reason == "length"),
             "{length}"
         );
     }
@@ -116,7 +116,7 @@ fn save_updates_a_preset_by_its_id() {
             },
         )
     });
-    assert!(matches!(missing, Err(HolziError::PasswordsNotFound)));
+    assert!(matches!(missing, Err(HaexError::PasswordsNotFound)));
 }
 
 #[test]
@@ -202,5 +202,5 @@ fn delete_removes_only_that_preset() {
     assert_eq!(presets.len(), 1);
     assert_eq!(presets[0].id, keep);
     let missing = write(&db, |tx| presets::delete(tx, &drop));
-    assert!(matches!(missing, Err(HolziError::PasswordsNotFound)));
+    assert!(matches!(missing, Err(HaexError::PasswordsNotFound)));
 }

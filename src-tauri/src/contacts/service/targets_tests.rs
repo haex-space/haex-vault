@@ -1,7 +1,7 @@
 use super::*;
 use crate::contacts::model::{ContactInput, TargetInput};
 use crate::contacts::service::test_support::{account, add_phone, person, test_vault, TestVault};
-use crate::error::HolziError;
+use crate::error::HaexError;
 
 async fn create(vault: &TestVault, given: &str, targets: Vec<TargetInput>) -> String {
     let input = ContactInput {
@@ -73,7 +73,7 @@ fn links(vault: &TestVault, contact: &str) -> i64 {
 }
 
 #[tokio::test]
-async fn a_contact_made_in_holzi_has_no_target_unless_one_is_chosen() {
+async fn a_contact_made_in_haex_has_no_target_unless_one_is_chosen() {
     let vault = test_vault();
     let phone = add_phone(
         &vault,
@@ -81,8 +81,8 @@ async fn a_contact_made_in_holzi_has_no_target_unless_one_is_chosen() {
         true,
         vec![account("com.google", "mara@example.org")],
     );
-    let only_holzi = create(&vault, "Anna", vec![]).await;
-    assert!(targets_of(&vault, &only_holzi).await.is_empty());
+    let only_haex = create(&vault, "Anna", vec![]).await;
+    assert!(targets_of(&vault, &only_haex).await.is_empty());
 
     let to_phone = create(&vault, "Ben", vec![to(&phone)]).await;
     assert_eq!(
@@ -129,7 +129,7 @@ async fn only_phones_with_the_sync_on_are_offered() {
             },
         )
         .await;
-    assert!(matches!(refused, Err(HolziError::ContactsInvalid { .. })));
+    assert!(matches!(refused, Err(HaexError::ContactsInvalid { .. })));
     assert!(
         vault
             .service
@@ -213,7 +213,7 @@ async fn targets_are_set_for_many_contacts_and_for_a_group() {
         )
         .await;
     assert!(
-        matches!(unknown, Err(HolziError::ContactsInvalid { .. })),
+        matches!(unknown, Err(HaexError::ContactsInvalid { .. })),
         "only an account the phone reported as writable"
     );
 }
@@ -276,7 +276,7 @@ async fn a_target_on_a_phone_switched_off_stays_but_no_new_one_is_made() {
         .service
         .targets_set(&Caller::User, Selection::Contacts(vec![ben]), phone, None)
         .await;
-    assert!(matches!(refused, Err(HolziError::ContactsInvalid { .. })));
+    assert!(matches!(refused, Err(HaexError::ContactsInvalid { .. })));
 }
 
 #[tokio::test]
@@ -317,7 +317,7 @@ async fn the_own_contact_goes_to_no_phone() {
             None,
         )
         .await;
-    assert!(matches!(refused, Err(HolziError::ContactsSelf)));
+    assert!(matches!(refused, Err(HaexError::ContactsSelf)));
     assert!(
         targets_of(&vault, &anna).await.is_empty(),
         "a refused change writes nothing"

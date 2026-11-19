@@ -244,7 +244,7 @@ async fn two_updates_cannot_replace_the_same_value() {
     )
     .await
     .expect_err("duplicate updates must be rejected");
-    assert!(matches!(error, HolziError::ShareInvalid { .. }));
+    assert!(matches!(error, HaexError::ShareInvalid { .. }));
     let after = contact(&vault, &id).await;
     assert_eq!(
         values_of(&after),
@@ -329,7 +329,7 @@ async fn empty_single_fields_fill_and_filled_ones_are_kept_unless_updated() {
 }
 
 #[tokio::test]
-async fn holzi_addresses_are_added_next_to_the_old_ones_and_skip_leaves_them() {
+async fn haex_addresses_are_added_next_to_the_old_ones_and_skip_leaves_them() {
     let vault = test_vault();
     let first = card(&BEN, &[1], &["wss://one.example.org"], 1_760_000_000);
     let id = vault
@@ -343,17 +343,17 @@ async fn holzi_addresses_are_added_next_to_the_old_ones_and_skip_leaves_them() {
     let second = card(&BEN, &[3], &["wss://two.example.org"], 1_760_000_100);
     let share = text(&envelope(vec![], Some(&second)));
     let preview = preview_into(&vault, &share, &id).await;
-    let holzi = preview
+    let haex = preview
         .items
         .iter()
-        .find(|item| item.item == ContactShareItemKind::HolziAddresses)
+        .find(|item| item.item == ContactShareItemKind::HaexAddresses)
         .expect("holzi")
         .id;
     let skipped = read_in(
         &vault,
         &share,
         &id,
-        vec![decision(holzi, Choice::Skip, None)],
+        vec![decision(haex, Choice::Skip, None)],
     )
     .await
     .expect("skip");
@@ -417,16 +417,16 @@ async fn replace_works_only_for_an_old_card_text_and_removes_only_that_vaults_ol
     let newer = card(&BEN, &[5], &[], 1_760_000_200);
     let share = text(&envelope(vec![], Some(&newer)));
     let preview = preview_into(&vault, &share, &id).await;
-    let holzi = preview
+    let haex = preview
         .items
         .iter()
-        .find(|item| item.item == ContactShareItemKind::HolziAddresses)
+        .find(|item| item.item == ContactShareItemKind::HaexAddresses)
         .expect("holzi")
         .id;
     assert!(!preview
         .items
         .iter()
-        .find(|item| item.id == holzi)
+        .find(|item| item.id == haex)
         .expect("holzi")
         .choices
         .contains(&Choice::Replace));
@@ -435,26 +435,26 @@ async fn replace_works_only_for_an_old_card_text_and_removes_only_that_vaults_ol
             &vault,
             &share,
             &id,
-            vec![decision(holzi, Choice::Replace, None)]
+            vec![decision(haex, Choice::Replace, None)]
         )
         .await,
-        Err(HolziError::ShareInvalid { .. })
+        Err(HaexError::ShareInvalid { .. })
     ));
 
     // An old card text replaces, when it is newer.
     let legacy = newer.text();
     let preview = preview_into(&vault, &legacy, &id).await;
-    let holzi = preview
+    let haex = preview
         .items
         .iter()
-        .find(|item| item.item == ContactShareItemKind::HolziAddresses)
+        .find(|item| item.item == ContactShareItemKind::HaexAddresses)
         .expect("holzi")
         .id;
     let after = read_in(
         &vault,
         &legacy,
         &id,
-        vec![decision(holzi, Choice::Replace, None)],
+        vec![decision(haex, Choice::Replace, None)],
     )
     .await
     .expect("replace");
@@ -464,10 +464,10 @@ async fn replace_works_only_for_an_old_card_text_and_removes_only_that_vaults_ol
     // An older old-card text is refused.
     let stale = card(&BEN, &[6], &[], 1_760_000_050).text();
     let preview = preview_into(&vault, &stale, &id).await;
-    let holzi = preview
+    let haex = preview
         .items
         .iter()
-        .find(|item| item.item == ContactShareItemKind::HolziAddresses)
+        .find(|item| item.item == ContactShareItemKind::HaexAddresses)
         .expect("holzi")
         .id;
     assert!(matches!(
@@ -475,10 +475,10 @@ async fn replace_works_only_for_an_old_card_text_and_removes_only_that_vaults_ol
             &vault,
             &stale,
             &id,
-            vec![decision(holzi, Choice::Replace, None)]
+            vec![decision(haex, Choice::Replace, None)]
         )
         .await,
-        Err(HolziError::ShareInvalid { .. })
+        Err(HaexError::ShareInvalid { .. })
     ));
     assert_eq!(card_rows(&vault), 2);
 }
@@ -532,7 +532,7 @@ async fn an_update_pointing_at_another_contacts_value_fails_and_writes_nothing()
         vec![decision(item, Choice::Update, Some(&other.values[0].id))],
     )
     .await;
-    assert!(matches!(refused, Err(HolziError::ShareInvalid { .. })));
+    assert!(matches!(refused, Err(HaexError::ShareInvalid { .. })));
     assert_eq!(contact(&vault, &id).await, before);
     assert_eq!(
         contact(&vault, &other.id).await.values[0].value,
@@ -555,11 +555,11 @@ async fn a_choice_the_item_does_not_offer_refuses_the_share() {
         .id;
     assert!(matches!(
         read_in(&vault, &share, &id, vec![decision(item, Choice::Add, None)]).await,
-        Err(HolziError::ShareInvalid { .. })
+        Err(HaexError::ShareInvalid { .. })
     ));
     assert!(matches!(
         read_in(&vault, &share, &id, vec![decision(99, Choice::Skip, None)]).await,
-        Err(HolziError::ShareInvalid { .. })
+        Err(HaexError::ShareInvalid { .. })
     ));
     assert!(matches!(
         read_in(
@@ -572,7 +572,7 @@ async fn a_choice_the_item_does_not_offer_refuses_the_share() {
             ]
         )
         .await,
-        Err(HolziError::ShareInvalid { .. })
+        Err(HaexError::ShareInvalid { .. })
     ));
 }
 
@@ -623,7 +623,7 @@ async fn a_changed_target_returns_stale_and_writes_nothing() {
             seen.target_revision,
         )
         .await;
-    assert!(matches!(stale, Err(HolziError::SharePreviewStale)));
+    assert!(matches!(stale, Err(HaexError::SharePreviewStale)));
     assert_eq!(contact(&vault, &id).await, before);
 
     // Without a revision an existing target is stale too; a fresh preview works.
@@ -631,7 +631,7 @@ async fn a_changed_target_returns_stale_and_writes_nothing() {
         .service
         .share_accept(&Caller::User, share.clone(), target, vec![], None)
         .await;
-    assert!(matches!(none, Err(HolziError::SharePreviewStale)));
+    assert!(matches!(none, Err(HaexError::SharePreviewStale)));
     read_in(&vault, &share, &id, vec![])
         .await
         .expect("with a fresh preview");
@@ -700,7 +700,7 @@ async fn a_broken_card_the_own_vault_and_a_blocked_vault_stop_the_whole_share() 
         .len();
     assert!(matches!(
         vault.service.accept_defaults(text(&broken), None).await,
-        Err(HolziError::CardInvalid { .. })
+        Err(HaexError::CardInvalid { .. })
     ));
 
     let own = vault
@@ -716,7 +716,7 @@ async fn a_broken_card_the_own_vault_and_a_blocked_vault_stop_the_whole_share() 
             .service
             .accept_defaults(text(&envelope(vec![], Some(&own))), None)
             .await,
-        Err(HolziError::CardOwn)
+        Err(HaexError::CardOwn)
     ));
 
     vault
@@ -739,7 +739,7 @@ async fn a_broken_card_the_own_vault_and_a_blocked_vault_stop_the_whole_share() 
                 None
             )
             .await,
-        Err(HolziError::ShareInvalid { .. })
+        Err(HaexError::ShareInvalid { .. })
     ));
     assert_eq!(
         vault
@@ -772,7 +772,7 @@ async fn the_own_contact_and_a_mismatching_identity_cannot_take_a_share() {
                 None
             )
             .await,
-        Err(HolziError::ShareInvalid { .. })
+        Err(HaexError::ShareInvalid { .. })
     ));
 
     let mara = vault
@@ -794,7 +794,7 @@ async fn the_own_contact_and_a_mismatching_identity_cannot_take_a_share() {
     let before = contact(&vault, &mara).await;
     assert!(matches!(
         read_in(&vault, &ben_share, &mara, vec![]).await,
-        Err(HolziError::ShareInvalid { .. })
+        Err(HaexError::ShareInvalid { .. })
     ));
     assert_eq!(
         contact(&vault, &mara).await,

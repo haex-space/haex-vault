@@ -7,7 +7,7 @@
 //! 2. Delete the spec 015 preference `shell.active_workspace_id` for every
 //!    device. It is a synced table, so each delete leaves a delete marker
 //!    with the device id and the key, no content (FR-011). Idempotent.
-//! 3. Run queued tasks from `holzi_maintenance_no_sync`: after migration
+//! 3. Run queued tasks from `haex_maintenance_no_sync`: after migration
 //!    0020 dropped the spec 015 tables, one `VACUUM` rewrites the file so
 //!    their content does not survive in free pages, then the WAL is
 //!    truncated.
@@ -202,7 +202,7 @@ pub fn prune_delete_markers(db: &Database) -> haex_crdt::Result<usize> {
 /// Runs every queued task and removes it once it succeeded.
 pub fn run_pending_tasks(conn: &Connection) -> haex_crdt::Result<()> {
     let queued: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM holzi_maintenance_no_sync WHERE task = ?1",
+        "SELECT COUNT(*) FROM haex_maintenance_no_sync WHERE task = ?1",
         params![VACUUM_TASK],
         |r| r.get(0),
     )?;
@@ -210,7 +210,7 @@ pub fn run_pending_tasks(conn: &Connection) -> haex_crdt::Result<()> {
         conn.execute_batch("VACUUM;")?;
         conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))?;
         conn.execute(
-            "DELETE FROM holzi_maintenance_no_sync WHERE task = ?1",
+            "DELETE FROM haex_maintenance_no_sync WHERE task = ?1",
             params![VACUUM_TASK],
         )?;
     }

@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 
 use holzi_lib::identity::{
-    holzi_migration_source, installation_id_path, HolziBootstrap, HOLZI_TRIGGER_VERSION,
+    haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
 use holzi_lib::passwords::access::{Caller, Grant, GrantAction, Scope};
 use holzi_lib::passwords::kind::Kinds;
@@ -69,10 +69,10 @@ async fn no_read_path_returns_the_value_of_a_code() {
         path: dir.path().join("vault.db"),
         key: SqlCipherKey::new("passwords-pass-leak"),
         create_if_missing: true,
-        bootstrap: Arc::new(HolziBootstrap::new(installation_id_path(dir.path()))),
+        bootstrap: Arc::new(HaexBootstrap::new(installation_id_path(dir.path()))),
         signature_provider: Arc::new(NoopSignatureProvider),
-        migration_source: holzi_migration_source(),
-        trigger_version: HOLZI_TRIGGER_VERSION,
+        migration_source: haex_migration_source(),
+        trigger_version: HAEX_TRIGGER_VERSION,
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
     })

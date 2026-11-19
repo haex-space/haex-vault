@@ -7,10 +7,10 @@
 //! device never reads the rows. It carries no UNIQUE constraint (a conflict would halt the sync,
 //! as in [`super::migrations_storage`]): the id derives from the device and the client
 //! (`browser_bridge::approvals::row_id`), so one client has one row per device. New CRDT tables
-//! raise [`super::migrations::HOLZI_TRIGGER_VERSION`].
+//! raise [`super::migrations::HAEX_TRIGGER_VERSION`].
 
 /// The migration `0038_browser_clients`; registered in
-/// [`super::migrations::holzi_migration_source`].
+/// [`super::migrations::haex_migration_source`].
 pub const BROWSER_CLIENTS_0038: &str = r#"CREATE TABLE haex_browser_clients (
   id TEXT PRIMARY KEY NOT NULL,
   vault_device_uuid TEXT NOT NULL REFERENCES known_devices(vault_device_uuid) ON DELETE CASCADE,

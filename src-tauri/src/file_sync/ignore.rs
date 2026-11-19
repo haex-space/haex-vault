@@ -16,9 +16,9 @@ pub const MAX_BYTES: usize = 64 * 1024;
 pub const MAX_LINES: usize = 2_000;
 /// What every rule leaves out (contracts/ignore-file.md, point 4).
 pub const FIXED: [&str; 6] = [
-    ".holzi-trash/",
-    ".*.holzi-part-*",
-    ".*.holzi-old-*",
+    ".haex-trash/",
+    ".*.haex-part-*",
+    ".*.haex-old-*",
     ".DS_Store",
     "Thumbs.db",
     "desktop.ini",

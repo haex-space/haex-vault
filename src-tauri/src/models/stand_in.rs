@@ -5,7 +5,7 @@
 use std::sync::RwLock;
 
 use crate::catalog::CatalogEntry;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 struct StandIn {
     base_url: String,
@@ -19,15 +19,15 @@ static STAND_IN: RwLock<Option<StandIn>> = RwLock::new(None);
 #[tauri::command]
 pub fn e2e_stand_in_models(base_url: String, entries: Vec<CatalogEntry>) -> Result<()> {
     if !cfg!(debug_assertions) {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "stand-in models exist only in debug builds".to_string(),
         });
     }
-    let url = url::Url::parse(&base_url).map_err(|e| HolziError::InvalidInput {
+    let url = url::Url::parse(&base_url).map_err(|e| HaexError::InvalidInput {
         reason: format!("invalid stand-in address: {e}"),
     })?;
     if !matches!(url.host_str(), Some("127.0.0.1" | "localhost")) {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "a stand-in server runs on this device".to_string(),
         });
     }

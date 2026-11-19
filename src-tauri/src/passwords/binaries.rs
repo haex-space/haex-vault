@@ -19,12 +19,12 @@ use uuid::Uuid;
 
 use super::model::AttachmentView;
 use super::{clock, snapshots, ATTACHMENT_LIMIT_BYTES, ORPHAN_GRACE_DAYS};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::files::picked::{self, Opener, PickedFile};
 use crate::storage::query::Query;
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::InvalidInput {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::InvalidInput {
         reason: reason.to_string(),
     }
 }
@@ -70,7 +70,7 @@ pub fn read_attachment_file(opener: &impl Opener, file: &PickedFile) -> Result<(
         .filter(std::fs::Metadata::is_file)
         .map(|metadata| metadata.len());
     if let Some(size) = known.filter(|size| *size > ATTACHMENT_LIMIT_BYTES) {
-        return Err(HolziError::PasswordsAttachmentTooLarge {
+        return Err(HaexError::PasswordsAttachmentTooLarge {
             bytes: size,
             limit: ATTACHMENT_LIMIT_BYTES,
         });
@@ -82,7 +82,7 @@ pub fn read_attachment_file(opener: &impl Opener, file: &PickedFile) -> Result<(
         .map_err(|_| invalid("unreadable"))?;
     let size = bytes.len() as u64;
     if size > ATTACHMENT_LIMIT_BYTES {
-        return Err(HolziError::PasswordsAttachmentTooLarge {
+        return Err(HaexError::PasswordsAttachmentTooLarge {
             bytes: size,
             limit: ATTACHMENT_LIMIT_BYTES,
         });
@@ -94,9 +94,9 @@ pub fn read_attachment_file(opener: &impl Opener, file: &PickedFile) -> Result<(
 }
 
 /// A chosen file that gives nothing back keeps the reason the window already knows.
-fn unreadable(error: HolziError) -> HolziError {
+fn unreadable(error: HaexError) -> HaexError {
     match error {
-        HolziError::Unreadable => invalid("unreadable"),
+        HaexError::Unreadable => invalid("unreadable"),
         other => other,
     }
 }
@@ -104,7 +104,7 @@ fn unreadable(error: HolziError) -> HolziError {
 /// Writes bytes to the file chosen in the save dialog. Blocking.
 pub fn save_to(opener: &impl Opener, file: &PickedFile, bytes: &[u8]) -> Result<()> {
     picked::write(opener, file, bytes).map_err(|error| match error {
-        HolziError::InvalidInput { .. } | HolziError::NotEnoughSpace => error,
+        HaexError::InvalidInput { .. } | HaexError::NotEnoughSpace => error,
         _ => invalid("unwritable"),
     })
 }
@@ -123,7 +123,7 @@ pub fn add_bytes(
     }
     let size = data.len() as u64;
     if size > ATTACHMENT_LIMIT_BYTES {
-        return Err(HolziError::PasswordsAttachmentTooLarge {
+        return Err(HaexError::PasswordsAttachmentTooLarge {
             bytes: size,
             limit: ATTACHMENT_LIMIT_BYTES,
         });
@@ -137,7 +137,7 @@ pub fn add_bytes(
         .unwrap_or(0)
         > 0;
     if !item_exists {
-        return Err(HolziError::PasswordsNotFound);
+        return Err(HaexError::PasswordsNotFound);
     }
     let hash = hash_bytes(data);
     ensure_binary(tx, &hash, data, "attachment")?;
@@ -205,7 +205,7 @@ fn link_of(tx: &mut CrdtTransaction<'_>, attachment_id: &str) -> Result<(String,
         params![attachment_id],
         |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
     )?
-    .ok_or(HolziError::PasswordsNotFound)
+    .ok_or(HaexError::PasswordsNotFound)
 }
 
 /// Renames an attachment on its entry only; returns the stored (sanitized) name.
@@ -245,7 +245,7 @@ pub fn attachment_data(q: &mut impl Query, attachment_id: &str) -> Result<(Strin
         params![attachment_id],
         |r| Ok((r.get::<_, String>(0)?, r.get::<_, Vec<u8>>(1)?)),
     )?
-    .ok_or(HolziError::PasswordsNotFound)
+    .ok_or(HaexError::PasswordsNotFound)
 }
 
 /// The data and the media type of an image attachment (`png`, `jpg`, `jpeg`, `gif`, `webp`), for

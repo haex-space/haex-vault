@@ -11,10 +11,10 @@ async fn it_lists_moves_and_fails_on_demand() {
     assert_eq!(listing.files["a/b.txt"].size, 2);
     assert!(listing.folders.contains("a"));
     place.trash("a/b.txt", "run").await.unwrap();
-    assert_eq!(place.paths(), [".holzi-trash/run/a/b.txt"]);
+    assert_eq!(place.paths(), [".haex-trash/run/a/b.txt"]);
     assert_eq!(place.calls("trash"), 1);
-    place.fail(".holzi-trash/run/a/b.txt");
-    assert!(place.delete(".holzi-trash/run/a/b.txt").await.is_err());
+    place.fail(".haex-trash/run/a/b.txt");
+    assert!(place.delete(".haex-trash/run/a/b.txt").await.is_err());
     place.set_unreachable(true);
     assert_eq!(
         place

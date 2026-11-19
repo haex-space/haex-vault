@@ -5,13 +5,13 @@
 //! The table is vault-wide and syncs. It carries no UNIQUE constraint (a conflict would halt the
 //! sync, as in [`super::migrations_storage`]); that a name occurs once and every limit of a pack
 //! hold is checked in `files::icons`. A set never changes: replacing one is a new row and the
-//! delete of the old. New CRDT tables raise [`super::migrations::HOLZI_TRIGGER_VERSION`].
+//! delete of the old. New CRDT tables raise [`super::migrations::HAEX_TRIGGER_VERSION`].
 //!
 //! Number: `0036` follows `0035_chat_messages_tool_origin`, which landed on `main` while this
 //! branch was in review.
 
 /// The migration `0036_file_icon_sets`; registered in
-/// [`super::migrations::holzi_migration_source`].
+/// [`super::migrations::haex_migration_source`].
 pub const FILE_ICON_SETS_0036: &str = r#"CREATE TABLE haex_file_icon_sets (
   id TEXT PRIMARY KEY NOT NULL,
   name TEXT NOT NULL,

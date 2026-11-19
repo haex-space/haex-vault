@@ -1,6 +1,6 @@
 use super::*;
 use crate::contacts::service::test_support::{person, test_vault};
-use crate::error::HolziError;
+use crate::error::HaexError;
 
 #[tokio::test]
 async fn groups_are_created_renamed_and_filled() {
@@ -97,21 +97,21 @@ async fn groups_are_for_the_user_alone_and_need_a_name() {
     let vault = test_vault();
     assert!(matches!(
         vault.service.groups(&Caller::BuiltinAgent).await,
-        Err(HolziError::ContactsForbidden)
+        Err(HaexError::ContactsForbidden)
     ));
     assert!(matches!(
         vault
             .service
             .group_save(&Caller::User, None, "  ".into())
             .await,
-        Err(HolziError::ContactsInvalid { .. })
+        Err(HaexError::ContactsInvalid { .. })
     ));
     assert!(matches!(
         vault
             .service
             .group_save(&Caller::User, Some("missing".into()), "X".into())
             .await,
-        Err(HolziError::ContactsNotFound)
+        Err(HaexError::ContactsNotFound)
     ));
 }
 
@@ -122,6 +122,6 @@ async fn a_contact_cannot_join_a_group_that_does_not_exist() {
     input.groups = vec!["missing".into()];
     assert!(matches!(
         vault.service.create(&Caller::User, &[], input).await,
-        Err(HolziError::ContactsInvalid { .. })
+        Err(HaexError::ContactsInvalid { .. })
     ));
 }

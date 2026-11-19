@@ -13,14 +13,14 @@ use super::session::Me;
 use super::store::{self, ConversationKind};
 use super::{ids, settings};
 use crate::contacts::card::{own_card, received};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
 /// The own card as `holzi:card:` text: every rumor carries it (research R5).
 pub fn own_card_text(tx: &mut CrdtTransaction<'_>) -> Result<String> {
     own_card::stored(tx)?
         .map(|card| card.text())
-        .ok_or_else(|| HolziError::NotFound {
+        .ok_or_else(|| HaexError::NotFound {
             name: "own business card".into(),
         })
 }
@@ -38,7 +38,7 @@ fn target(q: &mut impl Query, thread_id: Uuid) -> Result<Target> {
         Some(ConversationKind::Note) => return Ok(Target::Note),
         Some(ConversationKind::Direct) => {}
         _ => {
-            return Err(HolziError::NotFound {
+            return Err(HaexError::NotFound {
                 name: "direct conversation".into(),
             })
         }
@@ -50,7 +50,7 @@ fn target(q: &mut impl Query, thread_id: Uuid) -> Result<Target> {
     )?;
     match row {
         Some((Some(peer), state)) if state == "active" => Ok(Target::Direct(peer)),
-        _ => Err(HolziError::InvalidInput {
+        _ => Err(HaexError::InvalidInput {
             reason: "the conversation takes no messages".into(),
         }),
     }
@@ -101,7 +101,7 @@ pub fn message(
     let Target::Direct(peer) = target else {
         if !attachments.is_empty() {
             // `ponytail:` notes take text only; files in notes need no Blossom-Server, a later step.
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: "chat.file.notInNotes".into(),
             });
         }
@@ -234,7 +234,7 @@ pub fn read_up_to(
         |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
     )?;
     let Some((last_read, kind, state, peer)) = row else {
-        return Err(HolziError::NotFound {
+        return Err(HaexError::NotFound {
             name: "conversation".into(),
         });
     };

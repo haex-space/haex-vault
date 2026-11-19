@@ -19,7 +19,7 @@ use nostr_sdk::client::{Client, ClientNotification};
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::storage::query;
 use crate::sync::handshake::local_schema;
 use crate::sync::keys;
@@ -112,7 +112,7 @@ impl LinkHost {
         &self,
         runtime: &Arc<SyncRuntime>,
         vault_name: &str,
-    ) -> Result<LinkCodeInfo, HolziError> {
+    ) -> Result<LinkCodeInfo, HaexError> {
         let replica = Arc::clone(&runtime.replica);
         let (is_main, config) = tokio::task::spawn_blocking(move || {
             query::read(replica.db(), |r| {
@@ -120,11 +120,11 @@ impl LinkHost {
             })
         })
         .await
-        .map_err(|e| HolziError::CrdtInit {
+        .map_err(|e| HaexError::CrdtInit {
             reason: format!("link task: {e}"),
         })??;
         if !is_main {
-            return Err(HolziError::NotMainDevice);
+            return Err(HaexError::NotMainDevice);
         }
 
         let code = LinkCode::generate();
@@ -173,18 +173,18 @@ impl LinkHost {
     }
 
     /// The user's yes for the new device, as a main device or not.
-    pub fn confirm(&self, as_main: bool) -> Result<(), HolziError> {
+    pub fn confirm(&self, as_main: bool) -> Result<(), HaexError> {
         self.decide(Decision::Accept { as_main })
     }
 
     /// The user's no.
-    pub fn reject(&self) -> Result<(), HolziError> {
+    pub fn reject(&self) -> Result<(), HaexError> {
         self.decide(Decision::Reject)
     }
 
     /// Consumes the pending decision sender and attempts to send the user's answer.
     /// Returns `InvalidInput` if no device awaits an answer or one was already sent.
-    fn decide(&self, decision: Decision) -> Result<(), HolziError> {
+    fn decide(&self, decision: Decision) -> Result<(), HaexError> {
         let mut slot = self.shared.slot();
         match &mut *slot {
             Slot::Awaiting { decide, .. } => match decide.take() {
@@ -192,11 +192,11 @@ impl LinkHost {
                     let _ = tx.send(decision);
                     Ok(())
                 }
-                None => Err(HolziError::InvalidInput {
+                None => Err(HaexError::InvalidInput {
                     reason: "the link was decided already".into(),
                 }),
             },
-            _ => Err(HolziError::InvalidInput {
+            _ => Err(HaexError::InvalidInput {
                 reason: "no new device waits for an answer".into(),
             }),
         }

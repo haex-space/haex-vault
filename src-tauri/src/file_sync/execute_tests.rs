@@ -184,7 +184,7 @@ async fn a_failing_step_is_noted_and_the_rest_runs() {
     assert_eq!(done.counts.errors, 1);
     assert_eq!(done.failures[0].0, "x.txt");
     assert_eq!(done.counts.deleted, 1);
-    assert_eq!(target.paths(), [".holzi-trash/run1/y.txt", "x.txt"]);
+    assert_eq!(target.paths(), [".haex-trash/run1/y.txt", "x.txt"]);
 }
 
 #[tokio::test(flavor = "multi_thread")]

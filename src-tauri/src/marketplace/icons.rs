@@ -26,7 +26,7 @@ use super::{
     app_version, ICON_CACHE_ENTRIES, ICON_EDGE, ICON_MAX_ALLOC, ICON_MAX_BYTES, ICON_MAX_SIDE,
     ICON_PARALLEL, SOURCE_TIMEOUT,
 };
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::files::thumbnails::upright_rgba_within;
 
 /// How many redirects an icon request follows.
@@ -225,7 +225,7 @@ impl Icons {
         network: &Network,
         source_base: &str,
         url: &str,
-    ) -> Result<String, HolziError> {
+    ) -> Result<String, HaexError> {
         if let Some(data) = self.cached(url) {
             return Ok(data);
         }
@@ -271,8 +271,8 @@ pub fn small_png(mime: &str, bytes: &[u8]) -> Result<Vec<u8>, IconRefusal> {
     Ok(png)
 }
 
-fn unavailable() -> HolziError {
-    HolziError::Marketplace {
+fn unavailable() -> HaexError {
+    HaexError::Marketplace {
         reason: super::kinds::ICON_UNAVAILABLE.to_owned(),
     }
 }

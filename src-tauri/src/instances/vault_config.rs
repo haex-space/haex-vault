@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use haex_crdt::{DatabaseConfig, NoopSignatureProvider, SqlCipherKey, MAX_CRDT_TRANSACTION_BYTES};
 
-use crate::identity::{holzi_migration_source, HolziBootstrap, HOLZI_TRIGGER_VERSION};
+use crate::identity::{haex_migration_source, HaexBootstrap, HAEX_TRIGGER_VERSION};
 
 /// Builds the vault `DatabaseConfig` shared by create and open.
 ///
@@ -29,10 +29,10 @@ pub fn vault_config(
         path: db_path.to_path_buf(),
         key: SqlCipherKey::new(passphrase),
         create_if_missing,
-        bootstrap: Arc::new(HolziBootstrap::new(installation_id_file.to_path_buf())),
+        bootstrap: Arc::new(HaexBootstrap::new(installation_id_file.to_path_buf())),
         signature_provider: Arc::new(NoopSignatureProvider),
-        migration_source: holzi_migration_source(),
-        trigger_version: HOLZI_TRIGGER_VERSION,
+        migration_source: haex_migration_source(),
+        trigger_version: HAEX_TRIGGER_VERSION,
         max_transaction_bytes: MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
     }

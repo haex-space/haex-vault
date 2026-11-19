@@ -27,7 +27,7 @@ function frame(start = 1000) {
   const context = createContext({
     window,
     performance: { now: () => now },
-    __holzi: (what: string) => reported.push(what),
+    __haex: (what: string) => reported.push(what),
   })
   // Rust wraps the declaration in parentheses and calls it with the config.
   runInContext(`(${source})({})`, context)

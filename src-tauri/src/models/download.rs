@@ -23,7 +23,7 @@ use reqwest::{Client, StatusCode};
 use tokio::fs::File;
 use tokio::io::{AsyncSeekExt, AsyncWriteExt, SeekFrom};
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// Minimum wall-clock gap between progress reports. Guards against
 /// firing thousands of Tauri events per second on fast local networks.
@@ -373,8 +373,8 @@ fn with_suffix(p: &std::path::Path, suffix: &str) -> PathBuf {
     PathBuf::from(s)
 }
 
-fn download_err(msg: impl Into<String>) -> HolziError {
-    HolziError::ModelDownload { reason: msg.into() }
+fn download_err(msg: impl Into<String>) -> HaexError {
+    HaexError::ModelDownload { reason: msg.into() }
 }
 
 #[cfg(test)]

@@ -9,9 +9,9 @@ use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use super::{do_refresh, legacy_adapter_for_url, validate_adapter};
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::identity::{
-    holzi_migration_source, installation_id_path, HolziBootstrap, HOLZI_TRIGGER_VERSION,
+    haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
 use crate::model_capabilities::{
     ModelCapabilities, ReasoningControl, ToolSupport, ToolUse, ToolUseBasis,
@@ -27,11 +27,11 @@ fn validate_adapter_rejects_missing_and_unknown_values() {
     assert!(validate_adapter(Some("anthropic")).is_ok());
     assert!(matches!(
         validate_adapter(None),
-        Err(HolziError::InvalidInput { reason }) if reason.contains("requires adapter")
+        Err(HaexError::InvalidInput { reason }) if reason.contains("requires adapter")
     ));
     assert!(matches!(
         validate_adapter(Some("openai")),
-        Err(HolziError::InvalidInput { reason }) if reason.contains("unsupported")
+        Err(HaexError::InvalidInput { reason }) if reason.contains("unsupported")
     ));
 }
 
@@ -54,10 +54,10 @@ pub(super) fn open_vault(dir: &std::path::Path) -> Arc<Database> {
             path: dir.join("vault.db"),
             key: SqlCipherKey::new("provider-refresh-capabilities-test"),
             create_if_missing: true,
-            bootstrap: Arc::new(HolziBootstrap::new(installation_id_path(dir))),
+            bootstrap: Arc::new(HaexBootstrap::new(installation_id_path(dir))),
             signature_provider: Arc::new(NoopSignatureProvider),
-            migration_source: holzi_migration_source(),
-            trigger_version: HOLZI_TRIGGER_VERSION,
+            migration_source: haex_migration_source(),
+            trigger_version: HAEX_TRIGGER_VERSION,
             max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
             max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
         })

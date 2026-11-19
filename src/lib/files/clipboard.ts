@@ -171,15 +171,15 @@ export function isWithin(inner: string, outer: string): boolean {
   return inner.startsWith(prefix)
 }
 
-/** Why a folder takes no changes: it is one of holzi's own places (`holziOwned`), or a share read only. */
-export type PlaceLock = { holziOwned: boolean; readOnly: boolean }
+/** Why a folder takes no changes: it is one of holzi's own places (`haexOwned`), or a share read only. */
+export type PlaceLock = { haexOwned: boolean; readOnly: boolean }
 
 export const isLocked = (lock: PlaceLock | null | undefined): boolean =>
-  !!lock && (lock.holziOwned || lock.readOnly)
+  !!lock && (lock.haexOwned || lock.readOnly)
 
 /** Why entries cannot go into a folder, or `null` when they can. `nothing`: cut and pasted into the
  * folder they are in, so there is nothing to do. */
-export type PasteRefusal = 'intoItself' | 'holziOwned' | 'readOnly' | 'nothing'
+export type PasteRefusal = 'intoItself' | 'haexOwned' | 'readOnly' | 'nothing'
 
 /**
  * Whether `items` from `folder` may be copied (`copy`) or moved (`cut`) into `target`. The paths of
@@ -191,10 +191,10 @@ export function pasteRefusal(
   op: FilesClipboard['op'],
   folder: string,
   items: readonly ClipboardItem[],
-  target: { path: string; holziOwned: boolean; readOnly?: boolean },
+  target: { path: string; haexOwned: boolean; readOnly?: boolean },
   sameSource = true,
 ): PasteRefusal | null {
-  if (target.holziOwned) return 'holziOwned'
+  if (target.haexOwned) return 'haexOwned'
   if (target.readOnly) return 'readOnly'
   if (!sameSource) return null
   if (
@@ -218,7 +218,7 @@ export function dropOp(
 }
 
 /** The MIME type of entries dragged inside holzi. */
-export const ENTRIES_MIME = 'application/x-holzi-files-entries'
+export const ENTRIES_MIME = 'application/x-haex-files-entries'
 
 /** What a drag inside holzi carries: the source, the folder and the entries. */
 export type DragPayload = Omit<FilesClipboard, 'op'>

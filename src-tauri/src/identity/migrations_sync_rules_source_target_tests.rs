@@ -18,7 +18,7 @@ use crate::file_sync::place::{Facts, Listing};
 use crate::file_sync::plan::{self, Hashes, Inputs};
 use crate::file_sync::{run_log, store};
 use crate::files::SourceRef;
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 const PASSPHRASE: &str = "sync-rules-source-target";
 
@@ -85,7 +85,7 @@ async fn migration_0053_renames_the_columns_and_values_and_keeps_every_row() {
         let items = pairs(&old, ITEMS_ORDER);
         drop(old);
 
-        let db = open(dir.path(), PASSPHRASE, false, holzi_migration_source());
+        let db = open(dir.path(), PASSPHRASE, false, haex_migration_source());
 
         let after: Vec<i64> = TABLES.iter().map(|table| count(&db, table)).collect();
         assert_eq!(after, counts, "no table lost or gained a row");
@@ -146,7 +146,7 @@ async fn migration_0053_renames_the_columns_and_values_and_keeps_every_row() {
         drop(db);
 
         // The migration runs once: opening the migrated vault again changes nothing.
-        let again = open(dir.path(), PASSPHRASE, false, holzi_migration_source());
+        let again = open(dir.path(), PASSPHRASE, false, haex_migration_source());
         let again_counts: Vec<i64> = TABLES.iter().map(|table| count(&again, table)).collect();
         assert_eq!(again_counts, counts);
         assert_eq!(pairs(&again, PENDING_ORDER), expected(&pending));
@@ -164,7 +164,7 @@ async fn migration_0053_gives_a_fresh_vault_the_new_columns_only() {
             dir.path(),
             "sync-rules-source-target-fresh",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
 
         let rules = column_names(&db, "haex_sync_rules_no_sync");
@@ -210,7 +210,7 @@ fn migrated_vault() -> (tempfile::TempDir, Database, String) {
     let device = device_of(&old, dir.path()).to_string();
     fill_both_sides(&old, &device);
     drop(old);
-    let db = open(dir.path(), PASSPHRASE, false, holzi_migration_source());
+    let db = open(dir.path(), PASSPHRASE, false, haex_migration_source());
     (dir, db, device)
 }
 

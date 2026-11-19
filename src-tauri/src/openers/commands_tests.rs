@@ -93,7 +93,7 @@ fn a_refused_link_parks_nothing() {
         assert!(
             matches!(
                 s.open(opener, link),
-                Err(HolziError::OpenerLinkInvalid { .. })
+                Err(HaexError::OpenerLinkInvalid { .. })
             ),
             "{link}"
         );
@@ -107,7 +107,7 @@ fn an_extension_that_did_not_register_is_not_available() {
     let plain = s.install("extension_bundles/good-notes-like.xt");
     assert!(matches!(
         s.open(plain, LINK),
-        Err(HolziError::OpenerNotAvailable)
+        Err(HaexError::OpenerNotAvailable)
     ));
     assert_eq!(s.host.openers.take(plain), None);
 }
@@ -117,13 +117,13 @@ fn an_unknown_or_disabled_extension_is_not_available() {
     let s = setup();
     assert!(matches!(
         s.open(Uuid::new_v4(), LINK),
-        Err(HolziError::OpenerNotAvailable)
+        Err(HaexError::OpenerNotAvailable)
     ));
     let opener = s.install("extension_e2e/mail-opener.xt");
     set_enabled(&s.db, opener, false, 2).unwrap();
     assert!(matches!(
         s.open(opener, LINK),
-        Err(HolziError::OpenerNotAvailable)
+        Err(HaexError::OpenerNotAvailable)
     ));
     assert_eq!(s.host.openers.take(opener), None);
 }

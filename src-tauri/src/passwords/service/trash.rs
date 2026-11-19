@@ -7,7 +7,7 @@
 //! branch. Restoring, deleting for good and emptying the trash are for the user alone (Z11).
 
 use super::{require_user, PasswordsService};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::passwords::access::{authorize_delete, Caller, Grant, ItemState};
 use crate::passwords::model::{Target, TargetKind};
 use crate::passwords::{items, references_db, trash};
@@ -37,13 +37,13 @@ impl PasswordsService {
                             login: true,
                         },
                     )
-                    .map_err(HolziError::from)?;
-                    return Err(HolziError::PasswordsNotFound.into());
+                    .map_err(HaexError::from)?;
+                    return Err(HaexError::PasswordsNotFound.into());
                 };
-                authorize_delete(&caller, &grants, &state.view()).map_err(HolziError::from)?;
+                authorize_delete(&caller, &grants, &state.view()).map_err(HaexError::from)?;
                 if state.in_trash {
                     // Only the user reaches this far (Z13); a delete never removes for good.
-                    return Err(HolziError::PasswordsNotFound.into());
+                    return Err(HaexError::PasswordsNotFound.into());
                 }
                 trash::trash(
                     tx,

@@ -22,7 +22,7 @@ use uuid::Uuid;
 use crate::catalog;
 use crate::chat::local_model::{chosen_local_model, deactivate};
 use crate::chat::session::ChatState;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::hardware::{self, classify, Fit, ModelFitInputs};
 use crate::model_capabilities::ModelCapabilities;
 use crate::providers::local::ensure_local_provider;
@@ -218,7 +218,7 @@ pub async fn download_model_from_catalog(
     let entry =
         catalog::get(&catalog_id)
             .cloned()
-            .ok_or_else(|| HolziError::CatalogEntryNotFound {
+            .ok_or_else(|| HaexError::CatalogEntryNotFound {
                 id: catalog_id.clone(),
             })?;
     let hf = huggingface::HfClient::production()?;
@@ -258,13 +258,13 @@ pub async fn download_model_from_hf(
         huggingface::validate_revision_ref(revision_ref)?;
     }
     if !huggingface::is_commit_sha(&args.hf_revision) {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "hfRevision must already be a resolved commit SHA".into(),
         });
     }
     let expected_id = huggingface::derive_model_id(&args.hf_repo, &args.hf_filename);
     if args.id != expected_id {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "id does not match the id derived from hfRepo/hfFilename".into(),
         });
     }
@@ -289,12 +289,12 @@ pub async fn install_huggingface_update(
     let row = db
         .read(move |r| models_store::get_model(r, &id_for_lookup))
         .await?
-        .ok_or_else(|| HolziError::ModelNotFound {
+        .ok_or_else(|| HaexError::ModelNotFound {
             id: model_id.clone(),
         })?;
 
     if row.source_kind != SourceKind::Huggingface {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: format!("{model_id} is not a free HuggingFace install"),
         });
     }
@@ -304,7 +304,7 @@ pub async fn install_huggingface_update(
         row.hf_revision_ref.clone(),
         row.tokenizer_repo.clone(),
     ) else {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: format!("{model_id} has no trackable HuggingFace revision ref"),
         });
     };
@@ -407,7 +407,7 @@ async fn download_from_hf_inner(
 
     if let Some(existing) = paths::canonical_model_file(&app, &args.id)? {
         if existing.filename != args.hf_filename {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: format!(
                     "model slug '{}' already has finalized GGUF '{}'; cannot add '{}'",
                     args.id, existing.filename, args.hf_filename
@@ -450,7 +450,7 @@ async fn download_from_hf_inner(
                 },
             );
             if fit == Fit::TooBig {
-                return Err(HolziError::HardwareConfirmationRequired {
+                return Err(HaexError::HardwareConfirmationRequired {
                     fit: "too_big".into(),
                 });
             }
@@ -469,7 +469,7 @@ async fn download_from_hf_inner(
 
     // A cancel during the checks above ends the download before it starts.
     if download_slot.token().is_cancelled() {
-        return Err(HolziError::ModelDownloadCancelled);
+        return Err(HaexError::ModelDownloadCancelled);
     }
 
     let app_for_progress = app.clone();
@@ -491,7 +491,7 @@ async fn download_from_hf_inner(
     let downloaded = tokio::select! {
         () = download_slot.token().cancelled() => {
             download::discard_partial(&staging_for_cleanup).await;
-            return Err(HolziError::ModelDownloadCancelled);
+            return Err(HaexError::ModelDownloadCancelled);
         }
         result = state.gate().run(transfer) => result??,
     };
@@ -539,14 +539,14 @@ pub async fn import_model_from_file(
         .filename
         .or_else(|| Some(crate::files::picked::display_name(&app, &args.source_path)))
         .filter(|name| !name.is_empty())
-        .ok_or_else(|| HolziError::InvalidInput {
+        .ok_or_else(|| HaexError::InvalidInput {
             reason: "source path has no filename".into(),
         })?;
     let _publication_lock =
         paths::acquire_model_publication_lock(&app, &args.id, &state.gate().token()).await?;
     if let Some(existing) = paths::canonical_model_file(&app, &args.id)? {
         if existing.filename != filename {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: format!(
                     "model slug '{}' already has finalized GGUF '{}'; cannot add '{}'",
                     args.id, existing.filename, filename
@@ -619,10 +619,10 @@ pub async fn list_installed_models(
                 resolved.push((slug, cf));
             }
         }
-        Ok::<_, HolziError>(resolved)
+        Ok::<_, HaexError>(resolved)
     })
     .await
-    .map_err(|e| HolziError::CrdtInit {
+    .map_err(|e| HaexError::CrdtInit {
         reason: format!("list_installed_models scan join: {e}"),
     })??;
 
@@ -654,8 +654,8 @@ fn scan_installed_slug_dirs(models_root: &Path) -> Result<Vec<String>> {
     match std::fs::read_dir(models_root) {
         Ok(entries) => {
             for entry in entries {
-                let entry = entry.map_err(HolziError::from)?;
-                if !entry.file_type().map_err(HolziError::from)?.is_dir() {
+                let entry = entry.map_err(HaexError::from)?;
+                if !entry.file_type().map_err(HaexError::from)?.is_dir() {
                     continue;
                 }
                 if let Some(name) = entry.file_name().to_str() {
@@ -666,7 +666,7 @@ fn scan_installed_slug_dirs(models_root: &Path) -> Result<Vec<String>> {
             }
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-        Err(e) => return Err(HolziError::from(e)),
+        Err(e) => return Err(HaexError::from(e)),
     }
     // Deterministic ordering — the frontend can rely on stable listings
     // between calls without sorting itself.
@@ -699,7 +699,7 @@ pub async fn delete_installed_model(
     };
     tokio::fs::remove_file(&canonical.absolute_path)
         .await
-        .map_err(|e| HolziError::Io {
+        .map_err(|e| HaexError::Io {
             reason: format!("remove {}: {e}", canonical.absolute_path.display()),
         })?;
     Ok(())
@@ -757,13 +757,13 @@ async fn register_downloaded(args: RegisterDownloadedArgs) -> Result<InstalledMo
         // write it gates — never on the async executor (models::hash
         // doc comment).
         let file_sha256 =
-            hash::sha256_file(&hash_path).map_err(|e| HolziError::ModelRegistrationFailed {
+            hash::sha256_file(&hash_path).map_err(|e| HaexError::ModelRegistrationFailed {
                 reason: format!("hash {}: {e}", hash_path.display()),
             })?;
         Ok(file_sha256)
     })
     .await
-    .map_err(|e| HolziError::CrdtInit {
+    .map_err(|e| HaexError::CrdtInit {
         reason: format!("register_downloaded hash join: {e}"),
     })?;
 
@@ -841,7 +841,7 @@ async fn publish_staged_file(staged: &PathBuf, destination: &PathBuf) -> Result<
             .unwrap_or("model.gguf");
         let backup = destination.with_file_name(format!(".{filename}.{}.backup", Uuid::new_v4()));
         tokio::fs::rename(destination, &backup).await.map_err(|e| {
-            HolziError::ModelRegistrationFailed {
+            HaexError::ModelRegistrationFailed {
                 reason: format!("backup {}: {e}", destination.display()),
             }
         })?;
@@ -854,7 +854,7 @@ async fn publish_staged_file(staged: &PathBuf, destination: &PathBuf) -> Result<
         if let Some(backup_path) = backup.as_ref() {
             let _ = tokio::fs::rename(backup_path, destination).await;
         }
-        return Err(HolziError::ModelRegistrationFailed {
+        return Err(HaexError::ModelRegistrationFailed {
             reason: format!("publish {}: {error}", destination.display()),
         });
     }
@@ -865,7 +865,7 @@ async fn rollback_published_file(destination: &PathBuf, backup: Option<PathBuf>)
     let _ = tokio::fs::remove_file(destination).await;
     if let Some(backup) = backup {
         tokio::fs::rename(&backup, destination).await.map_err(|e| {
-            HolziError::ModelRegistrationFailed {
+            HaexError::ModelRegistrationFailed {
                 reason: format!("restore {}: {e}", destination.display()),
             }
         })?;
@@ -873,10 +873,10 @@ async fn rollback_published_file(destination: &PathBuf, backup: Option<PathBuf>)
     Ok(())
 }
 
-/// Extracts the `HolziError` serde tag (`"kind"`) as a machine-readable
+/// Extracts the `HaexError` serde tag (`"kind"`) as a machine-readable
 /// error code for `HuggingFaceUpdateStatusPayload.errorCode`, reusing the
 /// existing `#[serde(tag = "kind")]` encoding instead of a parallel match.
-fn error_kind_str(e: &HolziError) -> String {
+fn error_kind_str(e: &HaexError) -> String {
     serde_json::to_value(e)
         .ok()
         .and_then(|v| v.get("kind").and_then(|k| k.as_str()).map(str::to_string))

@@ -8,7 +8,7 @@
 //!
 //! Spec 036 planned this as `0024`; spec 017 took `0024` and `0025` first.
 
-/// The migration `0026_passwords_refs`; registered in [`super::migrations::holzi_migration_source`].
+/// The migration `0026_passwords_refs`; registered in [`super::migrations::haex_migration_source`].
 pub const PASSWORDS_REFS_0026: &str = r#"CREATE TABLE haex_passwords_passkey_links (
   id TEXT PRIMARY KEY NOT NULL,
   item_id TEXT NOT NULL REFERENCES haex_passwords_item_details(id) ON DELETE CASCADE,

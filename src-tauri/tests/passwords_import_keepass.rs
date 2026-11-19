@@ -9,7 +9,7 @@ use holzi_lib::passwords::import::{
     parse, Credentials, IconRef, ImportItem, ImportModel, ImportSource,
 };
 use holzi_lib::passwords::model::AttentionKind;
-use holzi_lib::HolziError;
+use holzi_lib::HaexError;
 use kdbx_fixture::{build, Fixture, KEY_FILE, MARKER, PASSWORD};
 use zeroize::Zeroizing;
 
@@ -39,9 +39,9 @@ fn kv<'a>(item: &'a ImportItem, key: &str) -> Option<&'a str> {
         .and_then(|k| k.value.as_deref())
 }
 
-fn failed_with(result: Result<ImportModel, HolziError>, expected: &str) {
+fn failed_with(result: Result<ImportModel, HaexError>, expected: &str) {
     match result {
-        Err(HolziError::PasswordsImportFailed { reason }) => assert_eq!(reason, expected),
+        Err(HaexError::PasswordsImportFailed { reason }) => assert_eq!(reason, expected),
         other => panic!(
             "expected {expected}, got {:?}",
             other.map(|m| m.items.len())

@@ -11,7 +11,7 @@
 //! (`--> statement-breakpoint`). The `identity/migrations.rs` file is over the 500-line boundary
 //! already, so the new SQL lives here and that file only registers it.
 
-/// The migration `0022_passwords`; registered in [`super::migrations::holzi_migration_source`].
+/// The migration `0022_passwords`; registered in [`super::migrations::haex_migration_source`].
 pub const PASSWORDS_0022: &str = r#"CREATE TABLE haex_passwords_item_details (
   id TEXT PRIMARY KEY NOT NULL,
   title TEXT,

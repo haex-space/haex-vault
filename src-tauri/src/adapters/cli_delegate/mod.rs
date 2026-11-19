@@ -33,9 +33,9 @@ mod connect_claude_tests;
 pub mod connect_codex;
 #[cfg(test)]
 mod connect_codex_tests;
-pub mod holzi_mcp;
+pub mod haex_mcp;
 #[cfg(test)]
-mod holzi_mcp_tests;
+mod haex_mcp_tests;
 #[cfg(test)]
 #[path = "mod_tests.rs"]
 mod mod_tests;
@@ -133,7 +133,7 @@ pub struct DelegateChatContext {
     /// Where the delegated CLI's process registers, so ending the vault ends it.
     pub children: ChildRegistry,
     /// holzi's own MCP server for a registered delegate (spec 021 US6); `None` for a job.
-    pub holzi: Option<Arc<dyn holzi_mcp::HolziAccess>>,
+    pub haex: Option<Arc<dyn haex_mcp::HaexAccess>>,
     /// What the permissive posture refuses for this turn: the deny rules of the agent profile of the
     /// model (spec 083 FR-030). Set per turn from the request; empty in a context built before.
     pub deny_rules: Vec<autonomy::DenyCategory>,

@@ -22,7 +22,7 @@ use holzi_lib::adapters::cli_delegate::{
 };
 use holzi_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
 use holzi_lib::cli_tools::runtime::DelegateRuntime;
-use holzi_lib::identity::{holzi_migration_source, installation_id_path, HolziBootstrap};
+use holzi_lib::identity::{haex_migration_source, installation_id_path, HaexBootstrap};
 use holzi_lib::storage::chat_messages::{list_messages, MessageRole};
 use holzi_lib::storage::query;
 use holzi_lib::vault_gate::VaultGate;
@@ -35,9 +35,9 @@ fn open_vault(dir: &Path) -> Database {
         path: dir.join("vault.db"),
         key: SqlCipherKey::new(PASSPHRASE),
         create_if_missing: true,
-        bootstrap: Arc::new(HolziBootstrap::new(installation_id).with_alias("test")),
+        bootstrap: Arc::new(HaexBootstrap::new(installation_id).with_alias("test")),
         signature_provider: Arc::new(NoopSignatureProvider),
-        migration_source: holzi_migration_source(),
+        migration_source: haex_migration_source(),
         trigger_version: haex_crdt::DEFAULT_TRIGGER_VERSION,
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
@@ -138,7 +138,7 @@ async fn run_codex_turn(
                     .vault_db(Arc::clone(db))
                     .expect("open gate"),
             ),
-            holzi: None,
+            haex: None,
             deny_rules: Vec::new(),
             tools: None,
         }),

@@ -5,7 +5,7 @@
 use tauri::State;
 use uuid::Uuid;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::state::AppState;
 use crate::storage::voice_transcript::{self, TranscriptEntry};
 use crate::storage::voice_transcript_search::{self, SearchPage, SearchRequest};
@@ -30,7 +30,7 @@ pub async fn assistant_transcript_search(
     limit: Option<u32>,
 ) -> Result<SearchPage> {
     let request = SearchRequest::new(&query, cursor.as_deref(), limit)
-        .map_err(|reason| HolziError::InvalidInput { reason })?;
+        .map_err(|reason| HaexError::InvalidInput { reason })?;
     let db = crate::state_utils::active_database(&state)?;
     db.read(move |r| voice_transcript_search::search(r, &request))
         .await

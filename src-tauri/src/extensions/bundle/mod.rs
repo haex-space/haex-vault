@@ -7,7 +7,7 @@
 use serde::Serialize;
 use ts_rs::TS;
 
-use crate::error::HolziError;
+use crate::error::HaexError;
 
 pub mod manifest;
 pub mod store;
@@ -68,9 +68,9 @@ impl From<haex_bundle::BundleError> for BundleRejection {
     }
 }
 
-impl From<BundleRejection> for HolziError {
+impl From<BundleRejection> for HaexError {
     fn from(rejection: BundleRejection) -> Self {
-        HolziError::ExtensionInstall {
+        HaexError::ExtensionInstall {
             reason: rejection.kind,
         }
     }

@@ -127,7 +127,7 @@ fn an_otpauth_address_carries_its_parameters() {
 
 fn reason_of(result: crate::error::Result<OtpParams>) -> String {
     match result {
-        Err(crate::error::HolziError::InvalidInput { reason }) => reason,
+        Err(crate::error::HaexError::InvalidInput { reason }) => reason,
         other => panic!("expected InvalidInput, got {:?}", other.map(|_| "params")),
     }
 }

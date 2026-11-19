@@ -12,7 +12,7 @@ use super::prompt::{FilesAgentPermissionRequest, PermissionPrompt, EVENT_PERMISS
 use super::share_confirm::{FileShareConfirmRequest, ShareConfirm, EVENT_SHARE_CONFIRM};
 use super::shares::SharesEnv;
 use crate::agent_profiles::identity::Identity;
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::files::access::AgentGrants;
 use crate::files::browser_commands::peers::{contact_shares, peer_devices};
 use crate::files::browser_commands::{
@@ -156,7 +156,7 @@ pub(super) fn open_vault(state: &AppState) -> Result<crate::vault_gate::VaultDb,
 }
 
 /// A database error, without its details.
-pub(super) fn vault_error(error: HolziError) -> FilesError {
+pub(super) fn vault_error(error: HaexError) -> FilesError {
     log::warn!("files: the permissions of agents could not be read or written: {error}");
     FilesError::new(FilesErrorCode::Unsupported, "the vault could not be read")
 }

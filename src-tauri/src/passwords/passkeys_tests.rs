@@ -15,7 +15,7 @@ use super::items;
 use super::model::ItemInput;
 use super::passkeys::{self, DeriveError, InsertOutcome, PasskeyInput};
 use super::test_support::{open_test_vault, MARKER};
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::storage::query;
 
 const STANDARD: base64::engine::GeneralPurpose = base64::engine::general_purpose::STANDARD;
@@ -26,7 +26,7 @@ fn write<R>(
     f: impl FnOnce(&mut haex_crdt::CrdtTransaction<'_>) -> crate::error::Result<R>,
 ) -> crate::error::Result<R> {
     db.write(|tx| f(tx).map_err(haex_crdt::Error::from))
-        .map_err(HolziError::from)
+        .map_err(HaexError::from)
 }
 
 fn item(db: &Database) -> String {
@@ -126,7 +126,7 @@ fn rename_changes_only_the_nickname() {
     assert_eq!(list[0].relying_party_id, "example.com");
     assert_eq!(list[0].user_name.as_deref(), Some("alice"));
     let missing = write(&db, |tx| passkeys::rename(tx, "nope", Some("x")));
-    assert!(matches!(missing, Err(HolziError::PasswordsNotFound)));
+    assert!(matches!(missing, Err(HaexError::PasswordsNotFound)));
 }
 
 #[test]
@@ -150,7 +150,7 @@ fn delete_removes_one_row_and_leaves_the_others() {
     );
     assert!(matches!(
         write(&db, |tx| passkeys::delete(tx, &first)),
-        Err(HolziError::PasswordsNotFound)
+        Err(HaexError::PasswordsNotFound)
     ));
 }
 

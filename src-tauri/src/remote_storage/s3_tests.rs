@@ -21,7 +21,7 @@ use super::{
     S3Credentials, StorageError,
 };
 
-const BUCKET: &str = "holzi-test";
+const BUCKET: &str = "haex-test";
 
 fn access(endpoint: &str, addressing: Addressing, scope: EndpointScope) -> Access {
     Access {

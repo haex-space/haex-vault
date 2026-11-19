@@ -6,10 +6,10 @@ use url::Url;
 use uuid::Uuid;
 
 use super::{
-    do_refresh_with, format_holzi_error, key_is_optional, validate_adapter, ProviderPayload,
+    do_refresh_with, format_haex_error, key_is_optional, validate_adapter, ProviderPayload,
 };
 use crate::cli_tools::runtime::DelegateTools;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::providers::{self as storage, Provider, ProviderCapability, ProviderKind};
 use crate::vault_gate::VaultDb;
 
@@ -66,7 +66,7 @@ pub(crate) async fn add_with(
     tools: Option<DelegateTools>,
 ) -> Result<AddProviderResult> {
     if args.name.trim().is_empty() {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "name is empty".into(),
         });
     }
@@ -74,7 +74,7 @@ pub(crate) async fn add_with(
         ProviderKind::ApiKey => {
             validate_adapter(args.adapter.as_deref())?;
             if args.base_url.as_deref().unwrap_or("").is_empty() {
-                return Err(HolziError::InvalidInput {
+                return Err(HaexError::InvalidInput {
                     reason: "api_key provider requires base_url".into(),
                 });
             }
@@ -85,7 +85,7 @@ pub(crate) async fn add_with(
             if !key_is_optional(args.adapter.as_deref())
                 && args.api_key.as_deref().unwrap_or("").is_empty()
             {
-                return Err(HolziError::InvalidInput {
+                return Err(HaexError::InvalidInput {
                     reason: "api_key provider requires api_key".into(),
                 });
             }
@@ -98,7 +98,7 @@ pub(crate) async fn add_with(
             match args.adapter.as_deref() {
                 Some(v) if crate::adapters::cli_delegate::DelegateVendor::parse(v).is_some() => {}
                 _ => {
-                    return Err(HolziError::InvalidInput {
+                    return Err(HaexError::InvalidInput {
                         reason:
                             "cli_delegate provider requires adapter to be \"claude\" or \"codex\""
                                 .into(),
@@ -114,7 +114,7 @@ pub(crate) async fn add_with(
                 .unwrap_or("")
                 .is_empty()
             {
-                return Err(HolziError::InvalidInput {
+                return Err(HaexError::InvalidInput {
                     reason: "cli_delegate provider requires non-empty credentials".into(),
                 });
             }
@@ -122,7 +122,7 @@ pub(crate) async fn add_with(
         ProviderKind::Local => {
             // No requirements — one row per local runtime is enough.
             if args.adapter.is_some() {
-                return Err(HolziError::InvalidInput {
+                return Err(HaexError::InvalidInput {
                     reason: "adapter is only valid for api_key providers".into(),
                 });
             }
@@ -168,7 +168,7 @@ pub(crate) async fn add_with(
     ) {
         match do_refresh_with(db, &provider, tools).await {
             Ok(count) => (Some(count), None),
-            Err(e) => (None, Some(format_holzi_error(&e))),
+            Err(e) => (None, Some(format_haex_error(&e))),
         }
     } else {
         (None, None)
@@ -185,11 +185,11 @@ pub(crate) async fn add_with(
 /// Credentials and query/fragment data must stay in their dedicated fields and never become
 /// part of an endpoint URL.
 fn validate_openai_compatible_base_url(base_url: &str) -> Result<()> {
-    let url = Url::parse(base_url.trim()).map_err(|_| HolziError::InvalidInput {
+    let url = Url::parse(base_url.trim()).map_err(|_| HaexError::InvalidInput {
         reason: "openai_compatible provider requires a valid http(s) base_url".into(),
     })?;
     if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "openai_compatible provider requires a valid http(s) base_url".into(),
         });
     }
@@ -198,7 +198,7 @@ fn validate_openai_compatible_base_url(base_url: &str) -> Result<()> {
         || url.query().is_some()
         || url.fragment().is_some()
     {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "base_url must not contain credentials, a query, or a fragment".into(),
         });
     }

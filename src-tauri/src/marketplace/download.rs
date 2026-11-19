@@ -25,7 +25,7 @@ use super::commands::{failure_error, refused};
 use super::model::DownloadProgress;
 use super::wire::{WireDetail, WireDownload};
 use super::{app_version, kinds, CONNECT_TIMEOUT, DOWNLOAD_IDLE_TIMEOUT, PROGRESS_INTERVAL};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::extensions::bundle::limits::ARCHIVE_BYTES;
 
 /// The downloads that are running, each with the token that ends it.
@@ -63,7 +63,7 @@ impl Downloads {
     ) -> Result<(CancellationToken, DownloadGuard<'_>)> {
         let mut running = self.lock();
         if running.contains_key(&id) {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: "download id already in use".into(),
             });
         }

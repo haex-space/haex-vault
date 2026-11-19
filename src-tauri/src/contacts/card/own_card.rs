@@ -14,7 +14,7 @@ use super::format::{self, CardDevice, ContactCard, SignedCard, VERSION};
 use crate::contacts::model::Head;
 use crate::contacts::share::name::name_for;
 use crate::contacts::{ids, store as contacts_store};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::passwords::clock;
 use crate::storage::query::Query;
 use crate::sync::{device_list, keys, presence, servers};
@@ -98,14 +98,14 @@ pub fn addresses(q: &mut impl Query) -> Result<Option<Addresses>> {
     }))
 }
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::ShareInvalid {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::ShareInvalid {
         reason: reason.to_owned(),
     }
 }
 
 /// The card of this vault with the devices and relays named, or with all of them for `None`. A
-/// device or relay the vault does not have is [`HolziError::ShareInvalid`]. The card carries no
+/// device or relay the vault does not have is [`HaexError::ShareInvalid`]. The card carries no
 /// values; its `name` is the name of a share of the own contact (spec 060 FR-011). `None` while
 /// the vault has no addresses yet.
 pub fn build_card(
@@ -146,7 +146,7 @@ pub fn build_card(
     // The own contact is there in every vault; a missing one must not stop a card.
     let head = match contacts_store::load(q, ids::SELF_CONTACT_ID) {
         Ok(contact) => contact.head,
-        Err(HolziError::ContactsNotFound) => Head::default(),
+        Err(HaexError::ContactsNotFound) => Head::default(),
         Err(error) => return Err(error),
     };
     let (name, _) = name_for(&head, Some(known.vault));

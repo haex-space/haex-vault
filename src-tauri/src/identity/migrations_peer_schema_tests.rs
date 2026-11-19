@@ -10,7 +10,7 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::Database;
 
 use super::migrations_tests::{migration_source_before, open};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 const COLUMNS: [&str; 3] = ["peer_protocol", "peer_migration", "peer_trigger"];
 
@@ -32,7 +32,7 @@ async fn migration_0040_gives_a_fresh_vault_the_peer_schema_columns() {
             dir.path(),
             "peer-schema-fresh",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         let present = columns(&db);
         for column in COLUMNS {
@@ -71,7 +71,7 @@ async fn migration_0040_keeps_a_presence_row_and_leaves_the_state_unknown() {
             dir.path(),
             "peer-schema-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         let row: (i64, Option<String>, Option<i64>, Option<i64>, Option<i64>) = db
             .with_connection(|conn| {

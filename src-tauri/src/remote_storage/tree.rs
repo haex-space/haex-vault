@@ -10,7 +10,7 @@ use super::{DirListing, ObjectInfo, StorageError};
 use crate::files::storage_time::parse_iso_ms;
 
 /// The start of the name of a temporary file holzi writes before it moves it to its name.
-pub const PART_PREFIX: &str = ".holzi-part-";
+pub const PART_PREFIX: &str = ".haex-part-";
 
 /// How many folders a listing reads at once (spec 050 research R12).
 const PARALLEL_READS: usize = 4;

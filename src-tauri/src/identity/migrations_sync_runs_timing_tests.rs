@@ -7,7 +7,7 @@
 use super::migrations_sync_rules_tests::fill;
 use super::migrations_tests::{column_names, device_of, migration_source_before, open};
 use crate::file_sync::run_log::{self, SyncRuleRun};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 const PASSPHRASE: &str = "sync-runs-timing";
 const MIGRATION: &str = "0064_sync_runs_timing";
@@ -40,7 +40,7 @@ async fn migration_0064_keeps_the_logged_runs_and_shows_them_without_times() {
         );
         drop(old);
 
-        let db = open(dir.path(), PASSPHRASE, false, holzi_migration_source());
+        let db = open(dir.path(), PASSPHRASE, false, haex_migration_source());
         let columns = column_names(&db, "haex_sync_runs_no_sync");
         for column in COLUMNS {
             assert!(columns.iter().any(|name| name == column), "{column} exists");
@@ -56,7 +56,7 @@ async fn migration_0064_keeps_the_logged_runs_and_shows_them_without_times() {
         drop(db);
 
         // The migration runs once: opening the migrated vault again changes nothing.
-        let again = open(dir.path(), PASSPHRASE, false, holzi_migration_source());
+        let again = open(dir.path(), PASSPHRASE, false, haex_migration_source());
         assert_eq!(runs(&again, &device), runs_after);
     })
     .await

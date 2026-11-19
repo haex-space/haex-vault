@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, Runtime};
 
 use super::vault_paths::VaultPaths;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 pub const PENDING_MARKER_EXTENSION: &str = "db.pending";
 
@@ -32,7 +32,7 @@ pub fn validate_instance_name(name: &str) -> Result<()> {
     if is_valid_name(name) {
         Ok(())
     } else {
-        Err(HolziError::InvalidName {
+        Err(HaexError::InvalidName {
             reason: "must match ^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$".to_string(),
         })
     }
@@ -61,7 +61,7 @@ pub fn get_pending_marker_path(instance_path: &Path) -> PathBuf {
 pub fn get_app_local_data<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     app.path()
         .app_local_data_dir()
-        .map_err(|e| HolziError::PathResolution {
+        .map_err(|e| HaexError::PathResolution {
             reason: format!("resolve app_local_data_dir: {e}"),
         })
 }

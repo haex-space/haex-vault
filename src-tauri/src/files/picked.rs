@@ -14,7 +14,7 @@ use tauri_plugin_fs::{FilePath, FsExt, OpenOptions};
 use tauri_plugin_holzi_android::HolziAndroidExt;
 use ts_rs::TS;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// What `open` and `save` of `@tauri-apps/plugin-dialog` return, passed on unchanged (a newtype,
 /// so it travels as the bare string).
@@ -127,25 +127,25 @@ pub fn resolve(opener: &(impl Opener + ?Sized), file: &PickedFile) -> Result<Fil
     Ok(parsed)
 }
 
-fn refused() -> HolziError {
-    HolziError::InvalidInput {
+fn refused() -> HaexError {
+    HaexError::InvalidInput {
         reason: "a file must be chosen in the system's file dialog".to_string(),
     }
 }
 
 /// An error while reading the chosen file: the person learns that it gives nothing back; the
 /// cause goes to the log.
-fn unreadable(error: io::Error) -> HolziError {
+fn unreadable(error: io::Error) -> HaexError {
     log::warn!("chosen file: reading failed: {error}");
-    HolziError::Unreadable
+    HaexError::Unreadable
 }
 
 /// An error while writing: a full device is named, anything else is an I/O error.
-fn write_failed(error: io::Error) -> HolziError {
+fn write_failed(error: io::Error) -> HaexError {
     if error.kind() == io::ErrorKind::StorageFull {
-        HolziError::NotEnoughSpace
+        HaexError::NotEnoughSpace
     } else {
-        HolziError::from(error)
+        HaexError::from(error)
     }
 }
 
@@ -171,7 +171,7 @@ pub fn read(opener: &(impl Opener + ?Sized), file: &PickedFile, limit: u64) -> R
 /// bytes copied.
 pub fn copy_into(opener: &(impl Opener + ?Sized), file: &PickedFile, target: &Path) -> Result<u64> {
     let mut source = open_read(opener, file)?;
-    let folder = target.parent().ok_or_else(|| HolziError::Io {
+    let folder = target.parent().ok_or_else(|| HaexError::Io {
         reason: "copy target has no folder".to_string(),
     })?;
     let name = target

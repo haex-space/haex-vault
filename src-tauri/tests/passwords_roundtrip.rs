@@ -17,7 +17,7 @@ use haex_crdt::rusqlite::{params, ToSql};
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 
 use holzi_lib::identity::{
-    holzi_migration_source, installation_id_path, HolziBootstrap, HOLZI_TRIGGER_VERSION,
+    haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
 use holzi_lib::passwords::access::Caller;
 use holzi_lib::passwords::model::{
@@ -25,7 +25,7 @@ use holzi_lib::passwords::model::{
 };
 use holzi_lib::passwords::service::PasswordsService;
 use holzi_lib::vault_gate::VaultGate;
-use holzi_lib::HolziError;
+use holzi_lib::HaexError;
 
 const MARKER: &str = "SECRET-MARKER-ROUNDTRIP";
 
@@ -41,10 +41,10 @@ fn fixture() -> Fixture {
         path: dir.path().join("vault.db"),
         key: SqlCipherKey::new("passwords-roundtrip"),
         create_if_missing: true,
-        bootstrap: Arc::new(HolziBootstrap::new(installation_id_path(dir.path()))),
+        bootstrap: Arc::new(HaexBootstrap::new(installation_id_path(dir.path()))),
         signature_provider: Arc::new(NoopSignatureProvider),
-        migration_source: holzi_migration_source(),
-        trigger_version: HOLZI_TRIGGER_VERSION,
+        migration_source: haex_migration_source(),
+        trigger_version: HAEX_TRIGGER_VERSION,
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
     })
@@ -224,7 +224,7 @@ async fn no_result_error_or_debug_print_carries_a_planted_value() {
     }
 
     // Errors never carry a value either.
-    let errors: Vec<HolziError> = vec![
+    let errors: Vec<HaexError> = vec![
         f.service
             .get_item(&Caller::User, "missing".to_string())
             .await
@@ -333,11 +333,11 @@ async fn a_bulk_move_and_a_bulk_tag_change_are_tracked_for_sync() {
         f.service
             .rename_tag(&outside, tag.clone(), "x".to_string())
             .await,
-        Err(HolziError::PasswordsForbidden)
+        Err(HaexError::PasswordsForbidden)
     ));
     assert!(matches!(
         f.service.delete_tag(&outside, tag).await,
-        Err(HolziError::PasswordsForbidden)
+        Err(HaexError::PasswordsForbidden)
     ));
 }
 
@@ -457,7 +457,7 @@ async fn attachments_of_the_largest_size_go_through_the_service_one_transaction_
         f.service
             .attachment_add(&Caller::User, id.clone(), Paths, chosen(&over))
             .await,
-        Err(HolziError::PasswordsAttachmentTooLarge { .. })
+        Err(HaexError::PasswordsAttachmentTooLarge { .. })
     ));
 
     // The data comes back byte for byte, and a non-image has no preview.
@@ -478,7 +478,7 @@ async fn attachments_of_the_largest_size_go_through_the_service_one_transaction_
         f.service
             .attachment_remove(&Caller::BuiltinAgent, first.id.clone())
             .await,
-        Err(HolziError::PasswordsForbidden)
+        Err(HaexError::PasswordsForbidden)
     ));
     f.service
         .attachment_remove(&Caller::User, first.id)

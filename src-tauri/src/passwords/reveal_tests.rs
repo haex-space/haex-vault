@@ -12,14 +12,14 @@ use super::items;
 use super::model::{CopyField, ItemInput, KeyValueInput, SecretField};
 use super::reveal::{copy_value, reveal, totp_code};
 use super::test_support::{open_test_vault, MARKER};
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::storage::query;
 
 fn read<R>(
     db: &Database,
     f: impl FnOnce(&mut query::Reader<'_, '_>) -> crate::error::Result<R>,
 ) -> crate::error::Result<R> {
-    query::read(db, |q| f(q).map_err(haex_crdt::Error::from)).map_err(HolziError::from)
+    query::read(db, |q| f(q).map_err(haex_crdt::Error::from)).map_err(HaexError::from)
 }
 
 fn create(db: &Database, input: &ItemInput) -> String {
@@ -91,7 +91,7 @@ fn a_missing_entry_or_field_is_not_found() {
         read(&db, |q| totp_code(q, "nope", 59).map(|_| ())),
     ] {
         assert!(
-            matches!(result, Err(HolziError::PasswordsNotFound)),
+            matches!(result, Err(HaexError::PasswordsNotFound)),
             "{result:?}"
         );
     }
@@ -204,10 +204,10 @@ fn an_invalid_stored_secret_is_invalid_input_not_a_crash() {
     })
     .expect("simulate sync");
     let result = read(&db, |q| totp_code(q, &id, 59));
-    assert!(matches!(result, Err(HolziError::InvalidInput { .. })));
+    assert!(matches!(result, Err(HaexError::InvalidInput { .. })));
     // The same for the copy of the code.
     let copy = read(&db, |q| copy_value(q, &id, &CopyField::Totp).map(|_| ()));
-    assert!(matches!(copy, Err(HolziError::InvalidInput { .. })));
+    assert!(matches!(copy, Err(HaexError::InvalidInput { .. })));
 }
 
 #[test]

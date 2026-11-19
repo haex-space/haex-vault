@@ -35,8 +35,8 @@ const title = computed(() => {
   switch (item.item.type) {
     case 'value':
       return displayValue(item.valueKind ?? '', item.value, locale.value)
-    case 'holziAddresses':
-      return t('contacts.holziAddresses.title')
+    case 'haexAddresses':
+      return t('contacts.haexAddresses.title')
     default:
       return item.value
   }
@@ -47,7 +47,7 @@ const description = computed(() => {
   switch (item.item.type) {
     case 'value':
       return `${kindName(item.valueKind ?? '')} · ${labelName(item.label)}`
-    case 'holziAddresses': {
+    case 'haexAddresses': {
       const found = item.addresses
       return found
         ? t('contacts.import.addresses', {

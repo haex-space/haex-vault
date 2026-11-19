@@ -9,7 +9,7 @@ use haex_crdt::rusqlite::params;
 use zeroize::Zeroizing;
 
 use super::{require_user, PasswordsService};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::files::picked::{self, Opener, PickedFile};
 use crate::passwords::access::Caller;
 use crate::passwords::import::apply::{self, Control, OnDuplicate, Progress};
@@ -21,8 +21,8 @@ use crate::passwords::model::{ImportPreview, ImportReport};
 use crate::passwords::{IMPORT_INPUT_LIMIT_BYTES, TRASH_GROUP_ID};
 use crate::storage::query::Query;
 
-fn failed(reason: &str) -> HolziError {
-    HolziError::PasswordsImportFailed {
+fn failed(reason: &str) -> HaexError {
+    HaexError::PasswordsImportFailed {
         reason: reason.to_string(),
     }
 }
@@ -199,7 +199,7 @@ impl PasswordsService {
                     params![hash],
                     |r| r.get::<_, Vec<u8>>(0),
                 )?
-                .ok_or(HolziError::PasswordsNotFound)
+                .ok_or(HaexError::PasswordsNotFound)
                 .map_err(Into::into)
             })
             .await

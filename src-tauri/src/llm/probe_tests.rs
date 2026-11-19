@@ -9,10 +9,7 @@ fn the_same_text_with_and_without_a_tool_means_the_template_ignores_tools() {
 #[test]
 fn a_template_that_shows_the_tool_is_inconclusive() {
     assert_eq!(
-        decide(
-            Ok("<user>hi"),
-            Ok("<tools>holzi_probe_tool</tools><user>hi")
-        ),
+        decide(Ok("<user>hi"), Ok("<tools>haex_probe_tool</tools><user>hi")),
         Inconclusive
     );
 }

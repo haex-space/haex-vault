@@ -10,7 +10,7 @@ use ts_rs::TS;
 use super::service;
 use crate::contacts::access::Caller;
 use crate::contacts::model::{Contact, ContactHeader, ContactInput, ContactPatch, Group};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::files::PickedFile;
 use crate::passwords::binaries::read_attachment_file;
 use crate::state::AppState;
@@ -128,7 +128,7 @@ pub async fn contacts_set_photo(
         Some(file) => {
             tauri::async_runtime::spawn_blocking(move || read_attachment_file(&app, &file))
                 .await
-                .map_err(|e| HolziError::Io {
+                .map_err(|e| HaexError::Io {
                     reason: format!("photo read: {e}"),
                 })??
                 .1

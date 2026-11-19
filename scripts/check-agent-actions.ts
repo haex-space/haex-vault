@@ -1,4 +1,4 @@
-// `pnpm check:agent-actions` (spec 032-model-operates-holzi): the action → tool mapping for the
+// `pnpm check:agent-actions` (spec 032-model-operates-haex): the action → tool mapping for the
 // built-in agent under `src/lib/actions/agentTools.ts` and the invariants over the shipped catalog
 // that keep the model's offer safe — tool names, the guardrail lock, the actions withheld from the
 // built-in agent, the core offer, and that every read action runs for a built-in agent caller.

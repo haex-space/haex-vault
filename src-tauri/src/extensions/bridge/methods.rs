@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 
 use super::dispatch::CallContext;
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::extensions::bundle::Manifest;
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
 use crate::extensions::host::ExtensionHost;
@@ -46,7 +46,7 @@ pub(super) fn manifest_of(ctx: &CallContext) -> Result<Manifest, BridgeError> {
             .ok_or_else(|| BridgeError::new(ExtensionErrorCode::NotFound, "not found"))?;
         return match crate::extensions::dev::current_project(&registration) {
             Ok(project) => Ok(project.manifest),
-            Err(HolziError::ExtensionInstall { reason }) if reason == "dev_project_changed" => {
+            Err(HaexError::ExtensionInstall { reason }) if reason == "dev_project_changed" => {
                 Err(BridgeError::new(
                     ExtensionErrorCode::Manifest,
                     "the project names another key or name now; load it again",

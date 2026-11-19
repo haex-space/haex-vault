@@ -44,7 +44,7 @@ async fn join(rig: &Rig, contact: &str, group: &str) {
 }
 
 #[tokio::test]
-async fn a_group_of_the_phone_becomes_a_group_in_holzi_but_system_groups_do_not() {
+async fn a_group_of_the_phone_becomes_a_group_in_haex_but_system_groups_do_not() {
     let rig = Rig::new();
     let family = rig.book.add_group(GOOGLE, "Familie", false);
     let mine = rig.book.add_group(GOOGLE, "My Contacts", true);
@@ -68,7 +68,7 @@ async fn a_group_of_the_phone_becomes_a_group_in_holzi_but_system_groups_do_not(
 }
 
 #[tokio::test]
-async fn a_group_set_in_holzi_is_made_on_the_phone_and_joined() {
+async fn a_group_set_in_haex_is_made_on_the_phone_and_joined() {
     let rig = Rig::new();
     let raw = rig.book.add(GOOGLE, vec![name("Anna", "Beck")]);
     rig.start();
@@ -83,7 +83,7 @@ async fn a_group_set_in_holzi_is_made_on_the_phone_and_joined() {
 }
 
 #[tokio::test]
-async fn leaving_a_group_in_holzi_leaves_it_on_the_phone_and_system_groups_stay() {
+async fn leaving_a_group_in_haex_leaves_it_on_the_phone_and_system_groups_stay() {
     let rig = Rig::new();
     let family = rig.book.add_group(GOOGLE, "Familie", false);
     let mine = rig.book.add_group(GOOGLE, "My Contacts", true);
@@ -104,7 +104,7 @@ async fn leaving_a_group_in_holzi_leaves_it_on_the_phone_and_system_groups_stay(
 }
 
 #[tokio::test]
-async fn leaving_a_group_on_the_phone_leaves_it_in_holzi() {
+async fn leaving_a_group_on_the_phone_leaves_it_in_haex() {
     let rig = Rig::new();
     let family = rig.book.add_group(GOOGLE, "Familie", false);
     let raw = rig
@@ -163,7 +163,7 @@ async fn a_new_contact_goes_with_its_groups_into_the_targets_account() {
 }
 
 #[tokio::test]
-async fn renaming_a_group_in_holzi_moves_the_membership_on_the_phone() {
+async fn renaming_a_group_in_haex_moves_the_membership_on_the_phone() {
     let rig = Rig::new();
     let family = rig.book.add_group(GOOGLE, "Familie", false);
     let raw = rig

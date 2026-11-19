@@ -3,7 +3,7 @@ use std::sync::Arc;
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 
 use crate::identity::{
-    holzi_migration_source, installation_id_path, HolziBootstrap, HOLZI_TRIGGER_VERSION,
+    haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
 use crate::model_capabilities::{ModelCapabilities, ReasoningControl};
 use crate::state::{ActiveInstanceHandle, AppState};
@@ -28,10 +28,10 @@ async fn registration_keeps_the_vault_captured_before_a_transfer() {
                         path: dir.path().join("vault.db"),
                         key: SqlCipherKey::new("model-registration-test"),
                         create_if_missing: true,
-                        bootstrap: Arc::new(HolziBootstrap::new(installation_id_path(dir.path()))),
+                        bootstrap: Arc::new(HaexBootstrap::new(installation_id_path(dir.path()))),
                         signature_provider: Arc::new(NoopSignatureProvider),
-                        migration_source: holzi_migration_source(),
-                        trigger_version: HOLZI_TRIGGER_VERSION,
+                        migration_source: haex_migration_source(),
+                        trigger_version: HAEX_TRIGGER_VERSION,
                         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
                         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
                     })
@@ -136,10 +136,10 @@ async fn registration_records_capabilities_derived_from_the_local_model_id() {
                     path: root.join("vault.db"),
                     key: SqlCipherKey::new("model-capabilities-registration-test"),
                     create_if_missing: true,
-                    bootstrap: Arc::new(HolziBootstrap::new(installation_id_path(&root))),
+                    bootstrap: Arc::new(HaexBootstrap::new(installation_id_path(&root))),
                     signature_provider: Arc::new(NoopSignatureProvider),
-                    migration_source: holzi_migration_source(),
-                    trigger_version: HOLZI_TRIGGER_VERSION,
+                    migration_source: haex_migration_source(),
+                    trigger_version: HAEX_TRIGGER_VERSION,
                     max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
                     max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
                 })

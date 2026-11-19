@@ -40,7 +40,7 @@ const gone = (instance: FlowInstance, hook: string) =>
   )
 
 scenario('files-manage', { timeoutMs: 240_000 }, async (ctx) => {
-  const files = deviceFiles('holzi-manage-')
+  const files = deviceFiles('haex-manage-')
   try {
     const instance = await ctx.startInstance()
     await createAndUnlock(instance, { name: 'e2e-files-manage' })

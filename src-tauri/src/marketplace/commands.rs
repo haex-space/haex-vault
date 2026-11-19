@@ -23,7 +23,7 @@ use super::pending::PendingBundle;
 use super::store::{self, MarketplaceRow};
 use super::updates::{check_updates, view as updates_view};
 use super::{app_version, kinds, MarketplaceState, PENDING_IDLE};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::extensions::registry::list::list as list_extensions;
 use crate::passwords::commands::service;
 use crate::passwords::service::PasswordsService;
@@ -32,14 +32,14 @@ use crate::state_utils::active_database;
 use crate::storage::wm_session_commands::current_device_uuid;
 use crate::vault_gate::VaultDb;
 
-pub(super) fn refused(kind: &str) -> HolziError {
-    HolziError::Marketplace {
+pub(super) fn refused(kind: &str) -> HaexError {
+    HaexError::Marketplace {
         reason: kind.to_owned(),
     }
 }
 
 /// How a failed call to a source reads as an error of a command that asked only one.
-pub fn failure_error(failure: &SourceFailure) -> HolziError {
+pub fn failure_error(failure: &SourceFailure) -> HaexError {
     refused(match failure.kind {
         SourceErrorKind::Unreachable => kinds::SOURCE_UNREACHABLE,
         SourceErrorKind::Timeout => kinds::SOURCE_TIMEOUT,
@@ -288,7 +288,7 @@ pub fn enabled_ids(rows: &[MarketplaceRow]) -> Vec<String> {
 }
 
 fn download_id(text: &str) -> Result<Uuid> {
-    Uuid::parse_str(text).map_err(|_| HolziError::InvalidInput {
+    Uuid::parse_str(text).map_err(|_| HaexError::InvalidInput {
         reason: "download id".into(),
     })
 }

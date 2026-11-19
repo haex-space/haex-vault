@@ -59,16 +59,16 @@ fn arguments_are_read_and_checked() {
 /// Spec 094: a delegate has its own home and temp folders, so holzi names the endpoint folder
 /// itself and the helper takes it as given.
 #[test]
-fn the_endpoint_folder_comes_from_the_argument_when_holzi_gives_one() {
+fn the_endpoint_folder_comes_from_the_argument_when_haex_gives_one() {
     let parsed = parse_args(
-        ["codex", "--endpoint-dir", "/run/user/1000/holzi-mcp"]
+        ["codex", "--endpoint-dir", "/run/user/1000/haex-mcp"]
             .into_iter()
             .map(String::from),
     )
     .expect("valid");
     assert_eq!(
         parsed.endpoint_dir.as_deref(),
-        Some(std::path::Path::new("/run/user/1000/holzi-mcp"))
+        Some(std::path::Path::new("/run/user/1000/haex-mcp"))
     );
     assert!(parse_args(["codex", "--endpoint-dir"].into_iter().map(String::from)).is_err());
     assert_eq!(
@@ -88,7 +88,7 @@ fn the_endpoint_folder_comes_from_the_argument_when_holzi_gives_one() {
 /// FR-002 clarification: holzi is not running, the agent hears so on its first request, and
 /// nothing is started.
 #[tokio::test]
-async fn without_holzi_the_first_request_gets_an_error_and_the_helper_ends() {
+async fn without_haex_the_first_request_gets_an_error_and_the_helper_ends() {
     let temp = tempfile::tempdir().expect("tempdir");
     let (agent_in, helper_stdin) = tokio::io::duplex(4096);
     let (helper_stdout, agent_out) = tokio::io::duplex(4096);
@@ -175,7 +175,7 @@ mod with_endpoint {
                 .await
                 .expect("answer");
             write
-                .write_all(b"{\"holzi_control\":{\"token\":\"fresh-credential\"}}\n")
+                .write_all(b"{\"haex_control\":{\"token\":\"fresh-credential\"}}\n")
                 .await
                 .expect("token");
             write
@@ -188,7 +188,7 @@ mod with_endpoint {
             let next = read_line(&mut reader).await;
             assert_eq!(next["method"], "ping");
             write
-                .write_all(b"{\"holzi_control\":{\"closing\":\"revoked\"}}\n")
+                .write_all(b"{\"haex_control\":{\"closing\":\"revoked\"}}\n")
                 .await
                 .expect("closing");
         });

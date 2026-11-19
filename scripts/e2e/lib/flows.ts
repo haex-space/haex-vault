@@ -75,7 +75,7 @@ export async function invokeLong(
     const key = randomUUID()
     await instance.exec(
       `const [key, command, args] = arguments
-      const answers = (window.__holziE2eAnswers ??= {})
+      const answers = (window.__haexE2eAnswers ??= {})
       answers[key] = null
       window.__TAURI_INTERNALS__.invoke(command, args)
         .then((data) => (answers[key] = { ok: true, data }))
@@ -87,7 +87,7 @@ export async function invokeLong(
       `the answer of ${command}`,
       () =>
         instance.exec<InvokeResult | null>(
-          'return window.__holziE2eAnswers?.[arguments[0]] ?? null',
+          'return window.__haexE2eAnswers?.[arguments[0]] ?? null',
           [key],
         ),
       { timeoutMs, intervalMs: 1000 },

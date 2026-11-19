@@ -15,13 +15,13 @@ use crate::patch::Patch;
 #[test]
 fn internal_failures_do_not_expose_contact_storage_details() {
     for error in [
-        HolziError::CrdtSqlite {
+        HaexError::CrdtSqlite {
             reason: "private database detail".to_owned(),
         },
-        HolziError::CrdtIo {
+        HaexError::CrdtIo {
             reason: "private storage detail".to_owned(),
         },
-        HolziError::PathResolution {
+        HaexError::PathResolution {
             reason: "private path detail".to_owned(),
         },
     ] {
@@ -38,11 +38,11 @@ struct Env {
 }
 
 impl ContactsAgentEnv for Env {
-    fn database(&self) -> Result<VaultDb, HolziError> {
+    fn database(&self) -> Result<VaultDb, HaexError> {
         Ok(self.db.clone())
     }
 
-    fn device(&self) -> BoxFuture<'_, Result<uuid::Uuid, HolziError>> {
+    fn device(&self) -> BoxFuture<'_, Result<uuid::Uuid, HaexError>> {
         Box::pin(async move { Ok(self.device) })
     }
 

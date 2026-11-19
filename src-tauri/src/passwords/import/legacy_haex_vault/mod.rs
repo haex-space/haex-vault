@@ -15,7 +15,7 @@ use std::path::Path;
 use haex_crdt::rusqlite;
 
 use super::{failed, Credentials, ImportModel};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// The id of the trash folder in haex-vault 2.x (`stores/passwords/groups.ts:16`).
 const TRASH_ID: &str = "trash";
@@ -50,7 +50,7 @@ pub fn read(path: &Path, credentials: &Credentials) -> Result<LegacyHaexVaultMod
 
 /// A query on the source that failed: the file is not what the layout check let through. The cause
 /// goes to the log (it names no value), the caller gets the reason `corrupt`.
-fn corrupt(error: rusqlite::Error) -> HolziError {
+fn corrupt(error: rusqlite::Error) -> HaexError {
     log::warn!("passwords import: reading the haex-vault 2.x file failed: {error}");
     failed("corrupt")
 }

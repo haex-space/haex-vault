@@ -14,7 +14,7 @@ use tauri::{AppHandle, Runtime, State};
 use ts_rs::TS;
 
 use crate::chat::session::ChatState;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::state::AppState;
 
 use super::passphrase::Passphrase;
@@ -44,12 +44,12 @@ pub async fn change_vault_passphrase_core<R: Runtime>(
     let _operation = chat.acquire_operation()?;
     new.validate_new()?;
     if new.as_str() == current.as_str() {
-        return Err(HolziError::WeakPassphrase {
+        return Err(HaexError::WeakPassphrase {
             reason: "the new passphrase must differ from the current one".into(),
         });
     }
     let db = state.database()?;
-    let name = state.active_name()?.ok_or(HolziError::NoActiveInstance)?;
+    let name = state.active_name()?.ok_or(HaexError::NoActiveInstance)?;
     let path = get_instance_path(app, &name)?;
 
     state
@@ -62,7 +62,7 @@ pub async fn change_vault_passphrase_core<R: Runtime>(
             Ok(rekeyed?)
         })?
         .await
-        .map_err(|e| HolziError::CrdtInit {
+        .map_err(|e| HaexError::CrdtInit {
             reason: format!("passphrase change task failed: {e}"),
         })?
 }
@@ -82,7 +82,7 @@ pub(crate) fn verify_current(path: &Path, current: &Passphrase) -> haex_crdt::Re
     }) {
         Ok(_) => Ok(()),
         Err(e) if e.sqlite_error_code() == Some(ErrorCode::NotADatabase) => {
-            Err(HolziError::WrongPassphrase.into())
+            Err(HaexError::WrongPassphrase.into())
         }
         Err(e) => Err(e.into()),
     }
@@ -94,7 +94,7 @@ pub(crate) fn verify_current(path: &Path, current: &Passphrase) -> haex_crdt::Re
 fn rekey(conn: &Connection, new: &Passphrase) -> haex_crdt::Result<()> {
     let busy: i64 = conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| r.get(0))?;
     if busy != 0 {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "the vault is busy, try again".into(),
         }
         .into());

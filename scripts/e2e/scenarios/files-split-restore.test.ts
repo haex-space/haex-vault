@@ -21,7 +21,7 @@ scenario('files-split-restore', { timeoutMs: 300_000 }, async (ctx) => {
   const group = await ctx.group({ users: { anna: ['laptop'] } })
   const device = group.device('anna/laptop')
   const page = device.page
-  const files = deviceFiles('holzi-split-restore-', { E2E_PLATFORM: 'linux' })
+  const files = deviceFiles('haex-split-restore-', { E2E_PLATFORM: 'linux' })
   ctx.onTeardown(() => files.remove())
   files.write('a/a.txt', 'a')
   files.write('b/b.txt', 'b')

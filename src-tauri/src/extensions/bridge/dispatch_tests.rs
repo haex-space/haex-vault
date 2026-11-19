@@ -107,7 +107,7 @@ fn code(outcome: Result<Value, BridgeError>) -> u16 {
 }
 
 #[test]
-fn context_and_info_describe_holzi_and_the_calling_extension_only() {
+fn context_and_info_describe_haex_and_the_calling_extension_only() {
     let s = setup();
     s.ctx.host.set_context("dark", "en");
     let context = call(&s.ctx, "extension_context_get", &Value::Null).unwrap();
@@ -243,7 +243,7 @@ fn with_forwarding(s: Setup) -> (Setup, std::sync::mpsc::Receiver<(String, Value
 }
 
 #[test]
-fn a_confirm_dialog_waits_for_holzis_answer_for_the_own_frame() {
+fn a_confirm_dialog_waits_for_haexs_answer_for_the_own_frame() {
     let (s, events) = with_forwarding(setup());
     let s = Arc::new(s);
     let caller = {

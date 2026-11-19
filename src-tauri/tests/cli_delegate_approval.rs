@@ -113,7 +113,7 @@ sys.stdin.readline()
             pending_tool_approvals: Arc::clone(&pending),
             emit,
             database: None, // Manual mode => always Ask, forcing the live round trip
-            holzi: None,
+            haex: None,
             deny_rules: Vec::new(),
             tools: None,
         }),
@@ -204,7 +204,7 @@ async fn claude_approval_round_trips_through_the_real_socket_and_bridge_child() 
         pending_tool_approvals: Arc::clone(&pending),
         emit,
         database: None, // Manual mode => always Ask
-        holzi: None,
+        haex: None,
         deny_rules: Vec::new(),
         tools: None,
     };
@@ -221,8 +221,8 @@ async fn claude_approval_round_trips_through_the_real_socket_and_bridge_child() 
     // The real hidden entrypoint (T034), run as the actual compiled `holzi`
     // binary — exactly what `claude.rs` points `--mcp-config` at, not a
     // simplified in-process stand-in.
-    let holzi_bin = env!("CARGO_BIN_EXE_holzi");
-    let mut bridge = Command::new(holzi_bin)
+    let haex_bin = env!("CARGO_BIN_EXE_holzi");
+    let mut bridge = Command::new(haex_bin)
         .arg("--internal-cli-delegate-approval-bridge")
         .arg("--socket")
         .arg(&socket_path)

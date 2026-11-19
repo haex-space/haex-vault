@@ -227,7 +227,7 @@ pub async fn launch(os: Os, launch: &Launch, claim: target::Claim) -> Result<Lau
 /// Where a headless browser writes its error output. Only tests start one, and CI cannot see why
 /// a start there sometimes gets no answer.
 fn stderr_log(launch: &Launch) -> PathBuf {
-    launch.workdir.join("holzi-stderr.log")
+    launch.workdir.join("haex-stderr.log")
 }
 
 /// What a headless start that got no answer left behind: whether the browser still runs and the
@@ -251,8 +251,8 @@ fn spawn(os: Os, launch: &Launch) -> Result<(Connection, BrowserProcess)> {
     use std::os::unix::process::CommandExt;
     use std::process::{Command, Stdio};
 
-    let (child_reads, holzi_writes) = std::io::pipe().map_err(unavailable)?;
-    let (holzi_reads, child_writes) = std::io::pipe().map_err(unavailable)?;
+    let (child_reads, haex_writes) = std::io::pipe().map_err(unavailable)?;
+    let (haex_reads, child_writes) = std::io::pipe().map_err(unavailable)?;
     let (read_fd, write_fd) = (child_reads.as_raw_fd(), child_writes.as_raw_fd());
     let stderr = if launch.headless {
         std::fs::File::create(stderr_log(launch)).map_or_else(|_| Stdio::null(), Stdio::from)
@@ -306,7 +306,7 @@ fn spawn(os: Os, launch: &Launch) -> Result<(Connection, BrowserProcess)> {
         })
         .map_err(unavailable)?;
     Ok((
-        Connection::new(holzi_reads, holzi_writes),
+        Connection::new(haex_reads, haex_writes),
         BrowserProcess::new(pid, exit),
     ))
 }

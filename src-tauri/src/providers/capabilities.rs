@@ -8,7 +8,7 @@ use serde::Deserialize;
 use tauri::State;
 
 use super::OPENAI_COMPATIBLE;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::model_capabilities::{ModelCapabilities, UserCapabilities};
 use crate::state::AppState;
 use crate::state_utils::active_database;
@@ -35,7 +35,7 @@ pub struct SetUserCapabilitiesArgs {
 
 /// Checks the effort ids: short, non-empty, free of blanks and control characters, no repeats.
 fn checked_levels(levels: Vec<String>) -> Result<Vec<String>> {
-    let invalid = |reason: String| HolziError::InvalidInput { reason };
+    let invalid = |reason: String| HaexError::InvalidInput { reason };
     if levels.len() > MAX_LEVELS {
         return Err(invalid(format!("at most {MAX_LEVELS} effort levels")));
     }
@@ -91,7 +91,7 @@ pub(crate) async fn set_user_capabilities(
                 .map(|stored| stored.ok_or(Refused::NoModel))
         })
         .await?;
-    stored.map_err(|refused| HolziError::InvalidInput {
+    stored.map_err(|refused| HaexError::InvalidInput {
         reason: match refused {
             Refused::NoModel => format!("model {id} not found"),
             Refused::NotOpenAiCompatible => {

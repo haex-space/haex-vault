@@ -534,7 +534,7 @@ mod platform {
         if file.extension().is_none() {
             file.set_extension("icns");
         }
-        let out = std::env::temp_dir().join(format!("holzi-icon-{}.png", uuid::Uuid::new_v4()));
+        let out = std::env::temp_dir().join(format!("haex-icon-{}.png", uuid::Uuid::new_v4()));
         let converted = std::process::Command::new("sips")
             .args(["-s", "format", "png", "-Z", "64"])
             .arg(&file)

@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 
 use super::*;
 
-fn value(n: usize) -> HolziValue {
-    HolziValue {
+fn value(n: usize) -> HaexValue {
+    HaexValue {
         id: format!("v{n}"),
         kind: "phone".to_owned(),
         label: "mobile".to_owned(),

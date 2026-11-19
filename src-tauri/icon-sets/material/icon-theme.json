@@ -3753,20 +3753,20 @@
     "folder-root-open": {
       "iconPath": "icons/folder-root-open.svg"
     },
-    "holzi-encrypted-folder": {
-      "iconPath": "icons/holzi-encrypted-folder.svg"
+    "haex-encrypted-folder": {
+      "iconPath": "icons/haex-encrypted-folder.svg"
     },
-    "holzi-locked-folder": {
-      "iconPath": "icons/holzi-locked-folder.svg"
+    "haex-locked-folder": {
+      "iconPath": "icons/haex-locked-folder.svg"
     },
-    "holzi-folder-no-access": {
-      "iconPath": "icons/holzi-folder-no-access.svg"
+    "haex-folder-no-access": {
+      "iconPath": "icons/haex-folder-no-access.svg"
     },
-    "holzi-locked-file": {
-      "iconPath": "icons/holzi-locked-file.svg"
+    "haex-locked-file": {
+      "iconPath": "icons/haex-locked-file.svg"
     },
-    "holzi-damaged": {
-      "iconPath": "icons/holzi-damaged.svg"
+    "haex-damaged": {
+      "iconPath": "icons/haex-damaged.svg"
     }
   },
   "file": "file",
@@ -12230,7 +12230,7 @@
       "__cursor__": "folder-cursor_light"
     }
   },
-  "x-holzi": {
+  "x-haex": {
     "roles": {
       "file": "file",
       "folder": "folder",
@@ -12239,11 +12239,11 @@
       "audio": "audio",
       "pdf": "pdf",
       "text": "document",
-      "encryptedFolder": "holzi-encrypted-folder",
-      "lockedFolder": "holzi-locked-folder",
-      "folderNoAccess": "holzi-folder-no-access",
-      "lockedFile": "holzi-locked-file",
-      "damaged": "holzi-damaged"
+      "encryptedFolder": "haex-encrypted-folder",
+      "lockedFolder": "haex-locked-folder",
+      "folderNoAccess": "haex-folder-no-access",
+      "lockedFile": "haex-locked-file",
+      "damaged": "haex-damaged"
     },
     "origin": {
       "author": "Material Extensions (Philipp Kief and contributors)",

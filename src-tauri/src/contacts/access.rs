@@ -8,7 +8,7 @@
 
 use std::collections::BTreeSet;
 
-use crate::error::HolziError;
+use crate::error::HaexError;
 
 pub use crate::caller::Caller;
 
@@ -123,11 +123,11 @@ pub enum Denied {
     NotFound,
 }
 
-impl From<Denied> for HolziError {
+impl From<Denied> for HaexError {
     fn from(denied: Denied) -> Self {
         match denied {
-            Denied::Forbidden => HolziError::ContactsForbidden,
-            Denied::NotFound => HolziError::ContactsNotFound,
+            Denied::Forbidden => HaexError::ContactsForbidden,
+            Denied::NotFound => HaexError::ContactsNotFound,
         }
     }
 }
@@ -158,7 +158,7 @@ pub fn require_user(caller: &Caller) -> Result<(), Denied> {
 
 /// Methods for the window and holzi's own functions, such as reading the groups to turn the
 /// group names of an extension's permissions into grants.
-pub fn require_holzi(caller: &Caller) -> Result<(), Denied> {
+pub fn require_haex(caller: &Caller) -> Result<(), Denied> {
     match caller {
         Caller::User | Caller::Internal { .. } => Ok(()),
         _ => Err(Denied::Forbidden),

@@ -11,7 +11,7 @@ use haex_crdt::Database;
 
 use super::migrations_extensions_tests::{has_hlc_column, unique_indexes};
 use super::migrations_tests::{migration_source_before, open, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 const TABLES: [&str; 12] = [
     "haex_contacts",
@@ -81,7 +81,7 @@ fn count(db: &Database, table: &str) -> i64 {
 async fn migration_0033_gives_a_fresh_vault_the_address_book() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
-        let db = open(dir.path(), "contacts-fresh", true, holzi_migration_source());
+        let db = open(dir.path(), "contacts-fresh", true, haex_migration_source());
         assert_schema(&db);
     })
     .await
@@ -104,7 +104,7 @@ async fn migration_0033_upgrades_a_vault_from_the_schema_before_it() {
             dir.path(),
             "contacts-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_schema(&db);
     })
@@ -120,14 +120,14 @@ async fn deleting_a_contact_takes_everything_that_hangs_off_it() {
             dir.path(),
             "contacts-cascade",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         let device = device(&db);
         db.write(|tx| {
             tx.execute(
                 "INSERT INTO haex_contacts (id, given_name, origin_kind, origin_device, \
                  origin_caller, created_at, updated_at) \
-                 VALUES ('c1', 'Anna', 'holzi', ?1, 'user', 't', 't')",
+                 VALUES ('c1', 'Anna', 'haex', ?1, 'user', 't', 't')",
                 &[&device],
             )?;
             tx.execute(
@@ -190,7 +190,7 @@ async fn deleting_a_contact_takes_everything_that_hangs_off_it() {
 async fn migration_0034_keeps_the_known_raw_contacts_on_this_device() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
-        let db = open(dir.path(), "contacts-known", true, holzi_migration_source());
+        let db = open(dir.path(), "contacts-known", true, haex_migration_source());
         let table = "haex_contacts_phone_known_no_sync";
         assert!(table_exists(&db, table));
         assert!(!has_hlc_column(&db, table), "device-local: never synced");
@@ -228,7 +228,7 @@ async fn migration_0041_clears_the_npub_a_card_stored_as_display_name() {
             for (id, kind, name) in [
                 ("npub-card", "card", "npub1abcdef"),
                 ("named-card", "card", "Ada Lovelace"),
-                ("npub-own", "holzi", "npub1abcdef"),
+                ("npub-own", "haex", "npub1abcdef"),
             ] {
                 tx.execute(
                     "INSERT INTO haex_contacts (id, display_name, origin_kind, origin_device, \
@@ -246,7 +246,7 @@ async fn migration_0041_clears_the_npub_a_card_stored_as_display_name() {
             dir.path(),
             "contacts-card-names",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_eq!(display_name(&db, "npub-card"), None, "the npub goes");
         assert_eq!(

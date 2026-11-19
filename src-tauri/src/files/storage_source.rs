@@ -142,7 +142,7 @@ fn file_entry(key: &str, size: u64, modified_ms: Option<i64>) -> Entry {
         modified_ms,
         symlink: false,
         no_access: false,
-        holzi_owned: false,
+        haex_owned: false,
         encrypted: None,
         conflict: false,
     }
@@ -164,7 +164,7 @@ fn folder_entry(prefix: &str) -> Entry {
         mime: None,
         symlink: false,
         no_access: false,
-        holzi_owned: false,
+        haex_owned: false,
         encrypted: None,
         conflict: false,
     }

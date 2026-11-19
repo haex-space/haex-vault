@@ -11,7 +11,7 @@ use haex_crdt::Database;
 use super::migrations_agent_browser::TABLE;
 use super::migrations_extensions_tests::has_hlc_column;
 use super::migrations_tests::{migration_source_before, open, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 fn columns(db: &Database) -> Vec<String> {
     db.with_connection(|conn| {
@@ -39,7 +39,7 @@ async fn migration_0047_gives_a_fresh_vault_the_agent_browser_table() {
             dir.path(),
             "agent-browser-fresh",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_schema(&db);
     })
@@ -63,7 +63,7 @@ async fn migration_0047_upgrades_a_vault_from_the_schema_before_it() {
             dir.path(),
             "agent-browser-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_schema(&db);
     })

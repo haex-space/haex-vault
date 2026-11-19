@@ -174,14 +174,14 @@ async fn only_a_main_device_removes_and_never_itself() {
     let itself = remove_device_now(&main_runtime, a.keys.device_pubkey).await;
     assert!(matches!(
         itself,
-        Err(holzi_lib::error::HolziError::InvalidInput { .. })
+        Err(holzi_lib::error::HaexError::InvalidInput { .. })
     ));
 
     let linked_runtime = runtime_of(&b).await;
     let refused = remove_device_now(&linked_runtime, a.keys.device_pubkey).await;
     assert!(matches!(
         refused,
-        Err(holzi_lib::error::HolziError::NotMainDevice)
+        Err(holzi_lib::error::HaexError::NotMainDevice)
     ));
     assert_eq!(listed(&a).len(), 2, "nothing was removed");
 

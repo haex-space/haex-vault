@@ -179,7 +179,7 @@ async fn every_file_action_is_kept_with_its_trash() {
         })
         .collect();
     let mut deleted = RunItem::new(SyncRuleRunAction::Delete, SyncRuleSide::Target, "weg.txt");
-    deleted.trash = Some(Trashed::Rule(".holzi-trash/run/weg.txt".to_owned()));
+    deleted.trash = Some(Trashed::Rule(".haex-trash/run/weg.txt".to_owned()));
     items.push(deleted);
     let mut system = RunItem::new(SyncRuleRunAction::Delete, SyncRuleSide::Source, "fort.txt");
     system.trash = Some(Trashed::System);
@@ -201,7 +201,7 @@ async fn every_file_action_is_kept_with_its_trash() {
     assert_eq!(all[500].trash_kind, Some(SyncRuleTrashKind::Rule));
     assert_eq!(
         all[500].trash_path.as_deref(),
-        Some(".holzi-trash/run/weg.txt")
+        Some(".haex-trash/run/weg.txt")
     );
     assert_eq!(all[501].trash_kind, Some(SyncRuleTrashKind::System));
     assert_eq!(all[501].trash_path, None);

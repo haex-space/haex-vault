@@ -99,10 +99,10 @@ async fn trash_moves_into_the_rule_trash() {
     let trashed = p.trash("2026/b.jpg", "run1").await.unwrap();
     assert_eq!(
         trashed,
-        Trashed::Rule(".holzi-trash/run1/2026/b.jpg".to_owned())
+        Trashed::Rule(".haex-trash/run1/2026/b.jpg".to_owned())
     );
     assert_eq!(
-        fake.object(BUCKET, "Fotos/.holzi-trash/run1/2026/b.jpg")
+        fake.object(BUCKET, "Fotos/.haex-trash/run1/2026/b.jpg")
             .as_deref(),
         Some(&b"bbb"[..])
     );
@@ -122,7 +122,7 @@ async fn trash_without_rename_copies_then_deletes() {
         "{ops:?}"
     );
     assert!(fake
-        .object(BUCKET, "Fotos/.holzi-trash/run1/a.jpg")
+        .object(BUCKET, "Fotos/.haex-trash/run1/a.jpg")
         .is_some());
 }
 

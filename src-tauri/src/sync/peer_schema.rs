@@ -28,7 +28,7 @@ pub fn record(
         let values = params![
             device.as_slice(),
             i64::from(schema.protocol),
-            i64::from(schema.holzi_migration),
+            i64::from(schema.haex_migration),
             i64::from(schema.crdt_trigger),
         ];
         if let Some((protocol, migration, trigger)) = known {
@@ -76,7 +76,7 @@ pub fn from_columns(
 ) -> Option<SchemaVersion> {
     Some(SchemaVersion {
         protocol: u32::try_from(protocol?).ok()?,
-        holzi_migration: u32::try_from(migration?).ok()?,
+        haex_migration: u32::try_from(migration?).ok()?,
         crdt_trigger: u32::try_from(trigger?).ok()?,
     })
 }

@@ -15,7 +15,7 @@ use super::manage::{self, AgentView};
 use super::registry;
 use super::server::{Core, Notice};
 use super::McpServer;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::state::AppState;
 use crate::vault_gate::VaultDb;
 
@@ -26,8 +26,8 @@ pub struct McpAgentArgs {
     pub agent_id: Uuid,
 }
 
-fn unknown_agent() -> HolziError {
-    HolziError::InvalidInput {
+fn unknown_agent() -> HaexError {
+    HaexError::InvalidInput {
         reason: "no such agent".to_owned(),
     }
 }

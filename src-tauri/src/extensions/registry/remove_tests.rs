@@ -75,7 +75,7 @@ fn a_removal_leaves_a_tombstone_with_its_own_hlc_and_deletes_the_registry_rows()
 
     assert!(matches!(
         remove(&vault, ext, true, 3),
-        Err(HolziError::ExtensionNotFound)
+        Err(HaexError::ExtensionNotFound)
     ));
     install(&vault, &bytes, vec![], false, device, 4).unwrap();
     assert_eq!(

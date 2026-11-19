@@ -303,7 +303,7 @@ fn a_write_needs_a_tag_of_the_scope_and_read_alone_writes_nothing() {
 }
 
 #[test]
-fn without_a_grant_holzi_asks_only_for_a_permission_in_the_state_ask() {
+fn without_a_grant_haex_asks_only_for_a_permission_in_the_state_ask() {
     let s = setup();
     for method in ["extension_password_list", "extension_password_read"] {
         assert_eq!(

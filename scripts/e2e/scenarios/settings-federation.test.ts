@@ -71,7 +71,7 @@ scenario('settings-federation', {}, async (ctx) => {
         isCurrent: boolean
         schema?: {
           protocol: number
-          holziMigration: number
+          haexMigration: number
           crdtTrigger: number
         }
       }>
@@ -81,7 +81,7 @@ scenario('settings-federation', {}, async (ctx) => {
   assert.equal(devices[0]?.alias, renamed)
   assert.equal(devices[0]?.isCurrent, true)
   // Spec 059 FR-011: the action carries the version state too.
-  assert.equal(typeof devices[0]?.schema?.holziMigration, 'number')
+  assert.equal(typeof devices[0]?.schema?.haexMigration, 'number')
   ctx.step('settings.devices.list')
   // FR-008: the built-in servers are always listed and can be switched off, not removed; added ones
   // can be switched off or removed.

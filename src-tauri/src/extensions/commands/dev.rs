@@ -8,7 +8,7 @@ use tauri::{AppHandle, State};
 use ts_rs::TS;
 use uuid::Uuid;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::extensions::dev;
 use crate::extensions::registry::install::{InstallPreview, PermissionChoice};
 use crate::extensions::registry::lifecycle::reconcile;
@@ -28,8 +28,8 @@ pub struct DevModeState {
     pub frames_allowed: bool,
 }
 
-fn task_error(error: impl std::fmt::Display) -> HolziError {
-    HolziError::InvalidInput {
+fn task_error(error: impl std::fmt::Display) -> HaexError {
+    HaexError::InvalidInput {
         reason: format!("developer mode task: {error}"),
     }
 }
@@ -89,7 +89,7 @@ pub async fn extension_dev_load(
         .map_err(task_error)??;
     db.read(move |q| {
         if !dev::mode(q, device)? {
-            return Err(HolziError::ExtensionInstall {
+            return Err(HaexError::ExtensionInstall {
                 reason: "dev_mode_off".into(),
             }
             .into());
@@ -133,7 +133,7 @@ pub async fn extension_dev_unload(
     state: State<'_, AppState>,
     extension_id: String,
 ) -> Result<()> {
-    let id = Uuid::parse_str(&extension_id).map_err(|_| HolziError::ExtensionNotFound)?;
+    let id = Uuid::parse_str(&extension_id).map_err(|_| HaexError::ExtensionNotFound)?;
     let db = active_database(&state)?;
     let device = current_device_uuid(&app, &db)?;
     let host = state.extensions();

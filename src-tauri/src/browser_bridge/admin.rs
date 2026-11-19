@@ -14,7 +14,7 @@ use super::approvals::{self, validate, Approval, ClientIdentity, Status, StoredC
 use super::declaration::{BridgeAccess, Declared};
 use super::prompts::BridgeDeclaredGrant;
 use super::runtime::{BridgeCore, Control};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::vault_gate::VaultDb;
 
 /// One client as the settings show it (`contracts/tauri-commands.md`).
@@ -140,12 +140,12 @@ impl ClientAdmin {
         } = update;
         let check = |identity: &ClientIdentity| {
             let declared = Declared::from_canonical(&identity.declaration).ok_or_else(|| {
-                HolziError::InvalidInput {
+                HaexError::InvalidInput {
                     reason: "the client has no readable declaration".to_owned(),
                 }
             })?;
             validate(&declared, access, scope_tags.clone(), default_tag.clone()).map_err(|error| {
-                HolziError::InvalidInput {
+                HaexError::InvalidInput {
                     reason: error.to_string(),
                 }
             })
@@ -166,7 +166,7 @@ impl ClientAdmin {
             .await?
             .filter(|row| matches!(row.status, Status::Allowed(_)))
         else {
-            return Err(HolziError::BrowserBridgeClientNotFound);
+            return Err(HaexError::BrowserBridgeClientNotFound);
         };
         let approval = check(&row.identity)?;
         let updated = self
@@ -174,7 +174,7 @@ impl ClientAdmin {
             .write(move |tx| approvals::update_allowed(tx, device, &row.identity, &approval))
             .await?;
         if !updated {
-            return Err(HolziError::BrowserBridgeClientNotFound);
+            return Err(HaexError::BrowserBridgeClientNotFound);
         }
         if let Some(core) = &self.core {
             core.session().reset_write(&client_id);
@@ -193,7 +193,7 @@ impl ClientAdmin {
             .forget_stored(client_id, |status| matches!(status, Status::Allowed(_)))
             .await?;
         if !(in_session || stored) {
-            return Err(HolziError::BrowserBridgeClientNotFound);
+            return Err(HaexError::BrowserBridgeClientNotFound);
         }
         if let Some(core) = &self.core {
             core.broadcast(client_id, Control::Denied);
@@ -213,7 +213,7 @@ impl ClientAdmin {
         if in_session || stored {
             Ok(())
         } else {
-            Err(HolziError::BrowserBridgeClientNotFound)
+            Err(HaexError::BrowserBridgeClientNotFound)
         }
     }
 

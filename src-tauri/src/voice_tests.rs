@@ -11,7 +11,7 @@ fn capped_event_payload_keeps_success_and_drops_failure() {
     assert_eq!(payload.text, "hello");
     assert_eq!(payload.interrupt, Some(InterruptCommand::Stop));
 
-    assert!(capped_event_payload(Err(crate::error::HolziError::NotRecording)).is_none());
+    assert!(capped_event_payload(Err(crate::error::HaexError::NotRecording)).is_none());
 }
 
 /// Spec 010: `invalidate_stt_model_cache` must be a successful, panic-free

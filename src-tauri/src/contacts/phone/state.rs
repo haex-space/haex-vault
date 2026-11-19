@@ -62,7 +62,7 @@ pub struct PhoneStatus {
 
 fn device_scope(device: &str) -> Result<PrefScope> {
     let uuid =
-        Uuid::parse_str(device).map_err(|error| crate::error::HolziError::ContactsInvalid {
+        Uuid::parse_str(device).map_err(|error| crate::error::HaexError::ContactsInvalid {
             reason: format!("device: {error}"),
         })?;
     Ok(PrefScope::Device(uuid))

@@ -18,7 +18,7 @@ use crate::contacts::access::{Caller, Grant, GrantAction, Scope};
 use crate::contacts::model::{Contact, ContactHeader, Group};
 use crate::contacts::outside;
 use crate::contacts::service::ContactsService;
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::extensions::bridge::blocking::block_on;
 use crate::extensions::bridge::dispatch::CallContext;
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
@@ -169,11 +169,11 @@ fn refused(permissions: &[Permission], groups: &[Group], group: Option<&str>) ->
 }
 
 /// Maps a failure of the service; a contact outside the grants and a missing one look the same.
-fn map_error(error: HolziError, c: &Call, group: Option<&str>) -> BridgeError {
+fn map_error(error: HaexError, c: &Call, group: Option<&str>) -> BridgeError {
     match error {
-        HolziError::ContactsForbidden => refused(&c.permissions, &c.groups, group),
-        HolziError::ContactsNotFound => denied(),
-        HolziError::ContactsInvalid { reason } => invalid(&reason),
+        HaexError::ContactsForbidden => refused(&c.permissions, &c.groups, group),
+        HaexError::ContactsNotFound => denied(),
+        HaexError::ContactsInvalid { reason } => invalid(&reason),
         _ => unavailable(),
     }
 }

@@ -56,7 +56,7 @@ fn a_closing_gate_rejects_new_database_handles() {
 
     assert!(matches!(
         gate.vault_db(db),
-        Err(crate::error::HolziError::VaultClosed)
+        Err(crate::error::HaexError::VaultClosed)
     ));
 }
 
@@ -102,7 +102,7 @@ async fn one_write_commits_every_statement_under_one_hlc() {
 }
 
 #[tokio::test]
-async fn an_error_rolls_back_and_comes_back_as_the_holzi_error() {
+async fn an_error_rolls_back_and_comes_back_as_the_haex_error() {
     let (_tmp, db) = open_throwaway();
     let vault_db = VaultGate::new().vault_db(db).expect("open gate");
 
@@ -110,7 +110,7 @@ async fn an_error_rolls_back_and_comes_back_as_the_holzi_error() {
         .write(|tx| {
             insert_pref(tx, "test.a")?;
             Err::<(), _>(
-                crate::error::HolziError::InvalidInput {
+                crate::error::HaexError::InvalidInput {
                     reason: "stop".to_string(),
                 }
                 .into(),
@@ -121,7 +121,7 @@ async fn an_error_rolls_back_and_comes_back_as_the_holzi_error() {
 
     assert!(matches!(
         err,
-        crate::error::HolziError::InvalidInput { reason } if reason == "stop"
+        crate::error::HaexError::InvalidInput { reason } if reason == "stop"
     ));
     assert!(pref_hlcs(&vault_db).is_empty(), "nothing was written");
 }

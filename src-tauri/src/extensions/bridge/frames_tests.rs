@@ -31,8 +31,8 @@ async fn closing_a_session_ends_its_tool_connection_and_fails_pending_calls() {
 
     let frames = FrameRegistry::default();
     let session = frames.open(Uuid::new_v4(), Uuid::new_v4(), "tab-1");
-    let to_holzi = Arc::clone(&session);
-    let to_extension = serve_json(move |message| to_holzi.mcp.deliver(message));
+    let to_haex = Arc::clone(&session);
+    let to_extension = serve_json(move |message| to_haex.mcp.deliver(message));
 
     let link = session
         .mcp

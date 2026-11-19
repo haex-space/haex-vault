@@ -25,7 +25,7 @@ use super::store::{self, SessionRow};
 use super::wire::RatchetRumor;
 use super::{account, MAX_SESSIONS};
 use crate::chat::peer::session::Me;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// The result of [`decrypt`].
 #[derive(Debug)]
@@ -82,7 +82,7 @@ impl Decrypted {
                 .all(|row| row.session_id != self.row.session_id),
         };
         if !unchanged {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: "chat ratchet session changed while decrypting".to_owned(),
             });
         }
@@ -301,8 +301,8 @@ fn unpickle(text: &str) -> Result<Session> {
 }
 
 /// The error of a session that does not open, encrypt or (un)pickle; never key material.
-fn broken(what: &str) -> HolziError {
-    HolziError::InvalidInput {
+fn broken(what: &str) -> HaexError {
+    HaexError::InvalidInput {
         reason: format!("chat ratchet session: {what} failed"),
     }
 }

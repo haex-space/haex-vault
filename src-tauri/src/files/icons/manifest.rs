@@ -1,5 +1,5 @@
 //! The manifest of a set (spec 053 FR-008, research R7): the format of the icon themes of VS Code
-//! (`icon-theme.json`) with a block `x-holzi` for what that format lacks (roles, origin). Only what
+//! (`icon-theme.json`) with a block `x-haex` for what that format lacks (roles, origin). Only what
 //! the file browser needs is read; everything else (`folderExpanded`, `languageIds`,
 //! `highContrast`, glyphs of an icon font …) is ignored without an error, so a theme of the VS Code
 //! world imports as it is.
@@ -54,7 +54,7 @@ pub struct Origin {
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
-struct RawHolzi {
+struct RawHaex {
     roles: HashMap<String, String>,
     origin: Origin,
 }
@@ -67,8 +67,8 @@ struct Raw {
     #[serde(flatten)]
     maps: RawMaps,
     light: RawMaps,
-    #[serde(rename = "x-holzi")]
-    holzi: RawHolzi,
+    #[serde(rename = "x-haex")]
+    haex: RawHaex,
 }
 
 /// The lookups of one scheme, resolved to paths inside the pack. Keys are lower case.
@@ -117,7 +117,7 @@ impl IconTheme {
         let dark = resolve_maps(&raw.maps, &images);
         let light = resolve_maps(&raw.light, &images);
         let mut roles = HashMap::new();
-        for (key, id) in &raw.holzi.roles {
+        for (key, id) in &raw.haex.roles {
             let (Some(role), Some(path)) = (IconRole::from_key(key), images.get(id.as_str()))
             else {
                 continue;
@@ -139,7 +139,7 @@ impl IconTheme {
             light,
             roles,
             paths,
-            origin: raw.holzi.origin,
+            origin: raw.haex.origin,
         })
     }
 
@@ -191,7 +191,7 @@ impl IconTheme {
         })
     }
 
-    /// The image of a role (`x-holzi.roles`); in the light scheme the one with the suffix `-light`
+    /// The image of a role (`x-haex.roles`); in the light scheme the one with the suffix `-light`
     /// when the set has it.
     pub fn role(&self, scheme: Scheme, role: IconRole) -> Option<&str> {
         let image = self.roles.get(&role)?;

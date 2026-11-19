@@ -170,7 +170,7 @@ impl ServerHandler for Session {
             INSTRUCTIONS_WAITING
         };
         InitializeResult::new(capabilities)
-            .with_server_info(Implementation::new("holzi", env!("CARGO_PKG_VERSION")))
+            .with_server_info(Implementation::new("haex", env!("CARGO_PKG_VERSION")))
             .with_instructions(instructions)
     }
 

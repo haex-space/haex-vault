@@ -6,7 +6,7 @@ use tauri::State;
 use unicode_segmentation::UnicodeSegmentation;
 use uuid::Uuid;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::state::AppState;
 use crate::state_utils::active_database;
 use crate::storage::chat_messages::{self as msg_store, ChatMessage};
@@ -36,7 +36,7 @@ pub fn validate_thread_title(title: &str) -> Result<String> {
     let trimmed = title.trim();
     let length = trimmed.graphemes(true).count();
     if !(1..=120).contains(&length) {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "thread title must contain between 1 and 120 characters".into(),
         });
     }
@@ -95,7 +95,7 @@ pub async fn rename_thread(
     state: State<'_, AppState>,
     args: RenameThreadArgs,
 ) -> Result<ThreadPayload> {
-    let thread_id = Uuid::parse_str(&args.thread_id).map_err(|_| HolziError::InvalidInput {
+    let thread_id = Uuid::parse_str(&args.thread_id).map_err(|_| HaexError::InvalidInput {
         reason: "threadId must be a valid UUID".into(),
     })?;
     let title = validate_thread_title(&args.title)?;
@@ -113,14 +113,14 @@ pub async fn rename_thread(
         })
         .await?;
 
-    row.ok_or_else(|| HolziError::NotFound {
+    row.ok_or_else(|| HaexError::NotFound {
         name: thread_id.to_string(),
     })
 }
 
 #[tauri::command]
 pub async fn delete_thread(state: State<'_, AppState>, args: DeleteThreadArgs) -> Result<()> {
-    let thread_id = Uuid::parse_str(&args.thread_id).map_err(|_| HolziError::InvalidInput {
+    let thread_id = Uuid::parse_str(&args.thread_id).map_err(|_| HaexError::InvalidInput {
         reason: "threadId must be a valid UUID".into(),
     })?;
     let db = active_database(&state)?;
@@ -131,7 +131,7 @@ pub async fn delete_thread(state: State<'_, AppState>, args: DeleteThreadArgs) -
     if deleted {
         Ok(())
     } else {
-        Err(HolziError::NotFound {
+        Err(HaexError::NotFound {
             name: thread_id.to_string(),
         })
     }

@@ -11,7 +11,7 @@ node scripts/icon-sets/prepare.ts phosphor <clone of phosphor-icons/core>
 node scripts/icon-sets/prepare.ts material <unpacked VSIX> <Apache-2.0 license text>
 ```
 
-## States of an entry (`scripts/icon-sets/holzi-states/`)
+## States of an entry (`scripts/icon-sets/haex-states/`)
 
 Both packs carry five images drawn for holzi, in colour and the same in every set: a readable
 encrypted folder (green with a large padlock), a folder of another vault or of a newer format (red,
@@ -44,7 +44,7 @@ English counterpart.
   (`#c9c9c9`, main part of the manifest, dark scheme) and `<name>.light.svg`
   with dark strokes (`#4a4a4a`, block `light`, light scheme).
 - Convention for `-light` ids: the dark-scheme id is `<name>`, the light-scheme
-  id is `<name>-light`. `x-holzi.roles` names only the main ids; in the light
+  id is `<name>-light`. `x-haex.roles` names only the main ids; in the light
   scheme the loader takes `<id>-light` when `iconDefinitions` has it, else the
   role's own id.
 - ZIP size: 39768 bytes.

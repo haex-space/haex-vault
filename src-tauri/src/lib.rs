@@ -63,7 +63,7 @@ pub mod vault_gate;
 pub mod voice;
 pub mod window_texts;
 
-pub use error::{HolziError, Result};
+pub use error::{HaexError, Result};
 pub use state::{ActiveInstanceHandle, AppState};
 
 use std::sync::Arc;

@@ -162,7 +162,7 @@ fn a_server_with_real_folders_takes_no_long_parts_or_refused_characters() {
         "a/b.txt",
         "Ärger/ü ö.txt",
         &"x".repeat(255),
-        "a.holzi-part-x",
+        "a.haex-part-x",
     ] {
         assert!(fits_tree(good), "{good:?}");
     }

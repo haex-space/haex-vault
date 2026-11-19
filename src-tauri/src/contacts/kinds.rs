@@ -14,9 +14,9 @@ pub const SIP: &str = "sip";
 pub const EVENT: &str = "event";
 pub const RELATION: &str = "relation";
 pub const CUSTOM: &str = "custom";
-pub const HOLZI_VAULT: &str = "holzi_vault";
-pub const HOLZI_NOSTR_RELAY: &str = "holzi_nostr_relay";
-pub const HOLZI_IROH: &str = "holzi_iroh";
+pub const HAEX_VAULT: &str = "haex_vault";
+pub const HAEX_NOSTR_RELAY: &str = "haex_nostr_relay";
+pub const HAEX_IROH: &str = "haex_iroh";
 
 /// Every kind this version knows.
 pub const KNOWN: [&str; 12] = [
@@ -29,9 +29,9 @@ pub const KNOWN: [&str; 12] = [
     EVENT,
     RELATION,
     CUSTOM,
-    HOLZI_VAULT,
-    HOLZI_NOSTR_RELAY,
-    HOLZI_IROH,
+    HAEX_VAULT,
+    HAEX_NOSTR_RELAY,
+    HAEX_IROH,
 ];
 
 /// The parts of an address; the value of an `address` is a JSON object with some of them.
@@ -91,8 +91,8 @@ pub fn is_known(kind: &str) -> bool {
 }
 
 /// Whether values of this kind are holzi addresses (FR-008).
-pub fn is_holzi_address(kind: &str) -> bool {
-    matches!(kind, HOLZI_VAULT | HOLZI_NOSTR_RELAY | HOLZI_IROH)
+pub fn is_haex_address(kind: &str) -> bool {
+    matches!(kind, HAEX_VAULT | HAEX_NOSTR_RELAY | HAEX_IROH)
 }
 
 /// Whether values of this kind go to a phone's address book (FR-014).
@@ -121,11 +121,11 @@ pub fn validate(kind: &str, label: &str, value: &str) -> Result<(), String> {
         ADDRESS => validate_address(value),
         IM => validate_im(value),
         EVENT => validate_event(value),
-        HOLZI_VAULT => validate_npub(value),
-        HOLZI_NOSTR_RELAY if !crate::sync::servers::is_nostr_relay(value) => {
+        HAEX_VAULT => validate_npub(value),
+        HAEX_NOSTR_RELAY if !crate::sync::servers::is_nostr_relay(value) => {
             Err("not a ws:// or wss:// address".to_owned())
         }
-        HOLZI_IROH => validate_iroh(value),
+        HAEX_IROH => validate_iroh(value),
         _ => Ok(()),
     }
 }

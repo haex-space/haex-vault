@@ -47,7 +47,7 @@ pub fn default_socket_dir() -> PathBuf {
 }
 
 pub(crate) fn preferred_socket_dir(base: &Path) -> PathBuf {
-    let preferred = base.join("holzi-mcp");
+    let preferred = base.join("haex-mcp");
     #[cfg(unix)]
     if socket_path(&preferred, &endpoint_name(Uuid::nil()))
         .as_os_str()
@@ -58,7 +58,7 @@ pub(crate) fn preferred_socket_dir(base: &Path) -> PathBuf {
         // put XDG_RUNTIME_DIR below a deeply nested, isolated root, so keep the isolation identity
         // while moving the actual socket directory to the short system temp prefix.
         let namespace = Uuid::new_v5(&Uuid::NAMESPACE_OID, base.to_string_lossy().as_bytes());
-        return PathBuf::from("/tmp").join(format!("holzi-mcp-{}", namespace.simple()));
+        return PathBuf::from("/tmp").join(format!("haex-mcp-{}", namespace.simple()));
     }
     preferred
 }
@@ -165,7 +165,7 @@ mod windows {
     const ERROR_PIPE_BUSY: i32 = 231;
 
     pub fn pipe_name(name: &str) -> String {
-        format!(r"\\.\pipe\holzi-{name}")
+        format!(r"\\.\pipe\haex-{name}")
     }
 
     /// The waiting pipe instance; the next one is created when a client takes this one.
@@ -214,7 +214,7 @@ mod windows {
         let mut names: Vec<String> = entries
             .flatten()
             .filter_map(|entry| entry.file_name().into_string().ok())
-            .filter_map(|pipe| pipe.strip_prefix("holzi-").map(str::to_owned))
+            .filter_map(|pipe| pipe.strip_prefix("haex-").map(str::to_owned))
             .filter(|name| name.starts_with(ENDPOINT_PREFIX))
             .collect();
         names.sort();

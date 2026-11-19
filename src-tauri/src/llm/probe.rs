@@ -25,7 +25,7 @@ pub(crate) fn decide(without: Result<&str, &str>, with: Result<&str, &str>) -> T
 /// Builds the stable tool definition used to compare the model's template output.
 pub(crate) fn dummy_tool() -> ToolSpec {
     ToolSpec {
-        name: "holzi_probe_tool".to_owned(),
+        name: "haex_probe_tool".to_owned(),
         description: "A tool that only exists to see whether the template shows tools.".to_owned(),
         input_schema: serde_json::json!({
             "type": "object",

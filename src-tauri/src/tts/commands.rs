@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::hardware;
 use crate::state::AppState;
 
@@ -135,7 +135,7 @@ async fn installed_pocket(
             .filter(|dir| files::is_complete_model(dir, entry))
     })
     .await
-    .map_err(|e| HolziError::SpeechFailed {
+    .map_err(|e| HaexError::SpeechFailed {
         reason: format!("look for the Pocket model of {language}: {e}"),
     })?;
     let Some(dir) = dir else {
@@ -226,7 +226,7 @@ pub(crate) async fn load_installed(
             .filter(|dir| files::is_complete_model(dir, entry))
     })
     .await
-    .map_err(|e| HolziError::SpeechFailed {
+    .map_err(|e| HaexError::SpeechFailed {
         reason: format!("look for the speech model: {e}"),
     })?
     .ok_or_else(|| TtsError::Unavailable {
@@ -277,7 +277,7 @@ pub async fn list_installed_tts_voices(app: AppHandle) -> Result<Vec<String>> {
         scan_installed(entries, |entry| files::resolve_model_dir(&app, entry).ok())
     })
     .await
-    .map_err(|e| HolziError::CrdtInit {
+    .map_err(|e| HaexError::CrdtInit {
         reason: format!("scan installed speech models: {e}"),
     })
 }
@@ -560,13 +560,13 @@ async fn remove_model(
     let dir =
         tauri::async_runtime::spawn_blocking(move || files::resolve_model_dir(&app_for_dir, entry))
             .await
-            .map_err(|e| HolziError::SpeechFailed {
+            .map_err(|e| HaexError::SpeechFailed {
                 reason: format!("resolve speech model directory: {e}"),
             })??;
     match tokio::fs::remove_dir_all(&dir).await {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(HolziError::Io {
+        Err(e) => Err(HaexError::Io {
             reason: format!("remove {}: {e}", dir.display()),
         }),
     }
@@ -592,7 +592,7 @@ pub(crate) async fn ensure_installed(
     let dir =
         tauri::async_runtime::spawn_blocking(move || files::resolve_model_dir(&app_for_dir, entry))
             .await
-            .map_err(|e| HolziError::CrdtInit {
+            .map_err(|e| HaexError::CrdtInit {
                 reason: format!("resolve speech model directory: {e}"),
             })??;
     files::ensure_model_files(&dir, entry, |received, total| {
@@ -808,7 +808,7 @@ pub async fn tts_speech_models(app: AppHandle, language: String) -> Result<Vec<S
         })
     })
     .await
-    .map_err(|e| HolziError::CrdtInit {
+    .map_err(|e| HaexError::CrdtInit {
         reason: format!("list speech models: {e}"),
     })?
     .map_err(Into::into)

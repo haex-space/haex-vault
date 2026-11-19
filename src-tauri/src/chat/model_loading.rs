@@ -28,7 +28,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 #[cfg(feature = "llm-llamacpp")]
 use crate::models::paths;
 use crate::providers::build_adapter;
@@ -189,7 +189,7 @@ pub(crate) async fn load_model_inner(
     let _ = integrity_override;
 
     if mode == LoadMode::Activate && model_id.contains(':') {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "only a local model can be activated".into(),
         });
     }
@@ -236,7 +236,7 @@ pub(crate) async fn load_model_inner(
             database: Some(active_database(state)?),
             children: chat.children().clone(),
             // Spec 021 US6: a registered delegate gets holzi's own MCP server.
-            holzi: app
+            haex: app
                 .try_state::<crate::mcp_server::McpServer>()
                 .map(|server| server.delegate_access()),
             deny_rules: Vec::new(),
@@ -253,7 +253,7 @@ pub(crate) async fn load_model_inner(
                 .as_deref()
                 != Some(model_id)
         {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: "the local model is not active".into(),
             });
         }
@@ -289,7 +289,7 @@ pub(crate) async fn load_model_inner(
         }
         #[cfg(not(feature = "llm-llamacpp"))]
         {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: "local inference is not enabled in this build".into(),
             });
         }
@@ -319,7 +319,7 @@ pub(crate) async fn load_model_inner(
                 chat.cancel_tool_check();
                 chat.replace_local_model(Some(session.clone()));
             }
-            *chat.session.lock().map_err(|e| HolziError::CrdtInit {
+            *chat.session.lock().map_err(|e| HaexError::CrdtInit {
                 reason: format!("chat.session mutex poisoned: {e}"),
             })? = Some(session);
         }
@@ -476,7 +476,7 @@ pub(super) async fn load_model_command(
     );
     match state.gate().run(load).await? {
         Ok(LoadOutcome::Loaded(info)) => Ok(info),
-        Ok(LoadOutcome::Cancelled) => Err(HolziError::InvalidInput {
+        Ok(LoadOutcome::Cancelled) => Err(HaexError::InvalidInput {
             reason: "model load was cancelled".into(),
         }),
         Err(error) => {
@@ -555,7 +555,7 @@ pub(crate) async fn load_api_key_model(
     provider_id_str: &str,
     delegate_chat_ctx: Option<crate::adapters::cli_delegate::DelegateChatContext>,
 ) -> Result<ActiveSession> {
-    let provider_id = Uuid::parse_str(provider_id_str).map_err(|_| HolziError::InvalidInput {
+    let provider_id = Uuid::parse_str(provider_id_str).map_err(|_| HaexError::InvalidInput {
         reason: format!("bad composite model id: {composite_id}"),
     })?;
     let db = active_database(state)?;
@@ -569,7 +569,7 @@ pub(crate) async fn load_api_key_model(
             Ok((provider, row))
         })
         .await
-        .map_err(|_| HolziError::ModelNotFound {
+        .map_err(|_| HaexError::ModelNotFound {
             id: composite_id.to_string(),
         })?;
     let legacy_codex_id = format!(
@@ -581,7 +581,7 @@ pub(crate) async fn load_api_key_model(
         && provider.kind == crate::storage::providers::ProviderKind::CliDelegate
         && provider.adapter.as_deref() == Some("codex");
     if row.is_none() && !is_legacy_codex {
-        return Err(HolziError::ModelNotFound {
+        return Err(HaexError::ModelNotFound {
             id: composite_id.to_string(),
         });
     }
@@ -623,7 +623,7 @@ async fn resolve_local_model_metadata(
     integrity_override: bool,
 ) -> Result<LocalModelMetadata> {
     let canonical =
-        paths::canonical_model_file(app, model_id)?.ok_or_else(|| HolziError::ModelNotFound {
+        paths::canonical_model_file(app, model_id)?.ok_or_else(|| HaexError::ModelNotFound {
             id: model_id.to_string(),
         })?;
 
@@ -637,7 +637,7 @@ async fn resolve_local_model_metadata(
             Ok(row)
         })
         .await
-        .map_err(|_| HolziError::ModelNotFound {
+        .map_err(|_| HaexError::ModelNotFound {
             id: model_id.to_string(),
         })?;
 
@@ -656,12 +656,12 @@ async fn resolve_local_model_metadata(
                 )
             })
             .await
-            .map_err(|e| HolziError::ModelIntegrityError {
+            .map_err(|e| HaexError::ModelIntegrityError {
                 model_id: model_id.to_string(),
                 reason: format!("persisting untrusted status: {e}"),
             })?;
         if status_update == 0 {
-            return Err(HolziError::ModelIntegrityError {
+            return Err(HaexError::ModelIntegrityError {
                 model_id: model_id.to_string(),
                 reason: "model row disappeared while marking it untrusted".into(),
             });
@@ -682,7 +682,7 @@ async fn resolve_local_model_metadata(
     let tokenizer_repo = row
         .tokenizer_repo
         .or_else(|| crate::catalog::get(model_id).map(|e| e.tokenizer_repo.clone()))
-        .ok_or_else(|| HolziError::InvalidInput {
+        .ok_or_else(|| HaexError::InvalidInput {
             reason: format!("tokenizer_repo missing for model {model_id}"),
         })?;
 
@@ -733,7 +733,7 @@ async fn verify_local_model_integrity(
 ) -> Result<()> {
     let Some(expected) = expected_sha256.filter(|s| crate::models::hash::is_valid_sha256_hex(s))
     else {
-        return Err(HolziError::ModelIntegrityUnknown {
+        return Err(HaexError::ModelIntegrityUnknown {
             model_id: model_id.to_string(),
             expected_sha256: expected_sha256.map(str::to_string),
         });
@@ -743,12 +743,12 @@ async fn verify_local_model_integrity(
     let hash_result =
         tauri::async_runtime::spawn_blocking(move || crate::models::hash::sha256_file(&path_owned))
             .await
-            .map_err(|e| HolziError::ModelIntegrityError {
+            .map_err(|e| HaexError::ModelIntegrityError {
                 model_id: model_id.to_string(),
                 reason: format!("hashing task join: {e}"),
             })?;
 
-    let actual = hash_result.map_err(|e| HolziError::ModelIntegrityError {
+    let actual = hash_result.map_err(|e| HaexError::ModelIntegrityError {
         model_id: model_id.to_string(),
         reason: e.to_string(),
     })?;
@@ -769,7 +769,7 @@ async fn verify_local_model_integrity(
                 })
                 .await;
         }
-        return Err(HolziError::ModelIntegrityMismatch {
+        return Err(HaexError::ModelIntegrityMismatch {
             model_id: model_id.to_string(),
             expected_sha256: expected.to_string(),
             actual_sha256: actual,
@@ -812,7 +812,7 @@ async fn load_local_model_from_metadata(
         },
     )
     .await
-    .map_err(|e| HolziError::ModelDownload {
+    .map_err(|e| HaexError::ModelDownload {
         reason: format!("local model load: {e}"),
     })?;
 
@@ -888,7 +888,7 @@ pub async fn active_model_info(
     chat: State<'_, ChatState>,
 ) -> Result<Option<LoadedModelInfo>> {
     let session = {
-        let guard = chat.session.lock().map_err(|e| HolziError::CrdtInit {
+        let guard = chat.session.lock().map_err(|e| HaexError::CrdtInit {
             reason: format!("chat.session mutex poisoned: {e}"),
         })?;
         guard.clone()

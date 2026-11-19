@@ -2,7 +2,7 @@
 //! blocking thread; [`super::TransferManager`] hands in the cancellation, the conflict question and
 //! the progress through [`Hooks`].
 //!
-//! - A file is written to `.<name>.holzi-part-<uuid>` beside its target and renamed at the end, so a
+//! - A file is written to `.<name>.haex-part-<uuid>` beside its target and renamed at the end, so a
 //!   cancelled or failed transfer never leaves half a file (FR-020). "Replace" moves the old entry
 //!   aside first and removes it only once the new one is in place; otherwise it goes back.
 //! - A folder onto a folder of the same name merges; only names of files (or a file against a
@@ -292,7 +292,7 @@ impl Run<'_, '_> {
             .parent()
             .ok_or_else(|| FilesError::invalid_path("no target folder"))?;
         let name = entry_name(target)?.to_string_lossy();
-        let aside = folder.join(format!(".{name}.holzi-old-{}", uuid::Uuid::new_v4()));
+        let aside = folder.join(format!(".{name}.haex-old-{}", uuid::Uuid::new_v4()));
         std::fs::rename(target, &aside).map_err(|error| io_error(error, target))?;
         match put(self) {
             Ok(()) => remove(&aside, Removal::Permanent).map_err(Stop::from),
@@ -338,7 +338,7 @@ impl Run<'_, '_> {
             .parent()
             .ok_or_else(|| FilesError::invalid_path("no target folder"))?;
         let name = entry_name(target)?.to_string_lossy();
-        let part = folder.join(format!(".{name}.holzi-part-{}", uuid::Uuid::new_v4()));
+        let part = folder.join(format!(".{name}.haex-part-{}", uuid::Uuid::new_v4()));
         let result = self.write_part(source, meta, &part).and_then(|()| {
             (self.hooks.rename)(&part, target).map_err(|error| Stop::from(io_error(error, target)))
         });

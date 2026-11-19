@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 use uuid::Uuid;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::state::AppState;
 use crate::state_utils::active_database;
 use crate::storage::preferences::{self, PrefError, PrefScope};
@@ -25,26 +25,26 @@ pub enum PrefScopeWire {
 }
 
 impl TryFrom<PrefScopeWire> for PrefScope {
-    type Error = HolziError;
+    type Error = HaexError;
 
     fn try_from(value: PrefScopeWire) -> std::result::Result<Self, Self::Error> {
         let scope = match value {
             PrefScopeWire::Vault => PrefScope::Vault,
             PrefScopeWire::Device { uuid } => PrefScope::Device(uuid),
         };
-        preferences::validate_scope(scope).map_err(pref_error_to_holzi)?;
+        preferences::validate_scope(scope).map_err(pref_error_to_haex)?;
         Ok(scope)
     }
 }
 
-fn pref_error_to_holzi(err: PrefError) -> HolziError {
-    HolziError::InvalidInput {
+fn pref_error_to_haex(err: PrefError) -> HaexError {
+    HaexError::InvalidInput {
         reason: err.to_string(),
     }
 }
 
 fn validate_key(key: &str) -> Result<()> {
-    preferences::validate_key(key).map_err(pref_error_to_holzi)
+    preferences::validate_key(key).map_err(pref_error_to_haex)
 }
 
 /// Spec 042: the workspace background, a WebP data URL scaled down in the frontend.
@@ -86,7 +86,7 @@ pub(crate) fn validate_value(key: &str, value: &str) -> Result<()> {
     if key == crate::passwords::settings::CLIPBOARD_CLEAR_KEY
         && !crate::passwords::settings::is_valid_clear_seconds(value)
     {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: format!("{key} must be one of 0, 15, 30, 60, 120"),
         });
     }
@@ -94,7 +94,7 @@ pub(crate) fn validate_value(key: &str, value: &str) -> Result<()> {
     if key == crate::chat::turn::round_limit::TOOL_ROUNDS_KEY
         && !crate::chat::turn::round_limit::is_valid_tool_rounds(value)
     {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: format!(
                 "{key} must be a whole number from {} to {}",
                 crate::chat::turn::round_limit::MIN_TOOL_ROUNDS,
@@ -106,17 +106,17 @@ pub(crate) fn validate_value(key: &str, value: &str) -> Result<()> {
     if key == crate::file_sync::run_log::LOG_DEPTH_KEY
         && !crate::file_sync::run_log::is_valid_depth(value)
     {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: format!("{key} must be a whole number from 0 to 100"),
         });
     }
     if !is_valid_files_value(key, value) {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: format!("{key} has no such value"),
         });
     }
     if key == BACKGROUND_KEY && !is_background_value(value) {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: format!(
                 "{key} must be a WebP data URL of at most {BACKGROUND_MAX_BYTES} bytes"
             ),
@@ -161,7 +161,7 @@ pub async fn set_pref(state: State<'_, AppState>, args: SetPrefArgs) -> Result<(
     let depth = if matches!(scope, PrefScope::Device(_))
         && key == crate::file_sync::run_log::LOG_DEPTH_KEY
     {
-        Some(value.parse().map_err(|_| HolziError::InvalidInput {
+        Some(value.parse().map_err(|_| HaexError::InvalidInput {
             reason: format!("{} must be a whole number from 0 to 100", key),
         })?)
     } else {
@@ -175,7 +175,7 @@ pub async fn set_pref(state: State<'_, AppState>, args: SetPrefArgs) -> Result<(
             }
             (scope, _) => preferences::insert_or_update(tx, scope, &key, &value)
                 .map(|_| ())
-                .map_err(HolziError::from),
+                .map_err(HaexError::from),
         };
         Ok(result)
     })

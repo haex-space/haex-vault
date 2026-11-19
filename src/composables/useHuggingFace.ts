@@ -179,7 +179,7 @@ export function useHuggingFace() {
 }
 
 /**
- * Maps a structured `HolziError`-shaped rejection from any HF command to
+ * Maps a structured `HaexError`-shaped rejection from any HF command to
  * an i18n key under `errors.hf.*`. Backend errors carry no localized text
  * (`serde(tag = "kind")` only) — this is the one place that translates the
  * machine-readable `kind` into a UI-facing message key, mirroring the
@@ -252,7 +252,7 @@ export function isDownloadCancelled(e: unknown): boolean {
 
 /**
  * Returns the backend's technical reason when Tauri rejected with a
- * structured HolziError. Tauri can deliver that error either as an object or
+ * structured HaexError. Tauri can deliver that error either as an object or
  * as a JSON string, so both forms are accepted here.
  */
 export function hfErrorDetail(e: unknown): string | null {

@@ -17,12 +17,12 @@ fn everything(options: &ContactShareOptions) -> ContactShareSelection {
         organization: options.head.organization.is_some(),
         job_title: options.head.job_title.is_some(),
         note: options.head.note.is_some(),
-        holzi: match &options.holzi {
-            ContactShareHolzi::None => ContactShareHolziChoice::None,
-            ContactShareHolzi::Card { .. } => ContactShareHolziChoice::Card,
-            ContactShareHolzi::Own {
+        haex: match &options.haex {
+            ContactShareHaex::None => ContactShareHaexChoice::None,
+            ContactShareHaex::Card { .. } => ContactShareHaexChoice::Card,
+            ContactShareHaex::Own {
                 devices, relays, ..
-            } => ContactShareHolziChoice::Own {
+            } => ContactShareHaexChoice::Own {
                 devices: devices
                     .iter()
                     .map(|device| device.device_pubkey.clone())
@@ -41,7 +41,7 @@ fn nothing() -> ContactShareSelection {
         organization: false,
         job_title: false,
         note: false,
-        holzi: ContactShareHolziChoice::None,
+        haex: ContactShareHaexChoice::None,
     }
 }
 
@@ -164,12 +164,12 @@ async fn the_own_card_carries_only_the_chosen_devices_and_relays() {
     let vault = card_vault();
     let own = crate::contacts::ids::SELF_CONTACT_ID;
     let options = options_of(&vault, own).await;
-    let ContactShareHolzi::Own {
+    let ContactShareHaex::Own {
         can_sign,
         devices,
         relays,
         ..
-    } = &options.holzi
+    } = &options.haex
     else {
         panic!("the own contact offers the own addresses");
     };
@@ -188,7 +188,7 @@ async fn the_own_card_carries_only_the_chosen_devices_and_relays() {
     assert!(card.values.is_empty());
 
     let identity_only = ContactShareSelection {
-        holzi: ContactShareHolziChoice::Own {
+        haex: ContactShareHaexChoice::Own {
             devices: vec![],
             relays: vec![],
         },
@@ -201,7 +201,7 @@ async fn the_own_card_carries_only_the_chosen_devices_and_relays() {
     assert!(card.devices.is_empty() && card.nostr_relays.is_empty());
 
     let one_relay = ContactShareSelection {
-        holzi: ContactShareHolziChoice::Own {
+        haex: ContactShareHaexChoice::Own {
             devices: vec![],
             relays: vec![relays[0].clone()],
         },
@@ -245,7 +245,7 @@ async fn the_own_contact_without_a_name_shares_the_npub_as_its_name() {
 }
 
 #[tokio::test]
-async fn the_own_holzi_values_are_never_rows() {
+async fn the_own_haex_values_are_never_rows() {
     let vault = card_vault();
     let own = crate::contacts::ids::SELF_CONTACT_ID;
     vault
@@ -259,7 +259,7 @@ async fn the_own_holzi_values_are_never_rows() {
                     upsert: vec![
                         ValueUpsert {
                             id: None,
-                            kind: "holzi_nostr_relay".to_owned(),
+                            kind: "haex_nostr_relay".to_owned(),
                             label: "other".to_owned(),
                             value: "wss://typed.example.org".to_owned(),
                             position: None,
@@ -293,9 +293,9 @@ fn a_linked_device_shares_without_a_card_and_says_so() {
         options(r, own).map_err(haex_crdt::Error::from)
     })
     .expect("options");
-    let ContactShareHolzi::Own {
+    let ContactShareHaex::Own {
         can_sign, devices, ..
-    } = &options.holzi
+    } = &options.haex
     else {
         panic!("the own addresses are offered");
     };
@@ -303,7 +303,7 @@ fn a_linked_device_shares_without_a_card_and_says_so() {
     assert!(devices.is_empty());
 
     let selection = ContactShareSelection {
-        holzi: ContactShareHolziChoice::Own {
+        haex: ContactShareHaexChoice::Own {
             devices: vec![],
             relays: vec![],
         },
@@ -325,7 +325,7 @@ async fn nothing_to_share_is_refused_and_options_say_so() {
     assert!(!options.can_share);
     assert!(matches!(
         share(&vault, own, everything(&options)).await,
-        Err(HolziError::ShareInvalid { .. })
+        Err(HaexError::ShareInvalid { .. })
     ));
 
     // A contact known only by a number has no name; with nothing chosen there is nothing.
@@ -345,7 +345,7 @@ async fn nothing_to_share_is_refused_and_options_say_so() {
     assert!(options_of(&vault, &id).await.can_share);
     assert!(matches!(
         share(&vault, &id, nothing()).await,
-        Err(HolziError::ShareInvalid { .. })
+        Err(HaexError::ShareInvalid { .. })
     ));
 }
 
@@ -372,12 +372,12 @@ async fn a_value_of_another_contact_or_a_foreign_device_is_refused() {
     };
     assert!(matches!(
         share(&vault, &mine, foreign).await,
-        Err(HolziError::ShareInvalid { .. })
+        Err(HaexError::ShareInvalid { .. })
     ));
 
     let own = crate::contacts::ids::SELF_CONTACT_ID;
     let stranger = ContactShareSelection {
-        holzi: ContactShareHolziChoice::Own {
+        haex: ContactShareHaexChoice::Own {
             devices: vec![hex(&[9; 32])],
             relays: vec![],
         },
@@ -385,10 +385,10 @@ async fn a_value_of_another_contact_or_a_foreign_device_is_refused() {
     };
     assert!(matches!(
         share(&vault, own, stranger).await,
-        Err(HolziError::ShareInvalid { .. })
+        Err(HaexError::ShareInvalid { .. })
     ));
     let not_hex = ContactShareSelection {
-        holzi: ContactShareHolziChoice::Own {
+        haex: ContactShareHaexChoice::Own {
             devices: vec!["zz".to_owned()],
             relays: vec![],
         },
@@ -396,12 +396,12 @@ async fn a_value_of_another_contact_or_a_foreign_device_is_refused() {
     };
     assert!(share(&vault, own, not_hex).await.is_err());
     let card_for_a_contact_without_one = ContactShareSelection {
-        holzi: ContactShareHolziChoice::Card,
+        haex: ContactShareHaexChoice::Card,
         ..nothing()
     };
     assert!(matches!(
         share(&vault, &mine, card_for_a_contact_without_one).await,
-        Err(HolziError::ShareInvalid { .. })
+        Err(HaexError::ShareInvalid { .. })
     ));
 }
 
@@ -472,7 +472,7 @@ async fn a_share_over_the_limit_is_too_large_and_the_qr_code_only_fits_a_short_o
     let options = options_of(&vault, &huge).await;
     assert!(matches!(
         share(&vault, &huge, everything(&options)).await,
-        Err(HolziError::ShareTooLarge)
+        Err(HaexError::ShareTooLarge)
     ));
 }
 
@@ -503,12 +503,12 @@ async fn a_foreign_contact_shares_its_original_card_unchanged_and_the_row_can_be
         .await
         .expect("accept");
     let options = options_of(&mara, &contact.id).await;
-    let ContactShareHolzi::Card {
+    let ContactShareHaex::Card {
         npub,
         devices,
         relays,
         ..
-    } = &options.holzi
+    } = &options.haex
     else {
         panic!("a contact with a stored card offers one row");
     };
@@ -531,7 +531,7 @@ async fn a_foreign_contact_shares_its_original_card_unchanged_and_the_row_can_be
     assert_eq!(with.card.expect("valid").card.vault, stored.card.vault);
 
     let mut without = everything(&options);
-    without.holzi = ContactShareHolziChoice::None;
+    without.haex = ContactShareHaexChoice::None;
     let without = read(&share(&mara, &contact.id, without).await.expect("share"));
     assert!(without.envelope.card.is_none());
 }
@@ -541,7 +541,7 @@ async fn a_contact_without_addresses_shares_like_any_other_without_an_error() {
     let vault = test_vault();
     let id = anna(&vault).await;
     let options = options_of(&vault, &id).await;
-    assert_eq!(options.holzi, ContactShareHolzi::None);
+    assert_eq!(options.haex, ContactShareHaex::None);
     let read = read(
         &share(&vault, &id, everything(&options))
             .await
@@ -584,7 +584,7 @@ async fn a_nameless_contact_with_a_card_gets_the_npub_as_its_name() {
 }
 
 #[tokio::test]
-async fn values_of_an_unknown_kind_travel_unchanged_and_a_hand_typed_holzi_address_is_a_row() {
+async fn values_of_an_unknown_kind_travel_unchanged_and_a_hand_typed_haex_address_is_a_row() {
     let vault = test_vault();
     let id = anna(&vault).await;
     let there = id.clone();
@@ -595,7 +595,7 @@ async fn values_of_an_unknown_kind_travel_unchanged_and_a_hand_typed_holzi_addre
             crate::contacts::store::insert_value(
                 tx,
                 &there,
-                "holzi_nostr_relay",
+                "haex_nostr_relay",
                 "other",
                 "wss://typed.example.org",
                 10,
@@ -617,7 +617,7 @@ async fn values_of_an_unknown_kind_travel_unchanged_and_a_hand_typed_holzi_addre
         .map(|v| (v.kind.as_str(), v.value.as_str()))
         .collect();
     assert!(values.contains(&("telepathy", "think")));
-    assert!(values.contains(&("holzi_nostr_relay", "wss://typed.example.org")));
+    assert!(values.contains(&("haex_nostr_relay", "wss://typed.example.org")));
     assert!(read.card.is_none(), "typed addresses confirm nothing");
 }
 
@@ -637,7 +637,7 @@ async fn a_stored_card_that_fails_its_check_is_not_offered() {
         })
         .expect("break the row");
     assert_eq!(
-        options_of(&mara, &contact.id).await.holzi,
-        ContactShareHolzi::None
+        options_of(&mara, &contact.id).await.haex,
+        ContactShareHaex::None
     );
 }

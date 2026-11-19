@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use super::*;
-use crate::error::HolziError;
+use crate::error::HaexError;
 
 fn fixture() -> Vec<u8> {
     let path: PathBuf = [
@@ -87,6 +87,6 @@ fn favourites_and_totp_are_kept() {
 fn a_file_without_the_lastpass_columns_is_refused() {
     assert!(matches!(
         parse(b"x,y\n1,2\n"),
-        Err(HolziError::PasswordsImportFailed { .. })
+        Err(HaexError::PasswordsImportFailed { .. })
     ));
 }

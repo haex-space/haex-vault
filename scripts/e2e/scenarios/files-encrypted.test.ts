@@ -34,7 +34,7 @@ import { runAction } from '../lib/settings.ts'
 // the copies for system apps left after the vault closed. Needs Docker for RustFS; skipped
 // without it.
 
-const BUCKET = 'holzi-encrypted-e2e'
+const BUCKET = 'haex-encrypted-e2e'
 const NOTE = 'Hallo aus dem verschlüsselten Ordner'
 const SECRET_NAMES = ['Unterlagen', 'notiz', 'brief', 'foto', 'Belege']
 // Android's emulator needs several minutes for the deliberately large folder copy below.
@@ -120,7 +120,7 @@ scenario(
 
     const instance = await ctx.startInstance()
     await createAndUnlock(instance, { name: 'e2e-files-encrypted' })
-    const device = deviceFiles('holzi-encrypted-')
+    const device = deviceFiles('haex-encrypted-')
     ctx.onTeardown(() => device.remove())
     const png = solidPng(64, 48, [40, 120, 220])
     device.write('notiz.txt', NOTE)

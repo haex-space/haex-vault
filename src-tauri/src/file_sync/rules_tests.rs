@@ -323,7 +323,7 @@ fn a_file_that_is_not_there_is_let_through_for_a_rule_to_report() {
 }
 
 #[test]
-fn a_file_under_holzis_own_places_is_refused() {
+fn a_file_under_haexs_own_places_is_refused() {
     assert_eq!(
         code(validate(
             file_draft(device("/data/holzi/models/x.gguf"), device("/home/b")),

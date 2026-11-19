@@ -15,7 +15,7 @@ use super::agent::ContactsAgent;
 use super::model::ContactPatch;
 use crate::caller::Caller;
 use crate::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::files::agent::prompt::PermissionPrompt;
 use crate::state::AppState;
 use crate::vault_gate::VaultDb;
@@ -33,10 +33,10 @@ const HEAD_KEYS: [&str; 6] = [
 ];
 
 pub trait ContactsAgentEnv: Send + Sync {
-    fn database(&self) -> Result<VaultDb, HolziError>;
+    fn database(&self) -> Result<VaultDb, HaexError>;
 
     /// This device in the open vault: the registered agents' rows are per device.
-    fn device(&self) -> BoxFuture<'_, Result<Uuid, HolziError>>;
+    fn device(&self) -> BoxFuture<'_, Result<Uuid, HaexError>>;
 
     fn prompt(&self) -> PermissionPrompt;
 }
@@ -117,13 +117,13 @@ fn parse<T: for<'de> Deserialize<'de>>(input: Value) -> Result<T, NativeError> {
         .map_err(|error| NativeError::invalid_input(None, error.to_string()))
 }
 
-fn contacts_error(error: HolziError) -> NativeError {
+fn contacts_error(error: HaexError) -> NativeError {
     match error {
-        HolziError::ContactsNotFound | HolziError::ContactsForbidden => NativeError::new(
+        HaexError::ContactsNotFound | HaexError::ContactsForbidden => NativeError::new(
             "not_found",
             "no contact of that id is available to this agent",
         ),
-        HolziError::ContactsInvalid { reason } => NativeError::invalid_input(None, reason),
+        HaexError::ContactsInvalid { reason } => NativeError::invalid_input(None, reason),
         _ => NativeError::new("failed", "the contact action failed"),
     }
 }
@@ -222,11 +222,11 @@ impl TauriContactsAgentEnv {
 }
 
 impl ContactsAgentEnv for TauriContactsAgentEnv {
-    fn database(&self) -> Result<VaultDb, HolziError> {
+    fn database(&self) -> Result<VaultDb, HaexError> {
         self.app.state::<AppState>().database()
     }
 
-    fn device(&self) -> BoxFuture<'_, Result<Uuid, HolziError>> {
+    fn device(&self) -> BoxFuture<'_, Result<Uuid, HaexError>> {
         Box::pin(async move {
             let state = self.app.state::<AppState>();
             crate::mcp_server::commands::open_device(&self.app, &state).await

@@ -20,7 +20,7 @@ use super::codex::{build_command, build_request, read_line, write_message, Line}
 use super::process::{configure_process_group, map_spawn_error, ChildLifecycle};
 use super::DelegateVendor;
 
-const CLIENT_NAME: &str = "holzi";
+const CLIENT_NAME: &str = "haex";
 const CLIENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// The whole question, from start to answer: the program starts, the account is read, the list
 /// comes back. A slow network must not hold a vault open or a refresh forever.

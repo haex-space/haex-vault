@@ -49,7 +49,7 @@ pub struct FilesContactShares {
     pub shares: Vec<FilesReceivedShare>,
 }
 
-fn failed(error: crate::error::HolziError) -> FilesError {
+fn failed(error: crate::error::HaexError) -> FilesError {
     log::warn!("files: the shares of a contact could not be read: {error}");
     FilesError::new(
         FilesErrorCode::Unsupported,

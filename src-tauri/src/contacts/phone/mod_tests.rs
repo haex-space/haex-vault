@@ -10,7 +10,7 @@ use super::*;
 use crate::contacts::model::OriginKind;
 use crate::contacts::service::test_support::{person, value};
 use crate::contacts::service::Caller;
-use crate::error::HolziError;
+use crate::error::HaexError;
 
 #[tokio::test]
 async fn no_run_while_off_and_none_before_the_overview_is_confirmed() {
@@ -19,7 +19,7 @@ async fn no_run_while_off_and_none_before_the_overview_is_confirmed() {
     assert!(
         matches!(
             rig.run(Mode::Normal),
-            Err(HolziError::ContactsInvalid { .. })
+            Err(HaexError::ContactsInvalid { .. })
         ),
         "off: no row"
     );
@@ -159,7 +159,7 @@ async fn raw_contacts_of_one_person_become_one_contact_with_every_value_once() {
 #[tokio::test]
 async fn a_clear_match_merges_and_keeps_the_older_origin() {
     let rig = Rig::new();
-    let holzi = rig
+    let haex = rig
         .vault
         .service
         .create(
@@ -190,8 +190,8 @@ async fn a_clear_match_merges_and_keeps_the_older_origin() {
     let summary = rig.run(Mode::First(&[])).expect("first run");
     assert_eq!(summary.counts.merged, 1);
     assert_eq!(rig.headers().len(), 1);
-    let contact = rig.contact(&holzi.id);
-    assert_eq!(contact.origin.kind, OriginKind::Holzi, "FR-018a");
+    let contact = rig.contact(&haex.id);
+    assert_eq!(contact.origin.kind, OriginKind::Haex, "FR-018a");
     assert!(contact
         .values
         .iter()
@@ -208,7 +208,7 @@ async fn a_clear_match_merges_and_keeps_the_older_origin() {
     let target = rig
         .targets()
         .into_iter()
-        .find(|target| target.contact_id == holzi.id)
+        .find(|target| target.contact_id == haex.id)
         .expect("FR-018b");
     assert_eq!(target.account_type, GOOGLE.0);
     assert_eq!(
@@ -229,7 +229,7 @@ async fn a_clear_match_merges_and_keeps_the_older_origin() {
 #[tokio::test]
 async fn an_uncertain_pair_stays_apart_unless_the_person_merges_it() {
     let rig = Rig::new();
-    let holzi = rig
+    let haex = rig
         .vault
         .service
         .create(
@@ -244,7 +244,7 @@ async fn an_uncertain_pair_stays_apart_unless_the_person_merges_it() {
     rig.enable();
     let review = rig.review();
     assert_eq!(review.uncertain.len(), 1);
-    assert_eq!(review.uncertain[0].contact_id, holzi.id);
+    assert_eq!(review.uncertain[0].contact_id, haex.id);
 
     let decided = [PairDecision {
         pair_id: review.uncertain[0].id.clone(),

@@ -20,7 +20,7 @@ use super::hello::RejectReason;
 use super::registry::{self, AgentKind, AgentMode, AgentStatus, Credential};
 use super::server::Core;
 use super::session::SessionAgent;
-use crate::adapters::cli_delegate::holzi_mcp::{HolziAccess, HolziServer};
+use crate::adapters::cli_delegate::haex_mcp::{HaexAccess, HaexServer};
 use crate::adapters::cli_delegate::DelegateVendor;
 use crate::agent_profiles::STANDARD_PROFILE_ID;
 
@@ -182,13 +182,13 @@ fn chat_mode(q: &mut impl crate::storage::query::Query) -> haex_crdt::Result<Age
 }
 
 #[async_trait]
-impl HolziAccess for DelegateHub {
+impl HaexAccess for DelegateHub {
     async fn server_for(
         &self,
         vendor: DelegateVendor,
         thread: Option<Uuid>,
         model: &str,
-    ) -> Option<HolziServer> {
+    ) -> Option<HaexServer> {
         // Every refusal below says why: a delegate without holzi's server answers that holzi's
         // tools are not available, and nothing else shows where the server was withheld.
         let Some(core) = self.core() else {
@@ -263,7 +263,7 @@ impl HolziAccess for DelegateHub {
                 .to_string_lossy()
                 .into_owned(),
         ];
-        Some(HolziServer::new(executable, args, guard))
+        Some(HaexServer::new(executable, args, guard))
     }
 }
 

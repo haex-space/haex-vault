@@ -20,7 +20,7 @@ struct Env {
 
 #[async_trait]
 impl PasswordsAgentEnv for Env {
-    fn service(&self) -> Result<PasswordsService, HolziError> {
+    fn service(&self) -> Result<PasswordsService, HaexError> {
         Ok(PasswordsService::new(self.db.clone()))
     }
 
@@ -135,10 +135,10 @@ fn the_field_names_a_password_a_code_or_a_custom_field() {
 #[test]
 fn internal_password_failures_do_not_reveal_vault_details() {
     for error in [
-        HolziError::CrdtIo {
+        HaexError::CrdtIo {
             reason: "private-vault.db could not be read".to_owned(),
         },
-        HolziError::CrdtSqlite {
+        HaexError::CrdtSqlite {
             reason: "SELECT secret FROM private_table".to_owned(),
         },
     ] {
@@ -147,10 +147,7 @@ fn internal_password_failures_do_not_reveal_vault_details() {
         assert_eq!(failure.message, "The password action failed.");
         assert!(failure.field.is_none());
     }
-    for error in [
-        HolziError::PasswordsNotFound,
-        HolziError::PasswordsForbidden,
-    ] {
+    for error in [HaexError::PasswordsNotFound, HaexError::PasswordsForbidden] {
         let failure = passwords_error(error);
         assert_eq!(failure.code, "not_found");
         assert_eq!(failure.message, no_entry().message);

@@ -20,7 +20,7 @@ use holzi_lib::browser_bridge::prompts::{
 use holzi_lib::browser_bridge::protocol::PROTOCOL_VERSION;
 use holzi_lib::browser_bridge::runtime::Notice;
 use holzi_lib::browser_bridge::server::Running;
-use holzi_lib::error::HolziError;
+use holzi_lib::error::HaexError;
 use holzi_lib::passwords::access::Caller;
 use holzi_lib::passwords::model::ItemInput;
 
@@ -340,7 +340,7 @@ async fn a_change_wider_than_the_declaration_or_for_nobody_is_refused() {
     ] {
         let refused = admin.update(wider).await;
         assert!(
-            matches!(refused, Err(HolziError::InvalidInput { .. })),
+            matches!(refused, Err(HaexError::InvalidInput { .. })),
             "{refused:?}"
         );
     }
@@ -349,11 +349,11 @@ async fn a_change_wider_than_the_declaration_or_for_nobody_is_refused() {
         .await;
     assert!(matches!(
         unknown,
-        Err(HolziError::BrowserBridgeClientNotFound)
+        Err(HaexError::BrowserBridgeClientNotFound)
     ));
     assert!(matches!(
         admin.unblock(&client.id).await,
-        Err(HolziError::BrowserBridgeClientNotFound)
+        Err(HaexError::BrowserBridgeClientNotFound)
     ));
     bridge.stop().await;
 }
@@ -380,7 +380,7 @@ async fn unblocking_asks_again_with_and_without_a_running_bridge() {
     .await;
     assert!(matches!(
         admin(&fx, Some(&bridge)).revoke(&session.id).await,
-        Err(HolziError::BrowserBridgeClientNotFound)
+        Err(HaexError::BrowserBridgeClientNotFound)
     ));
     admin(&fx, Some(&bridge))
         .unblock(&session.id)
@@ -449,7 +449,7 @@ async fn a_remembered_approval_changes_and_goes_without_a_running_bridge() {
 
     assert!(matches!(
         admin.revoke(&client.id).await,
-        Err(HolziError::BrowserBridgeClientNotFound)
+        Err(HaexError::BrowserBridgeClientNotFound)
     ));
 }
 

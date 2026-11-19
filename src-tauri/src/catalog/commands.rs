@@ -4,7 +4,7 @@
 //! model-suggestion chips (Easy / Sweet / Max). See spec 002
 //! `contracts/tauri-commands.md`.
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::hardware;
 
 use super::{recommend_tiers, TierRecommendation};
@@ -17,7 +17,7 @@ use super::{recommend_tiers, TierRecommendation};
 pub async fn catalog_recommend_tiers() -> Result<[TierRecommendation; 3]> {
     let hw = hardware::probe_async().await;
     recommend_tiers(&hw, crate::platform::capabilities().model_presets).ok_or_else(|| {
-        HolziError::CatalogEntryNotFound {
+        HaexError::CatalogEntryNotFound {
             id: "<empty catalog>".to_string(),
         }
     })

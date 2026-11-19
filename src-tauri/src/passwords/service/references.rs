@@ -6,7 +6,7 @@
 use haex_crdt::rusqlite::params;
 
 use super::{require_user, PasswordsService};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::passwords::access::Caller;
 use crate::passwords::model_references::{RefMark, RefMarkKind, ReferenceUsage};
 use crate::passwords::references::{build_token, RefKind};
@@ -37,7 +37,7 @@ impl PasswordsService {
             RefMarkKind::Password => RefKind::Password,
             RefMarkKind::Extra => {
                 RefKind::Extra(key.filter(|k| !k.is_empty()).ok_or_else(|| {
-                    HolziError::InvalidInput {
+                    HaexError::InvalidInput {
                         reason: "key".to_string(),
                     }
                 })?)
@@ -54,10 +54,10 @@ impl PasswordsService {
                     .unwrap_or(0)
                     > 0;
                 if !exists {
-                    return Err(HolziError::PasswordsNotFound.into());
+                    return Err(HaexError::PasswordsNotFound.into());
                 }
                 build_token(&item_id, &kind)
-                    .ok_or(HolziError::PasswordsNotFound)
+                    .ok_or(HaexError::PasswordsNotFound)
                     .map_err(Into::into)
             })
             .await

@@ -77,7 +77,7 @@ fn a_value_outside_its_bounds_is_refused_and_nothing_changes() {
     ] {
         assert!(matches!(
             set(&vault, ext, limits),
-            Err(HolziError::InvalidInput { .. })
+            Err(HaexError::InvalidInput { .. })
         ));
     }
     assert_eq!(get(&vault, ext).unwrap().values, defaults);
@@ -89,10 +89,10 @@ fn a_removed_extension_has_no_limits_to_show_or_change() {
     remove(&vault, ext, false, 2).unwrap();
     assert!(matches!(
         get(&vault, ext),
-        Err(HolziError::ExtensionNotFound)
+        Err(HaexError::ExtensionNotFound)
     ));
     assert!(matches!(
         set(&vault, ext, ExtensionLimits::from(Limits::default())),
-        Err(HolziError::ExtensionNotFound)
+        Err(HaexError::ExtensionNotFound)
     ));
 }

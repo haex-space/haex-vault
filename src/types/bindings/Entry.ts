@@ -21,7 +21,7 @@ noAccess: boolean,
 /**
  * In one of holzi's own places: read-only for the user (FR-037).
  */
-holziOwned: boolean,
+haexOwned: boolean,
 /**
  * An encrypted folder or an entry in one (spec 048).
  */

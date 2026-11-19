@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::contacts::card::format::{self, SignedCard};
 use crate::contacts::kinds;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// What a share's text starts with (spec 054: the app's name as the scheme).
 pub const PREFIX_LINK: &str = "haex-vault://contact/";
@@ -93,8 +93,8 @@ pub struct Decoded {
     pub legacy_card: bool,
 }
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::ShareInvalid {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::ShareInvalid {
         reason: reason.to_owned(),
     }
 }
@@ -142,14 +142,14 @@ fn check_limits(envelope: &ShareEnvelope) -> Result<()> {
     Ok(())
 }
 
-/// The text of an envelope. Over [`MAX_SHARE_TEXT`] characters is [`HolziError::ShareTooLarge`];
+/// The text of an envelope. Over [`MAX_SHARE_TEXT`] characters is [`HaexError::ShareTooLarge`];
 /// nothing is cut off.
 pub fn encode(envelope: &ShareEnvelope) -> Result<String> {
     check_limits(envelope)?;
     let bytes = postcard::to_stdvec(envelope).map_err(|_| invalid("not encodable"))?;
     let text = format!("{PREFIX_LINK}{}", URL_SAFE_NO_PAD.encode(bytes));
     if text.len() > MAX_SHARE_TEXT {
-        return Err(HolziError::ShareTooLarge);
+        return Err(HaexError::ShareTooLarge);
     }
     Ok(text)
 }
@@ -160,7 +160,7 @@ pub fn fits_qr(text: &str) -> bool {
 }
 
 /// Reads a text: a share, or a `holzi:card:` of spec 051. `own_vault` is this vault's identity; a
-/// card of it is [`HolziError::CardOwn`]. Only a form error rejects the envelope (FR-022); a detail
+/// card of it is [`HaexError::CardOwn`]. Only a form error rejects the envelope (FR-022); a detail
 /// that does not validate is left out and counted.
 pub fn decode(text: &str, own_vault: &[u8; 32]) -> Result<Decoded> {
     let text = text.trim();
@@ -201,7 +201,7 @@ pub fn decode(text: &str, own_vault: &[u8; 32]) -> Result<Decoded> {
 
 fn own_check(card: SignedCard, own_vault: &[u8; 32]) -> Result<SignedCard> {
     if &card.card.vault == own_vault {
-        return Err(HolziError::CardOwn);
+        return Err(HaexError::CardOwn);
     }
     Ok(card)
 }

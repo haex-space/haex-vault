@@ -70,12 +70,12 @@ async fn the_rule_trash_keeps_the_path_and_rename_makes_folders() {
     let trashed = place.trash("a/x.txt", "run1").await.unwrap();
     assert_eq!(
         trashed,
-        Trashed::Rule(".holzi-trash/run1/a/x.txt".to_owned())
+        Trashed::Rule(".haex-trash/run1/a/x.txt".to_owned())
     );
-    assert!(root.join(".holzi-trash/run1/a/x.txt").is_file());
+    assert!(root.join(".haex-trash/run1/a/x.txt").is_file());
     assert!(!root.join("a/x.txt").exists());
     place
-        .rename(".holzi-trash/run1/a/x.txt", "b/c/x.txt")
+        .rename(".haex-trash/run1/a/x.txt", "b/c/x.txt")
         .await
         .unwrap();
     assert!(root.join("b/c/x.txt").is_file());
@@ -86,7 +86,7 @@ async fn a_failed_move_into_the_trash_leaves_the_original() {
     let (_dir, root) = folder();
     std::fs::write(root.join("x.txt"), "x").unwrap();
     // A file where the rule trash would be.
-    std::fs::write(root.join(".holzi-trash"), "im Weg").unwrap();
+    std::fs::write(root.join(".haex-trash"), "im Weg").unwrap();
     let place = DevicePlace::with_rule_trash(&root);
     assert!(place.trash("x.txt", "run1").await.is_err());
     assert!(root.join("x.txt").is_file());

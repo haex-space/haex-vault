@@ -66,7 +66,7 @@ export interface InstalledModel {
   capabilities: ModelCapabilities | null
 }
 
-/** The three `HolziError` discriminants a pre-load integrity check can fail with. */
+/** The three `HaexError` discriminants a pre-load integrity check can fail with. */
 export type ModelIntegrityErrorKind =
   'ModelIntegrityMismatch' | 'ModelIntegrityUnknown' | 'ModelIntegrityError'
 
@@ -83,8 +83,8 @@ export interface ModelIntegrityFailure {
  * narrows it to the dialog's state, or returns `null` when the rejection
  * was something else and the caller should surface its own error.
  *
- * `HolziError` is serialized with `#[serde(tag = "kind")]` only — no
- * `rename_all`, so the hash fields arrive snake_cased (HolziError.ts).
+ * `HaexError` is serialized with `#[serde(tag = "kind")]` only — no
+ * `rename_all`, so the hash fields arrive snake_cased (HaexError.ts).
  */
 export function parseModelIntegrityFailure(
   modelId: string,

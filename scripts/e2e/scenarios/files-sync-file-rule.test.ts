@@ -14,8 +14,8 @@ const FILE = 'Haushalt.ods'
 type View = { rule: { name: string }; status: { state: string } }
 
 scenario('files-sync-file-rule', { timeoutMs: 180_000 }, async (ctx) => {
-  const source = deviceFiles('holzi-file-rule-a-')
-  const target = deviceFiles('holzi-file-rule-b-')
+  const source = deviceFiles('haex-file-rule-a-')
+  const target = deviceFiles('haex-file-rule-b-')
   try {
     const instance = await ctx.startInstance()
     await createAndUnlock(instance, { name: 'e2e-files-file-rule' })

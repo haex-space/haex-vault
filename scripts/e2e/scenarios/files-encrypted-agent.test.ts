@@ -31,7 +31,7 @@ import { connectStorage } from '../lib/storage-setup.ts'
 // Cloud-Modelle" it covers local models only, so the cloud model is asked once more. The settings
 // list the remembered answer, and a revoke removes it. Needs Docker for RustFS; skipped without it.
 
-const BUCKET = 'holzi-encrypted-agent-e2e'
+const BUCKET = 'haex-encrypted-agent-e2e'
 const LETTER = 'Steuerbescheid für Anna, 312 Euro'
 
 type Message = { role: string; content: unknown }
@@ -156,7 +156,7 @@ scenario(
   async (ctx) => {
     const rustfs = await startRustfs([BUCKET])
     ctx.onTeardown(() => rustfs.stop())
-    const device = deviceFiles('holzi-encrypted-agent-')
+    const device = deviceFiles('haex-encrypted-agent-')
     ctx.onTeardown(() => device.remove())
 
     const instance = await ctx.startInstance()

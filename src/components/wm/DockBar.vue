@@ -64,7 +64,7 @@ const firstRunning = computed(() =>
 
 // ponytail: native drag and drop works with a mouse only; on touch a long press opens the menu,
 // so entries are sorted in the settings there (research R8). Upgrade path: pointer-event sorting.
-const DRAG_MIME = 'application/x-holzi-dock-item'
+const DRAG_MIME = 'application/x-haex-dock-item'
 const dock = useDock()
 
 /** Only stored entries move; a running app that is not pinned has no place to move to. */

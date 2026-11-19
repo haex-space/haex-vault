@@ -32,7 +32,7 @@ fn link(contact_id: &str, raw: i64, version: i64) -> Link {
         version,
         read_only: false,
         base: Base {
-            holzi_updated_at: "t".to_owned(),
+            haex_updated_at: "t".to_owned(),
             ..Base::default()
         },
         photo_base: None,
@@ -57,7 +57,7 @@ async fn a_link_is_updated_in_place_and_remembered_on_this_phone() {
         .expect("read");
     assert_eq!(links.len(), 1);
     assert_eq!(links[0].version, 5);
-    assert_eq!(links[0].base.holzi_updated_at, "t");
+    assert_eq!(links[0].base.haex_updated_at, "t");
     assert_eq!(known.get(&42), Some(&anna));
 }
 

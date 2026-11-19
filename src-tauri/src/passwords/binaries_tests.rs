@@ -18,7 +18,7 @@ use super::items;
 use super::model::ItemInput;
 use super::test_support::open_test_vault;
 use super::ATTACHMENT_LIMIT_BYTES;
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::files::test_support::{picked, PathOpener};
 use crate::storage::query;
 
@@ -29,14 +29,14 @@ fn write<R>(
     f: impl FnOnce(&mut haex_crdt::CrdtTransaction<'_>) -> crate::error::Result<R>,
 ) -> crate::error::Result<R> {
     db.write(|tx| f(tx).map_err(haex_crdt::Error::from))
-        .map_err(HolziError::from)
+        .map_err(HaexError::from)
 }
 
 fn read<R>(
     db: &Database,
     f: impl FnOnce(&mut query::Reader<'_, '_>) -> crate::error::Result<R>,
 ) -> crate::error::Result<R> {
-    query::read(db, |q| f(q).map_err(haex_crdt::Error::from)).map_err(HolziError::from)
+    query::read(db, |q| f(q).map_err(haex_crdt::Error::from)).map_err(HaexError::from)
 }
 
 fn item(db: &Database) -> String {
@@ -95,7 +95,7 @@ fn an_empty_attachment_is_refused() {
     let (_dir, db) = open_test_vault();
     let id = item(&db);
     let result = write(&db, |tx| add_bytes(tx, &id, "empty.txt", b""));
-    assert!(matches!(result, Err(HolziError::InvalidInput { reason }) if reason == "empty"));
+    assert!(matches!(result, Err(HaexError::InvalidInput { reason }) if reason == "empty"));
     assert_eq!(
         count(&db, "SELECT COUNT(*) FROM haex_passwords_binaries"),
         0
@@ -114,7 +114,7 @@ fn a_file_above_the_limit_is_refused_before_it_is_read() {
     assert!(
         matches!(
             result,
-            Err(HolziError::PasswordsAttachmentTooLarge { bytes, limit })
+            Err(HaexError::PasswordsAttachmentTooLarge { bytes, limit })
                 if bytes == ATTACHMENT_LIMIT_BYTES + 1 && limit == ATTACHMENT_LIMIT_BYTES
         ),
         "{result:?}"
@@ -134,11 +134,11 @@ fn an_empty_or_missing_file_is_invalid_input() {
     std::fs::File::create(&empty).expect("create");
     assert!(matches!(
         read_attachment_file(&PathOpener::default(), &picked(&empty)),
-        Err(HolziError::InvalidInput { reason }) if reason == "empty"
+        Err(HaexError::InvalidInput { reason }) if reason == "empty"
     ));
     assert!(matches!(
         read_attachment_file(&PathOpener::default(), &picked(&dir.path().join("missing"))),
-        Err(HolziError::InvalidInput { reason }) if reason == "unreadable"
+        Err(HaexError::InvalidInput { reason }) if reason == "unreadable"
     ));
 }
 
@@ -388,7 +388,7 @@ fn the_data_is_read_by_its_own_query_and_saved_byte_for_byte() {
         .expect("exists");
     assert_eq!(detail.attachments.len(), 2);
     let missing = read(&db, |q| attachment_data(q, "nope").map(|_| ()));
-    assert!(matches!(missing, Err(HolziError::PasswordsNotFound)));
+    assert!(matches!(missing, Err(HaexError::PasswordsNotFound)));
 }
 
 #[test]
@@ -416,6 +416,6 @@ fn only_images_can_be_previewed() {
     }
     let refused = read(&db, |q| preview_bytes(q, &pdf.id).map(|_| ()));
     assert!(
-        matches!(refused, Err(HolziError::InvalidInput { reason }) if reason == "not_previewable")
+        matches!(refused, Err(HaexError::InvalidInput { reason }) if reason == "not_previewable")
     );
 }

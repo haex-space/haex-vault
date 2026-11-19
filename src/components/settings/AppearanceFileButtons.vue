@@ -40,7 +40,7 @@ async function exportAsync() {
   busy.value = true
   try {
     const path = await save({
-      defaultPath: 'holzi.holzi-appearance.json',
+      defaultPath: 'holzi.haex-appearance.json',
       filters: await filtersAsync(),
     })
     if (!path) return

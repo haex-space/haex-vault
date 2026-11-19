@@ -8,9 +8,9 @@
 //! [`super::migrations_storage`]): ids derive from what makes a row unique
 //! (`files::share::store::share_id`, `grant_id`, `received_id`). The switch lives in a `_no_sync`
 //! table so no other device can turn it back on (research R12). New CRDT tables raise
-//! [`super::migrations::HOLZI_TRIGGER_VERSION`].
+//! [`super::migrations::HAEX_TRIGGER_VERSION`].
 
-/// The migration `0039_file_shares`; registered in [`super::migrations::holzi_migration_source`].
+/// The migration `0039_file_shares`; registered in [`super::migrations::haex_migration_source`].
 pub const FILE_SHARES_0039: &str = r#"CREATE TABLE haex_file_shares (
   id TEXT PRIMARY KEY NOT NULL,
   vault_device_uuid TEXT NOT NULL REFERENCES known_devices(vault_device_uuid) ON DELETE CASCADE,

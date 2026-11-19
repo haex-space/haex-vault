@@ -12,7 +12,7 @@
 
 use super::client::AuthHeader;
 use super::model::{MarketplaceAuthType, MarketplaceCredentialsState, MarketplaceNewCredentials};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::passwords::access::{Caller, Grant, GrantAction, Scope};
 use crate::passwords::model::{ItemInput, SecretItem};
 use crate::passwords::service::PasswordsService;
@@ -98,7 +98,7 @@ pub async fn read(
         .await
     {
         Ok(item) => Ok(header_of(&item, auth_type).map_or(Login::Missing, Login::Ready)),
-        Err(HolziError::PasswordsNotFound) => Ok(match state(db, auth_type, item_id).await? {
+        Err(HaexError::PasswordsNotFound) => Ok(match state(db, auth_type, item_id).await? {
             MarketplaceCredentialsState::Syncing => Login::Syncing,
             _ => Login::Missing,
         }),
@@ -121,7 +121,7 @@ pub async fn create(
     typed: &MarketplaceNewCredentials,
 ) -> Result<String> {
     if header_of_typed(typed, auth_type).is_none() {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "marketplace credentials".to_owned(),
         });
     }
@@ -161,7 +161,7 @@ pub async fn delete(passwords: &PasswordsService, item_id: &str) -> Result<()> {
         .delete_owned_item(&CALLER, item_id.to_owned())
         .await
     {
-        Ok(()) | Err(HolziError::PasswordsNotFound) => Ok(()),
+        Ok(()) | Err(HaexError::PasswordsNotFound) => Ok(()),
         Err(error) => Err(error),
     }
 }

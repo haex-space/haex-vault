@@ -54,7 +54,7 @@ impl CanonicalPcm {
 /// STT-facing error taxonomy — the transcription analogue of
 /// [`crate::adapters::AdapterError`], narrowed to what a transcription
 /// backend can fail with. `stop_voice_recording` maps every variant to
-/// `HolziError::TranscriptionFailed { reason }` (contracts/tauri-commands.md)
+/// `HaexError::TranscriptionFailed { reason }` (contracts/tauri-commands.md)
 /// — the distinction between variants matters inside an adapter (e.g.
 /// deciding whether a failure is credential-related) but not on the wire.
 #[derive(Debug, thiserror::Error)]
@@ -96,12 +96,12 @@ pub trait SttAdapter: Send + Sync {
     }
 }
 
-impl From<SttError> for crate::error::HolziError {
+impl From<SttError> for crate::error::HaexError {
     /// Every variant collapses to `TranscriptionFailed { reason }` on the
     /// wire (contracts/tauri-commands.md `stop_voice_recording`) — the
     /// distinction between variants is for adapter-internal logic only.
     fn from(err: SttError) -> Self {
-        crate::error::HolziError::TranscriptionFailed {
+        crate::error::HaexError::TranscriptionFailed {
             reason: err.to_string(),
         }
     }

@@ -39,7 +39,7 @@ const MAX_UNPACKED: u64 = 2 * 1024 * 1024 * 1024;
 pub fn root(os: Os) -> Result<PathBuf> {
     match os {
         Os::Linux => linux_root(),
-        Os::Macos | Os::Windows => Ok(std::env::temp_dir().join("holzi-agent-browser")),
+        Os::Macos | Os::Windows => Ok(std::env::temp_dir().join("haex-agent-browser")),
     }
 }
 
@@ -49,17 +49,16 @@ fn linux_root() -> Result<PathBuf> {
         .map(PathBuf::from)
         .filter(|dir| dir.is_absolute())
     {
-        let root = runtime_dir.join("holzi-agent-browser");
+        let root = runtime_dir.join("haex-agent-browser");
         if ensure_private_root(&root).is_ok() {
             return Ok(root);
         }
     }
 
-    // `/tmp/holzi-agent-browser` would be shared by every local account. Use a per-user directory
+    // `/tmp/haex-agent-browser` would be shared by every local account. Use a per-user directory
     // and refuse a pre-existing symlink, foreign owner, or loose mode.
-    let root = std::env::temp_dir().join(format!("holzi-agent-browser-{}", unsafe {
-        libc::geteuid()
-    }));
+    let root =
+        std::env::temp_dir().join(format!("haex-agent-browser-{}", unsafe { libc::geteuid() }));
     ensure_private_root(&root)?;
     Ok(root)
 }

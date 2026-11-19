@@ -50,7 +50,7 @@ const ruleCount = async (instance: FlowInstance) =>
     .length
 
 scenario('files-sync-rule-menu', { timeoutMs: 180_000 }, async (ctx) => {
-  const files = deviceFiles('holzi-rule-menu-')
+  const files = deviceFiles('haex-rule-menu-')
   try {
     const instance = await ctx.startInstance()
     await createAndUnlock(instance, { name: 'e2e-files-rule-menu' })
@@ -159,8 +159,8 @@ scenario('files-sync-rule-menu', { timeoutMs: 180_000 }, async (ctx) => {
       sources.known[0]
     assert.ok(root, 'the device has a known place for the target picker')
     for (const [entry, kind, targetName] of [
-      ['alpha', 'folder', 'holzi-menu-folder-target'],
-      [FILE, 'file', 'holzi-menu-file-target'],
+      ['alpha', 'folder', 'haex-menu-folder-target'],
+      [FILE, 'file', 'haex-menu-file-target'],
     ] as const) {
       const target = unwrap<{ path: string }>(
         'files_create_folder',

@@ -19,7 +19,7 @@ const { t } = useI18n()
 const fieldLabels = useFieldLabels()
 
 /** The value of "something else"; an option's value is an app id or the agent's text. */
-const OTHER = '__holzi_other_answer__'
+const OTHER = '__haex_other_answer__'
 const selected = ref<string | null>(null)
 const otherText = ref('')
 

@@ -14,7 +14,7 @@ use super::service_tests::{count, entries, input, ops, setup, typed};
 use super::sftp::{keys, test_server, SftpStore};
 use super::test_support::{resolver, vault, FakeStore, Op};
 use super::{Addressing, CredentialsState, Protocol, ProviderKind, StorageError, TestOutcome};
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::passwords::access::Caller;
 use crate::passwords::model::{ItemInput, KeyValueInput, Target, TargetKind};
 use crate::passwords::service::PasswordsService;
@@ -109,7 +109,7 @@ async fn a_failed_test_with_a_chosen_entry_saves_nothing() {
         .expect_err("refused");
     assert!(matches!(
         error,
-        HolziError::StorageTestFailed {
+        HaexError::StorageTestFailed {
             outcome: TestOutcome::AccessDenied,
             ..
         }
@@ -125,8 +125,8 @@ async fn a_failed_test_with_a_chosen_entry_saves_nothing() {
 #[tokio::test]
 async fn an_entry_that_is_not_there_or_does_not_fit_is_refused_before_any_test() {
     let s = setup();
-    let unavailable = |result: Result<_, HolziError>| match result {
-        Err(HolziError::StorageCredentialsUnavailable { state }) => state,
+    let unavailable = |result: Result<_, HaexError>| match result {
+        Err(HaexError::StorageCredentialsUnavailable { state }) => state,
         other => panic!("unexpected {other:?}"),
     };
     assert_eq!(
@@ -165,7 +165,7 @@ async fn an_entry_that_is_not_there_or_does_not_fit_is_refused_before_any_test()
         .save_connection(input(None, link(&without_password)))
         .await;
     assert!(
-        matches!(refused, Err(HolziError::StorageInvalid { ref field }) if field == "credentials"),
+        matches!(refused, Err(HaexError::StorageInvalid { ref field }) if field == "credentials"),
         "{refused:?}"
     );
     assert_eq!(ops(&s.fake), 0, "no test without credentials");
@@ -211,7 +211,7 @@ async fn a_new_link_replaces_the_old_one_only_after_a_passed_test() {
 }
 
 #[tokio::test]
-async fn an_entry_holzi_created_for_one_connection_serves_another() {
+async fn an_entry_haex_created_for_one_connection_serves_another() {
     let s = setup();
     s.service
         .save_connection(input(None, Some(typed())))

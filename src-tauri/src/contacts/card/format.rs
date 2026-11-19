@@ -9,7 +9,7 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::sync::keys::hex;
 use crate::sync::signing::{self, Domain};
 
@@ -82,14 +82,14 @@ impl SignedCard {
     }
 }
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::CardInvalid {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::CardInvalid {
         reason: reason.to_owned(),
     }
 }
 
 /// The limits every card keeps, on writing and on reading.
-fn check_limits(card: &ContactCard) -> Result<(), HolziError> {
+fn check_limits(card: &ContactCard) -> Result<(), HaexError> {
     if card.version != VERSION {
         return Err(invalid("unknown version"));
     }
@@ -128,11 +128,11 @@ fn check_limits(card: &ContactCard) -> Result<(), HolziError> {
     Ok(())
 }
 
-fn encode(card: &ContactCard, secret: &[u8; 32]) -> Result<Vec<u8>, HolziError> {
+fn encode(card: &ContactCard, secret: &[u8; 32]) -> Result<Vec<u8>, HaexError> {
     let payload = signing::canonical(card).map_err(|error| invalid(&error.to_string()))?;
     let signature = signing::sign(Domain::ContactCard, &payload, secret)
         .map_err(|error| invalid(&error.to_string()))?;
-    let length = u16::try_from(payload.len()).map_err(|_| HolziError::CardTooLarge)?;
+    let length = u16::try_from(payload.len()).map_err(|_| HaexError::CardTooLarge)?;
     let mut bytes = Vec::with_capacity(2 + payload.len() + 64);
     bytes.extend_from_slice(&length.to_be_bytes());
     bytes.extend_from_slice(&payload);
@@ -150,7 +150,7 @@ fn text_len(bytes: &[u8]) -> usize {
 pub fn sign(
     card: ContactCard,
     secret: &[u8; 32],
-) -> Result<(SignedCard, Vec<CardValue>), HolziError> {
+) -> Result<(SignedCard, Vec<CardValue>), HaexError> {
     sign_with(card, secret, Some(MAX_TEXT))
 }
 
@@ -160,7 +160,7 @@ pub fn sign_with(
     mut card: ContactCard,
     secret: &[u8; 32],
     max_text: Option<usize>,
-) -> Result<(SignedCard, Vec<CardValue>), HolziError> {
+) -> Result<(SignedCard, Vec<CardValue>), HaexError> {
     check_limits(&card)?;
     let mut omitted = Vec::new();
     loop {
@@ -171,14 +171,14 @@ pub fn sign_with(
         }
         match card.values.pop() {
             Some(value) => omitted.push(value),
-            None => return Err(HolziError::CardTooLarge),
+            None => return Err(HaexError::CardTooLarge),
         }
     }
 }
 
 /// Reads a card from its text or its stored bytes and checks format, limits and signature
 /// (FR-011). Whether it is the own card or an older one is the caller's check.
-pub fn parse(text: &str) -> Result<SignedCard, HolziError> {
+pub fn parse(text: &str) -> Result<SignedCard, HaexError> {
     let text = text.trim();
     let encoded = text
         .strip_prefix(PREFIX)
@@ -193,7 +193,7 @@ pub fn parse(text: &str) -> Result<SignedCard, HolziError> {
 }
 
 /// Reads a card from the bytes stored in `haex_contacts_cards` or `haex_contacts_own_card`.
-pub fn from_bytes(bytes: Vec<u8>) -> Result<SignedCard, HolziError> {
+pub fn from_bytes(bytes: Vec<u8>) -> Result<SignedCard, HaexError> {
     let [high, low, rest @ ..] = bytes.as_slice() else {
         return Err(invalid("too short"));
     };
@@ -215,9 +215,9 @@ pub fn from_bytes(bytes: Vec<u8>) -> Result<SignedCard, HolziError> {
 }
 
 /// The card's QR code as SVG, error correction M.
-pub fn qr_svg(text: &str) -> Result<String, HolziError> {
+pub fn qr_svg(text: &str) -> Result<String, HaexError> {
     let code = qrcode::QrCode::with_error_correction_level(text.as_bytes(), qrcode::EcLevel::M)
-        .map_err(|_| HolziError::CardTooLarge)?;
+        .map_err(|_| HaexError::CardTooLarge)?;
     Ok(code
         .render::<qrcode::render::svg::Color<'_>>()
         .min_dimensions(240, 240)

@@ -114,7 +114,7 @@ fn new_credentials_of_a_storage_can_be_corrected_after_a_failed_test() {
 }
 
 #[test]
-fn a_leftover_test_object_is_reported_to_holzis_window() {
+fn a_leftover_test_object_is_reported_to_haexs_window() {
     let s = setup();
     s.permit("add", "*", "granted");
     s.fake.fail_once(Op::Delete, StorageError::MissingRight);
@@ -137,7 +137,7 @@ fn a_leftover_test_object_is_reported_to_holzis_window() {
 }
 
 #[test]
-fn an_entry_chosen_in_holzis_window_makes_the_storage_without_the_extension_learning_it() {
+fn an_entry_chosen_in_haexs_window_makes_the_storage_without_the_extension_learning_it() {
     let s = setup();
     s.permit("add", "*", "granted");
     let title = "IDrive-title-leak-marker";

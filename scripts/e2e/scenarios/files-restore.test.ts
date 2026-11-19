@@ -20,8 +20,8 @@ scenario('files-restore', { timeoutMs: 240_000 }, async (ctx) => {
     'phone' in page && page.phone !== undefined
       ? process.env
       : { E2E_PLATFORM: 'linux' }
-  const notes = deviceFiles('holzi-files-restore-notes-', env)
-  const pictures = deviceFiles('holzi-files-restore-pictures-', env)
+  const notes = deviceFiles('haex-files-restore-notes-', env)
+  const pictures = deviceFiles('haex-files-restore-pictures-', env)
   ctx.onTeardown(() => notes.remove())
   ctx.onTeardown(() => pictures.remove())
   notes.write('notiz.txt', NOTE)

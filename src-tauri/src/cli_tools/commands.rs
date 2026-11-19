@@ -16,7 +16,7 @@ use super::platform::PlatformKey;
 use super::runtime::DelegateTools;
 use super::status::{self, CliToolChanged, CliToolPhase, CliToolProgress, CliToolStatus};
 use super::uses;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::models::cancel::DownloadRegistry;
 use crate::state::AppState;
 
@@ -32,15 +32,15 @@ fn ensure_available() -> Result<()> {
     if crate::platform::capabilities().cli_delegates {
         Ok(())
     } else {
-        Err(HolziError::InvalidInput {
+        Err(HaexError::InvalidInput {
             reason: "backend unavailable: platform: CLI delegates are not available on this device"
                 .into(),
         })
     }
 }
 
-fn failed(error: InstallError) -> HolziError {
-    HolziError::InvalidInput {
+fn failed(error: InstallError) -> HaexError {
+    HaexError::InvalidInput {
         reason: error.to_string(),
     }
 }
@@ -278,7 +278,7 @@ pub async fn cli_tools_revert(
         // Deleting a version touches many files.
         tokio::task::spawn_blocking(move || revert_tool(&tools, definition))
             .await
-            .map_err(|error| HolziError::InvalidInput {
+            .map_err(|error| HaexError::InvalidInput {
                 reason: format!("cli_tools.io_error: {error}"),
             })?
     };
@@ -331,7 +331,7 @@ pub async fn cli_tools_remove(
         // Deleting a tool touches many files.
         tokio::task::spawn_blocking(move || remove_tool(&tools, definition))
             .await
-            .map_err(|error| HolziError::InvalidInput {
+            .map_err(|error| HaexError::InvalidInput {
                 reason: format!("cli_tools.io_error: {error}"),
             })?
     };

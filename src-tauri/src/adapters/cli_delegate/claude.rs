@@ -29,7 +29,7 @@ use crate::cli_tools::runtime::{DelegateRuntime, RunFolder};
 
 use super::approval_bridge;
 use super::autonomy::{self, AutonomyMode};
-use super::holzi_mcp;
+use super::haex_mcp;
 use super::process::{configure_process_group, map_spawn_error, ChildLifecycle};
 use super::subagents;
 use super::{build_transcript_prompt, DelegateChatContext, DelegateVendor};
@@ -214,7 +214,7 @@ pub(super) fn parse_line(
 /// The `--mcp-config` file and whether it carries holzi's own server.
 pub(super) struct McpArgs<'a> {
     pub config: &'a Path,
-    pub holzi: bool,
+    pub haex: bool,
 }
 
 pub(super) fn build_command(
@@ -264,15 +264,15 @@ pub(super) fn build_command(
         cmd.arg("--permission-mode")
             .arg("default")
             .arg("--permission-prompt-tool")
-            .arg("mcp__holzi-approve__approve");
+            .arg("mcp__haex-approve__approve");
     }
     // The approval bridge outside `Ungated`, and holzi's own server for a registered delegate in
     // every mode (spec 021 R7).
     if let Some(mcp) = mcp {
         cmd.arg("--mcp-config").arg(mcp.config);
         // holzi asks for its own tools by the delegate's approval mode; Claude must not ask again.
-        if mcp.holzi {
-            cmd.arg("--allowedTools").arg(holzi_mcp::CLAUDE_HOLZI_TOOLS);
+        if mcp.haex {
+            cmd.arg("--allowedTools").arg(haex_mcp::CLAUDE_HAEX_TOOLS);
         }
     }
     if let Some(system_prompt_path) = system_prompt_path {
@@ -368,9 +368,8 @@ pub(super) async fn spawn_claude_invocation(
                 })?;
         }
     }
-    let holzi =
-        holzi_mcp::server_for(&context, DelegateVendor::Claude, req.thread_id, &model).await;
-    let system_prompt = holzi_mcp::with_instruction(req.system_prompt.as_deref(), holzi.is_some());
+    let haex = haex_mcp::server_for(&context, DelegateVendor::Claude, req.thread_id, &model).await;
+    let system_prompt = haex_mcp::with_instruction(req.system_prompt.as_deref(), haex.is_some());
     let system_prompt_path = system_prompt.as_deref().map(|system_prompt| {
         let path = tmp.path().join("system-prompt.txt");
         (path, system_prompt)
@@ -406,14 +405,13 @@ pub(super) async fn spawn_claude_invocation(
         (Some(socket_path), Some(listener_task))
     };
     let mcp_config_path =
-        holzi_mcp::write_claude_config(tmp.path(), approve_socket.as_deref(), holzi.as_ref())
-            .await?;
+        haex_mcp::write_claude_config(tmp.path(), approve_socket.as_deref(), haex.as_ref()).await?;
     let mut cmd = build_command(
         &runtime,
         &req.model_id,
         mcp_config_path.as_deref().map(|config| McpArgs {
             config,
-            holzi: holzi.is_some(),
+            haex: haex.is_some(),
         }),
         system_prompt_path.as_ref().map(|(path, _)| path.as_path()),
         &tmp,
@@ -559,7 +557,7 @@ pub(super) async fn spawn_claude_invocation(
         // claim on the version this run started with.
         let _tmp = tmp;
         // holzi's pass for this start ends with it.
-        let _holzi = holzi;
+        let _haex = haex;
 
         let start = Instant::now();
         let mut ttft_ms = None;

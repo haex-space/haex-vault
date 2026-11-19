@@ -13,7 +13,7 @@ use super::import::{iso8601, prepare, IconImportReport, ImportError, Prepared, M
 use super::sources::{Archive, Files, Folder, MAX_ARCHIVE_BYTES};
 use super::store::{self, NewSet};
 use super::{IconSetInfo, IconSetRef, DEFAULT_SET, SELECTION_KEY};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::files::{picked, PickedFile};
 use crate::state::AppState;
 use crate::state_utils::active_database;
@@ -30,16 +30,16 @@ pub enum IconSource {
     Folder { path: String },
 }
 
-impl From<ImportError> for HolziError {
+impl From<ImportError> for HaexError {
     fn from(error: ImportError) -> Self {
-        HolziError::InvalidInput {
+        HaexError::InvalidInput {
             reason: error.to_string(),
         }
     }
 }
 
-fn join_error(error: tauri::Error) -> HolziError {
-    HolziError::InvalidInput {
+fn join_error(error: tauri::Error) -> HaexError {
+    HaexError::InvalidInput {
         reason: format!("import task: {error}"),
     }
 }
@@ -140,7 +140,7 @@ pub fn import(
     let sets = db.read_blocking(|q| super::commands::list(q))?;
     sets.into_iter()
         .find(|info| info.set_ref == IconSetRef::Custom { id: id.clone() })
-        .ok_or_else(|| HolziError::InvalidInput {
+        .ok_or_else(|| HaexError::InvalidInput {
             reason: "the imported set is not in the list".to_owned(),
         })
 }
@@ -150,7 +150,7 @@ pub fn check_set_id(id: &str) -> Result<()> {
     if super::is_set_id(id) {
         Ok(())
     } else {
-        Err(HolziError::InvalidInput {
+        Err(HaexError::InvalidInput {
             reason: "only an own icon set can be removed".to_owned(),
         })
     }

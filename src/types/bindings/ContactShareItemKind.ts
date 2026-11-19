@@ -3,4 +3,4 @@
 /**
  * What an item of the share is.
  */
-export type ContactShareItemKind = { "type": "namePart", field: string, } | { "type": "displayName" } | { "type": "nickname" } | { "type": "organization" } | { "type": "jobTitle" } | { "type": "note" } | { "type": "value" } | { "type": "holziAddresses" };
+export type ContactShareItemKind = { "type": "namePart", field: string, } | { "type": "displayName" } | { "type": "nickname" } | { "type": "organization" } | { "type": "jobTitle" } | { "type": "note" } | { "type": "value" } | { "type": "haexAddresses" };

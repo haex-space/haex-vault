@@ -15,7 +15,7 @@ use super::*;
 /// A real, existing directory backs every `workspace_root()` call so
 /// `is_within_workspace`'s physical (symlink-resolving) containment check
 /// has something genuine to canonicalize — a bare string literal like the
-/// previous `"/tmp/holzi-invocation-abc123"` never existed on disk, which
+/// previous `"/tmp/haex-invocation-abc123"` never existed on disk, which
 /// the old lexical-only check never needed but this one does (code review:
 /// symlink-traversal fix). Shared across this module's tests via a
 /// `OnceLock`: none of them write real files under it except the dedicated

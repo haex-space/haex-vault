@@ -13,7 +13,7 @@ use super::items;
 use super::model::{HistorySecret, ItemInput};
 use super::snapshots::{self, SnapshotData};
 use super::test_support::open_test_vault;
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::storage::query;
 
 const CODE: &str = "SECRET-MARKER-history-code";
@@ -23,14 +23,14 @@ fn write<R>(
     f: impl FnOnce(&mut haex_crdt::CrdtTransaction<'_>) -> crate::error::Result<R>,
 ) -> crate::error::Result<R> {
     db.write(|tx| f(tx).map_err(haex_crdt::Error::from))
-        .map_err(HolziError::from)
+        .map_err(HaexError::from)
 }
 
 fn read<R>(
     db: &Database,
     f: impl FnOnce(&mut query::Reader<'_, '_>) -> crate::error::Result<R>,
 ) -> crate::error::Result<R> {
-    query::read(db, |q| f(q).map_err(haex_crdt::Error::from)).map_err(HolziError::from)
+    query::read(db, |q| f(q).map_err(haex_crdt::Error::from)).map_err(HaexError::from)
 }
 
 fn exec(db: &Database, sql: &str, args: &[&dyn haex_crdt::rusqlite::ToSql]) {
@@ -230,7 +230,7 @@ fn the_window_sees_code_formats_and_labels_and_reveal_hands_out_one_value() {
             &header.id,
             &HistorySecret::Code { index: 5 }
         )),
-        Err(HolziError::PasswordsNotFound)
+        Err(HaexError::PasswordsNotFound)
     ));
 }
 

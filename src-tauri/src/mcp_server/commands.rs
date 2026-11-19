@@ -16,7 +16,7 @@ use super::registry::AgentKind;
 use super::settings;
 use super::{McpRunState, McpServer};
 use crate::chat::session::ChatState;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::state::AppState;
 use crate::storage::wm_session_commands::current_device_uuid;
 
@@ -104,7 +104,7 @@ pub(crate) async fn open_device<R: Runtime>(app: &AppHandle<R>, state: &AppState
     let app = app.clone();
     tauri::async_runtime::spawn_blocking(move || current_device_uuid(&app, &db))
         .await
-        .map_err(|error| HolziError::Io {
+        .map_err(|error| HaexError::Io {
             reason: format!("device lookup: {error}"),
         })?
 }
@@ -122,7 +122,7 @@ async fn status<R: Runtime>(
                 true,
             )
         }
-        Err(HolziError::NoActiveInstance | HolziError::VaultClosed) => (false, false),
+        Err(HaexError::NoActiveInstance | HaexError::VaultClosed) => (false, false),
         Err(error) => return Err(error),
     };
     Ok(McpStatus {
@@ -151,7 +151,7 @@ pub async fn mcp_configure<R: Runtime>(
     args: McpConfigureArgs,
 ) -> Result<McpStatus> {
     if !settings::available() {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "the MCP access is not available on this device".to_owned(),
         });
     }
@@ -183,7 +183,7 @@ pub async fn mcp_registration_answer(
             .read(move |q| crate::agent_profiles::choices::exists(q, profile))
             .await?;
         if !found {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: "profile_missing".to_owned(),
             });
         }
@@ -237,12 +237,12 @@ pub async fn mcp_setup_snippet<R: Runtime>(
     let device = open_device(&app, &state).await?;
     match args.way.unwrap_or(SnippetWay::Program) {
         SnippetWay::Program if crate::platform::capabilities().mcp_helper => {
-            let executable = super::helper::executable().map_err(|error| HolziError::Io {
+            let executable = super::helper::executable().map_err(|error| HaexError::Io {
                 reason: format!("the path of holzi: {error}"),
             })?;
             Ok(snippet(args.client, &executable, device))
         }
-        SnippetWay::Program => Err(HolziError::InvalidInput {
+        SnippetWay::Program => Err(HaexError::InvalidInput {
             reason: "this device has no program way".to_owned(),
         }),
         SnippetWay::Http => {
@@ -255,7 +255,7 @@ pub async fn mcp_setup_snippet<R: Runtime>(
                         .await?
                 }
             };
-            let port = port.ok_or_else(|| HolziError::InvalidInput {
+            let port = port.ok_or_else(|| HaexError::InvalidInput {
                 reason: "the HTTP way has not run yet; turn the access on".to_owned(),
             })?;
             Ok(http_snippet(args.client, port))
@@ -267,11 +267,11 @@ pub async fn mcp_setup_snippet<R: Runtime>(
 pub fn http_snippet(client: SnippetClient, port: u16) -> String {
     let url = format!("http://127.0.0.1:{port}/mcp");
     match client {
-        SnippetClient::ClaudeCode => format!("claude mcp add --transport http holzi {url}"),
-        SnippetClient::Codex => format!("codex mcp add holzi --url {url}"),
+        SnippetClient::ClaudeCode => format!("claude mcp add --transport http haex {url}"),
+        SnippetClient::Codex => format!("codex mcp add haex --url {url}"),
         SnippetClient::Other => {
             let config = serde_json::json!({
-                "mcpServers": { "holzi": { "type": "http", "url": url } }
+                "mcpServers": { "haex": { "type": "http", "url": url } }
             });
             serde_json::to_string_pretty(&config).unwrap_or_default()
         }
@@ -283,15 +283,15 @@ pub fn snippet(client: SnippetClient, executable: &str, device: Uuid) -> String 
     let flag = super::helper::FLAG;
     match client {
         SnippetClient::ClaudeCode => {
-            format!("claude mcp add holzi -- \"{executable}\" {flag} claude-code --vault {device}")
+            format!("claude mcp add haex -- \"{executable}\" {flag} claude-code --vault {device}")
         }
         SnippetClient::Codex => {
-            format!("codex mcp add holzi -- \"{executable}\" {flag} codex --vault {device}")
+            format!("codex mcp add haex -- \"{executable}\" {flag} codex --vault {device}")
         }
         SnippetClient::Other => {
             let config = serde_json::json!({
                 "mcpServers": {
-                    "holzi": {
+                    "haex": {
                         "command": executable,
                         "args": [flag, "my-agent", "--vault", device.to_string()],
                     }
@@ -313,7 +313,7 @@ pub struct McpDelegateArgs {
 fn delegate_kind(kind: AgentKind) -> Result<AgentKind> {
     match delegates::slug_of(kind) {
         Some(_) => Ok(kind),
-        None => Err(HolziError::InvalidInput {
+        None => Err(HaexError::InvalidInput {
             reason: "no delegate".to_owned(),
         }),
     }

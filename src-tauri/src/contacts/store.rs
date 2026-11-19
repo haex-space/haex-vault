@@ -13,7 +13,7 @@ use super::ids::{self, member_id};
 use super::kinds::{self, EMAIL, PHONE};
 use super::model::{Contact, ContactHeader, Group, Head, Origin, OriginKind, Value};
 use super::targets;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
 /// The head columns in table order, matching [`Head`].
@@ -62,7 +62,7 @@ fn contact_row(r: &haex_crdt::rusqlite::Row<'_>) -> haex_crdt::rusqlite::Result<
         photo: r.get(11)?,
         origin: Origin {
             // A row of a newer version with an origin this one does not know reads as holzi.
-            kind: OriginKind::parse(&origin_kind).unwrap_or(OriginKind::Holzi),
+            kind: OriginKind::parse(&origin_kind).unwrap_or(OriginKind::Haex),
             device: r.get(13)?,
             caller: r.get(14)?,
             account: r.get(15)?,
@@ -184,7 +184,7 @@ pub fn load(q: &mut impl Query, contact_id: &str) -> Result<Contact> {
             params![contact_id],
             contact_row,
         )?
-        .ok_or(HolziError::ContactsNotFound)?;
+        .ok_or(HaexError::ContactsNotFound)?;
     let values = values_of(q, contact_id)?;
     let texts = |kind: &str| -> Vec<String> {
         values
@@ -305,7 +305,7 @@ pub fn set_head(
     value: Option<&str>,
 ) -> Result<()> {
     if !HEAD_COLUMNS.contains(&column) {
-        return Err(HolziError::ContactsInvalid {
+        return Err(HaexError::ContactsInvalid {
             reason: format!("unknown field {column}"),
         });
     }
@@ -450,7 +450,7 @@ pub fn check_groups_exist(q: &mut impl Query, groups: &BTreeSet<String>) -> Resu
             .unwrap_or(0)
             > 0;
         if !exists {
-            return Err(HolziError::ContactsInvalid {
+            return Err(HaexError::ContactsInvalid {
                 reason: "unknown group".to_owned(),
             });
         }

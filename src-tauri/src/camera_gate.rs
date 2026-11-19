@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::webview::{PermissionKind, PermissionResponse};
 use tauri::{State, Window};
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// Whether a scan is open. Managed as state; the permission handler reads it.
 #[derive(Debug, Default)]
@@ -49,7 +49,7 @@ fn require_main(window: &Window) -> Result<()> {
     if window.label() == "main" {
         Ok(())
     } else {
-        Err(HolziError::InvalidInput {
+        Err(HaexError::InvalidInput {
             reason: "the camera is only for the main window".to_string(),
         })
     }

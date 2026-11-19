@@ -24,7 +24,7 @@ use holzi_lib::passwords::model_passkeys::{
     NewPasskeyEntry, PasskeyCreated, PasskeyListRequest, PasskeyTarget, UserPresence,
 };
 use holzi_lib::passwords::passkeys::{self, PasskeyInput};
-use holzi_lib::HolziError;
+use holzi_lib::HaexError;
 
 use passkey_fixture::{
     b64, confirm_request, create_request, extension, fixture, unb64, Fixture, ORIGIN, RP,
@@ -152,10 +152,7 @@ async fn excluded_credentials_algorithms_and_user_handles_are_checked_first() {
     let mut again = create_request(&item, &[-7]);
     again.exclude_credentials = vec![created.credential_id.clone()];
     let excluded = fx.service.passkey_create(&Caller::User, &[], again).await;
-    assert!(matches!(
-        excluded,
-        Err(HolziError::PasswordsPasskeyExcluded)
-    ));
+    assert!(matches!(excluded, Err(HaexError::PasswordsPasskeyExcluded)));
 
     let rsa_only = fx
         .service
@@ -163,25 +160,25 @@ async fn excluded_credentials_algorithms_and_user_handles_are_checked_first() {
         .await;
     assert!(matches!(
         rsa_only,
-        Err(HolziError::PasswordsPasskeyUnsupportedAlgorithm)
+        Err(HaexError::PasswordsPasskeyUnsupportedAlgorithm)
     ));
 
     let mut long = create_request(&item, &[-7]);
     long.user_handle = b64(&[1u8; 65]);
     let long = fx.service.passkey_create(&Caller::User, &[], long).await;
-    assert!(matches!(long, Err(HolziError::InvalidInput { ref reason }) if reason == "userHandle"));
+    assert!(matches!(long, Err(HaexError::InvalidInput { ref reason }) if reason == "userHandle"));
 
     let mut no_item = create_request(&item, &[-7]);
     no_item.target = PasskeyTarget::Existing(String::new());
     let no_item = fx.service.passkey_create(&Caller::User, &[], no_item).await;
-    assert!(matches!(no_item, Err(HolziError::InvalidInput { ref reason }) if reason == "itemId"));
+    assert!(matches!(no_item, Err(HaexError::InvalidInput { ref reason }) if reason == "itemId"));
 
     let mut evil = create_request(&item, &[-7]);
     evil.origin = "https://example.com.evil.com".to_string();
     let evil = fx.service.passkey_create(&Caller::User, &[], evil).await;
     assert!(matches!(
         evil,
-        Err(HolziError::PasswordsPasskeyOriginMismatch)
+        Err(HaexError::PasswordsPasskeyOriginMismatch)
     ));
     assert_eq!(
         fx.count("SELECT COUNT(*) FROM haex_passwords_passkeys"),
@@ -210,7 +207,7 @@ async fn an_origin_mismatch_signs_nothing_and_rs256_is_listed_but_not_confirmed(
     let refused = fx.service.passkey_confirm(&Caller::User, &[], evil).await;
     assert!(matches!(
         refused,
-        Err(HolziError::PasswordsPasskeyOriginMismatch)
+        Err(HaexError::PasswordsPasskeyOriginMismatch)
     ));
 
     let rsa = fx
@@ -219,7 +216,7 @@ async fn an_origin_mismatch_signs_nothing_and_rs256_is_listed_but_not_confirmed(
         .await;
     assert!(matches!(
         rsa,
-        Err(HolziError::PasswordsPasskeyUnsupportedAlgorithm)
+        Err(HaexError::PasswordsPasskeyUnsupportedAlgorithm)
     ));
     assert_eq!(fx.last_used(), [None], "no usage state was written");
     assert_eq!(
@@ -385,7 +382,7 @@ async fn a_passkey_with_a_new_entry_comes_with_it_or_not_at_all() {
     excluded.target = new_entry(&["web"]);
     excluded.exclude_credentials = vec![created.credential_id.clone()];
     let refused = fx.service.passkey_create(&caller, &grants, excluded).await;
-    assert!(matches!(refused, Err(HolziError::PasswordsPasskeyExcluded)));
+    assert!(matches!(refused, Err(HaexError::PasswordsPasskeyExcluded)));
     let mut unsupported = create_request("", &[-257]);
     unsupported.target = new_entry(&["web"]);
     let refused = fx
@@ -394,7 +391,7 @@ async fn a_passkey_with_a_new_entry_comes_with_it_or_not_at_all() {
         .await;
     assert!(matches!(
         refused,
-        Err(HolziError::PasswordsPasskeyUnsupportedAlgorithm)
+        Err(HaexError::PasswordsPasskeyUnsupportedAlgorithm)
     ));
     // A tag outside the grant is refused before anything is written.
     let mut outside = create_request("", &[-7]);
@@ -434,7 +431,7 @@ async fn a_passkey_is_never_created_on_or_linked_to_a_pass() {
         .passkey_create(&Caller::User, &[], create_request(&pass, &[-7]))
         .await;
     assert!(
-        matches!(refused, Err(HolziError::PasswordsNotFound)),
+        matches!(refused, Err(HaexError::PasswordsNotFound)),
         "no passkey on a pass: {refused:?}"
     );
 

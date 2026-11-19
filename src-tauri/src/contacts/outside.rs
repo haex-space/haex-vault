@@ -87,7 +87,7 @@ pub struct OutsideContact {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub photo: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub holzi_addresses: Option<OutsideAddresses>,
+    pub haex_addresses: Option<OutsideAddresses>,
     /// Set only on the vault user's own contact (spec 060).
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub is_self: bool,
@@ -139,7 +139,7 @@ pub fn contact(contact: Contact) -> OutsideContact {
             .collect(),
         groups: contact.groups.into_iter().map(|group| group.name).collect(),
         photo: contact.photo,
-        holzi_addresses: contact.card.map(|card| OutsideAddresses {
+        haex_addresses: contact.card.map(|card| OutsideAddresses {
             vault: card.vault_pubkey,
             npub: card.npub,
             devices: card

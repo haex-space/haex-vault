@@ -14,7 +14,7 @@ use zeroize::Zeroizing;
 use super::MAX_PLAINTEXT_BYTES;
 use crate::chat::peer::envelope::{self, CHAT_KIND, RECEIPT_KIND};
 use crate::chat::peer::verify::Drop;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// The version of both layers.
 pub const VERSION: u8 = 1;
@@ -59,7 +59,7 @@ impl RatchetRumor {
     }
 
     pub fn encode(&self) -> Result<String> {
-        serde_json::to_string(self).map_err(|e| HolziError::InvalidInput {
+        serde_json::to_string(self).map_err(|e| HaexError::InvalidInput {
             reason: format!("chat ratchet rumor: {e}"),
         })
     }
@@ -110,13 +110,13 @@ impl Plaintext {
     /// ("chat.error.tooLarge").
     pub fn encode(&self) -> Result<Zeroizing<String>> {
         if !known_kind(self.kind) {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: format!("chat ratchet plaintext: unknown kind {}", self.kind),
             });
         }
         let json =
             Zeroizing::new(
-                serde_json::to_string(self).map_err(|e| HolziError::InvalidInput {
+                serde_json::to_string(self).map_err(|e| HaexError::InvalidInput {
                     reason: format!("chat ratchet plaintext: {e}"),
                 })?,
             );

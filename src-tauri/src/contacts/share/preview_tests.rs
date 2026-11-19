@@ -79,8 +79,8 @@ async fn a_share_of_a_new_contact_offers_every_detail_with_add_as_the_default_an
     assert_eq!(email.state, State::New);
     assert_eq!(email.default, Some(Choice::Add));
     assert_eq!(email.choices, [Choice::Add, Choice::Skip]);
-    let holzi = item(&preview, &ContactShareItemKind::HolziAddresses);
-    assert_eq!(holzi.default, Some(Choice::Add));
+    let haex = item(&preview, &ContactShareItemKind::HaexAddresses);
+    assert_eq!(haex.default, Some(Choice::Add));
     assert!(preview.npub.is_some());
     // The ids run through the items in order.
     assert!(preview
@@ -126,7 +126,7 @@ async fn the_own_contact_is_never_a_target_nor_a_hint() {
         Some(ContactShareTarget::Contact { id: own }),
     )
     .await;
-    assert!(matches!(refused, Err(HolziError::ShareInvalid { .. })));
+    assert!(matches!(refused, Err(HaexError::ShareInvalid { .. })));
     let preview = preview_of(&vault, share, None).await.expect("preview");
     assert!(preview.candidates.is_empty(), "the own contact is no hint");
 }
@@ -168,7 +168,7 @@ async fn a_vault_on_a_contact_selects_it_and_no_other_target_is_allowed() {
     ] {
         assert!(matches!(
             preview_of(&vault, share.clone(), Some(target)).await,
-            Err(HolziError::ShareInvalid { .. })
+            Err(HaexError::ShareInvalid { .. })
         ));
     }
 }
@@ -383,7 +383,7 @@ async fn a_share_without_a_card_is_not_reachable_and_not_an_error() {
     assert!(preview
         .items
         .iter()
-        .all(|item| item.item != ContactShareItemKind::HolziAddresses));
+        .all(|item| item.item != ContactShareItemKind::HaexAddresses));
 }
 
 #[tokio::test]
@@ -391,9 +391,9 @@ async fn addresses_that_bring_nothing_new_are_not_asked_about_and_an_old_card_ma
     let vault = test_vault();
     let (_ben, share) = ben_with(&vault, &[1]).await;
     let preview = preview_of(&vault, share, None).await.expect("preview");
-    let holzi = item(&preview, &ContactShareItemKind::HolziAddresses);
-    assert_eq!(holzi.state, State::Same);
-    assert!(holzi.choices.is_empty());
+    let haex = item(&preview, &ContactShareItemKind::HaexAddresses);
+    assert_eq!(haex.state, State::Same);
+    assert!(haex.choices.is_empty());
 
     let more = card(
         &BEN,
@@ -404,12 +404,12 @@ async fn addresses_that_bring_nothing_new_are_not_asked_about_and_an_old_card_ma
     let preview = preview_of(&vault, text(&envelope(vec![], Some(&more))), None)
         .await
         .expect("preview");
-    let holzi = item(&preview, &ContactShareItemKind::HolziAddresses);
-    assert_eq!(holzi.state, State::New);
-    let found = holzi.addresses.clone().expect("addresses");
+    let haex = item(&preview, &ContactShareItemKind::HaexAddresses);
+    assert_eq!(haex.state, State::New);
+    let found = haex.addresses.clone().expect("addresses");
     assert_eq!((found.new_devices, found.new_relays), (1, 1));
     assert_eq!(
-        holzi.choices,
+        haex.choices,
         [Choice::Add, Choice::Skip],
         "no replace in a share"
     );
@@ -418,8 +418,8 @@ async fn addresses_that_bring_nothing_new_are_not_asked_about_and_an_old_card_ma
         .await
         .expect("preview");
     assert!(legacy.legacy_card);
-    let holzi = item(&legacy, &ContactShareItemKind::HolziAddresses);
-    assert!(holzi.choices.contains(&Choice::Replace));
+    let haex = item(&legacy, &ContactShareItemKind::HaexAddresses);
+    assert!(haex.choices.contains(&Choice::Replace));
 
     let older = card(
         &BEN,
@@ -430,8 +430,8 @@ async fn addresses_that_bring_nothing_new_are_not_asked_about_and_an_old_card_ma
     let preview = preview_of(&vault, older.text(), None)
         .await
         .expect("preview");
-    let holzi = item(&preview, &ContactShareItemKind::HolziAddresses);
-    assert!(!holzi.choices.contains(&Choice::Replace));
+    let haex = item(&preview, &ContactShareItemKind::HaexAddresses);
+    assert!(!haex.choices.contains(&Choice::Replace));
 }
 
 #[tokio::test]
@@ -462,6 +462,6 @@ async fn a_blocked_vault_is_marked_and_a_card_of_the_own_vault_is_refused() {
         .expect("a card");
     assert!(matches!(
         preview_of(&vault, text(&envelope(vec![], Some(&own_card))), None).await,
-        Err(HolziError::CardOwn)
+        Err(HaexError::CardOwn)
     ));
 }

@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use tauri::{AppHandle, Manager};
 
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::files::access::{check, AgentGrants, Target, Verdict, Want};
 use crate::files::encrypted::device::{has_raw_part, route_device, DeviceRoot};
 use crate::files::encrypted::{Background, Scope, VaultSource};
@@ -48,10 +48,10 @@ pub(crate) async fn storage_files(
         .access_of(storage_id)
         .await
         .map_err(|error| match error {
-            HolziError::StorageNotFound => {
+            HaexError::StorageNotFound => {
                 FilesError::new(FilesErrorCode::NotFound, "no such storage")
             }
-            HolziError::StorageCredentialsUnavailable { .. } => FilesError::new(
+            HaexError::StorageCredentialsUnavailable { .. } => FilesError::new(
                 FilesErrorCode::Credentials,
                 "the storage's credentials are not on this device",
             ),

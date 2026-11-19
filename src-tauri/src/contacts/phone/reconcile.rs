@@ -26,7 +26,7 @@ use super::store::{Base, BaseValue};
 
 /// A value of holzi of a kind that goes to a phone.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HolziValue {
+pub struct HaexValue {
     pub id: String,
     pub kind: String,
     pub label: String,
@@ -37,11 +37,11 @@ pub struct HolziValue {
 
 /// holzi's side of a contact.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct HolziSide {
+pub struct HaexSide {
     pub head: BTreeMap<String, String>,
     /// Head column → when holzi last changed it (Unix ms).
     pub head_millis: BTreeMap<String, i64>,
-    pub values: Vec<HolziValue>,
+    pub values: Vec<HaexValue>,
 }
 
 /// One raw contact of the contact on this phone.
@@ -84,7 +84,7 @@ pub enum RowOp {
 pub struct Plan {
     /// Head columns holzi sets; `None` clears one.
     pub head: Vec<(String, Option<String>)>,
-    pub inserts: Vec<HolziValue>,
+    pub inserts: Vec<HaexValue>,
     /// Value id, label, value.
     pub updates: Vec<(String, String, String)>,
     pub deletes: Vec<String>,
@@ -95,7 +95,7 @@ pub struct Plan {
 }
 
 impl Plan {
-    pub fn changes_holzi(&self) -> bool {
+    pub fn changes_haex(&self) -> bool {
         !(self.head.is_empty()
             && self.inserts.is_empty()
             && self.updates.is_empty()
@@ -116,12 +116,7 @@ enum Side<'a> {
 
 /// Compares one contact. `fill_head` takes every head field holzi lacks from the phone (a contact
 /// taken over or merged for the first time).
-pub fn reconcile(
-    holzi: &HolziSide,
-    raws: &[RawSide],
-    primary: Option<i64>,
-    fill_head: bool,
-) -> Plan {
+pub fn reconcile(haex: &HaexSide, raws: &[RawSide], primary: Option<i64>, fill_head: bool) -> Plan {
     let mut plan = Plan::default();
     let writable: BTreeSet<i64> = raws
         .iter()
@@ -129,13 +124,13 @@ pub fn reconcile(
         .map(|raw| raw.raw_contact_id)
         .collect();
     let primary = primary.filter(|id| writable.contains(id));
-    values(holzi, raws, primary, &writable, &mut plan);
-    super::head::head(holzi, raws, primary, &writable, fill_head, &mut plan);
+    values(haex, raws, primary, &writable, &mut plan);
+    super::head::head(haex, raws, primary, &writable, fill_head, &mut plan);
     plan
 }
 
 fn values(
-    holzi: &HolziSide,
+    haex: &HaexSide,
     raws: &[RawSide],
     primary: Option<i64>,
     writable: &BTreeSet<i64>,
@@ -146,7 +141,7 @@ fn values(
     for raw in raws {
         agreed.extend(
             raw.base
-                .holzi_values
+                .haex_values
                 .iter()
                 .map(|(id, value)| (id.as_str(), value)),
         );
@@ -157,7 +152,7 @@ fn values(
                 .push((raw, *data_id));
         }
     }
-    let current: BTreeMap<&str, &HolziValue> = holzi
+    let current: BTreeMap<&str, &HaexValue> = haex
         .values
         .iter()
         .map(|value| (value.id.as_str(), value))
@@ -170,7 +165,7 @@ fn values(
 
     for (id, base) in &agreed {
         let rows = rows_of.get(id).cloned().unwrap_or_default();
-        let holzi_side = match current.get(id) {
+        let haex_side = match current.get(id) {
             None => Side::Deleted,
             Some(now)
                 if same(
@@ -223,7 +218,7 @@ fn values(
             continue;
         };
         held.insert((*id).to_owned());
-        match (holzi_side, phone_side) {
+        match (haex_side, phone_side) {
             (Side::Same, Side::Same) | (Side::Deleted, Side::Deleted) => {}
             (Side::Same, Side::Changed(label, value)) => {
                 plan.updates
@@ -235,11 +230,11 @@ fn values(
                 write_rows(&base.kind, &rows, label, value, writable, plan)
             }
             (Side::Changed(label, value), Side::Changed(phone_label, phone_value)) => {
-                let holzi_time = current.get(id).and_then(|now| now.millis);
+                let haex_time = current.get(id).and_then(|now| now.millis);
                 if same(&base.kind, (label, value), (phone_label, phone_value)) {
                     continue;
                 }
-                if later(phone_time, holzi_time) {
+                if later(phone_time, haex_time) {
                     plan.updates.push((
                         (*id).to_owned(),
                         phone_label.to_owned(),
@@ -267,7 +262,7 @@ fn values(
     }
 
     // Rows the phone has that the base does not: matched to a holzi value, else new in holzi.
-    let mut finals: Vec<(String, String, String)> = holzi
+    let mut finals: Vec<(String, String, String)> = haex
         .values
         .iter()
         .filter(|value| !plan.deletes.contains(&value.id))
@@ -301,16 +296,16 @@ fn values(
     }
 
     // Holzi values the phone does not have.
-    for value in &holzi.values {
-        let new_in_holzi = !agreed.contains_key(value.id.as_str());
-        if (new_in_holzi || pending.contains(&value.id.as_str())) && !held.contains(&value.id) {
+    for value in &haex.values {
+        let new_in_haex = !agreed.contains_key(value.id.as_str());
+        if (new_in_haex || pending.contains(&value.id.as_str())) && !held.contains(&value.id) {
             insert_on_phone(value, primary, plan);
         }
     }
 }
 
-fn new_value(row: &PhoneValue) -> HolziValue {
-    HolziValue {
+fn new_value(row: &PhoneValue) -> HaexValue {
+    HaexValue {
         id: if row.kind == mapping::GROUP {
             mapping::group_value_id(&row.value)
         } else {
@@ -324,11 +319,11 @@ fn new_value(row: &PhoneValue) -> HolziValue {
 }
 
 /// Whether the phone's change is later than holzi's; without both times holzi wins.
-pub(super) fn later(phone: Option<i64>, holzi: Option<i64>) -> bool {
-    matches!((phone, holzi), (Some(phone), Some(holzi)) if phone > holzi)
+pub(super) fn later(phone: Option<i64>, haex: Option<i64>) -> bool {
+    matches!((phone, haex), (Some(phone), Some(haex)) if phone > haex)
 }
 
-fn insert_on_phone(value: &HolziValue, primary: Option<i64>, plan: &mut Plan) {
+fn insert_on_phone(value: &HaexValue, primary: Option<i64>, plan: &mut Plan) {
     let Some((mimetype, fields)) = mapping::insert_fields(&value.kind, &value.label, &value.value)
     else {
         return;
@@ -392,7 +387,7 @@ fn delete_row(raw: i64, data_id: i64, writable: &BTreeSet<i64>, plan: &mut Plan)
 pub fn next_base(
     updated_at: &str,
     head: &BTreeMap<String, String>,
-    values: &[HolziValue],
+    values: &[HaexValue],
     phone: PhoneSide,
     before: &BTreeMap<i64, String>,
 ) -> Base {
@@ -416,9 +411,9 @@ pub fn next_base(
         }
     }
     Base {
-        holzi_updated_at: updated_at.to_owned(),
-        holzi_head: head.clone(),
-        holzi_values: values
+        haex_updated_at: updated_at.to_owned(),
+        haex_head: head.clone(),
+        haex_values: values
             .iter()
             .map(|value| {
                 let base = BaseValue {

@@ -26,7 +26,7 @@ use tokio_util::sync::CancellationToken;
 use holzi_lib::adapters::types::{AdapterStream, ChatRequest};
 use holzi_lib::adapters::{AdapterError, ProviderAdapter, ProviderModel};
 use holzi_lib::chat::session::{ActiveSession, ChatState};
-use holzi_lib::identity::{holzi_migration_source, installation_id_path, HolziBootstrap};
+use holzi_lib::identity::{haex_migration_source, installation_id_path, HaexBootstrap};
 use holzi_lib::instances::close::{begin_close, finish_close, CloseContext, CloseTimings};
 use holzi_lib::storage::providers::ProviderKind;
 use holzi_lib::vault_gate::{CloseEffects, ClosePolicy, DrainOutcome, VaultDb, VaultGate};
@@ -147,9 +147,9 @@ fn database_config(dir: &std::path::Path) -> DatabaseConfig {
         path: dir.join("vault.db"),
         key: SqlCipherKey::new("vault-lifecycle-close"),
         create_if_missing: true,
-        bootstrap: Arc::new(HolziBootstrap::new(installation_id_path(dir)).with_alias("test")),
+        bootstrap: Arc::new(HaexBootstrap::new(installation_id_path(dir)).with_alias("test")),
         signature_provider: Arc::new(NoopSignatureProvider),
-        migration_source: holzi_migration_source(),
+        migration_source: haex_migration_source(),
         trigger_version: haex_crdt::DEFAULT_TRIGGER_VERSION,
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
@@ -546,7 +546,7 @@ async fn a_request_running_when_the_close_starts_ends_with_vault_closed() {
         .await
         .expect("the request ended at once")
         .expect("the task ended");
-    assert!(matches!(result, Err(holzi_lib::HolziError::VaultClosed)));
+    assert!(matches!(result, Err(holzi_lib::HaexError::VaultClosed)));
 }
 
 /// Set by the command below; a vault command must never run once the close has started.

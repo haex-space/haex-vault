@@ -127,7 +127,7 @@ async fn a_rename_that_changes_only_case_goes_through_a_passing_name() {
         .map(|(_, key)| key)
         .collect();
     assert_eq!(moves.len(), 4, "two steps each: {moves:?}");
-    assert!(moves[1].starts_with(".holzi-rename-"));
+    assert!(moves[1].starts_with(".haex-rename-"));
 }
 
 #[tokio::test]

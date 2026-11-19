@@ -55,7 +55,7 @@ impl ContactsService {
 
     /// Reads a share in as a new contact or into an existing one, adding and replacing only what
     /// the decisions say. Everything is recomputed from the text; an existing target must still be
-    /// what the preview saw (`preview_revision`), else [`crate::error::HolziError::SharePreviewStale`].
+    /// what the preview saw (`preview_revision`), else [`crate::error::HaexError::SharePreviewStale`].
     pub async fn share_accept(
         &self,
         caller: &Caller,

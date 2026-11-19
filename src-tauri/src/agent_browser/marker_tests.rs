@@ -18,31 +18,31 @@ fn marker_distinguishes_the_builtin_and_unnamed_external_agents() {
 #[test]
 fn only_the_markers_binding_and_words_are_signals() {
     let call = |name: &str, payload: &str| json!({ "name": name, "payload": payload });
-    assert_eq!(Signal::of(&call("__holzi", "stop")), Some(Signal::Stop));
+    assert_eq!(Signal::of(&call("__haex", "stop")), Some(Signal::Stop));
     assert_eq!(
-        Signal::of(&call("__holzi", "takeover")),
+        Signal::of(&call("__haex", "takeover")),
         Some(Signal::Takeover)
     );
-    assert_eq!(Signal::of(&call("__holzi", "return")), Some(Signal::Return));
-    assert_eq!(Signal::of(&call("__holzi", "input")), Some(Signal::Input));
-    assert_eq!(Signal::of(&call("__holzi", "hello")), Some(Signal::Hello));
+    assert_eq!(Signal::of(&call("__haex", "return")), Some(Signal::Return));
+    assert_eq!(Signal::of(&call("__haex", "input")), Some(Signal::Input));
+    assert_eq!(Signal::of(&call("__haex", "hello")), Some(Signal::Hello));
     assert_eq!(
-        Signal::of(&call("__holzi", "fullscreen")),
+        Signal::of(&call("__haex", "fullscreen")),
         Some(Signal::Fullscreen)
     );
     assert_eq!(
-        Signal::of(&call("__holzi", "consent:declined")),
+        Signal::of(&call("__haex", "consent:declined")),
         Some(Signal::ConsentDeclined)
     );
     assert_eq!(
-        Signal::of(&call("__holzi", "consent:open")),
+        Signal::of(&call("__haex", "consent:open")),
         Some(Signal::ConsentOpen)
     );
     assert_eq!(
-        Signal::of(&call("__holzi", "consent:wall")),
+        Signal::of(&call("__haex", "consent:wall")),
         Some(Signal::ConsentWall)
     );
-    assert_eq!(Signal::of(&call("__holzi", "steal")), None);
+    assert_eq!(Signal::of(&call("__haex", "steal")), None);
     assert_eq!(Signal::of(&call("other", "stop")), None);
 }
 
@@ -65,7 +65,7 @@ fn a_modifier_key_alone_is_not_the_user_working_in_the_page() {
         );
     }
     assert_eq!(script.matches("byUser(event)").count(), 2);
-    assert!(!script.contains("if (event.isTrusted) globalThis.__holzi('input')"));
+    assert!(!script.contains("if (event.isTrusted) globalThis.__haex('input')"));
 }
 
 #[test]
@@ -75,9 +75,9 @@ fn the_click_that_brings_the_browser_to_the_front_is_not_the_user_working_in_the
     assert!(script.contains("'focus'"));
     // Set at the start and spent by the click it covers; the behaviour itself runs in
     // `scripts/check-agent-browser-marker.ts`.
-    assert_eq!(script.matches("__holziFocusedAt = -Infinity").count(), 2);
+    assert_eq!(script.matches("__haexFocusedAt = -Infinity").count(), 2);
     // Once per document, and only the window's own focus: a field that gets the focus is no focus
     // click.
-    assert!(script.contains("globalThis.__holziFocusedAt === undefined"));
+    assert!(script.contains("globalThis.__haexFocusedAt === undefined"));
     assert!(script.contains("event.target === window"));
 }

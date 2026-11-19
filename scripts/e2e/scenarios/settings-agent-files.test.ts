@@ -15,7 +15,7 @@ import { connectStorage } from '../lib/storage-setup.ts'
 // A change saves on selection, and a change from elsewhere shows at once. Needs Docker for RustFS;
 // skipped without it.
 
-const BUCKET = 'holzi-agent-files-e2e'
+const BUCKET = 'haex-agent-files-e2e'
 
 const textOf = (instance: FlowInstance, hook: string) =>
   instance.exec<string>(

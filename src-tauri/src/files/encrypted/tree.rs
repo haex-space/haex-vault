@@ -334,7 +334,7 @@ impl Tree {
             mime,
             symlink: false,
             no_access: false,
-            holzi_owned: false,
+            haex_owned: false,
             encrypted: Some(EncryptedInfo {
                 role: EncryptedRole::Inside,
                 state: if damaged {

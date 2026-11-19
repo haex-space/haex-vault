@@ -14,7 +14,7 @@ use tauri::{AppHandle, Manager, State};
 use ts_rs::TS;
 use uuid::Uuid;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::identity::{installation_id_path, read_or_mint_installation_uuid};
 use crate::state::AppState;
 use crate::state_utils::active_database;
@@ -83,14 +83,14 @@ pub(crate) fn current_device_uuid<R: tauri::Runtime>(
 ) -> Result<Uuid> {
     let installation_id_file =
         installation_id_path(&app.path().app_local_data_dir().map_err(|e| {
-            HolziError::PathResolution {
+            HaexError::PathResolution {
                 reason: format!("app_local_data_dir: {e}"),
             }
         })?);
     let installation_uuid =
-        read_or_mint_installation_uuid(&installation_id_file).map_err(HolziError::from)?;
+        read_or_mint_installation_uuid(&installation_id_file).map_err(HaexError::from)?;
     db.read_blocking(|r| known_devices::get_vault_device_uuid(r, installation_uuid))?
-        .ok_or_else(|| HolziError::InvalidInput {
+        .ok_or_else(|| HaexError::InvalidInput {
             reason: "current device is not registered in known_devices".to_string(),
         })
 }
@@ -99,11 +99,11 @@ pub(crate) fn current_device_uuid<R: tauri::Runtime>(
 // Core logic (testable without a live Tauri State/AppHandle)
 // ---------------------------------------------------------------------------
 
-fn session_error_to_holzi(err: WmSessionError) -> HolziError {
+fn session_error_to_haex(err: WmSessionError) -> HaexError {
     match err {
-        WmSessionError::Crdt(e) => HolziError::from(e),
-        WmSessionError::TooLarge { bytes } => HolziError::SessionTooLarge { bytes },
-        other => HolziError::InvalidInput {
+        WmSessionError::Crdt(e) => HaexError::from(e),
+        WmSessionError::TooLarge { bytes } => HaexError::SessionTooLarge { bytes },
+        other => HaexError::InvalidInput {
             reason: other.to_string(),
         },
     }
@@ -151,7 +151,7 @@ async fn session_load(db: VaultDb, device: Uuid) -> Result<WmSessionLoad> {
                 wm_session::delete(tx, device)?;
                 return Ok((false, None));
             }
-            let session = wm_session::load(tx, device).map_err(session_error_to_holzi)?;
+            let session = wm_session::load(tx, device).map_err(session_error_to_haex)?;
             Ok((true, session))
         })
         .await?;
@@ -169,7 +169,7 @@ async fn session_save(db: VaultDb, device: Uuid, session: Value) -> Result<WmSes
             if !restore_enabled(tx)? {
                 return Ok(false);
             }
-            wm_session::save(tx, device, &session).map_err(session_error_to_holzi)?;
+            wm_session::save(tx, device, &session).map_err(session_error_to_haex)?;
             Ok(true)
         })
         .await?;

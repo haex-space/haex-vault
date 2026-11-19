@@ -33,10 +33,10 @@ const headRows = computed(() =>
 )
 
 const own = computed(() =>
-  props.options.holzi.kind === 'own' ? props.options.holzi : null,
+  props.options.haex.kind === 'own' ? props.options.haex : null,
 )
 const foreignCard = computed(() =>
-  props.options.holzi.kind === 'card' ? props.options.holzi : null,
+  props.options.haex.kind === 'card' ? props.options.haex : null,
 )
 </script>
 
@@ -124,8 +124,8 @@ const foreignCard = computed(() =>
           <label class="flex items-center gap-3">
             <ShadcnCheckbox
               :model-value="
-                selection.holzi.kind === 'own' &&
-                selection.holzi.devices.includes(device.devicePubkey)
+                selection.haex.kind === 'own' &&
+                selection.haex.devices.includes(device.devicePubkey)
               "
               :data-testid="`contacts-share-device-${device.devicePubkey}`"
               @update:model-value="
@@ -137,7 +137,7 @@ const foreignCard = computed(() =>
                 deviceName(device.vaultDeviceUuid)
               }}</span>
               <span class="block truncate text-sm text-muted-foreground">{{
-                `${kindName('holzi_iroh')}${device.irohRelay ? ` · ${device.irohRelay}` : ''}`
+                `${kindName('haex_iroh')}${device.irohRelay ? ` · ${device.irohRelay}` : ''}`
               }}</span>
             </span>
           </label>
@@ -146,8 +146,8 @@ const foreignCard = computed(() =>
           <label class="flex items-center gap-3">
             <ShadcnCheckbox
               :model-value="
-                selection.holzi.kind === 'own' &&
-                selection.holzi.relays.includes(relay)
+                selection.haex.kind === 'own' &&
+                selection.haex.relays.includes(relay)
               "
               :data-testid="`contacts-share-relay-${index}`"
               @update:model-value="selection = toggleRelay(selection, relay)"
@@ -155,7 +155,7 @@ const foreignCard = computed(() =>
             <span class="min-w-0 flex-1">
               <span class="block truncate">{{ relay }}</span>
               <span class="block text-sm text-muted-foreground">{{
-                kindName('holzi_nostr_relay')
+                kindName('haex_nostr_relay')
               }}</span>
             </span>
           </label>
@@ -165,14 +165,14 @@ const foreignCard = computed(() =>
 
     <SettingsGroup
       v-if="foreignCard"
-      :label="t('contacts.holziAddresses.title')"
+      :label="t('contacts.haexAddresses.title')"
       data-testid="contacts-share-confirmed"
     >
       <li class="px-4 py-3">
         <label class="flex items-start gap-3">
           <ShadcnCheckbox
             class="mt-1"
-            :model-value="selection.holzi.kind === 'card'"
+            :model-value="selection.haex.kind === 'card'"
             data-testid="contacts-share-card"
             @update:model-value="selection = toggleCard(selection)"
           />

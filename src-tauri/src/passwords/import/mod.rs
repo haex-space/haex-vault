@@ -32,7 +32,7 @@ use super::model::{AttentionKind, ImportPreview, KeyValueInput, PresetInput};
 use super::passkeys::PasskeyInput;
 use super::snapshots::SnapshotData;
 use super::ATTACHMENT_LIMIT_BYTES;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// The formats the import reads.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
@@ -261,7 +261,7 @@ pub(crate) fn push_kv(fields: &mut Vec<KeyValueInput>, key: &str, value: Option<
 }
 
 /// A time of another product in the form the vault stores; `None` if it cannot be read.
-pub(crate) fn holzi_time(text: Option<&str>) -> Option<String> {
+pub(crate) fn haex_time(text: Option<&str>) -> Option<String> {
     text.and_then(super::clock::parse_iso_millis)
         .map(super::clock::format_millis)
 }
@@ -368,8 +368,8 @@ pub(crate) fn base_state(item: &ImportItem) -> SnapshotData {
     }
 }
 
-pub(crate) fn failed(reason: &str) -> HolziError {
-    HolziError::PasswordsImportFailed {
+pub(crate) fn failed(reason: &str) -> HaexError {
+    HaexError::PasswordsImportFailed {
         reason: reason.to_string(),
     }
 }

@@ -17,7 +17,7 @@ const CONTACT = {
   name: 'Anna Beck',
   head: { givenName: 'Anna', familyName: 'Beck', organization: 'Gärtnerei' },
   photo: null,
-  origin: { kind: 'holzi', device: 'd1', caller: 'user', account: null },
+  origin: { kind: 'haex', device: 'd1', caller: 'user', account: null },
   values: [
     {
       id: 'v1',

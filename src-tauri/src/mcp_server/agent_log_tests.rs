@@ -92,10 +92,10 @@ fn a_field_the_schema_marks_secret_is_never_shown() {
         "type": "object",
         "properties": {
             "entryId": { "type": "string" },
-            "secret": { "type": "string", "x-holzi-secret": true },
+            "secret": { "type": "string", "x-haex-secret": true },
             "nested": {
                 "type": "object",
-                "properties": { "pin": { "type": "string", "x-holzi-secret": true } }
+                "properties": { "pin": { "type": "string", "x-haex-secret": true } }
             }
         }
     });

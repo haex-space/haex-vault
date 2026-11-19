@@ -13,7 +13,7 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 use tokio::task::JoinHandle;
 use zeroize::Zeroizing;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// The clipboard as the clearer needs it.
 pub trait ClipboardPort: Send + Sync + 'static {
@@ -24,8 +24,8 @@ pub trait ClipboardPort: Send + Sync + 'static {
 }
 
 /// An error that names the step, never the content.
-fn failed(step: &str) -> HolziError {
-    HolziError::Io {
+fn failed(step: &str) -> HaexError {
+    HaexError::Io {
         reason: format!("clipboard {step} failed"),
     }
 }

@@ -4,12 +4,12 @@ fn ok(link: &str) -> MailRequest {
     parse(link).unwrap_or_else(|e| panic!("{link:?} should parse, got {e:?}"))
 }
 
-fn rejected(link: &str) -> HolziError {
+fn rejected(link: &str) -> HaexError {
     parse(link).expect_err(&format!("{link:?} should be refused"))
 }
 
-fn is_invalid(error: &HolziError, expected: &str) -> bool {
-    matches!(error, HolziError::OpenerLinkInvalid { reason } if reason == expected)
+fn is_invalid(error: &HaexError, expected: &str) -> bool {
+    matches!(error, HaexError::OpenerLinkInvalid { reason } if reason == expected)
 }
 
 fn addresses(count: usize) -> String {
@@ -211,7 +211,7 @@ fn fifty_recipients_fit_per_field_fifty_one_do_not() {
         format!("mailto:?bcc={}", addresses(51)),
         format!("mailto:{}?to={}", addresses(30), addresses(21)),
     ] {
-        assert!(matches!(rejected(&link), HolziError::OpenerLinkTooLarge));
+        assert!(matches!(rejected(&link), HaexError::OpenerLinkTooLarge));
     }
 }
 
@@ -225,7 +225,7 @@ fn the_subject_limit_is_998_characters() {
     );
     assert!(matches!(
         rejected(&format!("mailto:?subject={}", "x".repeat(999))),
-        HolziError::OpenerLinkTooLarge
+        HaexError::OpenerLinkTooLarge
     ));
     // Characters, not bytes: 998 umlauts are 1,996 bytes.
     assert_eq!(
@@ -247,7 +247,7 @@ fn the_body_limit_is_16_kib() {
     );
     assert!(matches!(
         rejected(&format!("mailto:?body={}", "x".repeat(16 * 1024 + 1))),
-        HolziError::OpenerLinkTooLarge
+        HaexError::OpenerLinkTooLarge
     ));
 }
 
@@ -261,5 +261,5 @@ fn the_link_limit_is_32_kib() {
     assert!(parse(&at_limit).is_ok());
     let over = format!("{}{}", "mailto:?subject=", "x".repeat(32 * 1024 - 15));
     assert_eq!(over.len(), 32 * 1024 + 1);
-    assert!(matches!(rejected(&over), HolziError::OpenerLinkTooLarge));
+    assert!(matches!(rejected(&over), HaexError::OpenerLinkTooLarge));
 }

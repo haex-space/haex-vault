@@ -9,14 +9,14 @@ use super::copy::{copy, CopyOptions, CopyReport, CopyTitle};
 use super::model::{ItemInput, KeyValueInput, Target, TargetKind};
 use super::test_support::open_test_vault;
 use super::{binaries, groups, items, trash};
-use crate::error::HolziError;
+use crate::error::HaexError;
 
 fn write<R>(
     db: &Database,
     f: impl FnOnce(&mut haex_crdt::CrdtTransaction<'_>) -> crate::error::Result<R>,
 ) -> crate::error::Result<R> {
     db.write(|tx| f(tx).map_err(haex_crdt::Error::from))
-        .map_err(HolziError::from)
+        .map_err(HaexError::from)
 }
 
 fn count(db: &Database, sql: &str) -> i64 {
@@ -204,7 +204,7 @@ fn an_exact_title_needs_exactly_one_entry() {
     ] {
         let result = write(&db, |tx| copy(tx, &targets, None, &exact));
         assert!(
-            matches!(&result, Err(HolziError::InvalidInput { reason }) if reason == "options.title"),
+            matches!(&result, Err(HaexError::InvalidInput { reason }) if reason == "options.title"),
             "{result:?}"
         );
     }
@@ -424,7 +424,7 @@ fn the_trash_is_no_target() {
     let into_trash = write(&db, |tx| {
         copy(tx, &[item_target(&original)], Some("trash"), &suffix())
     });
-    assert!(matches!(into_trash, Err(HolziError::PasswordsIntoTrash)));
+    assert!(matches!(into_trash, Err(HaexError::PasswordsIntoTrash)));
     assert_eq!(
         count(&db, "SELECT COUNT(*) FROM haex_passwords_item_details"),
         1,
@@ -481,7 +481,7 @@ fn a_copy_of_hundreds_of_entries_is_one_transaction() {
     // A failure after the copy work rolls back everything it did.
     let result: crate::error::Result<()> = write(&db, |tx| {
         copy(tx, &[group_target(&folder)], None, &suffix())?;
-        Err(HolziError::InvalidInput {
+        Err(HaexError::InvalidInput {
             reason: "late".to_string(),
         })
     });

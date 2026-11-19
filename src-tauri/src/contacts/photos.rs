@@ -11,7 +11,7 @@ use haex_crdt::CrdtTransaction;
 use image::codecs::jpeg::JpegEncoder;
 use image::ImageReader;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::files::thumbnails::upright_within;
 use crate::passwords::binaries::hash_bytes;
 use crate::passwords::clock;
@@ -29,8 +29,8 @@ pub const ORPHAN_GRACE_DAYS: i64 = 7;
 /// JPEG qualities tried in turn until the photo fits [`MAX_BYTES`].
 const QUALITIES: [u8; 5] = [85, 75, 65, 50, 35];
 
-fn not_an_image() -> HolziError {
-    HolziError::ContactsInvalid {
+fn not_an_image() -> HaexError {
+    HaexError::ContactsInvalid {
         reason: "not an image".to_owned(),
     }
 }
@@ -51,7 +51,7 @@ pub fn shrink(bytes: &[u8]) -> Result<Vec<u8>> {
             return Ok(jpeg);
         }
     }
-    Err(HolziError::ContactsInvalid {
+    Err(HaexError::ContactsInvalid {
         reason: "photo too large".to_owned(),
     })
 }
@@ -90,7 +90,7 @@ pub fn data(q: &mut impl Query, hash: &str) -> Result<Vec<u8>> {
         params![hash],
         |r| r.get::<_, Vec<u8>>(0),
     )?
-    .ok_or(HolziError::ContactsNotFound)
+    .ok_or(HaexError::ContactsNotFound)
 }
 
 /// Marks a photo unused once no contact names it any more.

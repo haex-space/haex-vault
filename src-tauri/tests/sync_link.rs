@@ -65,7 +65,7 @@ impl NewInstallation {
         code: &str,
         relay_url: &str,
         search_timeout: Duration,
-    ) -> Result<LinkJoinState, holzi_lib::error::HolziError> {
+    ) -> Result<LinkJoinState, holzi_lib::error::HaexError> {
         self.select();
         let emit = Arc::new(|_: &LinkJoinState| {});
         self.join
@@ -445,7 +445,7 @@ async fn a_linked_device_cannot_show_a_code() {
 
     assert!(matches!(
         refused,
-        Err(holzi_lib::error::HolziError::NotMainDevice)
+        Err(holzi_lib::error::HaexError::NotMainDevice)
     ));
 
     // The node of a runtime held here would outlive the drain.

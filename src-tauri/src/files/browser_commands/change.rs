@@ -130,7 +130,7 @@ async fn start_remote(
 }
 
 /// Checks a transfer of `paths` and starts it (FR-018 to FR-023); refusals before the start
-/// (`intoItself`, `noSpace`, `holziOwned`, …) come back as the error.
+/// (`intoItself`, `noSpace`, `haexOwned`, …) come back as the error.
 #[allow(clippy::too_many_arguments)]
 async fn start_transfer(
     state: &AppState,
@@ -164,7 +164,7 @@ async fn start_transfer(
     };
     if touches_own(&job, &files.own) {
         return Err(FilesError::new(
-            FilesErrorCode::HolziOwned,
+            FilesErrorCode::HaexOwned,
             "holzi's own data is read-only",
         ));
     }

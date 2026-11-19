@@ -132,7 +132,7 @@ fn code(result: Result<Value, BridgeError>) -> u16 {
 }
 
 #[test]
-fn without_a_permission_holzi_asks_and_shows_nothing() {
+fn without_a_permission_haex_asks_and_shows_nothing() {
     let s = setup();
     let asked = show_call(&s.notes, json!({ "title": "Termin" })).unwrap_err();
     assert_eq!(asked.code.as_u16(), 1004);
@@ -340,7 +340,7 @@ fn malformed_notifications_are_refused_before_anything_shows() {
 }
 
 #[test]
-fn a_refused_system_permission_keeps_the_message_inside_holzi() {
+fn a_refused_system_permission_keeps_the_message_inside_haex() {
     let s = setup();
     s.allow(&s.notes);
     s.desktop

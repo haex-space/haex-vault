@@ -12,13 +12,13 @@ use std::sync::Arc;
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 
 use holzi_lib::identity::{
-    holzi_migration_source, installation_id_path, HolziBootstrap, HOLZI_TRIGGER_VERSION,
+    haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
 use holzi_lib::passwords::access::{Caller, Grant, GrantAction, Scope};
 use holzi_lib::passwords::model::{ItemInput, ItemPatch, KeyValueInput, Patch};
 use holzi_lib::passwords::service::{Headers, PasswordsService};
 use holzi_lib::vault_gate::VaultGate;
-use holzi_lib::HolziError;
+use holzi_lib::HaexError;
 
 const MARKER: &str = "SECRET-MARKER-ACCESS";
 
@@ -34,10 +34,10 @@ fn fixture() -> Fixture {
         path: dir.path().join("vault.db"),
         key: SqlCipherKey::new("passwords-access"),
         create_if_missing: true,
-        bootstrap: Arc::new(HolziBootstrap::new(installation_id_path(dir.path()))),
+        bootstrap: Arc::new(HaexBootstrap::new(installation_id_path(dir.path()))),
         signature_provider: Arc::new(NoopSignatureProvider),
-        migration_source: holzi_migration_source(),
-        trigger_version: HOLZI_TRIGGER_VERSION,
+        migration_source: haex_migration_source(),
+        trigger_version: HAEX_TRIGGER_VERSION,
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
     })
@@ -198,7 +198,7 @@ async fn a_read_grant_for_a_tag_reaches_only_the_entries_with_that_tag() {
         for id in outside {
             let result = f.service.read_secret_item(&caller, &grants, id).await;
             assert!(
-                matches!(result, Err(HolziError::PasswordsNotFound)),
+                matches!(result, Err(HaexError::PasswordsNotFound)),
                 "{result:?}"
             );
         }
@@ -208,7 +208,7 @@ async fn a_read_grant_for_a_tag_reaches_only_the_entries_with_that_tag() {
             .service
             .create_item(&caller, &grants, entry("new", &["s3"]), None)
             .await;
-        assert!(matches!(create, Err(HolziError::PasswordsForbidden)));
+        assert!(matches!(create, Err(HaexError::PasswordsForbidden)));
         let update = f
             .service
             .update_item(
@@ -219,7 +219,7 @@ async fn a_read_grant_for_a_tag_reaches_only_the_entries_with_that_tag() {
                 ItemPatch::default(),
             )
             .await;
-        assert!(matches!(update, Err(HolziError::PasswordsForbidden)));
+        assert!(matches!(update, Err(HaexError::PasswordsForbidden)));
     }
 }
 
@@ -230,13 +230,13 @@ async fn without_any_grant_everything_is_forbidden_and_nothing_is_revealed() {
     for caller in outside_callers() {
         assert!(matches!(
             f.service.list_headers(&caller, &[]).await,
-            Err(HolziError::PasswordsForbidden)
+            Err(HaexError::PasswordsForbidden)
         ));
         // Not even whether an entry exists.
         for id in [seeded.s3.clone(), "missing".to_string()] {
             let result = f.service.read_secret_item(&caller, &[], id).await;
             assert!(
-                matches!(result, Err(HolziError::PasswordsForbidden)),
+                matches!(result, Err(HaexError::PasswordsForbidden)),
                 "{result:?}"
             );
         }
@@ -267,7 +267,7 @@ async fn a_write_grant_creates_only_entries_with_tags_of_its_scope() {
                 .create_item(&caller, &grants, entry("bad", bad), None)
                 .await;
             assert!(
-                matches!(result, Err(HolziError::PasswordsForbidden)),
+                matches!(result, Err(HaexError::PasswordsForbidden)),
                 "{bad:?}: {result:?}"
             );
         }
@@ -375,7 +375,7 @@ async fn an_update_keeps_the_tags_outside_the_scope_and_cannot_leave_or_lift_the
             },
         )
         .await;
-    assert!(matches!(lift, Err(HolziError::PasswordsForbidden)));
+    assert!(matches!(lift, Err(HaexError::PasswordsForbidden)));
 
     // Removing the last in-scope tag is refused and leaves the entry unchanged.
     let leave = f
@@ -392,7 +392,7 @@ async fn an_update_keeps_the_tags_outside_the_scope_and_cannot_leave_or_lift_the
             },
         )
         .await;
-    assert!(matches!(leave, Err(HolziError::PasswordsForbidden)));
+    assert!(matches!(leave, Err(HaexError::PasswordsForbidden)));
     assert_eq!(tag_names().await, ["bank", "s3"]);
     let detail = f
         .service
@@ -412,7 +412,7 @@ async fn an_update_keeps_the_tags_outside_the_scope_and_cannot_leave_or_lift_the
             ItemPatch::default(),
         )
         .await;
-    assert!(matches!(outside, Err(HolziError::PasswordsNotFound)));
+    assert!(matches!(outside, Err(HaexError::PasswordsNotFound)));
 }
 
 #[tokio::test]
@@ -441,17 +441,17 @@ async fn the_built_in_agent_sees_titles_tags_and_folders_only_and_nothing_else()
         f.service
             .read_secret_item(&Caller::BuiltinAgent, &grants, seeded.s3.clone())
             .await,
-        Err(HolziError::PasswordsForbidden)
+        Err(HaexError::PasswordsForbidden)
     ));
     assert!(matches!(
         f.service
             .create_item(&Caller::BuiltinAgent, &grants, entry("x", &["s3"]), None)
             .await,
-        Err(HolziError::PasswordsForbidden)
+        Err(HaexError::PasswordsForbidden)
     ));
     assert!(matches!(
         f.service.load_overview(&Caller::BuiltinAgent).await,
-        Err(HolziError::PasswordsForbidden)
+        Err(HaexError::PasswordsForbidden)
     ));
     assert!(matches!(
         f.service
@@ -461,7 +461,7 @@ async fn the_built_in_agent_sees_titles_tags_and_folders_only_and_nothing_else()
                 holzi_lib::passwords::model::SecretField::Password
             )
             .await,
-        Err(HolziError::PasswordsForbidden)
+        Err(HaexError::PasswordsForbidden)
     ));
 }
 
@@ -499,7 +499,7 @@ async fn an_entry_in_the_trash_does_not_exist_for_callers_from_outside() {
             f.service
                 .read_secret_item(&caller, &grants, seeded.s3.clone())
                 .await,
-            Err(HolziError::PasswordsNotFound)
+            Err(HaexError::PasswordsNotFound)
         ));
         assert!(matches!(
             f.service
@@ -511,7 +511,7 @@ async fn an_entry_in_the_trash_does_not_exist_for_callers_from_outside() {
                     ItemPatch::default()
                 )
                 .await,
-            Err(HolziError::PasswordsNotFound)
+            Err(HaexError::PasswordsNotFound)
         ));
     }
     // The user still reaches it, and it is unchanged.
@@ -531,27 +531,27 @@ async fn everything_beyond_the_item_methods_is_closed_to_callers_from_outside() 
     for caller in outside_callers() {
         assert!(matches!(
             f.service.load_overview(&caller).await,
-            Err(HolziError::PasswordsForbidden)
+            Err(HaexError::PasswordsForbidden)
         ));
         assert!(matches!(
             f.service.get_item(&caller, seeded.s3.clone()).await,
-            Err(HolziError::PasswordsForbidden)
+            Err(HaexError::PasswordsForbidden)
         ));
         assert!(matches!(
             f.service
                 .set_tags(&caller, vec![seeded.s3.clone()], tags(&["x"]), vec![])
                 .await,
-            Err(HolziError::PasswordsForbidden)
+            Err(HaexError::PasswordsForbidden)
         ));
         // Without a grant also the TOTP code and the presets stay closed (spec 049 FR-024,
         // FR-027 open them for a grant).
         assert!(matches!(
             f.service.totp_code(&caller, &[], seeded.s3.clone()).await,
-            Err(HolziError::PasswordsForbidden)
+            Err(HaexError::PasswordsForbidden)
         ));
         assert!(matches!(
             f.service.preset_list(&caller, &[]).await,
-            Err(HolziError::PasswordsForbidden)
+            Err(HaexError::PasswordsForbidden)
         ));
         // A grant for everything does not change that.
         let _ = &all;
@@ -601,7 +601,7 @@ async fn the_agent_search_filters_by_words_tag_and_limit_and_shows_no_username()
     for caller in outside_callers() {
         let result = f.service.agent_search(&caller, &[], None, None, None).await;
         assert!(
-            matches!(result, Err(HolziError::PasswordsForbidden)),
+            matches!(result, Err(HaexError::PasswordsForbidden)),
             "{caller:?}"
         );
     }
@@ -609,7 +609,7 @@ async fn the_agent_search_filters_by_words_tag_and_limit_and_shows_no_username()
         .service
         .agent_search(&Caller::User, &[], None, None, None)
         .await;
-    assert!(matches!(user, Err(HolziError::PasswordsForbidden)));
+    assert!(matches!(user, Err(HaexError::PasswordsForbidden)));
 }
 
 /// Spec 021 US5: an external agent searches only the entries its read grant covers, with the same
@@ -636,7 +636,7 @@ async fn an_external_agent_searches_only_the_entries_of_its_grant() {
         assert!(!json.contains(hidden), "{hidden} in {json}");
     }
     let refused = f.service.agent_search(&agent, &[], None, None, None).await;
-    assert!(matches!(refused, Err(HolziError::PasswordsForbidden)));
+    assert!(matches!(refused, Err(HaexError::PasswordsForbidden)));
 }
 
 fn id_target(id: &str) -> holzi_lib::passwords::model::Target {
@@ -661,19 +661,19 @@ async fn delete_needs_a_write_grant_and_an_entry_in_scope_and_only_moves_to_the_
             f.service
                 .delete_item(&caller, &read_grant("s3"), id.clone())
                 .await,
-            Err(HolziError::PasswordsForbidden)
+            Err(HaexError::PasswordsForbidden)
         ));
         assert!(matches!(
             f.service
                 .delete_item(&caller, &write_grant("s3"), seeded.bank.clone())
                 .await,
-            Err(HolziError::PasswordsNotFound)
+            Err(HaexError::PasswordsNotFound)
         ));
         assert!(matches!(
             f.service
                 .delete_item(&caller, &write_grant("s3"), "missing".to_string())
                 .await,
-            Err(HolziError::PasswordsNotFound)
+            Err(HaexError::PasswordsNotFound)
         ));
         // In scope: the entry ends up in the trash with its data intact.
         f.service
@@ -706,7 +706,7 @@ async fn delete_needs_a_write_grant_and_an_entry_in_scope_and_only_moves_to_the_
             f.service
                 .delete_item(&caller, &write_grant("s3"), id.clone())
                 .await,
-            Err(HolziError::PasswordsNotFound)
+            Err(HaexError::PasswordsNotFound)
         ));
         assert!(
             f.service.get_item(&Caller::User, id).await.is_ok(),
@@ -738,7 +738,7 @@ async fn restoring_emptying_and_deleting_for_good_are_for_the_user_alone() {
             f.service.empty_trash(caller, false).await,
         ] {
             assert!(
-                matches!(result, Err(HolziError::PasswordsForbidden)),
+                matches!(result, Err(HaexError::PasswordsForbidden)),
                 "{caller:?}: {result:?}"
             );
         }
@@ -747,7 +747,7 @@ async fn restoring_emptying_and_deleting_for_good_are_for_the_user_alone() {
         assert!(
             matches!(
                 again,
-                Err(HolziError::PasswordsNotFound) | Err(HolziError::PasswordsForbidden)
+                Err(HaexError::PasswordsNotFound) | Err(HaexError::PasswordsForbidden)
             ),
             "{caller:?}: {again:?}"
         );
@@ -779,7 +779,7 @@ async fn restoring_emptying_and_deleting_for_good_are_for_the_user_alone() {
     );
     assert!(matches!(
         f.service.get_item(&Caller::User, seeded.s3).await,
-        Err(HolziError::PasswordsNotFound)
+        Err(HaexError::PasswordsNotFound)
     ));
 }
 
@@ -815,13 +815,13 @@ async fn a_read_grant_gives_the_totp_code_and_the_presets_but_nothing_outside_th
         for outside in [seeded.bank.clone(), without_totp.clone()] {
             assert!(matches!(
                 f.service.totp_code(&caller, &grant, outside).await,
-                Err(HolziError::PasswordsNotFound)
+                Err(HaexError::PasswordsNotFound)
             ));
         }
         assert!(f.service.preset_list(&caller, &grant).await.is_ok());
     }
     assert!(matches!(
         f.service.preset_list(&Caller::BuiltinAgent, &grant).await,
-        Err(HolziError::PasswordsForbidden)
+        Err(HaexError::PasswordsForbidden)
     ));
 }

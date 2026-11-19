@@ -8,7 +8,7 @@ use tauri::ipc::{InvokeBody, Request, Response};
 use tauri::AppHandle;
 use ts_rs::TS;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::files::picked::{self, PickedFile};
 use crate::passwords::pass::scan::{is_pdf, scan_image, ScannedCode, MAX_INPUT_BYTES};
 
@@ -19,8 +19,8 @@ pub struct PassScanFileArgs {
     pub file: PickedFile,
 }
 
-fn too_large() -> HolziError {
-    HolziError::InvalidInput {
+fn too_large() -> HaexError {
+    HaexError::InvalidInput {
         reason: "tooLarge".to_owned(),
     }
 }
@@ -30,7 +30,7 @@ fn too_large() -> HolziError {
 #[tauri::command]
 pub async fn passwords_pass_codes_scan(request: Request<'_>) -> Result<Vec<ScannedCode>> {
     let InvokeBody::Raw(bytes) = request.body() else {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "the image must arrive as raw bytes".to_owned(),
         });
     };
@@ -40,7 +40,7 @@ pub async fn passwords_pass_codes_scan(request: Request<'_>) -> Result<Vec<Scann
     let bytes = bytes.clone();
     tauri::async_runtime::spawn_blocking(move || scan_image(&bytes))
         .await
-        .map_err(|e| HolziError::InvalidInput {
+        .map_err(|e| HaexError::InvalidInput {
             reason: format!("scan: {e}"),
         })
 }
@@ -57,7 +57,7 @@ pub async fn passwords_pass_codes_scan_file(
     }
     tauri::async_runtime::spawn_blocking(move || scan_image(&bytes))
         .await
-        .map_err(|e| HolziError::InvalidInput {
+        .map_err(|e| HaexError::InvalidInput {
             reason: format!("scan: {e}"),
         })
 }
@@ -74,7 +74,7 @@ pub async fn passwords_pass_capture_pdf(
         return Err(too_large());
     }
     if !is_pdf(&bytes) {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "notAPdf".to_owned(),
         });
     }

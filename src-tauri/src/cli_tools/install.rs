@@ -30,13 +30,13 @@ use super::platform::PlatformKey;
 use super::record::Record;
 use super::runtime::DelegateRuntime;
 use super::unpack::{place_file, unpack_tar_gz, UnpackError};
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::models::{download, download_check, hash};
 
 /// The lock file of a vendor in a vault: one install at a time.
 const LOCK_FILE: &str = ".install.lock";
 /// Where a package is downloaded to inside its staging folder, until it is unpacked.
-const DOWNLOAD_FILE: &str = ".holzi-download";
+const DOWNLOAD_FILE: &str = ".haex-download";
 /// How long the start check may take.
 const START_CHECK_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -358,9 +358,9 @@ where
 /// <url> returned status <code>` for an error answer, `stream:` and `body ended` for a cut
 /// connection). The tests of this module run the real downloader against a local server, so a
 /// change of that wording fails there.
-fn classify_download_error(error: &HolziError) -> InstallError {
+fn classify_download_error(error: &HaexError) -> InstallError {
     let reason = match error {
-        HolziError::ModelDownload { reason } => reason.as_str(),
+        HaexError::ModelDownload { reason } => reason.as_str(),
         other => return io_error("download", other),
     };
     if let Some((_, after)) = reason.split_once(" returned status ") {

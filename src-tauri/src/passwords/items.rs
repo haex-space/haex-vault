@@ -26,17 +26,17 @@ use super::model::{
 use super::sets::Sets;
 use super::totp::{self, otp_state, OtpParams};
 use super::{clock, passkeys, snapshots, tags};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
-fn conflict(reason: &str) -> HolziError {
-    HolziError::PasswordsConflict {
+fn conflict(reason: &str) -> HaexError {
+    HaexError::PasswordsConflict {
         reason: reason.to_string(),
     }
 }
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::InvalidInput {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::InvalidInput {
         reason: reason.to_string(),
     }
 }
@@ -320,7 +320,7 @@ pub fn otp_params_of(q: &mut impl Query, id: &str) -> Result<OtpParams> {
                 ))
             },
         )?
-        .ok_or(HolziError::PasswordsNotFound)?;
+        .ok_or(HaexError::PasswordsNotFound)?;
     let secret = cols.0.unwrap_or_default();
     totp::stored_params(&secret, cols.1, cols.2, cols.3.as_deref())
 }

@@ -26,15 +26,15 @@ test('only the phone kinds leave holzi', () => {
     'event',
     'relation',
   ]) {
-    assert.equal(kindOf(kind)?.holziOnly, false, kind)
+    assert.equal(kindOf(kind)?.haexOnly, false, kind)
   }
   for (const kind of [
     'custom',
-    'holzi_vault',
-    'holzi_nostr_relay',
-    'holzi_iroh',
+    'haex_vault',
+    'haex_nostr_relay',
+    'haex_iroh',
   ]) {
-    assert.equal(kindOf(kind)?.holziOnly, true, kind)
+    assert.equal(kindOf(kind)?.haexOnly, true, kind)
   }
   assert.equal(kindOf('future_kind'), undefined)
 })

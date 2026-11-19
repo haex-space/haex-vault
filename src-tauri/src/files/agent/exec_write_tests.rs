@@ -34,7 +34,7 @@ async fn a_folder_is_created_and_an_entry_renamed() {
 }
 
 #[tokio::test]
-async fn nothing_in_or_around_holzis_own_places_is_changed() {
+async fn nothing_in_or_around_haexs_own_places_is_changed() {
     let scene = Scene::new(None);
     let attempts = [
         (

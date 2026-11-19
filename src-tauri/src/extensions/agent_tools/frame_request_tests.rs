@@ -29,7 +29,7 @@ impl Recorded {
 }
 
 #[tokio::test]
-async fn holzis_window_is_asked_for_a_frame_and_its_answer_returns() {
+async fn haexs_window_is_asked_for_a_frame_and_its_answer_returns() {
     let requests = Arc::new(FrameRequests::default());
     let recorded = Recorded::default();
     let extension_id = Uuid::new_v4();

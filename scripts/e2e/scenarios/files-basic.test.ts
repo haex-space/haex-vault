@@ -55,7 +55,7 @@ const scrollTo = (instance: FlowInstance, name: string) =>
   )
 
 scenario('files-basic', { timeoutMs: 180_000 }, async (ctx) => {
-  const files = deviceFiles('holzi-files-')
+  const files = deviceFiles('haex-files-')
   try {
     const instance = await ctx.startInstance()
     await createAndUnlock(instance, { name: 'e2e-files-basic' })

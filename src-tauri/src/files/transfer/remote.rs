@@ -416,7 +416,7 @@ impl Run<'_, '_> {
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_default();
-        let part = folder.join(format!(".{name}.holzi-part-{}", uuid::Uuid::new_v4()));
+        let part = folder.join(format!(".{name}.haex-part-{}", uuid::Uuid::new_v4()));
         let result = fetch(self, &part).and_then(|()| {
             (self.hooks.rename)(&part, path).map_err(|error| Stop::from(io_error(error, path)))
         });

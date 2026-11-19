@@ -9,7 +9,7 @@ use serde_json::{Map, Value as Json};
 use tauri_plugin_holzi_android::contacts::{Op, Target};
 
 use super::mapping::{self, HEAD_FIELDS};
-use super::reconcile::{HolziValue, RowOp};
+use super::reconcile::{HaexValue, RowOp};
 
 /// Most ops in one call of the phone.
 pub const MAX_OPS: usize = 400;
@@ -75,7 +75,7 @@ impl Batches {
         contact_id: &str,
         account: (&str, &str),
         head: &BTreeMap<String, String>,
-        values: &[HolziValue],
+        values: &[HaexValue],
     ) {
         let mut rows = head_rows(head);
         rows.extend(

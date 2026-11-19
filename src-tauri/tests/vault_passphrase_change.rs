@@ -19,7 +19,7 @@ use holzi_lib::instances::{
 use holzi_lib::state::AppState;
 use holzi_lib::storage::preferences::{self, PrefScope};
 use holzi_lib::vault_gate::VaultGate;
-use holzi_lib::HolziError;
+use holzi_lib::HaexError;
 
 /// `XDG_DATA_HOME` is process-wide, so tests that set it take turns.
 static TURN: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -53,7 +53,7 @@ impl Process {
         }
     }
 
-    async fn open(&self, passphrase: &str) -> Result<(), HolziError> {
+    async fn open(&self, passphrase: &str) -> Result<(), HaexError> {
         open_instance_core(
             &self.app,
             &self.state,
@@ -65,7 +65,7 @@ impl Process {
         .map(|_| ())
     }
 
-    async fn change(&self, current: &str, new: &str) -> Result<(), HolziError> {
+    async fn change(&self, current: &str, new: &str) -> Result<(), HaexError> {
         change_vault_passphrase_core(
             &self.app,
             &self.state,
@@ -131,7 +131,7 @@ async fn after_a_change_only_the_new_passphrase_opens_the_vault_and_the_data_sta
     let old = Process::new();
     let result = old.open(OLD).await;
     assert!(
-        matches!(result, Err(HolziError::WrongPassphrase)),
+        matches!(result, Err(HaexError::WrongPassphrase)),
         "the old passphrase still opens the vault: {result:?}"
     );
 
@@ -152,7 +152,7 @@ async fn a_wrong_current_passphrase_changes_nothing() {
     process.open(OLD).await.expect("open");
     let result = process.change("not-the-passphrase", NEW).await;
     assert!(
-        matches!(result, Err(HolziError::WrongPassphrase)),
+        matches!(result, Err(HaexError::WrongPassphrase)),
         "expected WrongPassphrase, got {result:?}"
     );
     process.close();
@@ -175,7 +175,7 @@ async fn a_short_or_unchanged_new_passphrase_is_refused() {
     for new in ["1234567", OLD] {
         let result = process.change(OLD, new).await;
         assert!(
-            matches!(result, Err(HolziError::WeakPassphrase { .. })),
+            matches!(result, Err(HaexError::WeakPassphrase { .. })),
             "expected WeakPassphrase for {new:?}, got {result:?}"
         );
     }
@@ -195,7 +195,7 @@ async fn a_change_without_an_open_vault_is_refused() {
 
     let result = Process::new().change(OLD, NEW).await;
     assert!(
-        matches!(result, Err(HolziError::NoActiveInstance)),
+        matches!(result, Err(HaexError::NoActiveInstance)),
         "expected NoActiveInstance, got {result:?}"
     );
 }

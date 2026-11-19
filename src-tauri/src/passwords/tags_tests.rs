@@ -12,7 +12,7 @@ use super::items;
 use super::model::ItemInput;
 use super::tags;
 use super::test_support::open_test_vault;
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::storage::query;
 
 fn write<R>(
@@ -20,7 +20,7 @@ fn write<R>(
     f: impl FnOnce(&mut haex_crdt::CrdtTransaction<'_>) -> crate::error::Result<R>,
 ) -> crate::error::Result<R> {
     db.write(|tx| f(tx).map_err(haex_crdt::Error::from))
-        .map_err(HolziError::from)
+        .map_err(HaexError::from)
 }
 
 fn item_with(db: &Database, tag_names: &[&str]) -> String {
@@ -42,7 +42,7 @@ fn count(db: &Database, sql: &str) -> i64 {
 
 fn reason_of<R: std::fmt::Debug>(result: crate::error::Result<R>) -> String {
     match result {
-        Err(HolziError::InvalidInput { reason }) => reason,
+        Err(HaexError::InvalidInput { reason }) => reason,
         other => panic!("expected InvalidInput, got {other:?}"),
     }
 }
@@ -126,7 +126,7 @@ fn rename_keeps_the_id_and_refuses_a_name_that_exists() {
     let again = write(&db, |tx| tags::get_or_create(tx, "private")).expect("lookup");
     assert_eq!(again, home);
     let missing = write(&db, |tx| tags::rename_tag(tx, "nope", "X"));
-    assert!(matches!(missing, Err(HolziError::PasswordsNotFound)));
+    assert!(matches!(missing, Err(HaexError::PasswordsNotFound)));
 }
 
 #[test]
@@ -192,7 +192,7 @@ fn delete_removes_the_links_and_then_the_tag() {
         ) >= 2
     );
     let missing = write(&db, |tx| tags::delete_tag(tx, &work));
-    assert!(matches!(missing, Err(HolziError::PasswordsNotFound)));
+    assert!(matches!(missing, Err(HaexError::PasswordsNotFound)));
 }
 
 #[test]
@@ -212,7 +212,7 @@ fn set_color_changes_only_the_color() {
     assert_eq!(color.as_deref(), Some("#336699"));
     write(&db, |tx| tags::set_color(tx, &id, None)).expect("clear");
     let missing = write(&db, |tx| tags::set_color(tx, "nope", None));
-    assert!(matches!(missing, Err(HolziError::PasswordsNotFound)));
+    assert!(matches!(missing, Err(HaexError::PasswordsNotFound)));
 }
 
 /// Two tags with equal names under different ids, as a rename race between two devices leaves them.

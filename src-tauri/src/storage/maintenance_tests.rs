@@ -19,8 +19,8 @@ use super::maintenance::{
 };
 use super::preferences::{self, PrefScope};
 use crate::identity::{
-    holzi_migration_source, installation_id_path, read_or_mint_installation_uuid, HolziBootstrap,
-    HOLZI_TRIGGER_VERSION,
+    haex_migration_source, installation_id_path, read_or_mint_installation_uuid, HaexBootstrap,
+    HAEX_TRIGGER_VERSION,
 };
 use crate::providers::local::ensure_local_provider;
 use crate::storage::known_devices;
@@ -34,10 +34,10 @@ fn open_test_vault(passphrase: &str) -> (tempfile::TempDir, Database, Uuid) {
         path: dir.path().join("vault.db"),
         key: SqlCipherKey::new(passphrase),
         create_if_missing: true,
-        bootstrap: Arc::new(HolziBootstrap::new(install_path.clone())),
+        bootstrap: Arc::new(HaexBootstrap::new(install_path.clone())),
         signature_provider: Arc::new(NoopSignatureProvider),
-        migration_source: holzi_migration_source(),
-        trigger_version: HOLZI_TRIGGER_VERSION,
+        migration_source: haex_migration_source(),
+        trigger_version: HAEX_TRIGGER_VERSION,
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
     })
@@ -60,7 +60,7 @@ fn query_i64(db: &Database, sql: &str) -> i64 {
 fn pending_vacuum(db: &Database) -> bool {
     db.with_connection(|conn| {
         Ok(conn.query_row(
-            "SELECT COUNT(*) FROM holzi_maintenance_no_sync WHERE task = ?1",
+            "SELECT COUNT(*) FROM haex_maintenance_no_sync WHERE task = ?1",
             params![VACUUM_TASK],
             |r| r.get::<_, i64>(0),
         )?)

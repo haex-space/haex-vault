@@ -115,7 +115,7 @@ fn files<R: Runtime>(
     db: &crate::vault_gate::VaultDb,
     device: uuid::Uuid,
 ) -> crate::error::Result<Arc<ChatFiles>> {
-    let not_found = |name: &str| crate::error::HolziError::NotFound { name: name.into() };
+    let not_found = |name: &str| crate::error::HaexError::NotFound { name: name.into() };
     let instance = app
         .state::<AppState>()
         .active_name()

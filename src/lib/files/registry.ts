@@ -104,7 +104,7 @@ export function shareableSource(
 export type SyncRuleOfferInput = {
   source: SourceRef
   /** One of holzi's own places (spec 044 FR-037). */
-  holziOwned: boolean
+  haexOwned: boolean
   symlink: boolean
   /** The system denies access. */
   noAccess: boolean
@@ -125,7 +125,7 @@ export function syncRuleOffer(input: SyncRuleOfferInput): boolean {
     if (storageId.startsWith(SHARE_PREFIX) || storageId.startsWith('device:'))
       return false
   }
-  if (input.holziOwned || input.symlink || input.noAccess) return false
+  if (input.haexOwned || input.symlink || input.noAccess) return false
   return input.encrypted === null || input.encrypted.state === 'readable'
 }
 

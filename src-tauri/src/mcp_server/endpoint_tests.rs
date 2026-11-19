@@ -28,7 +28,7 @@ mod unix {
     #[tokio::test]
     async fn the_socket_lives_in_a_private_directory_and_is_found() {
         let temp = tempfile::tempdir().expect("tempdir");
-        let dir = temp.path().join("holzi-mcp");
+        let dir = temp.path().join("haex-mcp");
         let device = Uuid::new_v4();
         let mut listener = bind(&dir, device).await.expect("bind");
         let mode = std::fs::metadata(&dir).expect("dir").permissions().mode() & 0o777;
@@ -56,7 +56,7 @@ mod unix {
     #[tokio::test]
     async fn a_left_over_socket_is_replaced_and_a_live_one_is_kept() {
         let temp = tempfile::tempdir().expect("tempdir");
-        let dir = temp.path().join("holzi-mcp");
+        let dir = temp.path().join("haex-mcp");
         let device = Uuid::new_v4();
         let live = bind(&dir, device).await.expect("first");
         let error = bind(&dir, device).await.err().expect("a live socket stays");
@@ -74,7 +74,7 @@ mod unix {
 
     #[test]
     fn the_endpoint_never_names_a_network_address() {
-        let dir = std::path::Path::new("/run/user/1000/holzi-mcp");
+        let dir = std::path::Path::new("/run/user/1000/haex-mcp");
         let path = socket_path(dir, "mcp-0123456789ab");
         let text = path.to_string_lossy();
         assert!(text.ends_with(".sock"));
@@ -99,6 +99,6 @@ fn the_pipe_name_is_local() {
     use super::endpoint::pipe_name;
     assert_eq!(
         pipe_name("mcp-0123456789ab"),
-        r"\\.\pipe\holzi-mcp-0123456789ab"
+        r"\\.\pipe\haex-mcp-0123456789ab"
     );
 }

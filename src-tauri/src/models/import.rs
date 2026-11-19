@@ -9,7 +9,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::files::picked::{self, Opener, PickedFile};
 
 /// Copies the chosen file into `destination`, returning the actual byte count copied. Publishes
@@ -25,12 +25,12 @@ pub async fn copy_into_managed(
     let copied =
         tauri::async_runtime::spawn_blocking(move || picked::copy_into(&opener, &source, &target))
             .await
-            .map_err(|e| HolziError::ModelImport {
+            .map_err(|e| HaexError::ModelImport {
                 reason: format!("import task: {e}"),
             })?;
     copied.map_err(|e| match e {
-        HolziError::NotEnoughSpace | HolziError::Unreadable => e,
-        other => HolziError::ModelImport {
+        HaexError::NotEnoughSpace | HaexError::Unreadable => e,
+        other => HaexError::ModelImport {
             reason: format!("import -> {}: {other}", destination.display()),
         },
     })
@@ -46,9 +46,9 @@ pub fn cleanup_staging_in_dir(models_root: &Path) -> Result<usize> {
     }
 
     let mut removed = 0usize;
-    for slug_entry in fs::read_dir(models_root).map_err(HolziError::from)? {
-        let slug_entry = slug_entry.map_err(HolziError::from)?;
-        if !slug_entry.file_type().map_err(HolziError::from)?.is_dir() {
+    for slug_entry in fs::read_dir(models_root).map_err(HaexError::from)? {
+        let slug_entry = slug_entry.map_err(HaexError::from)?;
+        if !slug_entry.file_type().map_err(HaexError::from)?.is_dir() {
             continue;
         }
         // Skips `.locks/` (spec 013 T071): the publication lock files living there are never
@@ -63,9 +63,9 @@ pub fn cleanup_staging_in_dir(models_root: &Path) -> Result<usize> {
         // Collected first so the `.backup` decision below can see whether a
         // finalized `.gguf` is present in this slug directory.
         let mut files: Vec<(String, std::path::PathBuf)> = Vec::new();
-        for entry in fs::read_dir(slug_entry.path()).map_err(HolziError::from)? {
-            let entry = entry.map_err(HolziError::from)?;
-            if !entry.file_type().map_err(HolziError::from)?.is_file() {
+        for entry in fs::read_dir(slug_entry.path()).map_err(HaexError::from)? {
+            let entry = entry.map_err(HaexError::from)?;
+            if !entry.file_type().map_err(HaexError::from)?.is_file() {
                 continue;
             }
             let Some(filename) = entry.file_name().to_str().map(str::to_owned) else {
@@ -88,7 +88,7 @@ pub fn cleanup_staging_in_dir(models_root: &Path) -> Result<usize> {
             // backup is the only remaining copy — leave it for recovery.
             let is_dead_backup = filename.ends_with(".backup") && has_published_file;
             if is_staging || is_dead_backup {
-                fs::remove_file(&path).map_err(HolziError::from)?;
+                fs::remove_file(&path).map_err(HaexError::from)?;
                 removed += 1;
             }
         }

@@ -16,11 +16,11 @@ fn thread_title_validation_trims_and_enforces_visible_length() {
     );
     assert!(matches!(
         validate_thread_title("   "),
-        Err(HolziError::InvalidInput { .. })
+        Err(HaexError::InvalidInput { .. })
     ));
     assert!(matches!(
         validate_thread_title(&"x".repeat(121)),
-        Err(HolziError::InvalidInput { .. })
+        Err(HaexError::InvalidInput { .. })
     ));
 }
 
@@ -30,7 +30,7 @@ fn thread_title_validation_counts_grapheme_clusters() {
     assert_eq!(validate_thread_title(&title).unwrap(), title);
     assert!(matches!(
         validate_thread_title(&"e\u{301}".repeat(121)),
-        Err(HolziError::InvalidInput { .. })
+        Err(HaexError::InvalidInput { .. })
     ));
 }
 
@@ -230,7 +230,7 @@ fn late_permission_reply_after_cancellation_is_a_noop_but_unknown_id_is_rejected
                 decision: ApprovalDecisionWire::Allow,
             }
         ),
-        Err(HolziError::InvalidInput { .. })
+        Err(HaexError::InvalidInput { .. })
     ));
 }
 

@@ -1,9 +1,9 @@
 use super::*;
-use crate::error::HolziError;
+use crate::error::HaexError;
 
 fn reason(result: Result<impl Sized>) -> String {
     match result {
-        Err(HolziError::PasswordsImportFailed { reason }) => reason,
+        Err(HaexError::PasswordsImportFailed { reason }) => reason,
         Err(other) => panic!("unexpected error {other:?}"),
         Ok(_) => panic!("expected a failure"),
     }

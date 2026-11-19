@@ -8,11 +8,11 @@ use super::model::CredentialsInput;
 use super::service_tests::{input, setup, typed};
 use super::test_support::Op;
 use super::Protocol;
-use crate::error::HolziError;
+use crate::error::HaexError;
 
-fn field<T: std::fmt::Debug>(result: Result<T, HolziError>) -> String {
+fn field<T: std::fmt::Debug>(result: Result<T, HaexError>) -> String {
     match result {
-        Err(HolziError::StorageInvalid { field }) => field,
+        Err(HaexError::StorageInvalid { field }) => field,
         other => panic!("unexpected {other:?}"),
     }
 }
@@ -75,9 +75,9 @@ fn webdav(folder: &str, create_folder: bool) -> super::model::ConnectionInput {
     }
 }
 
-fn outcome<T: std::fmt::Debug>(result: Result<T, HolziError>) -> super::TestOutcome {
+fn outcome<T: std::fmt::Debug>(result: Result<T, HaexError>) -> super::TestOutcome {
     match result {
-        Err(HolziError::StorageTestFailed { outcome, .. }) => outcome,
+        Err(HaexError::StorageTestFailed { outcome, .. }) => outcome,
         other => panic!("unexpected {other:?}"),
     }
 }

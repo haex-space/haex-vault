@@ -2,7 +2,7 @@
 // language keys that carry their text. The lists are the one place of the spelling: the code
 // takes its keys from here and `scripts/check-marketplace-i18n.ts` checks both languages.
 
-/** `HolziError::Marketplace { reason }` of the download and the catalog commands. */
+/** `HaexError::Marketplace { reason }` of the download and the catalog commands. */
 export const MARKETPLACE_REASONS = [
   'marketplace_invalid_url',
   'marketplace_credentials_required',

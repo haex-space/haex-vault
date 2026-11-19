@@ -15,7 +15,7 @@ const THEME: &str = r#"{
   "fileExtensions": {"rs": "rust", "ts": "ts", "test.ts": "testts", "weird": "odd"},
   "folderNames": {"src": "src"},
   "light": {"fileExtensions": {"rs": "rust-light"}},
-  "x-holzi": {"roles": {"image": "image", "pdf": "pdf", "lockedFile": "lock", "folder": "folder"}}
+  "x-haex": {"roles": {"image": "image", "pdf": "pdf", "lockedFile": "lock", "folder": "folder"}}
 }"#;
 
 fn theme() -> IconTheme {

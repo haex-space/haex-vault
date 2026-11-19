@@ -116,9 +116,9 @@ mod system {
 
     /// Starts `executable` with `args`, the browser's pipe ends as descriptors 3 and 4.
     pub fn spawn(executable: &Path, args: &[OsString]) -> Result<(Connection, BrowserProcess)> {
-        let (child_reads, holzi_writes) =
+        let (child_reads, haex_writes) =
             std::io::pipe().map_err(|e| BrowserError::Unavailable(e.to_string()))?;
-        let (holzi_reads, child_writes) =
+        let (haex_reads, child_writes) =
             std::io::pipe().map_err(|e| BrowserError::Unavailable(e.to_string()))?;
         let inherited: [HANDLE; 2] = [
             child_reads.as_raw_handle() as HANDLE,
@@ -230,7 +230,7 @@ mod system {
             })
             .map_err(|e| BrowserError::Unavailable(e.to_string()))?;
         Ok((
-            Connection::new(holzi_reads, holzi_writes),
+            Connection::new(haex_reads, haex_writes),
             BrowserProcess::new(pid, exit),
         ))
     }

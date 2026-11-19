@@ -152,7 +152,7 @@ async function loadAsync() {
     folders.value = entries.filter(
       (entry) =>
         !entry.symlink &&
-        !entry.holziOwned &&
+        !entry.haexOwned &&
         (entry.kind === 'dir' || (props.allowFiles && entry.kind === 'file')),
     )
     loadFailed.value = false

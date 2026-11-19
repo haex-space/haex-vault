@@ -129,7 +129,7 @@ fn spellings_are_unified() {
 }
 
 #[test]
-fn categories_holzi_does_not_offer_are_listed_and_never_declared() {
+fn categories_haex_does_not_offer_are_listed_and_never_declared() {
     let result = declared(json!({
         "spaces": [{ "target": "*" }], "identities": [{ "target": "*" }],
         "bookmarks": [{ "target": "*" }], "syncServers": [{ "target": "*" }],

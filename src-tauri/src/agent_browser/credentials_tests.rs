@@ -161,7 +161,7 @@ fn custom_entry_fields_and_card_fields_are_never_filled_by_login_fill() {
 }
 
 #[test]
-fn the_built_in_agent_reads_through_the_holzi_function() {
+fn the_built_in_agent_reads_through_the_haex_function() {
     assert_eq!(
         password_caller(&Caller::BuiltinAgent),
         Caller::Internal { feature: FEATURE }

@@ -37,7 +37,7 @@ const valueOf = (selection: Selection) =>
 
 scenario('files-icon-sets-two-devices', { timeoutMs: 420_000 }, async (ctx) => {
   // The laptop of a group runs on this host, also in an Android run: its file lies on the host.
-  const files = deviceFiles('holzi-icons-sync-', { E2E_PLATFORM: 'linux' })
+  const files = deviceFiles('haex-icons-sync-', { E2E_PLATFORM: 'linux' })
   try {
     const group = await ctx.group({ users: { anna: ['laptop', 'phone'] } })
     const laptop = group.device('anna/laptop').page

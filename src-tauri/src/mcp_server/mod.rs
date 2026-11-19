@@ -80,7 +80,7 @@ use self::prompts::{
     EVENT_CALL_REQUEST, EVENT_PROMPT_CLOSED, EVENT_REGISTRATION_REQUEST, REGISTRATION_TIMEOUT,
 };
 use self::server::{Limits, Notice, Notifier, Running, StartArgs, StartError};
-use crate::adapters::cli_delegate::holzi_mcp::HolziAccess;
+use crate::adapters::cli_delegate::haex_mcp::HaexAccess;
 use crate::chat::session::ChatState;
 use crate::state::AppState;
 
@@ -173,8 +173,8 @@ impl McpServer {
     }
 
     /// How a delegate in the chat reaches holzi (US6).
-    pub fn delegate_access(&self) -> Arc<dyn HolziAccess> {
-        Arc::clone(&self.delegates) as Arc<dyn HolziAccess>
+    pub fn delegate_access(&self) -> Arc<dyn HaexAccess> {
+        Arc::clone(&self.delegates) as Arc<dyn HaexAccess>
     }
 
     pub(super) fn notifier(&self) -> Notifier {

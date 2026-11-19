@@ -23,7 +23,7 @@ pub(crate) async fn run_bridge_process(socket_path: &Path) -> io::Result<()> {
             Some("initialize") => json!({
                 "protocolVersion": request["params"]["protocolVersion"].as_str().unwrap_or("2025-06-18"),
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "holzi-approve", "version": env!("CARGO_PKG_VERSION")},
+                "serverInfo": {"name": "haex-approve", "version": env!("CARGO_PKG_VERSION")},
             }),
             Some("notifications/initialized") => continue,
             Some("tools/list") => json!({

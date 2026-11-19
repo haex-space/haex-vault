@@ -11,7 +11,7 @@ use haex_crdt::Database;
 
 use super::migrations_extensions::{DEVICE_TABLES, SYNCED_TABLES};
 use super::migrations_tests::{migration_source_before, open, own_columns, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 const COLUMNS: [(&str, &[&str]); 15] = [
     (
@@ -233,7 +233,7 @@ async fn migration_0023_gives_a_fresh_vault_the_extension_tables() {
             dir.path(),
             "extensions-migration-fresh",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_extensions_schema(&db);
     })
@@ -258,7 +258,7 @@ async fn migration_0023_upgrades_a_vault_from_before_it() {
             dir.path(),
             "extensions-migration-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_extensions_schema(&db);
     })
@@ -294,7 +294,7 @@ async fn migration_0025_keeps_one_of_each_parked_group_and_adds_the_data_purge()
             dir.path(),
             "sync-parking-migration-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         let parked = db
             .with_connection(|conn| {

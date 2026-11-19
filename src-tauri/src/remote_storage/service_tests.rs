@@ -15,7 +15,7 @@ use super::test_support::{grant_storage, resolver, vault, FakeStore, Op};
 use super::{
     Addressing, CredentialsState, EndpointScope, Protocol, ProviderKind, StorageError, TestOutcome,
 };
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::passwords::service::PasswordsService;
 use crate::storage::query::Query;
 use crate::vault_gate::VaultDb;
@@ -70,7 +70,7 @@ pub(super) fn input(id: Option<String>, credentials: Option<CredentialsInput>) -
         region: "us-east-1".to_owned(),
         addressing: Addressing::Path,
         credentials,
-        bucket_for_test: "holzi-test".to_owned(),
+        bucket_for_test: "haex-test".to_owned(),
         create_folder: false,
         host_key: None,
     }
@@ -126,7 +126,7 @@ async fn a_failed_test_saves_nothing_and_keeps_no_credentials() {
         .expect_err("refused");
     assert!(matches!(
         error,
-        HolziError::StorageTestFailed {
+        HaexError::StorageTestFailed {
             outcome: TestOutcome::AccessDenied,
             leftover_key: None,
             ..
@@ -144,7 +144,7 @@ async fn a_failed_test_saves_nothing_and_keeps_no_credentials() {
 async fn a_new_connection_needs_credentials_and_an_allowed_endpoint() {
     let s = setup();
     let field = |error| match error {
-        Err(HolziError::StorageInvalid { field }) => field,
+        Err(HaexError::StorageInvalid { field }) => field,
         other => panic!("unexpected {other:?}"),
     };
     assert_eq!(
@@ -225,7 +225,7 @@ async fn storages_are_tested_when_new_and_remembered() {
             id: None,
             connection_id: connection.id.clone(),
             name: "Fotos".to_owned(),
-            bucket: "holzi-test".to_owned(),
+            bucket: "haex-test".to_owned(),
             create_folder: false,
         })
         .await
@@ -243,7 +243,7 @@ async fn storages_are_tested_when_new_and_remembered() {
             id: Some(storage.id.clone()),
             connection_id: connection.id.clone(),
             name: "Bilder".to_owned(),
-            bucket: "holzi-test".to_owned(),
+            bucket: "haex-test".to_owned(),
             create_folder: false,
         })
         .await
@@ -277,7 +277,7 @@ async fn a_removal_is_previewed_and_takes_the_credentials_with_it() {
                 id: None,
                 connection_id: connection.id.clone(),
                 name: name.to_owned(),
-                bucket: "holzi-test".to_owned(),
+                bucket: "haex-test".to_owned(),
                 create_folder: false,
             })
             .await
@@ -324,7 +324,7 @@ async fn a_test_without_credentials_says_why_and_is_remembered() {
             id: None,
             connection_id: connection.id,
             name: "Fotos".to_owned(),
-            bucket: "holzi-test".to_owned(),
+            bucket: "haex-test".to_owned(),
             create_folder: false,
         })
         .await
@@ -338,7 +338,7 @@ async fn a_test_without_credentials_says_why_and_is_remembered() {
 
     assert!(matches!(
         s.service.test_storage(&storage.id).await,
-        Err(HolziError::StorageCredentialsUnavailable {
+        Err(HaexError::StorageCredentialsUnavailable {
             state: CredentialsState::Missing
         })
     ));
@@ -367,7 +367,7 @@ async fn a_test_without_synced_credentials_is_not_recorded_as_access_denied() {
             id: None,
             connection_id: connection.id,
             name: "Fotos".to_owned(),
-            bucket: "holzi-test".to_owned(),
+            bucket: "haex-test".to_owned(),
             create_folder: false,
         })
         .await
@@ -382,7 +382,7 @@ async fn a_test_without_synced_credentials_is_not_recorded_as_access_denied() {
 
     assert!(matches!(
         s.service.test_storage(&storage.id).await,
-        Err(HolziError::StorageCredentialsUnavailable {
+        Err(HaexError::StorageCredentialsUnavailable {
             state: CredentialsState::Syncing
         })
     ));
@@ -411,7 +411,7 @@ async fn a_changed_storage_is_tested_on_the_connection_it_belongs_to() {
             id: None,
             connection_id: connection.id.clone(),
             name: "Fotos".to_owned(),
-            bucket: "holzi-test".to_owned(),
+            bucket: "haex-test".to_owned(),
             create_folder: false,
         })
         .await
@@ -423,7 +423,7 @@ async fn a_changed_storage_is_tested_on_the_connection_it_belongs_to() {
             id: Some(storage.id.clone()),
             connection_id: "another-connection".to_owned(),
             name: "Fotos".to_owned(),
-            bucket: "holzi-other".to_owned(),
+            bucket: "haex-other".to_owned(),
             create_folder: false,
         })
         .await

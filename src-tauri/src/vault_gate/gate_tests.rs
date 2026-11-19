@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Barrier};
 
 use super::{ClosePolicy, VaultGate, VaultPhase};
-use crate::error::HolziError;
+use crate::error::HaexError;
 
 #[test]
 fn a_new_gate_is_idle_and_open_for_a_session() {
@@ -36,7 +36,7 @@ fn closing_before_any_vault_is_open_is_allowed() {
 fn the_phase_never_moves_backward() {
     let gate = VaultGate::new();
     gate.request_close();
-    assert!(matches!(gate.begin_session(), Err(HolziError::VaultClosed)));
+    assert!(matches!(gate.begin_session(), Err(HaexError::VaultClosed)));
     assert_eq!(gate.phase(), VaultPhase::Closing);
 }
 
@@ -73,7 +73,7 @@ fn begin_session_while_active_is_vault_already_active() {
     gate.begin_session().expect("Idle to Active");
     assert!(matches!(
         gate.begin_session(),
-        Err(HolziError::VaultAlreadyActive)
+        Err(HaexError::VaultAlreadyActive)
     ));
     assert_eq!(gate.phase(), VaultPhase::Active);
 }
@@ -83,7 +83,7 @@ fn begin_session_while_closing_is_vault_closed() {
     let gate = VaultGate::new();
     gate.begin_session().expect("Idle to Active");
     gate.request_close();
-    assert!(matches!(gate.begin_session(), Err(HolziError::VaultClosed)));
+    assert!(matches!(gate.begin_session(), Err(HaexError::VaultClosed)));
 }
 
 #[test]
@@ -95,14 +95,14 @@ fn ensure_can_open_reports_the_same_errors_without_changing_the_phase() {
     gate.begin_session().expect("Idle to Active");
     assert!(matches!(
         gate.ensure_can_open(),
-        Err(HolziError::VaultAlreadyActive)
+        Err(HaexError::VaultAlreadyActive)
     ));
     assert_eq!(gate.phase(), VaultPhase::Active);
 
     gate.request_close();
     assert!(matches!(
         gate.ensure_can_open(),
-        Err(HolziError::VaultClosed)
+        Err(HaexError::VaultClosed)
     ));
 }
 
@@ -138,11 +138,11 @@ async fn run_returns_the_output_while_open_and_vault_closed_once_closing() {
 
     gate.request_close();
     let pending = gate.run(std::future::pending::<()>()).await;
-    assert!(matches!(pending, Err(HolziError::VaultClosed)));
+    assert!(matches!(pending, Err(HaexError::VaultClosed)));
     // A result that is ready at the same moment still loses to the close (FR-001).
     assert!(matches!(
         gate.run(async { 1 }).await,
-        Err(HolziError::VaultClosed)
+        Err(HaexError::VaultClosed)
     ));
 }
 
@@ -151,11 +151,11 @@ async fn admission_rejects_new_tasks_after_close() {
     let gate = VaultGate::new();
     gate.request_close();
 
-    assert!(matches!(gate.tracker_token(), Err(HolziError::VaultClosed)));
-    assert!(matches!(gate.spawn(async {}), Err(HolziError::VaultClosed)));
+    assert!(matches!(gate.tracker_token(), Err(HaexError::VaultClosed)));
+    assert!(matches!(gate.spawn(async {}), Err(HaexError::VaultClosed)));
     assert!(matches!(
         gate.spawn_blocking(|| {}),
-        Err(HolziError::VaultClosed)
+        Err(HaexError::VaultClosed)
     ));
 }
 

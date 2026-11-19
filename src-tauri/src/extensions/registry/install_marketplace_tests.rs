@@ -8,7 +8,7 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::{install_source, preview_source, BundleSource, ExtensionInstallArgs, InstallOrigin};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::extensions::registry::install::{InstallPreview, Installed};
 use crate::files::test_support::PathOpener;
 use crate::files::PickedFile;
@@ -107,9 +107,9 @@ impl Rig {
     }
 }
 
-fn reason_of(error: HolziError) -> String {
+fn reason_of(error: HaexError) -> String {
     match error {
-        HolziError::ExtensionInstall { reason } | HolziError::Marketplace { reason } => reason,
+        HaexError::ExtensionInstall { reason } | HaexError::Marketplace { reason } => reason,
         other => panic!("unexpected error {other:?}"),
     }
 }
@@ -211,7 +211,7 @@ async fn a_bundle_that_fails_its_signature_shows_the_same_error_as_from_a_file()
     assert_eq!(from_market, from_file);
     assert!(matches!(
         rig.install(&rig.downloaded(&broken), false),
-        Err(HolziError::ExtensionInstall { .. })
+        Err(HaexError::ExtensionInstall { .. })
     ));
 }
 
@@ -318,7 +318,7 @@ async fn every_bundle_of_the_public_marketplace_passes_the_install_preview() {
                 .await?;
                 let size = bytes.len();
                 let preview = rig.preview(&rig.downloaded(&bytes))?;
-                Ok::<_, HolziError>((size, preview))
+                Ok::<_, HaexError>((size, preview))
             }
             .await;
             match outcome {

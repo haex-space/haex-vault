@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use super::subjects::{self, AgentProfileView, AgentSubjectView};
 use super::{choices, resolve, store, Subject, STANDARD_PROFILE_ID};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::mcp_server::grants::{self, Rights};
 use crate::mcp_server::prompts::EVENT_AGENTS_CHANGED;
 use crate::state::AppState;
@@ -97,8 +97,8 @@ pub struct AgentProfileDeleted {
     pub moved: usize,
 }
 
-fn refused(code: &str) -> HolziError {
-    HolziError::InvalidInput {
+fn refused(code: &str) -> HaexError {
+    HaexError::InvalidInput {
         reason: code.to_owned(),
     }
 }
@@ -244,7 +244,7 @@ pub async fn agent_profile_rights_set<R: Runtime>(
     state: State<'_, AppState>,
     args: AgentProfileRightsArgs,
 ) -> Result<()> {
-    grants::validate(&args.rights).map_err(|error| HolziError::InvalidInput {
+    grants::validate(&args.rights).map_err(|error| HaexError::InvalidInput {
         reason: error.to_string(),
     })?;
     let AgentProfileRightsArgs { id, rights } = args;

@@ -29,7 +29,7 @@ use reqwest::{Client, StatusCode, Url};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::hardware::{classify, Fit, HardwareInfo, ModelFitInputs};
 
 use super::hash::sha256_bytes_hex;
@@ -150,7 +150,7 @@ const MAX_REPO_SEGMENT_LEN: usize = 96;
 /// `owner/name` separator, each segment a bounded, printable,
 /// non-traversal token.
 pub fn validate_repo_id(repo_id: &str) -> Result<()> {
-    let bad = || HolziError::InvalidInput {
+    let bad = || HaexError::InvalidInput {
         reason: format!("invalid Hugging Face repository id: {repo_id:?}"),
     };
     if repo_id.is_empty() || repo_id.len() > 2 * MAX_REPO_SEGMENT_LEN + 1 {
@@ -188,7 +188,7 @@ pub fn validate_repo_id(repo_id: &str) -> Result<()> {
 /// revisions in practice do not need one, and rejecting it keeps every
 /// revision a single, unambiguous URL path segment.
 pub fn validate_revision_ref(revision: &str) -> Result<()> {
-    let bad = || HolziError::InvalidInput {
+    let bad = || HaexError::InvalidInput {
         reason: format!("invalid revision: {revision:?}"),
     };
     if revision.is_empty() || revision.len() > 200 {
@@ -227,7 +227,7 @@ pub fn is_gguf_filename(filename: &str) -> bool {
 pub fn validate_gguf_filename(filename: &str) -> Result<()> {
     paths::validate_filename(filename)?;
     if !is_gguf_filename(filename) {
-        return Err(HolziError::UnsupportedFormat {
+        return Err(HaexError::UnsupportedFormat {
             filename: filename.to_string(),
         });
     }
@@ -240,7 +240,7 @@ pub fn validate_gguf_filename(filename: &str) -> Result<()> {
 /// for search/details/tree/revision calls is a deliberate test seam and is
 /// not subject to this allowlist.
 fn validate_public_https_url(url_str: &str) -> Result<()> {
-    let bad = |reason: String| HolziError::InvalidInput { reason };
+    let bad = |reason: String| HaexError::InvalidInput { reason };
     let parsed = Url::parse(url_str).map_err(|e| bad(format!("invalid URL: {e}")))?;
     if parsed.scheme() != "https" {
         return Err(bad(format!("URL must use https: {url_str}")));
@@ -265,7 +265,7 @@ pub fn resolve_download_url(
 ) -> Result<String> {
     validate_repo_id(repo_id)?;
     if !is_commit_sha(revision) {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "download requires an already-resolved commit SHA".into(),
         });
     }
@@ -623,13 +623,13 @@ fn extract_license(info: &RawModelInfo) -> Option<String> {
         .find_map(|t| t.strip_prefix("license:").map(|s| s.to_string()))
 }
 
-fn map_reqwest_err(e: reqwest::Error) -> HolziError {
+fn map_reqwest_err(e: reqwest::Error) -> HaexError {
     if e.is_timeout() {
-        HolziError::Timeout {
+        HaexError::Timeout {
             reason: e.to_string(),
         }
     } else {
-        HolziError::Network {
+        HaexError::Network {
             reason: e.to_string(),
         }
     }
@@ -643,14 +643,14 @@ async fn finish_response(resp: reqwest::Response) -> Result<reqwest::Response> {
             .get(reqwest::header::RETRY_AFTER)
             .and_then(|v| v.to_str().ok())
             .and_then(|s| s.parse::<u64>().ok());
-        return Err(HolziError::RateLimited {
+        return Err(HaexError::RateLimited {
             retry_after_seconds: retry_after,
         });
     }
     if !status.is_success() && status != StatusCode::PARTIAL_CONTENT {
         let body = resp.text().await.unwrap_or_default();
         let truncated: String = body.chars().take(500).collect();
-        return Err(HolziError::HttpStatus {
+        return Err(HaexError::HttpStatus {
             status: status.as_u16(),
             reason: truncated,
         });
@@ -663,13 +663,13 @@ async fn finish_response(resp: reqwest::Response) -> Result<reqwest::Response> {
 /// on its single validated `/` so `owner` and `name` land as two distinct
 /// path segments rather than one segment containing an encoded slash.
 fn build_path_url(base_url: &str, prefix: &[String], repo_id: &str, extra: &[&str]) -> Result<Url> {
-    let mut url = Url::parse(base_url).map_err(|e| HolziError::InvalidInput {
+    let mut url = Url::parse(base_url).map_err(|e| HaexError::InvalidInput {
         reason: format!("invalid base url: {e}"),
     })?;
     {
         let mut segments = url
             .path_segments_mut()
-            .map_err(|_| HolziError::InvalidInput {
+            .map_err(|_| HaexError::InvalidInput {
                 reason: "base url cannot be a base".into(),
             })?;
         for p in prefix {
@@ -702,7 +702,7 @@ impl HfClient {
             .connect_timeout(Duration::from_secs(15))
             .user_agent(concat!("holzi/", env!("CARGO_PKG_VERSION")))
             .build()
-            .map_err(|e| HolziError::Network {
+            .map_err(|e| HaexError::Network {
                 reason: format!("build reqwest client: {e}"),
             })?;
         Ok(Self {
@@ -724,13 +724,13 @@ impl HfClient {
         limit: usize,
         cursor: Option<&str>,
     ) -> Result<(Vec<RawModelInfo>, Option<String>)> {
-        let mut url = Url::parse(&self.base_url).map_err(|e| HolziError::InvalidInput {
+        let mut url = Url::parse(&self.base_url).map_err(|e| HaexError::InvalidInput {
             reason: format!("invalid base url: {e}"),
         })?;
         {
             let mut segments = url
                 .path_segments_mut()
-                .map_err(|_| HolziError::InvalidInput {
+                .map_err(|_| HaexError::InvalidInput {
                     reason: "base url cannot be a base".into(),
                 })?;
             segments.push("api").push("models");
@@ -776,7 +776,7 @@ impl HfClient {
         let hits = resp
             .json::<Vec<RawModelInfo>>()
             .await
-            .map_err(|e| HolziError::Network {
+            .map_err(|e| HaexError::Network {
                 reason: format!("parse search response: {e}"),
             })?;
         Ok((hits, next_cursor))
@@ -803,7 +803,7 @@ impl HfClient {
         let resp = finish_response(resp).await?;
         resp.json::<RawModelInfo>()
             .await
-            .map_err(|e| HolziError::Network {
+            .map_err(|e| HaexError::Network {
                 reason: format!("parse repo info response: {e}"),
             })
     }
@@ -825,7 +825,7 @@ impl HfClient {
         let resp = finish_response(resp).await?;
         resp.json::<Vec<RawTreeEntry>>()
             .await
-            .map_err(|e| HolziError::Network {
+            .map_err(|e| HaexError::Network {
                 reason: format!("parse tree response: {e}"),
             })
     }
@@ -860,7 +860,7 @@ impl HfClient {
             .map_err(map_reqwest_err)?;
         let resp = finish_response(resp).await?;
         if resp.status() != StatusCode::PARTIAL_CONTENT {
-            return Err(HolziError::HttpStatus {
+            return Err(HaexError::HttpStatus {
                 status: resp.status().as_u16(),
                 reason: "range request must return HTTP 206 Partial Content".into(),
             });
@@ -869,7 +869,7 @@ impl HfClient {
             .content_length()
             .is_some_and(|length| length > max_bytes)
         {
-            return Err(HolziError::HttpStatus {
+            return Err(HaexError::HttpStatus {
                 status: resp.status().as_u16(),
                 reason: format!("range response exceeds the {max_bytes}-byte header limit"),
             });
@@ -903,12 +903,12 @@ fn validate_search_query(query: Option<&str>) -> Result<Option<String>> {
     };
     let trimmed = query.trim();
     if trimmed.chars().count() < 2 {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "search query must be at least 2 characters".into(),
         });
     }
     if trimmed.len() > 200 {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "search query is too long".into(),
         });
     }
@@ -1054,11 +1054,11 @@ pub async fn get_model_details(
     }
     let info = hf.repo_info(repo_id, revision).await?;
     if info.private.unwrap_or(false) || is_gated(&info.gated) {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: format!("{repo_id} is private or gated"),
         });
     }
-    let sha = info.sha.clone().ok_or_else(|| HolziError::InvalidInput {
+    let sha = info.sha.clone().ok_or_else(|| HaexError::InvalidInput {
         reason: format!("could not resolve a revision for {repo_id}"),
     })?;
     let sibling_names: Vec<String> = info
@@ -1072,7 +1072,7 @@ pub async fn get_model_details(
         .cloned()
         .collect();
     if gguf_names.is_empty() {
-        return Err(HolziError::UnsupportedFormat {
+        return Err(HaexError::UnsupportedFormat {
             filename: repo_id.to_string(),
         });
     }
@@ -1166,7 +1166,7 @@ pub async fn resolve_revision(
             });
         }
         let info = hf.repo_info(repo_id, Some(r)).await?;
-        let sha = info.sha.ok_or_else(|| HolziError::InvalidInput {
+        let sha = info.sha.ok_or_else(|| HaexError::InvalidInput {
             reason: format!("could not resolve revision '{r}' for {repo_id}"),
         })?;
         return Ok(RevisionResolution {
@@ -1175,7 +1175,7 @@ pub async fn resolve_revision(
         });
     }
     let info = hf.repo_info(repo_id, None).await?;
-    let sha = info.sha.ok_or_else(|| HolziError::InvalidInput {
+    let sha = info.sha.ok_or_else(|| HaexError::InvalidInput {
         reason: format!("could not resolve the default revision for {repo_id}"),
     })?;
     Ok(RevisionResolution {
@@ -1210,7 +1210,7 @@ pub async fn preview_install(
         .map(|s| s.iter().map(|s| s.rfilename.clone()).collect())
         .unwrap_or_default();
     if !sibling_names.iter().any(|s| s == filename) {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: format!("{filename} not found in {repo_id}@{}", resolved.sha),
         });
     }
@@ -1294,7 +1294,7 @@ pub async fn check_update(hf: &HfClient, repo_id: &str, revision_ref: &str) -> R
     validate_repo_id(repo_id)?;
     validate_revision_ref(revision_ref)?;
     let info = hf.repo_info(repo_id, Some(revision_ref)).await?;
-    info.sha.ok_or_else(|| HolziError::InvalidInput {
+    info.sha.ok_or_else(|| HaexError::InvalidInput {
         reason: format!("could not resolve '{revision_ref}' for {repo_id}"),
     })
 }

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::extensions::ids::limits_id;
 use crate::extensions::sql::exec::{limits_of, Limits};
 use crate::storage::query::Query;
@@ -117,7 +117,7 @@ pub fn get(db: &VaultDb, extension_id: Uuid) -> Result<ExtensionLimitsView> {
             .unwrap_or(0)
             > 0;
         if !installed {
-            return Err(HolziError::ExtensionNotFound.into());
+            return Err(HaexError::ExtensionNotFound.into());
         }
         Ok(ExtensionLimitsView {
             values: limits_of(q, extension_id)?.into(),
@@ -131,7 +131,7 @@ pub fn get(db: &VaultDb, extension_id: Uuid) -> Result<ExtensionLimitsView> {
 /// refused and nothing is written.
 pub fn set(db: &VaultDb, extension_id: Uuid, limits: ExtensionLimits) -> Result<()> {
     if let Some(field) = limits.out_of_bounds() {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: format!("limit {field} out of bounds"),
         });
     }
@@ -146,7 +146,7 @@ pub fn set(db: &VaultDb, extension_id: Uuid, limits: ExtensionLimits) -> Result<
             .unwrap_or(0)
             > 0;
         if !installed {
-            return Err(HolziError::ExtensionNotFound.into());
+            return Err(HaexError::ExtensionNotFound.into());
         }
         let id = limits_id(extension_id).to_string();
         let values = params![

@@ -16,7 +16,7 @@ use std::time::Duration;
 use tauri::{path::BaseDirectory, AppHandle, Manager, Runtime};
 use tokio_util::sync::CancellationToken;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 pub const MODELS_DIRECTORY: &str = "models";
 
@@ -58,7 +58,7 @@ pub async fn acquire_model_publication_lock<R: Runtime>(
     validate_slug(slug)?;
     let in_process_lock = {
         let locks = MODEL_PUBLICATION_LOCKS.get_or_init(|| Mutex::new(HashMap::new()));
-        let mut locks = locks.lock().map_err(|e| HolziError::CrdtInit {
+        let mut locks = locks.lock().map_err(|e| HaexError::CrdtInit {
             reason: format!("model publication lock map poisoned: {e}"),
         })?;
         locks
@@ -71,12 +71,12 @@ pub async fn acquire_model_publication_lock<R: Runtime>(
     // close waiting on this acquisition either.
     let mutex_guard = tokio::select! {
         biased;
-        _ = token.cancelled() => return Err(HolziError::VaultClosed),
+        _ = token.cancelled() => return Err(HaexError::VaultClosed),
         guard = in_process_lock.lock_owned() => guard,
     };
 
     if token.is_cancelled() {
-        return Err(HolziError::VaultClosed);
+        return Err(HaexError::VaultClosed);
     }
     let app_for_lock = app.clone();
     let slug_for_lock = slug.to_owned();
@@ -84,7 +84,7 @@ pub async fn acquire_model_publication_lock<R: Runtime>(
     // cancellation or unrelated commands.
     let file_lock = tauri::async_runtime::spawn_blocking(move || -> Result<File> {
         let locks_dir = models_root(&app_for_lock)?.join(MODEL_LOCKS_DIRECTORY);
-        std::fs::create_dir_all(&locks_dir).map_err(HolziError::from)?;
+        std::fs::create_dir_all(&locks_dir).map_err(HaexError::from)?;
         let lock_path = locks_dir.join(format!("{slug_for_lock}.lock"));
         // Read and write, not append-only: Windows refuses a lock on an append-only handle
         // (data-model.md).
@@ -94,27 +94,27 @@ pub async fn acquire_model_publication_lock<R: Runtime>(
             .create(true)
             .truncate(false)
             .open(&lock_path)
-            .map_err(HolziError::from)
+            .map_err(HaexError::from)
     })
     .await
-    .map_err(|e| HolziError::CrdtInit {
+    .map_err(|e| HaexError::CrdtInit {
         reason: format!("model publication lock setup join: {e}"),
     })??;
 
     loop {
         if token.is_cancelled() {
-            return Err(HolziError::VaultClosed);
+            return Err(HaexError::VaultClosed);
         }
         match file_lock.try_lock() {
             Ok(()) => break,
             Err(TryLockError::WouldBlock) => {
                 tokio::select! {
                     biased;
-                    _ = token.cancelled() => return Err(HolziError::VaultClosed),
+                    _ = token.cancelled() => return Err(HaexError::VaultClosed),
                     _ = tokio::time::sleep(MODEL_LOCK_POLL_INTERVAL) => {}
                 }
             }
-            Err(TryLockError::Error(e)) => return Err(HolziError::from(e)),
+            Err(TryLockError::Error(e)) => return Err(HaexError::from(e)),
         }
     }
 
@@ -129,10 +129,10 @@ pub fn models_root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     let dir = app
         .path()
         .resolve(MODELS_DIRECTORY, BaseDirectory::AppLocalData)
-        .map_err(|e| HolziError::PathResolution {
+        .map_err(|e| HaexError::PathResolution {
             reason: format!("resolve models dir: {e}"),
         })?;
-    std::fs::create_dir_all(&dir).map_err(HolziError::from)?;
+    std::fs::create_dir_all(&dir).map_err(HaexError::from)?;
     Ok(dir)
 }
 
@@ -142,7 +142,7 @@ pub fn models_root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
 pub fn slug_dir(app: &AppHandle, slug: &str) -> Result<PathBuf> {
     validate_slug(slug)?;
     let dir = models_root(app)?.join(slug);
-    std::fs::create_dir_all(&dir).map_err(HolziError::from)?;
+    std::fs::create_dir_all(&dir).map_err(HaexError::from)?;
     Ok(dir)
 }
 
@@ -223,8 +223,8 @@ pub(crate) fn validate_filename(filename: &str) -> Result<()> {
     Ok(())
 }
 
-fn bad_input(reason: impl Into<String>) -> HolziError {
-    HolziError::InvalidInput {
+fn bad_input(reason: impl Into<String>) -> HaexError {
+    HaexError::InvalidInput {
         reason: reason.into(),
     }
 }
@@ -264,7 +264,7 @@ pub struct CanonicalModelFile {
 ///
 /// Returns `Ok(None)` when the slug directory is missing or holds no
 /// finalised `.gguf` file. Filesystem errors other than `NotFound` surface as
-/// [`HolziError::Io`].
+/// [`HaexError::Io`].
 pub fn canonical_model_file(app: &AppHandle, slug: &str) -> Result<Option<CanonicalModelFile>> {
     canonical_model_file_in(&models_root(app)?, slug)
 }
@@ -279,13 +279,13 @@ pub(crate) fn canonical_model_file_in(
     let entries = match std::fs::read_dir(&dir) {
         Ok(entries) => entries,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(e) => return Err(HolziError::from(e)),
+        Err(e) => return Err(HaexError::from(e)),
     };
 
     let mut candidate: Option<(String, PathBuf, u64)> = None;
     for entry in entries {
-        let entry = entry.map_err(HolziError::from)?;
-        let file_type = entry.file_type().map_err(HolziError::from)?;
+        let entry = entry.map_err(HaexError::from)?;
+        let file_type = entry.file_type().map_err(HaexError::from)?;
         if !file_type.is_file() {
             continue;
         }
@@ -296,11 +296,11 @@ pub(crate) fn canonical_model_file_in(
         if !name.to_ascii_lowercase().ends_with(".gguf") {
             continue;
         }
-        let meta = entry.metadata().map_err(HolziError::from)?;
+        let meta = entry.metadata().map_err(HaexError::from)?;
         let path = entry.path();
         let size = meta.len();
         if candidate.is_some() {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: format!(
                     "multiple finalized GGUF files found for model slug '{slug}'; remove all but one"
                 ),

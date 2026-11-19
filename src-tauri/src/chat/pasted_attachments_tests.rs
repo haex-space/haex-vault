@@ -2,7 +2,7 @@ use std::time::{Duration, SystemTime};
 
 use super::{remove_stale, safe_name, stage, STAGED_LIFETIME};
 use crate::chat::attachments::MAX_ANY_BYTES;
-use crate::error::HolziError;
+use crate::error::HaexError;
 
 #[test]
 fn a_name_keeps_only_its_last_component() {
@@ -56,7 +56,7 @@ fn a_name_cannot_lead_out_of_the_staging_folder() {
 fn an_empty_paste_is_refused() {
     let root = tempfile::tempdir().expect("tempdir");
     let error = stage(root.path(), "image.png", b"").expect_err("empty");
-    assert!(matches!(error, HolziError::InvalidInput { .. }));
+    assert!(matches!(error, HaexError::InvalidInput { .. }));
 }
 
 #[test]
@@ -64,7 +64,7 @@ fn a_paste_beyond_the_largest_limit_is_refused() {
     let root = tempfile::tempdir().expect("tempdir");
     let bytes = vec![0u8; usize::try_from(MAX_ANY_BYTES).expect("fits") + 1];
     let error = stage(root.path(), "big.pdf", &bytes).expect_err("too large");
-    assert!(matches!(error, HolziError::InvalidInput { .. }));
+    assert!(matches!(error, HaexError::InvalidInput { .. }));
     assert_eq!(std::fs::read_dir(root.path()).expect("read_dir").count(), 0);
 }
 

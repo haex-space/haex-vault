@@ -20,7 +20,7 @@ use sherpa_onnx::{SpeakerEmbeddingExtractor, SpeakerEmbeddingExtractorConfig};
 use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::state::AppState;
 use crate::state_utils::active_database;
 use crate::storage::assistant_speakers::{self, Speaker, MAX_NAME_CHARS};
@@ -117,7 +117,7 @@ impl Extractor {
         };
         SpeakerEmbeddingExtractor::create(&config)
             .map(Self)
-            .ok_or_else(|| HolziError::SpeechFailed {
+            .ok_or_else(|| HaexError::SpeechFailed {
                 reason: "the speaker model could not be loaded".to_owned(),
             })
     }
@@ -229,12 +229,12 @@ pub async fn gate(app: &AppHandle) -> Result<Option<Gate>> {
         return Ok(None);
     }
     if prints.iter().all(|p| p.model != MODEL_ID) {
-        return Err(HolziError::SpeechFailed {
+        return Err(HaexError::SpeechFailed {
             reason: "the enrolled voice prints use an older model; enrol them again".to_owned(),
         });
     }
     if !is_installed(app) {
-        return Err(HolziError::SpeechFailed {
+        return Err(HaexError::SpeechFailed {
             reason: "the speaker model is missing; download it again before listening".to_owned(),
         });
     }
@@ -261,7 +261,7 @@ async fn extractor(app: &AppHandle) -> Result<Arc<Extractor>> {
     let path = model_path(app)?;
     let loaded = tauri::async_runtime::spawn_blocking(move || Extractor::load(&path))
         .await
-        .map_err(|e| HolziError::SpeechFailed {
+        .map_err(|e| HaexError::SpeechFailed {
             reason: format!("load the speaker model: {e}"),
         })??;
     let loaded = Arc::new(loaded);
@@ -341,8 +341,8 @@ impl Enrolment {
     }
 }
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::InvalidInput {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::InvalidInput {
         reason: reason.to_owned(),
     }
 }
@@ -396,7 +396,7 @@ pub async fn assistant_speaker_add_sentence(
         .gate()
         .spawn_blocking(move || extractor.embed(&samples))?
         .await
-        .map_err(|e| HolziError::SpeechFailed {
+        .map_err(|e| HaexError::SpeechFailed {
             reason: format!("take the voice print: {e}"),
         })?
         .ok_or_else(|| invalid("tooShort"))?;
@@ -456,7 +456,7 @@ pub async fn assistant_speaker_rename(
         .write(move |tx| assistant_speakers::rename(tx, id, &name))
         .await?
     {
-        return Err(HolziError::NotFound {
+        return Err(HaexError::NotFound {
             name: id.to_string(),
         });
     }

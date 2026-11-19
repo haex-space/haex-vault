@@ -20,7 +20,7 @@ use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::task_tracker::TaskTrackerToken;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::extensions::host::ExtensionHost;
 use crate::files::peer::connect::Connections;
 use crate::instances::paths::get_app_local_data;
@@ -155,10 +155,10 @@ async fn resolve_deps<R: Runtime>(app: &AppHandle<R>, state: &AppState) -> Resul
             })
         })
         .await
-        .map_err(|e| HolziError::CrdtInit {
+        .map_err(|e| HaexError::CrdtInit {
             reason: format!("sync deps join: {e}"),
         })?
-        .map_err(HolziError::from)?;
+        .map_err(HaexError::from)?;
     Ok(SyncDeps {
         replica: Arc::new(Replica::tracked(db, state.gate().clone())),
         keys: device_keys,

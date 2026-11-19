@@ -18,7 +18,7 @@ use tauri::{AppHandle, Runtime};
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::instances::link_vault::LinkVault;
 use crate::instances::passphrase::Passphrase;
 use crate::sync::handshake::local_schema;
@@ -116,9 +116,9 @@ impl LinkJoin {
         emit: Emit,
         args: JoinArgs,
         config: JoinConfig,
-    ) -> Result<LinkJoinState, HolziError> {
+    ) -> Result<LinkJoinState, HaexError> {
         if self.slot().as_ref().is_some_and(|r| !is_over(&r.state)) {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: "a link is already in progress".into(),
             });
         }

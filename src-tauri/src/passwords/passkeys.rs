@@ -18,7 +18,7 @@ use zeroize::Zeroizing;
 
 use super::ids::passkey_id;
 use super::model::PasskeyView;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
 pub const ES256: i64 = -7;
@@ -65,7 +65,7 @@ pub fn rename(
         params![nickname, passkey_id],
     )?;
     if changed == 0 {
-        return Err(HolziError::PasswordsNotFound);
+        return Err(HaexError::PasswordsNotFound);
     }
     Ok(())
 }
@@ -78,7 +78,7 @@ pub fn delete(tx: &mut CrdtTransaction<'_>, passkey_id: &str) -> Result<()> {
         params![passkey_id],
     )?;
     if changed == 0 {
-        return Err(HolziError::PasswordsNotFound);
+        return Err(HaexError::PasswordsNotFound);
     }
     Ok(())
 }
