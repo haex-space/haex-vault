@@ -96,6 +96,12 @@ fn every_function_stays_within_its_installation() {
             changed.renewed_at = Some(9);
             put_session(tx, mine, &changed)?;
             put_peer(tx, mine, PEER, &PeerRow::default())?;
+            set_record_published(tx, mine, 7, &["wss://relay.example.org".to_owned()])?;
+            assert_eq!(record_relays(tx, mine)?, ["wss://relay.example.org"]);
+            assert_eq!(
+                account(tx, mine)?.expect("account").record_published_at,
+                Some(7)
+            );
             let found = (
                 account(tx, mine)?.expect("my account"),
                 sessions(tx, mine, PEER)?,
@@ -165,4 +171,33 @@ fn no_row_type_prints_its_pickle() {
         record_published_at: None,
     };
     assert!(!format!("{account_row:?}").contains("geheimes-konto"));
+}
+
+#[test]
+fn a_peer_record_is_kept_per_device_and_replaced() {
+    let device = ChatDevice::genesis(&[]);
+    let first = RecordRow {
+        peer_device: PEER.to_owned(),
+        identity_key: "identity".into(),
+        start_key: "start".into(),
+        made_at: 1_000,
+        valid_until: 2_000,
+    };
+    let newer = RecordRow {
+        start_key: "next start".into(),
+        made_at: 1_500,
+        valid_until: 3_000,
+        ..first.clone()
+    };
+    let (put_first, put_newer) = (first.clone(), newer.clone());
+    let (found, none) = device
+        .db
+        .write_blocking(move |tx| {
+            put_record(tx, &put_first)?;
+            put_record(tx, &put_newer)?;
+            Ok((record(tx, PEER)?, record(tx, "cc")?))
+        })
+        .expect("records");
+    assert_eq!(found, Some(newer));
+    assert_eq!(none, None);
 }
