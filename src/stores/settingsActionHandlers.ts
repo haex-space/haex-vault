@@ -451,6 +451,18 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     })
     return { status: result.status }
   })
+  on('settings.delegate.remove', async ({ input }) => {
+    const vendor = String(input.vendor)
+    // The program first: it is refused while a request of the vendor runs, and then nothing is
+    // cut. The connection is the stored provider; without the program it could not start.
+    await invoke('cli_tools_remove', { vendor })
+    const connected = (await providers.listAsync()).find(
+      (candidate) =>
+        candidate.kind === 'cli_delegate' && candidate.adapter === vendor,
+    )
+    if (connected) await providers.deleteAsync(connected.id)
+    return done
+  })
   on('settings.delegate.submitCode', async ({ input }) => {
     await providers.submitCliDelegateCodeAsync({
       code: String(input.code),

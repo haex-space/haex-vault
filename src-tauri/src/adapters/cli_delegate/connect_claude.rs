@@ -24,6 +24,11 @@ use super::process::map_spawn_error;
 use super::DelegateVendor;
 
 const URL_TIMEOUT: Duration = Duration::from_secs(30);
+/// How long the code stands alone in the terminal before Enter follows. The program treats what
+/// arrives in one piece with a line end as pasted text: the code of a real sign-in (about 90
+/// characters) then stays in its field and the Enter is swallowed, so the sign-in never starts.
+/// Typed and pasted codes are told apart by this gap, measured with `claude` 2.1.311.
+pub(super) const ENTER_DELAY: Duration = Duration::from_millis(300);
 /// Generous: covers the time the user spends in the browser plus copying the
 /// code back.
 const TOKEN_TIMEOUT: Duration = Duration::from_secs(10 * 60);
@@ -44,6 +49,10 @@ fn pty_size() -> PtySize {
 pub(crate) enum ReaderEvent {
     Url(String),
     Token(String),
+    /// The program printed its sign-in error ("That code wasn't accepted") and waits for Enter.
+    /// It ends neither with a token nor with an exit, so without this the flow waits for its
+    /// whole timeout in silence.
+    Rejected,
     Eof,
     Error(String),
 }
@@ -119,6 +128,14 @@ fn strip_ansi(text: &str) -> String {
     out
 }
 
+/// Whether the program has printed its sign-in error: a code that was incomplete, expired, used
+/// or from an earlier attempt (`OAuth error: That code wasn't accepted. …`). Only the marker is
+/// matched, never the text after it, so nothing the program printed travels on. Pure and
+/// unit-testable.
+pub(super) fn sign_in_rejected(buf: &[u8]) -> bool {
+    strip_ansi(&String::from_utf8_lossy(buf)).contains("OAuth error:")
+}
+
 /// Scans ANSI-stripped output for Anthropic's documented long-lived OAuth
 /// token prefix. research.md §5: the exact final-screen layout is not
 /// live-verified (completing the flow would mint a real credential against
@@ -169,6 +186,11 @@ fn spawn_reader_thread(
                     }
                     if let Some(token) = extract_oauth_token(&buf) {
                         let _ = tx.send(ReaderEvent::Token(token));
+                        token_ready.notify_one();
+                        return;
+                    }
+                    if sign_in_rejected(&buf) {
+                        let _ = tx.send(ReaderEvent::Rejected);
                         token_ready.notify_one();
                         return;
                     }
@@ -252,11 +274,22 @@ impl ClaudeConnectSession {
                 Ok(ReaderEvent::Eof) | Err(mpsc::error::TryRecvError::Disconnected) => {
                     return Some(TerminalOutcome::Ended);
                 }
+                Ok(ReaderEvent::Rejected) => {
+                    return Some(TerminalOutcome::Errored(
+                        "claude setup-token did not accept the sign-in".into(),
+                    ));
+                }
                 Ok(ReaderEvent::Error(error)) => return Some(TerminalOutcome::Errored(error)),
                 Ok(ReaderEvent::Url(_)) => continue,
                 Err(mpsc::error::TryRecvError::Empty) => return None,
             }
         }
+    }
+
+    /// Replaces the writer of a test double, to see what is written to the program and when.
+    #[cfg(test)]
+    pub(crate) fn set_writer_for_test(&mut self, writer: Box<dyn Write + Send>) {
+        self.writer = writer;
     }
 
     /// Builds a session around an injected event channel instead of a real
@@ -386,31 +419,37 @@ pub async fn start_claude_connect(
         reason: format!("connect task join failed: {error}"),
     })??;
 
-    let url = tokio::time::timeout(URL_TIMEOUT, async {
-        loop {
-            match session.events.recv().await {
-                Some(ReaderEvent::Url(url)) => return Ok(url),
-                Some(ReaderEvent::Token(_)) => continue,
-                Some(ReaderEvent::Eof) => {
-                    return Err(AdapterError::Http {
-                        reason: "claude setup-token exited before showing a login URL".into(),
-                    })
-                }
-                Some(ReaderEvent::Error(error)) => {
-                    return Err(AdapterError::Http { reason: error })
-                }
-                None => {
-                    return Err(AdapterError::Http {
-                        reason: "claude setup-token's output stream ended unexpectedly".into(),
-                    })
+    let url =
+        tokio::time::timeout(URL_TIMEOUT, async {
+            loop {
+                match session.events.recv().await {
+                    Some(ReaderEvent::Url(url)) => return Ok(url),
+                    Some(ReaderEvent::Token(_)) => continue,
+                    Some(ReaderEvent::Rejected) => return Err(AdapterError::Http {
+                        reason:
+                            "claude setup-token reported a sign-in error before showing a login URL"
+                                .into(),
+                    }),
+                    Some(ReaderEvent::Eof) => {
+                        return Err(AdapterError::Http {
+                            reason: "claude setup-token exited before showing a login URL".into(),
+                        })
+                    }
+                    Some(ReaderEvent::Error(error)) => {
+                        return Err(AdapterError::Http { reason: error })
+                    }
+                    None => {
+                        return Err(AdapterError::Http {
+                            reason: "claude setup-token's output stream ended unexpectedly".into(),
+                        })
+                    }
                 }
             }
-        }
-    })
-    .await
-    .map_err(|_| AdapterError::Http {
-        reason: format!("timed out after {URL_TIMEOUT:?} waiting for the login URL"),
-    })??;
+        })
+        .await
+        .map_err(|_| AdapterError::Http {
+            reason: format!("timed out after {URL_TIMEOUT:?} waiting for the login URL"),
+        })??;
 
     Ok((session, url))
 }
@@ -421,21 +460,29 @@ pub async fn submit_claude_code(
     session: &mut ClaudeConnectSession,
     code: &str,
 ) -> Result<Vec<u8>, AdapterError> {
-    let mut line = code.trim().as_bytes().to_vec();
-    line.push(b'\r');
+    let write_failed = |error: std::io::Error| AdapterError::Http {
+        reason: format!("failed to submit the authorization code: {error}"),
+    };
     session
         .writer
-        .write_all(&line)
-        .map_err(|error| AdapterError::Http {
-            reason: format!("failed to submit the authorization code: {error}"),
-        })?;
+        .write_all(code.trim().as_bytes())
+        .and_then(|()| session.writer.flush())
+        .map_err(write_failed)?;
+    tokio::time::sleep(ENTER_DELAY).await;
+    session
+        .writer
+        .write_all(b"\r")
+        .and_then(|()| session.writer.flush())
+        .map_err(write_failed)?;
 
     let token = tokio::time::timeout(TOKEN_TIMEOUT, async {
         loop {
             match session.events.recv().await {
                 Some(ReaderEvent::Token(token)) => return Ok(token),
                 Some(ReaderEvent::Url(_)) => continue,
-                Some(ReaderEvent::Eof) | None => return Err(AdapterError::InvalidCredentials),
+                Some(ReaderEvent::Rejected | ReaderEvent::Eof) | None => {
+                    return Err(AdapterError::InvalidCredentials)
+                }
                 Some(ReaderEvent::Error(error)) => {
                     return Err(AdapterError::Http { reason: error })
                 }

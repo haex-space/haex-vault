@@ -397,6 +397,7 @@ const EXPECTED_GUARDRAILS = [
   'chat.modelIntegrity.decide',
   'settings.delegate.connectProvider',
   'settings.delegate.submitCode',
+  'settings.delegate.remove',
   'settings.privacy.screenCapture.set',
   'settings.files.deviceAccess.set',
 ]

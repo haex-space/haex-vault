@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use tempfile::TempDir;
 
-use super::{plan_for, plan_install, registry_key, revert_tool, status_of_all, Plan};
+use super::{plan_for, plan_install, registry_key, remove_tool, revert_tool, status_of_all, Plan};
 use crate::cli_tools::catalog::{Catalog, CatalogVersion, VendorDefinition};
 use crate::cli_tools::containment::IsolationLevel;
 use crate::cli_tools::install::InstallError;
@@ -348,4 +348,54 @@ fn going_back_is_refused_while_a_run_of_the_tool_is_in_progress_or_nothing_is_to
     let error = revert_tool(&tools, &vendor).unwrap_err();
     assert_eq!(error, InstallError::NothingToRevert);
     assert_eq!(error.code(), "cli_tools.nothing_to_revert");
+}
+
+#[test]
+fn removing_a_tool_deletes_all_its_versions_and_leaves_the_home_and_other_tools_alone() {
+    let data = TempDir::new().unwrap();
+    let vendor = claude_listing(&["1.1.0", "1.0.0"]);
+    let tools = tools(&data);
+    let paths = VaultPaths::new(data.path());
+    put(&data, "1.0.0", true);
+    put(&data, "1.1.0", false);
+    let other = paths.cli_tool_dir("anna", "codex").join("0.1.0");
+    fs::create_dir_all(&other).unwrap();
+    fs::write(other.join("codex"), b"program").unwrap();
+    let home = paths.home("anna");
+    fs::create_dir_all(&home).unwrap();
+    fs::write(home.join("kept"), b"x").unwrap();
+
+    remove_tool(&tools, &vendor).unwrap();
+
+    assert!(!paths.cli_tool_dir("anna", "claude").exists());
+    assert!(other.join("codex").is_file());
+    assert!(home.join("kept").is_file());
+    let shown = status_of_all(&tools, &DownloadRegistry::default());
+    assert_eq!(shown[0].state, CliToolState::NotInstalled);
+    // Nothing installed is already removed.
+    remove_tool(&tools, &vendor).unwrap();
+}
+
+#[test]
+fn removing_a_tool_is_refused_while_a_run_of_it_is_in_progress() {
+    let data = TempDir::new().unwrap();
+    let vendor = claude_listing(&["1.0.0"]);
+    let tools = tools(&data);
+    let vendor_dir = VaultPaths::new(data.path()).cli_tool_dir("anna", "claude");
+    put(&data, "1.0.0", true);
+
+    let run = Lease::take(
+        vendor_dir.clone(),
+        "1.0.0".into(),
+        Arc::new(vendor.clone()),
+        PlatformKey::host(),
+        None,
+    );
+    let error = remove_tool(&tools, &vendor).unwrap_err();
+    assert_eq!(error, InstallError::InUse);
+    assert!(vendor_dir.join("1.0.0").is_dir());
+    drop(run);
+
+    remove_tool(&tools, &vendor).unwrap();
+    assert!(!vendor_dir.exists());
 }
