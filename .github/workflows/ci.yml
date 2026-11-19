@@ -275,7 +275,7 @@ jobs:
     name: Rust checks (${{ matrix.features }})
     runs-on: ubuntu-24.04
     needs: changes
-    timeout-minutes: 60
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -308,16 +308,18 @@ jobs:
           # Ubuntu's public mirror so transient regional mirror outages do not
           # fail the job before the build starts.
           sudo sed -i \
+            -e 's|http://[^/]*\.ec2\.archive\.ubuntu\.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+            -e 's|https://[^/]*\.ec2\.archive\.ubuntu\.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
             -e 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
             -e 's|http://archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
             -e 's|https://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
             /etc/apt/apt-mirrors.txt /etc/apt/sources.list \
             /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
-          timeout 10m sudo env DEBIAN_FRONTEND=noninteractive apt-get update \
+          timeout 20m sudo env DEBIAN_FRONTEND=noninteractive apt-get update \
             -o Acquire::Retries=3 \
             -o Acquire::http::Timeout=30 \
             -o Acquire::https::Timeout=30
-          timeout 10m sudo env DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends \
+          timeout 20m sudo env DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends \
             libwebkit2gtk-4.1-dev \
             build-essential \
             cmake \

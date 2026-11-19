@@ -110,7 +110,6 @@ test('every state and phase has words in English and German', () => {
     'settings.cliTools.outdated',
     'settings.cliTools.cancel',
     'settings.cliTools.size',
-    'settings.cliTools.connectNeedsTool',
     'chat.model.delegateNotInstalled',
   ]
   for (const [name, messages] of Object.entries(locales)) {
@@ -271,7 +270,7 @@ test('the composable hides cancellation and gives other install errors a fixed t
 })
 
 test('the row offers the install with its size and has no inline success text', () => {
-  const row = read('src/components/settings/CliToolRow.vue')
+  const row = read('src/components/settings/DelegateRow.vue')
   assert.match(row, /settings\.cliTools\.size/)
   assert.match(row, /settings\.cliTools\.install/)
   assert.match(row, /settings\.cliTools\.cancel/)
@@ -318,7 +317,7 @@ test('going back is offered exactly while there is a version to go back to', () 
 })
 
 test('the update, the way back and the notes are in the row and the composable, and nothing is silent', () => {
-  const row = read('src/components/settings/CliToolRow.vue')
+  const row = read('src/components/settings/DelegateRow.vue')
   assert.match(row, /updatable\(status\)/)
   assert.match(row, /revertible\(status\)/)
   assert.match(row, /settings\.cliTools\.update/)
@@ -333,7 +332,8 @@ test('the update, the way back and the notes are in the row and the composable, 
 
 test('the chat picker and the connect flow use the same readiness as the row', () => {
   const page = read('src/components/settings/ConnectDelegateProvider.vue')
-  assert.match(page, /usable\(status\)/)
+  const row = read('src/components/settings/DelegateRow.vue')
+  assert.match(row, /usable\(status\)/)
   assert.match(page, /@revert="cliTools\.revertAsync\(vendor\)"/)
   const store = read('src/stores/models.ts')
   assert.match(store, /usable\(tool\)/)
@@ -341,7 +341,7 @@ test('the chat picker and the connect flow use the same readiness as the row', (
 })
 
 test('the row says how far the tool is kept in the vault, and the two levels differ', () => {
-  const row = read('src/components/settings/CliToolRow.vue')
+  const row = read('src/components/settings/DelegateRow.vue')
   assert.match(row, /isolationKey\(status\)/)
   assert.notEqual(
     isolationKey({ isolation: 'best_effort' }),
@@ -349,10 +349,30 @@ test('the row says how far the tool is kept in the vault, and the two levels dif
   )
 })
 
-test('the providers page lists the tool row before each connect row', () => {
+test('a provider is one row with the program and its sign-in together', () => {
   const page = read('src/components/settings/ConnectDelegateProvider.vue')
-  assert.ok(
-    page.indexOf('<CliToolRow') < page.indexOf(':title="vendorLabel(vendor)"'),
+  const row = read('src/components/settings/DelegateRow.vue')
+  // One row per vendor: no second row for the connect, and the sign-in does not grow the row.
+  assert.equal(page.match(/<SettingsDelegateRow/g)?.length, 1)
+  assert.ok(!/<SettingsRow/.test(page))
+  assert.ok(!/#below/.test(row))
+  assert.match(page, /<SettingsDelegateSignInDialog/)
+  // Without the program the sign-in and the model refresh are not offered, and the way out is.
+  assert.match(row, /v-if="usable\(status\)"/)
+  assert.match(row, /cli-tool-install-/)
+  assert.match(row, /cli-tool-remove-/)
+  // What else there is to know sits behind the info button.
+  assert.match(row, /cli-tool-info-/)
+  assert.match(row, /UiDrawerModal/)
+})
+
+test('removing a provider takes the program and the connection, and only the user can ask', () => {
+  const actions = read('src/lib/actions/settingsActions.ts')
+  assert.match(
+    actions,
+    /id: 'settings\.delegate\.remove'[\s\S]*?scope: 'guardrails'/,
   )
-  assert.match(page, /toolReady\(vendor\)/)
+  const handlers = read('src/stores/settingsActionHandlers.ts')
+  assert.match(handlers, /'cli_tools_remove'/)
+  assert.match(handlers, /providers\.deleteAsync\(connected\.id\)/)
 })
