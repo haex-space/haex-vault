@@ -685,3 +685,63 @@ async fn an_update_whose_download_fails_leaves_the_version_in_use_and_no_staging
     assert_eq!(fixture.entries("claude"), ["1.0.0"]);
     assert!(first.executable.is_file());
 }
+
+#[tokio::test]
+#[cfg(unix)]
+async fn a_program_that_is_busy_for_a_moment_is_started_after_it() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let program = dir.path().join("tool");
+    // While this handle is open for writing, the kernel refuses to execute the file, as it does
+    // when a forking thread has inherited the handle of a program an install has just written.
+    let writer = fs::File::create(&program).unwrap();
+    fs::write(&program, reports("1.0.0")).unwrap();
+    fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).unwrap();
+    let busy = std::process::Command::new(&program).spawn().unwrap_err();
+    assert_eq!(
+        busy.kind(),
+        std::io::ErrorKind::ExecutableFileBusy,
+        "the setup must make the program busy"
+    );
+    let mut command = tokio::process::Command::new(&program);
+    let mut writer = Some(writer);
+    let mut release_after_busy = || {
+        drop(writer.take());
+        std::future::ready(())
+    };
+    let mut child = super::spawn_retrying_busy(&mut command, &mut release_after_busy)
+        .await
+        .expect("started once the program is free");
+    assert!(child.wait().await.unwrap().success());
+}
+
+#[tokio::test]
+async fn a_program_that_cannot_be_started_fails_at_once_and_the_record_says_why() {
+    let fixture = Fixture::new();
+    // The interpreter does not exist, so the program can never start.
+    let body = b"#!/no/such/interpreter\necho \"tool 1.0.0\"\n".to_vec();
+    let (_server, url) = serve(body.clone()).await;
+    let ctx = fixture.context("claude", artifact(&url, &body, ArtifactKind::File, None));
+
+    let error = run(&ctx).await.unwrap_err();
+
+    assert!(matches!(
+        error,
+        InstallError::SmokeFailed {
+            reason: "start_failed"
+        }
+    ));
+    let record = fs::read_to_string(
+        fixture
+            .dir
+            .path()
+            .join("home")
+            .join("records")
+            .join("tools.log"),
+    )
+    .unwrap();
+    assert!(record.contains("start_check_failed"), "{record}");
+    assert!(record.contains("kind=NotFound"), "{record}");
+    assert!(!record.contains('/'), "{record}");
+}
