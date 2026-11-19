@@ -6,8 +6,8 @@ use serde_json::json;
 
 use super::autonomy::ApprovalRequestPayload;
 use super::codex::{
-    build_codex_payload, build_command, build_request, categorize_line, turn_completed_failure,
-    Line,
+    build_codex_payload, build_command, build_request, categorize_line, haex_startup_of,
+    turn_completed_failure, HaexStartup, Line,
 };
 use crate::cli_tools::runtime::DelegateRuntime;
 
@@ -202,4 +202,35 @@ fn unrecognized_method_is_unevaluable() {
         build_codex_payload("item/permissions/requestApproval", &json!({})),
         ApprovalRequestPayload::CodexUnevaluable
     );
+}
+
+/// Codex starts its MCP servers in the background and reports each one's state; a turn that
+/// begins before HaexVault's is ready has no HaexVault tools. Only HaexVault's own server, and only a
+/// finished start, counts.
+#[test]
+fn the_start_of_haexs_mcp_server_is_read_from_its_status_notification() {
+    let method = "mcpServer/startupStatus/updated";
+    let status = |name: &str, status: &str| json!({"name": name, "status": status});
+
+    assert_eq!(
+        haex_startup_of(method, &status("holzi", "ready")),
+        Some(HaexStartup::Ready)
+    );
+    assert_eq!(
+        haex_startup_of(method, &status("holzi", "failed")),
+        Some(HaexStartup::Failed)
+    );
+    assert_eq!(
+        haex_startup_of(method, &status("holzi", "cancelled")),
+        Some(HaexStartup::Failed)
+    );
+    // Still starting: not a result.
+    assert_eq!(haex_startup_of(method, &status("holzi", "starting")), None);
+    // Another server, another notification, a notification without a status: not ours.
+    assert_eq!(haex_startup_of(method, &status("other", "ready")), None);
+    assert_eq!(
+        haex_startup_of("turn/started", &status("holzi", "ready")),
+        None
+    );
+    assert_eq!(haex_startup_of(method, &json!({"name": "holzi"})), None);
 }

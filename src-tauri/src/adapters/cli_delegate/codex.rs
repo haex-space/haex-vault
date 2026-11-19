@@ -59,6 +59,38 @@ pub(super) fn elicitation_decline() -> Value {
     json!({"action": "decline"})
 }
 
+/// How long a turn waits for HaexVault's own MCP server to finish starting. Codex starts its MCP
+/// servers in the background, and a turn that begins before one is ready has no tools of it for
+/// the whole turn: the model then answers that the tools are not available.
+const HAEX_STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// What the program has said about the start of HaexVault's MCP server so far.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(super) enum HaexStartup {
+    /// Nothing yet: it is starting, or this version of the program does not report it.
+    #[default]
+    Pending,
+    Ready,
+    /// It did not start (or was cancelled); the program will answer without its tools.
+    Failed,
+}
+
+/// The start state a notification names for HaexVault's server, or none when it is about another
+/// server or says only that the start is under way. Pure and unit-testable.
+pub(super) fn haex_startup_of(method: &str, params: &Value) -> Option<HaexStartup> {
+    if method != "mcpServer/startupStatus/updated" {
+        return None;
+    }
+    if params.get("name").and_then(Value::as_str) != Some(holzi_mcp::SERVER_NAME) {
+        return None;
+    }
+    match params.get("status").and_then(Value::as_str)? {
+        "ready" => Some(HaexStartup::Ready),
+        "failed" | "cancelled" => Some(HaexStartup::Failed),
+        _ => None,
+    }
+}
+
 pub(super) fn build_request(id: i64, method: &str, params: Value) -> Value {
     json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params})
 }
@@ -245,6 +277,7 @@ async fn call(
     stdin: &mut ChildStdin,
     lines: &mut Lines<BufReader<ChildStdout>>,
     next_id: &mut i64,
+    startup: &mut HaexStartup,
     method: &str,
     params: Value,
     context: &DelegateChatContext,
@@ -290,6 +323,11 @@ async fn call(
                     reason: format!("failed to answer Codex approval request: {error}"),
                 })?;
             }
+            Line::Notification { method, params } => {
+                if let Some(state) = haex_startup_of(&method, &params) {
+                    *startup = state;
+                }
+            }
             Line::Eof => {
                 return Err(AdapterError::Http {
                     reason: format!("codex app-server exited before responding to {method}"),
@@ -300,11 +338,78 @@ async fn call(
     }
 }
 
+/// Holds the turn back until HaexVault's MCP server has started (or failed to, or the time is up),
+/// answering what the program asks meanwhile. A program that reports nothing is waited for only
+/// up to [`HAEX_STARTUP_TIMEOUT`], then the turn starts as before.
+#[allow(clippy::too_many_arguments)]
+async fn wait_for_haex_server(
+    stdin: &mut ChildStdin,
+    lines: &mut Lines<BufReader<ChildStdout>>,
+    startup: &mut HaexStartup,
+    context: &DelegateChatContext,
+    thread_id: Option<uuid::Uuid>,
+    autonomy_mode: AutonomyMode,
+    workspace_root: &Path,
+) -> Result<(), AdapterError> {
+    let waited = tokio::time::timeout(HAEX_STARTUP_TIMEOUT, async {
+        while *startup == HaexStartup::Pending {
+            match read_line(lines).await.map_err(|error| AdapterError::Http {
+                reason: format!("failed to read the start of HaexVault's MCP server: {error}"),
+            })? {
+                Line::Notification { method, params } => {
+                    if let Some(state) = haex_startup_of(&method, &params) {
+                        *startup = state;
+                    }
+                }
+                Line::ServerRequest { id, method, params } => {
+                    respond_to_server_request(
+                        stdin,
+                        id,
+                        &method,
+                        params,
+                        context,
+                        thread_id,
+                        autonomy_mode,
+                        workspace_root,
+                    )
+                    .await
+                    .map_err(|error| AdapterError::Http {
+                        reason: format!("failed to answer Codex approval request: {error}"),
+                    })?;
+                }
+                Line::Eof => {
+                    return Err(AdapterError::Http {
+                        reason: "codex app-server exited before HaexVault's MCP server started"
+                            .into(),
+                    });
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    })
+    .await;
+    match waited {
+        Ok(result) => result?,
+        Err(_) => log::warn!(
+            "codex: HaexVault's MCP server did not report its start within {HAEX_STARTUP_TIMEOUT:?}, \
+             the turn starts without waiting"
+        ),
+    }
+    if *startup == HaexStartup::Failed {
+        log::warn!(
+            "codex: HaexVault's MCP server failed to start, the turn runs without its tools"
+        );
+    }
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn call_with_timeout(
     stdin: &mut ChildStdin,
     lines: &mut Lines<BufReader<ChildStdout>>,
     next_id: &mut i64,
+    startup: &mut HaexStartup,
     method: &str,
     params: Value,
     context: &DelegateChatContext,
@@ -318,6 +423,7 @@ async fn call_with_timeout(
             stdin,
             lines,
             next_id,
+            startup,
             method,
             params,
             context,
@@ -400,6 +506,7 @@ pub(super) async fn spawn_codex_app_server(
     let stderr_task = tokio::spawn(read_limited(stderr));
     let mut lines = BufReader::new(stdout).lines();
     let mut next_id = 1_i64;
+    let mut startup = HaexStartup::default();
     let original_thread_id = req.thread_id;
     let autonomy_mode = req.autonomy_mode;
     let workspace_root = tmp.path().to_path_buf();
@@ -409,6 +516,7 @@ pub(super) async fn spawn_codex_app_server(
             &mut stdin,
             &mut lines,
             &mut next_id,
+            &mut startup,
             "initialize",
             json!({"clientInfo": {"name": CLIENT_NAME, "version": CLIENT_VERSION}}),
             &context,
@@ -451,6 +559,7 @@ pub(super) async fn spawn_codex_app_server(
             &mut stdin,
             &mut lines,
             &mut next_id,
+            &mut startup,
             "thread/start",
             thread_start_params,
             &context,
@@ -489,10 +598,25 @@ pub(super) async fn spawn_codex_app_server(
         if let Some(effort) = req.reasoning_option.as_deref() {
             turn_params["effort"] = json!(effort);
         }
+        // The turn lists the tools of the session as it begins: with HaexVault's server still
+        // starting it would begin without them.
+        if holzi.is_some() {
+            wait_for_haex_server(
+                &mut stdin,
+                &mut lines,
+                &mut startup,
+                &context,
+                original_thread_id,
+                autonomy_mode,
+                &workspace_root,
+            )
+            .await?;
+        }
         call_with_timeout(
             &mut stdin,
             &mut lines,
             &mut next_id,
+            &mut startup,
             "turn/start",
             turn_params,
             &context,
