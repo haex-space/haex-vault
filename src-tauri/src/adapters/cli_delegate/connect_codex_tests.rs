@@ -2,7 +2,7 @@
 //! text shape here is the real one captured live from
 //! `codex login --device-auth` (research.md §5), not an invented fixture.
 
-use super::connect_codex::{DeviceAuthPrompt, parse_device_auth_prompt};
+use super::connect_codex::{parse_device_auth_prompt, DeviceAuthPrompt};
 
 const LIVE_OUTPUT: &str = "Welcome to Codex [v\u{1b}[90m0.147.0\u{1b}[0m]\r\n\u{1b}[90mOpenAI's command-line coding agent\u{1b}[0m\r\n\r\nFollow these steps to sign in with ChatGPT using device code authorization:\r\n\r\n1. Open this link in your browser and sign in to your account\r\n   \u{1b}[94mhttps://auth.openai.com/codex/device\u{1b}[0m\r\n\r\n2. Enter this one-time code \u{1b}[90m(expires in 15 minutes)\u{1b}[0m\r\n   \u{1b}[94mGL00-DVEC2\u{1b}[0m\r\n\r\n\u{1b}[90mContinue only if you started this login in Codex. If a website or another person gave you this code, cancel.\u{1b}[0m\r\n";
 

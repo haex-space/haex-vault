@@ -8,9 +8,9 @@ use uuid::Uuid;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use super::capabilities::{SetUserCapabilitiesArgs, set_user_capabilities};
+use super::capabilities::{set_user_capabilities, SetUserCapabilitiesArgs};
 use super::providers_tests::open_vault;
-use super::{OPENAI_COMPATIBLE, build_adapter, do_refresh, validate_adapter};
+use super::{build_adapter, do_refresh, validate_adapter, OPENAI_COMPATIBLE};
 use crate::adapters::AttachmentKind;
 use crate::error::HolziError;
 use crate::model_capabilities::{ModelCapabilities, ReasoningControl};
@@ -251,18 +251,16 @@ async fn bad_effort_levels_and_an_unknown_model_are_refused() {
         );
     }
     let too_many: Vec<String> = (0..9).map(|n| format!("l{n}")).collect();
-    assert!(
-        set_user_capabilities(
-            &gate,
-            SetUserCapabilitiesArgs {
-                model_id: id.clone(),
-                accepts_images: None,
-                effort_levels: Some(too_many),
-            }
-        )
-        .await
-        .is_err()
-    );
+    assert!(set_user_capabilities(
+        &gate,
+        SetUserCapabilitiesArgs {
+            model_id: id.clone(),
+            accepts_images: None,
+            effort_levels: Some(too_many),
+        }
+    )
+    .await
+    .is_err());
     assert!(matches!(
         set_user_capabilities(
             &gate,

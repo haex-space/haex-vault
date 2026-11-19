@@ -5,14 +5,14 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 use serde_json::Value;
-use tokio::sync::{Mutex as AsyncMutex, oneshot};
+use tokio::sync::{oneshot, Mutex as AsyncMutex};
 use uuid::Uuid;
 
 use super::approval_bridge::request_approval;
 use super::autonomy::{ApprovalRequestPayload, AutonomyMode};
 use super::{EventEmitter, PendingToolApprovals};
 use crate::chat::tools::ApprovalDecision;
-use crate::identity::{HolziBootstrap, holzi_migration_source, installation_id_path};
+use crate::identity::{holzi_migration_source, installation_id_path, HolziBootstrap};
 use crate::storage::chat_messages::{self as msg_store, MessageRole};
 use crate::storage::preferences::{self, PrefScope};
 use crate::storage::query;

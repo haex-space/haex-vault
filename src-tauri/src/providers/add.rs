@@ -6,7 +6,7 @@ use url::Url;
 use uuid::Uuid;
 
 use super::{
-    ProviderPayload, do_refresh_with, format_holzi_error, key_is_optional, validate_adapter,
+    do_refresh_with, format_holzi_error, key_is_optional, validate_adapter, ProviderPayload,
 };
 use crate::cli_tools::runtime::DelegateTools;
 use crate::error::{HolziError, Result};

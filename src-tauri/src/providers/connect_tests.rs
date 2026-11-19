@@ -9,13 +9,13 @@
 
 use std::sync::Arc;
 
-use tokio::sync::{Notify, mpsc};
+use tokio::sync::{mpsc, Notify};
 
 use crate::adapters::cli_delegate::connect_claude::{ClaudeConnectSession, ReaderEvent};
 
 use super::connect::{
-    ClaudeAutoCompleteOutcome, DelegateConnectState, watch_claude_auto_completion,
-    write_delegate_provider,
+    watch_claude_auto_completion, write_delegate_provider, ClaudeAutoCompleteOutcome,
+    DelegateConnectState,
 };
 
 #[tokio::test]

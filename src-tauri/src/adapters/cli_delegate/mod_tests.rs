@@ -5,7 +5,7 @@ use uuid::Uuid;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use super::{CliDelegateAdapter, DelegateChatContext, DelegateVendor, build_transcript_prompt};
+use super::{build_transcript_prompt, CliDelegateAdapter, DelegateChatContext, DelegateVendor};
 use crate::adapters::types::{Attachment, AttachmentKind, ChatMessage, ChatRequest, ChatRole};
 use crate::adapters::{AdapterError, ProviderAdapter};
 use crate::cli_tools::platform::PlatformKey;

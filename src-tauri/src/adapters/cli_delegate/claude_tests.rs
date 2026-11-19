@@ -2,10 +2,10 @@
 //! (tasks.md T011). Event shapes are the real ones captured live in
 //! research.md §1, not invented fixtures.
 
-use super::DelegateVendor;
 use super::autonomy::AutonomyMode;
-use super::claude::{LineOutcome, build_command, parse_line};
+use super::claude::{build_command, parse_line, LineOutcome};
 use super::subagents::Tracker;
+use super::DelegateVendor;
 use crate::adapters::types::{StreamChunk, StreamError};
 use crate::cli_tools::runtime::{DelegateRuntime, RunFolder};
 

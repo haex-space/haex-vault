@@ -93,9 +93,9 @@ fn no_token_in_output_yields_none() {
 
 // A connect flow confirms the version it ran only when the token is obtained (spec 094 FR-022).
 
-use tokio::sync::{Notify, mpsc};
+use tokio::sync::{mpsc, Notify};
 
-use super::connect_claude::{ClaudeConnectSession, ReaderEvent, submit_claude_code};
+use super::connect_claude::{submit_claude_code, ClaudeConnectSession, ReaderEvent};
 use crate::cli_tools::runtime::DelegateRuntime;
 use crate::instances::vault_paths::VaultPaths;
 

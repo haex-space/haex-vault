@@ -10,9 +10,9 @@ use haex_crdt::{CrdtTransaction, Result};
 use uuid::Uuid;
 
 use crate::storage::providers::{
-    Provider, ProviderCapability, ProviderKind, delete_provider,
-    find_provider_by_kind_and_capability, get_provider, insert_provider, move_provider_references,
-    provider_ids_by_kind_and_capability, update_provider,
+    delete_provider, find_provider_by_kind_and_capability, get_provider, insert_provider,
+    move_provider_references, provider_ids_by_kind_and_capability, update_provider, Provider,
+    ProviderCapability, ProviderKind,
 };
 use crate::storage::query::Query;
 

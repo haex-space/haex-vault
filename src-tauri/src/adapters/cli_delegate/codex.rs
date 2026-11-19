@@ -10,7 +10,7 @@ use std::path::Path;
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt, BufReader, Lines};
 use tokio::process::{ChildStdin, ChildStdout, Command};
 use tokio::sync::mpsc;
@@ -23,8 +23,8 @@ use crate::cli_tools::runtime::{DelegateRuntime, RunFolder};
 use super::approval_bridge;
 use super::autonomy::{self, ApprovalRequestPayload, AutonomyMode, NetworkContext};
 use super::holzi_mcp;
-use super::process::{ChildLifecycle, configure_process_group, map_spawn_error};
-use super::{DelegateChatContext, DelegateVendor, build_transcript_prompt};
+use super::process::{configure_process_group, map_spawn_error, ChildLifecycle};
+use super::{build_transcript_prompt, DelegateChatContext, DelegateVendor};
 
 const CLIENT_NAME: &str = "holzi";
 const CLIENT_VERSION: &str = env!("CARGO_PKG_VERSION");

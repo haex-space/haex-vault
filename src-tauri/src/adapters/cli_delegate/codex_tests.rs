@@ -6,8 +6,8 @@ use serde_json::json;
 
 use super::autonomy::ApprovalRequestPayload;
 use super::codex::{
-    Line, build_codex_payload, build_command, build_request, categorize_line,
-    turn_completed_failure,
+    build_codex_payload, build_command, build_request, categorize_line, turn_completed_failure,
+    Line,
 };
 use crate::cli_tools::runtime::DelegateRuntime;
 
@@ -30,11 +30,9 @@ fn the_command_runs_the_installed_program_with_the_vendors_switches_in_the_vault
     assert_eq!(args[subcommand + 1], "--stdio");
     // No update check and no plugin catalog clone (which would need the host's `git`).
     assert_eq!(&args[..2], ["-c", "check_for_update_on_startup=false"]);
-    assert!(
-        args[..subcommand]
-            .windows(2)
-            .any(|w| w == ["--disable", "plugins"])
-    );
+    assert!(args[..subcommand]
+        .windows(2)
+        .any(|w| w == ["--disable", "plugins"]));
     assert_eq!(std_cmd.get_current_dir(), Some(run.path()));
     let codex_home = std_cmd
         .get_envs()

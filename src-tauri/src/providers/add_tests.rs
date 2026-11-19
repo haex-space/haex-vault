@@ -8,9 +8,9 @@ use serde_json::json;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use super::OPENAI_COMPATIBLE;
-use super::add::{AddProviderArgs, add};
+use super::add::{add, AddProviderArgs};
 use super::providers_tests::open_vault;
+use super::OPENAI_COMPATIBLE;
 use crate::error::HolziError;
 use crate::storage::models as models_store;
 use crate::storage::providers::{self as providers_store, ProviderKind};

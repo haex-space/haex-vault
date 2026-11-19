@@ -14,9 +14,9 @@ use tokio::process::Command;
 use crate::adapters::AdapterError;
 use crate::cli_tools::runtime::DelegateRuntime;
 
-use super::DelegateVendor;
 use super::codex::read_limited;
-use super::process::{ChildLifecycle, configure_process_group, map_spawn_error};
+use super::process::{configure_process_group, map_spawn_error, ChildLifecycle};
+use super::DelegateVendor;
 use crate::vault_gate::ChildRegistry;
 
 /// Matches the CLI's own stated code lifetime ("expires in 15 minutes",
@@ -136,7 +136,7 @@ pub async fn run_device_auth(
                 Err(error) => {
                     return Err(AdapterError::Http {
                         reason: format!("codex login stdout read failed: {error}"),
-                    });
+                    })
                 }
             }
         }

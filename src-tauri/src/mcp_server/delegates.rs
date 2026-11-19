@@ -20,8 +20,8 @@ use super::hello::RejectReason;
 use super::registry::{self, AgentKind, AgentMode, AgentStatus, Credential};
 use super::server::Core;
 use super::session::SessionAgent;
-use crate::adapters::cli_delegate::DelegateVendor;
 use crate::adapters::cli_delegate::holzi_mcp::{HolziAccess, HolziServer};
+use crate::adapters::cli_delegate::DelegateVendor;
 use crate::agent_profiles::STANDARD_PROFILE_ID;
 
 /// Namespace of the row ids of delegates in `haex_mcp_agents`.
@@ -171,7 +171,7 @@ impl DelegateHub {
 /// The approval mode of the chat (`chat.permission_mode`, the control of the composer) as a
 /// delegate's calls ask: a delegate has no mode of its own any more.
 fn chat_mode(q: &mut impl crate::storage::query::Query) -> haex_crdt::Result<AgentMode> {
-    use crate::storage::preferences::{PrefScope, get};
+    use crate::storage::preferences::{get, PrefScope};
     Ok(
         match get(q, PrefScope::Vault, "chat.permission_mode")?.as_deref() {
             Some("auto") => AgentMode::Auto,

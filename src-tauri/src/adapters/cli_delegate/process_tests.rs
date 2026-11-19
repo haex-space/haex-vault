@@ -1,7 +1,7 @@
 //! Tests for `map_spawn_error` and `ensure_available` (tasks.md T019; spec 094).
 
-use super::DelegateVendor;
 use super::process::{ensure_available, map_spawn_error};
+use super::DelegateVendor;
 use crate::adapters::AdapterError;
 
 #[test]
