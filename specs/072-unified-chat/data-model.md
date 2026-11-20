@@ -70,7 +70,7 @@ Rename and picture use the same LWW rule on the thread row: an op whose `(at, op
 | `sender_vault`    | TEXT NOT NULL    | own vault for own messages                                                 |
 | `sender_device`   | TEXT NOT NULL    | device key hex                                                             |
 | `kind`            | TEXT NOT NULL    | `text`, `note` (membership/rename), `contact` (060 share)                  |
-| `text`            | TEXT NULL        | ≤ 4,000 characters (R2)                                                    |
+| `text`            | TEXT NULL        | ≤ 1,000,000 characters; a preview of ~1,000 when the full text is a file   |
 | `note`            | TEXT NULL        | JSON for `kind = note`: `{op, by, member?, name?}`                         |
 | `sent_at`         | INTEGER NOT NULL | sender's time                                                              |
 | `received_at`     | INTEGER NOT NULL | arrival on the inserting device (own: = `sent_at`)                         |
@@ -79,20 +79,21 @@ Rename and picture use the same LWW rule on the thread row: an op whose `(at, op
 
 ## New: `chat_attachments`
 
-| Column        | Type          | Notes                                                              |
-| ------------- | ------------- | ------------------------------------------------------------------ |
-| `id`          | TEXT PK       | `UUIDv5(CHAT_NS, message id ‖ index)`                              |
-| `message_id`  | TEXT NOT NULL | index                                                              |
-| `kind`        | TEXT NOT NULL | `file` or `contact`                                                |
-| `name`        | TEXT NULL     | file name (sanitised, ≤ 255 bytes)                                 |
-| `mime`        | TEXT NULL     |                                                                    |
-| `size`        | INTEGER NULL  | plaintext bytes, ≤ 100 MB (FR-034)                                 |
-| `sha256`      | TEXT NULL     | plaintext hash                                                     |
-| `blossom_url` | TEXT NULL     | full blob URL                                                      |
-| `blob_sha256` | TEXT NULL     | ciphertext hash (Blossom address)                                  |
-| `blob_key`    | BLOB NULL     | 32-byte file key (R11); vault data, encrypted at rest by the vault |
-| `contact`     | TEXT NULL     | `kind = contact`: the 060 share text (`haex-vault://contact/…`)    |
-| `photo`       | BLOB NULL     | `kind = contact`: full-size photo (FR-060)                         |
+| Column        | Type                       | Notes                                                              |
+| ------------- | -------------------------- | ------------------------------------------------------------------ |
+| `id`          | TEXT PK                    | `UUIDv5(CHAT_NS, message id ‖ index)`                              |
+| `message_id`  | TEXT NOT NULL              | index                                                              |
+| `kind`        | TEXT NOT NULL              | `file` or `contact`                                                |
+| `name`        | TEXT NULL                  | file name (sanitised, ≤ 255 bytes)                                 |
+| `mime`        | TEXT NULL                  |                                                                    |
+| `size`        | INTEGER NULL               | plaintext bytes, ≤ 100 MB (FR-034)                                 |
+| `sha256`      | TEXT NULL                  | plaintext hash                                                     |
+| `blossom_url` | TEXT NULL                  | full blob URL                                                      |
+| `blob_sha256` | TEXT NULL                  | ciphertext hash (Blossom address)                                  |
+| `blob_key`    | BLOB NULL                  | 32-byte file key (R11); vault data, encrypted at rest by the vault |
+| `contact`     | TEXT NULL                  | `kind = contact`: the 060 share text (`haex-vault://contact/…`)    |
+| `photo`       | BLOB NULL                  | `kind = contact`: full-size photo (FR-060)                         |
+| `inline`      | INTEGER NOT NULL DEFAULT 0 | `1`: the file is the full text of the message (R2, FR-012)         |
 
 Whether a device holds a file is device-local (`chat_attachment_files_no_sync` below); transfer
 progress is runtime state (events, R18).

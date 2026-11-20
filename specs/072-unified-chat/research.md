@@ -52,6 +52,17 @@ characters plus a card.
 **Alternatives considered**: 16 KiB like presence (too small); splitting long texts over several
 wraps (reassembly, partial delivery states; long texts can go as a file instead, edge case in spec).
 
+**Amended 2026-11-20 (operator, [design](../../docs/plans/2026-11-20-long-messages-design.md))**: 4,000
+characters turned out far too few. The text limit is no longer a constant but the real size: the send
+command builds the envelope with the own card and a trial wrap; what fits (rumor ≤ 24 KiB, ratchet
+plaintext ≤ 20 KiB, spec 095) goes inline as before, with no character limit. Anything else goes as
+the file `message.txt` over the Blossom path of US3, marked `"inline": true`, with a preview of the
+first ~1,000 characters (cut at a word boundary) as `text`; the receiver downloads it automatically
+(≈ 400 KB, below the 25 MB limit) and the window shows it in full, collapsed with "Weiterlesen"
+(FR-012a). The upper bound is 1,000,000 characters (< 4 MB, below the 4 MB the receiver honours for
+the marker). A receiver honours the marker only for `text/plain` and ≤ 4 MB. Notes (FR-002b) store the
+text in the row, so only the upper bound applies. Splitting over several wraps stays rejected.
+
 ## R3 One Nostr client per vault session for the chat
 
 **Decision**: A new `chat::delivery` service owns its own `nostr_sdk::Client`, started and stopped with
