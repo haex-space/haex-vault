@@ -44,6 +44,9 @@ pub(crate) enum Script {
     AnswerWhen(Arc<tokio::sync::Notify>, String),
 }
 
+/// How long a test waits for a stream before it fails instead of hanging.
+const WAIT_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
+
 /// Counts streams that were dropped while still running.
 struct Dropped {
     count: Arc<AtomicUsize>,
@@ -91,18 +94,31 @@ impl FakeSource {
     }
 
     pub fn wait_until_asked(&self, expected: usize) {
-        let mut seen = self.seen.lock().unwrap();
-        while seen.len() < expected {
-            seen = self.asked_changed.wait(seen).unwrap();
-        }
+        let guard = self.seen.lock().unwrap();
+        let (guard, timeout) = self
+            .asked_changed
+            .wait_timeout_while(guard, WAIT_LIMIT, |seen| seen.len() < expected)
+            .unwrap();
+        assert!(
+            !timeout.timed_out(),
+            "{} of {expected} streams were asked within {WAIT_LIMIT:?}",
+            guard.len()
+        );
     }
 
     pub fn wait_until_dropped(&self, expected: usize) {
         let guard = self.seen.lock().unwrap();
-        let _guard = self
+        let (_guard, timeout) = self
             .dropped_changed
-            .wait_while(guard, |_| self.dropped.load(Ordering::SeqCst) < expected)
+            .wait_timeout_while(guard, WAIT_LIMIT, |_| {
+                self.dropped.load(Ordering::SeqCst) < expected
+            })
             .unwrap();
+        assert!(
+            !timeout.timed_out(),
+            "{} of {expected} streams were dropped within {WAIT_LIMIT:?}",
+            self.dropped.load(Ordering::SeqCst)
+        );
     }
 }
 
@@ -165,9 +181,13 @@ impl ProviderAdapter for ScriptedAdapter {
         self.asked_changed.notify_all();
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         let script = self.script.clone();
-        let dropped = Arc::clone(&self.dropped);
-        let dropped_changed = Arc::clone(&self.dropped_changed);
-        let seen = Arc::clone(&self.seen);
+        // Made here, not in the task: a task aborted before its first poll never runs its body,
+        // so a guard made there is never dropped and the waiter would hang.
+        let hang_guard = matches!(script, Script::Hang).then(|| Dropped {
+            count: Arc::clone(&self.dropped),
+            changed: Arc::clone(&self.dropped_changed),
+            lock: Arc::clone(&self.seen),
+        });
         let task = tokio::spawn(async move {
             match script {
                 Script::Answer(text) => {
@@ -195,11 +215,7 @@ impl ProviderAdapter for ScriptedAdapter {
                     let _ = tx.send(Err(StreamError::Model(message)));
                 }
                 Script::Hang => {
-                    let _guard = Dropped {
-                        count: dropped,
-                        changed: dropped_changed,
-                        lock: seen,
-                    };
+                    let _guard = hang_guard;
                     let _tx = tx;
                     std::future::pending::<()>().await;
                 }
