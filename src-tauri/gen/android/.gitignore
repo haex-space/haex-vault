@@ -18,3 +18,5 @@ keystore.properties
 
 /.tauri
 /tauri.settings.gradle
+# Native libs copied/linked in by the Android build and the sherpa fetch
+/app/src/main/jniLibs/
