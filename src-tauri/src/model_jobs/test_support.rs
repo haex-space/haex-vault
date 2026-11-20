@@ -99,25 +99,29 @@ impl FakeSource {
             .asked_changed
             .wait_timeout_while(guard, WAIT_LIMIT, |seen| seen.len() < expected)
             .unwrap();
+        let observed = guard.len();
+        drop(guard);
         assert!(
             !timeout.timed_out(),
             "{} of {expected} streams were asked within {WAIT_LIMIT:?}",
-            guard.len()
+            observed
         );
     }
 
     pub fn wait_until_dropped(&self, expected: usize) {
         let guard = self.seen.lock().unwrap();
-        let (_guard, timeout) = self
+        let (guard, timeout) = self
             .dropped_changed
             .wait_timeout_while(guard, WAIT_LIMIT, |_| {
                 self.dropped.load(Ordering::SeqCst) < expected
             })
             .unwrap();
+        let observed = self.dropped.load(Ordering::SeqCst);
+        drop(guard);
         assert!(
             !timeout.timed_out(),
             "{} of {expected} streams were dropped within {WAIT_LIMIT:?}",
-            self.dropped.load(Ordering::SeqCst)
+            observed
         );
     }
 }
