@@ -17,6 +17,7 @@ fn picked(bytes: &[u8]) -> Picked {
         name: "Plan.pdf".into(),
         mime: "application/pdf".into(),
         bytes: bytes.to_vec(),
+        inline: false,
     }
 }
 

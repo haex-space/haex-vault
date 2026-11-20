@@ -24,6 +24,12 @@ pub struct DownloadArgs {
     pub attachment_id: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextArgs {
+    pub attachment_id: String,
+}
+
 pub(super) fn session(app: &AppHandle) -> Result<Arc<Session>> {
     app.try_state::<Arc<PeerRegistry>>()
         .ok_or_else(|| HaexError::NotFound {
@@ -63,7 +69,12 @@ async fn read_picked(app: &AppHandle, files: Vec<PickedFile>) -> Result<Vec<Pick
                 let mime = mime_for(&name)
                     .unwrap_or("application/octet-stream")
                     .to_owned();
-                Ok(Picked { name, mime, bytes })
+                Ok(Picked {
+                    name,
+                    mime,
+                    bytes,
+                    inline: false,
+                })
             })
             .collect()
     })
@@ -107,6 +118,16 @@ pub async fn chat_attachment_download(app: AppHandle, args: DownloadArgs) -> Res
     let session = session(&app)?;
     let files = chat_files(&session)?;
     files.download(&id.to_string()).await
+}
+
+/// The full text of a long message from this device's copy of its `inline` file (FR-012a).
+#[tauri::command]
+pub async fn chat_attachment_text(app: AppHandle, args: TextArgs) -> Result<String> {
+    let id = Uuid::parse_str(&args.attachment_id).map_err(|_| HaexError::InvalidInput {
+        reason: "attachmentId must be a valid UUID".into(),
+    })?;
+    let session = session(&app)?;
+    chat_files(&session)?.text(&id.to_string()).await
 }
 
 #[cfg(test)]

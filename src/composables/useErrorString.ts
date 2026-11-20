@@ -178,7 +178,12 @@ export function useErrorString() {
           )
         }
         // Spec 072: the chat with contacts names its cause by a language key.
-        if (reason.startsWith('chat.error.') && te(reason)) return t(reason)
+        if (
+          (reason.startsWith('chat.error.') ||
+            reason.startsWith('chat.file.')) &&
+          te(reason)
+        )
+          return t(reason)
         if (reason.startsWith(AUTONOMY_UNAVAILABLE_PREFIX))
           return t('errors.autonomyUnavailable')
         if (reason === OPERATION_BUSY_REASON) return t('errors.operationBusy')

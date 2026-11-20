@@ -6,8 +6,9 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 
-use super::envelope::{self, Attachment, Receipt, To, CHAT_KIND, RECEIPT_KIND, VERSION};
+use super::envelope::{self, Attachment, Envelope, Receipt, To, CHAT_KIND, RECEIPT_KIND, VERSION};
 use super::outbox::{self, Rumor};
+use super::ratchet::wire::Plaintext;
 use super::receive::{self, MessageRow};
 use super::session::Me;
 use super::store::{self, ConversationKind};
@@ -17,12 +18,61 @@ use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
 /// The own card as `haex:card:` text: every rumor carries it (research R5).
-pub fn own_card_text(tx: &mut CrdtTransaction<'_>) -> Result<String> {
+pub fn own_card_text(tx: &mut impl Query) -> Result<String> {
     own_card::stored(tx)?
         .map(|card| card.text())
         .ok_or_else(|| HaexError::NotFound {
             name: "own business card".into(),
         })
+}
+
+/// The rumor content of `envelope`, checked against everything it has to fit: the rumor limit, the
+/// plaintext of a ratchet message (spec 095, the stricter one once it carries chat events) and a
+/// trial wrap to this device, which is what the Nostr-Relays will see (research R2).
+fn queued_content(envelope: &Envelope, me: &Me, now: i64) -> Result<String> {
+    let content = envelope::encode(envelope)?;
+    Plaintext {
+        kind: CHAT_KIND.as_u16(),
+        content: content.clone(),
+    }
+    .encode()?;
+    super::wrap::wrap(
+        CHAT_KIND,
+        &content,
+        &me.keys.device_secret,
+        &me.keys.device_pubkey,
+        now,
+    )?;
+    Ok(content)
+}
+
+/// Whether `text` is sent to `thread_id` as a message of its own (research R2): a note always is, a
+/// direct message when its envelope with the own card fits one wrap. A text that does not fit goes
+/// as a file with a preview instead (`files::transfers::ChatFiles::send_long_text`).
+pub fn fits_inline(
+    q: &mut impl Query,
+    me: &Me,
+    thread_id: Uuid,
+    text: &str,
+    now: i64,
+) -> Result<bool> {
+    let Target::Direct(peer) = target(q, thread_id)? else {
+        return Ok(true);
+    };
+    let card = own_card_text(q)?;
+    let envelope = envelope::message(
+        text,
+        Vec::new(),
+        &me.vault_hex,
+        &card,
+        To::Direct(peer),
+        now,
+    )?;
+    match queued_content(&envelope, me, now) {
+        Ok(_) => Ok(true),
+        Err(HaexError::InvalidInput { reason }) if reason == "chat.error.tooLarge" => Ok(false),
+        Err(error) => Err(error),
+    }
 }
 
 /// Where a message of a conversation goes.
@@ -119,15 +169,7 @@ pub fn message(
         now,
     )?;
     envelope.id = event_id.to_owned();
-    let content = envelope::encode(&envelope)?;
-    // A trial wrap to this device: what the Nostr-Relays will see must fit (research R2).
-    super::wrap::wrap(
-        CHAT_KIND,
-        &content,
-        &me.keys.device_secret,
-        &me.keys.device_pubkey,
-        now,
-    )?;
+    let content = queued_content(&envelope, me, now)?;
     let envelope::Body::Message(body) = &envelope.body;
     store_own(tx, me, message_id, thread_id, event_id, &body.text, now)?;
     receive::insert_attachments(tx, message_id, &body.attachments)?;

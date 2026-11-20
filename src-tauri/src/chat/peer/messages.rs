@@ -75,6 +75,8 @@ pub struct PeerAttachment {
     pub bytes_done: i64,
     /// The code of the last failure (`blossom:…`).
     pub error: Option<String>,
+    /// The file is the full text of the message, whose `text` is a preview (research R2).
+    pub inline: bool,
 }
 
 /// The columns of one delivery row.
@@ -190,7 +192,7 @@ fn attachments(
 ) -> Result<std::collections::HashMap<String, Vec<PeerAttachment>>> {
     let rows = q.query_map(
         "SELECT a.message_id, a.id, a.name, a.mime, COALESCE(a.size, 0), f.state, \
-           COALESCE(f.bytes_done, 0), f.error \
+           COALESCE(f.bytes_done, 0), f.error, a.inline \
          FROM chat_attachments a \
          JOIN chat_peer_messages m ON m.id = a.message_id \
          LEFT JOIN chat_attachment_files_no_sync f ON f.attachment_id = a.id \
@@ -207,6 +209,7 @@ fn attachments(
                     state: row.get(5)?,
                     bytes_done: row.get(6)?,
                     error: row.get(7)?,
+                    inline: row.get::<_, i64>(8)? != 0,
                 },
             ))
         },

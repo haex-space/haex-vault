@@ -1,11 +1,17 @@
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { computed, onScopeDispose, ref, watch, type Ref } from 'vue'
 import type { ChatPeerMessage } from '@bindings/ChatPeerMessage'
 import { useConversationCommands } from '~/composables/useConversations'
 import { useWmTab } from '~/composables/useWmTab'
 import { useWindowManagerStore } from '~/stores/windowManager'
 
-/** The most characters a message may have (spec 072, `envelope::MAX_TEXT_CHARS`). */
-export const MAX_TEXT_CHARS = 4000
+/**
+ * The most characters a message or note may have (spec 072 FR-012, `envelope::MAX_TEXT_CHARS`). A
+ * text that does not fit one wrap is sent as a file, so this is the only limit the window knows.
+ */
+export const MAX_TEXT_CHARS = 1_000_000
+/** The character count shows from here on. */
+export const COUNTER_FROM = MAX_TEXT_CHARS - 10_000
 
 /**
  * The messages of one contact conversation (spec 072 US2, FR-021–FR-024): loaded by `sortAt`,
@@ -124,7 +130,34 @@ export function usePeerConversation(
     refresh,
   )
 
+  // The copy of a file lives on this device only, so a finished transfer is no vault change: the
+  // text of a long message appears when its file is stored (FR-012a).
+  let unlistenTransfers: UnlistenFn | null = null
+  let disposed = false
+  if (typeof window !== 'undefined') {
+    listen<{ state: string }>('chat-transfer', ({ payload }) => {
+      if (payload.state !== 'downloading') void refresh()
+    })
+      .then((unlisten) => {
+        if (disposed) unlisten()
+        else unlistenTransfers = unlisten
+      })
+      .catch(() => {})
+  }
+
+  /** Fetches a file now (retry, or above the automatic limit); its state follows by event. */
+  async function download(attachmentId: string) {
+    try {
+      await commands.downloadAsync(attachmentId)
+    } catch (e: unknown) {
+      error.value = errString(e)
+    }
+    await refresh()
+  }
+
   onScopeDispose(() => {
+    disposed = true
+    unlistenTransfers?.()
     commands.viewingAsync(viewId, null).catch(() => {})
     if (typeof window !== 'undefined') {
       window.removeEventListener('focus', onFocus)
@@ -133,5 +166,5 @@ export function usePeerConversation(
     }
   })
 
-  return { messages, error, loading, refresh }
+  return { messages, error, loading, refresh, download }
 }

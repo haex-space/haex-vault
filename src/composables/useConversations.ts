@@ -42,6 +42,11 @@ export function useConversationCommands() {
       }),
     resendAsync: (messageId: string) =>
       invoke<null>('chat_peer_resend', { args: { messageId } }),
+    // Spec 072 FR-012a: the full text of a long message, from this device's copy of its file.
+    textAsync: (attachmentId: string) =>
+      invoke<string>('chat_attachment_text', { args: { attachmentId } }),
+    downloadAsync: (attachmentId: string) =>
+      invoke<null>('chat_attachment_download', { args: { attachmentId } }),
     messagesAsync: (threadId: string, before?: number) =>
       invoke<ChatPeerMessage[]>('chat_peer_messages_list', {
         args: { threadId, before: before ?? null, limit: null },

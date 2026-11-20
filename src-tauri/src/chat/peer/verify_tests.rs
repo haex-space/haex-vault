@@ -123,6 +123,7 @@ async fn a_message_with_too_many_attachments_is_dropped_before_storage() {
                 sha256: "00".into(),
                 key: "00".into(),
             },
+            inline: false,
         });
         MAX_ATTACHMENTS + 1
     ];

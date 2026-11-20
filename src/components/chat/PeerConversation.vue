@@ -10,6 +10,7 @@
 import { toast } from 'vue-sonner'
 import type { PeerConversationEntry } from '~/composables/useConversations'
 import {
+  COUNTER_FROM,
   MAX_TEXT_CHARS,
   usePeerConversation,
 } from '~/composables/usePeerConversation'
@@ -47,7 +48,12 @@ watch(peer.error, (message) => {
   if (message) toast.error(message)
 })
 
-const length = computed(() => [...draft.value].length)
+// Characters are at most UTF-16 units: only near the bound is the exact count worth its cost.
+const length = computed(() =>
+  draft.value.length < COUNTER_FROM
+    ? draft.value.length
+    : [...draft.value].length,
+)
 const tooLong = computed(() => length.value > MAX_TEXT_CHARS)
 const canSend = computed(
   () =>
@@ -171,6 +177,7 @@ watch(
           :peer-name="conversation.displayName"
           :peer-photo="conversation.photo"
           @resend="resendMessage"
+          @download="peer.download"
         />
         <p v-else class="m-auto text-sm text-muted-foreground">
           {{
@@ -215,7 +222,7 @@ watch(
         </template>
         <template #below>
           <p
-            v-if="length > MAX_TEXT_CHARS - 500"
+            v-if="length >= COUNTER_FROM"
             class="mt-1 text-right text-xs"
             :class="tooLong ? 'text-destructive' : 'text-muted-foreground'"
             data-testid="chat-peer-counter"

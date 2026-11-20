@@ -11,6 +11,7 @@ pub mod delivery;
 pub mod envelope;
 pub mod files;
 pub mod ids;
+pub mod long_text;
 pub mod messages;
 pub mod notify;
 pub mod outbox;

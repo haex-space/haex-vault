@@ -19,7 +19,7 @@ use super::blossom::{self, BlossomError, Server};
 use super::crypto::{self, FileKey};
 use super::store::ChatFileStore;
 use crate::chat::peer::delivery::now_ms;
-use crate::chat::peer::envelope::{Attachment, BlobRef, FileAttachment};
+use crate::chat::peer::envelope::{self, Attachment, BlobRef, FileAttachment, INLINE_MIME};
 use crate::chat::peer::session::Me;
 use crate::chat::peer::{ids, send, settings, targets};
 use crate::error::{HaexError, Result};
@@ -55,6 +55,8 @@ pub struct Picked {
     pub name: String,
     pub mime: String,
     pub bytes: Vec<u8>,
+    /// The file is the full text of the message (research R2), not an attachment of the user.
+    pub inline: bool,
 }
 
 /// The files of the open vault on this device.
@@ -196,6 +198,32 @@ impl ChatFiles {
             .await
     }
 
+    /// Sends a text that does not fit one wrap (research R2): the whole text as the file
+    /// `message.txt`, marked `inline`, and its preview as the text of the message. `text` is the
+    /// checked, trimmed text; the rest is as for [`Self::send`].
+    pub async fn send_long_text(
+        &self,
+        me: &Me,
+        thread_id: Uuid,
+        event_id: &str,
+        text: &str,
+    ) -> Result<Uuid> {
+        let file = Picked {
+            name: "message.txt".into(),
+            mime: INLINE_MIME.into(),
+            bytes: text.as_bytes().to_vec(),
+            inline: true,
+        };
+        self.send(
+            me,
+            thread_id,
+            event_id,
+            &envelope::preview(text),
+            vec![file],
+        )
+        .await
+    }
+
     /// Encrypts and uploads one file with a fresh key (research R12), asking the server first.
     async fn upload(&self, server: &Server, file: Picked) -> Result<Uploaded> {
         if file.bytes.len() as u64 > crypto::MAX_PLAINTEXT {
@@ -232,6 +260,7 @@ impl ChatFiles {
                     sha256,
                     key: hex(&key.key),
                 },
+                inline: file.inline,
             },
             signer,
             plaintext,
@@ -252,6 +281,35 @@ impl ChatFiles {
             .await?;
         let devices: Vec<String> = devices.iter().map(|device| hex(device)).collect();
         serde_json::to_string(&devices).map_err(|e| invalid(&e.to_string()))
+    }
+
+    /// The full text of the `inline` attachment `id` from this device's copy (research R2); not a
+    /// reader of other files. `NotFound` while this device holds no copy yet.
+    pub async fn text(&self, id: &str) -> Result<String> {
+        let attachment_id = id.to_owned();
+        let inline = self
+            .db
+            .read(move |r| {
+                r.query_row(
+                    "SELECT inline FROM chat_attachments WHERE id = ?1 AND kind = 'file'",
+                    params![attachment_id],
+                    |row| row.get::<_, i64>(0),
+                )
+            })
+            .await?;
+        if inline != Some(1) {
+            return Err(HaexError::NotFound {
+                name: "chat text".into(),
+            });
+        }
+        let bytes = self
+            .store
+            .get(id)
+            .await?
+            .ok_or_else(|| HaexError::NotFound {
+                name: "chat text file".into(),
+            })?;
+        String::from_utf8(bytes).map_err(|_| invalid("chat.file.damaged"))
     }
 
     /// Downloads, checks, decrypts and keeps the file of attachment `id` (FR-032).

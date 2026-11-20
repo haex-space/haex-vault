@@ -478,6 +478,14 @@
       "deleteButton": "Delete",
       "missing": "This conversation no longer exists.",
       "counter": "{count} / {max} characters",
+      "readMore": "Read more",
+      "readMoreSize": "Read more ({size})",
+      "readLess": "Show less",
+      "textLoading": "Loading the text …",
+      "textLoadingPercent": "Loading the text … {percent} %",
+      "textDownload": "Download the text ({size})",
+      "textRetry": "Try again",
+      "textGone": "Text no longer available",
       "ownRelaysInstead": "This contact's card names no Nostr-Relay. Messages go over your own Nostr-Relays."
     },
     "newContact": {
@@ -502,8 +510,13 @@
       },
       "resend": "Send again"
     },
+    "file": {
+      "noServer": "This text is too long for a single message and would have to be sent as a file. No Blossom server is set up for that.",
+      "damaged": "The file is damaged."
+    },
     "error": {
-      "tooLarge": "The message is too long (at most 4,000 characters).",
+      "tooLong": "The text is too long (at most 1,000,000 characters).",
+      "tooLarge": "The message is too large.",
       "resendElsewhere": "This message was written on another of your devices. Send it again from there.",
       "modelNotInProfile": "This model is not in the active agent profile. Choose another model or another agent profile."
     },

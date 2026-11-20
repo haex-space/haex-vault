@@ -12,4 +12,8 @@ state: string | null, bytesDone: number,
 /**
  * The code of the last failure (`blossom:…`).
  */
-error: string | null, };
+error: string | null,
+/**
+ * The file is the full text of the message, whose `text` is a preview (research R2).
+ */
+inline: boolean, };

@@ -18,8 +18,16 @@ pub const CHAT_KIND: Kind = Kind::Custom(24120);
 pub const RECEIPT_KIND: Kind = Kind::Custom(24121);
 /// The one envelope version this build reads and writes.
 pub const VERSION: u8 = 1;
-/// The longest text of a message, in characters (research R2).
-pub const MAX_TEXT_CHARS: usize = 4_000;
+/// The longest text of a message or note, in characters (research R2, amended 2026-11-20). What
+/// does not fit one wrap travels as an `inline` file (see [`FileAttachment::inline`]).
+pub const MAX_TEXT_CHARS: usize = 1_000_000;
+/// The preview of a text that travels as a file: its first characters, in the message's `text`.
+pub const PREVIEW_CHARS: usize = 1_000;
+/// The largest file a receiver honours as the full text of a message (4 characters of 4 bytes
+/// each at [`MAX_TEXT_CHARS`] fit).
+pub const MAX_INLINE_FILE_BYTES: u64 = 4 * 1024 * 1024;
+/// The mime type of the file that carries a long text.
+pub const INLINE_MIME: &str = "text/plain";
 /// The largest rumor content in bytes: two NIP-44 layers (padding, base64) grow it to about 60 KiB
 /// (research R2). Sending also wraps once on trial, since escaping can grow a rumor further.
 pub const MAX_RUMOR_BYTES: usize = 24 * 1024;
@@ -64,6 +72,11 @@ pub struct FileAttachment {
     /// Plaintext SHA-256, hex.
     pub sha256: String,
     pub blossom: BlobRef,
+    /// The file is the full text of the message and `text` only its preview (research R2). A
+    /// receiver honours it only for [`INLINE_MIME`] up to [`MAX_INLINE_FILE_BYTES`]; absent means
+    /// an ordinary file.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub inline: bool,
 }
 
 /// Where the encrypted copy is and how to open it.
@@ -128,10 +141,31 @@ pub fn checked_text(text: &str) -> Result<&str> {
             reason: "a message needs a text".into(),
         });
     }
-    if text.chars().count() > MAX_TEXT_CHARS {
-        return Err(too_large());
+    // Every character is at least one byte: only a text this long can be over the limit.
+    if text.len() > MAX_TEXT_CHARS && text.chars().count() > MAX_TEXT_CHARS {
+        return Err(too_long());
     }
     Ok(text)
+}
+
+/// The first characters of `text` for its message when the text itself travels as a file: at most
+/// [`PREVIEW_CHARS`] with the closing `…`, cut at the last whitespace before the limit (at the limit
+/// when there is none). A text that is short enough stays whole.
+pub fn preview(text: &str) -> String {
+    let text = text.trim();
+    if text.chars().count() <= PREVIEW_CHARS {
+        return text.to_owned();
+    }
+    let end = text
+        .char_indices()
+        .nth(PREVIEW_CHARS - 1)
+        .map_or(text.len(), |(at, _)| at);
+    let window = &text[..end];
+    let cut = window
+        .rfind(char::is_whitespace)
+        .filter(|at| *at > 0)
+        .map_or(window, |at| &window[..at]);
+    format!("{}…", cut.trim_end())
 }
 
 /// The text of a message with `attachments`: trimmed, may be empty only when there are some (at
@@ -184,9 +218,20 @@ pub fn encode<T: Serialize>(value: &T) -> Result<String> {
     Ok(json)
 }
 
-/// "chat.error.tooLarge" (FR-012).
+/// "chat.error.tooLong": a text over [`MAX_TEXT_CHARS`] (FR-012).
+pub fn too_long() -> HaexError {
+    HaexError::InvalidInput {
+        reason: "chat.error.tooLong".into(),
+    }
+}
+
+/// "chat.error.tooLarge": what does not fit one wrap (FR-012).
 pub fn too_large() -> HaexError {
     HaexError::InvalidInput {
         reason: "chat.error.tooLarge".into(),
     }
 }
+
+#[cfg(test)]
+#[path = "envelope_tests.rs"]
+mod tests;
