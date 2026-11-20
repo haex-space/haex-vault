@@ -15,7 +15,7 @@ import type { FlowInstance } from './flows.ts'
 
 /** The publisher key of the fixture bundles (their manifests name it). */
 const FIXTURE_KEY =
-  '1549fb64ff115627d507f8c95a8fd7b4bd5381c6df97120f910ed904ba50e63f'
+  '8f62b28601741e95513b05ee6a7b2b44de0680432d52c6d94de2139dec841264'
 
 /** The variable a debug build reads the address of its preset marketplace from. */
 export const ADDRESS_VARIABLE = 'HAEX_E2E_MARKETPLACE_URL'
