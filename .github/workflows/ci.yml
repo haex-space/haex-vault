@@ -342,19 +342,27 @@ jobs:
         with:
           components: rustfmt, clippy
 
-      - name: Cache cargo build
+      # This dependency-only cache has the same paths on main and pull requests, so PR runs can
+      # restore it without caching their large target directory (which can exhaust runner disk).
+      - name: Cache cargo dependencies
         if: needs.changes.outputs.non_docs == 'true'
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
+          cache-targets: false
           save-if: ${{ github.ref == 'refs/heads/main' }}
-          # PR builds save dependency downloads only; duplicating the large local-model target tree
-          # can exhaust the hosted runner's disk after tests and Clippy finish.
-          cache-targets: ${{ github.event_name != 'pull_request' }}
-          # The two feature sets produce different artifacts and must not
-          # share one cache entry. A cached llama.cpp keeps the CPU kernels it was built with (spec 070
-          # R3); a new key starts it fresh whenever the GGML_* switches in `.cargo/config.toml` change.
           shared-key: ${{ matrix.features }}-avx2
+
+      # Only main caches build outputs. Each feature set has its own entry because a cached
+      # llama.cpp keeps the CPU kernels it was built with (spec 070 R3); the key also changes when
+      # the GGML_* switches in `.cargo/config.toml` change.
+      - name: Cache cargo build
+        if: needs.changes.outputs.non_docs == 'true' && github.ref == 'refs/heads/main'
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: src-tauri
+          cache-targets: true
+          shared-key: ${{ matrix.features }}-avx2-target
 
       - name: Set up Node.js
         if: needs.changes.outputs.non_docs == 'true' && matrix.features == 'default'
