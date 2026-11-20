@@ -23,7 +23,10 @@ permissions:
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Only a pull request run is replaced by its next push. A run on main is kept: the macOS and
+  # Windows parts take over an hour, and a run cancelled by the next merge never saves its cache,
+  # so every later run started cold again.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # Documentation-only PRs keep the documentation validator and whitespace
@@ -344,7 +347,7 @@ jobs:
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
-          save-if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           # PR builds save dependency downloads only; duplicating the large local-model target tree
           # can exhaust the hosted runner's disk after tests and Clippy finish.
           cache-targets: ${{ github.event_name != 'pull_request' }}
@@ -750,6 +753,7 @@ jobs:
         with:
           workspaces: src-tauri
           shared-key: android-arm-baseline
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       # Spec 066 (T001): the native sherpa-onnx libraries the `voice` feature links, checked
       # against their pinned SHA-256 (scripts/lib/sherpaOnnxArchives.ts); cargo takes them from
@@ -863,6 +867,7 @@ jobs:
         with:
           workspaces: src-tauri
           shared-key: android-lint-${{ matrix.features }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Set up Node.js
         if: matrix.features == 'default'
@@ -1065,7 +1070,7 @@ jobs:
   # Spec 044 (T007, research R4): may holzi's web view fetch from a server on 127.0.0.1 on Windows
   # and macOS? Local Network Access in WebView2 could forbid it. The probe build reports one line and
   # exits; `scripts/run-platform-probe.ts` judges it. Not a required check until it has run green.
-  # Split into three parts per OS, each with its own build, cache and time limit: with a cold cache
+  # Split into three parts per OS, each with its own build and time limit (one cache per OS): with a cold cache
   # the macOS build alone took 37 minutes and the agent browser tests 30, so one job ran into its
   # 90-minute limit. `probe` builds and runs the probe, `agent-browser` runs the spec 065 tests,
   # `drives` runs the spec 064 drives tests and the clippy over the OS backend.
@@ -1073,7 +1078,7 @@ jobs:
     name: Platform probe (${{ matrix.os }}, ${{ matrix.part }})
     runs-on: ${{ matrix.os }}
     if: github.event_name != 'pull_request' || startsWith(github.head_ref, '064-')
-    timeout-minutes: 90
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -1120,7 +1125,12 @@ jobs:
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
-          shared-key: platform-probe-${{ matrix.os }}-${{ matrix.part }}
+          # All parts build the same dependencies in the release profile with the same features,
+          # so they share one cache per OS; `drives` compiles the most (tests and clippy), so it
+          # saves it. Six caches of 1.3 GB each did not fit the 10 GB quota of the repository
+          # next to the Android and Linux ones, and the runner found none.
+          shared-key: platform-probe-${{ matrix.os }}
+          save-if: ${{ github.ref == 'refs/heads/main' && matrix.part == 'drives' }}
 
       # Spec 066 (T001): the native sherpa-onnx libraries the `voice` feature links, checked
       # against their pinned SHA-256 (scripts/lib/sherpaOnnxArchives.ts); cargo takes them from
