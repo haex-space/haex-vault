@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
  * The tab Extra of the editor (spec 036, FR-001, FR-001a, FR-004): the custom fields, the autofill
- * aliases and the attachments.
- * An attachment is saved at once and does not touch the draft or the update token; the parent only
+ * aliases, the attachments and the passkeys.
+ * An attachment or a passkey change is saved at once and does not touch the draft or the update token; the parent only
  * refreshes its list (`changed`). A new entry has no attachments yet.
  */
 import type { ItemDetail } from '@bindings/ItemDetail'
@@ -35,6 +35,13 @@ const { t } = useI18n()
       v-if="itemId !== null && detail"
       :item-id="itemId"
       :attachments="detail.attachments"
+      @changed="emit('changed')"
+    />
+
+    <PasswordsPasskeys
+      v-if="itemId !== null && detail"
+      :item-id="itemId"
+      :passkeys="detail.passkeys"
       @changed="emit('changed')"
     />
   </div>

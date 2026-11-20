@@ -20,7 +20,7 @@ import { fileKind, safeFileName } from '~/lib/passwords/format'
 const props = defineProps<{
   itemId: string
   attachments: AttachmentView[]
-  /** An entry in the trash only shows its files. */
+  /** An entry in the trash or in the view only shows its files; adding, renaming and removing live in the editor. */
   readonly?: boolean
 }>()
 
@@ -251,7 +251,6 @@ onBeforeUnmount(() => {
         </ul>
       </div>
       <SettingsRow
-        v-if="!readonly"
         :class="dragging ? 'bg-foreground/10' : ''"
         :title="
           attachments.length
@@ -264,7 +263,7 @@ onBeforeUnmount(() => {
         <UiButton
           type="button"
           size="sm"
-          :disabled="busy"
+          :disabled="busy || readonly"
           data-testid="passwords-attachment-add"
           @click="pickAsync"
         >

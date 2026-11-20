@@ -16,7 +16,6 @@ const emit = defineEmits<{
 const props = defineProps<{
   itemId: string
   detail: ItemDetail
-  readonly?: boolean
   /** A pass has no autofill aliases and no passkeys (spec 092, FR-024, research R11). */
   pass?: boolean
 }>()
@@ -102,7 +101,7 @@ function marksOf(id: string) {
     <PasswordsAttachments
       :item-id="itemId"
       :attachments="detail.attachments"
-      :readonly="readonly"
+      readonly
       @changed="emit('changed')"
     />
 
@@ -110,7 +109,7 @@ function marksOf(id: string) {
       v-if="!pass"
       :item-id="itemId"
       :passkeys="detail.passkeys"
-      :readonly="readonly"
+      readonly
       @changed="emit('changed')"
     />
   </div>
