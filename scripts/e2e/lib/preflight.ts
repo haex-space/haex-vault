@@ -108,7 +108,7 @@ export function normalizeVersion(raw: string): string | null {
 }
 
 const DEV_SHELL =
-  'enter the dev shell with `nix develop` (it provides the tool once holzi pins the atoms revision that delivers the e2e tooling)'
+  'enter the dev shell with `nix develop` (it provides the tool once haex-vault pins the atoms revision that delivers the e2e tooling)'
 const REMEDIES: Record<ToolName, string> = {
   'tauri-driver': `${DEV_SHELL}, or install it with \`cargo install tauri-driver --locked --version 2.0.6\``,
   WebKitWebDriver: `${DEV_SHELL}, or install the package that ships it (webkit2gtk-driver on Debian and Ubuntu)`,
@@ -200,7 +200,7 @@ export async function checkPreflight(input: {
     driverVersion !== webviewVersion
   ) {
     messages.push(
-      `WebKitWebDriver is ${driverVersion} but the web view the application uses is ${webviewVersion}; the two must be the same version. Remedy: make them agree (update the driver through holzi's atoms pin or update the host's web view), then enter the dev shell again with \`nix develop\`; without Nix, install the driver package that matches libwebkit2gtk-4.1 ${webviewVersion}`,
+      `WebKitWebDriver is ${driverVersion} but the web view the application uses is ${webviewVersion}; the two must be the same version. Remedy: make them agree (update the driver through haex-vault's atoms pin or update the host's web view), then enter the dev shell again with \`nix develop\`; without Nix, install the driver package that matches libwebkit2gtk-4.1 ${webviewVersion}`,
     )
   }
 
