@@ -135,8 +135,25 @@ export function usePeerConversation(
   let unlistenTransfers: UnlistenFn | null = null
   let disposed = false
   if (typeof window !== 'undefined') {
-    listen<{ state: string }>('chat-transfer', ({ payload }) => {
-      if (payload.state !== 'downloading') void refresh()
+    listen<{
+      attachmentId: string
+      bytesDone: number
+      state: string
+    }>('chat-transfer', ({ payload }) => {
+      if (payload.state === 'downloading') {
+        for (const message of messages.value) {
+          const attachment = message.attachments.find(
+            (item) => item.id === payload.attachmentId,
+          )
+          if (attachment) {
+            attachment.state = payload.state
+            attachment.bytesDone = payload.bytesDone
+            break
+          }
+        }
+      } else {
+        void refresh()
+      }
     })
       .then((unlisten) => {
         if (disposed) unlisten()

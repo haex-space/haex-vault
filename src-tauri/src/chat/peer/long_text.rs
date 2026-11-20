@@ -10,6 +10,47 @@ use super::{envelope, send};
 use crate::error::{HaexError, Result};
 use crate::vault_gate::VaultDb;
 
+/// Prepares the text and optional inline file when a message also has user-picked files.
+/// Notes keep their text inline; direct messages use the same trial wrap as text-only sends.
+pub async fn prepare_with_files(
+    db: &VaultDb,
+    session: &Session,
+    thread_id: Uuid,
+    text: &str,
+) -> Result<(String, Option<super::files::transfers::Picked>)> {
+    // File-only messages remain valid and do not need a long-text probe.
+    if text.trim().is_empty() {
+        return Ok((String::new(), None));
+    }
+    let text = envelope::checked_text(text)?.to_owned();
+    let me = session.me.clone();
+    let probe_me = me.clone();
+    let probe_text = text.clone();
+    let now = now_ms();
+    let fits = db
+        .read(move |r| {
+            Ok(send::fits_inline(
+                r,
+                &probe_me,
+                thread_id,
+                &probe_text,
+                now,
+            )?)
+        })
+        .await?;
+    if fits {
+        Ok((text, None))
+    } else {
+        let file = super::files::transfers::Picked {
+            name: "message.txt".into(),
+            mime: envelope::INLINE_MIME.into(),
+            bytes: text.as_bytes().to_vec(),
+            inline: true,
+        };
+        Ok((envelope::preview(&text), Some(file)))
+    }
+}
+
 /// Queues `text` to the conversation `thread_id` and answers the message id. A retry with the same
 /// `event_id` (from the command's idempotency key) answers the first message, whichever way the text
 /// went the first time.

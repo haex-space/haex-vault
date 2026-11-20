@@ -81,9 +81,19 @@ pub async fn chat_peer_send(
         .simple()
         .to_string();
     if !args.files.is_empty() {
-        let message_id =
-            super::files::send_with_files(&app, thread_id, &event_id, &args.text, args.files)
-                .await?;
+        let session = session(&app)?;
+        let db = active_database(&state)?;
+        let (text, inline_text) =
+            long_text::prepare_with_files(&db, &session, thread_id, &args.text).await?;
+        let message_id = super::files::send_with_files(
+            &app,
+            thread_id,
+            &event_id,
+            &text,
+            args.files,
+            inline_text,
+        )
+        .await?;
         return Ok(SentMessage {
             message_id: message_id.to_string(),
         });

@@ -109,6 +109,40 @@ async fn a_long_text_goes_as_a_file_with_a_preview_and_arrives_in_full() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_long_text_stays_an_inline_file_when_ordinary_files_are_attached() {
+    let blossom = BlossomTestServer::start().await;
+    let (anna, ben) = two_vaults(&[]).await;
+    anna.enable_files(&blossom.url, None);
+    let thread = open_direct(&anna, &ben);
+    let text = words(20_000);
+    let (preview, inline_text) = prepare_with_files(&anna.db, &anna.session, thread, &text)
+        .await
+        .expect("prepare long text");
+    let mut files = vec![super::super::files::transfers::Picked {
+        name: "photo.png".into(),
+        mime: "image/png".into(),
+        bytes: vec![1, 2, 3],
+        inline: false,
+    }];
+    files.push(inline_text.expect("long text becomes a file"));
+
+    anna.session
+        .files
+        .get()
+        .expect("files")
+        .send(&anna.me, thread, "e1", &preview, files)
+        .await
+        .expect("send files and long text");
+
+    let sent = anna.messages_with(&ben);
+    assert_eq!(sent[0].text.as_deref(), Some(preview.as_str()));
+    assert_eq!(sent[0].attachments.len(), 2);
+    assert!(!sent[0].attachments[0].inline);
+    assert!(sent[0].attachments[1].inline);
+    assert_eq!(sent[0].attachments[1].name.as_deref(), Some("message.txt"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_retry_with_the_same_key_sends_a_long_text_once() {
     let blossom = BlossomTestServer::start().await;
     let (anna, ben) = two_vaults(&[]).await;
