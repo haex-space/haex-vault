@@ -1,7 +1,7 @@
 // Every process the suite starts carries an environment marker, `HAEX_E2E_RUN`, and the environment is
 // inherited by everything below it, including WebKit's helper processes and a relaunched application.
 // A run's processes are found by that marker alone, never by name, path or command line, so a
-// maintainer's own Holzi (even the same binary) is never matched (FR-008).
+// maintainer's own haex-vault (even the same binary) is never matched (FR-008).
 import { spawn } from 'node:child_process'
 import type { ChildProcess } from 'node:child_process'
 import { randomBytes } from 'node:crypto'

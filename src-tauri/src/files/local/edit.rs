@@ -1,7 +1,7 @@
 //! Creating folders and renaming entries on this device (spec 044 FR-017, FR-037). Paths come in
 //! resolved: a folder through [`crate::files::local::resolve`], an entry through
 //! [`crate::files::local::resolve_entry`], so a link is renamed itself, not its target. Nothing in
-//! holzi's own places changes, whoever asks.
+//! haex-vault's own places changes, whoever asks.
 
 use std::path::Path;
 
@@ -34,13 +34,13 @@ pub fn check_name(name: &str) -> Result<(), FilesError> {
     Ok(())
 }
 
-/// Refuses `path` when it is in holzi's own places or holds one (a folder that holds holzi's data
+/// Refuses `path` when it is in haex-vault's own places or holds one (a folder that holds haex-vault's data
 /// does not move away under it).
 fn refuse_own(path: &Path, own: &OwnPlaces) -> Result<(), FilesError> {
     if own.touches(path, true) {
         return Err(FilesError::new(
             FilesErrorCode::HaexOwned,
-            "holzi's own data is read-only",
+            "HaexVault's own data is read-only",
         ));
     }
     Ok(())

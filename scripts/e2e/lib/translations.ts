@@ -1,4 +1,4 @@
-// The texts of the interface in every language holzi speaks, for checks that must hold whatever
+// The texts of the interface in every language haex-vault speaks, for checks that must hold whatever
 // language a run uses: a scenario compares a shown text with all of them.
 import { readFileSync, readdirSync } from 'node:fs'
 

@@ -14,7 +14,7 @@ import {
 
 // Spec 017, US9, T101 (quickstart §8): a file of the device asks the user before the probe reads
 // it, writing asks again, and a watched folder reports a change to the probe in the SDK's flat
-// form. Dialog choices, holzi's protected places and links are covered by the lib tests: native
+// form. Dialog choices, haex-vault's protected places and links are covered by the lib tests: native
 // dialogs cannot be driven here.
 
 type Instance = Page & FlowInstance

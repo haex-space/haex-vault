@@ -13,7 +13,7 @@ test('the fixture is what the generator writes', async () => {
   assert.deepEqual(fixture, await build())
 })
 
-test('WebCrypto opens the response holzi seals with the client key', async () => {
+test('WebCrypto opens the response HaexVault seals with the client key', async () => {
   assert.equal(
     await open(fixture.client.secret, fixture.response),
     fixture.response.plaintext,

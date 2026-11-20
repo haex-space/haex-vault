@@ -43,13 +43,13 @@ pub enum BrowserPromptKind {
     Takeover,
     /// May the agent keep a download larger than 100 MB (FR-031)?
     Download,
-    /// May holzi fill a login of the password manager into this website (FR-021)? With several
+    /// May haex-vault fill a login of the password manager into this website (FR-021)? With several
     /// matching entries, which one.
     Fill,
-    /// May holzi fill data of an entry the user chooses (bank or card data) into this form
+    /// May haex-vault fill data of an entry the user chooses (bank or card data) into this form
     /// (FR-037)? With the agent's purpose and one row per mapped field, each to deselect.
     EntryFill,
-    /// May holzi save the login it generated for this website (FR-036)? Declining empties the
+    /// May haex-vault save the login it generated for this website (FR-036)? Declining empties the
     /// fields again.
     NewCredentials,
     /// May the built-in agent use the browser at all (FR-040)? Allowing switches its rights group

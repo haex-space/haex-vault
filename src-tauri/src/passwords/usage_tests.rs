@@ -1,4 +1,4 @@
-//! Tests for the registry of holzi functions that use entries (spec 034, FR-034): the password
+//! Tests for the registry of haex-vault functions that use entries (spec 034, FR-034): the password
 //! manager warns before deleting an entry that a function reports as its own.
 
 use std::sync::Arc;

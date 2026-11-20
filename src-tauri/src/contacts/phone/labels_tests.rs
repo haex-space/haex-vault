@@ -6,7 +6,7 @@ fn every_phone_type_comes_back_as_the_same_type() {
         for (code, label) in table(kind) {
             let read = from_phone(kind, Some(&code.to_string()), None);
             assert_eq!(read, *label, "{kind} {code}");
-            // Every type comes back as itself, the ones without a holzi label included.
+            // Every type comes back as itself, the ones without a haex-vault label included.
             assert_eq!(to_phone(kind, &read), (*code, None), "{kind} {label}");
         }
     }

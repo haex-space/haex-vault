@@ -25,10 +25,10 @@ use crate::remote_storage::{Access, ObjectStore, StorageError};
 /// The most requests for heads or sidecars in flight at once.
 pub const AT_ONCE: usize = 32;
 
-/// The largest head holzi reads (one recipient is 91 bytes; spaces add a few).
+/// The largest head haex-vault reads (one recipient is 91 bytes; spaces add a few).
 pub const MAX_HEAD: usize = 64 * 1024;
 
-/// The largest sidecar holzi reads (a name is at most 255 bytes).
+/// The largest sidecar haex-vault reads (a name is at most 255 bytes).
 const MAX_SIDECAR: usize = 64 * 1024;
 
 /// The most objects under one encrypted folder: sidecars and content objects of 100 000 entries.
@@ -240,7 +240,7 @@ pub async fn load_folder(
             loaded.times.extend(time.map(|time| (oid, time)));
             loaded.contents.insert(oid, object.size);
         } else if rest != "h" && !rest.is_empty() && !rest.ends_with('/') {
-            // Folder markers are no files; holzi's temporary files never show in a listing.
+            // Folder markers are no files; haex-vault's temporary files never show in a listing.
             loaded.foreign = loaded.foreign.saturating_add(1);
         }
     }

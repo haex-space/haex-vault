@@ -20,8 +20,8 @@ use crate::vault_gate::VaultDb;
 /// Why the bridge did not start.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum StartError {
-    /// Another program listens on the port: another holzi, haex-vault 2.x or anything else
-    /// (FR-002). holzi never moves to another port by itself.
+    /// Another program listens on the port: another haex-vault, haex-vault 2.x or anything else
+    /// (FR-002). haex-vault never moves to another port by itself.
     #[error("the port is in use")]
     PortInUse,
     #[error("could not listen: {0}")]

@@ -4,7 +4,7 @@
 //! action runner as caller `externalAgent`, written to the agent log, and turned into an MCP result.
 //! A tool of an extension takes the same way and runs over the extension's own connection, where
 //! the stricter of the agent's approval mode and the tool's own setting wins (US4, FR-018), and so
-//! does holzi's command tool, which is `Risky` (US5, FR-012). What a call reaches is `callee.rs`,
+//! does haex-vault's command tool, which is `Risky` (US5, FR-012). What a call reaches is `callee.rs`,
 //! what it answers `results.rs`.
 
 use std::collections::HashMap;

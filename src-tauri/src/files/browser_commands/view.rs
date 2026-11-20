@@ -145,7 +145,7 @@ fn streams(kind: ViewerKind) -> bool {
     )
 }
 
-/// The largest image of a storage holzi downloads for a thumbnail.
+/// The largest image of a storage haex-vault downloads for a thumbnail.
 const STORAGE_THUMBNAIL_LIMIT: u64 = 50 * 1024 * 1024;
 
 /// Ends one URL of [`files_open`].
@@ -404,7 +404,7 @@ pub async fn files_open_apps(path: String) -> Vec<crate::files::open_with::OpenA
     }
 }
 
-/// A file of an ordinary folder of a storage, downloaded into holzi's cache so the system's app
+/// A file of an ordinary folder of a storage, downloaded into haex-vault's cache so the system's app
 /// can open it (FR-014; the copy stays until the cache is cleared).
 #[cfg(desktop)]
 async fn download_to_open(

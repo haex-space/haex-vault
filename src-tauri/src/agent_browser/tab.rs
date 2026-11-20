@@ -1,12 +1,12 @@
-//! One agent tab (spec 065, contracts/agent-browser.md "Je Agenten-Tab"): a page target holzi
+//! One agent tab (spec 065, contracts/agent-browser.md "Je Agenten-Tab"): a page target haex-vault
 //! created and attached to in flat mode. Every document it loads, the page itself, a redirect and
 //! each frame alike, is paused through `Fetch` until the website check of research R9 has decided,
 //! and so is every request that may change something on a website (research R5 step 2), until the
-//! user allowed it ([`Guard`]); frames in their own process attach, wait for holzi and get the same
-//! checks. A tab a page of an agent tab opens waits for holzi too ([`Tab::adopt`]); its session
+//! user allowed it ([`Guard`]); frames in their own process attach, wait for haex-vault and get the same
+//! checks. A tab a page of an agent tab opens waits for haex-vault too ([`Tab::adopt`]); its session
 //! decides whether it becomes an agent tab.
 //!
-//! Reading happens in holzi's own world ([`super::read`]); the element numbers are those of the
+//! Reading happens in haex-vault's own world ([`super::read`]); the element numbers are those of the
 //! reading script and hold until the document changes. The same world shows the marker
 //! ([`super::marker`]) while the agent steers the tab, and as paused while the user has it
 //! ([`Tab::show_marker`], and for each new document through [`TabHooks::paused`]);
@@ -39,7 +39,7 @@ const SETTLE: Duration = Duration::from_secs(1);
 /// How long each step of giving a tab back may take; a busy page must not hold up a stop.
 const RELEASE_STEP: Duration = Duration::from_secs(1);
 
-/// A request the tab holds until holzi has decided about it.
+/// A request the tab holds until haex-vault has decided about it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Paused {
     pub url: String,
@@ -128,7 +128,7 @@ impl Tab {
         Self::set_up(connection, id, target, session, guard, hooks, false).await
     }
 
-    /// Takes over the new tab `target` a page opened, attached as `session` and waiting for holzi
+    /// Takes over the new tab `target` a page opened, attached as `session` and waiting for haex-vault
     /// (research R9): set up like [`Tab::open`]. It goes on once its requests are held, since its
     /// page may only start then; `guard` sees its first document, and the rest of the set-up
     /// finishes once that is decided.
@@ -440,7 +440,7 @@ impl Tab {
     }
 
     /// Gives the tab back to the user (FR-016): what the agent was loading stops, the tab stays
-    /// open, the marker leaves it, and with holzi's session of it go the website check and the
+    /// open, the marker leaves it, and with haex-vault's session of it go the website check and the
     /// binding.
     pub async fn release(self) {
         self.guard_task.abort();

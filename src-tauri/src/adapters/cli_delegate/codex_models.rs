@@ -1,7 +1,7 @@
 //! The models a connected Codex account offers: `model/list` of `codex app-server`.
 //!
 //! The list is read from the program itself, with the account's stored `auth.json`, so it is what
-//! the subscription offers today and no list in holzi falls out of date. The program is started
+//! the subscription offers today and no list in haex-vault falls out of date. The program is started
 //! only for this question (initialize, `model/list`, end) in a run folder of the vault, contained
 //! like every other run (spec 094).
 
@@ -33,7 +33,7 @@ const MAX_PAGES: usize = 10;
 /// the vendor. It names no model, so Codex then runs its own default.
 pub(crate) const LEGACY_MODEL_ID: &str = "codex";
 
-/// What one model of the answer says, as holzi's model row: the id Codex takes back at
+/// What one model of the answer says, as haex-vault's model row: the id Codex takes back at
 /// `thread/start`, its name, the reasoning efforts it offers and whether it reads images. Hidden
 /// models are the ones Codex itself keeps out of its picker. Pure and unit-testable.
 pub(super) fn parse_models(result: &Value) -> Vec<ProviderModel> {

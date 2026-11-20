@@ -88,7 +88,7 @@ pub struct JoinRequest {
     pub payload: Vec<u8>,
 }
 
-/// The open lobbies of this device, by holzi's random key.
+/// The open lobbies of this device, by haex-vault's random key.
 #[derive(Default)]
 pub struct Lobbies(HashMap<[u8; 16], Lobby>);
 

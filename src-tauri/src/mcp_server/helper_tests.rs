@@ -56,7 +56,7 @@ fn arguments_are_read_and_checked() {
     assert!(!format!("{secret:?}").contains("secret-credential"));
 }
 
-/// Spec 094: a delegate has its own home and temp folders, so holzi names the endpoint folder
+/// Spec 094: a delegate has its own home and temp folders, so haex-vault names the endpoint folder
 /// itself and the helper takes it as given.
 #[test]
 fn the_endpoint_folder_comes_from_the_argument_when_haex_gives_one() {
@@ -85,7 +85,7 @@ fn the_endpoint_folder_comes_from_the_argument_when_haex_gives_one() {
     assert_eq!(derived.socket_dir, super::endpoint::default_socket_dir());
 }
 
-/// FR-002 clarification: holzi is not running, the agent hears so on its first request, and
+/// FR-002 clarification: haex-vault is not running, the agent hears so on its first request, and
 /// nothing is started.
 #[tokio::test]
 async fn without_haex_the_first_request_gets_an_error_and_the_helper_ends() {
@@ -103,7 +103,7 @@ async fn without_haex_the_first_request_gets_an_error_and_the_helper_ends() {
     let answer = read_json(&mut reader).await;
     assert_eq!(answer["id"], 7);
     assert_eq!(answer["error"]["code"], -32000);
-    assert_eq!(answer["error"]["message"], "holzi is not open");
+    assert_eq!(answer["error"]["message"], "HaexVault is not open");
 }
 
 #[cfg(unix)]
@@ -147,7 +147,7 @@ mod with_endpoint {
         app.await.expect("app");
         assert_eq!(code, exit::REJECTED);
         let answer = read_json(&mut BufReader::new(agent_out)).await;
-        assert_eq!(answer["error"]["message"], "holzi blocked this agent");
+        assert_eq!(answer["error"]["message"], "HaexVault blocked this agent");
     }
 
     /// The credential arrives as a control line, is kept with mode 0600 and never reaches the

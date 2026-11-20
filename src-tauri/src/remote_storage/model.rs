@@ -41,7 +41,7 @@ pub enum CredentialsInput {
         #[serde(default)]
         passphrase: Option<Zeroizing<String>>,
     },
-    /// A key holzi generated (`storage_ssh_key_generate`); its private half never left Rust.
+    /// A key haex-vault generated (`storage_ssh_key_generate`); its private half never left Rust.
     #[serde(rename_all = "camelCase")]
     GeneratedKey { username: String, key_id: String },
     /// An entry of the password manager the user chose (spec 052): the connection points at it,
@@ -109,7 +109,7 @@ pub struct ConnectionInput {
     #[serde(default)]
     pub create_folder: bool,
     /// The host key (an OpenSSH line) the user confirmed after `hostKeyUnknown` (SFTP, spec 050
-    /// research R5); holzi then accepts exactly this key.
+    /// research R5); haex-vault then accepts exactly this key.
     #[ts(optional)]
     #[serde(default)]
     pub host_key: Option<String>,
@@ -201,7 +201,7 @@ pub struct ShownHostKey {
 #[serde(rename_all = "camelCase")]
 pub struct GeneratedKey {
     pub key_id: String,
-    /// `ssh-ed25519 AAAA… holzi`, for the provider's list of keys.
+    /// `ssh-ed25519 AAAA… haex-vault`, for the provider's list of keys.
     pub public_key: String,
 }
 
@@ -217,7 +217,7 @@ pub struct CredentialsCandidate {
     pub url: Option<String>,
     /// It carries the tag of cloud storage credentials.
     pub tagged: bool,
-    /// holzi created it for a connection (owner `storage`).
+    /// haex-vault created it for a connection (owner `storage`).
     pub owned: bool,
 }
 
@@ -267,7 +267,7 @@ pub struct StorageOverview {
     pub storages: Vec<StorageView>,
 }
 
-/// `storage_test`: the outcome, and the key of a test object holzi could not delete (SC-004).
+/// `storage_test`: the outcome, and the key of a test object haex-vault could not delete (SC-004).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/")]
 #[serde(rename_all = "camelCase")]

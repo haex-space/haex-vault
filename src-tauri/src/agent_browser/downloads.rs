@@ -1,6 +1,6 @@
 //! Downloads and uploads of the agent browser (spec 065 US5, FR-031, research R11): the rules,
 //! without a browser, so they have unit tests. The browser saves a download under its GUID in the
-//! working directory; holzi moves it, under a safe and unique name, into the folder
+//! working directory; haex-vault moves it, under a safe and unique name, into the folder
 //! `HaexVault/<vault>` inside the system's downloads folder, where the agent's file
 //! rights (044) reach it like any file of the device. A download over [`LIMIT`] is kept only after
 //! the user allowed it. An upload takes only a file the agent's file rights reach, and says the same
@@ -139,7 +139,7 @@ pub fn move_into(source: &Path, dir: &Path, name: &str) -> io::Result<(PathBuf, 
 /// `Browser.downloadProgress`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Report {
-    /// A download began in one of the frames holzi watches.
+    /// A download began in one of the frames haex-vault watches.
     Began { guid: String, name: String },
     Progress {
         guid: String,

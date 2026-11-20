@@ -45,7 +45,7 @@ pub struct AppState {
     gate: VaultGate,
     /// The pending clearing of the clipboard after a password manager copy (spec 034, FR-006).
     clipboard: ClipboardClearer,
-    /// The holzi functions that report entries of the password manager as in use (FR-034).
+    /// The haex-vault functions that report entries of the password manager as in use (FR-034).
     usage: Arc<UsageRegistry>,
     /// The import of the password manager that is running, if any (spec 034, US7).
     password_import: Arc<ImportRegistry>,
@@ -81,7 +81,7 @@ impl AppState {
         }
     }
 
-    /// The registry in which a holzi function registers that it uses entries (spec 034, FR-034).
+    /// The registry in which a haex-vault function registers that it uses entries (spec 034, FR-034).
     pub fn usage(&self) -> Arc<UsageRegistry> {
         Arc::clone(&self.usage)
     }

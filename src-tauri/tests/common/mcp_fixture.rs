@@ -293,7 +293,7 @@ impl Fixture {
         .await
     }
 
-    /// A delegate holzi started with `args` (spec 021 US6), behind the real helper.
+    /// A delegate haex-vault started with `args` (spec 021 US6), behind the real helper.
     pub async fn delegate(
         &self,
         args: &[String],

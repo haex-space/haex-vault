@@ -1,5 +1,5 @@
 //! The limits of an extension as the settings show and change them (spec 017, FR-031, T092,
-//! contracts/tauri-commands.md `extension_limits_get`/`_set`). Only holzi's own window changes
+//! contracts/tauri-commands.md `extension_limits_get`/`_set`). Only haex-vault's own window changes
 //! them; the bridge only reads them (`sql::exec::limits_of`).
 
 use haex_crdt::rusqlite::params;

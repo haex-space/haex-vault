@@ -68,7 +68,7 @@ impl StorageFiles {
     }
 
     /// The entry at `path`, from the listing of its folder (a server may redirect a folder asked
-    /// for without its `/`, which holzi does not follow).
+    /// for without its `/`, which haex-vault does not follow).
     pub(super) async fn tree_stat(&self, path: &str) -> Result<Entry, FilesError> {
         let parts = parts(path)?;
         let Some((name, above)) = parts.split_last() else {

@@ -1,6 +1,6 @@
 //! The password generator (spec 034, US3, FR-013, FR-014; spec 065 FR-036). Its one
 //! implementation is the crate `haex-passgen` of the vault-sdk, shared with the browser extension
-//! haex-pass-browser; holzi only chooses the configuration. The window generates through
+//! haex-pass-browser; haex-vault only chooses the configuration. The window generates through
 //! `passwords_generate`, the agent browser with the default preset when it creates a login.
 
 use haex_passgen::{generate_password, GeneratorConfig};

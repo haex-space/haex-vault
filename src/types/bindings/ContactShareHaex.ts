@@ -2,6 +2,6 @@
 import type { ContactShareDevice } from "./ContactShareDevice";
 
 /**
- * The holzi addresses of a share.
+ * The haex-vault addresses of a share.
  */
 export type ContactShareHaex = { "kind": "none" } | { "kind": "card", npub: string, devices: number, relays: number, issuedAt: string, } | { "kind": "own", canSign: boolean, npub: string, devices: Array<ContactShareDevice>, relays: Array<string>, };

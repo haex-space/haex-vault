@@ -24,7 +24,7 @@ use crate::files::{Entry, EntryKind, FilesError, FilesErrorCode};
 use crate::remote_storage::local::access_of;
 use crate::remote_storage::ObjectStore;
 
-/// The most entries of one device folder holzi reads to name its encrypted folders.
+/// The most entries of one device folder haex-vault reads to name its encrypted folders.
 const MAX_ENTRIES: usize = 100_000;
 
 /// The root of a device path as a storage: `/`, or a drive on Windows.

@@ -2,7 +2,7 @@
 //! is open, a message from another vault in a conversation that is not muted and not open in a
 //! focused window shows one, if this device's `chat.notifications` is on. A request shows only
 //! "Neue Anfrage", never its text, and without a sound (FR-040). A tap opens the chat at the conversation; where the system shows
-//! none (Android: permission refused), holzi's window shows it as a message.
+//! none (Android: permission refused), haex-vault's window shows it as a message.
 
 use std::sync::Arc;
 
@@ -26,7 +26,7 @@ use crate::storage::query::Query;
 use crate::vault_gate::VaultDb;
 
 /// Notifications of the chat open at most; a new one closes the oldest. Where the system reports
-/// no close, holzi cannot tell when one is gone.
+/// no close, haex-vault cannot tell when one is gone.
 const MAX_OPEN: usize = 20;
 
 /// What a notification of a new message shows.
@@ -156,7 +156,7 @@ pub async fn run<R: Runtime>(
     }
 }
 
-/// Shows `notice` as a system notification, else in holzi's window.
+/// Shows `notice` as a system notification, else in haex-vault's window.
 async fn show<R: Runtime>(
     app: &AppHandle<R>,
     notice: Notice,

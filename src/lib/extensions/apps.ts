@@ -11,7 +11,7 @@ export function extensionAppId(extensionId: string): string {
   return PREFIX + extensionId
 }
 
-/** The extension an app id names, or `null` for a holzi app. */
+/** The extension an app id names, or `null` for a haex-vault app. */
 export function extensionIdOf(appId: string): string | null {
   return appId.startsWith(PREFIX) ? appId.slice(PREFIX.length) : null
 }
@@ -100,7 +100,7 @@ export function tabOfExtension(
   return null
 }
 
-/** holzi's own apps followed by the extension apps. */
+/** haex-vault's own apps followed by the extension apps. */
 export function allApps(
   extensionAppList: readonly AppDefinition[],
 ): AppDefinition[] {

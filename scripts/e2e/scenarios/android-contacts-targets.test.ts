@@ -10,10 +10,10 @@ import {
   startPhoneSync,
 } from '../lib/contacts.ts'
 
-// Spec 051 US3-4/5 (quickstart `android-contacts-targets`): contacts made only in holzi reach the
+// Spec 051 US3-4/5 (quickstart `android-contacts-targets`): contacts made only in haex-vault reach the
 // phone once they get it as a target, selected in the list or as a whole group. A target removed
 // with "keep" leaves the contact on the phone without syncing it any more; one removed with
-// "delete" takes it off the phone and leaves it in holzi. Incoming changes start the runs.
+// "delete" takes it off the phone and leaves it in haex-vault. Incoming changes start the runs.
 scenario(
   'android-contacts-targets',
   { needs: { phone: true }, timeoutMs: 300_000 },
@@ -45,8 +45,8 @@ scenario(
       const ida = await person('Ida', 'Jung')
       await person('Karl', 'Lang', [team])
       await person('Lena', 'Maier', [team])
-      assert.equal(phone.queryContacts().length, 0, 'only in holzi so far')
-      ctx.step('four contacts only in holzi')
+      assert.equal(phone.queryContacts().length, 0, 'only in HaexVault so far')
+      ctx.step('four contacts only in HaexVault')
 
       await openContacts(instance)
       await instance.click('contacts-select')
@@ -105,7 +105,7 @@ scenario(
       )
       assert.ok(
         (await contactHeaders(instance)).some((header) => header.id === gerd),
-        'Gerd stays in holzi',
+        'Gerd stays in HaexVault',
       )
       ctx.step('a target removed with "delete" takes it off the phone only')
     } finally {

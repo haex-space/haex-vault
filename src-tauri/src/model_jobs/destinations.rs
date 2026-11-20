@@ -1,5 +1,5 @@
 //! Where a consent sends the data of a job (spec 055 US4, T048, T049): the provider, its host and
-//! place as the question and the settings name them, and what one step would send. Only holzi's
+//! place as the question and the settings name them, and what one step would send. Only haex-vault's
 //! window sees the host; the extension never does (FR-030).
 
 use serde::{Deserialize, Serialize};

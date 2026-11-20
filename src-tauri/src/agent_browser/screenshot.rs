@@ -1,4 +1,4 @@
-//! `browser.page.screenshot` (spec 065 FR-056 to FR-058, research R21): holzi captures once as PNG,
+//! `browser.page.screenshot` (spec 065 FR-056 to FR-058, research R21): haex-vault captures once as PNG,
 //! draws the marks itself and encodes one JPEG. The tab remembers the view the image showed, so
 //! positions of later tools can be checked against it. A region is a crop at up to twice the
 //! density of the full image; positions always stay in the space of the full image.

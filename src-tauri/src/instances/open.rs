@@ -155,7 +155,7 @@ pub async fn open_instance(
     crate::tts::clone_commands::start_after_open(&state);
     // Spec 051 (FR-020): the sync with the phone's address book catches up.
     crate::contacts::phone::trigger::start(&app);
-    // Spec 060 (research R9): links other holzi processes got for this vault.
+    // Spec 060 (research R9): links other haex-vault processes got for this vault.
     crate::deep_link::start_for_active_instance(&app);
     // Spec 017: files of removed extensions are freed after their grace period.
     crate::extensions::registry::blobs::start_after_open(&state);

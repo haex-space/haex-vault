@@ -115,7 +115,7 @@ async fn foreign_files_never_go_in_a_cleanup() {
     let keys = scene.keys();
     assert!(
         !keys.contains(&old_orphan),
-        "holzi's own leftovers still go"
+        "HaexVault's own leftovers still go"
     );
     for key in &foreign {
         assert!(keys.contains(key), "{key} stays");

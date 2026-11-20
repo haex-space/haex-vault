@@ -1,8 +1,8 @@
 //! The documents `browser.entry.fill` fills into (spec 065 FR-037, research R7a, T091): the tab's
 //! own page and every frame of a website the agent may operate over `https`. Payment providers put
-//! their card fields into such frames. A frame in the tab's process runs holzi's script in its own
+//! their card fields into such frames. A frame in the tab's process runs haex-vault's script in its own
 //! isolated world through the tab's session; a frame of another website runs in its own process
-//! (its own target), so holzi attaches to it for the call and detaches afterwards. A frame of a
+//! (its own target), so haex-vault attaches to it for the call and detaches afterwards. A frame of a
 //! website the agent may only read, or of none it may use, is left out: nothing is offered for it
 //! and nothing written into it.
 
@@ -18,7 +18,7 @@ use crate::agent_browser::read;
 use crate::agent_browser::tab::Tab;
 use crate::chat::tools::native_action::NativeError;
 
-/// One document holzi may fill into.
+/// One document haex-vault may fill into.
 pub(super) struct Doc {
     pub session: String,
     pub frame: String,
@@ -26,14 +26,14 @@ pub(super) struct Doc {
     pub site: Option<String>,
 }
 
-/// The documents of a call, the tab's own page first, and the sessions holzi attached for them.
+/// The documents of a call, the tab's own page first, and the sessions haex-vault attached for them.
 pub(super) struct Docs {
     pub list: Vec<Doc>,
     attached: Vec<String>,
 }
 
 impl Docs {
-    /// Detaches the sessions holzi attached to frames of other processes.
+    /// Detaches the sessions haex-vault attached to frames of other processes.
     pub async fn release(self, connection: &Connection) {
         for session in self.attached {
             if let Err(error) = target::detach(connection, &session).await {
@@ -44,7 +44,7 @@ impl Docs {
 }
 
 impl Acting<'_> {
-    /// The tab's own page and the frames holzi may fill on `tab`.
+    /// The tab's own page and the frames haex-vault may fill on `tab`.
     pub(super) async fn documents(&self, tab: &Tab) -> Result<Docs, NativeError> {
         let frames = page::frames(self.connection, &tab.session)
             .await
@@ -101,7 +101,7 @@ impl Acting<'_> {
         Ok(Docs { list, attached })
     }
 
-    /// Whether holzi may fill into a frame showing `url`: `https` on a website the agent may
+    /// Whether haex-vault may fill into a frame showing `url`: `https` on a website the agent may
     /// operate.
     pub(super) fn frame_operable(&self, url: &str) -> bool {
         FrameAccess {

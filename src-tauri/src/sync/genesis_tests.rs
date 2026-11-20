@@ -48,7 +48,7 @@ fn a_new_vault_gets_identity_keys_first_list_and_content_key() {
     let name =
         content_keys::open_name(&key, &device_pubkey, &effective.list.devices[0].name_sealed)
             .expect("the name opens with the first key");
-    assert_eq!(name, "holzi");
+    assert_eq!(name, "HaexVault");
 }
 
 #[test]

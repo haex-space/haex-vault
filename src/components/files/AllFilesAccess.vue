@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * Instead of the device's folders while Android withholds "Zugriff auf alle Dateien" (spec 044
- * FR-039): why holzi needs it, and a button into the system's settings. The cloud storages stay
+ * FR-039): why haex-vault needs it, and a button into the system's settings. The cloud storages stay
  * reachable through the sidebar.
  */
 const emit = defineEmits<{ request: [] }>()

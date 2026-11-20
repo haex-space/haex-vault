@@ -94,7 +94,7 @@ pub struct AgentBrowserStatus {
     pub available: bool,
     /// The browser chosen in the settings; `None`: search.
     pub chosen_path: Option<String>,
-    /// The browser holzi would start now.
+    /// The browser haex-vault would start now.
     pub found_path: Option<String>,
     /// The product of the running browser (`Chrome/156.0.8078.73`).
     pub running: Option<String>,

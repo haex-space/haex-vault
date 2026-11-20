@@ -31,6 +31,6 @@ existing: Array<ContactShareExisting>,
  */
 current?: string,
 /**
- * Only for the holzi addresses.
+ * Only for the haex-vault addresses.
  */
 addresses?: ContactShareAddresses, };

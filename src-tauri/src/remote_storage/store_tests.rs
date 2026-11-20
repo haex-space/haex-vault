@@ -118,7 +118,7 @@ fn field_rules_are_checked_before_a_write() {
     put(&db, Some(c), None).expect("aws needs no endpoint");
 
     let mut s = storage("s1", "c1");
-    s.bucket = "Holzi".to_owned();
+    s.bucket = "HaexVault".to_owned();
     assert_eq!(field(put(&db, None, Some(s)).unwrap_err()), "bucket");
     assert!(matches!(
         put(&db, None, Some(storage("s1", "missing"))),
@@ -250,12 +250,12 @@ fn a_storage_on_webdav_holds_a_folder() {
 
 #[test]
 fn folders_follow_the_rules_of_webdav_and_sftp() {
-    for ok in ["", "holzi", "Fotos/2026", "Ä ö/ü", &"a".repeat(255)] {
+    for ok in ["", "haex-vault", "Fotos/2026", "Ä ö/ü", &"a".repeat(255)] {
         assert!(folder_ok(ok), "{ok:?}");
     }
     for bad in [
-        "/holzi",
-        "holzi/",
+        "/haex-vault",
+        "HaexVault/",
         "a//b",
         "a/./b",
         "a/../b",

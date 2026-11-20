@@ -198,7 +198,7 @@ function parseWorkspace(value: unknown): Workspace | null {
 }
 
 /** Validates a loaded session. Anything malformed at the session, workspace or window level
- * yields `null` and holzi starts empty (FR-012); a single bad tab history is replaced by a fresh
+ * yields `null` and haex-vault starts empty (FR-012); a single bad tab history is replaced by a fresh
  * one. Unknown apps, duplicate singletons and geometry are `hydrate`'s job. */
 export function parseWmSession(value: unknown): WmSession | null {
   if (!isRecord(value) || value.version !== WM_SESSION_VERSION) return null

@@ -1,5 +1,5 @@
 //! Thumbnails for list and grid (spec 044 FR-005, research R7): decoded in Rust with limits,
-//! turned upright by their EXIF orientation, shrunk to [`EDGE`] and cached as JPEG in holzi's cache
+//! turned upright by their EXIF orientation, shrunk to [`EDGE`] and cached as JPEG in haex-vault's cache
 //! (never synced, ADR 0001; an own place, so agents never reach it). The key covers source, path,
 //! size and modification time, so a changed file gets a new thumbnail. An image that fails leaves a
 //! marker and is not tried again until it changes.
@@ -27,7 +27,7 @@ const MAX_SIDE: u32 = 20_000;
 /// Most memory one decode may take.
 const MAX_ALLOC: u64 = 512 * 1024 * 1024;
 
-/// The folder below holzi's cache directory.
+/// The folder below haex-vault's cache directory.
 pub const CACHE_FOLDER: &str = "files-thumbnails";
 
 /// The cache key of a thumbnail: hex SHA-256 over source, path, size and modification time.

@@ -1,4 +1,4 @@
-//! Measuring how well a model calls holzi's tools (spec 032 US5, research R9). The set of example
+//! Measuring how well a model calls haex-vault's tools (spec 032 US5, research R9). The set of example
 //! sentences, the pure scoring and the runner that asks a model; the in-app self-test and the
 //! full measurement (`tests/model_tool_eval.rs`) both go through here. Needs no vault and never
 //! runs an action (FR-021, FR-022).

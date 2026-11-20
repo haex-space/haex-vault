@@ -53,7 +53,7 @@ for (const scenario of [
   { name: 'non-Linux bypasses discovery', platform: 'Darwin' },
 ]) {
   test(scenario.name, (t) => {
-    const root = mkdtempSync(join(tmpdir(), 'holzi bridge '))
+    const root = mkdtempSync(join(tmpdir(), 'HaexVault bridge '))
     t.after(() => rmSync(root, { recursive: true, force: true }))
     const bin = join(root, 'bin')
     const hostBin = join(root, 'host-bin')

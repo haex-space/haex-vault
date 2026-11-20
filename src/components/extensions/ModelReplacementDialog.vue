@@ -3,7 +3,7 @@
  * The question of a model job whose model could not take a step (spec 055): the model failed while
  * the job ran, or it was not asked at all because the default model cannot take the step or is not
  * available. It names the model and why, and asks which other model should take the step, with a
- * tick to make that model the extension's default. holzi never picks another model itself. The job
+ * tick to make that model the extension's default. haex-vault never picks another model itself. The job
  * waits; "Abbrechen" ends the step with the failure of the first model. A model outside this device
  * that the user has not agreed to yet says where the job would go, and choosing it agrees to that.
  * Mounted once in the desktop, like the permission questions.

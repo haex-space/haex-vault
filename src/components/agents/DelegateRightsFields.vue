@@ -2,7 +2,7 @@
 /**
  * The rights group "Abo-Agenten" of an agent profile (spec 083 FR-030; specs 009, 032): how the own
  * tools of an Abo-Agent run when its model is in the profile, and what the permissive mode still
- * refuses. It says nothing about holzi's tools, which the other groups limit. Without the group
+ * refuses. It says nothing about haex-vault's tools, which the other groups limit. Without the group
  * every call asks. Each choice emits the whole group; the editor saves on selection.
  */
 import {

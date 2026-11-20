@@ -3,7 +3,7 @@
 //! Turns a provider-neutral [`ChatRequest`] into the vendor's wire body:
 //! the `max_tokens`/`thinking` interplay, the adaptive-vs-manual
 //! thinking decision (read from the model's cached capabilities), and the regrouping of
-//! holzi's flat per-row history into Anthropic's block shape. Kept apart
+//! haex-vault's flat per-row history into Anthropic's block shape. Kept apart
 //! from `anthropic.rs` so the transport and SSE-decoding side of the
 //! adapter stays readable on its own.
 

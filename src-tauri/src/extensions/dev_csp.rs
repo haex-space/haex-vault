@@ -1,7 +1,7 @@
-//! holzi's window may frame a development server only while developer mode is on (spec 017,
-//! US12, research R16). The address is not in the fixed policy of `tauri.conf.json`: when holzi
+//! haex-vault's window may frame a development server only while developer mode is on (spec 017,
+//! US12, research R16). The address is not in the fixed policy of `tauri.conf.json`: when haex-vault
 //! serves its main document, [`adjust`] adds the loopback origins to `frame-src`. A policy holds
-//! from the moment its document loads, so switching developer mode reloads holzi's window, and the
+//! from the moment its document loads, so switching developer mode reloads haex-vault's window, and the
 //! window reloads itself once after unlocking a vault in developer mode (`served_dev_frames`).
 //!
 //! Tauri calls the hook only for documents of its own protocol: in the built app, not for the
@@ -54,7 +54,7 @@ pub fn with_dev_frames(csp: &str) -> String {
     directives.join("; ")
 }
 
-/// The hook on holzi's web resources: a document with a policy gets the development origins while
+/// The hook on haex-vault's web resources: a document with a policy gets the development origins while
 /// developer mode is on, and the host remembers whether the document now shown has them.
 pub fn adjust(
     host: &ExtensionHost,

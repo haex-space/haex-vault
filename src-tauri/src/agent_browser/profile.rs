@@ -1,7 +1,7 @@
 //! The agent browser's profile on disk (spec 065, research R3, contracts/agent-browser.md
 //! "Profil"). While the browser runs, the profile is an ordinary directory, because Chromium writes
 //! files: owner-only, under `$XDG_RUNTIME_DIR` on Linux (in memory) or the user's temporary
-//! folder elsewhere. holzi removes it at the end of every run and before every start, so leftovers
+//! folder elsewhere. haex-vault removes it at the end of every run and before every start, so leftovers
 //! of a crash live only until the next start. Between runs only the lasting parts are kept, as a
 //! ZIP that [`super::profile_store`] puts into an encrypted folder.
 //!

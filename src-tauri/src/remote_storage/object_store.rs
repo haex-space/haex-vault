@@ -112,7 +112,7 @@ pub trait ObjectStore: Send + Sync {
     }
 
     /// Whether [`ObjectStore::copy`] copies on the provider (spec 050 research R8); otherwise a
-    /// copy streams through holzi.
+    /// copy streams through haex-vault.
     fn copies_on_provider(&self, access: &Access) -> bool;
 
     /// The host key the server at `location` showed when the last connection was refused for it

@@ -1,15 +1,15 @@
 //! The kinds of numbers, addresses and other values on the phone (`TYPE` and `LABEL` of a data row)
-//! and holzi's labels (data-model.md). A phone type without its own holzi label becomes a label of
+//! and haex-vault's labels (data-model.md). A phone type without its own haex-vault label becomes a label of
 //! the user's own with the type's English name; written back, such a label is the phone's custom
-//! type. The phone's type is written only when holzi's label changed (FR-022), so a type without a
-//! holzi label survives every other change.
+//! type. The phone's type is written only when haex-vault's label changed (FR-022), so a type without a
+//! haex-vault label survives every other change.
 
 use crate::contacts::kinds::{ADDRESS, EMAIL, EVENT, IM, PHONE, RELATION, SIP, WEBSITE};
 
 /// Android's `BaseTypes.TYPE_CUSTOM`.
 pub const CUSTOM_TYPE: i64 = 0;
 
-/// The types of one kind with their holzi label; a label with `custom:` has no label of its own.
+/// The types of one kind with their haex-vault label; a label with `custom:` has no label of its own.
 fn table(kind: &str) -> &'static [(i64, &'static str)] {
     match kind {
         PHONE => &[
@@ -66,7 +66,7 @@ fn table(kind: &str) -> &'static [(i64, &'static str)] {
     }
 }
 
-/// holzi's label for a row's `TYPE` and `LABEL`.
+/// haex-vault's label for a row's `TYPE` and `LABEL`.
 pub fn from_phone(kind: &str, phone_type: Option<&str>, label: Option<&str>) -> String {
     let phone_type = phone_type.and_then(|text| text.trim().parse::<i64>().ok());
     let own = label.map(str::trim).filter(|text| !text.is_empty());
@@ -83,7 +83,7 @@ pub fn from_phone(kind: &str, phone_type: Option<&str>, label: Option<&str>) -> 
     }
 }
 
-/// The `TYPE` and `LABEL` a holzi label is written as.
+/// The `TYPE` and `LABEL` a haex-vault label is written as.
 pub fn to_phone(kind: &str, label: &str) -> (i64, Option<String>) {
     let rows = table(kind);
     if let Some((code, _)) = rows.iter().find(|(_, candidate)| *candidate == label) {
@@ -116,7 +116,7 @@ const PROTOCOLS: [(i64, &str); 9] = [
     (8, "NetMeeting"),
 ];
 
-/// Android's `Im.PROTOCOL_CUSTOM`; holzi writes every service with it.
+/// Android's `Im.PROTOCOL_CUSTOM`; haex-vault writes every service with it.
 pub const CUSTOM_PROTOCOL: i64 = -1;
 
 /// The name of a messenger service from `PROTOCOL` and `CUSTOM_PROTOCOL`.

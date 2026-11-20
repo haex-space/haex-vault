@@ -17,7 +17,7 @@ pub const MAX_LABEL_CHARS: usize = 40;
 pub const PASS_LINK_PREFIX: &str = "haex-vault://pass/";
 
 /// The id of a pass in the form the shortcut carries it: a UUID in its usual hyphenated form,
-/// lower case, nothing around it. Anything else is not an id of holzi.
+/// lower case, nothing around it. Anything else is not an id of haex-vault.
 pub fn pass_id(text: &str) -> Option<String> {
     let id = Uuid::parse_str(text).ok()?;
     let canonical = id.hyphenated().to_string();

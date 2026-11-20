@@ -56,7 +56,7 @@ impl<R: Read> Read for BoundedReader<R> {
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum UnpackError {
-    /// The archive holds something holzi never unpacks.
+    /// The archive holds something haex-vault never unpacks.
     #[error("refused: {0}")]
     Refused(String),
     #[error("{0}")]

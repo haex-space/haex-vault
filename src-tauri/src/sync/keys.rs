@@ -4,7 +4,7 @@
 //!   the synchronized `vault_identity.pubkey`; the secret key lives only on
 //!   main devices in `vault_identity_secret_no_sync`.
 //! - **Device keys**: per installation, a secp256k1 device key and an ed25519
-//!   iroh endpoint key in `device_keys_no_sync`. holzi reads only the row of
+//!   iroh endpoint key in `device_keys_no_sync`. haex-vault reads only the row of
 //!   its own installation: a copied vault keeps the source device's row
 //!   untouched and never uses it (FR-006).
 //!

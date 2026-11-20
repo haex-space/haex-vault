@@ -12,7 +12,7 @@ import { connectSftp } from '../lib/storage-setup.ts'
 // Spec 050, US5 (T085): an SFTP storage in the file browser, like the WebDAV storage of
 // `files-storage-webdav`. A new folder is made on the server and a name that differs only in case
 // is taken; a folder is renamed and deleted with one call each; a film plays and seeks through
-// range reads; a file is copied inside the storage, streaming through holzi because SFTP has no
+// range reads; a file is copied inside the storage, streaming through haex-vault because SFTP has no
 // copy on the server; no temporary file stays. Cancelling an upload is checked against a server
 // in the test process (`files/transfer/remote_sftp_tests.rs`). Needs Docker; skipped without it.
 
@@ -97,7 +97,7 @@ scenario(
     await instance.click('files-viewer-close')
     ctx.step('a film plays and seeks from the server')
 
-    // A copy inside the storage streams through holzi (research R8).
+    // A copy inside the storage streams through haex-vault (research R8).
     await contextMenu(instance, 'files-entry-notiz.txt')
     await instance.click('files-menu-copy')
     await doubleClick(instance, 'files-entry-Neu')
@@ -130,6 +130,6 @@ scenario(
       !left.some((path) => path.includes('.haex-')),
       `no temporary file stays: ${left.join(', ')}`,
     )
-    ctx.step('deleted after the question, nothing of holzi left')
+    ctx.step('deleted after the question, nothing of HaexVault left')
   },
 )

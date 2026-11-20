@@ -2,7 +2,7 @@
 //! after haex-vault 2.x (Legacy) `src-tauri/src/media_server/mod.rs`, revision
 //! fc4e84b61a050576ba42e0dc832d04064a8605a3).
 //!
-//! WebKitGTK plays `<video>`/`<audio>` only from http(s), and `asset://` has no ranges, so holzi
+//! WebKitGTK plays `<video>`/`<audio>` only from http(s), and `asset://` has no ranges, so haex-vault
 //! serves opened files on `127.0.0.1` at a random port. Every file gets an unguessable token for one
 //! tab; any other path, also `/`, is `404`. A token ends with [`MediaServer::release`], with
 //! [`MediaServer::release_tab`] when its tab closes, and with the process when the vault locks

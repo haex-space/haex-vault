@@ -129,7 +129,7 @@ impl From<ActionOutcomeWire> for ActionReply {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ActionCaller {
-    /// The model of the holzi chat (spec 032).
+    /// The model of the haex-vault chat (spec 032).
     #[serde(rename_all = "camelCase")]
     BuiltinAgent {
         /// Captured at the tool call, so a window command cannot inherit a later turn's profile.

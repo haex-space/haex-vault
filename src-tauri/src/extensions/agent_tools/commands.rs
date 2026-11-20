@@ -1,4 +1,4 @@
-//! The tool connection's way through holzi's window (contracts/tauri-commands.md, research R1):
+//! The tool connection's way through haex-vault's window (contracts/tauri-commands.md, research R1):
 //! Rust's messages leave as the event `extension-mcp-message`, the extension's come back with
 //! `extension_mcp_send`. The frame session, never the message, names the extension, and neither
 //! reaches a method of the bridge.
@@ -19,7 +19,7 @@ use crate::state::AppState;
 use crate::state_utils::active_database;
 use crate::vault_gate::VaultDb;
 
-/// Event: a message of holzi's MCP client for one frame.
+/// Event: a message of haex-vault's MCP client for one frame.
 pub const MCP_MESSAGE: &str = "extension-mcp-message";
 
 /// Hands a message of the extension to its frame's connection; `false` for an unknown frame,
@@ -37,7 +37,7 @@ pub fn deliver(frames: &FrameRegistry, frame: &str, message: Value) -> bool {
     true
 }
 
-/// Where the connection of `frame` sends holzi's messages.
+/// Where the connection of `frame` sends haex-vault's messages.
 pub fn to_frame<E: Emit + 'static>(emit: E, frame: String) -> impl Fn(Value) + Send + 'static {
     move |message| {
         log::info!("agent tools: {} to frame {frame}", summary(&message));
@@ -74,7 +74,7 @@ pub async fn extension_mcp_send(
     Ok(())
 }
 
-/// holzi's window answers `extension-agent-frame`: the frame to call the extension's tools in, or
+/// haex-vault's window answers `extension-agent-frame`: the frame to call the extension's tools in, or
 /// `None` when it could not provide one.
 #[tauri::command]
 pub async fn extension_agent_frame_ready(

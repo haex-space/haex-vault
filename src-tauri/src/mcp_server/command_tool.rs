@@ -1,4 +1,4 @@
-//! holzi's command tool for external agents (spec 021 US5, FR-012, research R3): `run_command` of
+//! haex-vault's command tool for external agents (spec 021 US5, FR-012, research R3): `run_command` of
 //! the chat (spec 003) with the same name, description and schema, offered only with the group
 //! `commands` and only where the device runs commands (`PlatformCapabilities.command_tool`). It is
 //! `Risky`, so every command asks in Auto and is refused in Plan. Its command line reaches the prompt

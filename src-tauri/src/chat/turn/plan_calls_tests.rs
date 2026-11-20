@@ -53,7 +53,7 @@ fn an_unknown_tool_names_the_closest_tools_or_the_search() {
     );
     let answer = unknown_tool_answer("calendar_add", &offered);
     assert!(
-        answer.ends_with("find_actions finds holzi's other actions."),
+        answer.ends_with("find_actions finds HaexVault's other actions."),
         "{answer}"
     );
 }

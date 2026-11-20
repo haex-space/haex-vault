@@ -1,4 +1,4 @@
-//! Spec 021 T090: holzi's OAuth server without database or network (contracts/http-auth.md).
+//! Spec 021 T090: haex-vault's OAuth server without database or network (contracts/http-auth.md).
 
 use std::time::{Duration, Instant};
 

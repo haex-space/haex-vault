@@ -98,7 +98,7 @@ export function intervalSecs(minutes: number): number {
   return kept * 60
 }
 
-/** The state a rule shows: "holzi nicht aktiv" while the service does not run (FR-026). */
+/** The state a rule shows: "haex-vault nicht aktiv" while the service does not run (FR-026). */
 export function shownState(state: SyncState, serviceRuns: boolean): SyncState {
   return serviceRuns || state === 'paused' ? state : 'inactive'
 }

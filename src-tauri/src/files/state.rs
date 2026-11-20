@@ -1,4 +1,4 @@
-//! What the file browser keeps for the running app (spec 044): holzi's own places, the known places,
+//! What the file browser keeps for the running app (spec 044): haex-vault's own places, the known places,
 //! the thumbnail cache and the open folder watches of the window; spec 048 adds the opened encrypted
 //! folders and the thumbnails of their images, both only in memory, and the copies of their files
 //! for system apps; all of it goes when the vault closes.

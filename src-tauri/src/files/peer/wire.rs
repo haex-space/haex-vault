@@ -41,7 +41,7 @@ pub struct Welcome {
     pub trash: bool,
 }
 
-/// Who asks on the requesting device: the user, or one of its agents (FR-007: holzi's own data is
+/// Who asks on the requesting device: the user, or one of its agents (FR-007: haex-vault's own data is
 /// read-only for the user, blocked for agents).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Caller {
@@ -195,7 +195,7 @@ pub struct WireEntry {
 pub enum FailCode {
     #[error("not found")]
     NotFound,
-    /// Not allowed: no grant, a write at level read, holzi's own data, a path out of the root.
+    /// Not allowed: no grant, a write at level read, haex-vault's own data, a path out of the root.
     #[error("refused")]
     Refused,
     #[error("conflict")]

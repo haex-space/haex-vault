@@ -222,7 +222,7 @@ async fn write_all(
     progress(done, Phase::Groups);
     let group_ids = Arc::new(group_result.ids);
 
-    // Spec 036, FR-050: the ids are given before writing, so KeePass references become holzi
+    // Spec 036, FR-050: the ids are given before writing, so KeePass references become haex-vault
     // placeholders in the first state of each entry.
     let (converted, left_as_text) = super::apply_references::prepare(&mut model.items, &skipped);
     report.references_converted = converted;
@@ -347,7 +347,7 @@ fn exists(tx: &mut CrdtTransaction<'_>, sql: &str, id: &str) -> Result<bool> {
         > 0)
 }
 
-/// A picture of the source as the text of the `icon` column: the name of a picture of holzi, or
+/// A picture of the source as the text of the `icon` column: the name of a picture of haex-vault, or
 /// `binary:<hash>` for a picture of its own (its bytes become a binary of type `icon`).
 fn icon_text(
     tx: &mut CrdtTransaction<'_>,

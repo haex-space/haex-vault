@@ -237,7 +237,7 @@ export function useExtensionFrame(
         return
       case 'focus':
         // A click into the frame never reaches the window's own pointer handler. Only while
-        // holzi's window is active, so a frame cannot raise itself in the background.
+        // haex-vault's window is active, so a frame cannot raise itself in the background.
         if (document.hasFocus()) wm.focusWindow(tab.windowId)
         return
       case 'shortcut':
@@ -311,7 +311,7 @@ export function useExtensionFrame(
       events = new FrameEventQueue(
         opened.frame,
         (event: FrameEvent) => sdkPort?.postMessage(eventMessage(event)),
-        // A reliable message of a channel was dropped: holzi ends that channel as lost.
+        // A reliable message of a channel was dropped: haex-vault ends that channel as lost.
         (channelId) =>
           void invoke('extension_peers_frame_overflow', {
             frame: opened.frame,
@@ -371,7 +371,7 @@ export function useExtensionFrame(
     await openAsync()
   }
 
-  // holzi Back/Forward: show the tab's location in the frame, unless the frame reported it.
+  // haex-vault Back/Forward: show the tab's location in the frame, unless the frame reported it.
   watch(
     () => ({ path: router.route.path, query: router.route.query }),
     (location) => {

@@ -7,7 +7,7 @@ import { scenario } from '../lib/scenario.ts'
 import { runAction } from '../lib/settings.ts'
 
 // Spec 044, US3, quickstart §3 (T052): a new folder, a rename that clashes and one that works, a
-// move by dragging inside holzi, a copy whose name is taken (keep both), a copy cancelled at its
+// move by dragging inside haex-vault, a copy whose name is taken (keep both), a copy cancelled at its
 // conflict (nothing half-written stays), a folder pasted into itself (refused), and a delete.
 
 /** Every name in a folder of the device, hidden ones too (part files start with a dot). */
@@ -84,7 +84,7 @@ scenario('files-manage', { timeoutMs: 240_000 }, async (ctx) => {
     assert.ok(await gone(instance, 'files-entry-a.txt'))
     ctx.step('rename: a taken name refused, a free one taken')
 
-    // Dragging onto a folder inside holzi moves.
+    // Dragging onto a folder inside haex-vault moves.
     await dragTo(instance, 'files-entry-c.txt', 'files-entry-Neu')
     await ctx.waitFor('c.txt to leave the folder', () =>
       gone(instance, 'files-entry-c.txt'),
@@ -144,7 +144,7 @@ scenario('files-manage', { timeoutMs: 240_000 }, async (ctx) => {
     assert.deepEqual(await allNames(instance, inner), ['b.txt', 'x.txt'])
     ctx.step('a folder into itself refused')
 
-    // Delete: into the trash on desktops; where it is for good, holzi asks first.
+    // Delete: into the trash on desktops; where it is for good, haex-vault asks first.
     await instance.click('files-up')
     await instance.waitForDisplayed('files-entry-b (2).txt')
     await contextMenu(instance, 'files-entry-b (2).txt')

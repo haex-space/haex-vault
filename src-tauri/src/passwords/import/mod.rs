@@ -64,7 +64,7 @@ impl fmt::Debug for Credentials {
     }
 }
 
-/// How the source names an icon: one of the pictures of holzi, or the bytes of a picture of its own.
+/// How the source names an icon: one of the pictures of haex-vault, or the bytes of a picture of its own.
 #[derive(Clone, PartialEq, Eq)]
 pub enum IconRef {
     Standard(String),

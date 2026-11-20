@@ -219,7 +219,7 @@ fn every_group_round_trips_through_its_rows() {
 #[test]
 fn a_group_that_is_off_has_no_rows() {
     assert!(rows_of(&Rights::default()).is_empty());
-    // The factory rights are "holzi bedienen" at read and the autonomy of today's default.
+    // The factory rights are "haex-vault bedienen" at read and the autonomy of today's default.
     let rows = rows_of(&default_rights());
     assert!(rows
         .iter()
@@ -358,7 +358,7 @@ fn a_row_with_a_key_this_build_does_not_know_is_no_right() {
         [("wm.read".to_owned(), OperateLevel::Read)]
             .into_iter()
             .collect(),
-        "only the scopes of holzi bedienen"
+        "only the scopes of HaexVault bedienen"
     );
     assert!(!rights_of([row("commands", "shell", "on", None)]).commands);
 }

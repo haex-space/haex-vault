@@ -9,7 +9,7 @@
 //! extension's response limit, and no credential in any answer, error or log line.
 //!
 //! The credentials come with every call from the extension (the SDK's `ImapConfig` and
-//! `SmtpConfig`); holzi keeps them only for the length of the call and stores none.
+//! `SmtpConfig`); haex-vault keeps them only for the length of the call and stores none.
 
 pub mod commands;
 mod connect;

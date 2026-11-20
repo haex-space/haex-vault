@@ -11,7 +11,7 @@ import {
 
 // Spec 043 FR-023 (quickstart §6 step 4): a notification of an extension appears as an Android
 // notification once the person allowed it; when they refused the system's permission, it stays
-// visible inside holzi as a message. The system's own question cannot be driven, so the answer is
+// visible inside haex-vault as a message. The system's own question cannot be driven, so the answer is
 // given beforehand through the phone's controls.
 scenario(
   'android-notifications',
@@ -43,18 +43,18 @@ scenario(
         `return [...document.querySelectorAll('[data-sonner-toast]')].map((t) => t.textContent)`,
       )
 
-    // holzi's own permission comes first, as on a desktop.
+    // haex-vault's own permission comes first, as on a desktop.
     phone.allowNotifications(false)
     assert.equal((await notify('Standup')).error?.code, 1004)
     await instance.waitForDisplayed('extension-permission-request', 10_000)
     await instance.click('extension-permission-allow')
     const refused = await notify('Standup')
     assert.equal(refused.error, undefined, JSON.stringify(refused.error))
-    await ctx.waitFor('the message to show inside holzi', async () =>
+    await ctx.waitFor('the message to show inside HaexVault', async () =>
       (await messages()).some((text) => text?.includes('Standup')),
     )
     assert.deepEqual(phone.notificationTitles(), [], 'the system shows nothing')
-    ctx.step('refused by the system: the message shows inside holzi')
+    ctx.step('refused by the system: the message shows inside HaexVault')
 
     phone.allowNotifications(true)
     const allowed = await notify('Mittag')
@@ -64,7 +64,7 @@ scenario(
     )
     assert.ok(
       !(await messages()).some((text) => text?.includes('Mittag')),
-      'no message inside holzi as well',
+      'no message inside HaexVault as well',
     )
     ctx.step('allowed: an Android notification')
   },

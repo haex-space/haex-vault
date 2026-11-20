@@ -24,10 +24,10 @@ use crate::files::{Entry, EntryKind, FilesError, FilesErrorCode};
 /// Bytes read for [`TEXT_CHARS`] of a text file: four per character at most in UTF-8.
 const TEXT_BYTES: u64 = 4 * TEXT_CHARS as u64;
 
-const NOTE_MEDIA: &str = "This is a video or audio file; holzi cannot read its content.";
-const NOTE_BINARY: &str = "This file holds no text holzi can read.";
+const NOTE_MEDIA: &str = "This is a video or audio file; HaexVault cannot read its content.";
+const NOTE_BINARY: &str = "This file holds no text HaexVault can read.";
 const NOTE_IMAGE: &str = "The image follows.";
-const NOTE_BROKEN_IMAGE: &str = "holzi could not decode this image.";
+const NOTE_BROKEN_IMAGE: &str = "HaexVault could not decode this image.";
 
 /// Where the bytes of the entry are.
 enum At {

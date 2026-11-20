@@ -1,7 +1,7 @@
 //! An extension changes, tests and removes storages (spec 038 US3, FR-013, FR-013a, FR-009b,
 //! contracts/bridge.md, research R6, R8, R11; spec 050 US6); proposing a new one is in
-//! [`super::remote_storage_propose`]. Every change goes through a dialog of holzi; credentials are
-//! typed only in holzi's window over the whole app and never pass the bridge: a call with
+//! [`super::remote_storage_propose`]. Every change goes through a dialog of haex-vault; credentials are
+//! typed only in haex-vault's window over the whole app and never pass the bridge: a call with
 //! credentials is refused before any dialog. A proposed endpoint is checked before the dialog too
 //! ([`super::remote_storage_endpoint`]).
 
@@ -31,7 +31,7 @@ pub const MODULE: &str = module_path!();
 /// Fields a call may never carry in `request` or `config` (FR-013a, spec 050 contracts/bridge.md).
 const CREDENTIAL_FIELDS: [&str; 11] = [
     "credentials",
-    // An entry of the password manager is chosen only in holzi's window (spec 052 FR-011).
+    // An entry of the password manager is chosen only in haex-vault's window (spec 052 FR-011).
     "itemId",
     "accessKeyId",
     "secretAccessKey",
@@ -80,7 +80,7 @@ fn kind_of(outcome: TestOutcome) -> &'static str {
     }
 }
 
-/// What holzi's window sent with the credentials: whether to make a missing folder and the host
+/// What haex-vault's window sent with the credentials: whether to make a missing folder and the host
 /// key the user confirmed (SFTP).
 pub(super) struct Typed {
     pub credentials: CredentialsInput,
@@ -99,7 +99,7 @@ impl Typed {
     }
 }
 
-/// Saves with what holzi's window sent. A failed test goes back to that window, which shows why
+/// Saves with what haex-vault's window sent. A failed test goes back to that window, which shows why
 /// (for SFTP the host key to confirm) and waits for corrected credentials, the word to make the
 /// folder, the confirmed key, or a cancel (1002); the extension never sees it.
 pub(super) fn with_credentials<T>(
@@ -130,7 +130,7 @@ pub(super) fn request(params: &Value) -> Result<&Map<String, Value>, BridgeError
         .and_then(Value::as_object)
         .ok_or_else(|| invalid("request must be an object"))?;
     if carries_credentials(request) {
-        return Err(invalid("credentials are entered in holzi"));
+        return Err(invalid("credentials are entered in HaexVault"));
     }
     Ok(request)
 }
@@ -146,7 +146,7 @@ pub(super) fn config(
         Some(_) => return Err(invalid("config must be an object")),
     };
     if carries_credentials(&config) {
-        return Err(invalid("credentials are entered in holzi"));
+        return Err(invalid("credentials are entered in HaexVault"));
     }
     if let Some(field) = config.keys().find(|k| !allowed.contains(&k.as_str())) {
         return Err(invalid(&format!("config.{field} is not allowed here")));
@@ -243,7 +243,7 @@ pub(super) fn confirmed(answer: StorageAnswer) -> Result<Confirmed, BridgeError>
 }
 
 /// `{request: {backendId, name?, config?: {bucket?}}}` (`folder?` on WebDAV and SFTP): a
-/// confirmed change; new credentials only from holzi's window.
+/// confirmed change; new credentials only from haex-vault's window.
 pub fn update_backend(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
     let request = request(params)?;
     let storage_id = text(params, "backendId")?;

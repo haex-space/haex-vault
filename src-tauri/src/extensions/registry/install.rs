@@ -74,7 +74,7 @@ pub struct InstallPreview {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub publisher_fingerprint: Option<String>,
     pub declared: Vec<DeclaredPermissionView>,
-    /// Manifest categories holzi does not offer ("wird von holzi nicht unterstützt").
+    /// Manifest categories haex-vault does not offer ("wird von haex-vault nicht unterstützt").
     pub unsupported_categories: Vec<String>,
     #[ts(optional)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -84,7 +84,7 @@ pub struct InstallPreview {
     pub replaces_same_version: bool,
     /// Another installed extension has the same name but another publisher (US7-2).
     pub same_name_other_publisher: bool,
-    /// The kinds of link it opens that holzi knows (spec 063 FR-014); no permission, so the
+    /// The kinds of link it opens that haex-vault knows (spec 063 FR-014); no permission, so the
     /// dialog only says it.
     pub openers: Vec<String>,
     /// The marketplace the bundle came from; absent for a file (spec 069 FR-011).

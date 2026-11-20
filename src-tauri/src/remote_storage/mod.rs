@@ -1,6 +1,6 @@
-//! holzi's own storages (spec 038, spec 050): storage connections (protocol, provider, endpoint,
+//! haex-vault's own storages (spec 038, spec 050): storage connections (protocol, provider, endpoint,
 //! region, addressing; the credentials are an entry of the password manager owned by `storage`,
-//! rule Z14 of spec 034) and the storages on them, one bucket or folder each. holzi speaks the
+//! rule Z14 of spec 034) and the storages on them, one bucket or folder each. haex-vault speaks the
 //! protocols itself; extensions are one consumer of it, spec 029 another.
 //!
 //! [`ObjectStore`] is the one seam to the provider: [`protocol::ProtocolStore`] hands each call to

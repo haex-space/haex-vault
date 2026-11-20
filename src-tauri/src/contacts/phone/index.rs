@@ -1,7 +1,7 @@
 //! What changed on the phone since the last run (spec 051, research R6): the index of all raw
 //! contacts against the links of this phone. A raw contact without a link is new, one with a
 //! higher `VERSION` changed, one that is missing or marked deleted was deleted. The version after
-//! holzi's own writes is stored with the link, so holzi's writes do not come back as changes.
+//! haex-vault's own writes is stored with the link, so haex-vault's writes do not come back as changes.
 
 use std::collections::BTreeMap;
 
@@ -13,7 +13,7 @@ use super::store::Link;
 /// The raw contacts of the phone sorted by what happened to them.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Classified {
-    /// Raw contacts holzi has no link for.
+    /// Raw contacts haex-vault has no link for.
     pub new: Vec<RawIndex>,
     /// Linked raw contacts whose version differs from the last run.
     pub changed: Vec<RawIndex>,

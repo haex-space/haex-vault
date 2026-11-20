@@ -182,7 +182,7 @@ pub fn parse(text: &str) -> Result<SignedCard, HaexError> {
     let text = text.trim();
     let encoded = text
         .strip_prefix(PREFIX)
-        .ok_or_else(|| invalid("not a holzi business card"))?;
+        .ok_or_else(|| invalid("not a HaexVault business card"))?;
     if text.len() > MAX_TEXT {
         return Err(invalid("too long"));
     }

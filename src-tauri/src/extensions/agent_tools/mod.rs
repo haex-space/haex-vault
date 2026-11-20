@@ -1,4 +1,4 @@
-//! Tools that extensions offer to the built-in agent (spec 018, ADR-0004 direction A): holzi is the
+//! Tools that extensions offer to the built-in agent (spec 018, ADR-0004 direction A): haex-vault is the
 //! MCP client, the extension's frame the server, and the messages travel as JSON through the
 //! frontend to the frame's port.
 

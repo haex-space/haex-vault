@@ -37,7 +37,7 @@ pub enum Notice {
     Changed,
     /// A registration dialog or call prompt ended without the window answering it.
     PromptClosed(PromptClosed),
-    /// The last connection of an agent ended; what holzi keeps for it while connected (its
+    /// The last connection of an agent ended; what haex-vault keeps for it while connected (its
     /// browser session, spec 065) ends too.
     Disconnected(Uuid),
     /// The agent's profile changed and it has no browser right any more (spec 083); its browser
@@ -52,7 +52,7 @@ pub type Notifier = Arc<dyn Fn(Notice) + Send + Sync>;
 pub struct Limits {
     /// The helper's greeting must arrive within this time.
     pub greeting_deadline: Duration,
-    /// The longest MCP message holzi reads.
+    /// The longest MCP message haex-vault reads.
     pub max_message_bytes: usize,
     /// How long a pending agent may take to send `initialize` before the dialog is skipped.
     pub initialize_deadline: Duration,
@@ -77,8 +77,8 @@ impl Default for Limits {
 /// Why the server did not start.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum StartError {
-    /// Another holzi serves the same vault on this device.
-    #[error("another holzi serves this vault")]
+    /// Another haex-vault serves the same vault on this device.
+    #[error("another haex-vault serves this vault")]
     InUse,
     #[error("could not listen: {0}")]
     Io(String),
@@ -99,7 +99,7 @@ pub struct StartArgs {
     pub bridge: ActionBridge,
     /// The Rust executors of native catalog actions (ADR 0011).
     pub native: NativeExecutors,
-    /// holzi's command tool (spec 003); `None` where the device runs no commands (US5).
+    /// haex-vault's command tool (spec 003); `None` where the device runs no commands (US5).
     pub command_tool: Option<Arc<dyn Tool>>,
     pub prompts: RegistrationPrompts,
     pub calls: CallPrompts,

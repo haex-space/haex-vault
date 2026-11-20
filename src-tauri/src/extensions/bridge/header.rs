@@ -1,4 +1,4 @@
-//! What an app hands holzi for its window's header (spec 090-app-header-bar, data-model.md).
+//! What an app hands haex-vault for its window's header (spec 090-app-header-bar, data-model.md).
 //!
 //! The types are the shape of a description. The TypeScript side imports their generated
 //! bindings (`WmHeader*`, `src/types/bindings/`); Rust's checks for an extension's description
@@ -279,7 +279,7 @@ pub const MODULE: &str = module_path!();
 /// The method's name on the allowlist; the relay serializes the calls of a frame by it.
 pub const METHOD: &str = "extension_header_set";
 
-/// The event to holzi's window: `{frame, seq, header}`.
+/// The event to haex-vault's window: `{frame, seq, header}`.
 pub const SET_EVENT: &str = "extension-header-set";
 
 /// `extension_header_set`: checks the description, resolves its pictures from the extension's own

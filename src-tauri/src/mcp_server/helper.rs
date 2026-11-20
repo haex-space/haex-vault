@@ -1,9 +1,9 @@
 //! The `--mcp-agent` helper (spec 021, contracts/agent-helper.md): an agent such as Claude Code or
-//! Codex starts the holzi executable with this flag as its MCP server. The helper starts no Tauri,
-//! no window and no vault; it finds the running holzi's endpoint, greets it with the agent's
+//! Codex starts the haex-vault executable with this flag as its MCP server. The helper starts no Tauri,
+//! no window and no vault; it finds the running haex-vault's endpoint, greets it with the agent's
 //! credential, and then passes MCP lines through unchanged. It understands no MCP itself, except
-//! for answering the first `initialize` with an error when holzi is not open or refuses the agent
-//! (FR-002: it never starts holzi). Control lines from the app carry the credential after a
+//! for answering the first `initialize` with an error when haex-vault is not open or refuses the agent
+//! (FR-002: it never starts haex-vault). Control lines from the app carry the credential after a
 //! registration, which the helper keeps in a file only this user can read.
 
 use std::path::{Path, PathBuf};
@@ -22,7 +22,7 @@ use super::hello::{
 /// The flag that starts the helper instead of the app.
 pub const FLAG: &str = "--mcp-agent";
 
-/// Tauri's identifier (`tauri.conf.json`); the helper finds holzi's config directory with it.
+/// Tauri's identifier (`tauri.conf.json`); the helper finds haex-vault's config directory with it.
 pub const APP_IDENTIFIER: &str = "space.haex.vault";
 
 /// How long the helper waits for the app's reply to its greeting.
@@ -36,10 +36,10 @@ pub mod exit {
     /// stdin closed: the agent ended.
     pub const DONE: i32 = 0;
     pub const IO: i32 = 1;
-    /// holzi is not open, or several instances are and none was chosen.
+    /// haex-vault is not open, or several instances are and none was chosen.
     pub const NOT_OPEN: i32 = 2;
     pub const REJECTED: i32 = 3;
-    /// holzi ended the connection (revoked, vault closed, declined).
+    /// haex-vault ended the connection (revoked, vault closed, declined).
     pub const CLOSED: i32 = 4;
 }
 
@@ -49,9 +49,9 @@ pub struct HelperArgs {
     pub slug: String,
     /// The `vault_device_uuid` of the instance to reach, when several run.
     pub vault: Option<Uuid>,
-    /// Set by holzi itself for a delegate; never read from or written to a file.
+    /// Set by haex-vault itself for a delegate; never read from or written to a file.
     pub delegate_token: Option<String>,
-    /// The folder of holzi's endpoint, given by holzi itself to a delegate (spec 094). A delegate
+    /// The folder of haex-vault's endpoint, given by haex-vault itself to a delegate (spec 094). A delegate
     /// runs with its own home and temp folders, which would otherwise send the helper looking in
     /// the wrong place: the folder is an argument, not something the helper derives from its
     /// environment.
@@ -69,7 +69,7 @@ impl std::fmt::Debug for HelperArgs {
     }
 }
 
-/// The executable an agent starts: the AppImage itself when holzi runs as one, else this binary.
+/// The executable an agent starts: the AppImage itself when haex-vault runs as one, else this binary.
 pub fn executable() -> std::io::Result<String> {
     if let Some(appimage) = std::env::var_os("APPIMAGE") {
         return Ok(appimage.to_string_lossy().into_owned());
@@ -110,12 +110,12 @@ pub fn parse_args(mut args: impl Iterator<Item = String>) -> Result<HelperArgs, 
 #[derive(Debug, Clone)]
 pub struct HelperEnv {
     pub socket_dir: PathBuf,
-    /// `<holzi config dir>/mcp-agents`.
+    /// `<haex-vault config dir>/mcp-agents`.
     pub credential_dir: PathBuf,
 }
 
 impl HelperEnv {
-    /// The directories of this user's holzi. `endpoint_dir` is the folder holzi named itself
+    /// The directories of this user's haex-vault. `endpoint_dir` is the folder haex-vault named itself
     /// (`--endpoint-dir`); without it the helper derives the default from its environment, which
     /// is what an agent started by the user does.
     pub fn from_system(endpoint_dir: Option<PathBuf>) -> Option<Self> {
@@ -146,7 +146,7 @@ where
         }
     };
     let Ok(stream) = endpoint::connect(&env.socket_dir, &name).await else {
-        answer_first_message(&mut stdin, &mut stdout, "holzi is not open").await;
+        answer_first_message(&mut stdin, &mut stdout, "HaexVault is not open").await;
         return exit::NOT_OPEN;
     };
     let token_file = credential_path(&env, &name, &args.slug);
@@ -167,7 +167,7 @@ where
         .await
         .is_err()
     {
-        answer_first_message(&mut stdin, &mut stdout, "holzi is not open").await;
+        answer_first_message(&mut stdin, &mut stdout, "HaexVault is not open").await;
         return exit::NOT_OPEN;
     }
     let reply = read_reply(&mut from_app).await;
@@ -178,7 +178,7 @@ where
             return exit::REJECTED;
         }
         None => {
-            answer_first_message(&mut stdin, &mut stdout, "holzi did not answer").await;
+            answer_first_message(&mut stdin, &mut stdout, "HaexVault did not answer").await;
             return exit::NOT_OPEN;
         }
     }
@@ -195,14 +195,15 @@ fn choose_endpoint(env: &HelperEnv, vault: Option<Uuid>) -> Result<String, Strin
             if names.contains(&name) {
                 Ok(name)
             } else {
-                Err("holzi is not open with this vault".to_owned())
+                Err("HaexVault is not open with this vault".to_owned())
             }
         }
         None => match names.as_slice() {
-            [] => Err("holzi is not open".to_owned()),
+            [] => Err("HaexVault is not open".to_owned()),
             [only] => Ok(only.clone()),
             _ => Err(
-                "several holzi instances are open; add --vault <id> from holzi's setup".to_owned(),
+                "several HaexVault instances are open; add --vault <id> from HaexVault's setup"
+                    .to_owned(),
             ),
         },
     }
@@ -210,11 +211,15 @@ fn choose_endpoint(env: &HelperEnv, vault: Option<Uuid>) -> Result<String, Strin
 
 fn rejection_message(reason: RejectReason) -> String {
     match reason {
-        RejectReason::Blocked => "holzi blocked this agent",
-        RejectReason::RegistrationBusy => "holzi has too many open registrations; try again later",
-        RejectReason::Disabled => "the MCP access of holzi is off",
-        RejectReason::Malformed => "holzi could not read the greeting of this helper",
-        RejectReason::NotRegistered => "this delegate has no rights in holzi; set them in the chat",
+        RejectReason::Blocked => "HaexVault blocked this agent",
+        RejectReason::RegistrationBusy => {
+            "HaexVault has too many open registrations; try again later"
+        }
+        RejectReason::Disabled => "the MCP access of HaexVault is off",
+        RejectReason::Malformed => "HaexVault could not read the greeting of this helper",
+        RejectReason::NotRegistered => {
+            "this delegate has no rights in HaexVault; set them in the chat"
+        }
     }
     .to_owned()
 }
@@ -321,7 +326,7 @@ where
             Some(Control::Token(credential)) => {
                 if let Some(file) = &token_file {
                     if let Err(error) = write_credential(file, &credential).await {
-                        eprintln!("holzi: could not keep the credential: {error}");
+                        eprintln!("HaexVault: could not keep the credential: {error}");
                     }
                 }
             }
@@ -354,12 +359,12 @@ pub fn run_process(args: impl Iterator<Item = String>) -> i32 {
     let args = match parse_args(args) {
         Ok(args) => args,
         Err(message) => {
-            eprintln!("holzi {FLAG}: {message}");
+            eprintln!("HaexVault {FLAG}: {message}");
             return exit::IO;
         }
     };
     let Some(env) = HelperEnv::from_system(args.endpoint_dir.clone()) else {
-        eprintln!("holzi {FLAG}: no config directory");
+        eprintln!("HaexVault {FLAG}: no config directory");
         return exit::IO;
     };
     let runtime = match tokio::runtime::Builder::new_current_thread()
@@ -368,7 +373,7 @@ pub fn run_process(args: impl Iterator<Item = String>) -> i32 {
     {
         Ok(runtime) => runtime,
         Err(error) => {
-            eprintln!("holzi {FLAG}: {error}");
+            eprintln!("HaexVault {FLAG}: {error}");
             return exit::IO;
         }
     };

@@ -1,4 +1,4 @@
-//! Credentials typed in holzi's window whose test fails (spec 038 US3, FR-013): the window learns
+//! Credentials typed in haex-vault's window whose test fails (spec 038 US3, FR-013): the window learns
 //! why and stays open for corrected credentials or a cancel; the extension sees only the end, and
 //! nothing is kept from a failed try. An entry of the password manager chosen there (spec 052 US4)
 //! makes the storage; the extension learns neither its id nor its title, and cannot name one.

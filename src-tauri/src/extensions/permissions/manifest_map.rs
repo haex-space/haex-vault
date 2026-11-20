@@ -3,8 +3,8 @@
 //!
 //! Manifests of existing haextensions use several spellings for the same thing (`http` and `web`,
 //! `cloudStorage` and `remoteStorage`, `operation` and `action`, `readWrite` and `read_write`).
-//! They are unified here. Categories holzi does not offer are listed for the installation dialog
-//! and never become permissions; a declaration holzi cannot read is listed as invalid instead of
+//! They are unified here. Categories haex-vault does not offer are listed for the installation dialog
+//! and never become permissions; a declaration haex-vault cannot read is listed as invalid instead of
 //! being guessed.
 
 use serde_json::Value;
@@ -36,7 +36,7 @@ pub struct InvalidDeclaration {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DeclaredPermissions {
     pub declared: Vec<DeclaredPermission>,
-    /// Categories with at least one entry that holzi does not offer, sorted.
+    /// Categories with at least one entry that haex-vault does not offer, sorted.
     pub unsupported_categories: Vec<String>,
     /// Categories a manifest must never name, as it names them (spec 048 FR-037): the bundle is
     /// refused, whatever their entries are.
@@ -44,7 +44,7 @@ pub struct DeclaredPermissions {
     pub invalid: Vec<InvalidDeclaration>,
 }
 
-/// The kind a manifest category stands for, or `None` if holzi does not offer it.
+/// The kind a manifest category stands for, or `None` if haex-vault does not offer it.
 fn category_kind(category: &str) -> Option<PermissionKind> {
     match category {
         "database" => Some(PermissionKind::Database),
@@ -154,7 +154,7 @@ pub fn map_manifest_permissions(permissions: &Value) -> DeclaredPermissions {
 
 /// Each tool of the manifest's `tools` block as an `agentTool` permission (spec 018, research R4):
 /// the effect is the action, the name the target. Tools are declared only there; a `permissions`
-/// category `agentTool` is not one holzi offers.
+/// category `agentTool` is not one haex-vault offers.
 pub fn map_manifest_tools(tools: &[ManifestTool]) -> Vec<DeclaredPermission> {
     tools
         .iter()

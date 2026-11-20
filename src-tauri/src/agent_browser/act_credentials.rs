@@ -1,14 +1,14 @@
-//! `browser.credentials.fill` (spec 065 US4, FR-019 to FR-022, research R7): holzi fills a login of
+//! `browser.credentials.fill` (spec 065 US4, FR-019 to FR-022, research R7): haex-vault fills a login of
 //! the password manager into a form of the agent's tab; the agent names only the tab and perhaps
 //! the form and learns only whether it worked.
 //!
 //! The entries are those of the agent's rights group "Passwörter" whose address has the site of
 //! the page ([`PasswordsService::headers_for_page`]), read with the agent's grants; the built-in
-//! agent reads through the holzi function `agent_browser` with the grants of its own setting. Only
+//! agent reads through the haex-vault function `agent_browser` with the grants of its own setting. Only
 //! over `https` and on a website the agent may operate. The first fill per website asks (in every
 //! mode but Plan, which never gets here); "Für diese Website merken" lets the next fill go without
 //! asking, unless several entries match. Which field gets which value decides `haex-autofill`, the
-//! rule of the browser extension. The values are written in holzi's world and remembered by the
+//! rule of the browser extension. The values are written in haex-vault's world and remembered by the
 //! session, which removes them from every later reply and refuses screenshots from then on.
 
 use std::collections::BTreeMap;
@@ -35,7 +35,7 @@ use crate::passwords::autofill::{aliases_of, OTP_MARKER};
 use crate::passwords::model::SecretItem;
 use crate::passwords::service::PasswordsService;
 
-/// The holzi function the built-in agent's fills read entries through (034 FR-027: the built-in
+/// The haex-vault function the built-in agent's fills read entries through (034 FR-027: the built-in
 /// agent itself never reads a secret).
 pub const FEATURE: &str = "agent_browser";
 
@@ -293,7 +293,7 @@ impl Acting<'_> {
         Ok(entries.swap_remove(index))
     }
 
-    /// Writes `values` into the fields of `form` in holzi's world; the session remembers them
+    /// Writes `values` into the fields of `form` in haex-vault's world; the session remembers them
     /// first, so no reply can carry them even when writing fails half way.
     pub(super) async fn write(
         &self,

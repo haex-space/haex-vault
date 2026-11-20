@@ -1,4 +1,4 @@
-//! The matched offer (spec 018, research R6, FR-006, FR-007): before the first step holzi compares
+//! The matched offer (spec 018, research R6, FR-006, FR-007): before the first step haex-vault compares
 //! the message with every offerable extension tool and offers up to three that fit, so a small
 //! model does not have to search for them. Deterministic and without a model: words of the
 //! message against the tool's titles, description and examples, each word weighted by how rare

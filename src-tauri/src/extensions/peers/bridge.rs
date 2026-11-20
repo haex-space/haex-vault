@@ -5,7 +5,7 @@
 //! [`join`] and [`PeerState`](super::PeerState); this file reads the parameters and maps the
 //! result. An id of another extension answers like an unknown one (FR-006).
 //!
-//! There is no method to accept or decline an invitation: that happens only in holzi's prompt
+//! There is no method to accept or decline an invitation: that happens only in haex-vault's prompt
 //! (FR-016).
 
 use base64::engine::general_purpose::STANDARD;
@@ -32,7 +32,7 @@ fn invalid() -> BridgeError {
 }
 
 /// `peers`/`connect`/`*` for the calling extension, remembered or held for the session. Denied
-/// is 1002, undecided 1004 with the question's `details`, which holzi puts before the user.
+/// is 1002, undecided 1004 with the question's `details`, which haex-vault puts before the user.
 fn check_permission(ctx: &CallContext) -> Result<(), BridgeError> {
     let (extension_id, device) = (ctx.session.extension_id, ctx.device);
     let mut grants = ctx
@@ -73,7 +73,7 @@ fn text<'a>(params: &'a Value, key: &str) -> Result<&'a str, BridgeError> {
     params.get(key).and_then(Value::as_str).ok_or_else(invalid)
 }
 
-/// An id the extension got from holzi. One that is no id at all is unreadable input; a readable
+/// An id the extension got from haex-vault. One that is no id at all is unreadable input; a readable
 /// one of another extension is looked up like any other (FR-006).
 fn id(params: &Value, key: &str) -> Result<Uuid, BridgeError> {
     Uuid::parse_str(text(params, key)?).map_err(|_| invalid())

@@ -23,7 +23,7 @@ use crate::remote_storage::CredentialsState;
 use crate::storage::query::Query;
 use crate::vault_gate::VaultDb;
 
-/// The holzi function that owns the entries the form creates (`haex_passwords_item_details.owner`)
+/// The haex-vault function that owns the entries the form creates (`haex_passwords_item_details.owner`)
 /// and the name the delete warning of the password manager shows.
 pub const FEATURE: &str = "marketplace";
 

@@ -21,11 +21,11 @@ allDevices: boolean,
  */
 deviceName?: string,
 /**
- * Held only until holzi is closed.
+ * Held only until haex-vault is closed.
  */
 temporary: boolean,
 /**
- * holzi cannot read the row (FR-022); it counts as absent.
+ * haex-vault cannot read the row (FR-022); it counts as absent.
  */
 unreadable: boolean,
 /**
@@ -38,7 +38,7 @@ folder?: { storageName: string, folderName: string,
  */
 onDevice: boolean, },
 /**
- * For `agentTool` (spec 018): the tool's title per locale and whether holzi can offer it,
+ * For `agentTool` (spec 018): the tool's title per locale and whether haex-vault can offer it,
  * from the manifest of the effective bundle.
  */
 titleDe?: string, titleEn?: string, supported?: boolean,

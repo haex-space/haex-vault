@@ -382,7 +382,7 @@ export type PageOptions = {
   closeWindow?: () => Promise<void>
   /**
    * Navigates by replacing the current history entry, as the app's own router does. Android's web
-   * view adds an entry for a driver navigation, which `history.back()` would then reach; holzi
+   * view adds an entry for a driver navigation, which `history.back()` would then reach; haex-vault
    * itself never has one (spec 043, scenario tab-content-isolation).
    */
   replaceOnNavigate?: boolean

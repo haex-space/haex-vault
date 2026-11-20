@@ -49,7 +49,7 @@ function text(page: Page, testid: string): Promise<string> {
 
 // Spec 048 user story 7, quickstart §10 step 5 (T081): an encrypted folder on the device through the
 // SDK's `encryptedFolders` with the storage id `device:/`. Without file access to the folder that
-// holds it the extension is refused and nobody is asked; with it, holzi's chooser offers the folder
+// holds it the extension is refused and nobody is asked; with it, haex-vault's chooser offers the folder
 // "on this device" and asks; the round trip is decrypted for the extension and encrypted on the
 // disk; the raw directory stays closed to the extension's file access and out of its listings.
 scenario('extension-encrypted-device', { timeoutMs: 300_000 }, async (ctx) => {

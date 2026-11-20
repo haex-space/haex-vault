@@ -45,7 +45,7 @@ pub struct FakeStore {
     uploads: Mutex<HashMap<String, Upload>>,
     /// Modification times other than the default, by bucket and key (ISO 8601).
     times: Mutex<HashMap<(String, String), String>>,
-    /// Copies stream through holzi instead of the provider (SFTP, spec 050 research R8).
+    /// Copies stream through haex-vault instead of the provider (SFTP, spec 050 research R8).
     no_copy: AtomicBool,
     /// Folders below the connection's root on a WebDAV or SFTP server (spec 050), without `/`.
     folders: Mutex<BTreeSet<String>>,

@@ -1,7 +1,7 @@
 //! Recognising a check in front of a page ("are you human", spec 065 FR-067, research R24): a
-//! frame of a provider of such checks, or the waiting page of one. holzi only names what it sees,
+//! frame of a provider of such checks, or the waiting page of one. haex-vault only names what it sees,
 //! as `challenge` with one of a few fixed kinds, so the agent knows what it is looking at: the
-//! checkbox of a check is an element of a frame (FR-053) and is ticked with `browser.click`. holzi
+//! checkbox of a check is an element of a frame (FR-053) and is ticked with `browser.click`. haex-vault
 //! does not solve images or puzzles, does not use a service that does, and does not change how the
 //! browser looks to a website to pass a check; where the check does not accept the click or asks
 //! for more, the agent asks the user to take over (`browser.takeover.request`).

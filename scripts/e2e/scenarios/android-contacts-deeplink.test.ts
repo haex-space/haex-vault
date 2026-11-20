@@ -4,7 +4,7 @@ import { createAndUnlock } from '../lib/flows.ts'
 import { contactHeaders, createContact } from '../lib/contacts.ts'
 import { shareLink } from '../lib/share.ts'
 
-// Spec 060 US4 (FR-018a): a `haex-vault://contact/…` link opened outside holzi, as another app or the
+// Spec 060 US4 (FR-018a): a `haex-vault://contact/…` link opened outside haex-vault, as another app or the
 // camera app does, opens the reading-in page with a preview and stores nothing. It works with the
 // vault open, and with the vault locked: the link waits until the person unlocks and the preview
 // follows. (The link of a cold start arrives after `setup` through the same event.)

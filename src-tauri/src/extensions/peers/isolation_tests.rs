@@ -85,7 +85,7 @@ async fn an_extension_on_the_wire_resolves_only_with_its_key_and_name() {
 
 /// No lobby is open and no extension of the host is invited: whatever extension a contact names
 /// in an `Invite` or a `Join`, the connection ends and no frame hears anything. (An `Invite` for
-/// an extension the host runs is asked about in holzi's prompt, which the invitation tests cover.)
+/// an extension the host runs is asked about in haex-vault's prompt, which the invitation tests cover.)
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn an_invite_or_join_reaches_no_frame() {
     let host = Vault::start(Admit::Real(Duration::from_secs(30))).await;

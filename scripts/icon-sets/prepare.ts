@@ -105,7 +105,7 @@ const MATERIAL_ROLES: Roles = {
   text: 'document',
 }
 
-// holzi's own coloured images for the states of an entry (a readable encrypted folder, a folder of
+// haex-vault's own coloured images for the states of an entry (a readable encrypted folder, a folder of
 // another vault, a folder without access, a locked file, a damaged one): the same in every
 // bundled set, drawn to be told apart at a glance. They replace the role images of the set.
 const STATES_DIR = path.join(import.meta.dirname, 'haex-states')

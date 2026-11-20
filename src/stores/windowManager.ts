@@ -73,7 +73,7 @@ import { createWmTabHeader } from '~/stores/wmTabHeader'
  */
 export const useWindowManagerStore = defineStore('windowManager', () => {
   const extensions = useExtensionsStore()
-  /** holzi's apps and the installed extensions (spec 017); read when needed, so a newly installed
+  /** haex-vault's apps and the installed extensions (spec 017); read when needed, so a newly installed
    * extension is an app at once. */
   function apps(): readonly AppDefinition[] {
     return allApps(extensions.apps)

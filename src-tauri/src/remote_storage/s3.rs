@@ -30,13 +30,13 @@ pub use super::s3_ext::copy_source;
 /// How long a signed address stays valid; longer than any deadline of a call.
 pub(super) const SIGNED_FOR: Duration = Duration::from_secs(15 * 60);
 
-/// The largest page of a listing holzi reads (1000 keys of at most 1024 bytes and their data).
+/// The largest page of a listing haex-vault reads (1000 keys of at most 1024 bytes and their data).
 pub(super) const MAX_LIST_PAGE: usize = 8 * 1024 * 1024;
 
-/// The part of an error answer holzi reads for its code.
+/// The part of an error answer haex-vault reads for its code.
 const MAX_ERROR_BODY: usize = 64 * 1024;
 
-/// Keys per page holzi asks for (the S3 maximum).
+/// Keys per page haex-vault asks for (the S3 maximum).
 pub(super) const PAGE: usize = 1000;
 
 /// The S3 implementation of [`ObjectStore`].

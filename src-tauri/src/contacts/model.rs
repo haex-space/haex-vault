@@ -16,7 +16,7 @@ use crate::patch::Patch;
 )]
 #[serde(rename_all = "camelCase")]
 pub enum OriginKind {
-    /// Created in holzi, by the user or an agent.
+    /// Created in haex-vault, by the user or an agent.
     Haex,
     /// Taken over from a phone's address book.
     Phone,
@@ -133,7 +133,7 @@ pub struct Contact {
     pub targets: Vec<ContactTarget>,
     /// Changes that did not reach a phone (FR-025).
     pub issues: Vec<ContactIssue>,
-    /// The confirmed holzi addresses, from the contact's Visitenkarte (FR-008).
+    /// The confirmed haex-vault addresses, from the contact's Visitenkarte (FR-008).
     pub card: Option<crate::contacts::card::received::ContactCardInfo>,
     /// The own contact, "Ich" (spec 060): the person of this vault. `name` stays the name its
     /// name parts give; only the window shows the word "Ich".
@@ -194,7 +194,7 @@ pub struct ContactHeader {
     pub targets: Vec<String>,
     /// Why a change did not reach a phone, if one did not.
     pub issue: Option<IssueReason>,
-    /// The contact has confirmed holzi addresses (a Visitenkarte).
+    /// The contact has confirmed haex-vault addresses (a Visitenkarte).
     pub has_card: bool,
     /// The own contact, "Ich" (spec 060).
     pub is_self: bool,
@@ -226,7 +226,7 @@ pub struct ContactInput {
     /// Group ids.
     #[serde(default)]
     pub groups: Vec<String>,
-    /// The phones it goes to; none keeps it only in holzi (FR-018c).
+    /// The phones it goes to; none keeps it only in haex-vault (FR-018c).
     #[serde(default)]
     pub targets: Vec<TargetInput>,
 }

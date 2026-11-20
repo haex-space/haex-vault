@@ -1,13 +1,13 @@
-//! holzi's system notifications, shared by extensions (spec 017 US8) and the chat with contacts
+//! haex-vault's system notifications, shared by extensions (spec 017 US8) and the chat with contacts
 //! (spec 072 FR-023, research R17): what is shown, what the user did with it, and where a tap leads
 //! ([`Target`]). [`system::SystemNotifier`] shows them through `tauri-plugin-notification` and keeps
 //! the one registry of shown notifications that the plugin's clicks are routed through.
 
 pub mod system;
 
-/// Event to holzi's window: open the chat at a conversation, `{threadId}` (spec 072 FR-023).
+/// Event to haex-vault's window: open the chat at a conversation, `{threadId}` (spec 072 FR-023).
 pub const CHAT_OPEN: &str = "chat-notification-open";
-/// Event to holzi's window where the system shows no notification (Android: the person refused
+/// Event to haex-vault's window where the system shows no notification (Android: the person refused
 /// the permission, spec 043 FR-023): `{threadId, title, body?}`.
 pub const CHAT_IN_APP: &str = "chat-notification-in-app";
 
@@ -26,7 +26,7 @@ pub struct NotificationSpec {
     /// The image and its file extension (`png`, `jpg`, …).
     pub icon: Option<(Vec<u8>, &'static str)>,
     pub buttons: Vec<NotificationButton>,
-    /// Shown without a sound (spec 072 FR-040). Desktop notifications of holzi never name a sound,
+    /// Shown without a sound (spec 072 FR-040). Desktop notifications of haex-vault never name a sound,
     /// so they are silent already (Windows marks such a toast silent); Android uses its own channel
     /// without sound, iOS the silent presentation.
     pub quiet: bool,
@@ -39,7 +39,7 @@ pub enum NotificationResponse {
     Body,
     /// A click on the button with this id.
     Button(String),
-    /// Closed without a click (by the user, by timeout or by holzi).
+    /// Closed without a click (by the user, by timeout or by haex-vault).
     Closed,
 }
 

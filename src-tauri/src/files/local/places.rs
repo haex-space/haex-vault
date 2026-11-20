@@ -1,7 +1,7 @@
-//! holzi's own places and the known places of the device (spec 017 FR-049, spec 044 FR-033,
+//! haex-vault's own places and the known places of the device (spec 017 FR-049, spec 044 FR-033,
 //! FR-037, research R3).
 //!
-//! The own places are holzi's app folders (configuration, data, local data with the vaults, cache,
+//! The own places are haex-vault's app folders (configuration, data, local data with the vaults, cache,
 //! logs), resolved so a link cannot hide them. Extensions and agents never reach them; the user
 //! sees them read-only. On Windows and macOS letter case does not count, as on their file systems.
 
@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use crate::files::local::resolve;
 
-/// holzi's own app folders on this device.
+/// haex-vault's own app folders on this device.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OwnPlaces {
     roots: Vec<PathBuf>,
@@ -39,7 +39,7 @@ impl OwnPlaces {
         Self { roots }
     }
 
-    /// Whether the resolved `path` lies in one of holzi's own places.
+    /// Whether the resolved `path` lies in one of haex-vault's own places.
     pub fn contains(&self, path: &Path) -> bool {
         self.roots.iter().any(|root| below(path, root))
     }

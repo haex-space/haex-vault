@@ -8,7 +8,7 @@ import { useWindowManagerStore } from '~/stores/windowManager'
 /**
  * Notifications of new contact messages on the workspace page (spec 072 FR-023, research R17): a
  * tap on the system's notification opens the chat at the conversation; where the system shows
- * none (Android: permission refused), holzi shows it as a message with "Öffnen".
+ * none (Android: permission refused), haex-vault shows it as a message with "Öffnen".
  */
 export function useChatNotifications() {
   const wm = useWindowManagerStore()
@@ -55,6 +55,6 @@ export function useChatNotifications() {
         })
       },
     ),
-    'notifications shown in holzi',
+    'notifications shown in HaexVault',
   )
 }

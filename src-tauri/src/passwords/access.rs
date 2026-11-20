@@ -1,7 +1,7 @@
 //! The access rules of the password manager (spec 034, `contracts/access.md`, rules Z1–Z13).
 //!
 //! Pure: no database, no frontend. A caller (the window, the built-in agent, an extension, an
-//! external agent, a holzi function) and the caller's grants go in, the decision comes out. The
+//! external agent, a haex-vault function) and the caller's grants go in, the decision comes out. The
 //! service ([`super::service`]) calls these functions before every method; where grants are stored,
 //! issued, shown and revoked is the business of the specs 017–019 and 021, not of this module.
 //!
@@ -72,7 +72,7 @@ impl Scope {
     }
 
     // ponytail: two `AllExcept` scopes join with the union of their denied tags, which hides more
-    // than the exact union (ceiling: grants with different denials; holzi gives all grants of one
+    // than the exact union (ceiling: grants with different denials; haex-vault gives all grants of one
     // caller the same ones, so the result is exact there).
     fn union(self, other: Scope) -> Scope {
         match (self, other) {
@@ -154,7 +154,7 @@ impl Grant {
 }
 
 /// What the rules need to know about a stored entry: its tag names, whether it is in the trash and
-/// which holzi function it belongs to (`None`: the user's own, Z14) and whether it is a login.
+/// which haex-vault function it belongs to (`None`: the user's own, Z14) and whether it is a login.
 #[derive(Debug, Clone, Copy)]
 pub struct ItemState<'a> {
     pub tags: &'a [String],
@@ -255,7 +255,7 @@ pub fn authorize_list(caller: &Caller, grants: &[Grant]) -> Result<ListView, Den
     reach(caller, grants, GrantAction::Read).map(|reach| ListView::Items(reach.scope))
 }
 
-/// Z14 (spec 038): an entry that belongs to a holzi function exists only for the user and for that
+/// Z14 (spec 038): an entry that belongs to a haex-vault function exists only for the user and for that
 /// function; no grant, not even one for all entries, reaches it.
 pub fn sees_owned(caller: &Caller, owner: Option<&str>) -> bool {
     match (owner, caller) {

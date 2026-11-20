@@ -23,11 +23,11 @@ use super::{RiskClass, Tool, ToolResult};
 use crate::vault_gate::ChildRegistry;
 
 const NAME: &str = "run_command";
-/// Without the limits, a small model with no fitting tool guessed a command for holzi data, e.g.
+/// Without the limits, a small model with no fitting tool guessed a command for haex-vault data, e.g.
 /// `mail count unread` for "how many unread mails" (spec 046, R18).
 const DESCRIPTION: &str = "Runs a shell command on the user's device and returns its output. \
 Use it only when the user asks to run something on the device. It reaches programs and files of the device, \
-not holzi's apps or extensions or their data. Never invent a command.";
+not HaexVault's apps or extensions or their data. Never invent a command.";
 const MAX_OUTPUT_BYTES: usize = 1024 * 1024;
 const EXECUTION_TIMEOUT: Duration = Duration::from_secs(30);
 

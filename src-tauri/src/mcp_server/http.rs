@@ -1,6 +1,6 @@
 //! The HTTP way (spec 021 US1, US8, T093, contracts/http-auth.md, research R1/R14): a loopback
 //! listener for clients that speak only HTTP and for Android/iOS. Every request passes the same
-//! checks first: a loopback `Host` with holzi's port (else 421, against DNS rebinding), at most
+//! checks first: a loopback `Host` with haex-vault's port (else 421, against DNS rebinding), at most
 //! 1 MiB, and no `Origin` on `/mcp` and `/oauth/token` (403, scripts of web pages). `/mcp` needs an
 //! access token; rmcp serves the session with the token's agent on the request.
 
@@ -54,7 +54,7 @@ pub async fn bind(port: u16) -> std::io::Result<TcpListener> {
     }
 }
 
-/// Whether `host` names holzi's listener on the loopback (`Host`, RFC 9110 §7.2).
+/// Whether `host` names haex-vault's listener on the loopback (`Host`, RFC 9110 §7.2).
 pub fn host_allowed(host: Option<&str>, port: u16) -> bool {
     let Some(host) = host else {
         return false;

@@ -2,7 +2,7 @@
 //! `response` per resource. Only elements of the namespace `DAV:` count, whatever prefix a server
 //! gives them; properties in a `propstat` whose status is not 200 are ignored. Each `href` is
 //! decoded and must lie at or below the requested path, otherwise the entry is dropped and logged
-//! (a server must not lead holzi to other paths).
+//! (a server must not lead haex-vault to other paths).
 
 use std::borrow::Cow;
 

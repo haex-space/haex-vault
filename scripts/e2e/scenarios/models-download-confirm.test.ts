@@ -29,7 +29,7 @@ function standIn(id: string, sizeBytes: number) {
   }
 }
 
-/** The text of "Trotzdem laden" in every language holzi speaks. */
+/** The text of "Trotzdem laden" in every language haex-vault speaks. */
 const START_ANYWAY = translations('models.downloadConfirm.startAnyway')
 
 scenario('models-download-confirm', {}, async (ctx) => {

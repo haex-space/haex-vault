@@ -1,5 +1,5 @@
 //! Tabs a page of an agent tab opens itself (`window.open`, a link or form with `target=_blank`;
-//! research R9, data-model.md "Browser-Rückfrage" `newTab`). Such a tab waits for holzi, as every
+//! research R9, data-model.md "Browser-Rückfrage" `newTab`). Such a tab waits for haex-vault, as every
 //! frame of an agent tab does, and attaches to the browser, not to the tab that opened it; the
 //! session that owns the opener takes it over ([`opened`]). Its first document asks the user:
 //! always in Manuell, in Auto when its website is not allowed (the answer then allows the website
@@ -41,7 +41,7 @@ impl Drop for PendingOpenedTab {
 }
 
 /// Takes over the new page target of `attached` (a `Target.attachedToTarget` of the browser,
-/// waiting for holzi) when a page or frame of one of `session`'s tabs opened it; `false` leaves it.
+/// waiting for haex-vault) when a page or frame of one of `session`'s tabs opened it; `false` leaves it.
 pub(super) fn opened(
     session: &Arc<Session>,
     connection: &Arc<Connection>,

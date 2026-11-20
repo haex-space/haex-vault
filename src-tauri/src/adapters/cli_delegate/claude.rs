@@ -3,7 +3,7 @@
 //! `--output-format stream-json` events into [`StreamChunk`]s.
 //!
 //! The command uses an isolated configuration directory and routes Claude's
-//! live permission-prompt tool through the shared holzi approval bridge.
+//! live permission-prompt tool through the shared haex-vault approval bridge.
 //!
 //! Deliberately over the repo's 500-LoC soft threshold: parsing the
 //! stream-json line protocol, building the `claude` invocation, and
@@ -211,7 +211,7 @@ pub(super) fn parse_line(
     }
 }
 
-/// The `--mcp-config` file and whether it carries holzi's own server.
+/// The `--mcp-config` file and whether it carries haex-vault's own server.
 pub(super) struct McpArgs<'a> {
     pub config: &'a Path,
     pub haex: bool,
@@ -266,11 +266,11 @@ pub(super) fn build_command(
             .arg("--permission-prompt-tool")
             .arg("mcp__haex-approve__approve");
     }
-    // The approval bridge outside `Ungated`, and holzi's own server for a registered delegate in
+    // The approval bridge outside `Ungated`, and haex-vault's own server for a registered delegate in
     // every mode (spec 021 R7).
     if let Some(mcp) = mcp {
         cmd.arg("--mcp-config").arg(mcp.config);
-        // holzi asks for its own tools by the delegate's approval mode; Claude must not ask again.
+        // haex-vault asks for its own tools by the delegate's approval mode; Claude must not ask again.
         if mcp.haex {
             cmd.arg("--allowedTools").arg(haex_mcp::CLAUDE_HAEX_TOOLS);
         }
@@ -384,7 +384,7 @@ pub(super) async fn spawn_claude_invocation(
     let autonomy_mode = req.autonomy_mode;
     // `Ungated` never needs a bridge process at all — Claude is told to
     // bypass permissions entirely, so there is no approval tool call to
-    // relay (tasks.md T021). holzi's own server comes in every mode.
+    // relay (tasks.md T021). haex-vault's own server comes in every mode.
     let (approve_socket, listener_task) = if autonomy_mode == AutonomyMode::Ungated {
         (None, None)
     } else {
@@ -556,7 +556,7 @@ pub(super) async fn spawn_claude_invocation(
         // when this task ends, on every path below. The runtime stays as well: it holds the
         // claim on the version this run started with.
         let _tmp = tmp;
-        // holzi's pass for this start ends with it.
+        // haex-vault's pass for this start ends with it.
         let _haex = haex;
 
         let start = Instant::now();

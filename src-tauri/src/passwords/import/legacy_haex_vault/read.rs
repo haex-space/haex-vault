@@ -20,7 +20,7 @@ use crate::passwords::import::{
 use crate::passwords::model::{AttentionKind, KeyValueInput, PresetInput};
 use crate::passwords::passkeys::PasskeyInput;
 
-/// Reads binary rows on demand. haex-vault 2.x stores them as standard Base64 text; holzi hashes the
+/// Reads binary rows on demand. haex-vault 2.x stores them as standard Base64 text; haex-vault hashes the
 /// decoded bytes again when it writes them.
 pub(super) struct Binaries<'c> {
     conn: &'c Connection,
@@ -57,8 +57,8 @@ impl<'c> Binaries<'c> {
     }
 }
 
-/// The picture holzi shows for a haex-vault 2.x icon name; `binary:` values are kept as they are
-/// (holzi derives the same SHA-256 of the same bytes).
+/// The picture haex-vault shows for a haex-vault 2.x icon name; `binary:` values are kept as they are
+/// (haex-vault derives the same SHA-256 of the same bytes).
 pub(super) fn icon_name(icon: &str) -> Option<String> {
     if icon.starts_with("binary:") {
         return Some(icon.to_string());
@@ -66,7 +66,7 @@ pub(super) fn icon_name(icon: &str) -> Option<String> {
     map_icon(icon).map(str::to_string)
 }
 
-/// The icon of an entry or folder: a picture of holzi, or the bytes of a picture of its own.
+/// The icon of an entry or folder: a picture of haex-vault, or the bytes of a picture of its own.
 /// What cannot arrive is a problem `IconNotMapped`.
 pub(super) fn icon_ref(
     binaries: &Binaries<'_>,
@@ -261,7 +261,7 @@ fn aliases(text: Option<&str>, problems: &mut Vec<Problem>) -> Option<serde_json
     }
 }
 
-/// Custom fields in the order of the editor; one without a name cannot be stored by holzi.
+/// Custom fields in the order of the editor; one without a name cannot be stored by haex-vault.
 fn key_values_of(
     rows: Option<Vec<(Option<String>, Option<String>)>>,
     problems: &mut Vec<Problem>,

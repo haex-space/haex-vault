@@ -7,7 +7,7 @@ import { useWindowManagerStore } from '~/stores/windowManager'
 
 /**
  * The extensions that write mail and the hand-over to one of them (spec 063, US1): the mail button
- * offers the rows, a choice sends the link to holzi, which reads it again and parks the fields for
+ * offers the rows, a choice sends the link to haex-vault, which reads it again and parks the fields for
  * the extension; the extension's tab comes forward and takes them.
  */
 export function useMailOpeners() {
@@ -18,7 +18,7 @@ export function useMailOpeners() {
   const rows = computed(() => openerRows(extensions.list))
   const behavior = computed(() => mailTargetBehavior(rows.value))
 
-  /** Gives `link` to the extension and shows it; `false` when holzi refused (a message says why). */
+  /** Gives `link` to the extension and shows it; `false` when haex-vault refused (a message says why). */
   async function openWithAsync(
     extensionId: string,
     link: string,

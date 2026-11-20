@@ -1,4 +1,4 @@
-//! Installation UUID — one random UUID per holzi installation on a host,
+//! Installation UUID — one random UUID per haex-vault installation on a host,
 //! stored in `<AppLocalData>/installation-id`. Never leaves the device.
 //!
 //! Contract: `tauri-commands.md` §"Vault identity and device model" — the
@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 
 use uuid::Uuid;
 
-/// The bare filename holzi writes under `<AppLocalData>/`.
+/// The bare filename haex-vault writes under `<AppLocalData>/`.
 pub const INSTALLATION_ID_FILENAME: &str = "installation-id";
 
 /// Resolves the installation-id path from an `AppLocalData` root. Kept

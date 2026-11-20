@@ -235,7 +235,7 @@ pub fn browser_bridge_answer(bridge: State<'_, BrowserBridge>, args: BridgeAnswe
     bridge.prompts().answer(&args.prompt_id, args.answer);
 }
 
-/// A system notification that leads to a question, when holzi could not come to the front for it.
+/// A system notification that leads to a question, when haex-vault could not come to the front for it.
 /// The window sends the text in the user's language; Rust holds no text of its own.
 #[tauri::command]
 pub fn browser_bridge_notify(app: AppHandle, title: String, body: String) -> Result<()> {

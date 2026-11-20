@@ -23,7 +23,7 @@ pub struct PeerDeps {
     pub db: VaultDb,
 }
 
-/// A handle on the open vault, holzi's own places and this device's `vault_device_uuid`, for
+/// A handle on the open vault, haex-vault's own places and this device's `vault_device_uuid`, for
 /// `haex-files/1`.
 pub struct FilesDeps {
     pub db: VaultDb,

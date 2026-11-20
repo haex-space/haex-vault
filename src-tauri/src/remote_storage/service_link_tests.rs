@@ -200,7 +200,7 @@ async fn a_new_link_replaces_the_old_one_only_after_a_passed_test() {
         .await
         .expect("linked");
     assert_eq!(linked(&s.db), id);
-    assert_eq!(count(&s.db, OWNED), 0, "holzi's unused entry is gone");
+    assert_eq!(count(&s.db, OWNED), 0, "HaexVault's unused entry is gone");
     assert_eq!(entries(&s.db), 1);
 
     s.service

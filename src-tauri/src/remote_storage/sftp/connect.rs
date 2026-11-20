@@ -1,4 +1,4 @@
-//! One SSH connection to the server of an SFTP storage (spec 050 research R3, R5, R6): holzi
+//! One SSH connection to the server of an SFTP storage (spec 050 research R3, R5, R6): haex-vault
 //! resolves the host and checks its addresses as for every storage, opens TCP to one checked
 //! address, and compares the host key with the confirmed one before any login, so a server that
 //! shows another key never gets credentials (FR-012, SC-004). Then it signs in with a password or
@@ -22,7 +22,7 @@ use super::keys;
 /// SSH sessions without traffic for this long close (the pool closes idle ones earlier).
 const INACTIVITY: Duration = Duration::from_secs(120);
 
-/// How often holzi asks a quiet server whether it is still there.
+/// How often haex-vault asks a quiet server whether it is still there.
 const KEEPALIVE: Duration = Duration::from_secs(30);
 
 /// How long one SFTP request may take before russh-sftp gives up; the call's deadline is the
@@ -68,7 +68,7 @@ impl From<StorageError> for Refused {
     }
 }
 
-/// The SSH side of holzi: it accepts exactly the confirmed host key and remembers the one shown.
+/// The SSH side of haex-vault: it accepts exactly the confirmed host key and remembers the one shown.
 struct Client {
     confirmed: Option<PublicKey>,
     shown: Arc<Mutex<Option<PublicKey>>>,
@@ -82,7 +82,7 @@ impl client::Handler for Client {
         shown: &PublicKeyOrCertificate,
     ) -> Result<bool, Self::Error> {
         let PublicKeyOrCertificate::PublicKey { key, .. } = shown else {
-            // A host certificate needs a trusted authority holzi does not keep.
+            // A host certificate needs a trusted authority haex-vault does not keep.
             return Ok(false);
         };
         *self.shown.lock().expect("shown key") = Some(key.clone());

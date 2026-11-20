@@ -34,7 +34,7 @@ struct Setup {
     ctx: CallContext,
     /// Carla, in the group "Arbeit", with a photo.
     colleague: String,
-    /// Anna, in the group "Privat", with a Visitenkarte and a value of a kind holzi does not know.
+    /// Anna, in the group "Privat", with a Visitenkarte and a value of a kind haex-vault does not know.
     friend: String,
     /// Bodo, in no group.
     other: String,
@@ -128,7 +128,7 @@ fn setup() -> Setup {
         .write_blocking(move |tx| {
             tx.execute(
                 "INSERT INTO haex_contacts_values (id, contact_id, kind, label, value, position) \
-                 VALUES ('v-future', ?1, 'x-future', 'other', 'from a newer holzi', 0)",
+                 VALUES ('v-future', ?1, 'x-future', 'other', 'from a newer HaexVault', 0)",
                 haex_crdt::rusqlite::params![unknown],
             )?;
             Ok(())
@@ -327,7 +327,7 @@ fn the_detail_holds_every_value_and_the_haex_addresses_but_not_where_the_contact
     for hidden in ["origin", "targets", "issues", "links", "card"] {
         assert!(
             detail.get(hidden).is_none(),
-            "{hidden} must stay inside holzi"
+            "{hidden} must stay inside HaexVault"
         );
     }
 }

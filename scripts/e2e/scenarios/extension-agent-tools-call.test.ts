@@ -12,7 +12,7 @@ import {
   type InstalledExtension,
 } from '../lib/extensions.ts'
 
-/** The count the test extension answered: holzi passes the extension's text on as `data`
+/** The count the test extension answered: haex-vault passes the extension's text on as `data`
  * (`{"extension": "Test-Erweiterung", "data": "{\"entries\":0}"}`). */
 function entriesOf(result: ToolResult): number | undefined {
   const data = result.structuredContent?.data
@@ -21,11 +21,11 @@ function entriesOf(result: ToolResult): number | undefined {
   return typeof parsed.entries === 'number' ? parsed.entries : undefined
 }
 
-// Spec 018 (T042 path) and spec 021 US4: a tool of an extension is called in holzi's real window,
+// Spec 018 (T042 path) and spec 021 US4: a tool of an extension is called in haex-vault's real window,
 // through the extension's frame and its bundled vault-sdk. The harness runs no model, so an external
-// agent makes the call over holzi's MCP server; holzi then opens its MCP connection to the frame
+// agent makes the call over haex-vault's MCP server; haex-vault then opens its MCP connection to the frame
 // exactly as for the built-in agent (`WindowLinks`). Called twice: once with the extension's tab
-// closed (holzi opens a frame) and once with it open.
+// closed (haex-vault opens a frame) and once with it open.
 scenario('extension-agent-tools-call', { timeoutMs: 300_000 }, async (ctx) => {
   const instance = await ctx.startInstance()
   await createAndUnlock(instance, { name: 'e2e-agent-tools-call' })

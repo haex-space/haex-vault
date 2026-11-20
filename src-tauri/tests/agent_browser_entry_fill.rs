@@ -1,5 +1,5 @@
 //! Spec 065 T083 (US4, FR-037, FR-038) against a real Chromium and the fixture site over `https`:
-//! an agent has holzi fill bank data of an entry the user chooses into a checkout that copies the
+//! an agent has haex-vault fill bank data of an entry the user chooses into a checkout that copies the
 //! values into its own text, its card field in a frame of the payment provider (T091). The agent
 //! never sees a value; a frame of a website the agent may only read is not filled; a deselected
 //! row stays empty; submitting asks with `•••`; every call asks again. Without the rights group
@@ -212,7 +212,7 @@ async fn haex_fills_bank_data_the_agent_never_sees() {
         "{card_row:?}"
     );
 
-    // Kept, holzi fills the card number into the frame; every call asked again.
+    // Kept, haex-vault fills the card number into the frame; every call asked again.
     scene.extra.lock().unwrap().clear();
     let both = scene
         .auto("browser.entry.fill", fill)

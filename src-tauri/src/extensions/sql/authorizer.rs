@@ -129,7 +129,7 @@ pub fn runtime(
     })
 }
 
-/// What the migration code is running at the moment; set by holzi's own code around each step.
+/// What the migration code is running at the moment; set by haex-vault's own code around each step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum MigrationPhase {
@@ -137,7 +137,7 @@ pub enum MigrationPhase {
     Data = 0,
     /// A checked `CREATE`/`ALTER`/`DROP`: SQLite rewrites its schema tables meanwhile.
     Schema = 1,
-    /// holzi writes the journal row of the migration.
+    /// haex-vault writes the journal row of the migration.
     Journal = 2,
 }
 
@@ -159,7 +159,7 @@ impl PhaseCell {
     }
 }
 
-/// The journal table holzi writes after a migration (data-model.md).
+/// The journal table haex-vault writes after a migration (data-model.md).
 pub const MIGRATION_JOURNAL: &str = "extension_migrations_applied_no_sync";
 
 /// SQLite's own tables and functions it uses while it carries out a schema change.

@@ -34,7 +34,7 @@ fn action(id: &str, scope: &str, effect: &str, builtin: bool) -> AgentActionDef 
     .expect("definition")
 }
 
-/// One read, one write and one destructive action per scope of "holzi bedienen".
+/// One read, one write and one destructive action per scope of "haex-vault bedienen".
 fn catalog() -> Vec<AgentActionDef> {
     let mut all = Vec::new();
     for scope in OPERATE_SCOPES {
@@ -326,7 +326,7 @@ fn extension_tool(extension_id: Uuid, model_name: &str) -> Arc<dyn Tool> {
 }
 
 /// US4: an agent sees and calls only the tools of the extensions granted to it; a new extension
-/// is not granted, and holzi's own tools never come through this group.
+/// is not granted, and haex-vault's own tools never come through this group.
 #[test]
 fn only_tools_of_granted_extensions_are_offered_and_callable() {
     let mail = Uuid::from_u128(1);
@@ -354,7 +354,7 @@ fn only_tools_of_granted_extensions_are_offered_and_callable() {
 }
 
 /// Spec 083 plan Q3: "Alle Erweiterungen" covers every extension's tools, one installed later too,
-/// and still never holzi's own tools.
+/// and still never haex-vault's own tools.
 #[test]
 fn all_extensions_cover_every_extension_tool_but_no_tool_of_haex() {
     let tools: Vec<Arc<dyn Tool>> = vec![

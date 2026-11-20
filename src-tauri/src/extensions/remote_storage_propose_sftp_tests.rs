@@ -1,6 +1,6 @@
 //! An extension proposes an SFTP storage (spec 050 US6, T086, contracts/bridge.md): `host`, `port`
 //! (22 unless given) and `folder`; the `add` permission names `host:port`; the server's host key
-//! comes back to holzi's window, which saves only after the user confirmed exactly that key, and
+//! comes back to haex-vault's window, which saves only after the user confirmed exactly that key, and
 //! declining there is 1002. A host key or a fingerprint in a proposal is refused before any dialog.
 
 use serde_json::{json, Value};

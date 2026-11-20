@@ -1,6 +1,6 @@
-//! The inbox between holzi processes for a `haex-vault://contact/…` link (spec 060 research R9).
+//! The inbox between haex-vault processes for a `haex-vault://contact/…` link (spec 060 research R9).
 //!
-//! holzi runs one process per vault session, and on Linux and Windows the system starts a **new**
+//! haex-vault runs one process per vault session, and on Linux and Windows the system starts a **new**
 //! process for every link. That process cannot know which of the others has the vault the user
 //! wants, so it drops the link as a file in a directory, and every process with an open vault looks
 //! there. The first to `rename` the file owns it. A file nobody takes within [`HANDOFF_TIMEOUT`] is

@@ -15,7 +15,7 @@ import {
 // Spec 017, US5, T082 (quickstart §7 first two bullets): a write to its table reaches the open
 // probe as `haextension:sync:tables-updated` without the name of any core table; switching the
 // color scheme reaches it as `haextension:context:changed`; a stored value survives a restart; a
-// log entry is read back by the extension and by holzi's settings.
+// log entry is read back by the extension and by haex-vault's settings.
 
 interface FrameEvent {
   type: string

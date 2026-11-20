@@ -1,6 +1,6 @@
 //! The schema subset of the result format of a model job (spec 055, `contracts/job-format.md`).
 //!
-//! The extension hands holzi a schema with every job; holzi never trusts it as code: it is checked
+//! The extension hands haex-vault a schema with every job; haex-vault never trusts it as code: it is checked
 //! against a small subset first ([`check_subset`]) and the model's output is checked against it
 //! afterwards ([`validate`]). The subset is a superset of the action subset
 //! (`chat/tools/action_tool.rs::schema_in_subset`), which the frontend mirrors and must not grow;

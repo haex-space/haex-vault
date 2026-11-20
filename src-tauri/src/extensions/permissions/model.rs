@@ -29,7 +29,7 @@ pub enum PermissionKind {
     /// A tool the extension offers to the agent (spec 018): declared in the manifest's `tools`,
     /// the action is its effect and the target its name; `*` stands for every tool.
     AgentTool,
-    /// Use of one model of holzi, or of every model (`*`), with an effort (spec 055 R3): the
+    /// Use of one model of haex-vault, or of every model (`*`), with an effort (spec 055 R3): the
     /// action is the effort the user chose for it. Granted only by the user, when
     /// asked, never from a manifest.
     Model,
@@ -59,7 +59,7 @@ impl PermissionKind {
         Self::Peers,
     ];
 
-    /// The stored name; anything else is not a kind holzi knows (FR-022).
+    /// The stored name; anything else is not a kind haex-vault knows (FR-022).
     pub fn parse(value: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|kind| kind.as_str() == value)
     }

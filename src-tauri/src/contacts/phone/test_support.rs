@@ -1,7 +1,7 @@
 //! A phone address book in memory for the tests of the sync (spec 051 T030): raw contacts with a
 //! version that rises on every change, a deleted flag, an account, a source id, an aggregated
 //! contact with its lookup key, a read-only flag and data rows per mimetype. The tests change it
-//! "as the user" and see every op holzi sent.
+//! "as the user" and see every op haex-vault sent.
 
 use std::collections::BTreeMap;
 use std::sync::Mutex;
@@ -32,7 +32,7 @@ struct Book {
     fail_next: bool,
     next_group: i64,
     groups: Vec<FakeGroup>,
-    /// Raw contacts whose photo holzi wrote, in order.
+    /// Raw contacts whose photo haex-vault wrote, in order.
     photo_writes: Vec<i64>,
 }
 
@@ -304,7 +304,7 @@ impl FakePhoneBook {
             .collect()
     }
 
-    /// The raw contacts whose photo holzi wrote.
+    /// The raw contacts whose photo haex-vault wrote.
     pub fn photo_writes(&self) -> Vec<i64> {
         self.book().photo_writes.clone()
     }
@@ -314,7 +314,7 @@ impl FakePhoneBook {
         self.book().fail_next = true;
     }
 
-    /// Every op holzi sent.
+    /// Every op haex-vault sent.
     pub fn ops(&self) -> Vec<Op> {
         self.book().ops.clone()
     }

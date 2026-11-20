@@ -1,5 +1,5 @@
 //! The second half of a run (spec 051, research R6, R10, FR-025): send the ops to the phone, read
-//! back what it holds now, then write holzi, the links, the issues and the run's state in one
+//! back what it holds now, then write haex-vault, the links, the issues and the run's state in one
 //! transaction. A contact whose batch the phone refused keeps its old links and gets an issue; the
 //! next run tries again from the same base.
 
@@ -36,7 +36,7 @@ pub struct Planned {
 /// What the phone answered.
 #[derive(Default)]
 struct Answers {
-    /// Raw contact → version after holzi's write.
+    /// Raw contact → version after haex-vault's write.
     versions: BTreeMap<i64, i64>,
     /// Contact → its new raw contact and that one's version.
     created: BTreeMap<String, (i64, i64)>,
@@ -84,7 +84,7 @@ fn send(book: &dyn PhoneBook, batches: Batches) -> Answers {
     answers
 }
 
-/// The photo of a contact taken over or merged, if holzi has none (research R10).
+/// The photo of a contact taken over or merged, if haex-vault has none (research R10).
 fn photo_for(
     book: &dyn PhoneBook,
     item: &Planned,
@@ -230,7 +230,7 @@ pub fn finish(
     })
 }
 
-/// What the holzi write of a run needs.
+/// What the haex-vault write of a run needs.
 struct Written<'a> {
     device: &'a str,
     gathered: &'a Gathered,
@@ -343,8 +343,8 @@ impl Written<'_> {
         Ok(())
     }
 
-    /// The photo the phone and holzi agree on after this run: the one taken over or written now,
-    /// holzi's on a merge, none once holzi has none, else the last one (a refused write is tried
+    /// The photo the phone and haex-vault agree on after this run: the one taken over or written now,
+    /// haex-vault's on a merge, none once haex-vault has none, else the last one (a refused write is tried
     /// again).
     fn photo_base(
         &self,

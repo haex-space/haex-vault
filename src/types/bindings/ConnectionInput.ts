@@ -31,6 +31,6 @@ bucketForTest: string,
 createFolder?: boolean,
 /**
  * The host key (an OpenSSH line) the user confirmed after `hostKeyUnknown` (SFTP, spec 050
- * research R5); holzi then accepts exactly this key.
+ * research R5); haex-vault then accepts exactly this key.
  */
 hostKey?: string, };

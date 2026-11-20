@@ -1,4 +1,4 @@
-//! Inviting a contact (spec 057 US1, research R5, R10; FR-009–FR-011, FR-017–FR-019): holzi dials
+//! Inviting a contact (spec 057 US1, research R5, R10; FR-009–FR-011, FR-017–FR-019): haex-vault dials
 //! every device of the contact's stored card at once, proves itself ([`foreign_auth::dial`]) and
 //! sends `Invite` on each connection. The first `Accepted` wins and gets `InviteConfirm`; every
 //! other device gets `Withdraw`. The invited side is [`super::invited`].

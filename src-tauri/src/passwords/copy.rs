@@ -80,7 +80,7 @@ struct Columns {
     otp_algorithm: Option<String>,
     expires_at: Option<String>,
     autofill_aliases: Option<String>,
-    /// The holzi function the entry belongs to (Z14); a copy keeps it, so the copy of a storage's
+    /// The haex-vault function the entry belongs to (Z14); a copy keeps it, so the copy of a storage's
     /// credentials is as hidden from extensions as the original.
     owner: Option<String>,
     /// `login` or `pass` (spec 092); a copy has the type of its original.

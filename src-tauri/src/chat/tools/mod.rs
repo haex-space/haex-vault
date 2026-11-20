@@ -203,7 +203,7 @@ pub trait Tool: Send + Sync {
     fn action_definition(&self) -> Option<&action_tool::AgentActionDef> {
         None
     }
-    /// The extension a tool comes from (spec 018, research R8); `None` for holzi's own tools.
+    /// The extension a tool comes from (spec 018, research R8); `None` for haex-vault's own tools.
     fn origin(&self) -> Option<ToolOrigin> {
         None
     }
@@ -253,7 +253,7 @@ impl ToolRegistry {
         Self::default()
     }
 
-    /// Replaces the declared domains of holzi's actions (spec 082 R4).
+    /// Replaces the declared domains of haex-vault's actions (spec 082 R4).
     pub fn set_domains(&mut self, domains: Vec<domains::AgentDomain>) {
         self.domains = domains;
     }

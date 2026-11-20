@@ -356,7 +356,7 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
 
     // For api_key models the adapter needs the raw remote id, not the
     // composite one — split it off here so the adapter stays vendor-
-    // scoped and does not know about holzi's composite scheme.
+    // scoped and does not know about haex-vault's composite scheme.
     let request_model_id = session
         .model_id
         .split_once(':')
@@ -503,7 +503,7 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
     };
     let system_prompt = prompt_for(&tools);
     // A first step that lacks the tool search (spec 087 research R6.3, amended 2026-11-11: every
-    // offer of holzi's has it now) gets it with the next step, and the prompt that goes with it.
+    // offer of haex-vault's has it now) gets it with the next step, and the prompt that goes with it.
     let search_prompt = {
         let mut later = tools.clone();
         let added = !tools.is_empty()

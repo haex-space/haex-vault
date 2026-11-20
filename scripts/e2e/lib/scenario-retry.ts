@@ -1,6 +1,6 @@
 // One more run for a scenario whose first run failed. On a shared CI runner a scenario can fail for
-// what is not holzi's doing: a click that did not land, a key the emulator lost, a renderer or a
-// driver connection that went away. A second run says more about holzi than the first. The result
+// what is not haex-vault's doing: a click that did not land, a key the emulator lost, a renderer or a
+// driver connection that went away. A second run says more about haex-vault than the first. The result
 // names the first error and keeps its material, so every retry stays visible in the report and a
 // flaky scenario can still be found and fixed; it is not hidden by the retry.
 //

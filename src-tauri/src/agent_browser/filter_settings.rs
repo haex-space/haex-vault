@@ -1,5 +1,5 @@
 //! What the user chose for the tracker blocking (spec 065 FR-045, research R16) and the lists
-//! holzi knows by itself: the default lists of uBlock Origin and the user's own, by their `https`
+//! haex-vault knows by itself: the default lists of uBlock Origin and the user's own, by their `https`
 //! address. The choice is kept in the vault (`choices`), not here.
 
 use serde::{Deserialize, Serialize};
@@ -17,7 +17,7 @@ const MAX_NAME: usize = 100;
 /// The longest id of a list.
 const MAX_ID: usize = 64;
 
-/// A list holzi knows by itself.
+/// A list haex-vault knows by itself.
 pub struct DefaultList {
     pub id: &'static str,
     pub name: &'static str,
@@ -82,7 +82,7 @@ fn yes() -> bool {
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub struct CustomList {
-    /// Empty for a list the user just added; holzi gives it one.
+    /// Empty for a list the user just added; haex-vault gives it one.
     #[serde(default)]
     pub id: String,
     /// Empty takes the host of the address.

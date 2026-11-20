@@ -169,7 +169,7 @@ async fn a_consent_wall_is_left_alone_and_the_agent_is_told() {
     };
     let page = open(&scene, "/consent-wall.html").await;
     // The purposes that can be declined were, but the page will not take the choices until the
-    // user agrees to what it requires: that agreement is not holzi's to give.
+    // user agrees to what it requires: that agreement is not haex-vault's to give.
     let until = Instant::now() + Duration::from_secs(8);
     let mut told = page.result.get("consent").cloned();
     while told.as_ref().is_none_or(|word| word != "wall") && Instant::now() < until {
@@ -299,7 +299,7 @@ async fn a_banner_in_a_frame_of_another_website_is_declined() {
     let Some(scene) = scene_declining(true).await else {
         return;
     };
-    // The frame's website need not be one the agent may operate: declining is holzi's own act.
+    // The frame's website need not be one the agent may operate: declining is haex-vault's own act.
     let partner = Site::parse(&scene.site.partner("/")).unwrap();
     scene.env.rights.lock().unwrap().sites.insert(
         partner,

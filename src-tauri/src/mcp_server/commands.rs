@@ -89,7 +89,7 @@ pub struct McpSnippetArgs {
     pub way: Option<SnippetWay>,
 }
 
-/// How the agent reaches holzi: by starting the helper, or over loopback HTTP with OAuth.
+/// How the agent reaches haex-vault: by starting the helper, or over loopback HTTP with OAuth.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
@@ -238,7 +238,7 @@ pub async fn mcp_setup_snippet<R: Runtime>(
     match args.way.unwrap_or(SnippetWay::Program) {
         SnippetWay::Program if crate::platform::capabilities().mcp_helper => {
             let executable = super::helper::executable().map_err(|error| HaexError::Io {
-                reason: format!("the path of holzi: {error}"),
+                reason: format!("the path of HaexVault: {error}"),
             })?;
             Ok(snippet(args.client, &executable, device))
         }
@@ -263,7 +263,7 @@ pub async fn mcp_setup_snippet<R: Runtime>(
     }
 }
 
-/// The snippet for `client` on the HTTP way; the client signs in through holzi's dialog (OAuth).
+/// The snippet for `client` on the HTTP way; the client signs in through haex-vault's dialog (OAuth).
 pub fn http_snippet(client: SnippetClient, port: u16) -> String {
     let url = format!("http://127.0.0.1:{port}/mcp");
     match client {
@@ -319,7 +319,7 @@ fn delegate_kind(kind: AgentKind) -> Result<AgentKind> {
     }
 }
 
-/// Whether the delegate `kind` has holzi's tools in the chat (spec 021 US6, FR-025).
+/// Whether the delegate `kind` has haex-vault's tools in the chat (spec 021 US6, FR-025).
 #[tauri::command]
 pub async fn mcp_delegate_status(
     server: State<'_, McpServer>,

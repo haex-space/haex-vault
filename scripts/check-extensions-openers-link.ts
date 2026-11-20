@@ -1,5 +1,5 @@
 // Part of `pnpm check:extensions` (spec 063, US2, FR-017, FR-008): what the window keeps of a mail
-// link opened outside holzi (src/lib/mail/link.ts) and that the links of shares still go their
+// link opened outside haex-vault (src/lib/mail/link.ts) and that the links of shares still go their
 // own way (src/lib/contacts/deepLink.ts).
 import assert from 'node:assert/strict'
 import { test } from 'node:test'

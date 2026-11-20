@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * The hint about foreign files in an encrypted folder (spec 048 FR-048): files another program
- * put there, such as a sync program's conflict copies. holzi neither shows nor deletes them.
+ * put there, such as a sync program's conflict copies. haex-vault neither shows nor deletes them.
  */
 defineProps<{ count: number }>()
 

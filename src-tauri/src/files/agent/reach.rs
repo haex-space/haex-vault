@@ -141,7 +141,7 @@ impl<E: AgentEnv> FilesAgent<E> {
     /// [`Self::place`] for `paths`: device paths into encrypted folders on the device (by their
     /// decrypted or opaque names) are the device as a storage, so the folder grants of spec 048
     /// apply (US7, FR-050). Such paths and ordinary device paths are never mixed in one call: the
-    /// device's storage would pass the ordinary ones by holzi's checks of its own places.
+    /// device's storage would pass the ordinary ones by haex-vault's checks of its own places.
     pub(super) async fn place_for(
         &self,
         source: &str,

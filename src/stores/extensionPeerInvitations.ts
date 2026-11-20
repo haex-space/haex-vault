@@ -6,7 +6,7 @@ import type { ExtensionPeerInvitationAnswer } from '@bindings/ExtensionPeerInvit
 import { current, enqueue, remove } from '~/lib/extensions/peerInvitations'
 
 /**
- * The invitations of contacts that holzi asks the user about (spec 057, US1, T043): Rust sends
+ * The invitations of contacts that haex-vault asks the user about (spec 057, US1, T043): Rust sends
  * `extension-peer-invitation` and, when one goes away, `extension-peer-invitation-gone`;
  * `useExtensionHost` listens and calls {@link add} and {@link gone}. One invitation is shown at a
  * time. The answer is only ever given here, never by the extension (FR-016).

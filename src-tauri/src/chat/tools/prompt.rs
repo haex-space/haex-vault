@@ -9,23 +9,23 @@ use crate::adapters::types::ToolSpec;
 use crate::chat::reply_language::ReplyLanguage;
 use crate::local_time::{Civil, Clock};
 
-/// What the model is told about the tools holzi offers. English works best for the models that
+/// What the model is told about the tools haex-vault offers. English works best for the models that
 /// run locally; the model answers in the language of the person.
-pub const TOOL_INSTRUCTION: &str = "You operate the app holzi for the user with the tools you are offered. \
-When the user asks to look at or change something in holzi, call a tool instead of describing what you would do. \
+pub const TOOL_INSTRUCTION: &str = "You operate the app HaexVault for the user with the tools you are offered. \
+When the user asks to look at or change something in HaexVault, call a tool instead of describing what you would do. \
 If none of the offered tools fits, call find_actions with a few keywords: the tools it finds are available in your next step. \
 Reply in the user's language and name things by their title; never show ids such as app ids or UUIDs. \
 Look up what the user names (a person, a subject, a time) with the offered tools; never ask the user for ids. \
 If several match, ask which one by their titles. \
-For questions that have nothing to do with holzi, just answer.";
+For questions that have nothing to do with HaexVault, just answer.";
 
 /// The instruction for a turn whose tools do not include the optional action search.
-const TOOL_INSTRUCTION_WITHOUT_SEARCH: &str = "You operate the app holzi for the user with the tools you are offered. \
-When the user asks to look at or change something in holzi, call one of the offered tools instead of describing what you would do. \
+const TOOL_INSTRUCTION_WITHOUT_SEARCH: &str = "You operate the app HaexVault for the user with the tools you are offered. \
+When the user asks to look at or change something in HaexVault, call one of the offered tools instead of describing what you would do. \
 Reply in the user's language and name things by their title; never show ids such as app ids or UUIDs. \
 Look up what the user names (a person, a subject, a time) with the offered tools; never ask the user for ids. \
 If several match, ask which one by their titles. \
-For questions that have nothing to do with holzi, just answer.";
+For questions that have nothing to do with HaexVault, just answer.";
 
 // ponytail: only routed turns get it (spec 087 research R11.2; hosted models must not get worse).
 // Local models gained (Qwen3.5 4B 80 → 86, Gemma 4 E4B 79 → 80 of 106); hosted ones, which do not
@@ -41,7 +41,7 @@ pub const FINISH: &str = "When you have found what the user asked about, do what
 /// The sentence both tool instructions share after the look-up sentence.
 const SEVERAL_MATCH: &str = "If several match, ask which one by their titles.";
 /// The last sentence of both tool instructions.
-const CLOSING: &str = "For questions that have nothing to do with holzi, just answer.";
+const CLOSING: &str = "For questions that have nothing to do with HaexVault, just answer.";
 
 /// Added when the turn offers `ask_user` (spec 046 FR-016): small models otherwise answer that an
 /// instruction they cannot map is impossible.

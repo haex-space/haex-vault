@@ -5,7 +5,7 @@ use std::path::Path;
 use super::VaultPaths;
 use crate::instances::paths::validate_instance_name;
 
-const ROOT: &str = "/data/holzi";
+const ROOT: &str = "/data/haex-vault";
 
 /// Names that a device-wide folder also carries.
 const NAMES: [&str; 5] = ["anna", "Test-01", "filters", "models", "agent-browser"];

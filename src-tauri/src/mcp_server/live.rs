@@ -15,7 +15,7 @@ use super::grants::Rights;
 use super::hello::CloseReason;
 use super::session::Session;
 
-/// How one connection ends from holzi's side. Its token is a child of the server's, so it also
+/// How one connection ends from haex-vault's side. Its token is a child of the server's, so it also
 /// fires when the vault closes or the access is turned off.
 pub struct Link {
     pub close: CancellationToken,

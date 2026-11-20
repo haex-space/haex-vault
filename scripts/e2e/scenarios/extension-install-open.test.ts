@@ -15,7 +15,7 @@ import {
 
 // Spec 017, US1, T051 (quickstart §2): manipulated and pre-v2 bundles are refused; a signed bundle
 // installs, opens from the launcher in its sandboxed frame (its module script runs under the CSP),
-// talks to holzi over the SDK channel, navigates inside its tab with holzi's Back, and comes back
+// talks to haex-vault over the SDK channel, navigates inside its tab with haex-vault's Back, and comes back
 // with the session after a restart.
 scenario('extension-install-open', { timeoutMs: 300_000 }, async (ctx) => {
   const group = await ctx.group({ users: { anna: ['laptop'] } })
@@ -79,14 +79,14 @@ scenario('extension-install-open', { timeoutMs: 300_000 }, async (ctx) => {
     `document.getElementById('to-second').click(); return true`,
   )
   await ctx.waitFor(
-    'holzi to record the place inside the extension',
+    'HaexVault to record the place inside the extension',
     async () =>
       JSON.stringify(await page.invoke('wm_session_load')).includes('/second'),
     { fixed: true, timeoutMs: 15_000 },
   )
   await backInTab(page, probe)
   await ctx.waitFor(
-    'the frame to follow holzi Back',
+    'the frame to follow HaexVault Back',
     async () =>
       (await inFrame<string>(
         page,
@@ -95,7 +95,7 @@ scenario('extension-install-open', { timeoutMs: 300_000 }, async (ctx) => {
       )) === '#/',
     { timeoutMs: 10_000 },
   )
-  ctx.step('navigation inside the tab and holzi Back')
+  ctx.step('navigation inside the tab and HaexVault Back')
 
   await device.restart()
   const restored = device.page

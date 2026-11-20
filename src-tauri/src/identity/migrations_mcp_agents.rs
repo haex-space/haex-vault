@@ -2,7 +2,7 @@
 //! this device, their rights, and the log of their calls.
 //!
 //! The two CRDT tables belong to one device each (ADR-0001), like `haex_browser_clients`: an agent
-//! runs on one device and reaches holzi only there, so `vault_device_uuid` references
+//! runs on one device and reaches haex-vault only there, so `vault_device_uuid` references
 //! `known_devices` and the server reads only its own device's rows. Neither carries a UNIQUE
 //! constraint (a conflict would halt the sync); the ids derive from the device and the agent. The
 //! log stays on the device (`_no_sync`) and is cut by age and count when it is written and read.

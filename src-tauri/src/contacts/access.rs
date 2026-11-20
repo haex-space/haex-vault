@@ -1,7 +1,7 @@
 //! The access rules of the address book (spec 051 FR-028 to FR-031, research R1, R2).
 //!
 //! Pure: no database. A caller and its grants go in, the decision comes out; the service
-//! ([`super::service`]) calls these before every method. The user's window and holzi's own
+//! ([`super::service`]) calls these before every method. The user's window and haex-vault's own
 //! functions need no grant (FR-028); every agent, the built-in one too, and every extension only
 //! reach what a grant covers (FR-029, FR-030). A contact outside the scope is `NotFound`, the same
 //! answer as for a missing one (FR-031); a missing grant of the asked kind is `Forbidden`.
@@ -132,7 +132,7 @@ impl From<Denied> for HaexError {
     }
 }
 
-/// The contacts a caller reaches with grants of the asked kind: the user and holzi's own functions
+/// The contacts a caller reaches with grants of the asked kind: the user and haex-vault's own functions
 /// all of them, everybody else the union of the scopes of the grants that cover the kind.
 fn reach(caller: &Caller, grants: &[Grant], needed: GrantAction) -> Result<Scope, Denied> {
     match caller {
@@ -156,7 +156,7 @@ pub fn require_user(caller: &Caller) -> Result<(), Denied> {
     }
 }
 
-/// Methods for the window and holzi's own functions, such as reading the groups to turn the
+/// Methods for the window and haex-vault's own functions, such as reading the groups to turn the
 /// group names of an extension's permissions into grants.
 pub fn require_haex(caller: &Caller) -> Result<(), Denied> {
     match caller {

@@ -21,7 +21,7 @@ async fn bens_card(ben: &TestVault) -> String {
 }
 
 /// Ben's card with a name and an e-mail address of his own, signed by his vault: what an older
-/// version of holzi handed out.
+/// version of haex-vault handed out.
 async fn bens_old_card(ben: &TestVault) -> String {
     let text = bens_card(ben).await;
     let mut card = format::parse(&text).expect("a card").card;

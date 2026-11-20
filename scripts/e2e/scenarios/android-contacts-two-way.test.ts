@@ -9,7 +9,7 @@ import {
 } from '../lib/contacts.ts'
 
 // Spec 051 US2-3/4/5/7: once the sync runs, a number changed on the phone reaches the address
-// book, an address added in holzi reaches the phone's contact in its account, a contact deleted on
+// book, an address added in haex-vault reaches the phone's contact in its account, a contact deleted on
 // the phone goes from the address book, and switching the sync off keeps everything on both sides.
 scenario(
   'android-contacts-two-way',
@@ -58,7 +58,7 @@ scenario(
         .find((contact) => contact.id === anna)
       assert.deepEqual(onPhone?.emails, ['anna@example.org'])
       ctx.step(
-        'an address added in holzi reaches the same contact on the phone',
+        'an address added in HaexVault reaches the same contact on the phone',
       )
 
       const bernd = phone.insertContact({

@@ -17,14 +17,14 @@ import { useWindowManagerStore } from '~/stores/windowManager'
 
 /**
  * The extension host on the workspace page (spec 017): the extension list for the app list of the
- * window manager, and the color scheme and language holzi applies, which extensions read through
+ * window manager, and the color scheme and language haex-vault applies, which extensions read through
  * `extension_context_get` (contracts/tauri-commands.md `extension_host_context_set`).
  */
 /** Set before the one reload for developer mode, so a document that still lacks the development
- * origins (in `tauri dev` holzi's hook does not run) does not reload again and again. */
-const DEV_RELOAD_KEY = 'holzi.extensions.devReload'
+ * origins (in `tauri dev` haex-vault's hook does not run) does not reload again and again. */
+const DEV_RELOAD_KEY = 'haex.extensions.devReload'
 
-/** Developer mode is on, but this document was loaded before holzi knew it (before unlocking): its
+/** Developer mode is on, but this document was loaded before haex-vault knew it (before unlocking): its
  * policy cannot frame development servers yet, so the window reloads once (spec 017, US12,
  * research R16). Returns whether it reloads. */
 async function reloadForDevModeAsync(): Promise<boolean> {
@@ -134,7 +134,7 @@ export function useExtensionHost() {
     'requests for the model settings',
   )
   // Where the system shows no notification of an extension (Android: the person refused the
-  // permission, spec 043 FR-023), holzi shows it as a message; "open" brings the extension's tab.
+  // permission, spec 043 FR-023), haex-vault shows it as a message; "open" brings the extension's tab.
   keep(
     listen<{
       extensionId: string
@@ -153,7 +153,7 @@ export function useExtensionHost() {
         },
       })
     }),
-    'notifications shown in holzi',
+    'notifications shown in HaexVault',
   )
 
   // An extension did not take the mail a person gave it in time (spec 063): the person hears it
@@ -168,7 +168,7 @@ export function useExtensionHost() {
     'mail requests that no extension took',
   )
 
-  // An invitation of a contact to an extension (spec 057 US1): holzi's own prompt asks the user,
+  // An invitation of a contact to an extension (spec 057 US1): haex-vault's own prompt asks the user,
   // and the window comes forward when the user clicked the notification that told of it. The
   // prompt goes when the invitation does (withdrawn, expired, taken by another device).
   keep(

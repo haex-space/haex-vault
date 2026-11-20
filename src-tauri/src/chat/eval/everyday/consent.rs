@@ -27,7 +27,7 @@ pub enum CallEnding {
     RanUnasked,
     /// The played user declined it in the dialog.
     Stopped,
-    /// holzi refused it before it ran (an unknown tool).
+    /// haex-vault refused it before it ran (an unknown tool).
     TurnedAway,
 }
 

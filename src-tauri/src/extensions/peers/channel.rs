@@ -83,7 +83,7 @@ pub enum Origin {
     Invitation {
         invite: Uuid,
     },
-    /// A device joined a lobby this device hosts; `key` is holzi's key of that lobby.
+    /// A device joined a lobby this device hosts; `key` is haex-vault's key of that lobby.
     Lobby {
         lobby_id: String,
         key: [u8; 16],
@@ -97,7 +97,7 @@ pub enum Origin {
     Test,
 }
 
-/// Where the events of channels go: the frames of one extension, through holzi's window. Holds
+/// Where the events of channels go: the frames of one extension, through haex-vault's window. Holds
 /// the host weakly, since the host holds the channels.
 #[derive(Clone)]
 pub struct Frames {
@@ -117,7 +117,7 @@ impl Frames {
         self.host.upgrade()
     }
 
-    /// Sends `event` to holzi's own window, where the invitation prompt lives. Never carries a
+    /// Sends `event` to haex-vault's own window, where the invitation prompt lives. Never carries a
     /// `peers:*` message, which belongs to the frames of one extension only (FR-005).
     pub(super) fn emit_window(&self, event: &str, payload: Value) {
         self.emitter.emit(event, payload);

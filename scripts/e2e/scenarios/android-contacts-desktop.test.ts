@@ -14,9 +14,9 @@ import {
 
 // Spec 051 US3-1/2/4/6 (quickstart `android-contacts-desktop`): a phone on the emulator and a
 // laptop on Linux, one vault. The laptop offers the phone as a target; a contact made in its
-// editor with the phone as target reaches the phone's address book, one left "only in holzi" does
+// editor with the phone as target reaches the phone's address book, one left "only in haex-vault" does
 // not, and a change of a contact from the phone goes back to it. Removing the target with "delete"
-// takes the contact off the phone, not off holzi. Changes made while the phone's app is closed
+// takes the contact off the phone, not off haex-vault. Changes made while the phone's app is closed
 // arrive once it opens again. No run is started by hand: incoming changes start them.
 scenario(
   'android-contacts-desktop',
@@ -100,7 +100,7 @@ scenario(
       )
       assert.ok(
         !phone.queryContacts().some((contact) => contact.name === 'Dora Ernst'),
-        'a contact without a target stays only in holzi',
+        'a contact without a target stays only in HaexVault',
       )
       ctx.step('made and changed on the laptop, written on the phone')
 
@@ -121,7 +121,7 @@ scenario(
         (await contactHeaders(laptop)).some(
           (header) => header.name === 'Carla Diehl',
         ),
-        'Carla stays in holzi',
+        'Carla stays in HaexVault',
       )
       ctx.step('a target removed with "delete" leaves the phone only')
 

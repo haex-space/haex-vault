@@ -103,7 +103,7 @@ pub enum FileCategory {
     Text,
 }
 
-/// Extensions of documents: PDF and office formats, including those holzi does not show.
+/// Extensions of documents: PDF and office formats, including those haex-vault does not show.
 const DOCUMENTS: &[&str] = &[
     "pdf", "doc", "docx", "odt", "rtf", "xls", "xlsx", "ods", "ppt", "pptx", "odp", "epub",
 ];

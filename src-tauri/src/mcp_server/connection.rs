@@ -250,7 +250,7 @@ async fn admit(core: &Arc<Core>, greeting: &Greeting) -> Admission {
     pending(core, greeting, None).await
 }
 
-/// The way of an agent holzi does not know (any more): blocked, busy, or a dialog.
+/// The way of an agent haex-vault does not know (any more): blocked, busy, or a dialog.
 async fn pending(core: &Arc<Core>, greeting: &Greeting, previous: Option<Previous>) -> Admission {
     let device = core.device;
     let slug = greeting.slug.clone();

@@ -1,8 +1,8 @@
 //! Who may do what with files (spec 044 FR-031–FR-033, FR-037, research R14), pure and testable
 //! without a database, like `passwords/access.rs`.
 //!
-//! - The user reaches the device and every storage; holzi's own places only read-only.
-//! - Agents (built-in, and external ones of spec 021) never reach holzi's own places, before any
+//! - The user reaches the device and every storage; haex-vault's own places only read-only.
+//! - Agents (built-in, and external ones of spec 021) never reach haex-vault's own places, before any
 //!   grant is asked. The device needs the grant "files of the device": the built-in agent has it
 //!   unless revoked, an external agent only once granted. A storage needs a grant for exactly that
 //!   storage; without one the caller asks the user, `read` never writes, `denied` refuses.
@@ -12,7 +12,7 @@
 //! - On the device (spec 048 US7, FR-050) the raw directory of an encrypted folder is blocked for
 //!   agents and never listed; the folder is reached by its decrypted name as the storage
 //!   `device:<root>`, which follows the grant "files of the device", and its folder grant.
-//! - Extensions and holzi functions use their own entrances (`extensions::fs`, `remote_storage`).
+//! - Extensions and haex-vault functions use their own entrances (`extensions::fs`, `remote_storage`).
 //!
 //! Paths are checked as resolved targets ([`crate::files::local::resolve`]), never as spelled.
 
@@ -97,7 +97,7 @@ impl AgentGrants {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Verdict {
     Allowed,
-    /// The user reads one of holzi's own places (FR-037).
+    /// The user reads one of haex-vault's own places (FR-037).
     ReadOnly,
     /// No grant for this storage yet: ask the user, or refuse when no one can be asked.
     Ask,
@@ -133,7 +133,10 @@ pub fn check(
         Caller::User => match target {
             Target::Device(path) if own.contains(path) => match want {
                 Want::Read => Verdict::ReadOnly,
-                Want::Write => refuse(FilesErrorCode::HaexOwned, "holzi's own data is read-only"),
+                Want::Write => refuse(
+                    FilesErrorCode::HaexOwned,
+                    "HaexVault's own data is read-only",
+                ),
             },
             _ => Verdict::Allowed,
         },
@@ -161,7 +164,7 @@ fn agent(
             if own.contains(path) {
                 return refuse(
                     FilesErrorCode::Blocked,
-                    "holzi's own data is not available to agents",
+                    "HaexVault's own data is not available to agents",
                 );
             }
             if device_granted(caller, grants) {
@@ -273,7 +276,7 @@ fn device_granted(caller: &Caller, grants: &AgentGrants) -> bool {
 }
 
 /// Whether an entry at the resolved `path` may appear in a list or search result for `caller`:
-/// agents never see holzi's own places (FR-033) nor the raw directory of an encrypted folder
+/// agents never see haex-vault's own places (FR-033) nor the raw directory of an encrypted folder
 /// (spec 048 FR-050).
 pub fn visible_to(caller: &Caller, path: &Path, own: &OwnPlaces, grants: &AgentGrants) -> bool {
     match caller {

@@ -8,7 +8,7 @@ import { ownCardText } from '../lib/share.ts'
 
 // Spec 057 (quickstart §2–§5, tasks T080, T081): three vaults, each with the test extension `peers`
 // that declares the permission `peers`; the scene grants it. Anna and Ben are contacts, Dave is
-// nobody's contact. Anna invites Ben: his holzi asks and his extension hears nothing until he
+// nobody's contact. Anna invites Ben: his haex-vault asks and his extension hears nothing until he
 // accepts. The channel carries fast, timed and reliable messages and ends for both sides. A lobby for
 // contacts refuses Dave and a removed Ben; a public lobby takes Dave as not verified. Killing a
 // device ends its channel for the other one as `timeout`. The devices meet through the scene's iroh
@@ -126,7 +126,7 @@ scenario('extension-peers', { timeoutMs: 600_000 }, async (ctx) => {
   )
   ctx.step('Anna and Ben are contacts of each other, Dave is nobody’s')
 
-  // An invitation: Ben's holzi asks, his extension hears nothing before the answer.
+  // An invitation: Ben's haex-vault asks, his extension hears nothing before the answer.
   const invited = await succeeded<{ inviteId: string }>(
     anna,
     'invite',
@@ -150,7 +150,9 @@ scenario('extension-peers', { timeoutMs: 600_000 }, async (ctx) => {
   }
   assert.deepEqual(await eventsOf(tablet, 'channel-opened'), [])
   assert.deepEqual(await eventsOf(anna, 'invite-status'), [])
-  ctx.step('Ben’s tablet is asked in holzi’s prompt; no frame has heard of it')
+  ctx.step(
+    'Ben’s tablet is asked in HaexVault’s prompt; no frame has heard of it',
+  )
 
   await pages.tablet.click('extension-peer-invitation-accept')
   await ctx.waitFor(

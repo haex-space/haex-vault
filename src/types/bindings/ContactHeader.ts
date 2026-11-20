@@ -19,7 +19,7 @@ targets: Array<string>,
  */
 issue: ContactsPhoneIssueReason | null,
 /**
- * The contact has confirmed holzi addresses (a Visitenkarte).
+ * The contact has confirmed haex-vault addresses (a Visitenkarte).
  */
 hasCard: boolean,
 /**

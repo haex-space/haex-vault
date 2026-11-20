@@ -17,7 +17,7 @@ export type HeaderSetPayload = {
 }
 
 /**
- * The payload if it is for this frame and well formed, else `null`. The frame id comes from holzi's
+ * The payload if it is for this frame and well formed, else `null`. The frame id comes from haex-vault's
  * session, never from the extension, so a payload naming another frame changes nothing (FR-019).
  */
 export function acceptHeaderSet(

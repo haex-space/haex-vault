@@ -4,7 +4,7 @@
     check-containment.py --vendor claude --program ./claude -- -p ping
 
 The program runs in an empty tree under `strace -f -y`, with an environment of only `PATH` plus
-what holzi's base layer sets for that vendor (`HOME`, `TMPDIR`, the vendor's configuration and
+what HaexVault's base layer sets for that vendor (`HOME`, `TMPDIR`, the vendor's configuration and
 temp variables, the fixed variables of the catalog). Every path the tool created, wrote, renamed
 or removed is listed; the ones outside the tree must match `allowed-residuals.json`, otherwise
 the script exits with 1 and the version must not enter the tested-version list.
@@ -205,7 +205,7 @@ def offences(found, patterns):
 
 
 def environment(vendor, tree):
-    """The environment holzi's base layer gives the tool: `PATH` and what is set for the vendor."""
+    """The environment HaexVault's base layer gives the tool: `PATH` and what is set for the vendor."""
     home, tmp, config = tree / "home", tree / "tmp", tree / "config"
     for folder in (home, tmp, config):
         folder.mkdir(parents=True, exist_ok=True)

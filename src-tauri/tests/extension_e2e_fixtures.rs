@@ -22,7 +22,7 @@ fn dir() -> PathBuf {
 
 fn test_key() -> SigningKey {
     let seed =
-        Sha256::digest(b"holzi spec 017 e2e fixtures only, never use for real signing: probe");
+        Sha256::digest(b"haex spec 017 e2e fixtures only, never use for real signing: probe");
     SigningKey::from_bytes(&seed.into())
 }
 

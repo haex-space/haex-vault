@@ -2,7 +2,7 @@
 //!
 //! The codes are those of the haex-vault 2.x (Legacy) (`src-tauri/src/extension/error.rs` @ `8dce379`), so the vault-sdk
 //! understands them unchanged — `1002` denied and `1004` prompt required drive its retry logic —
-//! plus three of holzi's own. A message never names a table, file or entry outside the caller's
+//! plus three of haex-vault's own. A message never names a table, file or entry outside the caller's
 //! grants (FR-062): the caller learns that something is refused, not whether it exists.
 
 use serde::Serialize;
@@ -73,7 +73,7 @@ pub enum Asks {
     /// There is nothing a permission could name: no question, the SDK waits as for one nobody
     /// answers.
     Nothing,
-    /// The question is about `details.target`, an encrypted folder, and holzi's window names it
+    /// The question is about `details.target`, an encrypted folder, and haex-vault's window names it
     /// by these names, which the extension never gets (spec 048 FR-036, FR-039).
     Folder {
         storage_name: String,
@@ -101,7 +101,7 @@ impl BridgeError {
         self
     }
 
-    /// The answer for a method holzi does not offer.
+    /// The answer for a method haex-vault does not offer.
     pub fn not_supported() -> Self {
         Self::new(ExtensionErrorCode::NotSupported, "not supported")
     }

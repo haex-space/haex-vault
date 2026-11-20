@@ -334,7 +334,7 @@ fn touch(tx: &mut CrdtTransaction<'_>, share: &str, now: &str) -> Result<()> {
     Ok(())
 }
 
-/// A row with a source, kind or state holzi does not know (written by a newer version) is skipped.
+/// A row with a source, kind or state haex-vault does not know (written by a newer version) is skipped.
 fn share_of_row(r: &Row<'_>) -> haex_crdt::rusqlite::Result<Option<FileShareRow>> {
     let (Some(source), Some(item_kind)) = (
         source_of(&r.get::<_, String>(2)?),

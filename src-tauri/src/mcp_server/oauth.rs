@@ -1,4 +1,4 @@
-//! holzi's own OAuth 2.1 server for the HTTP way (spec 021 US1, US8, T094, contracts/http-auth.md,
+//! haex-vault's own OAuth 2.1 server for the HTTP way (spec 021 US1, US8, T094, contracts/http-auth.md,
 //! research R1/R2): the part without database or network. Dynamic client registration only
 //! remembers a client, it creates no agent; an authorization waits for the registration dialog;
 //! its code binds the client, the accepted redirect URI, the PKCE challenge and the agent; access
@@ -7,7 +7,7 @@
 //!
 //! ponytail: registered clients live in memory only, so after a restart a client that still has to
 //! authorize registers again (an MCP client does that when its client id is refused). Ceiling: a
-//! client that keeps its id across a holzi restart before authorizing gets `invalid_client` once.
+//! client that keeps its id across a haex-vault restart before authorizing gets `invalid_client` once.
 //! Upgrade path: persist clients per device next to `mcp.http_port`.
 
 use std::collections::{HashMap, VecDeque};
@@ -142,7 +142,7 @@ pub fn verify_pkce(challenge: &str, verifier: &str) -> bool {
     valid && URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes())) == challenge
 }
 
-/// The parameters of `/oauth/authorize` holzi uses.
+/// The parameters of `/oauth/authorize` haex-vault uses.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizeRequest {
     pub client_id: String,

@@ -292,7 +292,7 @@ impl ObjectStore for LocalStore {
         .await
     }
 
-    /// A local copy never streams through holzi.
+    /// A local copy never streams through haex-vault.
     fn copies_on_provider(&self, _access: &Access) -> bool {
         true
     }

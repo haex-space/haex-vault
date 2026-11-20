@@ -1,7 +1,7 @@
 //! Network of extensions (spec 017, US8, T098, FR-050, FR-051, contracts/bridge.md, research R18).
 //!
-//! An extension frame has no network of its own (CSP, sandbox); every request goes through holzi
-//! and needs a `web` permission for its method and address. holzi follows redirects itself, at
+//! An extension frame has no network of its own (CSP, sandbox); every request goes through haex-vault
+//! and needs a `web` permission for its method and address. haex-vault follows redirects itself, at
 //! most [`MAX_REDIRECTS`], and checks every target with the same rule, so a granted host cannot
 //! hand the request on to one that is not. When the origin changes, `Authorization`, `Cookie` and
 //! `Proxy-Authorization` are dropped. Only `http` and `https`; run time and answer size come from
@@ -27,10 +27,10 @@ use crate::extensions::sql::exec::{limits_of, Limits};
 
 pub const MODULE: &str = module_path!();
 
-/// Redirects holzi follows for one request (research R18).
+/// Redirects haex-vault follows for one request (research R18).
 pub const MAX_REDIRECTS: usize = 10;
 
-/// Request headers the extension cannot set: the connection is holzi's.
+/// Request headers the extension cannot set: the connection is haex-vault's.
 const FIXED_HEADERS: &[&str] = &[
     "host",
     "content-length",
@@ -121,7 +121,7 @@ fn repeatable(method: &Method) -> bool {
 }
 
 /// Allowed, or the 1002/1004 answer with `{resourceType, action, target}`. A target no answer
-/// could ever cover (holzi cannot store it) is refused instead of asked.
+/// could ever cover (haex-vault cannot store it) is refused instead of asked.
 fn check(
     grants: &[Permission],
     device: uuid::Uuid,
@@ -181,7 +181,7 @@ fn parse_headers(params: &Value) -> Result<HeaderMap, BridgeError> {
         let name = HeaderName::from_bytes(name.as_bytes())
             .map_err(|_| invalid("header name not allowed"))?;
         if FIXED_HEADERS.contains(&name.as_str()) {
-            return Err(invalid("header set by holzi"));
+            return Err(invalid("header set by HaexVault"));
         }
         let value = value
             .as_str()
@@ -266,7 +266,7 @@ fn answer(status: StatusCode, headers: &HeaderMap, body: &[u8], url: &Url) -> Va
     })
 }
 
-/// The statuses holzi follows, as `fetch` does; another 3xx with a `Location` (300, 304) is the
+/// The statuses haex-vault follows, as `fetch` does; another 3xx with a `Location` (300, 304) is the
 /// answer.
 fn is_redirect(status: StatusCode) -> bool {
     matches!(status.as_u16(), 301 | 302 | 303 | 307 | 308)

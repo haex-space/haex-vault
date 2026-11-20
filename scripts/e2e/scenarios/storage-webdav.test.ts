@@ -28,7 +28,7 @@ type Header = {
 
 // Spec 050, US1 (quickstart §5, SC-001, SC-007): in Einstellungen → Cloud-Speicher the user
 // connects a local WebDAV server. A wrong password is named and saves nothing; the folder of the
-// storage is missing, which holzi names and makes only when the user says so (FR-006); the
+// storage is missing, which haex-vault names and makes only when the user says so (FR-006); the
 // credentials land in the password manager as an entry of `storage`; no test file stays on the
 // server. After the sync the storage is on the second device and passes its test there. Removing
 // the connection takes its storage and credentials with it. Needs Docker; skipped without it.
@@ -91,7 +91,7 @@ scenario(
     )
     assert.ok(
       !(await listFolder(webdav, '/')).includes(FOLDER),
-      'holzi makes no folder on its own (FR-006)',
+      'HaexVault makes no folder on its own (FR-006)',
     )
     assert.deepEqual((await overview(laptop)).connections, [])
     ctx.step('the missing folder is named, nothing is made or saved')

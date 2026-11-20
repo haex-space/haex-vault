@@ -123,7 +123,7 @@ pub async fn extension_frame_close(
         }
     }
     host.drop_dialogs_of(&frame);
-    // Questions nobody waits for any more disappear from holzi's window.
+    // Questions nobody waits for any more disappear from haex-vault's window.
     let emitter = WindowEmitter(app);
     for request_id in host.permissions.frame_closed(&frame) {
         emitter.emit(
@@ -159,7 +159,7 @@ pub async fn extension_frame_reloaded(state: State<'_, AppState>, frame: String)
     Ok(())
 }
 
-/// holzi's window answers a dialog an extension asked for (`extension_dialog_confirm`).
+/// haex-vault's window answers a dialog an extension asked for (`extension_dialog_confirm`).
 #[tauri::command]
 pub async fn extension_dialog_resolve(
     state: State<'_, AppState>,
@@ -170,8 +170,8 @@ pub async fn extension_dialog_resolve(
     Ok(())
 }
 
-/// holzi's window answers a folder chooser of an extension (`extension_encrypted_folder_choose`,
-/// spec 048 FR-036). Only holzi's window reaches this command.
+/// haex-vault's window answers a folder chooser of an extension (`extension_encrypted_folder_choose`,
+/// spec 048 FR-036). Only haex-vault's window reaches this command.
 #[tauri::command]
 pub async fn extension_encrypted_folder_choose_resolve(
     state: State<'_, AppState>,
@@ -185,7 +185,7 @@ pub async fn extension_encrypted_folder_choose_resolve(
 /// The SDK's event type for a changed context.
 pub const CONTEXT_CHANGED: &str = "haextension:context:changed";
 
-/// Hands holzi's events to its own window.
+/// Hands haex-vault's events to its own window.
 pub(crate) struct WindowEmitter<R: Runtime = tauri::Wry>(pub(crate) AppHandle<R>);
 
 impl<R: Runtime> Emit for WindowEmitter<R> {
@@ -245,9 +245,9 @@ pub async fn extension_bridge_call(
     Ok(answer(id, outcome))
 }
 
-/// holzi's window reports its color scheme and language (for `extension_context_get`); when
+/// haex-vault's window reports its color scheme and language (for `extension_context_get`); when
 /// either changed, every open frame hears `haextension:context:changed {context}` (T084). Only
-/// holzi's own window can call this; an extension reaches nothing but `extension_bridge_call`.
+/// haex-vault's own window can call this; an extension reaches nothing but `extension_bridge_call`.
 #[tauri::command]
 pub async fn extension_host_context_set(
     app: AppHandle,

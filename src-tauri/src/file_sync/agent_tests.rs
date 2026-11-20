@@ -1,6 +1,6 @@
 //! Agents managing sync rules (spec 061 US5, scenarios 1–5, FR-035, FR-036): nothing without
 //! "Sync-Regeln verwalten"; reading runs without a question; creating, changing and deleting wait
-//! for the user every time, and without a yes nothing changes; holzi's own places and contacts'
+//! for the user every time, and without a yes nothing changes; haex-vault's own places and contacts'
 //! shares are refused before anyone is asked.
 
 // These tests insert devices directly, which the CRDT write path does not expose.
@@ -33,7 +33,7 @@ use crate::remote_storage::test_support::vault;
 use crate::vault_gate::VaultDb;
 
 const DEVICE: &str = "11111111-1111-4111-8111-111111111111";
-const OWN: &str = "/data/holzi";
+const OWN: &str = "/data/haex-vault";
 
 struct FakeEnv {
     db: VaultDb,

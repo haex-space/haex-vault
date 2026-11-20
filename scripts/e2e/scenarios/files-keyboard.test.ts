@@ -69,7 +69,7 @@ async function setName(instance: Instance, name: string) {
 }
 
 scenario('files-keyboard', { timeoutMs: 240_000 }, async (ctx) => {
-  const files = deviceFiles('holzi-keyboard-')
+  const files = deviceFiles('haex-keyboard-')
   try {
     const instance = await ctx.startInstance()
     await createAndUnlock(instance, { name: 'e2e-files-keyboard' })

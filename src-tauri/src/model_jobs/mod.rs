@@ -1,6 +1,6 @@
 //! Model jobs of extensions (spec 055; the structured agent tasks of spec 047 are generalised
 //! into them). An extension sends a job of one to four steps, each with an instruction, an input
-//! and the format of its answer; holzi picks the models, checks what they answer and gives the
+//! and the format of its answer; haex-vault picks the models, checks what they answer and gives the
 //! extension only a result that fits its format.
 //!
 //! The parts of a job (`job`, `schema`, `guard`, `effort`, `place`, `limits`), the errors

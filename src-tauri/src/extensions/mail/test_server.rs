@@ -1,4 +1,4 @@
-//! A small IMAP and SMTP server on this device for the mail tests (no TLS, which holzi allows only
+//! A small IMAP and SMTP server on this device for the mail tests (no TLS, which haex-vault allows only
 //! towards this device). It knows what the tests need: LOGIN, LIST, STATUS, SELECT, CREATE,
 //! DELETE, RENAME, UID SEARCH (also with criteria), UID FETCH, UID STORE, UID MOVE, UID EXPUNGE,
 //! APPEND, LOGOUT; EHLO, AUTH PLAIN, MAIL, RCPT, DATA, QUIT.

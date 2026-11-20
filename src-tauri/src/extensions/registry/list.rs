@@ -83,7 +83,7 @@ pub struct ExtensionSummary {
     pub devices: Vec<DeviceState>,
     /// A development version on this device (US12): enabled only while developer mode is on.
     pub dev: bool,
-    /// The kinds of link it opens that holzi knows (spec 063, `mail.compose`); empty unless the
+    /// The kinds of link it opens that haex-vault knows (spec 063, `mail.compose`); empty unless the
     /// extension is installed and enabled (FR-012).
     pub openers: Vec<String>,
 }

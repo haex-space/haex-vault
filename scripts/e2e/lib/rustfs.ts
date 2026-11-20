@@ -1,6 +1,6 @@
 // A local RustFS for the storage scenarios (spec 038, T031): started in Docker on a free port of the
 // loopback interface, with a generated access key, and one bucket made before the app sees it. The
-// bucket is created with a hand-signed request (AWS Signature V4), since holzi itself never
+// bucket is created with a hand-signed request (AWS Signature V4), since haex-vault itself never
 // creates buckets. Ended with the scenario.
 import { spawnSync } from 'node:child_process'
 import { createHash, createHmac, randomBytes } from 'node:crypto'

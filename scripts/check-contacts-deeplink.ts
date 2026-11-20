@@ -1,4 +1,4 @@
-// Part of `pnpm check:contacts`: what the window keeps of a link opened outside holzi
+// Part of `pnpm check:contacts`: what the window keeps of a link opened outside haex-vault
 // (src/lib/contacts/deepLink.ts, spec 060 FR-018a).
 import assert from 'node:assert/strict'
 import { test } from 'node:test'

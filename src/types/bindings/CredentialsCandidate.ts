@@ -10,6 +10,6 @@ export type CredentialsCandidate = { id: string, title: string | null, username:
  */
 tagged: boolean,
 /**
- * holzi created it for a connection (owner `storage`).
+ * haex-vault created it for a connection (owner `storage`).
  */
 owned: boolean, };

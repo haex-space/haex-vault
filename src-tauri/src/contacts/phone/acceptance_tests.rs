@@ -2,7 +2,7 @@
 //! 2,000 contacts in under 60 s), SC-002 and SC-003 (a change of the phone reaches the address book
 //! and one from the vault reaches the phone in under 5 s), SC-005 (two phones with the same 500
 //! contacts give 500 contacts) and SC-007 (the search rule under 200 ms per input). They
-//! run against the fake phone, so they measure holzi's own work; the phone's Contacts Provider is
+//! run against the fake phone, so they measure haex-vault's own work; the phone's Contacts Provider is
 //! checked by hand (quickstart M1, M2, M6). The times hold in a debug build, so a release build on a
 //! phone has room to spare.
 
@@ -71,7 +71,7 @@ fn data_id(rig: &Rig, raw: i64, mimetype: &str) -> i64 {
 async fn two_thousand_contacts_sync_in_time_both_ways() {
     let (rig, raws) = synced_with_2000();
 
-    // SC-002: a change on the phone, a run when holzi comes back to the foreground.
+    // SC-002: a change on the phone, a run when haex-vault comes back to the foreground.
     let raw = raws[1_234];
     rig.book.edit(
         raw,

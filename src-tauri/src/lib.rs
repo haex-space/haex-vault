@@ -250,12 +250,12 @@ fn clear_inherited_nix_library_path() {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-/// Builds and starts the holzi Tauri application.
+/// Builds and starts the haex-vault Tauri application.
 pub fn run() {
     clear_inherited_nix_library_path();
     let mut args = std::env::args().skip(1);
     let first = args.next();
-    // Spec 021: an agent started holzi as its MCP server; no window, no vault, no Tauri.
+    // Spec 021: an agent started haex-vault as its MCP server; no window, no vault, no Tauri.
     if first.as_deref() == Some(mcp_server::helper::FLAG) {
         std::process::exit(mcp_server::helper::run_process(args));
     }
@@ -358,7 +358,7 @@ pub fn run() {
             tls::init_platform_verifier()?;
             // Spec 043 (FR-011, FR-012): the space the system bars and the keyboard take.
             platform::insets::watch(app.handle());
-            // Spec 092 (FR-037): files other apps share to holzi wait here until a vault is open.
+            // Spec 092 (FR-037): files other apps share to haex-vault wait here until a vault is open.
             shared_files::watch(app.handle());
             // Spec 043 (research R5, R10): the sync's network changes and the phone's name come
             // from the platform on Android; elsewhere both calls do nothing.
@@ -430,7 +430,7 @@ pub fn run() {
                             .ok()
                     }),
                 ));
-            // Spec 017 US8: what holzi does outside its window for extensions (browser, notifications).
+            // Spec 017 US8: what haex-vault does outside its window for extensions (browser, notifications).
             // Spec 072 FR-023: one notifier routes every notification's click, the chat's too.
             let notifier = std::sync::Arc::new(notifications::system::SystemNotifier::new(
                 app.handle().clone(),
@@ -460,7 +460,7 @@ pub fn run() {
                 .set_model_local(std::sync::Arc::new(model_jobs::chat_slot::ChatSlot::new(
                     app.handle().clone(),
                 )));
-            // Spec 017, US12: holzi's window is built here, not from `tauri.conf.json`, so its
+            // Spec 017, US12: haex-vault's window is built here, not from `tauri.conf.json`, so its
             // document can frame development servers while developer mode is on (`dev_csp`).
             let window = app
                 .config()
@@ -488,7 +488,7 @@ pub fn run() {
             #[cfg(feature = "platform-probe")]
             let probing = probe.is_some();
             let builder = tauri::WebviewWindowBuilder::from_config(app.handle(), &window)?
-                // The frame shim for development pages, which holzi does not serve (R16).
+                // The frame shim for development pages, which haex-vault does not serve (R16).
                 .initialization_script_for_all_frames(extensions::protocol::shim::dev_init_script())
                 // Spec 044: a reloaded page cannot end the folder watches of the page before it.
                 .on_page_load(|window, payload| {
@@ -683,7 +683,7 @@ pub fn run() {
                         ),
                     ),
                 ));
-            // Spec 017, US9: holzi's protected places, known places and dialogs for extensions.
+            // Spec 017, US9: haex-vault's protected places, known places and dialogs for extensions.
             app.state::<AppState>()
                 .extensions()
                 .fs

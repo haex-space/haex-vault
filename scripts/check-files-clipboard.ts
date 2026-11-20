@@ -1,4 +1,4 @@
-// Part of `pnpm check:files` (spec 044, T049, T050): selection, holzi's clipboard, paste and drop
+// Part of `pnpm check:files` (spec 044, T049, T050): selection, haex-vault's clipboard, paste and drop
 // rules, and the context menus.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
@@ -116,7 +116,7 @@ test('paste rules across sources: the paths of two sources are not compared', ()
     ),
     'nothing',
   )
-  // Holzi's own places refuse whatever the source.
+  // haex-vault's own places refuse whatever the source.
   assert.equal(
     pasteRefusal('copy', '/', dir, { path: '/own', haexOwned: true }, false),
     'haexOwned',
@@ -128,7 +128,7 @@ test('paste rules across sources: the paths of two sources are not compared', ()
   )
 })
 
-test("a read only target (a share) refuses with its own reason, holzi's own place first", () => {
+test("a read only target (a share) refuses with its own reason, HaexVault's own place first", () => {
   const file = [{ path: '/x/f', kind: 'file' as const }]
   const into = { path: '/share', haexOwned: false, readOnly: true }
   assert.equal(pasteRefusal('copy', '/x', file, into, false), 'readOnly')
@@ -513,7 +513,7 @@ test('the two commands name F5 and F6 and follow the write rules', () => {
     ),
     ['copyToOther-', 'moveToOther-'],
   )
-  // The open place is read only (holzi's own): it may be copied from, not moved from.
+  // The open place is read only (haex-vault's own): it may be copied from, not moved from.
   assert.deepEqual(
     ids(entriesMenu({ ...input, readOnly: true })).filter((id) =>
       id.includes('ToOther'),

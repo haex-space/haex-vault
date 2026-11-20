@@ -1,10 +1,10 @@
 //! System notifications of extensions (spec 017, US8, T100, FR-052, contracts/bridge.md,
 //! research R20).
 //!
-//! An extension shows a notification only with the `notifications` permission (`show`, `*`); holzi
+//! An extension shows a notification only with the `notifications` permission (`show`, `*`); haex-vault
 //! gives it an id and remembers whose it is, so an extension removes only its own. A click on the
 //! notification or one of its buttons reaches every open frame of the extension as
-//! `haextension:notification:click {notificationId, actionId?, path?}`, and holzi's window brings
+//! `haextension:notification:click {notificationId, actionId?, path?}`, and haex-vault's window brings
 //! the extension's tab forward (`extension-notification-click`). How the system shows it and
 //! whether it reports clicks is the [`Desktop`](super::host::Desktop)'s part.
 
@@ -29,9 +29,9 @@ pub const MODULE: &str = module_path!();
 
 /// The SDK's event for a click.
 pub const CLICK: &str = "haextension:notification:click";
-/// Event to holzi's window: bring the extension's tab forward.
+/// Event to haex-vault's window: bring the extension's tab forward.
 pub const CLICKED: &str = "extension-notification-click";
-/// The event that shows a notification inside holzi's window, where the system may not show it
+/// The event that shows a notification inside haex-vault's window, where the system may not show it
 /// (spec 043 FR-023: the person refused Android's permission): `{extensionId, title, body?}`.
 pub const IN_APP: &str = "extension-notification-in-app";
 
@@ -44,7 +44,7 @@ pub const MAX_PATH_CHARS: usize = 2048;
 pub const MAX_TAG_CHARS: usize = 128;
 pub const MAX_ICON_BYTES: usize = 256 * 1024;
 /// Notifications one extension has open at most; a new one closes the oldest. Where the system
-/// reports no click or close, holzi cannot tell when one is gone.
+/// reports no click or close, haex-vault cannot tell when one is gone.
 pub const MAX_OPEN: usize = 20;
 
 /// What a notification's icon may be: raster pictures, inline or from the bundle.
@@ -80,7 +80,7 @@ struct Open {
     shown: Option<Box<dyn ShownNotification>>,
 }
 
-/// The open notifications of this process, by the id holzi gave them.
+/// The open notifications of this process, by the id haex-vault gave them.
 #[derive(Default)]
 pub struct NotificationState {
     open: Mutex<HashMap<String, Open>>,
@@ -307,7 +307,7 @@ fn check_permission(ctx: &CallContext) -> Result<(), BridgeError> {
 }
 
 /// What happens on a response: the notification is forgotten; a click goes to the extension's
-/// frames and to holzi's window, which brings its tab and itself forward (only the window that
+/// frames and to haex-vault's window, which brings its tab and itself forward (only the window that
 /// shows the tab comes to the front).
 fn respond(
     host: Arc<ExtensionHost>,
@@ -350,7 +350,7 @@ pub fn show(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
     let desktop = ctx.host.desktop().ok_or_else(BridgeError::not_available)?;
     let extension_id = ctx.session.extension_id;
     if !desktop.notifications_allowed() {
-        // The system shows nothing: the message stays visible inside holzi, where its tag replaces
+        // The system shows nothing: the message stays visible inside haex-vault, where its tag replaces
         // the earlier one. It has no buttons there and is not remembered; a dismiss of its id
         // finds nothing, as for any gone one.
         ctx.emitter.emit(

@@ -1,7 +1,7 @@
-//! Photos from holzi to the phone (spec 051 T054, research R10): a contact's photo is written to
+//! Photos from haex-vault to the phone (spec 051 T054, research R10): a contact's photo is written to
 //! the phone when it differs from the photo of the last run (`photo_base`), compared by hash, not
 //! by the phone's picture, which the provider scales on writing. A contact taken over or merged
-//! agrees with the phone as it is; a photo removed in holzi stays on the phone.
+//! agrees with the phone as it is; a photo removed in haex-vault stays on the phone.
 
 use std::collections::BTreeMap;
 
@@ -74,7 +74,7 @@ fn pending(
     out
 }
 
-/// Writes the photos that changed in holzi. A photo the phone refuses is logged and tried again
+/// Writes the photos that changed in haex-vault. A photo the phone refuses is logged and tried again
 /// on the next run (its `photo_base` stays).
 pub fn write(
     db: &VaultDb,

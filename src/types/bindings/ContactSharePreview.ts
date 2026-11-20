@@ -25,7 +25,7 @@ targetName?: string,
  */
 targetRevision?: string, candidates: Array<ContactShareCandidate>, identity: ContactShareIdentity, items: Array<ContactShareItem>,
 /**
- * There are holzi addresses to reach the contact by (FR-017a).
+ * There are haex-vault addresses to reach the contact by (FR-017a).
  */
 reachable: boolean,
 /**

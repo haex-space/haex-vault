@@ -1,6 +1,6 @@
 //! The fixture world the everyday measurement answers tool calls from (spec 078 FR-005, research R4):
 //! a fixed clock, a small mailbox, contacts, password entries without secrets, files, apps and
-//! holzi's conversations (`world_app.rs` answers holzi's other reading tools). It
+//! haex-vault's conversations (`world_app.rs` answers haex-vault's other reading tools). It
 //! answers in the shape of the real tools, limited to the fields the set needs; no real data is read
 //! and no action runs.
 
@@ -107,7 +107,7 @@ pub struct FixtureWorld {
     pub apps: Vec<App>,
     /// What `settings_get` returns.
     pub settings: Value,
-    /// The user's own conversations with holzi (spec 087 R12).
+    /// The user's own conversations with haex-vault (spec 087 R12).
     pub conversations: Vec<Conversation>,
     /// What `settings_models_list` returns.
     pub models: Vec<Value>,

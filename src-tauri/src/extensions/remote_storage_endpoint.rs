@@ -1,6 +1,6 @@
 //! An endpoint an extension proposes for a new storage (spec 038 FR-009b, FR-017, research R8),
-//! checked before holzi shows its dialog: its form, the permission `remoteStorage`/`add` for its
-//! host, and that all its addresses lie in one scope holzi reaches (`http` only to a local one).
+//! checked before haex-vault shows its dialog: its form, the permission `remoteStorage`/`add` for its
+//! host, and that all its addresses lie in one scope haex-vault reaches (`http` only to a local one).
 //! The scope found here is what the dialog shows and what the new connection must keep. AWS by
 //! region needs `add` for its regional host as well ([`check_aws`]). A WebDAV address (spec 050
 //! US6) follows the same rules; its folder path is kept and ends in `/`.
@@ -19,7 +19,7 @@ use crate::remote_storage::address::{self, AddressError};
 use crate::remote_storage::model::ConnectionView;
 use crate::remote_storage::{EndpointScope, Protocol};
 
-/// How long holzi waits for the addresses of a proposed endpoint before the dialog.
+/// How long haex-vault waits for the addresses of a proposed endpoint before the dialog.
 const RESOLVE_TIME: Duration = Duration::from_secs(10);
 
 /// A proposed endpoint after its checks.
@@ -29,7 +29,7 @@ pub(super) struct Proposed {
 }
 
 impl Proposed {
-    /// Checks `endpoint` of `protocol` (see the module): 3001 for a form or an address holzi
+    /// Checks `endpoint` of `protocol` (see the module): 3001 for a form or an address haex-vault
     /// never reaches, 1004/1002 without the `add` permission for its host (port from the scheme
     /// when absent), 2002 `network` when it does not resolve.
     pub fn check(

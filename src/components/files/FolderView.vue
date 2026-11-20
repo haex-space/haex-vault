@@ -40,14 +40,14 @@ const props = withDefaults(
     selected: readonly string[]
     /** The path from which the next range selection starts. */
     selectionAnchor: string | null
-    /** Paths cut to holzi's clipboard, shown faded. */
+    /** Paths cut to haex-vault's clipboard, shown faded. */
     dimmed: readonly string[]
     /** An error of a storage's credentials offers its settings (US5). */
     settingsLink?: boolean
     /** The list may take the focus by itself after a folder opened: not in the panel that is not the
      * active one (spec 062 R4). */
     takesFocus?: boolean
-    /** The folder takes in what is dragged onto it: not holzi's own place nor a share read only
+    /** The folder takes in what is dragged onto it: not haex-vault's own place nor a share read only
      * (spec 062 FR-016). */
     droppable?: boolean
   }>(),

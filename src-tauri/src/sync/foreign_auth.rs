@@ -139,7 +139,7 @@ pub struct Local<'a> {
     pub keys: &'a DeviceKeys,
     pub vault: [u8; 32],
     pub db: &'a VaultDb,
-    /// The holzi function the contact lookup runs as (`Caller::Internal`).
+    /// The haex-vault function the contact lookup runs as (`Caller::Internal`).
     pub feature: &'static str,
     pub seen: &'a SeenGenerations,
 }

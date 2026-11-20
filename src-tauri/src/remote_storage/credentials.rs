@@ -30,7 +30,7 @@ use crate::passwords::{ids, items, reveal};
 use crate::storage::query::Query;
 use crate::vault_gate::VaultDb;
 
-/// The holzi function that owns the entries (`haex_passwords_item_details.owner`).
+/// The haex-vault function that owns the entries (`haex_passwords_item_details.owner`).
 pub const FEATURE: &str = "storage";
 
 /// The caller this module reads and writes the password manager as.
@@ -181,7 +181,7 @@ pub fn entry(q: &mut impl Query, item_id: &str) -> Result<Option<CredentialsEntr
     entry_for(q, FEATURE, item_id)
 }
 
-/// [`entry`] for the entries of the holzi function `feature` (`owned` tells whether it created it).
+/// [`entry`] for the entries of the haex-vault function `feature` (`owned` tells whether it created it).
 pub(crate) fn entry_for(
     q: &mut impl Query,
     feature: &str,
@@ -271,7 +271,7 @@ pub async fn read(
 }
 
 /// The entries the user may choose for a connection of `protocol` (spec 052 research R3): not in
-/// the trash, the user's own or created by holzi for a connection, and fitting by [`from_item`].
+/// the trash, the user's own or created by haex-vault for a connection, and fitting by [`from_item`].
 /// Tagged entries first, then by title regardless of case. No value leaves this function.
 pub async fn candidates(db: &VaultDb, protocol: Protocol) -> Result<Vec<CredentialsCandidate>> {
     if matches!(protocol, Protocol::Local | Protocol::Peer) {
@@ -297,7 +297,7 @@ pub async fn candidates(db: &VaultDb, protocol: Protocol) -> Result<Vec<Credenti
     .await
 }
 
-/// The entries a holzi function `feature` may offer for its `tag` (the one rule behind
+/// The entries a haex-vault function `feature` may offer for its `tag` (the one rule behind
 /// [`candidates`] and the marketplace's): visible to the user, not owned by another function, and
 /// accepted by `likely` (header values only) and then `fits` (the entry as read). Tagged entries
 /// first, then by title regardless of case.

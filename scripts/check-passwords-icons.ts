@@ -1,5 +1,5 @@
 // Part of `pnpm check:passwords` (spec 034-password-manager, T088): what an `icon` value shows
-// (src/lib/passwords/icons.ts). A name of the lists is a picture of holzi, `binary:<hash>` is a
+// (src/lib/passwords/icons.ts). A name of the lists is a picture of haex-vault, `binary:<hash>` is a
 // picture the import stored, anything else is the default of the place.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
@@ -13,7 +13,7 @@ import {
 
 const HASH = 'a'.repeat(64)
 
-test('a name of the picker and a name the import maps to are pictures of holzi', () => {
+test('a name of the picker and a name the import maps to are pictures of HaexVault', () => {
   assert.deepEqual(resolveIcon(ENTRY_ICONS[0]), {
     kind: 'name',
     name: ENTRY_ICONS[0],

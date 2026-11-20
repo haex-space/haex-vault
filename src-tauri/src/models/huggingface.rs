@@ -43,7 +43,7 @@ pub const DEFAULT_BASE_URL: &str = "https://huggingface.co";
 /// Treffer pro Seite". A client-requested limit is clamped to this value.
 pub const DEFAULT_LIMIT: usize = 20;
 
-/// The branch Holzi tracks when the caller does not pin an explicit
+/// The branch haex-vault tracks when the caller does not pin an explicit
 /// revision. Recorded as `revisionRef` so `check_huggingface_model_updates`
 /// has something to compare against later.
 const DEFAULT_REVISION_REF: &str = "main";

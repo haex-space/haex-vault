@@ -399,7 +399,7 @@ const FAKES: [Fake; 30] = [
                 "start_timer",
                 "Zeit starten",
                 "Starts tracking time for a project",
-                "Starte die Zeiterfassung für Projekt Holzi",
+                "Starte die Zeiterfassung für Projekt HaexVault",
             ),
             (
                 "hours_week",

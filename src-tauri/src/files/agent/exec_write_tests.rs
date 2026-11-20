@@ -1,5 +1,5 @@
 //! The writing file actions of the built-in agent (contracts/agent-actions.md): names taken at the
-//! target decided by `onConflict`, a copy that never replaces, holzi's own places refused also
+//! target decided by `onConflict`, a copy that never replaces, haex-vault's own places refused also
 //! inside a folder, and storages written only with `readWrite`.
 
 use std::fs;
@@ -39,11 +39,11 @@ async fn nothing_in_or_around_haexs_own_places_is_changed() {
     let attempts = [
         (
             "files.folder.create",
-            json!({ "source": "device", "path": scene.at("holzi"), "name": "x" }),
+            json!({ "source": "device", "path": scene.at("haex-vault"), "name": "x" }),
         ),
         (
             "files.rename",
-            json!({ "source": "device", "path": scene.at("holzi"), "newName": "x" }),
+            json!({ "source": "device", "path": scene.at("haex-vault"), "newName": "x" }),
         ),
         (
             "files.rename",
@@ -51,7 +51,7 @@ async fn nothing_in_or_around_haexs_own_places_is_changed() {
         ),
         (
             "files.copy",
-            json!({ "source": "device", "paths": [scene.at("holzi/vault.db")], "to": scene.at("b") }),
+            json!({ "source": "device", "paths": [scene.at("haex-vault/vault.db")], "to": scene.at("b") }),
         ),
         (
             "files.copy",
@@ -59,11 +59,11 @@ async fn nothing_in_or_around_haexs_own_places_is_changed() {
         ),
         (
             "files.move",
-            json!({ "source": "device", "paths": [scene.at("notiz.txt")], "to": scene.at("holzi") }),
+            json!({ "source": "device", "paths": [scene.at("notiz.txt")], "to": scene.at("haex-vault") }),
         ),
         (
             "files.delete",
-            json!({ "source": "device", "paths": [scene.at("holzi")] }),
+            json!({ "source": "device", "paths": [scene.at("haex-vault")] }),
         ),
         (
             "files.delete",
@@ -74,7 +74,7 @@ async fn nothing_in_or_around_haexs_own_places_is_changed() {
         let refused = scene.run(action, input.clone()).await.expect_err("blocked");
         assert_eq!(refused.code, "files_blocked", "{action} {input}");
     }
-    assert!(scene.path("holzi/vault.db").is_file());
+    assert!(scene.path("haex-vault/vault.db").is_file());
     assert!(scene.path("notiz.txt").is_file());
 }
 

@@ -1,6 +1,6 @@
 //! SQL of migration `0062_extension_default_model` (spec 055, change of 2026-11-13): an extension
 //! has no rank of models any more, only at most one default model, which its jobs go to first and
-//! which holzi asks the user to replace when it cannot take a job.
+//! which haex-vault asks the user to replace when it cannot take a job.
 //!
 //! `extension_default_model` is vault-wide and syncs, so the default holds on every own device. It
 //! carries no UNIQUE constraint (a conflict would halt the sync, as in [`super::migrations_storage`]):

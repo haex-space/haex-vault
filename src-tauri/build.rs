@@ -73,11 +73,11 @@ fn configure_nix_devshell_linker() {
     // from the same directory).
     println!("cargo:rustc-link-arg=-Wl,--disable-new-dtags");
     println!("cargo:rustc-link-arg=-Wl,-rpath,{runtime_path}");
-    // The program also runs as holzi's MCP helper (`--mcp-agent`), started by Claude Code and
+    // The program also runs as haex-vault's MCP helper (`--mcp-agent`), started by Claude Code and
     // Codex with the environment `clear_inherited_nix_library_path` leaves them. There
     // `LD_LIBRARY_PATH` is gone, so the speech libraries that the build copies next to the
     // program must be found from the program's own folder, or the helper dies at start and the
-    // delegate reports "Connection closed" for holzi's tools.
+    // delegate reports "Connection closed" for haex-vault's tools.
     println!("cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN");
 
     if std::env::var_os("CARGO_FEATURE_LLM_CUDA").is_some() {

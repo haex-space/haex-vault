@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * Reading a contact in (spec 060 US4, FR-021 to FR-025a): paste the text of a share or an old
- * Visitenkarte, or scan its QR code on a phone. holzi checks it and shows a preview with the target
+ * Visitenkarte, or scan its QR code on a phone. haex-vault checks it and shows a preview with the target
  * (a new contact, or the one that has the vault already, or one the person picks) and one row per
  * item with its choices. Nothing is stored before "Übernehmen"; the defaults add what is new and
  * replace nothing, and a vault identity of a contact is never replaced.
@@ -48,7 +48,7 @@ watch(text, () => {
 
 const inbox = useShareInboxStore()
 
-// Spec 060 FR-018a: the text of a link that was opened outside holzi is read in as if pasted;
+// Spec 060 FR-018a: the text of a link that was opened outside haex-vault is read in as if pasted;
 // only the preview is shown, nothing is stored before "Übernehmen". Taken out of the inbox at
 // once, so a later link can come in (also while this page is open).
 watch(

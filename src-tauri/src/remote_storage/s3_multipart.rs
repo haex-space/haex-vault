@@ -9,7 +9,7 @@ use tokio::time::Instant;
 use super::s3::{bucket, read_body, signing, S3Store, SIGNED_FOR};
 use super::{Access, StorageError};
 
-/// The most of an answer of `CreateMultipartUpload` holzi reads.
+/// The most of an answer of `CreateMultipartUpload` haex-vault reads.
 const MAX_CREATE_ANSWER: usize = 64 * 1024;
 
 pub(super) async fn create(

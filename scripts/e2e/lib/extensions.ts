@@ -95,7 +95,7 @@ export async function start(
   )
 }
 
-/** Runs `script` inside the displayed frame of `extension`, then returns to holzi. */
+/** Runs `script` inside the displayed frame of `extension`, then returns to haex-vault. */
 export async function inFrame<T>(
   page: Page,
   extension: InstalledExtension,
@@ -116,7 +116,7 @@ export interface BridgeAnswer {
   error?: { code: number; message: string; details?: unknown }
 }
 
-/** A bridge request of the probe page, answered over holzi's port. */
+/** A bridge request of the probe page, answered over haex-vault's port. */
 export async function probeRequest(
   page: Page,
   extension: InstalledExtension,
@@ -131,7 +131,7 @@ export async function probeRequest(
   )
 }
 
-/** Goes back in the tab that shows `extension`, as holzi's Back does. */
+/** Goes back in the tab that shows `extension`, as haex-vault's Back does. */
 export async function backInTab(
   instance: FlowInstance,
   extension: InstalledExtension,

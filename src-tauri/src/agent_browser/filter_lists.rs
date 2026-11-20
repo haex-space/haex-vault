@@ -21,7 +21,7 @@ use super::filters::{LiveFilter, TrackerFilter};
 pub const REFRESH_AFTER: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 /// How long the first start waits for lists it has never had.
 pub const FIRST_WAIT: Duration = Duration::from_secs(10);
-/// How often a running holzi looks at the age of its lists again.
+/// How often a running haex-vault looks at the age of its lists again.
 const RECHECK: Duration = Duration::from_secs(60 * 60);
 
 #[derive(Default)]
@@ -315,7 +315,7 @@ impl FilterLists {
         })
     }
 
-    /// Writes the list to a temporary file of its own (another holzi on this device may store the
+    /// Writes the list to a temporary file of its own (another haex-vault on this device may store the
     /// same list) and moves it over the old copy, so the copy is either the old or the new one.
     async fn store(&self, id: &str, text: &str) -> Result<(), String> {
         tokio::fs::create_dir_all(&self.dir)

@@ -3,7 +3,7 @@
  * Developer mode in "Erweiterungen" (spec 017, US12, T096, FR-063): the switch for this device,
  * loading a project folder and the development versions loaded here with "Entladen" (listed also
  * while the mode is off, since a loaded one keeps its prefix until unloaded). Switching
- * reloads holzi's window, so its policy lets it frame development servers (research R16).
+ * reloads haex-vault's window, so its policy lets it frame development servers (research R16).
  */
 import { invoke } from '@tauri-apps/api/core'
 import { toast } from 'vue-sonner'

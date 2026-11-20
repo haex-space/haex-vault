@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * The choice in the question of a job (spec 055 US2, T036): which of the models that fit the job
- * the extension may use, and up to which effort. holzi offers only models that can do what the job
+ * the extension may use, and up to which effort. haex-vault offers only models that can do what the job
  * needs, the one it proposes first; the user's pick goes back with the answer. The models are one
  * select grouped by provider, so a subscription with a hundred models stays usable.
  */

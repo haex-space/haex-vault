@@ -1,5 +1,5 @@
 //! An extension proposes, changes, tests and removes storages (spec 038 US3, T038, T039): only
-//! through a confirmed dialog of holzi, credentials never through the bridge, a proposed endpoint
+//! through a confirmed dialog of haex-vault, credentials never through the bridge, a proposed endpoint
 //! only with the `add` permission for its host. Credentials whose test fails:
 //! `remote_storage_credentials_tests.rs`.
 
@@ -350,7 +350,7 @@ fn update_test_and_remove_need_read_and_write_and_a_confirmation() {
         "extension_remote_storage_update_backend",
         json!({ "request": { "backendId": s.notes } }),
     )
-    .expect("new credentials from holzi's window");
+    .expect("new credentials from HaexVault's window");
     assert_eq!(
         s.count("SELECT COUNT(*) FROM haex_passwords_item_details"),
         entries_before,

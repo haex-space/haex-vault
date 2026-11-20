@@ -14,7 +14,7 @@ use ts_rs::TS;
 
 use crate::files::SourceRef;
 
-/// The holzi function the contact lookups of file shares run as (`Caller::Internal`).
+/// The haex-vault function the contact lookups of file shares run as (`Caller::Internal`).
 pub const FEATURE: &str = "fileShares";
 
 /// How far a contact may go in a share (FR-016): read, or read and write below the root.

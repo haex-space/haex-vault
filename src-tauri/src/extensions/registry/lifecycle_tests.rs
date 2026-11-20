@@ -146,7 +146,7 @@ fn a_shell_permission_from_a_does_not_hold_on_b_a_file_permission_does() {
 fn an_old_shell_allow_for_every_device_counts_nowhere_an_old_deny_still_holds() {
     let (a, b) = (Node::new(), Node::new());
     let ext = a.install(&bundle("1.0.0", &[INIT]));
-    // Rows as holzi wrote them before the clarification of 2026-10-06: the shell vault-wide.
+    // Rows as haex-vault wrote them before the clarification of 2026-10-06: the shell vault-wide.
     a.vault
         .write_blocking(move |tx| {
             for (target, status) in [("/usr/bin/git", "granted"), ("/usr/bin/rm", "denied")] {

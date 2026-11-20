@@ -1,5 +1,5 @@
 //! SQL of migration `0028_storage_connections` (spec 038, data-model.md, research R3): the storage
-//! connections of holzi (provider, endpoint, region, addressing; the credentials are an entry of the
+//! connections of haex-vault (provider, endpoint, region, addressing; the credentials are an entry of the
 //! password manager owned by `storage`), the storages on them (one bucket each, the target of the
 //! extension permission `remoteStorage`) and the last test result per storage on this device.
 //!

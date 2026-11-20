@@ -1,7 +1,7 @@
 //! Uploads in parts to an SFTP server (spec 050 research R7, R10): a temporary file next to the
 //! target, each part written at its offset (a retried part lands where its first try went), then
 //! the file is closed and renamed onto its name. A cancel removes the temporary file. When a write
-//! fails, holzi asks the server how much space is free (`statvfs@openssh.com`, when offered) to
+//! fails, haex-vault asks the server how much space is free (`statvfs@openssh.com`, when offered) to
 //! tell a full storage from a broken connection. Sessions without a part for 30 minutes go.
 
 use std::collections::{BTreeMap, HashMap};

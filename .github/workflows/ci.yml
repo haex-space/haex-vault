@@ -599,7 +599,7 @@ jobs:
             cargo install tauri-driver --locked --version 2.0.6 --force
 
       # Spec 057 (T081): the desktop peer scenario starts a local relay for the vault group, just
-      # like the Android scenarios do. Keep the binary version tied to the release holzi uses.
+      # like the Android scenarios do. Keep the binary version tied to the release haex-vault uses.
       - name: Read the iroh-relay version
         id: e2e-iroh-relay
         run: |
@@ -670,7 +670,7 @@ jobs:
           SHARDS_RESULT: ${{ needs.e2e-shards.result }}
         run: test "$SHARDS_RESULT" = success
 
-  # Spec 043 (research R15, contracts/ci.md): holzi for Android. The CI sets up its own Android
+  # Spec 043 (research R15, contracts/ci.md): haex-vault for Android. The CI sets up its own Android
   # environment instead of the Nix devShell; `pnpm check:android-versions` (job documentation)
   # keeps the SDK packages, the NDK and the Rust toolchain below equal to the devShell's.
   android-build:
@@ -893,7 +893,7 @@ jobs:
       matrix:
         shard: [1, 2, 3]
     env:
-      # The Nostr test relay is a binary of the holzi crate, built for this machine; it shares the
+      # The Nostr test relay is a binary of the haex-vault crate, built for this machine; it shares the
       # desktop jobs' cache entry.
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       # Android scenarios can start a Linux host app beside the emulator.
@@ -915,7 +915,7 @@ jobs:
       - name: Install frontend dependencies
         run: corepack pnpm install --frozen-lockfile --ignore-scripts
 
-      # The relay binary links the holzi crate, which needs the desktop build dependencies.
+      # The relay binary links the haex-vault crate, which needs the desktop build dependencies.
       # The other devices of a group run on Linux beside the phone (stage 2: mixed groups), so the
       # job also needs what the desktop e2e job has: WebKitWebDriver, Xvfb and tauri-driver.
       - name: Install Linux build dependencies
@@ -946,7 +946,7 @@ jobs:
           shared-key: default
           save-if: false
 
-      # Spec 066 (T001): the e2e suite builds holzi for the host side of the scenarios, with the
+      # Spec 066 (T001): the e2e suite builds haex-vault for the host side of the scenarios, with the
       # `voice` feature, so it needs the checked sherpa-onnx archive like every other build.
       - name: Fetch sherpa-onnx
         run: node scripts/fetch-sherpa-onnx.ts
@@ -975,7 +975,7 @@ jobs:
             cargo install tauri-driver --locked --version 2.0.6 --force
 
       # The devices of a group meet through a local iroh relay, since the phone sits behind the
-      # emulator's own network (contract e2e-android.md): the `iroh-relay` of the release holzi uses.
+      # emulator's own network (contract e2e-android.md): the `iroh-relay` of the release haex-vault uses.
       - name: Read the iroh-relay version
         id: iroh-relay
         run: |
@@ -1062,7 +1062,7 @@ jobs:
           path: src-tauri/target/e2e
           if-no-files-found: ignore
 
-  # Spec 044 (T007, research R4): may holzi's web view fetch from a server on 127.0.0.1 on Windows
+  # Spec 044 (T007, research R4): may haex-vault's web view fetch from a server on 127.0.0.1 on Windows
   # and macOS? Local Network Access in WebView2 could forbid it. The probe build reports one line and
   # exits; `scripts/run-platform-probe.ts` judges it. Not a required check until it has run green.
   # Split into three parts per OS, each with its own build, cache and time limit: with a cold cache
@@ -1100,14 +1100,14 @@ jobs:
         run: corepack pnpm install --frozen-lockfile
 
       # A release build embeds `frontendDist` (`../.output/public`) and refuses to compile without
-      # it. The test parts never load a page of holzi's own, so a placeholder page will do and
+      # it. The test parts never load a page of haex-vault's own, so a placeholder page will do and
       # spares them the frontend build.
       - name: Placeholder frontend for the test parts
         if: matrix.part != 'probe'
         shell: bash
         run: |
           mkdir -p .output/public
-          printf '<!doctype html><title>holzi</title>\n' > .output/public/index.html
+          printf '<!doctype html><title>HaexVault</title>\n' > .output/public/index.html
 
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
@@ -1132,7 +1132,7 @@ jobs:
       # and detects speech on Windows and macOS. The runner's default shell on purpose: under Git
       # Bash, `perl` is Git's MSYS Perl, which lacks modules openssl-src (SQLCipher) needs;
       # PowerShell finds Strawberry Perl.
-      - name: Build holzi with the probe
+      - name: Build HaexVault with the probe
         if: matrix.part == 'probe'
         run: corepack pnpm tauri build --no-bundle --features platform-probe,voice -- --no-default-features
 

@@ -1,4 +1,4 @@
-//! WebDAV, written by holzi on `reqwest` and `quick-xml` (spec 050 research R2, contracts/
+//! WebDAV, written by haex-vault on `reqwest` and `quick-xml` (spec 050 research R2, contracts/
 //! object-store.md): a storage is a folder on the server, a key a path below it. Files are written
 //! to a temporary file next to their name and moved onto it, so a cancel never leaves half a file
 //! (FR-016); folders are real folders and show in listings as S3 shows its folder markers.

@@ -174,7 +174,7 @@ fn a_granted_model_answers_and_the_extension_hears_the_result_with_its_provenanc
     assert_eq!(source.asked(), [rows[0].id.clone()]);
     assert!(
         s.ctx.host.model_jobs().get(job_id(&answer)).is_none(),
-        "holzi forgets the job after its event (FR-028)"
+        "HaexVault forgets the job after its event (FR-028)"
     );
 }
 

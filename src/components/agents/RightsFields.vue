@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * The rights of an external agent per topic of "holzi bedienen" (spec 021 FR-008): nothing,
+ * The rights of an external agent per topic of "haex-vault bedienen" (spec 021 FR-008): nothing,
  * reading, or reading and changing. One row per topic, not per scope; the level of a row stands
  * for every scope of the topic (`OPERATE_GROUPS`). The slot adds rows to the same list, for the
  * group "Passwörter", which has the same levels. Used by the registration dialog and the agent's

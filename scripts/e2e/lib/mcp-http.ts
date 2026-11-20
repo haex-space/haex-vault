@@ -1,10 +1,10 @@
-// An MCP client on holzi's HTTP way for the scenarios (spec 021 T097, contracts/http-auth.md): it
+// An MCP client on haex-vault's HTTP way for the scenarios (spec 021 T097, contracts/http-auth.md): it
 // registers itself, opens the authorization page as a browser would, waits while the person
-// answers the registration dialog in holzi, exchanges the code with PKCE and speaks streamable HTTP.
+// answers the registration dialog in haex-vault, exchanges the code with PKCE and speaks streamable HTTP.
 // Plain `fetch`, no `Origin` header, the way a native client does.
 import { createHash, randomBytes } from 'node:crypto'
 
-/** The redirect URI the client registers; holzi only redirects there, nobody listens. */
+/** The redirect URI the client registers; haex-vault only redirects there, nobody listens. */
 const REDIRECT = 'http://127.0.0.1:1/callback'
 
 export interface HttpMcpClient {
@@ -31,7 +31,7 @@ function messageOf(contentType: string, body: string, id: number): unknown {
 
 /**
  * Registers `clientName` on `base` (e.g. `http://127.0.0.1:47011`) and signs in; `confirm` answers
- * the registration dialog in holzi once the page waits for it.
+ * the registration dialog in haex-vault once the page waits for it.
  */
 export async function connectOverHttp(
   base: string,
@@ -79,7 +79,7 @@ export async function connectOverHttp(
     if (waited.status === 302) location = waited.headers.get('location')
     else await new Promise((resolve) => setTimeout(resolve, 100))
   }
-  if (location === null) throw new Error('holzi never redirected')
+  if (location === null) throw new Error('HaexVault never redirected')
   const code = new URL(location).searchParams.get('code')
   if (code === null)
     throw new Error(`the authorization was refused: ${location}`)
@@ -107,7 +107,7 @@ export async function connectOverHttp(
       accept: 'application/json, text/event-stream',
     }
     if (session !== null) headers['mcp-session-id'] = session
-    // A call holzi holds (an unanswered prompt) fails here instead of at the scenario's deadline.
+    // A call haex-vault holds (an unanswered prompt) fails here instead of at the scenario's deadline.
     const response = await fetch(`${base}/mcp`, {
       method: 'POST',
       headers,

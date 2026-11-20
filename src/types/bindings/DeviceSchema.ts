@@ -9,7 +9,7 @@ export type DeviceSchema = {
  */
 protocol: number,
 /**
- * How many holzi migrations the device knows: how the vault's tables are built.
+ * How many haex-vault migrations the device knows: how the vault's tables are built.
  */
 haexMigration: number,
 /**

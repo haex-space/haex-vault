@@ -1,4 +1,4 @@
-//! holzi never picks another model on its own (spec 055 FR-007, FR-027, change of 2026-11-14): the
+//! haex-vault never picks another model on its own (spec 055 FR-007, FR-027, change of 2026-11-14): the
 //! default model gets the step and nobody else; when it cannot take the step or is not available the
 //! user is asked before any request is sent, and when it fails while the job runs the user is asked
 //! at once. Without a default the first model the extension may use goes first and a failure asks too.

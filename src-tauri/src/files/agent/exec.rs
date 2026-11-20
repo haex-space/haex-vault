@@ -1,7 +1,7 @@
 //! The native executor of the `files.*` actions (spec 044 US6, contracts/agent-actions.md, ADR
 //! 0011), for the built-in agent and for each external agent (spec 021 US5, [`super::agents`]).
 //! Every call runs as the agent it was built for, never as a caller named in the input:
-//! holzi's own places are refused and left out of every answer (FR-033), the device needs the grant
+//! haex-vault's own places are refused and left out of every answer (FR-033), the device needs the grant
 //! "files of the device" (FR-031), a storage its own grant, asked for once when it is missing
 //! (FR-031a; [`super::reach`]). Reading is in [`super::read`], the writing actions are in
 //! [`super::exec_write`].
@@ -64,7 +64,7 @@ pub struct FilesAgent<E> {
 }
 
 impl<E: AgentEnv> FilesAgent<E> {
-    /// The executor of the agent of the holzi chat.
+    /// The executor of the agent of the haex-vault chat.
     pub fn builtin(env: E) -> Self {
         Self {
             env,

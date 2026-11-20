@@ -3,7 +3,7 @@
  * The choice for a mail link that came in from outside (spec 063, US2): one row per extension
  * that writes mail, and "Link kopieren". The system's mail program is never offered here (FR-018),
  * and the dialog opens nothing itself (FR-020): the person taps a row, or closes it and nothing
- * happens. holzi reads the link (`opener_mail_check`), so what the dialog shows is what the
+ * happens. haex-vault reads the link (`opener_mail_check`), so what the dialog shows is what the
  * extension would get; a link that is refused only says, as a toast, that it cannot be read.
  */
 import { invoke } from '@tauri-apps/api/core'
@@ -22,7 +22,7 @@ const { rows, openWithAsync } = useMailOpeners()
 
 const open = ref(false)
 const link = ref('')
-/** What holzi read from the link, or `null` while it reads and when it refused. */
+/** What haex-vault read from the link, or `null` while it reads and when it refused. */
 const request = ref<MailRequestView | null>(null)
 /** Counts the links shown, so a late answer for a replaced link is dropped. */
 let shown = 0

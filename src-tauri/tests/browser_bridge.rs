@@ -359,7 +359,7 @@ async fn oversized_binary_and_silent_connections_are_closed() {
         .expect("send");
     closed(&mut binary).await;
 
-    // No handshake within the deadline (400 ms here, 10 s in holzi).
+    // No handshake within the deadline (400 ms here, 10 s in haex-vault).
     let mut silent = extension(port).await;
     closed(&mut silent).await;
 

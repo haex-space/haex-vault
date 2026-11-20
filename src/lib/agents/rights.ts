@@ -1,5 +1,5 @@
 // The rights of an external agent as the window edits them (spec 021 FR-008, research R3): per
-// scope of "holzi bedienen" nothing, reading, or reading and changing, the group `browser` with
+// scope of "haex-vault bedienen" nothing, reading, or reading and changing, the group `browser` with
 // its websites (spec 065), the extensions whose tools it sees (spec 021 US4), the group
 // `passwords` with its tags and the group `commands` (US5). Rust checks every change again
 // (`grants::validate`). Pure, relative `.ts` imports only; the shapes below are those of the
@@ -90,7 +90,7 @@ export type Rights = {
   files?: FilesRights
 }
 
-/** The scopes of "holzi bedienen" (Rust `grants::OPERATE_SCOPES`), in the order they are shown. */
+/** The scopes of "haex-vault bedienen" (Rust `grants::OPERATE_SCOPES`), in the order they are shown. */
 export const OPERATE_SCOPES = [
   'wm.read',
   'wm.navigation',
@@ -107,7 +107,7 @@ export type Level = OperateLevel | 'none'
 export type Levels = Record<OperateScope, Level>
 
 /**
- * What the window shows of "holzi bedienen": one row per topic, not per scope. The row's level
+ * What the window shows of "haex-vault bedienen": one row per topic, not per scope. The row's level
  * stands for every scope of the group, so "Chat" with "Lesen und ändern" is `chat.read` and
  * `chat.write` at `write`. The stored rights stay per scope; Rust knows no groups.
  */
@@ -267,7 +267,7 @@ export function siteOf(text: string): string | null {
   return url.origin
 }
 
-/** The i18n key of the name of the topic `scope` belongs to (its group in "holzi bedienen"), or
+/** The i18n key of the name of the topic `scope` belongs to (its group in "haex-vault bedienen"), or
  * `null` for a scope that is in none. */
 export function topicKeyOf(scope: string): string | null {
   const group = OPERATE_GROUPS.find((candidate) =>

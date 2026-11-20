@@ -8,7 +8,7 @@
 //! streams its answer back as plain [`super::StreamChunk::Delta`]/
 //! [`super::StreamChunk::Done`] — it never emits `ToolCalls`, since the
 //! delegate performs its own tool use internally (research.md §4). That
-//! internal tool use still needs to cross holzi's *existing* approval
+//! internal tool use still needs to cross haex-vault's *existing* approval
 //! gate (`chat/tools/permission.rs`, `ChatState.pending_tool_approvals`)
 //! so Manual/Auto/Plan apply identically to a delegate as to any other
 //! backend — hence this module's otherwise-unusual dependency on
@@ -61,7 +61,7 @@ use crate::cli_tools::runtime::{DelegateTools, RuntimeSource};
 use crate::vault_gate::{ChildRegistry, VaultDb};
 
 /// Builds the plain-text transcript both `claude -p` and `codex`'s
-/// `turn/start` receive as their conversation input. Holzi remains the
+/// `turn/start` receive as their conversation input. haex-vault remains the
 /// sole source of conversation history for either backend — neither
 /// vendor's own session persistence has anything to resume under a
 /// fresh, isolated `CLAUDE_CONFIG_DIR`/`CODEX_HOME` per invocation
@@ -132,7 +132,7 @@ pub struct DelegateChatContext {
     pub database: Option<VaultDb>,
     /// Where the delegated CLI's process registers, so ending the vault ends it.
     pub children: ChildRegistry,
-    /// holzi's own MCP server for a registered delegate (spec 021 US6); `None` for a job.
+    /// haex-vault's own MCP server for a registered delegate (spec 021 US6); `None` for a job.
     pub haex: Option<Arc<dyn haex_mcp::HaexAccess>>,
     /// What the permissive posture refuses for this turn: the deny rules of the agent profile of the
     /// model (spec 083 FR-030). Set per turn from the request; empty in a context built before.
@@ -191,7 +191,7 @@ pub struct CliDelegateAdapter {
     chat_context: Option<DelegateChatContext>,
     /// The provider row this adapter talks to: with the remote id of a request it names the model
     /// (`<provider id>:<remote id>`) whose agent profile limits what the delegate may do with
-    /// holzi's tools (spec 083 FR-028).
+    /// haex-vault's tools (spec 083 FR-028).
     provider_id: Option<Uuid>,
 }
 

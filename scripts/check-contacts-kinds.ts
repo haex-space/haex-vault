@@ -15,7 +15,7 @@ import {
   serializeIm,
 } from '../src/lib/contacts/kinds.ts'
 
-test('only the phone kinds leave holzi', () => {
+test('only the phone kinds leave HaexVault', () => {
   for (const kind of [
     'phone',
     'email',

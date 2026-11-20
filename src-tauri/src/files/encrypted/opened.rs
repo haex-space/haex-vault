@@ -3,7 +3,7 @@
 //! it), unless the user chose "Nicht mehr fragen" for that folder on this device (`open_ack`).
 //! Each copy lies in a folder of its own under `<AppCache>/files-opened-encrypted/`, never under
 //! `files-opened` of spec 044; the whole place goes when the vault closes and, after a crash, when
-//! holzi starts again.
+//! haex-vault starts again.
 
 use std::path::{Path, PathBuf};
 
@@ -101,9 +101,9 @@ async fn write_out(
     Ok(())
 }
 
-/// Removes every copy below `root`: the vault closes, or holzi starts after a crash.
+/// Removes every copy below `root`: the vault closes, or haex-vault starts after a crash.
 pub fn sweep(root: &Path) {
-    // ponytail: a second holzi process that starts removes the copies the first one opened; a
+    // ponytail: a second haex-vault process that starts removes the copies the first one opened; a
     // folder per process with a lock would keep them, once more than one process runs at a time.
     let _ = std::fs::remove_dir_all(root);
 }

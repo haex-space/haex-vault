@@ -1,7 +1,7 @@
-//! The catalog: which CLI tools holzi can install into a vault and which versions of each it has
+//! The catalog: which CLI tools haex-vault can install into a vault and which versions of each it has
 //! tested (spec 094 FR-009, FR-015, `data-model.md`).
 //!
-//! It is data shipped with holzi (`catalog.json`, written by `scripts/cli-tools/add-version.ts`
+//! It is data shipped with haex-vault (`catalog.json`, written by `scripts/cli-tools/add-version.ts`
 //! from signature-checked vendor data). An install only ever takes a version of this list, and
 //! checks the download against the SHA-256 listed here, so the check does not depend on the
 //! vendor's server at install time (spec FR-006). Adding a vendor is adding data; nothing in the
@@ -25,7 +25,7 @@ const SCHEMA: u32 = 1;
 #[error("catalog: {0}")]
 pub struct CatalogError(String);
 
-/// Every vendor holzi can install a tool for.
+/// Every vendor haex-vault can install a tool for.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct Catalog {

@@ -401,7 +401,7 @@ fn device_name(replica: &Replica, vault: &LinkVault) -> String {
     .ok()
     .flatten()
     .filter(|alias| !alias.trim().is_empty())
-    .unwrap_or_else(|| "holzi".to_string())
+    .unwrap_or_else(|| "HaexVault".to_string())
 }
 
 /// Gives the host the chance to finish: it closes after publishing.

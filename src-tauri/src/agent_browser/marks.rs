@@ -1,5 +1,5 @@
 //! Marks on a screenshot (spec 065 FR-056, research R21): a box and the element's number on every
-//! listed element in view. holzi draws them itself on the captured image, after the capture, so the
+//! listed element in view. haex-vault draws them itself on the captured image, after the capture, so the
 //! page neither sees nor changes them, and with a built-in 5×7 font for the digits, so no font file
 //! and no new dependency. The numbers are those of `browser.page.read`.
 

@@ -224,7 +224,7 @@ test('the sync rule entry is not offered in a contact share or a device store (s
   )
 })
 
-test("the sync rule entry is not offered for holzi's own data, a link or a folder without access (spec 073)", () => {
+test("the sync rule entry is not offered for HaexVault's own data, a link or a folder without access (spec 073)", () => {
   assert.equal(
     syncRuleOffer({ ...PLAIN, source: DEVICE, haexOwned: true }),
     false,

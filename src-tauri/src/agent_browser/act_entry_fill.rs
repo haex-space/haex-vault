@@ -1,19 +1,19 @@
-//! `browser.entry.fill` (spec 065 US4, FR-037, FR-038, research R7a): holzi fills data of an entry
+//! `browser.entry.fill` (spec 065 US4, FR-037, FR-038, research R7a): haex-vault fills data of an entry
 //! the user chooses (bank or card data, a username, a custom field) into a form of the agent's tab.
 //! The agent names only the tab, perhaps the form, and its purpose; it learns only the numbers of
-//! the elements holzi filled, never the entry, its field names or values.
+//! the elements haex-vault filled, never the entry, its field names or values.
 //!
 //! The entries are those the agent's rights group "Passwörter" reaches (the built-in agent's own
-//! setting, read through the holzi function `agent_browser`), not those of the website: bank data
+//! setting, read through the haex-vault function `agent_browser`), not those of the website: bank data
 //! belongs to no website. Which page field gets which entry field decides `haex-autofill`, the
-//! rule of the browser extension, card fields (`autocomplete` `cc-*`) included. holzi asks every
+//! rule of the browser extension, card fields (`autocomplete` `cc-*`) included. haex-vault asks every
 //! time, in Manuell and Auto, never remembered: the question shows the website, the purpose as the
 //! agent's statement, the entries to choose from and one row per mapped field, each to deselect.
-//! The values are written as in `browser.credentials.fill`: from holzi's world, only into the
+//! The values are written as in `browser.credentials.fill`: from haex-vault's world, only into the
 //! fields the user saw, remembered by the session, removed from every later reply, and screenshots
 //! stay off. Submitting the form asks again with the values as `•••`.
 //!
-//! Besides the tab's page holzi fills the frames of websites the agent may operate
+//! Besides the tab's page haex-vault fills the frames of websites the agent may operate
 //! ([`super::entry_docs`]); their rows name the frame's website. The agent's reply counts the
 //! fields filled in frames, whose elements it cannot number.
 
@@ -307,7 +307,7 @@ impl Acting<'_> {
         } else {
             None
         };
-        // Only now, for the entry the user chose, holzi reads its values.
+        // Only now, for the entry the user chose, haex-vault reads its values.
         let item = service
             .read_secret_item(&caller, &grants, entry.id.clone())
             .await
@@ -382,7 +382,7 @@ impl Acting<'_> {
         Ok(all)
     }
 
-    /// Writes `values` into `doc` in holzi's world, if it still shows the fields of `facts`; the
+    /// Writes `values` into `doc` in haex-vault's world, if it still shows the fields of `facts`; the
     /// numbers of the elements it filled.
     async fn write_in(
         &self,

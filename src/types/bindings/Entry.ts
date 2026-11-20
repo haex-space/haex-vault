@@ -19,7 +19,7 @@ size: number | null, modifiedMs: number | null, mime: string | null, hidden: boo
  */
 noAccess: boolean,
 /**
- * In one of holzi's own places: read-only for the user (FR-037).
+ * In one of haex-vault's own places: read-only for the user (FR-037).
  */
 haexOwned: boolean,
 /**

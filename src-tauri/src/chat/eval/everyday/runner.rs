@@ -75,7 +75,7 @@ impl Profile {
     }
 }
 
-/// The registry a chat holds on `profile` with holzi's `actions` and the installed `extensions`,
+/// The registry a chat holds on `profile` with haex-vault's `actions` and the installed `extensions`,
 /// built as the app builds it (`host_tools`, `register_action_tools`); no tool in it ever runs.
 pub(crate) fn app_registry(
     actions: &[AgentActionDef],

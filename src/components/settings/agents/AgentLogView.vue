@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * The log of one external agent (spec 021, US7, FR-028): its calls newest first, with the target
- * and the inputs as holzi kept them (secrets as `•••`), the outcome and whether holzi asked.
+ * and the inputs as haex-vault kept them (secrets as `•••`), the outcome and whether haex-vault asked.
  * Older entries load page by page; "Protokoll leeren" runs the guardrail action
  * `settings.agents.mcp.log.clear`. Entries older than 30 days are gone on their own.
  */

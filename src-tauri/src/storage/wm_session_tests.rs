@@ -1,6 +1,6 @@
 //! Tests for `wm_session` (spec 022-session-restore, research R1/R2). The
 //! table is `_no_sync`, so haex-crdt stamps no HLC, but the schema only
-//! exists on a vault opened with holzi's migrations — these open a real
+//! exists on a vault opened with haex-vault's migrations — these open a real
 //! `Database` like the other storage tests.
 
 use std::sync::Arc;

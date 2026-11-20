@@ -1,4 +1,4 @@
-// Part of `pnpm check:extensions` (spec 063, FR-016, research R5): holzi lists itself for `mailto`
+// Part of `pnpm check:extensions` (spec 063, FR-016, research R5): haex-vault lists itself for `mailto`
 // where the system lets a person choose, and never makes itself the program for it.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -19,7 +19,7 @@ interface DeepLinkConfig {
 const base = JSON.parse(read('tauri.conf.json')) as DeepLinkConfig
 const windows = JSON.parse(read('tauri.windows.conf.json')) as DeepLinkConfig
 
-test('the packages of Linux and macOS list holzi for haex-vault and mailto', () => {
+test('the packages of Linux and macOS list HaexVault for haex-vault and mailto', () => {
   assert.deepEqual(base.plugins['deep-link'].desktop.schemes, [
     'haex-vault',
     'mailto',

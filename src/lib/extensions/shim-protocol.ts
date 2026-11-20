@@ -1,7 +1,7 @@
-// Messages between holzi and the frame shim of an extension (spec 017, contracts/bridge.md
+// Messages between haex-vault and the frame shim of an extension (spec 017, contracts/bridge.md
 // §Rahmen-Shim). Pure: `useExtensionFrame` applies the effects to the tab, `scripts/check-extensions-
 // shim.ts` tests them. Every shim message comes from the extension's realm and can be forged, so
-// each effect only ever touches the frame's own tab, and a shortcut runs only if holzi sent it.
+// each effect only ever touches the frame's own tab, and a shortcut runs only if haex-vault sent it.
 import {
   formatLocation,
   parseLocation,
@@ -69,7 +69,7 @@ export function readShimMessage(
   }
 }
 
-/** holzi → shim: show `location` (Back and Forward in holzi). */
+/** haex-vault → shim: show `location` (Back and Forward in haex-vault). */
 export function navigateMessage(location: TabLocation): {
   type: 'navigate'
   path: string
@@ -86,7 +86,7 @@ export function navigateMessage(location: TabLocation): {
       }
 }
 
-/** holzi → shim: the first message, sent with holzi's own port. */
+/** haex-vault → shim: the first message, sent with haex-vault's own port. */
 export function initMessage(shortcuts: readonly ShortcutFields[]): {
   type: 'haex:frame:init'
   shortcuts: readonly ShortcutFields[]

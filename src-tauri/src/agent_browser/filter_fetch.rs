@@ -8,7 +8,7 @@ use async_trait::async_trait;
 
 /// How long one download may take.
 const TIMEOUT: Duration = Duration::from_secs(30);
-/// The largest list holzi takes; the biggest default list is about 13 MB.
+/// The largest list haex-vault takes; the biggest default list is about 13 MB.
 const MAX_BYTES: usize = 64 * 1024 * 1024;
 
 /// Where the texts of filter lists come from.

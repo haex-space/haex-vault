@@ -227,7 +227,7 @@ impl Place {
 }
 
 /// Where `path` of `source` leads. A device path into an encrypted folder is checked like the
-/// device folder that holds the folder: no change in holzi's own places (FR-037).
+/// device folder that holds the folder: no change in haex-vault's own places (FR-037).
 pub(crate) async fn place_of(
     app: &AppHandle,
     state: &AppState,

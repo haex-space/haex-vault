@@ -28,7 +28,7 @@ targets: Array<ContactTarget>,
  */
 issues: Array<ContactIssue>,
 /**
- * The confirmed holzi addresses, from the contact's Visitenkarte (FR-008).
+ * The confirmed haex-vault addresses, from the contact's Visitenkarte (FR-008).
  */
 card: ContactCardInfo | null,
 /**

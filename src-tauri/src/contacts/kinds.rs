@@ -1,7 +1,7 @@
 //! The kinds of contact values (spec 051 FR-003, FR-007, FR-008, FR-014; data-model.md). The set is
 //! open: a later version adds kinds without a migration, and a value of a kind this version does
 //! not know is kept as it is and shown read-only. Only the kinds the phone's address book knows go
-//! to a phone; the holzi addresses and custom values never do.
+//! to a phone; the haex-vault addresses and custom values never do.
 
 use serde_json::{Map, Value as Json};
 
@@ -90,7 +90,7 @@ pub fn is_known(kind: &str) -> bool {
     KNOWN.contains(&kind)
 }
 
-/// Whether values of this kind are holzi addresses (FR-008).
+/// Whether values of this kind are haex-vault addresses (FR-008).
 pub fn is_haex_address(kind: &str) -> bool {
     matches!(kind, HAEX_VAULT | HAEX_NOSTR_RELAY | HAEX_IROH)
 }

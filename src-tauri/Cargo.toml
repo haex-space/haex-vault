@@ -1,11 +1,11 @@
 [package]
 name = "haex"
 default-run = "haex"
-version = "0.1.3"
+version = "3.0.0"
 description = "Portable personal-agent Tauri app with embedded encrypted store"
 authors = ["haexmas"]
 license = "AGPL-3.0-or-later"
-repository = "https://github.com/haexmas/holzi"
+repository = "https://github.com/haex-space/haex-vault"
 edition = "2021"
 rust-version = "1.95"
 
@@ -38,7 +38,7 @@ required-features = ["llm-llamacpp"]
 # while iterating on unrelated code.
 default = ["llm-llamacpp", "voice", "voice-qwen"]
 
-# llama.cpp, holzi's only local LLM engine. It needs `cmake` and a C++ toolchain at build time.
+# llama.cpp, haex-vault's only local LLM engine. It needs `cmake` and a C++ toolchain at build time.
 llm-llamacpp = [
     "dep:llama-cpp-2",
     "dep:llama-cpp-sys-2",
@@ -111,7 +111,7 @@ zeroize = { version = "1", features = ["serde"] }
 
 # Own-device sync (spec 024, research R1). `nostr` carries the secp256k1 keys,
 # BIP-340 signatures and NIP-44 envelopes; `secp256k1` is the same version
-# `nostr` uses and verifies Schnorr signatures over holzi's own payloads.
+# `nostr` uses and verifies Schnorr signatures over haex-vault's own payloads.
 # `iroh` owns the device's QUIC endpoint key. `hkdf` derives the vault identity
 # from the placeholder (R3) and the per-purpose keys, `chacha20poly1305`
 # seals device names in the device list, `postcard` encodes everything that
@@ -197,7 +197,7 @@ curve25519-dalek = "5"
 subtle = "2.6"
 
 # haex-crdt 0.4.0, originally pinned per plans/001-desktop-mvp.md at commit
-# 1c069ef; no tagged releases past v0.1.0 exist yet, so holzi pins main by
+# 1c069ef; no tagged releases past v0.1.0 exist yet, so haex-vault pins main by
 # full SHA. Bumped (spec 013, T084) for an erasing `SqlCipherKey`
 # (haexmas/haex-crdt#30), and again (spec 024, T001) for the transactional
 # write path `Database::write` / `Database::read` (#34), typed errors (#35)
@@ -253,7 +253,7 @@ sysinfo = "0.39"
 dunce = "1"
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "stream", "json", "query"] }
 
-# S3 of holzi's storage connections (spec 038, research R1). Sans-IO: it only
+# S3 of haex-vault's storage connections (spec 038, research R1). Sans-IO: it only
 # signs requests (SigV4 over RustCrypto `hmac`/`sha2`) and parses answers, the
 # transfer goes through the `reqwest` above. Default features `rustcrypto` and
 # `full`; never `aws-lc-rs`.
@@ -272,17 +272,17 @@ eventsource-stream = "0.2"
 
 # Official Rust MCP SDK (research.md §3), pinned per Constitution
 # Principle IV. `client` + `transport-child-process` are the only
-# features holzi needs — it is an MCP *client* spawning stdio servers,
+# features haex-vault needs — it is an MCP *client* spawning stdio servers,
 # never a server itself. `cli_delegate`'s Claude Code permission-prompt-tool
 # bridge (`adapters/cli_delegate/permission_mcp_server.rs`) speaks a
 # minimal hand-rolled stdio JSON-RPC loop instead of depending on rmcp's
 # `server`/`transport-io` features for one tool — considered and
 # rejected as unnecessary weight for that single-tool surface.
-# `server` (spec 021): holzi is also the MCP server external agents reach over a Unix socket or a
+# `server` (spec 021): haex-vault is also the MCP server external agents reach over a Unix socket or a
 # named pipe (`mcp_server/`, ADR-0005); it adds no crate the dev-dependency entry below did not
 # already build.
 # `transport-streamable-http-server` (spec 021 PR G, research R1): the HTTP way for clients that
-# speak only HTTP and for Android/iOS. holzi is its own OAuth server (`mcp_server/oauth*.rs`); rmcp's
+# speak only HTTP and for Android/iOS. haex-vault is its own OAuth server (`mcp_server/oauth*.rs`); rmcp's
 # `auth` feature is client-only, so it is a dev-dependency feature below.
 rmcp = { version = "=3.5.0", default-features = false, features = ["client", "transport-child-process", "server", "transport-streamable-http-server"] }
 # The loopback listener of the HTTP way (spec 021 T092), no `axum`. Already in the tree through
@@ -354,7 +354,7 @@ tract-onnx = { version = "=0.22.5", optional = true }
 tauri-plugin-notification = "2.5.1"
 # Spec 017 US11 (research R21): mail of extensions. IMAP over tokio, its protocol types (async-imap
 # returns them without re-exporting), parsing of fetched messages, and SMTP with lettre. TLS is
-# rustls with ring and the system's certificate check, as everywhere in holzi (no aws-lc-rs, no
+# rustls with ring and the system's certificate check, as everywhere in haex-vault (no aws-lc-rs, no
 # native-tls).
 async-imap = { version = "0.11", default-features = false, features = ["runtime-tokio"] }
 imap-proto = "0.16"
@@ -420,7 +420,7 @@ notify = "8"
 notify-debouncer-full = "0.5"
 
 # Spec 044 (FR-023): deleting on desktops moves to the system's trash; the crate builds for neither
-# Android nor iOS, where holzi deletes for good after asking.
+# Android nor iOS, where haex-vault deletes for good after asking.
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 trash = "5.2"
 
@@ -503,14 +503,14 @@ opt-level = 3
 
 # Spec 017 (T014, research R12/R25): wry injects Tauri's main-frame-only initialization scripts —
 # with the IPC invoke key — into every frame on Windows and Android, so an extension's sandboxed
-# iframe would get holzi's commands. haexmas/wry @ 47037dd (branch fix/main-frame-only-scripts,
+# iframe would get haex-vault's commands. haexmas/wry @ 47037dd (branch fix/main-frame-only-scripts,
 # on tag wry-v0.57.0) guards them with `if (window === window.top)` and keeps them out of subframe
 # HTML on Android. Remove this patch once a wry release contains the fix (upstream PR to
 # tauri-apps/wry from branch fix/main-frame-only-scripts-dev, 226fd46).
 # Spec 017 US8 (T099, research R20): tauri-plugin-notification reports clicks on notifications only
 # on mobile. tauri-apps/plugins-workspace @ 4638151 (merge of their #3671 into branch v2, after
 # notification-v2.5.1) reports them on desktop too and adds `Notification::on_action` for every
-# platform, so holzi has one way to show notifications and hear clicks. Remove once a
+# platform, so haex-vault has one way to show notifications and hear clicks. Remove once a
 # tauri-plugin-notification release after 2.5.1 contains it.
 [patch.crates-io]
 wry = { git = "https://github.com/haexmas/wry", rev = "47037ddc888b1576d0a558aa2a6d68346ce00735" }

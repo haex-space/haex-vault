@@ -2,7 +2,7 @@
 // of the models by provider and the labels of a model's place; the permissions list leaves them out.
 // Pure: the question of a job (`components/extensions/PermissionRequestDialog.vue`) and the
 // settings (`components/settings/extensions/ExtensionModelsView.vue`, `ExtensionPermissionsView`)
-// use it, `scripts/check-extensions-model-grants.ts` tests it. Which models fit a job holzi
+// use it, `scripts/check-extensions-model-grants.ts` tests it. Which models fit a job haex-vault
 // decides; the question only shows the ones it offers.
 
 export const MODEL_KIND = 'model'

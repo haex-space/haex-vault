@@ -99,7 +99,7 @@ export function sortByDate<T extends SortableHeader>(
 export type KindHeader = { passKind?: string | null }
 
 /**
- * The passes of one kind; `null` keeps them all. A missing or unknown kind (one a newer holzi wrote)
+ * The passes of one kind; `null` keeps them all. A missing or unknown kind (one a newer haex-vault wrote)
  * counts as `other`, like everywhere else (spec 092, FR-004).
  */
 export function filterByKind<T extends KindHeader>(

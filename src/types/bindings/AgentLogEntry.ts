@@ -10,7 +10,7 @@ export type AgentLogEntry = { id: string,
  */
 createdAt: number, tool: string,
 /**
- * `read`, `write`, `destructive`, or empty for a tool holzi does not know.
+ * `read`, `write`, `destructive`, or empty for a tool haex-vault does not know.
  */
 effect: string, target: string | null,
 /**

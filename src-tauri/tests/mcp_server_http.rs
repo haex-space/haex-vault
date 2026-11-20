@@ -71,12 +71,12 @@ fn query_of(location: &str) -> HashMap<String, String> {
         .collect()
 }
 
-/// Opens the authorization page like a browser and follows it until holzi redirects.
+/// Opens the authorization page like a browser and follows it until haex-vault redirects.
 async fn browse(fx: &mut Fixture, auth_url: &str, answer: impl FnOnce(&Fixture, &str)) -> String {
     let page = http().get(auth_url).send().await.expect("the page");
     assert_eq!(page.status(), 200);
     let html = page.text().await.expect("html");
-    assert!(html.contains("In holzi bestätigen"), "{html}");
+    assert!(html.contains("In HaexVault bestätigen"), "{html}");
     let wait = html
         .split("url=")
         .nth(1)
@@ -99,7 +99,7 @@ async fn browse(fx: &mut Fixture, auth_url: &str, answer: impl FnOnce(&Fixture, 
         assert_eq!(response.status(), 200);
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
-    panic!("holzi never redirected");
+    panic!("HaexVault never redirected");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -460,7 +460,7 @@ async fn a_client_that_lists_at_once_sees_its_tools() {
     )
     .await;
     let session = session.expect("a session");
-    // rmcp answers `notifications/initialized` before holzi handled it; the list right after it
+    // rmcp answers `notifications/initialized` before haex-vault handled it; the list right after it
     // must not overtake the join. Without the notification the order is certain.
     let (listed, _) = post_raw(
         &base,

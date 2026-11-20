@@ -1,5 +1,5 @@
 //! When the sync with the phone runs on its own (spec 051 FR-020, FR-021, research R6): after the
-//! vault is opened, when holzi comes back to the foreground, and when contacts change in the vault
+//! vault is opened, when haex-vault comes back to the foreground, and when contacts change in the vault
 //! (from this device or received from another one), never in the background (spec 043 FR-018).
 //! One run at a time: a start while one runs asks for one more run after it, so starts in quick
 //! succession collapse into one.

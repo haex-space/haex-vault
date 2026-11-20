@@ -20,7 +20,7 @@ pub const TAKE_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Frame event telling an extension that a request waits for it.
 pub const REQUEST_EVENT: &str = "opener-request";
-/// Event to holzi's window: the request of `extensionId` was not taken in time.
+/// Event to haex-vault's window: the request of `extensionId` was not taken in time.
 pub const EXPIRED_EVENT: &str = "opener-request-expired";
 
 #[derive(Default)]
@@ -61,7 +61,7 @@ impl OpenRequests {
 }
 
 /// Parks `request`, tells every open frame of the extension, and, if nobody takes it within
-/// `timeout`, tells holzi's window that it expired.
+/// `timeout`, tells haex-vault's window that it expired.
 pub fn park_and_announce(
     host: &Arc<ExtensionHost>,
     emitter: Arc<dyn Emit>,

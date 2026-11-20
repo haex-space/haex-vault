@@ -49,7 +49,7 @@ const MAX_AGE_MS: u64 = 150_000;
 const MAX_FUTURE_MS: u64 = 30_000;
 /// The presence event kind (contracts/nostr-events.md).
 pub(crate) const PRESENCE_KIND: Kind = Kind::Custom(24100);
-/// The gift-wrap kind holzi uses (not NIP-59's standard 1059: presence is
+/// The gift-wrap kind haex-vault uses (not NIP-59's standard 1059: presence is
 /// ephemeral and never stored, so it uses the ephemeral range instead).
 pub(crate) const GIFT_WRAP_KIND: Kind = Kind::Custom(21059);
 

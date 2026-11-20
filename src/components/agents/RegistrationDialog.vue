@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * May an agent use holzi, and in which agent profile? (spec 021, US1, FR-006, spec 083 US4, FR-013,
+ * May an agent use haex-vault, and in which agent profile? (spec 021, US1, FR-006, spec 083 US4, FR-013,
  * FR-014). Shows what the agent reports about itself, marked as its own claim, and lets the user choose an agent profile to make it a member of
  * ("Standard", no further profile, is preselected; one that registers again keeps its memberships).
  * The rights are shown read only, for every kind of access at once: those of the chosen profile

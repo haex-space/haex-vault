@@ -2,7 +2,7 @@
   "_comment": [
     "HXEF v1 test vectors (spec 048, docs/formats/encrypted-folder-v1.md).",
     "The expected outcome of one head case was changed by hand afterwards (a recipient whose key id the reader holds but which does not unwrap is damaged); its bytes are unchanged.",
-    "Re-keyed for the rename holzi -> haex (spec 054 S3): salt and the three info strings changed, so KEK, K_meta, K_wrap, every head and every sidecar were rebuilt by a second throwaway script, again from the format document only (XChaCha20-Poly1305 built from HChaCha20 and ChaCha20-Poly1305). Content objects depend on the DEK only and are unchanged. Negative cases carry the same byte edit as before, applied to the rebuilt good object.",
+    "Re-keyed for the haex rename (spec 054 S3): salt and the three info strings changed, so KEK, K_meta, K_wrap, every head and every sidecar were rebuilt by a second throwaway script, again from the format document only (XChaCha20-Poly1305 built from HChaCha20 and ChaCha20-Poly1305). Content objects depend on the DEK only and are unchanged. Negative cases carry the same byte edit as before, applied to the rebuilt good object.",
     "Generated once by a throwaway Python script written from the format document only, not from",
     "haex's implementation: XChaCha20-Poly1305 from PyNaCl 1.6.2 (libsodium,",
     "crypto_aead_xchacha20poly1305_ietf_encrypt), HKDF-SHA256 from Python's hmac and hashlib.",

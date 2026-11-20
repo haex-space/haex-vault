@@ -1,4 +1,4 @@
-//! An environment for the executor tests: a device folder with one of holzi's own places in it,
+//! An environment for the executor tests: a device folder with one of haex-vault's own places in it,
 //! grants in memory, storages on a [`FakeStore`] (one bucket per storage id) and a window that
 //! answers the question for a storage as the test says.
 
@@ -198,7 +198,7 @@ pub struct Scene {
 
 impl Scene {
     /// `root` with `notiz.txt`, `steuer/brief-2025.txt`, `foto.jpg`, `bin.dat`, an empty `b/` and
-    /// holzi's own place `holzi/` holding `vault.db` and `brief-vault.txt`; the storage `s1`
+    /// haex-vault's own place `haex-vault/` holding `vault.db` and `brief-vault.txt`; the storage `s1`
     /// ("Fotos") holds `a.txt`. A question for a storage gets `answer`; `None` is a missing window.
     pub fn new(answer: Option<FilesAgentChoice>) -> Self {
         let dir = tempfile::tempdir().expect("tempdir");
@@ -209,15 +209,15 @@ impl Scene {
         fs::write(root.join("foto.jpg"), [0xff, 0xd8, 0xff]).expect("write");
         fs::write(root.join("bin.dat"), [b'a', 0, b'b']).expect("write");
         fs::create_dir_all(root.join("b")).expect("mkdir");
-        fs::create_dir_all(root.join("holzi")).expect("mkdir");
-        fs::write(root.join("holzi/vault.db"), "secret vault").expect("write");
-        fs::write(root.join("holzi/brief-vault.txt"), "secret").expect("write");
+        fs::create_dir_all(root.join("haex-vault")).expect("mkdir");
+        fs::write(root.join("haex-vault/vault.db"), "secret vault").expect("write");
+        fs::write(root.join("haex-vault/brief-vault.txt"), "secret").expect("write");
 
         let store = Arc::new(FakeStore::new());
         store.insert("s1", "a.txt", b"im Speicher");
         let (prompt, asked) = window(answer.map(FilesAgentAnswer::plain));
         let env = FakeEnv {
-            own: OwnPlaces::new(vec![root.join("holzi")]),
+            own: OwnPlaces::new(vec![root.join("haex-vault")]),
             known: vec![KnownPlace {
                 name: "Steuer".to_owned(),
                 path: root.join("steuer").to_string_lossy().into_owned(),

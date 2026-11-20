@@ -671,7 +671,7 @@ pub struct StoredState {
     pub tags: Vec<String>,
     /// Its folder is the trash or below it.
     pub in_trash: bool,
-    /// The holzi function it belongs to (rule Z14), `None` for the user's own.
+    /// The haex-vault function it belongs to (rule Z14), `None` for the user's own.
     pub owner: Option<String>,
     /// Whether it is a login; a pass and an entry of an unknown type are for the user's own window
     /// alone (spec 092, FR-024).

@@ -116,7 +116,7 @@ pub(super) async fn send_raw(
             StorageError::Network
         })?;
     if response.status().is_redirection() {
-        log::warn!("remote storage: WebDAV {method} was redirected; holzi follows no redirect");
+        log::warn!("remote storage: WebDAV {method} was redirected; HaexVault follows no redirect");
         return Err(StorageError::Protocol);
     }
     Ok(response)

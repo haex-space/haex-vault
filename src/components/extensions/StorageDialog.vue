@@ -3,7 +3,7 @@
  * A storage request of an extension (spec 038, US3, research R6), drawn over the extension's own
  * tab like `FrameDialog.vue`. It shows what the extension proposes and asks only for a
  * confirmation; for a new storage it offers the connections on the same endpoint and region, or new
- * credentials, which holzi then asks for in its own window over the whole app. This dialog NEVER
+ * credentials, which haex-vault then asks for in its own window over the whole app. This dialog NEVER
  * has a field for credentials: an extension can draw a look-alike in its frame, and what the user
  * types there would reach it. Escape and the cancel button answer "no".
  */
@@ -26,9 +26,9 @@ const connections = computed(() => proposal.value.connections ?? [])
 const NEW_CREDENTIALS_VALUE = '__haex_new_credentials__'
 /** For a new storage: an existing connection, or the sentinel for new credentials. */
 const chosen = ref(connections.value[0]?.id ?? NEW_CREDENTIALS_VALUE)
-/** For a change: new credentials in holzi's window. */
+/** For a change: new credentials in haex-vault's window. */
 const newCredentials = ref(false)
-/** WebDAV and SFTP keep a storage in a folder, which holzi makes only on the user's word. */
+/** WebDAV and SFTP keep a storage in a folder, which haex-vault makes only on the user's word. */
 const inFolder = computed(() => isFolderProtocol(proposal.value.protocol))
 const createFolder = ref(false)
 

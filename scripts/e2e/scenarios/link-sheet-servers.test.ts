@@ -56,7 +56,7 @@ scenario('link-sheet-servers', {}, async (ctx) => {
     'sync_servers_defaults',
     await instance.invoke('sync_servers_defaults'),
   ).irohRelays.length
-  assert.ok(builtIn > 0, 'holzi ships iroh-Relays')
+  assert.ok(builtIn > 0, 'HaexVault ships iroh-Relays')
   const irohRows = (kind: 'default' | 'added', enabled?: boolean) =>
     serverRows(instance, 'link-servers-iroh', kind, enabled)
   assert.equal(await irohRows('default', true), builtIn)

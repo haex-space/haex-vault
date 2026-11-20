@@ -1,4 +1,4 @@
-// The extension frames whose SDK port is ready, per tab (spec 018, research R9): Rust asks holzi's
+// The extension frames whose SDK port is ready, per tab (spec 018, research R9): Rust asks haex-vault's
 // window for a frame to call an extension's tools in and opens the MCP connection only once the
 // frame can hear it. Pure: `composables/useExtensionFrame.ts` reports, `useExtensionHost.ts` waits,
 // `scripts/check-extensions-agent-frames.ts` tests it.
@@ -46,5 +46,5 @@ export class ReadyFrames {
   }
 }
 
-/** The frames of holzi's window; one per document. */
+/** The frames of haex-vault's window; one per document. */
 export const readyFrames = new ReadyFrames()

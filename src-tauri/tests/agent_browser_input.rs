@@ -350,7 +350,7 @@ async fn a_page_that_goes_fullscreen_is_sent_back() {
         .auto("browser.click", json!({ "tab": "t1", "element": button }))
         .await
         .expect("clicked");
-    // The marker leaves fullscreen at once and tells holzi; the next result says so (FR-055).
+    // The marker leaves fullscreen at once and tells haex-vault; the next result says so (FR-055).
     let mut told = clicked.result["fullscreen_refused"] == true;
     let mut shown = text(&clicked);
     for _ in 0..20 {

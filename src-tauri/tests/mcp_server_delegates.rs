@@ -1,5 +1,5 @@
 //! Spec 021 US6 and spec 083 PR J (T096 to T100): delegates in the chat. Claude Code and Codex get
-//! holzi's server with a pass that lives only in the app, no credential file, and its call prompts
+//! haex-vault's server with a pass that lives only in the app, no credential file, and its call prompts
 //! name the chat thread. There is no registration: what a delegate may do is the agent profile of
 //! the model its start runs with, like for any model, and a model the active profile does not offer
 //! gets no server. Once its start ended, a pass is refused.
@@ -43,7 +43,7 @@ fn settings_rights() -> Rights {
     }
 }
 
-/// The helper's exit code for a start holzi turns away.
+/// The helper's exit code for a start haex-vault turns away.
 async fn refused(fx: &Fixture, args: &[String]) -> i32 {
     match fx.delegate(args).await {
         Ok(_) => panic!("the delegate was let in"),
@@ -86,7 +86,7 @@ async fn a_delegate_comes_in_by_its_pass_with_the_rights_of_its_model_and_asks_i
         .delegates
         .server_for(DelegateVendor::Claude, Some(THREAD), MODEL)
         .await
-        .expect("a model of the active profile gets holzi");
+        .expect("a model of the active profile gets HaexVault");
     assert_eq!(haex.args[1], SLUG);
     assert_eq!(
         fx.agent_id(SLUG).await,
@@ -130,7 +130,7 @@ async fn a_model_of_standard_has_the_factory_rights_and_needs_no_registration() 
         .delegates
         .server_for(DelegateVendor::Codex, Some(THREAD), MODEL)
         .await
-        .expect("a model in Standard gets holzi");
+        .expect("a model in Standard gets HaexVault");
     let (agent, _helper) = fx.delegate(&haex.args).await.expect("connected");
     // The tools of the factory rights: what a model in Standard has, whichever kind it is.
     let expected = default_rights();
@@ -217,7 +217,7 @@ async fn a_claude_delegate_gets_haex_browser_tools_from_its_agent_profile() {
         .delegates
         .server_for(DelegateVendor::Claude, Some(THREAD), MODEL)
         .await
-        .expect("the profiled Claude model gets holzi's MCP server");
+        .expect("the profiled Claude model gets HaexVault's MCP server");
     let (agent, _helper) = fx.delegate(&haex.args).await.expect("connected");
     wait_for_tools(&agent).await;
     let names = tool_names(&agent).await;

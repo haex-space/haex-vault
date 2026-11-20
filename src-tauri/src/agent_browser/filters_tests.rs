@@ -72,7 +72,7 @@ fn only_network_filters_count() {
 
 #[test]
 fn a_redirect_rule_stops_its_request_without_a_stand_in() {
-    // uBlock Origin blocks the request and serves a stand-in; holzi has no stand-ins, so the
+    // uBlock Origin blocks the request and serves a stand-in; haex-vault has no stand-ins, so the
     // request is only blocked, and nothing else of the website is touched.
     let filter = filter("||cdn.example/tag.js$script,redirect=noopjs\n");
     assert!(filter.blocks(&info(

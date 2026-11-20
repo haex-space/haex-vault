@@ -122,7 +122,7 @@ impl Drop for Waiting<'_> {
     }
 }
 
-/// A connection to one browser. Dropping it closes holzi's end of the pipe.
+/// A connection to one browser. Dropping it closes haex-vault's end of the pipe.
 pub struct Connection {
     shared: Arc<Shared>,
     outgoing: Mutex<Option<std_mpsc::Sender<Vec<u8>>>>,
@@ -224,7 +224,7 @@ impl Connection {
         receiver
     }
 
-    /// Closes holzi's end of the pipe; the browser reads its end and quits.
+    /// Closes haex-vault's end of the pipe; the browser reads its end and quits.
     pub fn close(&self) {
         self.outgoing
             .lock()

@@ -17,12 +17,12 @@ scenario('settings-language', {}, async (ctx) => {
   await choose(instance, 'landing-language', 'en')
   await ctx.waitFor(
     'the start page in English',
-    async () => (await text(instance, 'h1')) === 'Welcome to Holzi',
+    async () => (await text(instance, 'h1')) === 'Welcome to HaexVault',
   )
   await choose(instance, 'landing-language', 'de')
   await ctx.waitFor(
     'the start page in German',
-    async () => (await text(instance, 'h1')) === 'Willkommen bei Holzi',
+    async () => (await text(instance, 'h1')) === 'Willkommen bei HaexVault',
   )
   ctx.step('FR-007 start page picker')
 

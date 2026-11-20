@@ -80,7 +80,7 @@ export function createSessionSync(deps: {
 
   /** Starts the vault session: restores the saved session if the setting applies and one is
    * stored, otherwise one empty workspace. Never throws (FR-012): a failed load or an invalid
-   * session is logged and holzi starts empty. Then it reopens the apps opened meanwhile. */
+   * session is logged and haex-vault starts empty. Then it reopens the apps opened meanwhile. */
   async function restoreAsync(): Promise<void> {
     try {
       await loadAndReplace()

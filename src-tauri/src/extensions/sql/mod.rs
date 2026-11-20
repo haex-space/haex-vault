@@ -21,7 +21,7 @@ pub enum TableClass {
     Own(ExtensionTable),
     /// A well-formed table of another extension, installed or not (FR-062: the same answer).
     Foreign(ExtensionTable),
-    /// Everything else: holzi's tables, `sqlite_*`, `haex_*`, malformed names.
+    /// Everything else: haex-vault's tables, `sqlite_*`, `haex_*`, malformed names.
     Core,
 }
 

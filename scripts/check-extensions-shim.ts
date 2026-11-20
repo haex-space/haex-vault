@@ -1,5 +1,5 @@
-// Part of `pnpm check:extensions` (spec 017, T026): the messages between holzi and the frame shim
-// of an extension (src/lib/extensions/shim-protocol.ts) and the shortcut fields holzi sends
+// Part of `pnpm check:extensions` (spec 017, T026): the messages between haex-vault and the frame shim
+// of an extension (src/lib/extensions/shim-protocol.ts) and the shortcut fields haex-vault sends
 // (src/lib/wm/keybindings.ts).
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
@@ -93,7 +93,7 @@ test('titles, close guards and close are read; long titles are refused', () => {
   assert.deepEqual(readShimMessage({ type: 'focus' }, SENT), { kind: 'focus' })
 })
 
-test('only shortcuts holzi sent run; unknown types and non-objects are ignored', () => {
+test('only shortcuts HaexVault sent run; unknown types and non-objects are ignored', () => {
   assert.deepEqual(
     readShimMessage({ type: 'shortcut', id: 'wm.tab.back' }, SENT),
     {
@@ -110,7 +110,7 @@ test('only shortcuts holzi sent run; unknown types and non-objects are ignored',
   }
 })
 
-test('holzi Back becomes navigate with the path and the sorted query', () => {
+test('HaexVault Back becomes navigate with the path and the sorted query', () => {
   assert.deepEqual(
     navigateMessage({ path: '/notes/1', query: { b: '2', a: '1' } }),
     {

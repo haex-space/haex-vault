@@ -1,7 +1,7 @@
-//! Integration coverage for entries that belong to a holzi function (spec 038, rule Z14 of spec
+//! Integration coverage for entries that belong to a haex-vault function (spec 038, rule Z14 of spec
 //! 034): only the user and the owning function reach them. A caller from outside with a grant for
 //! every entry does not see them in a list, cannot read, change or delete them, and a placeholder
-//! pointing at one does not resolve for it; the built-in agent does not list them. Only a holzi
+//! pointing at one does not resolve for it; the built-in agent does not list them. Only a haex-vault
 //! function creates them and deletes them for good.
 
 use std::sync::Arc;
@@ -305,7 +305,7 @@ async fn the_users_copy_of_an_owned_entry_stays_out_of_reach_too() {
 
 #[tokio::test]
 async fn the_cloud_storage_tag_opens_no_owned_entry_but_a_chosen_one_keeps_its_grants() {
-    // Spec 052 (FR-008, assumption in spec.md): holzi tags its own entries and the ones the user
+    // Spec 052 (FR-008, assumption in spec.md): haex-vault tags its own entries and the ones the user
     // chose for a connection. Rule Z14 still hides its own from everyone else, also from a grant
     // for that tag; an entry the user chose stays an ordinary entry that such a grant reaches.
     let (_dir, service) = service();

@@ -110,7 +110,7 @@ impl BrowserTools {
                 )),
                 Err(_) => Err(NativeError::new(
                     "unavailable",
-                    "Nobody could be asked; try again when holzi is open.",
+                    "Nobody could be asked; try again when HaexVault is open.",
                 )),
             }
         }

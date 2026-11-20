@@ -1,7 +1,7 @@
 //! The bridge methods of model jobs (spec 055, `contracts/bridge.md`): start, cancel and list. They
 //! belong to the calling frame alone. A start answers at once with the job's id after the
 //! preflight (`preflight`); the run goes on in the background (`runner`) and ends with the
-//! completion event, after which holzi forgets the job.
+//! completion event, after which haex-vault forgets the job.
 
 use std::sync::Arc;
 

@@ -44,7 +44,7 @@ pub(crate) const NAME: &str = "peer-probe";
 /// How long a test waits for something that should happen.
 pub(crate) const LIMIT: Duration = Duration::from_secs(20);
 
-/// holzi's window as the tests see it: every event, with when it arrived.
+/// haex-vault's window as the tests see it: every event, with when it arrived.
 pub(crate) struct Window {
     events: Mutex<Vec<(Instant, String, Value)>>,
     count: watch::Sender<usize>,
@@ -86,7 +86,7 @@ impl Window {
             .collect()
     }
 
-    /// The events holzi's own window got under `event`, in order.
+    /// The events haex-vault's own window got under `event`, in order.
     pub(crate) fn window_events(&self, event: &str) -> Vec<Value> {
         self.events
             .lock()

@@ -1,4 +1,4 @@
-# Tooling for holzi that nixpkgs does not provide as a ready package: the e2e drivers, the
+# Tooling for haex-vault that nixpkgs does not provide as a ready package: the e2e drivers, the
 # Android SDK with its NDK, and the emulator the Android e2e runs use. Delivered to the consumer repo by `com.github.haexmas.atoms.holzi` and
 # read by `nix-devshell-base`'s `flake.nix`: a function from `pkgs` to a list of derivations for the
 # devShell.
@@ -19,7 +19,7 @@ let
   };
 
   # Only the driver binary of webkitgtk, never the library. The app links the host's
-  # webkit2gtk-4.1 (see the holzi molecule's README), and putting `webkitgtk_4_1` itself into the
+  # webkit2gtk-4.1 (see the haex-vault molecule's README), and putting `webkitgtk_4_1` itself into the
   # devShell would put its `lib/` on LD_LIBRARY_PATH and its `.pc` files on PKG_CONFIG_PATH and
   # push the host's WebKit aside. The driver speaks WebKit's automation protocol to the app, so it
   # has to be the same version as the host's WebKit: the `version` file lets a runner check that.
@@ -61,7 +61,7 @@ let
     ''
   );
 
-  # The local relay must use the same release as holzi's Cargo.lock. nixpkgs can lag behind that
+  # The local relay must use the same release as haex-vault's Cargo.lock. nixpkgs can lag behind that
   # release, and the relay's CLI/configuration is part of the e2e contract.
   iroh-relay = pkgs.rustPlatform.buildRustPackage rec {
     pname = "iroh-relay";
@@ -84,7 +84,7 @@ let
     (pkgs.stdenv.hostPlatform.isLinux && pkgs.stdenv.hostPlatform.isx86_64)
     || pkgs.stdenv.hostPlatform.isDarwin;
 
-  # The emulator holzi's Android e2e suite runs on, the one its CI starts: API 35, `google_apis`,
+  # The emulator haex-vault's Android e2e suite runs on, the one its CI starts: API 35, `google_apis`,
   # x86_64, 4 cores. A separate SDK, because androidenv takes the system images of every platform
   # it composes, and the build SDK above has two others; only `haex-emulator` sees it.
   emulatorSdk =
@@ -143,7 +143,7 @@ let
   };
   emulatorHost = pkgs.stdenv.hostPlatform.isLinux && pkgs.stdenv.hostPlatform.isx86_64;
 
-  # llama.cpp's CUDA build (holzi feature `llm-llamacpp-cuda`, spec 070 R1) links cudart and cuBLAS
+  # llama.cpp's CUDA build (haex-vault feature `llm-llamacpp-cuda`, spec 070 R1) links cudart and cuBLAS
   # statically, so the app needs only the NVIDIA driver at run time. `llama-cpp-sys-2` looks for the
   # static libraries in `$CUDA_LIBRARY_PATH/lib64`; nixpkgs' toolkit has no `lib64` and keeps static
   # cuBLAS in a separate output, so this directory gathers them. The same toolkit as `cudatoolkit` in

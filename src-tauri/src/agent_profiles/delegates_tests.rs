@@ -220,7 +220,7 @@ mod autonomy_settings {
             delegate.deny.iter().copied().collect::<Vec<_>>(),
             vec![DenyCategory::NetworkAccess, DenyCategory::CredentialPaths]
         );
-        // Nothing else of Standard changed: it still reads "holzi bedienen" at read.
+        // Nothing else of Standard changed: it still reads "haex-vault bedienen" at read.
         let rights =
             v.db.read(|q| resolve::rights_of(q, &Subject::Model("any-model".to_owned())))
                 .await

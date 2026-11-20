@@ -54,7 +54,7 @@ fn android_has_none_of_the_desktop_facilities() {
 
 #[test]
 fn mobile_systems_offer_no_browser_bridge() {
-    // Spec 049 FR-043: holzi does not run in the background there (043 FR-007).
+    // Spec 049 FR-043: haex-vault does not run in the background there (043 FR-007).
     assert_eq!(
         [ANDROID, IOS].map(|table| table.browser_bridge),
         [false, false]

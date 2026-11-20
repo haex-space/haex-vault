@@ -47,7 +47,7 @@ pub fn all_but(targets: &[&str]) -> String {
         .join("\n")
 }
 
-/// The records of `level` and above, as a log at that level keeps them (holzi writes `Info` and
+/// The records of `level` and above, as a log at that level keeps them (haex-vault writes `Info` and
 /// above, `lib.rs`).
 pub fn at_least(level: log::Level) -> String {
     RECORDS

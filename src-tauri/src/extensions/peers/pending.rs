@@ -1,5 +1,5 @@
 //! An accepted invitation whose extension has no frame yet (spec 057 T041, FR-016, research R9):
-//! holzi opens the extension and keeps what the frames would hear until one is there, so the
+//! haex-vault opens the extension and keeps what the frames would hear until one is there, so the
 //! extension learns the channel (`peers:channel-opened`) before its first message.
 //!
 //! What waits is bounded like the frames' own queue: beyond [`MAX_HELD`] events the oldest fast

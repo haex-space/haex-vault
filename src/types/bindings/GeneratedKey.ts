@@ -5,6 +5,6 @@
  */
 export type GeneratedKey = { keyId: string,
 /**
- * `ssh-ed25519 AAAA… holzi`, for the provider's list of keys.
+ * `ssh-ed25519 AAAA… haex-vault`, for the provider's list of keys.
  */
 publicKey: string, };

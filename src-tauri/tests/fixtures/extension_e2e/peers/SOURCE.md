@@ -17,7 +17,7 @@ A timed fast message is 1,024 bytes long and starts with the byte `0x54` and the
 `Date.now()` as a big-endian float64; the receiver stores the difference as a delay (SC-004). A scene
 with two devices on one machine has one clock, so the delays are the real ones.
 
-`app.js` contains, bundled with esbuild 0.28.2 (from holzi's `node_modules`), unchanged:
+`app.js` contains, bundled with esbuild 0.28.2 (from HaexVault's `node_modules`), unchanged:
 
 - `@haex-space/vault-sdk` 4.9.0, the release with `client.peers` (haex-space/vault-sdk PR #88); npm
   tarball integrity

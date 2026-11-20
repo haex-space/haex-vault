@@ -8,6 +8,8 @@
 
 <p align="center"><a href="https://github.com/haex-space/haex-vault/releases/latest">Download HaexVault</a> · <a href="#how-sync-works">How sync works</a> · <a href="#build-from-source">Build from source</a></p>
 
+<p align="center"><sub>Formerly known as holzi.</sub></p>
+
 ## Keep your devices and data together
 
 Your vault stays usable on each device, even when the network is down. Linked

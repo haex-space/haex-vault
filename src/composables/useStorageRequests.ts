@@ -2,10 +2,10 @@
  * Storage dialogs of extensions (spec 038, US3, research R6), in two steps. An extension's
  * request (`extension-storage-request`) first shows over its own tab and asks only for a
  * confirmation; that dialog never has fields for credentials, because an extension could draw a
- * look-alike inside its frame. When the confirmation needs new credentials, holzi's own window over
+ * look-alike inside its frame. When the confirmation needs new credentials, haex-vault's own window over
  * the whole app asks for them (`StorageCredentialsModal.vue`, mounted in the desktop). Both answer
  * with `storage_dialog_resolve`; the credentials go from that window to Rust only. That window
- * stays open while holzi tests them: a failed test comes back to it (`StorageTrial`), the user
+ * stays open while haex-vault tests them: a failed test comes back to it (`StorageTrial`), the user
  * corrects the credentials or cancels, and the extension learns only the end.
  */
 import { computed, onBeforeUnmount, readonly, ref } from 'vue'
@@ -17,7 +17,7 @@ import type { StorageTrial } from '@bindings/StorageTrial'
 
 export type StorageRequestKind = 'add' | 'update' | 'test' | 'remove'
 
-/** What holzi shows of an extension's proposal; never credentials. `bucket` is the folder of a
+/** What haex-vault shows of an extension's proposal; never credentials. `bucket` is the folder of a
  * WebDAV or SFTP storage (spec 050). */
 export type StorageProposal = {
   name?: string
@@ -43,7 +43,7 @@ export type StorageRequest = {
   otherExtensions: string[]
 }
 
-/** The request whose credentials holzi's window over the whole app asks for. */
+/** The request whose credentials haex-vault's window over the whole app asks for. */
 const credentialsRequest = ref<StorageRequest | null>(null)
 /** Whether the user said in the dialog over the tab to make a missing folder (spec 050 FR-006). */
 const credentialsCreateFolder = ref(false)
@@ -109,7 +109,7 @@ export type StorageChoice =
 
 /**
  * The storage dialog of one extension frame: shows the frame's request, answers it or hands it on
- * to holzi's window for credentials, and ends both when the request ends or the frame closes.
+ * to haex-vault's window for credentials, and ends both when the request ends or the frame closes.
  */
 export function useFrameStorageDialog(
   frameOf: () => string | null,
@@ -140,13 +140,13 @@ export function useFrameStorageDialog(
   onBeforeUnmount(() => {
     unmounted = true
     for (const off of unlisten) off()
-    // Holzi cancels the dialogs of a closed frame; its window for credentials goes with them.
+    // haex-vault cancels the dialogs of a closed frame; its window for credentials goes with them.
     if (credentialsRequest.value?.frame === frameOf())
       credentialsRequest.value = null
   })
 
   /**
-   * holzi's window asks for this frame's credentials: the frame stays inert, so neither a focus
+   * haex-vault's window asks for this frame's credentials: the frame stays inert, so neither a focus
    * call nor the extension's script takes the keyboard away from that window.
    */
   const credentialsPending = computed(

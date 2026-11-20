@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * A delegate's call to holzi's tools, asked in its chat (spec 021 US6, FR-025): where the chat's
+ * A delegate's call to haex-vault's tools, asked in its chat (spec 021 US6, FR-025): where the chat's
  * own delegate approvals appear, not as a separate dialog. While this chat shows the thread, the
  * call dialog leaves its calls to it; closing the chat hands them back. `held` waits while the
  * chat asks its own approval. Closing the prompt declines the call.

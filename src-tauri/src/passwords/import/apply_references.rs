@@ -1,6 +1,6 @@
 //! The reference pass of an import (spec 036, FR-050, research R13): before the entries are
 //! written, every entry that will be written gets its id, and the KeePass references in its texts
-//! become holzi placeholders on those ids, so the first state of each entry already holds them.
+//! become haex-vault placeholders on those ids, so the first state of each entry already holds them.
 //! The skipped duplicates are known before writing, so no reference points at an id that is never
 //! written.
 

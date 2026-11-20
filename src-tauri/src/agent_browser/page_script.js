@@ -1,4 +1,4 @@
-// The page script of the agent browser (spec 065, research R4, R10, R12). It runs in holzi's own
+// The page script of the agent browser (spec 065, research R4, R10, R12). It runs in haex-vault's own
 // isolated world, so the page can neither call nor replace it; it sees the same DOM. It returns
 // the page's title, address, readable text (the main content first) and the operable elements,
 // numbered in document order. Password fields never report a value. Rust cuts the result
@@ -127,7 +127,7 @@ function haexPage(args) {
     form: !!(el.form || el.closest('form')),
   })
 
-  // The fields holzi filled from the password manager in this document (research R7); this world
+  // The fields haex-vault filled from the password manager in this document (research R7); this world
   // keeps them, the page cannot see or change the set.
   const filledFields = (globalThis.haexFilled ||= new WeakSet())
   const isSecret = (el) =>
@@ -456,7 +456,7 @@ function haexPage(args) {
       pos: [Math.round(scrollX), Math.round(scrollY), ...inner.map(Math.round)],
     }
   }
-  // What an agent does to a player (`browser.media`): holzi's world calls the element's own
+  // What an agent does to a player (`browser.media`): haex-vault's world calls the element's own
   // methods, so the page's replacements of them are not used.
   if (args.media) {
     // The document the question was about: an element number means another one on another page.
@@ -648,7 +648,7 @@ function haexPage(args) {
     return { filled, url: location.href }
   }
   // A new password (browser.credentials.create, research R7): the password field of element
-  // `element` and the next password field of its form, the repeat field, if it is empty or holzi's.
+  // `element` and the next password field of its form, the repeat field, if it is empty or haex-vault's.
   // Without a value it only reports; an empty value empties both again.
   if (args.newPassword !== undefined && args.newPassword !== null) {
     if (
@@ -753,7 +753,7 @@ function haexPage(args) {
     if (scope(el)) elements.push(describe(el, index + 1))
   })
 
-  // The marker's prefix on the title is holzi's, not the page's.
+  // The marker's prefix on the title is haex-vault's, not the page's.
   const marker = globalThis.__haexMarker
   let title = document.title || ''
   if (marker && title.startsWith(marker.prefix))

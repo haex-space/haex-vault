@@ -2,7 +2,7 @@
 //! FR-011 to FR-015, research R4).
 //!
 //! The passphrase only keys this device's SQLCipher file; every linked device keeps its own and
-//! sync never sees it, so nothing else changes. holzi does not keep the passphrase after opening,
+//! sync never sees it, so nothing else changes. haex-vault does not keep the passphrase after opening,
 //! so the current one is verified against the file itself. The command is not in the action
 //! catalog (`src/lib/actions`), so no agent can call it (FR-014).
 

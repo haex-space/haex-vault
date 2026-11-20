@@ -13,7 +13,7 @@ import java.util.UUID
 import java.util.concurrent.Executors
 
 /**
- * Files another app shares to holzi (spec 092, FR-037, `contracts/android-intents.md`). The read
+ * Files another app shares to haex-vault (spec 092, FR-037, `contracts/android-intents.md`). The read
  * permission of a shared address is transient, so each stream is copied at once into the app's own
  * cache directory and the copy is reported to the core, which holds it until a vault is open. A
  * share that arrives before the core listens (a cold start by a share) is buffered here. Nothing is
@@ -25,7 +25,7 @@ class SharedFilesIntake(private val activity: Activity) {
     @Volatile private var channel: Channel? = null
     private val buffered = ArrayList<JSObject>()
     private val worker = Executors.newSingleThreadExecutor { task ->
-        Thread(task, "holzi-shared-files").also { it.isDaemon = true }
+        Thread(task, "haex-shared-files").also { it.isDaemon = true }
     }
 
     private val directory: File get() = File(activity.cacheDir, DIRECTORY)
@@ -103,7 +103,7 @@ class SharedFilesIntake(private val activity: Activity) {
     }
 
     /**
-     * Whether holzi may open `uri` for the sender. The read permission of a shared address belongs
+     * Whether haex-vault may open `uri` for the sender. The read permission of a shared address belongs
      * to the sender's grant, but this app opens it with its own rights: a `file:` address would read
      * any file the app can (its vault, its settings) and an address of the app's own provider would
      * read its cache, so only `content:` addresses of other apps are copied.

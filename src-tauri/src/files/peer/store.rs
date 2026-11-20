@@ -4,7 +4,7 @@
 //! without the leading `/`; a folder is a key ending in `/`, as on WebDAV and SFTP.
 //!
 //! Writing goes through uploads that finish only while the target is as it was when they began
-//! (FR-036); a copy streams through holzi, as the serving device copies nothing on its own.
+//! (FR-036); a copy streams through haex-vault, as the serving device copies nothing on its own.
 
 use std::sync::Arc;
 

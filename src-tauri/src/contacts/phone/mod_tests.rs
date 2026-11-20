@@ -214,7 +214,7 @@ async fn a_clear_match_merges_and_keeps_the_older_origin() {
     assert_eq!(
         rig.book.values(raw, "Website"),
         vec!["https://anna.example"],
-        "holzi's value went to the phone"
+        "HaexVault's value went to the phone"
     );
     let raw_now = rig.book.raw(raw).expect("raw");
     assert!(

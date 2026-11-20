@@ -8,7 +8,7 @@
 //! ```
 //!
 //! - `mtp_spike`: the binding's `MtpSpeculative` on its own (task T003, research R6).
-//! - `mtp_speed`: holzi's own load and token loop with and without the drafter (T015, SC-001, SC-003).
+//! - `mtp_speed`: haex-vault's own load and token loop with and without the drafter (T015, SC-001, SC-003).
 #![cfg(feature = "llm-llamacpp")]
 
 use std::env;
@@ -315,7 +315,7 @@ fn mtp_spike() {
     }
 }
 
-/// What one pass through holzi's loader and token loop measured.
+/// What one pass through haex-vault's loader and token loop measured.
 struct AppRun {
     answers: Vec<String>,
     /// Tokens per second of writing, from the first token on.
@@ -326,14 +326,14 @@ struct AppRun {
     first_long: f64,
 }
 
-/// About 3000 tokens, the size of a chat prompt with holzi's system prompt and tools.
+/// About 3000 tokens, the size of a chat prompt with haex-vault's system prompt and tools.
 fn long_prompt() -> String {
     let paragraph = "Die Werkzeuge des Assistenten lesen Mails, Termine, Kontakte und Dateien des Nutzers. \
                      Jedes Werkzeug hat einen Namen, eine Beschreibung und ein JSON-Schema seiner Argumente. ";
     format!("{}\n\n{}", paragraph.repeat(100), PROMPTS[1])
 }
 
-/// The four requests of research R1 and the long prompt, through holzi's loader and token loop.
+/// The four requests of research R1 and the long prompt, through haex-vault's loader and token loop.
 fn app_run(drafter: Option<PathBuf>) -> AppRun {
     let loaded = LoadedModel::load(
         &path_from_env("HAEX_TEST_GGUF"),

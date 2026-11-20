@@ -50,7 +50,7 @@ const DESCRIPTIONS: Record<ActionScopeId, string> = {
   'passwords.secret':
     'Read one secret of an entry after the user confirms each time. Never the built-in agent (spec 021).',
   'files.read':
-    "List, search and read files of this device and of the storages granted, never holzi's own data.",
+    "List, search and read files of this device and of the storages granted, never HaexVault's own data.",
   'files.write':
     'Create folders, copy, rename, move and delete files of this device and of the storages granted for writing.',
   'files.shares':

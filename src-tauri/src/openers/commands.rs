@@ -1,4 +1,4 @@
-//! The commands of the mail openers (spec 063): the window asks holzi to read a link and to hand
+//! The commands of the mail openers (spec 063): the window asks haex-vault to read a link and to hand
 //! it to the extension the person chose. The window sends the link text, never the fields, so what
 //! reaches an extension is always what [`mail::parse`] made of it.
 

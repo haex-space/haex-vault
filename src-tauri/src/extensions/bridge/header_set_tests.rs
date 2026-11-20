@@ -244,7 +244,7 @@ fn an_inline_picture_of_a_wrong_type_or_shape_is_refused() {
 #[test]
 fn an_svg_with_a_script_or_an_external_reference_passes_as_an_image_only() {
     // It is sent as a data URL and drawn through `<img>`, where a script does not run and nothing
-    // is loaded; holzi neither executes nor rewrites it.
+    // is loaded; haex-vault neither executes nor rewrites it.
     let s = setup();
     let dev = dev_frame(&s);
     let hostile = svg_url(

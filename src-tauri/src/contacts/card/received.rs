@@ -1,6 +1,6 @@
 //! Visitenkarten read in, as rows of `haex_contacts_cards` (spec 051 FR-008, FR-012, FR-013): one
 //! card per vault identity, on one contact; its devices and relays are the contact's confirmed
-//! holzi addresses. Blocked vaults (`haex_contacts_blocked_vaults`) live here too.
+//! haex-vault addresses. Blocked vaults (`haex_contacts_blocked_vaults`) live here too.
 
 use std::collections::BTreeSet;
 
@@ -15,7 +15,7 @@ use crate::passwords::clock;
 use crate::storage::query::Query;
 use crate::sync::keys::hex;
 
-/// The confirmed holzi addresses of a contact, from its Visitenkarte (FR-008, FR-009).
+/// The confirmed haex-vault addresses of a contact, from its Visitenkarte (FR-008, FR-009).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/")]
 #[serde(rename_all = "camelCase")]
@@ -151,7 +151,7 @@ pub fn cards_of_contact(q: &mut impl Query, contact_id: &str) -> Result<Vec<(Str
     ))
 }
 
-/// The holzi addresses of a vault: the devices and Nostr-Relays of all its stored cards together,
+/// The haex-vault addresses of a vault: the devices and Nostr-Relays of all its stored cards together,
 /// each once. A device keeps the iroh relay of the newest card that names it. Added addresses only
 /// serve to dial; the newest card alone sets the threshold for a device list (`foreign_trust`).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

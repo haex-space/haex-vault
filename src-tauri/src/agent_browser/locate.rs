@@ -9,7 +9,7 @@
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-/// The oldest Chromium holzi steers (the CDP methods of research R1 exist from there on).
+/// The oldest Chromium haex-vault steers (the CDP methods of research R1 exist from there on).
 pub const MIN_MAJOR: u32 = 120;
 
 /// The operating systems with an agent browser (research R13).
@@ -21,7 +21,7 @@ pub enum Os {
 }
 
 impl Os {
-    /// The system holzi runs on; `None` where there is no agent browser.
+    /// The system haex-vault runs on; `None` where there is no agent browser.
     pub fn current() -> Option<Self> {
         if cfg!(target_os = "linux") {
             Some(Self::Linux)

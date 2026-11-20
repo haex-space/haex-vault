@@ -62,7 +62,7 @@ fn sorts_the_index_against_the_links() {
 
 #[test]
 fn an_own_write_with_its_stored_version_is_no_change() {
-    // holzi wrote raw 7 and stored the version the phone answered.
+    // haex-vault wrote raw 7 and stored the version the phone answered.
     let out = classify(&[link(7, 12)], &[raw(7, 12, false)]);
     assert!(out.changed.is_empty());
     assert_eq!(out.unchanged.len(), 1);

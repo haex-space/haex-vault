@@ -1,6 +1,6 @@
 //! `extension_encrypted_folder_choose` (spec 048 FR-036, contracts/bridge.md, research R12): an
-//! extension knows only its own area of a storage and cannot find an encrypted folder. It asks holzi
-//! to choose one; holzi's window shows the readable encrypted folders of the storage by name and,
+//! extension knows only its own area of a storage and cannot find an encrypted folder. It asks haex-vault
+//! to choose one; haex-vault's window shows the readable encrypted folders of the storage by name and,
 //! in the same view, the question (Lesen erlauben / Lesen und Schreiben erlauben / Ablehnen,
 //! "Erlaubnis merken" off by default). The call waits like a confirmation dialog; the extension
 //! learns the folder's id and name only after the user allowed it.
@@ -32,9 +32,9 @@ use crate::storage::query::Query;
 /// A chooser nobody answers ends as a cancel, like a confirmation dialog.
 pub const CHOOSE_WAIT: Duration = Duration::from_secs(300);
 
-/// Event to holzi's window: show the chooser.
+/// Event to haex-vault's window: show the chooser.
 pub const CHOOSE_REQUEST: &str = "extension-encrypted-folder-choose";
-/// Event to holzi's window: the chooser ended (answered, timed out or its frame closed).
+/// Event to haex-vault's window: the chooser ended (answered, timed out or its frame closed).
 pub const CHOOSE_ENDED: &str = "extension-encrypted-folder-choose-ended";
 
 /// The user's answer in the chooser (`extension_encrypted_folder_choose_resolve`).
@@ -117,7 +117,7 @@ impl EncryptedFolderState {
     }
 }
 
-/// The name holzi shows for the calling extension.
+/// The name haex-vault shows for the calling extension.
 fn display_name(ctx: &CallContext) -> String {
     let ext = ctx.session.extension_id.to_string();
     ctx.db

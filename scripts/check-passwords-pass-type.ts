@@ -24,7 +24,7 @@ test('a pass is a pass', () => {
   assert.equal(entryTypeOf({ kind: 'pass' }), 'pass')
 })
 
-test('a type of a newer holzi is unknown, never an empty login', () => {
+test('a type of a newer HaexVault is unknown, never an empty login', () => {
   assert.equal(entryTypeOf({ kind: 'payment_card' }), 'unknown')
   assert.equal(entryTypeOf({ kind: 'Login' }), 'unknown')
 })

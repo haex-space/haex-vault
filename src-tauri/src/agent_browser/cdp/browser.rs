@@ -1,4 +1,4 @@
-//! The `Browser` domain: the methods holzi calls on the browser itself (contracts/agent-browser.md
+//! The `Browser` domain: the methods haex-vault calls on the browser itself (contracts/agent-browser.md
 //! "Start", research R1).
 
 use serde_json::{json, Value};
@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 use super::Connection;
 use crate::agent_browser::error::{BrowserError, Result};
 
-/// The page permissions holzi denies in every agent tab (FR-026), by their web names
+/// The page permissions haex-vault denies in every agent tab (FR-026), by their web names
 /// (`PermissionDescriptor.name`).
 pub const DENIED: [&str; 6] = [
     "camera",

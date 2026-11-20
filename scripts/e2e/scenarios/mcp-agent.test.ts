@@ -12,11 +12,11 @@ import {
 } from '../lib/settings.ts'
 
 // Spec 021, US1, US3 and US7 (T055, T063, T064, quickstart M1–M4 and M8 without Claude Code): the access for external agents
-// is off until it is turned on in Einstellungen → KI → Agenten. A stand-in agent starts holzi's own
-// `--mcp-agent` helper, holzi asks with the name the agent reports, and the user registers it in an
+// is off until it is turned on in Einstellungen → KI → Agenten. A stand-in agent starts haex-vault's own
+// `--mcp-agent` helper, haex-vault asks with the name the agent reports, and the user registers it in an
 // agent profile that gives changing in "Fenster und Arbeitsbereiche" (spec 083: the rights come from
 // the profile, not from the dialog), with the approval mode Auto. Then the agent reads the window state
-// and creates a workspace without a prompt, and asks to delete it: holzi shows the call prompt as
+// and creates a workspace without a prompt, and asks to delete it: haex-vault shows the call prompt as
 // destructive, the user declines, the agent hears `user_declined` and the workspace stays. The
 // settings list the agent as connected, its log shows the declined call, and revoking it ends the
 // agent's connection at once.

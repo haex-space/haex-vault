@@ -2,7 +2,7 @@
 //!
 //! Every rule of the format (archive, paths, canonical JSON, signature, manifest, migrations) lives
 //! in the crate `haex-bundle` of the vault-sdk, the one implementation the `haex` tool also uses
-//! (research R3). holzi only calls it and maps its verdict to what the install dialog shows.
+//! (research R3). haex-vault only calls it and maps its verdict to what the install dialog shows.
 
 use serde::Serialize;
 use ts_rs::TS;
@@ -18,7 +18,7 @@ pub use manifest::{Manifest, ManifestTool, OpenerKind, ToolEffect};
 
 /// Why a bundle was refused: the error kind of the format (`archive_invalid`, `file_mismatch`, …,
 /// contracts/bundle-format.md) and, for entry-level errors and `file_mismatch`, the path inside the
-/// bundle. holzi adds [`BundleRejection::FORBIDDEN_PERMISSION`] with the manifest's category.
+/// bundle. haex-vault adds [`BundleRejection::FORBIDDEN_PERMISSION`] with the manifest's category.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]

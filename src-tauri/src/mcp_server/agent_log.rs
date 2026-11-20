@@ -73,7 +73,7 @@ impl Outcome {
     }
 }
 
-/// The name of an effect in the `effect` column; empty for a tool holzi does not know.
+/// The name of an effect in the `effect` column; empty for a tool haex-vault does not know.
 pub fn effect_name(effect: Option<ActionEffect>) -> &'static str {
     match effect {
         Some(ActionEffect::Read) => "read",
@@ -106,7 +106,7 @@ pub struct AgentLogEntry {
     #[ts(type = "number")]
     pub created_at: i64,
     pub tool: String,
-    /// `read`, `write`, `destructive`, or empty for a tool holzi does not know.
+    /// `read`, `write`, `destructive`, or empty for a tool haex-vault does not know.
     pub effect: String,
     pub target: Option<String>,
     /// The redacted inputs as JSON.

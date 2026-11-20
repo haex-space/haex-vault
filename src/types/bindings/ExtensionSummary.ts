@@ -69,7 +69,7 @@ behind: boolean, }>,
  */
 dev: boolean,
 /**
- * The kinds of link it opens that holzi knows (spec 063, `mail.compose`); empty unless the
+ * The kinds of link it opens that haex-vault knows (spec 063, `mail.compose`); empty unless the
  * extension is installed and enabled (FR-012).
  */
 openers: Array<string>, };

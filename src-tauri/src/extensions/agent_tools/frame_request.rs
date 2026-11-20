@@ -1,4 +1,4 @@
-//! A frame for an agent's call (spec 018, research R9): Rust asks holzi's window with the event
+//! A frame for an agent's call (spec 018, research R9): Rust asks haex-vault's window with the event
 //! `extension-agent-frame`; the window uses an open tab of the extension in the active workspace or
 //! opens one minimized, and answers with `extension_agent_frame_ready` once the frame's port is
 //! ready, or with `null`.
@@ -21,7 +21,7 @@ use crate::extensions::bridge::frames::FrameSession;
 use crate::extensions::commands::frames::WindowEmitter;
 use crate::state::AppState;
 
-/// Event: holzi's window shall provide a frame of the extension.
+/// Event: haex-vault's window shall provide a frame of the extension.
 pub const AGENT_FRAME: &str = "extension-agent-frame";
 
 /// How long a call waits for the window's answer: the window's own limit (10 s) plus room for its
@@ -32,7 +32,7 @@ pub const AGENT_FRAME_WAIT: Duration = Duration::from_secs(12);
 /// of its own.
 pub const LINK_WAIT: Duration = Duration::from_secs(10);
 
-/// Requests waiting for holzi's window.
+/// Requests waiting for haex-vault's window.
 #[derive(Default)]
 pub struct FrameRequests {
     pending: Mutex<HashMap<String, oneshot::Sender<Option<String>>>>,
@@ -72,7 +72,7 @@ impl FrameRequests {
     }
 }
 
-/// The agent's way to an extension's frame in holzi's window: a frame from the window, then the
+/// The agent's way to an extension's frame in haex-vault's window: a frame from the window, then the
 /// frame session's MCP connection.
 pub struct WindowLinks(pub AppHandle);
 

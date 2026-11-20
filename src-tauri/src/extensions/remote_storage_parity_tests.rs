@@ -189,7 +189,7 @@ fn the_catalog_answers_alike_on_s3_webdav_and_sftp() {
     }
 }
 
-/// The keys and folders under the storage `id` on its server, as holzi's client lists them.
+/// The keys and folders under the storage `id` on its server, as haex-vault's client lists them.
 fn on_server(s: &Setup, id: &str) -> Vec<String> {
     let service = StorageService::new(
         s.vault.clone(),
@@ -373,7 +373,7 @@ fn no_answer_and_no_log_line_carries_the_login_or_the_address() {
     for (_, id) in &trees.storages {
         answers.push_str(&format!("{:?}", catalog(&s, id)));
     }
-    // What holzi's log keeps (Info and above); the HTTP client's debug lines name addresses.
+    // What haex-vault's log keeps (Info and above); the HTTP client's debug lines name addresses.
     let logs = crate::test_log::at_least(log::Level::Info);
     let mut secrets = vec![WEBDAV_PASSWORD, WEBDAV_USER, SECRET, ACCESS_KEY];
     secrets.extend(addresses.iter().map(String::as_str));

@@ -8,6 +8,6 @@ Made with:
 
 ```sh
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -keyout key.pem \
-  -out cert.pem -days 36500 -subj "/CN=holzi agent browser test" \
+  -out cert.pem -days 36500 -subj "/CN=HaexVault agent browser test" \
   -addext "subjectAltName=IP:127.0.0.1,DNS:localhost"
 ```

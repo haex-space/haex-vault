@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-/// `agent_id` of the agent of the holzi chat; registered agents (spec 021) use their own id.
+/// `agent_id` of the agent of the haex-vault chat; registered agents (spec 021) use their own id.
 pub const BUILTIN_AGENT: &str = "builtin";
 
 /// The decision; `granted` for the device and for managing file shares and sync rules, `read` and

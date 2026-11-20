@@ -1,5 +1,5 @@
-//! Groups between holzi and the phone (spec 051 T096). A membership travels as the group's title:
-//! the plugin names the group of each `GroupMembership` row it reads, and a membership holzi
+//! Groups between haex-vault and the phone (spec 051 T096). A membership travels as the group's title:
+//! the plugin names the group of each `GroupMembership` row it reads, and a membership haex-vault
 //! writes carries the title until the run puts the id of the group with that title in the raw
 //! contact's account in its place. Groups an account lacks are made first, in a call of their
 //! own; the system's own groups ("My Contacts", "Starred") are never written to.
@@ -48,7 +48,7 @@ fn account_of(call: &Batch, raw: &Target, gathered: &Gathered) -> Option<Account
     }
 }
 
-/// The groups of an account holzi may write to, by title; empty when the phone does not answer.
+/// The groups of an account haex-vault may write to, by title; empty when the phone does not answer.
 fn writable(book: &dyn PhoneBook, account: &Account) -> BTreeMap<String, i64> {
     match book.groups(&account.0, &account.1) {
         Ok(groups) => groups

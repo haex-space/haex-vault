@@ -1,4 +1,4 @@
-//! Groups between the phone and holzi in whole runs against the fake phone (spec 051 T096).
+//! Groups between the phone and haex-vault in whole runs against the fake phone (spec 051 T096).
 
 use crate::contacts::model::{ContactInput, Head, TargetInput};
 use crate::contacts::phone::test_rig::Rig;

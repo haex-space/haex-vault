@@ -3,7 +3,7 @@
  * The folder chooser of an extension (spec 048 FR-036, contracts/bridge.md
  * `extension_encrypted_folder_choose`): the readable encrypted folders of one cloud storage by name
  * and, in the same view, the question "Lesen erlauben / Lesen und Schreiben erlauben / Ablehnen"
- * with "Erlaubnis merken", which is off by default. It is holzi's own dialog; the extension learns a
+ * with "Erlaubnis merken", which is off by default. It is haex-vault's own dialog; the extension learns a
  * folder's name only after the user allowed it. Closing it decides nothing. Mounted once in the
  * desktop next to `PermissionRequestDialog.vue`; one chooser at a time.
  */

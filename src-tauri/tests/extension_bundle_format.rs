@@ -1,5 +1,5 @@
 //! Spec 017, T024: every shared bundle test vector (`tests/fixtures/extension_bundles/`, copied
-//! from the vault-sdk, see `SOURCE.md`) gives through holzi's adapter exactly the outcome
+//! from the vault-sdk, see `SOURCE.md`) gives through haex-vault's adapter exactly the outcome
 //! `expected.json` names. The rules themselves are tested once, in the crate `haex-bundle`; this
 //! test pins the integration, the error mapping and the pinned crate revision.
 

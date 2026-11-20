@@ -1,4 +1,4 @@
-//! Photos from holzi to the phone in whole runs against the fake phone (spec 051 T054).
+//! Photos from haex-vault to the phone in whole runs against the fake phone (spec 051 T054).
 
 use crate::contacts::model::{ContactInput, Head, TargetInput};
 use crate::contacts::phone::test_rig::Rig;

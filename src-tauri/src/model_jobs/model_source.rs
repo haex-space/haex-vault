@@ -3,10 +3,10 @@
 //! the model is tried, so a broken provider shows up as `unavailable` in the provenance and the
 //! next model can take over.
 //!
-//! The source is a trait so tests can hand in a scripted adapter; holzi itself uses
+//! The source is a trait so tests can hand in a scripted adapter; haex-vault itself uses
 //! [`Providers`]. A locally installed model takes jobs through the chat's single model place
 //! (spec 055 FR-033, R15); a build without local inference has none. A connected subscription
-//! (Claude Code, Codex) takes jobs with the access it has in holzi (spec 055 FR-032, R16).
+//! (Claude Code, Codex) takes jobs with the access it has in haex-vault (spec 055 FR-032, R16).
 
 use std::sync::Arc;
 
@@ -79,7 +79,7 @@ pub(crate) trait ModelSource: Send + Sync {
     fn adapter(&self, model: &JobModel) -> Result<Arc<dyn ProviderAdapter>, String>;
 }
 
-/// holzi's own source: remote models through their provider, a subscription through its agent, a
+/// haex-vault's own source: remote models through their provider, a subscription through its agent, a
 /// local model through the chat's place.
 #[derive(Default)]
 pub(crate) struct Providers {

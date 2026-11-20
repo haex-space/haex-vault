@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * A confirmation an extension asked for (spec 017, T118, `extension_dialog_confirm`): drawn over
- * the extension's own tab only, never over holzi. Escape and the cancel button answer "no".
+ * the extension's own tab only, never over haex-vault. Escape and the cancel button answer "no".
  *
  * It holds the keyboard while it is open (`useFrameDialogFocus`).
  */

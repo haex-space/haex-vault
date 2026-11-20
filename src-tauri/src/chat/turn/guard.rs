@@ -1,6 +1,6 @@
-//! Turns away calls holzi can tell are wrong before the permission dialog (spec 082 FR-011, FR-012,
+//! Turns away calls haex-vault can tell are wrong before the permission dialog (spec 082 FR-011, FR-012,
 //! research R6/R7): an id nobody named, a required argument left out, and a tool that does not
-//! exist. The user is not asked. Every answer holzi writes for a failed call ends with what to do
+//! exist. The user is not asked. Every answer haex-vault writes for a failed call ends with what to do
 //! next (FR-014).
 
 use serde_json::Value;
@@ -210,7 +210,7 @@ fn readers(tool: &dyn Tool, registry: &ToolRegistry, offered: &[ToolSpec]) -> Ve
         .collect()
 }
 
-/// Why holzi did not run a call, for the sentence on what to do next (FR-014, research R7).
+/// Why haex-vault did not run a call, for the sentence on what to do next (FR-014, research R7).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Failure<'a> {
     /// Ids nobody named; the reading tools of the domain find the right ones.
@@ -246,7 +246,7 @@ pub fn next_step(failure: Failure<'_>) -> String {
         } => format!("Call it again with `{name}`: {description}"),
         Failure::MissingArgument { name, .. } => format!("Call it again with `{name}`."),
         Failure::UnknownTool { closest: [] } => {
-            "Call only the offered tools; find_actions finds holzi's other actions.".to_owned()
+            "Call only the offered tools; find_actions finds HaexVault's other actions.".to_owned()
         }
         Failure::UnknownTool { closest } => format!(
             "Call one of the closest offered tools instead: {}.",
@@ -301,7 +301,7 @@ pub fn check_required(input: &Value, tool: &dyn Tool) -> Option<String> {
     ))
 }
 
-/// The guard before the dialog: the answer to a call holzi turns away, or `None` to go on.
+/// The guard before the dialog: the answer to a call haex-vault turns away, or `None` to go on.
 pub fn turn_away(
     input: &Value,
     tool: &dyn Tool,

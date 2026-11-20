@@ -1,5 +1,5 @@
 //! The SQL of the sync with a phone (spec 051, data-model.md): links, targets, issues, the state of
-//! the run and the device-local list of raw contacts holzi linked. Only the run of this module
+//! the run and the device-local list of raw contacts haex-vault linked. Only the run of this module
 //! calls it.
 
 use std::collections::BTreeMap;
@@ -13,7 +13,7 @@ use crate::contacts::ids::{issue_id, link_id};
 use crate::error::Result;
 use crate::storage::query::Query;
 
-/// A value of holzi as the last run left it.
+/// A value of haex-vault as the last run left it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BaseValue {
@@ -22,18 +22,18 @@ pub struct BaseValue {
     pub value: String,
 }
 
-/// The state both sides agreed on after the last run (research R6): holzi's head and phone values,
-/// this raw contact as holzi saw it, and which data row holds which holzi value.
+/// The state both sides agreed on after the last run (research R6): haex-vault's head and phone values,
+/// this raw contact as haex-vault saw it, and which data row holds which haex-vault value.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Base {
-    /// `updated_at` of the contact after the last run; another value means holzi changed it.
+    /// `updated_at` of the contact after the last run; another value means haex-vault changed it.
     pub haex_updated_at: String,
     pub haex_head: BTreeMap<String, String>,
     /// Value id → value; only kinds that go to a phone.
     pub haex_values: BTreeMap<String, BaseValue>,
     pub phone: PhoneSide,
-    /// Data id → holzi value id.
+    /// Data id → haex-vault value id.
     pub mapping: BTreeMap<i64, String>,
 }
 
@@ -369,7 +369,7 @@ pub fn updated_at(q: &mut impl Query) -> Result<BTreeMap<String, String>> {
     )
 }
 
-/// When holzi last changed the columns of a row, as Unix milliseconds of the newest of their HLC
+/// When haex-vault last changed the columns of a row, as Unix milliseconds of the newest of their HLC
 /// times (the row's time when a column has none); `None` without a time.
 pub fn changed_millis(
     q: &mut impl Query,

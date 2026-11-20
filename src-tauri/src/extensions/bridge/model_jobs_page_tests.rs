@@ -1,7 +1,7 @@
 //! The page recognition of haex-notes as the first job (spec 055 US7, T066), with the format the
-//! test extension describes (`tests/fixtures/extension_e2e/model-jobs/page-format.json`): holzi
+//! test extension describes (`tests/fixtures/extension_e2e/model-jobs/page-format.json`): haex-vault
 //! checks it like any other format. A table keeps its empty cells, a missing cell drops the answer,
-//! and a sideways photo comes back with the model's own hint, not turned by holzi.
+//! and a sideways photo comes back with the model's own hint, not turned by haex-vault.
 
 use serde_json::{json, Value};
 

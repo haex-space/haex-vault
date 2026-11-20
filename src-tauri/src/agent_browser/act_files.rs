@@ -3,7 +3,7 @@
 //!
 //! A download is a click that asks like any click, then follows the download it set off. One over
 //! [`crate::agent_browser::downloads::LIMIT`] asks the user while it goes on (the browser cannot pause it); the agent gets the file
-//! only once the user allowed it, else holzi cancels it and removes what arrived. An upload asks
+//! only once the user allowed it, else haex-vault cancels it and removes what arrived. An upload asks
 //! like a submit in Manuell and Auto, but lets no request of the page go: sending the form asks
 //! again.
 

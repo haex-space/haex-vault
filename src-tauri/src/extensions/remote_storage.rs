@@ -1,6 +1,6 @@
 //! Remote storage of extensions (spec 038 US2, contracts/bridge.md, research R4–R7): the list of
 //! storages by name only and the four object methods, each under a `remoteStorage` permission for
-//! the storage and inside the extension's own area ([`super::remote_storage_keys`]). holzi speaks
+//! the storage and inside the extension's own area ([`super::remote_storage_keys`]). haex-vault speaks
 //! S3, WebDAV and SFTP itself ([`crate::remote_storage`]); an extension gets the same answers on
 //! each (spec 050 FR-017, [`super::remote_storage_tree`]). No answer and no error carries
 //! credentials, the endpoint, the host or the region. Adding storages is in
@@ -179,7 +179,7 @@ fn mapped(
             record(ctx, service, storage_id, outcome);
             provider("accessDenied")
         }
-        // A host key nobody confirmed is the user's to settle in holzi (spec 050 contracts/bridge.md).
+        // A host key nobody confirmed is the user's to settle in haex-vault (spec 050 contracts/bridge.md).
         StorageError::Network
         | StorageError::HostKeyChanged
         | StorageError::HostKeyUnknown

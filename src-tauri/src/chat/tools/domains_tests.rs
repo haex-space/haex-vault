@@ -50,7 +50,7 @@ impl Tool for Extension {
     }
 }
 
-/// The registry a chat holds: holzi's actions with their domains, and `extensions`.
+/// The registry a chat holds: haex-vault's actions with their domains, and `extensions`.
 pub(super) fn registry_with(extensions: Vec<Extension>) -> ToolRegistry {
     let mut registry = ToolRegistry::new();
     for def in embedded_tools() {

@@ -1,4 +1,4 @@
-//! The registration of an agent holzi does not know (yet) (spec 021 US1, US7, FR-006, FR-007,
+//! The registration of an agent haex-vault does not know (yet) (spec 021 US1, US7, FR-006, FR-007,
 //! FR-009): once the agent introduced itself, the window is asked; the answer registers it, renews
 //! an expired registration with the rights the user chose again, or declines it, for this vault
 //! session or for good. Runs next to the session, so the agent can finish `initialize` meanwhile.

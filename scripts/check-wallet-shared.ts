@@ -1,4 +1,4 @@
-// Checks which dialog a file shared to holzi opens (spec 092, FR-037).
+// Checks which dialog a file shared to haex-vault opens (spec 092, FR-037).
 // Run: node --test scripts/check-wallet-shared.ts
 import assert from 'node:assert/strict'
 import { test } from 'node:test'

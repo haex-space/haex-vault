@@ -432,9 +432,9 @@ fn a_link_is_copied_and_deleted_as_a_link() {
 #[test]
 fn moving_or_deleting_a_folder_that_holds_haexs_data_touches_it() {
     let (_dir, real) = folder();
-    std::fs::create_dir_all(real.join("share/holzi")).unwrap();
+    std::fs::create_dir_all(real.join("share/haex-vault")).unwrap();
     std::fs::create_dir_all(real.join("nach")).unwrap();
-    let own = OwnPlaces::new(vec![real.join("share/holzi")]);
+    let own = OwnPlaces::new(vec![real.join("share/haex-vault")]);
     let share = [real.join("share")];
 
     assert!(touches_own(&job(TransferOp::Delete, &share, None), &own));
@@ -442,7 +442,7 @@ fn moving_or_deleting_a_folder_that_holds_haexs_data_touches_it() {
         &job(TransferOp::Move, &share, Some(&real.join("nach"))),
         &own
     ));
-    // Reading holzi's data is allowed.
+    // Reading haex-vault's data is allowed.
     assert!(!touches_own(
         &job(TransferOp::Copy, &share, Some(&real.join("nach"))),
         &own
@@ -452,10 +452,10 @@ fn moving_or_deleting_a_folder_that_holds_haexs_data_touches_it() {
 #[test]
 fn a_folder_that_would_merge_into_haexs_data_touches_it() {
     let (_dir, real) = folder();
-    std::fs::create_dir_all(real.join("home/.config/holzi")).unwrap();
-    std::fs::create_dir_all(real.join("backup/.config/holzi")).unwrap();
+    std::fs::create_dir_all(real.join("home/.config/haex-vault")).unwrap();
+    std::fs::create_dir_all(real.join("backup/.config/haex-vault")).unwrap();
     std::fs::create_dir_all(real.join("backup/Fotos")).unwrap();
-    let own = OwnPlaces::new(vec![real.join("home/.config/holzi")]);
+    let own = OwnPlaces::new(vec![real.join("home/.config/haex-vault")]);
     let home = real.join("home");
 
     assert!(touches_own(

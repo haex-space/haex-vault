@@ -153,7 +153,7 @@ fn only_own_tables(statement: &Statement, own: &TablePrefix) -> Result<(), Bridg
     }
 }
 
-/// `REFERENCES` only to own tables (a foreign key to holzi's tables would tie their deletes).
+/// `REFERENCES` only to own tables (a foreign key to haex-vault's tables would tie their deletes).
 fn check_references(statement: &Statement, own: &TablePrefix) -> Result<(), BridgeError> {
     let Statement::CreateTable(create) = statement else {
         return Ok(());
@@ -176,7 +176,7 @@ fn check_references(statement: &Statement, own: &TablePrefix) -> Result<(), Brid
     Ok(())
 }
 
-/// The index names of a migration carry the own prefix, so they never collide with holzi's.
+/// The index names of a migration carry the own prefix, so they never collide with haex-vault's.
 fn own_index(name: &ObjectName, own: &TablePrefix) -> Result<(), BridgeError> {
     let name = single_name(name)?;
     if name.starts_with(&own.to_string()) {

@@ -113,7 +113,7 @@ async fn a_contact_made_in_haex_reaches_the_phone_only_with_a_target() {
     let summary = rig.run(Mode::Normal).expect("run");
     assert_eq!(summary.counts.written, 1);
     let live = rig.book.live();
-    assert_eq!(live.len(), 1, "Ben stays only in holzi");
+    assert_eq!(live.len(), 1, "Ben stays only in HaexVault");
     let anna = &live[0];
     assert_eq!(
         (
@@ -133,7 +133,7 @@ async fn a_contact_made_in_haex_reaches_the_phone_only_with_a_target() {
     ] {
         assert!(mimetypes.contains(&mimetype), "{mimetype} in {mimetypes:?}");
     }
-    assert_eq!(mimetypes.len(), 6, "the custom value stays in holzi");
+    assert_eq!(mimetypes.len(), 6, "the custom value stays in HaexVault");
 }
 
 #[tokio::test]
@@ -194,7 +194,7 @@ async fn a_target_removed_with_delete_deletes_the_contact_on_the_phone_only() {
     assert_eq!(summary.counts.deleted, 1);
     assert!(summary.paused.is_none(), "the user decided, no guard");
     assert!(rig.book.raw(raw).is_none_or(|raw| raw.index.deleted));
-    assert_eq!(rig.contact(&id).name, "Anna Beck", "it stays in holzi");
+    assert_eq!(rig.contact(&id).name, "Anna Beck", "it stays in HaexVault");
     assert!(rig.links().is_empty());
 
     rig.run(Mode::Normal).expect("again");
@@ -236,7 +236,7 @@ async fn a_target_removed_with_keep_leaves_the_phone_alone_until_it_is_set_again
     assert!(rig.book.raw(raw).is_some_and(|raw| !raw.index.deleted));
     assert_eq!(rig.headers().len(), 1, "not taken over a second time");
 
-    // A change on the phone no longer reaches holzi.
+    // A change on the phone no longer reaches haex-vault.
     rig.book.add_row(raw, phone("030 5550101", 1));
     rig.run(Mode::Normal).expect("run");
     assert_eq!(rig.contact(&id).values.len(), 1);

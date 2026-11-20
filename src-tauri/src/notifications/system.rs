@@ -133,7 +133,7 @@ impl<R: Runtime> SystemNotifier<R> {
         });
     }
 
-    /// Desktop systems need no permission of holzi's own.
+    /// Desktop systems need no permission of haex-vault's own.
     #[cfg(not(mobile))]
     pub fn allowed(&self) -> bool {
         true
@@ -206,7 +206,7 @@ fn response(action_id: &str) -> NotificationResponse {
     }
 }
 
-/// The icon as a file the notification system can read, named by its content, in holzi's own
+/// The icon as a file the notification system can read, named by its content, in haex-vault's own
 /// cache (not the shared temp directory, where another user could place the folder first). It is
 /// written under a name of its own and renamed, so a notification showing the same icon at the
 /// same time never reads half a file and a crash leaves no truncated one behind.

@@ -1,5 +1,5 @@
 //! The run of a job (spec 055 T027, T039, T041, T043; change of 2026-11-14): its steps in order, each
-//! step goes to one model, asked once. holzi never tries another model on its own: when that model
+//! step goes to one model, asked once. haex-vault never tries another model on its own: when that model
 //! gives nothing the guard and the format accept, or cannot be asked at all (the default model
 //! cannot take the step, or is no longer available), the user is asked which other model takes the
 //! step (`replacement`) and that model is asked once in turn. A
@@ -31,7 +31,7 @@ use crate::adapters::types::{
 };
 use crate::adapters::AdapterError;
 
-/// The fixed sentence holzi adds after the input (`contracts/job-format.md` §Auftrag).
+/// The fixed sentence haex-vault adds after the input (`contracts/job-format.md` §Auftrag).
 const FORMAT_SENTENCE: &str =
     "Answer with valid JSON only, without any other text, matching this JSON schema:";
 
@@ -67,7 +67,7 @@ pub(crate) enum Start {
     Ask(Blocked),
 }
 
-/// A default model that a step does not go to, as holzi knows it.
+/// A default model that a step does not go to, as haex-vault knows it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Blocked {
     pub id: String,
@@ -503,7 +503,7 @@ pub(crate) async fn run_step(
         }
         let entry = attempt(outcome, Some(reason));
         last = (code, entry.reason.clone().unwrap_or_default());
-        // The model gave nothing: holzi does not try another on its own, the user chooses.
+        // The model gave nothing: haex-vault does not try another on its own, the user chooses.
         let failed = Failed {
             model_id: candidate.model.id.clone(),
             model_name: candidate.model.name.clone(),

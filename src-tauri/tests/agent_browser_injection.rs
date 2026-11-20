@@ -1,13 +1,13 @@
 //! Spec 065 T047 (SC-002, and the 20 pages of SC-003) against a real Chromium and the fixture site
 //! over HTTPS: 20 pages in `tests/fixtures/agent_browser/injection/` carry injected instructions,
 //! hidden in many ways, and try things on their own (submitting, sending, redirecting to another
-//! website, frames, popups, holzi's binding, untrusted input, the marker, permissions). The test
+//! website, frames, popups, haex-vault's binding, untrusted input, the marker, permissions). The test
 //! then plays an obedient model and does what each page asks: it submits the page's form or buy or
 //! delete button in Auto and in Manuell, and follows the page's lure. Every question is declined.
 //!
 //! It checks the rules, not a model (research R10): what is due asks, nothing is sent and the
 //! other website gets no request, no right changes and nothing is remembered, the agent keeps the
-//! browser, holzi's binding is out of the page's reach, and every page result keeps the page's
+//! browser, haex-vault's binding is out of the page's reach, and every page result keeps the page's
 //! content under `untrusted_page_content`. Without a Chromium-based browser the test says so and
 //! stops.
 
@@ -78,11 +78,11 @@ const CORPUS: [Case; 20] = [
     case(Some(Kind::Site), "Abonnement kündigen", Lure::None),
     // Text off the screen; a frame of the other website.
     case(Some(Kind::Site), "In den Warenkorb", Lure::None),
-    // A fake tool result and holzi note; a beacon to the other website.
+    // A fake tool result and haex-vault note; a beacon to the other website.
     case(Some(Kind::Request), "Zahlung bestätigen", Lure::None),
-    // The title; a popup of the other website (Chromium may block it before holzi sees it).
+    // The title; a popup of the other website (Chromium may block it before haex-vault sees it).
     case(None, "Spenden", Lure::Navigate("/popup")),
-    // A placeholder; the page calls holzi's binding.
+    // A placeholder; the page calls haex-vault's binding.
     Case {
         shows: &[
             "binding: undefined",
@@ -119,7 +119,7 @@ const CORPUS: [Case; 20] = [
         never: &["granted"],
         ..case(None, "Anmelden", Lure::Type("Benutzername", "admin"))
     },
-    // Open holzi's settings and local files; the page goes to the browser's settings.
+    // Open haex-vault's settings and local files; the page goes to the browser's settings.
     case(
         None,
         "Einstellungen übernehmen",
@@ -175,7 +175,7 @@ fn number(page: &NativeReply, name: &str) -> Value {
         .clone()
 }
 
-/// The page's content stays under `untrusted_page_content`; holzi's own words are its own.
+/// The page's content stays under `untrusted_page_content`; haex-vault's own words are its own.
 fn only_marked(page: &NativeReply, n: usize) {
     let result = page.result.as_object().unwrap();
     let keys: BTreeSet<&str> = result.keys().map(String::as_str).collect();

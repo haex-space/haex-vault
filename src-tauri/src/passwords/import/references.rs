@@ -1,5 +1,5 @@
 //! KeePass references on import (spec 036, FR-050, research R13, `contracts/references.md`
-//! §KeePass-Import): `{REF:<Feld>@<Suche>:<Text>}` becomes a holzi placeholder when it asks for the
+//! §KeePass-Import): `{REF:<Feld>@<Suche>:<Text>}` becomes a haex-vault placeholder when it asks for the
 //! user name (`U`) or the password (`P`) of exactly one entry of the file that is imported too.
 //! Searching by id (`I`, 32 hex digits) or by text in the title, user name, password, address, notes
 //! or a custom field (`T`, `U`, `P`, `A`, `N`, `O`, case ignored) is understood; anything else, an

@@ -31,7 +31,7 @@ type Overview = {
 
 // Spec 052, US1 (quickstart §2 steps 1–2, SC-002): the login of a local WebDAV server is already an
 // entry of the password manager. In Einstellungen → Cloud-Speicher the user chooses it instead of
-// typing; only entries that fit the protocol are offered. holzi tests with its values, saves the
+// typing; only entries that fit the protocol are offered. haex-vault tests with its values, saves the
 // connection pointing at it, and the password manager holds no second entry. US2 (quickstart §2
 // step 5): the chosen entry carries the tag of cloud storage credentials, and the form names it
 // and opens it in the password manager. US3 (§2 steps 3–4): a changed password applies on the

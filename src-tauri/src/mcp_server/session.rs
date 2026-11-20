@@ -27,7 +27,7 @@ use super::server::Core;
 use crate::agent_profiles::store::Active;
 
 /// What a registered agent reads in `initialize` (contracts/mcp-surface.md, "Server").
-pub const INSTRUCTIONS_REGISTERED: &str = "These tools operate holzi on this device. \
+pub const INSTRUCTIONS_REGISTERED: &str = "These tools operate HaexVault on this device. \
     When the user asks to search the web and `browser_search` is available, use it first, then use \
     `browser_open` or `browser_follow_link` on useful results instead of another web-search or \
     fetch route. If the user names a website, include its domain in the search when useful. \
@@ -42,7 +42,7 @@ pub const INSTRUCTIONS_REGISTERED: &str = "These tools operate holzi on this dev
 
 /// What an agent waiting for its registration reads.
 pub const INSTRUCTIONS_WAITING: &str =
-    "Waiting for the registration in holzi. Confirm the dialog in the holzi window.";
+    "Waiting for the registration in HaexVault. Confirm the dialog in the HaexVault window.";
 
 /// The registered agent behind a session.
 #[derive(Debug, Clone)]
@@ -82,7 +82,7 @@ impl Session {
         }
     }
 
-    /// How this connection ends from holzi's side.
+    /// How this connection ends from haex-vault's side.
     pub fn link(&self) -> &Arc<Link> {
         &self.link
     }
@@ -216,7 +216,7 @@ impl ServerHandler for Session {
         let Some(agent) = self.agent() else {
             return Ok(results::not_allowed().into());
         };
-        // A call ends when the agent cancels it, holzi ends the connection or the server stops.
+        // A call ends when the agent cancels it, haex-vault ends the connection or the server stops.
         let cancel = self.link.close.child_token();
         let agent_cancel = context.ct.clone();
         let guard = cancel.clone();

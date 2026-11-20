@@ -1,4 +1,4 @@
-//! Throughput of the peer path on loopback (no network in between, so this is holzi's own cost):
+//! Throughput of the peer path on loopback (no network in between, so this is haex-vault's own cost):
 //! 20 files of 6 MB read from and written to another own device the way a sync rule does it. Never
 //! in CI; run it with
 //!

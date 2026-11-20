@@ -110,7 +110,7 @@ pub async fn drive_entries() -> Result<Vec<WireEntry>, FailCode> {
         .collect())
 }
 
-/// One level of the folder `at`, at most `max` entries; without entries in holzi's own places when
+/// One level of the folder `at`, at most `max` entries; without entries in haex-vault's own places when
 /// `hide_own`, and only the shared file of a file share.
 pub async fn list(
     ctx: &ServeContext,

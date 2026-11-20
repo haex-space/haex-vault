@@ -1,4 +1,4 @@
-//! What a job writes to holzi's log (spec 055 FR-028): which model was tried, with which effort,
+//! What a job writes to haex-vault's log (spec 055 FR-028): which model was tried, with which effort,
 //! how the try ended and, for a model that could not be reached, why. The provenance the extension
 //! gets names only the category, so the log is where the cause can be read.
 //!

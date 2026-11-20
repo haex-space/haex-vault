@@ -2,7 +2,7 @@
 //! `client.shell` on a PTY (`portable-pty`, Unix PTYs and Windows ConPTY).
 //!
 //! Every program needs a `shell` permission for its canonical path (`execute`); the question in
-//! holzi's window warns that the extension can then do anything the user can on this device. A
+//! haex-vault's window warns that the extension can then do anything the user can on this device. A
 //! session belongs to the extension that started it: only it writes, resizes or closes it, and its
 //! output and its end reach only that extension's frames (`shell:output`, `shell:exit`), read
 //! only as fast as the frames acknowledge it ([`flow`]). A session
@@ -141,10 +141,10 @@ fn environment(value: Option<&Value>) -> Result<Vec<(String, String)>, BridgeErr
 /// The terminal a shell runs on, as programs read it from `TERM`.
 pub const TERM: &str = "xterm-256color";
 
-/// Variables of holzi's own process that a shell does not inherit: holzi's own settings and those
+/// Variables of haex-vault's own process that a shell does not inherit: haex-vault's own settings and those
 /// of the wrappers that start it (the Nix devShell and `scripts/with-nix-host-bridge.sh`, Nix's
 /// GTK wrappers, an AppImage), which point the dynamic loader, GTK, GIO, GStreamer, WebKit and the
-/// graphics drivers at holzi's libraries. Everything else the user's session set stays (`HOME`,
+/// graphics drivers at haex-vault's libraries. Everything else the user's session set stays (`HOME`,
 /// `USER`, `PATH`, `LANG`, `LC_*`, `SHELL`, `DISPLAY`, ...); `PATH` too, even when a wrapper
 /// extended it.
 const NOT_INHERITED: &[&str] = &[
@@ -176,7 +176,7 @@ const NOT_INHERITED_PREFIXES: &[&str] = &[
     "__NV_",
 ];
 
-/// Whether a shell does not inherit holzi's variable `name` ([`NOT_INHERITED`]).
+/// Whether a shell does not inherit haex-vault's variable `name` ([`NOT_INHERITED`]).
 pub fn not_inherited(name: &str) -> bool {
     let name = name.to_ascii_uppercase();
     NOT_INHERITED.contains(&name.as_str())
@@ -185,7 +185,7 @@ pub fn not_inherited(name: &str) -> bool {
             .any(|prefix| name.starts_with(prefix))
 }
 
-/// `portable-pty` starts from holzi's whole environment; this takes holzi's own variables out
+/// `portable-pty` starts from haex-vault's whole environment; this takes haex-vault's own variables out
 /// and sets `TERM`.
 fn clean_environment(command: &mut portable_pty::CommandBuilder) {
     for (name, _) in std::env::vars_os() {

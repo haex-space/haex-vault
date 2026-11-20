@@ -38,7 +38,7 @@ export type AgentActionDef = {
 export type TitleOf = (titleKey: string, locale: ActionLocale) => string
 
 /**
- * One area of holzi a request can be about (spec 082 contracts/domains.md): the actions whose id
+ * One area of haex-vault a request can be about (spec 082 contracts/domains.md): the actions whose id
  * starts with `key`. A routing call names the areas a request needs, and the first step offers their
  * tools (research R3–R5).
  */
@@ -56,7 +56,7 @@ export type AgentDomain = {
 }
 
 /**
- * The areas of holzi's own actions. The descriptions are tuned on the development set of spec 082
+ * The areas of haex-vault's own actions. The descriptions are tuned on the development set of spec 082
  * (`analysis/devset.json`), never on the everyday set that measures them.
  */
 export const AGENT_DOMAINS: readonly AgentDomain[] = [
@@ -79,7 +79,7 @@ export const AGENT_DOMAINS: readonly AgentDomain[] = [
     name: 'chat',
     titles: { de: 'Unterhaltungen', en: 'Conversations' },
     description:
-      "earlier conversations with the assistant, and chat messages with contacts in holzi's messenger (not e-mail)",
+      "earlier conversations with the assistant, and chat messages with contacts in HaexVault's messenger (not e-mail)",
     alsoNeeds: ['wm_app_open'],
   },
   {

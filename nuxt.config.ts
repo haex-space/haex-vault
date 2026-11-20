@@ -80,7 +80,7 @@ export default defineNuxtConfig({
   },
   icon: {
     mode: 'svg',
-    // Every icon ships with the app, so none waits for the network (holzi runs offline). The scan
+    // Every icon ships with the app, so none waits for the network (haex-vault runs offline). The scan
     // also reads `.ts`: the app list, the settings registry and other lookup tables name their icons
     // there, and an icon only named in TypeScript would otherwise be fetched from the iconify API.
     clientBundle: {

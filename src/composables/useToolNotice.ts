@@ -43,7 +43,7 @@ const restrictedByThread = reactive(new Map<string, ToolNotice>())
  * The tool-use notice of the open conversation: set by `chat-tool-availability` the first time
  * a state shows up for a conversation, hidden when another conversation is open, closed by
  * `dismiss`. A call the agent profile of the model turned away shows a notice of its own, once per
- * conversation and profile (spec 083 US5). A delegate has holzi's tools as far as the agent profile of its
+ * conversation and profile (spec 083 US5). A delegate has haex-vault's tools as far as the agent profile of its
  * model allows (spec 083 FR-029), so its turn needs a notice only while the MCP access is off.
  */
 export function useToolNotice(activeThreadId: Ref<string | null>) {

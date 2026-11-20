@@ -1,5 +1,5 @@
 // The consent script of the agent browser (spec 065 FR-065, research R23): it declines the optional
-// cookies of a consent banner, and only that. It runs in holzi's own world in every document of an
+// cookies of a consent banner, and only that. It runs in haex-vault's own world in every document of an
 // agent's tab, frames included, from the start of the document, so a banner that appears late is
 // found too. It never accepts: it looks for a button that rejects (by the known platforms' own
 // buttons, else by the words on a button inside something that talks about cookies), and where the
@@ -8,12 +8,12 @@
 // saved; the one save button that is pressed is the one of a panel whose every optional choice
 // was declined. A panel that will not save until the user consents (a consent wall: agree, or
 // subscribe) is left as it is. What it found is kept in `globalThis.__haexConsent.state` for the
-// reading of the page (`searching`, `none`, `declined`, `open`, `wall`) and told to holzi
+// reading of the page (`searching`, `none`, `declined`, `open`, `wall`) and told to haex-vault
 // through the binding `__haex`.
 // Rust passes nothing in; the script runs as it is.
 ;(() => {
   if (globalThis.__haexConsent) return
-  // `stopped` is set by holzi when the tab is given back: nothing is pressed after that.
+  // `stopped` is set by haex-vault when the tab is given back: nothing is pressed after that.
   const consent = (globalThis.__haexConsent = {
     state: 'searching',
     stopped: false,

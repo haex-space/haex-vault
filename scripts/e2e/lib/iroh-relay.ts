@@ -1,7 +1,7 @@
 // A local iroh relay for runs with a phone (spec 043, contract e2e-android.md): the phone sits behind
 // the emulator's own network, so the devices on Linux cannot reach it directly. Every device of the
 // group uses this relay instead; the phone reaches it through `adb reverse` at the same address. The
-// program is the `iroh-relay` of the iroh release holzi uses, in its development mode (plain HTTP).
+// program is the `iroh-relay` of the iroh release haex-vault uses, in its development mode (plain HTTP).
 // The relay never outlives its scenario.
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'

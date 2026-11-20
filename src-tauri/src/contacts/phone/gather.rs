@@ -1,4 +1,4 @@
-//! The first half of a run (spec 051, research R6 to R9): what holzi and the phone hold now, and
+//! The first half of a run (spec 051, research R6 to R9): what haex-vault and the phone hold now, and
 //! what changed. Reads only; nothing here writes either side.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -22,7 +22,7 @@ pub struct Gathered {
     pub links: Vec<Link>,
     pub known: BTreeMap<i64, String>,
     pub targets: Vec<Target>,
-    /// `updated_at` of every contact of holzi.
+    /// `updated_at` of every contact of haex-vault.
     pub updated_at: BTreeMap<String, String>,
     pub classified: Classified,
 }
@@ -94,7 +94,7 @@ pub fn gather(db: &VaultDb, book: &dyn PhoneBook, device: &str) -> Result<Gather
 pub struct Deletions {
     /// Contacts whose raw contacts on this phone are all gone: deleted on the phone.
     pub from_phone: BTreeMap<String, Vec<i64>>,
-    /// Raw contacts whose contact holzi deleted, by that contact.
+    /// Raw contacts whose contact haex-vault deleted, by that contact.
     pub from_haex: BTreeMap<String, Vec<i64>>,
     /// Links to drop without deleting anything: one raw contact of several gone, or its account
     /// left the phone (FR-026), or a raw contact gone whose contact no longer has this phone as a
@@ -148,7 +148,7 @@ pub fn deletions(gathered: &Gathered) -> Deletions {
             out.unlink.push(link.raw_contact_id);
         }
     }
-    // Links whose contact holzi deleted (when the delete did not take the link with it).
+    // Links whose contact haex-vault deleted (when the delete did not take the link with it).
     for link in &gathered.links {
         let present = gathered
             .index
@@ -169,7 +169,7 @@ pub fn deletions(gathered: &Gathered) -> Deletions {
                 .push(link.raw_contact_id);
         }
     }
-    // Raw contacts this phone linked whose link went with a contact holzi deleted.
+    // Raw contacts this phone linked whose link went with a contact haex-vault deleted.
     for raw in &gathered.classified.new {
         if let Some(contact) = gathered.known.get(&raw.id) {
             if !gathered.updated_at.contains_key(contact) {

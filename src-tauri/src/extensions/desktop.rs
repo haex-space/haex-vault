@@ -1,4 +1,4 @@
-//! holzi's [`Desktop`] for extensions in the running app (spec 017, US8): the system's browser
+//! haex-vault's [`Desktop`] for extensions in the running app (spec 017, US8): the system's browser
 //! through `tauri-plugin-opener`, and system notifications through the shared
 //! [`SystemNotifier`](crate::notifications::system::SystemNotifier), whose clicks go back to the
 //! extension's respond callback.

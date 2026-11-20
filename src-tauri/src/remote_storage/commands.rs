@@ -125,7 +125,7 @@ pub async fn storage_test(state: State<'_, AppState>, id: String) -> Result<Test
 }
 
 /// Answers a storage dialog of an extension (research R6). Credentials in the answer come from
-/// holzi's window over the whole app and stay in Rust; for them it waits for their test: a failed
+/// haex-vault's window over the whole app and stay in Rust; for them it waits for their test: a failed
 /// one keeps the dialog open for corrected credentials.
 #[tauri::command]
 pub async fn storage_dialog_resolve(

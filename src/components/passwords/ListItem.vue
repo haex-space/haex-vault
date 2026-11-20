@@ -2,7 +2,7 @@
 /**
  * One entry in the list (spec 034, FR-001, FR-008, US1): icon, title (or the placeholder text of the
  * window for an entry without one), username, tag chips, a badge when it has expired and markers
- * for a TOTP and for passkeys, and one for an entry that belongs to a holzi function (spec 038, Z14). It holds a header only, never a secret. Spec 036 adds the context
+ * for a TOTP and for passkeys, and one for an entry that belongs to a haex-vault function (spec 038, Z14). It holds a header only, never a secret. Spec 036 adds the context
  * menu and the menu button (FR-018), the dimming of a cut entry (FR-013) and the one tab stop of
  * the list (arrow keys move it, FR-016).
  */
@@ -50,7 +50,7 @@ const expired = computed(() =>
   isExpired(props.header.expiresAt, localDay(new Date())),
 )
 
-/** An entry of a type a newer holzi wrote: shown with a notice, never as an empty login. */
+/** An entry of a type a newer haex-vault wrote: shown with a notice, never as an empty login. */
 const unknownType = computed(() => entryTypeOf(props.header) === 'unknown')
 
 const selection = usePasswordsSelectionStore()

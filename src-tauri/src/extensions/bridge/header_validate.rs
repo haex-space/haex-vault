@@ -157,7 +157,7 @@ impl Checker {
         let own = Some(id.as_str());
         // 6.
         if object.contains_key("testId") {
-            return Err(refuse(own, "testId is for holzi's own apps"));
+            return Err(refuse(own, "testId is for HaexVault's own apps"));
         }
         let named = !matches!(kind, "title" | "separator");
         let label = text(object, "label", own, false)?;

@@ -64,7 +64,7 @@ pub trait ChatFormat: Sync {
     /// Reads the call blocks out of `text`: returns the text without them and the calls, in order.
     fn parse_calls(&self, text: &str, tools: &[ToolSpec]) -> (String, Vec<ToolCall>);
 
-    /// Turns holzi's flat history into the messages the template reads. The default fits the Qwen
+    /// Turns haex-vault's flat history into the messages the template reads. The default fits the Qwen
     /// family; a format whose template reads another shape overrides it.
     fn shape_messages(&self, system_prompt: Option<&str>, history: &[ChatMessage]) -> Vec<Value> {
         default_messages(system_prompt, history)

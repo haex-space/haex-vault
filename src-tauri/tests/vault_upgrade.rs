@@ -94,7 +94,7 @@ fn reopening_a_pre_0009_vault_tracks_tokenizer_repo() {
     let db_path = dir.path().join("vault.db");
     let installation_id = installation_id_path(dir.path());
 
-    // Provision the vault as an older holzi release would have: no 0009,
+    // Provision the vault as an older haex-vault release would have: no 0009,
     // triggers installed against the pre-0009 `models` shape.
     let old = open_vault(dir.path(), pre_0009_source(), DEFAULT_TRIGGER_VERSION);
     assert!(

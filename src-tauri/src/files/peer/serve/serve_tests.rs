@@ -1,5 +1,5 @@
 //! Requests against a serving device over a real connection: the checks on every request (FR-005),
-//! the root of a share (FR-006, SC-005), holzi's own places (FR-007) and a revoked grant (FR-024).
+//! the root of a share (FR-006, SC-005), haex-vault's own places (FR-007) and a revoked grant (FR-024).
 
 use crate::files::peer::client::PeerLink;
 use crate::files::peer::test_support::{own_pair, store_card, Device};

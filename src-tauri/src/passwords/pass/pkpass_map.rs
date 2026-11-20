@@ -400,7 +400,7 @@ fn format_day(iso: &str, language: &str) -> String {
     iso.to_owned()
 }
 
-/// The codes of a pass: `barcodes`, or the legacy single `barcode`. A code whose format holzi does
+/// The codes of a pass: `barcodes`, or the legacy single `barcode`. A code whose format haex-vault does
 /// not draw is kept as text with the flag `unknown_format`, one whose value does not fit its format
 /// with `invalid_value` (FR-003).
 /// The second part of the result is how many codes the limit left out.
@@ -455,7 +455,7 @@ fn codes_of(root: &Map<String, Value>) -> (Vec<CodeInput>, usize) {
     (codes, left_out)
 }
 
-/// Names what the file holds and holzi does not keep.
+/// Names what the file holds and haex-vault does not keep.
 fn report(
     root: &Map<String, Value>,
     style: &Map<String, Value>,

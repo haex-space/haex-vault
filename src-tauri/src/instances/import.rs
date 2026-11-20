@@ -99,7 +99,7 @@ fn reserve_name(paths: &VaultPaths, base: &str) -> Result<(String, std::path::Pa
     })
 }
 
-/// A database that opened but is no vault of holzi: another app's SQLCipher file, or a holzi
+/// A database that opened but is no vault of haex-vault: another app's SQLCipher file, or a haex-vault
 /// file from a version this one cannot read.
 fn not_a_vault(error: HaexError) -> HaexError {
     match error {
@@ -111,7 +111,7 @@ fn not_a_vault(error: HaexError) -> HaexError {
         other => {
             log::warn!("import_instance: the chosen file is no vault: {other}");
             HaexError::NotAValidInstance {
-                reason: "not a vault of holzi".to_string(),
+                reason: "not a vault of HaexVault".to_string(),
             }
         }
     }
@@ -202,7 +202,7 @@ pub async fn import_instance(
     crate::tts::clone_commands::start_after_open(&state);
     // Spec 051 (FR-020): the sync with the phone's address book catches up.
     crate::contacts::phone::trigger::start(&app);
-    // Spec 060 (research R9): links other holzi processes got for this vault.
+    // Spec 060 (research R9): links other haex-vault processes got for this vault.
     crate::deep_link::start_for_active_instance(&app);
     crate::extensions::registry::blobs::start_after_open(&state);
 

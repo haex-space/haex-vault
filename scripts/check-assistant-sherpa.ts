@@ -52,7 +52,7 @@ test('every pinned archive has a SHA-256 and belongs to the pinned version', () 
   }
 })
 
-test('every target holzi builds has an archive', () => {
+test('every target HaexVault builds has an archive', () => {
   for (const target of [
     'x86_64-unknown-linux-gnu',
     'x86_64-pc-windows-msvc',

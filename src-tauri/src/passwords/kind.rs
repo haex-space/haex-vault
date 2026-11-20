@@ -1,7 +1,7 @@
 //! The type of an entry (spec 092, data-model.md, research R1): a `login` or a `pass` (a card or a
 //! ticket). The stored text is `haex_passwords_item_details.kind`. An entry written by a newer
-//! holzi can carry a type this build does not know; it is carried as text, never defaulted to a
-//! login, so the window can say "needs a newer holzi" and nothing writes it over (FR-042).
+//! haex-vault can carry a type this build does not know; it is carried as text, never defaulted to a
+//! login, so the window can say "needs a newer haex-vault" and nothing writes it over (FR-042).
 
 use std::fmt;
 

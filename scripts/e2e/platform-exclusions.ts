@@ -71,7 +71,7 @@ export const EXCLUSIONS: PlatformExclusion[] = [
     platform: 'android',
     kind: 'excluded',
     reason:
-      'a phone has no agent browser: holzi steers a Chromium of its own only on the desktop (FR-016, spec 065 research R13), and its stand-in agent needs the `--mcp-agent` helper',
+      'a phone has no agent browser: HaexVault steers a Chromium of its own only on the desktop (FR-016, spec 065 research R13), and its stand-in agent needs the `--mcp-agent` helper',
     counterCase: 'android-not-available',
   },
   {

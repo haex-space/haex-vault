@@ -15,7 +15,7 @@ const { openApp } = useWmTab()
 const itemId = computed(() => router.route.params.id ?? '')
 const isNew = computed(() => itemId.value === 'new')
 const type = computed(() => entryTypeOf(store.headersById.get(itemId.value)))
-/** An entry of a type a newer holzi wrote is shown as such, never opened in an editor (spec 092, FR-042). */
+/** An entry of a type a newer haex-vault wrote is shown as such, never opened in an editor (spec 092, FR-042). */
 const unknownType = computed(() => type.value === 'unknown')
 /** A pass belongs to Wallet. Until the overview is loaded the type of an entry is not known. */
 const isPass = computed(() => !isNew.value && type.value === 'pass')

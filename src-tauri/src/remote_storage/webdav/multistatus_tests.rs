@@ -41,7 +41,7 @@ const NEXTCLOUD: &str = r#"<?xml version="1.0"?>
 const APACHE: &str = r#"<?xml version="1.0" encoding="utf-8"?>
 <D:multistatus xmlns:D="DAV:" xmlns:ns0="DAV:">
 <D:response xmlns:lp1="DAV:" xmlns:lp2="http://apache.org/dav/props/">
-<D:href>https://u123.your-storagebox.de/holzi/Q%26A.txt</D:href>
+<D:href>https://u123.your-storagebox.de/haex-vault/Q%26A.txt</D:href>
 <D:propstat>
 <D:prop>
 <lp1:resourcetype/>
@@ -98,7 +98,7 @@ fn a_nextcloud_answer_reads_as_entries_of_the_folder() {
 
 #[test]
 fn an_apache_answer_with_full_addresses_and_weak_etags_reads_too() {
-    let entries = parse(APACHE, "/holzi/").expect("parse");
+    let entries = parse(APACHE, "/haex-vault/").expect("parse");
     assert_eq!(entries.len(), 1, "the entry outside the folder is dropped");
     assert_eq!(entries[0].name, "Q&A.txt");
     assert_eq!(entries[0].size, 7);

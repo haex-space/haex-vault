@@ -17,7 +17,7 @@ use crate::vault_gate::{VaultDb, VaultGate};
 /// A key only these tests use, derived from a public seed.
 fn key() -> String {
     use sha2::{Digest, Sha256};
-    let seed = Sha256::digest(b"holzi spec 018 development tool tests only");
+    let seed = Sha256::digest(b"HaexVault spec 018 development tool tests only");
     ed25519_dalek::SigningKey::from_bytes(&seed.into())
         .verifying_key()
         .as_bytes()

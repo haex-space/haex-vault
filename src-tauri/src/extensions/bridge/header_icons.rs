@@ -1,5 +1,5 @@
 //! The pictures of an extension's header (spec 090-app-header-bar, research R9): which files a
-//! description names, reading them through the shared icon helper, and what holzi remembers per
+//! description names, reading them through the shared icon helper, and what haex-vault remembers per
 //! frame so that a file is read and sent once, however often the header changes.
 
 use std::collections::{BTreeMap, HashSet};

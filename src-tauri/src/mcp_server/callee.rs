@@ -1,5 +1,5 @@
 //! What an external agent's tool call reaches (spec 021 FR-014, FR-018, FR-012): an action of the
-//! catalog, a tool of an extension (US4) or holzi's command tool (US5). Found by the tool's name,
+//! catalog, a tool of an extension (US4) or haex-vault's command tool (US5). Found by the tool's name,
 //! with or without the agent's rights, so the log names the effect of a refused call too.
 
 use std::sync::Arc;

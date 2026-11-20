@@ -1,5 +1,5 @@
-// Selection, holzi's own clipboard and what a paste or drop may do (spec 044 FR-018, FR-022, T049).
-// Pure, so `scripts/check-files-clipboard.ts` runs it without vue. The clipboard lives in holzi only;
+// Selection, haex-vault's own clipboard and what a paste or drop may do (spec 044 FR-018, FR-022, T049).
+// Pure, so `scripts/check-files-clipboard.ts` runs it without vue. The clipboard lives in haex-vault only;
 // the system's clipboard never sees paths.
 import { separatorOf } from './state.ts'
 
@@ -150,7 +150,7 @@ export function pruneSelection(
 /** One copied or cut entry. */
 export type ClipboardItem = { path: string; kind: 'file' | 'dir' }
 
-/** holzi's clipboard: entries of one folder of one source, to copy or to move. */
+/** haex-vault's clipboard: entries of one folder of one source, to copy or to move. */
 export type FilesClipboard = {
   op: 'copy' | 'cut'
   source: { kind: string; storageId?: string }
@@ -171,7 +171,7 @@ export function isWithin(inner: string, outer: string): boolean {
   return inner.startsWith(prefix)
 }
 
-/** Why a folder takes no changes: it is one of holzi's own places (`haexOwned`), or a share read only. */
+/** Why a folder takes no changes: it is one of haex-vault's own places (`haexOwned`), or a share read only. */
 export type PlaceLock = { haexOwned: boolean; readOnly: boolean }
 
 export const isLocked = (lock: PlaceLock | null | undefined): boolean =>
@@ -185,7 +185,7 @@ export type PasteRefusal = 'intoItself' | 'haexOwned' | 'readOnly' | 'nothing'
  * Whether `items` from `folder` may be copied (`copy`) or moved (`cut`) into `target`. The paths of
  * two sources are separate namespaces: with `sameSource` false (a storage and another storage, the
  * device and a storage) `/backup` going into `/backup/2026` is not "into itself" and a cut from `/`
- * to `/` is not "the same folder", so only the rule of holzi's own places applies (spec 062).
+ * to `/` is not "the same folder", so only the rule of haex-vault's own places applies (spec 062).
  */
 export function pasteRefusal(
   op: FilesClipboard['op'],
@@ -217,10 +217,10 @@ export function dropOp(
   return (keys.mac ? keys.alt : keys.ctrl) ? 'copy' : 'cut'
 }
 
-/** The MIME type of entries dragged inside holzi. */
+/** The MIME type of entries dragged inside haex-vault. */
 export const ENTRIES_MIME = 'application/x-haex-files-entries'
 
-/** What a drag inside holzi carries: the source, the folder and the entries. */
+/** What a drag inside haex-vault carries: the source, the folder and the entries. */
 export type DragPayload = Omit<FilesClipboard, 'op'>
 
 export function dragPayload(payload: DragPayload): string {

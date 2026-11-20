@@ -26,7 +26,7 @@ probe() {
   echo "debug.haex.probe=$(adb shell getprop debug.haex.probe)"
   adb shell am start -n "$package/.MainActivity"
 
-  # The probe writes its line into holzi's cache directory (`platform_probe::RESULT_FILE`); a debug
+  # The probe writes its line into haex-vault's cache directory (`platform_probe::RESULT_FILE`); a debug
   # APK lets the shell read it with `run-as`. The probe gives up after 90 s itself.
   : > "$result"
   for _ in $(seq 1 50); do
@@ -41,8 +41,8 @@ probe() {
   if ! grep -q HAEX_PROBE_RESULT "$result"; then
     echo "no result; started marker: $(adb shell run-as "$package" cat cache/platform-probe-started.txt 2>&1 || true)"
     echo "process: $(adb shell pidof "$package" || echo 'not running')"
-    adb logcat -d -s holzi-probe || true
-    adb logcat -d -b all | grep -iE "holzi|tauri|rust|chromium|AndroidRuntime" | tail -n 200 || true
+    adb logcat -d -s haex-probe || true
+    adb logcat -d -b all | grep -iE "haex|tauri|rust|chromium|AndroidRuntime" | tail -n 200 || true
   fi
   cat "$result"
   if ! node scripts/run-platform-probe.ts --judge "$result"; then

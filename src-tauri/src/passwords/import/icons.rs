@@ -1,4 +1,4 @@
-//! The KeePass standard icons 0–68 as icon names of holzi (spec 034, US7, research R12 point 7).
+//! The KeePass standard icons 0–68 as icon names of haex-vault (spec 034, US7, research R12 point 7).
 //! KeePass stores only the index; the pictures belong to the application, so this table is the icon
 //! set. Ported from `KEEPASS_ICONS` of haex-vault 2.x (Legacy) (`keepass.vue`, SHA
 //! `8dce379d94e18fcd42c3b73686a06f984ca3f574`) to literal `lucide:` names; the brand icons that

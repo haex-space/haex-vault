@@ -53,7 +53,7 @@ fn subject(q: &mut impl Query, contact_id: &str) -> Result<Subject> {
     })
 }
 
-/// The values that are rows: those of the own contact are never holzi addresses (FR-005), those of
+/// The values that are rows: those of the own contact are never haex-vault addresses (FR-005), those of
 /// another contact may be, as unconfirmed ones (FR-014).
 fn rows_of(subject: &Subject) -> Vec<ContactShareRow> {
     subject
@@ -185,7 +185,7 @@ fn card_of(
             .card
             .as_ref()
             .map(|card| Some(card.bytes.clone()))
-            .ok_or_else(|| invalid("the contact has no confirmed holzi addresses")),
+            .ok_or_else(|| invalid("the contact has no confirmed HaexVault addresses")),
         ContactShareHaexChoice::Own { devices, relays } => {
             if !subject.contact.is_self {
                 return Err(invalid("only the own contact shares the own addresses"));

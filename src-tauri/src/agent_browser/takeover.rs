@@ -1,5 +1,5 @@
 //! `browser.takeover.request` (spec 065, FR-018, contracts/browser-tools.md): the agent asks the
-//! user to take over, for a captcha, a second factor or a payment in a provider's window. holzi
+//! user to take over, for a captcha, a second factor or a payment in a provider's window. haex-vault
 //! shows the request with the agent's reason as its own claim; with the user's yes the tab comes
 //! to the front, the user has the browser, and the call waits until the user gives it back. When
 //! the user has the browser already, the call just waits.

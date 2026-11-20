@@ -1,6 +1,6 @@
 //! The real target of a path (spec 017 FR-047, spec 044 FR-033, research R3): every check runs on
 //! it, never on the text a caller sent, so `..`, a symbolic link or another spelling cannot leave a
-//! folder or reach one of holzi's own places.
+//! folder or reach one of haex-vault's own places.
 
 use std::path::{Component, Path, PathBuf};
 

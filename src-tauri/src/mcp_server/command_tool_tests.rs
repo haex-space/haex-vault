@@ -1,4 +1,4 @@
-//! holzi's command tool for external agents (spec 021 US5, FR-012): offered only with the group and
+//! haex-vault's command tool for external agents (spec 021 US5, FR-012): offered only with the group and
 //! only where the device runs commands, and its answers in the shape of the contract.
 
 use std::sync::Arc;

@@ -16,7 +16,7 @@
  * A request the page sends (`request`, FR-044) shows the website it goes to and
  * what it sends; one checkbox "Für diese Website merken" turns the answer into a rule. A new login
  * (`newCredentials`, FR-036) shows the username the agent chose; "Speichern" stores the password
- * holzi generated and already entered, "Ablehnen" empties the fields again.
+ * haex-vault generated and already entered, "Ablehnen" empties the fields again.
  * What "Für diese Website merken" remembers goes into the agent profile of the agent (spec 083), so
  * the question says "gilt für alle Agenten im Agentenprofil {name}" with their number.
  */

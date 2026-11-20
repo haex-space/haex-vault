@@ -26,14 +26,14 @@ export type EncryptHereInput = {
   path: string | null
   /** The open folder is, or lies in, an encrypted folder: nothing new is encrypted there. */
   inEncrypted: boolean
-  /** The open folder is one of holzi's own places (FR-037): nothing is created there. */
+  /** The open folder is one of haex-vault's own places (FR-037): nothing is created there. */
   owned?: boolean
 }
 
 /**
  * Whether "Neuer verschlüsselter Ordner" belongs in the open folder: in a storage (FR-001) and in
  * any folder of this device (US7, FR-043), but not inside an encrypted folder, not in an extension
- * area, not in holzi's own places and not on another device.
+ * area, not in haex-vault's own places and not on another device.
  */
 export function canCreateEncrypted(input: EncryptHereInput): boolean {
   if (input.path === null || input.inEncrypted || input.owned) return false

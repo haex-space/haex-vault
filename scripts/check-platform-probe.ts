@@ -87,7 +87,7 @@ test('the CI fails without a result line, on ok false and on a non-zero exit', (
 
 test('logcat lines without an exit code can pass', () => {
   assert.equal(
-    judgeProbe('10-08 I holzi: HAEX_PROBE_RESULT {"ok":true}', null).ok,
+    judgeProbe('10-08 I HaexVault: HAEX_PROBE_RESULT {"ok":true}', null).ok,
     true,
   )
 })

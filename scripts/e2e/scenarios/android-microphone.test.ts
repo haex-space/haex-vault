@@ -9,7 +9,7 @@ import { ERROR_TOAST } from '../lib/toasts.ts'
 // nothing is recorded. The system's own question cannot be driven, so the refusal is given
 // beforehand through the phone's controls, as after a second "Don't allow".
 
-/** The explanation in every language holzi speaks. */
+/** The explanation in every language haex-vault speaks. */
 const EXPLANATIONS = translations('voiceControl.error.microphoneDenied')
 
 scenario('android-microphone', { needs: { phone: true } }, async (ctx) => {

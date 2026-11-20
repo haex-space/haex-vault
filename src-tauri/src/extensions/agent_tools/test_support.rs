@@ -20,7 +20,7 @@ use serde_json::{json, Value};
 
 use super::link::{connect, Link};
 
-/// Who sent a recorded message: `c2s` holzi (client) to the extension (server), `s2c` back.
+/// Who sent a recorded message: `c2s` haex-vault (client) to the extension (server), `s2c` back.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Direction {
     ClientToServer,

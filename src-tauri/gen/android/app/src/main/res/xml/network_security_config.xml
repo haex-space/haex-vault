@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Spec 044 (T016, research R4): cleartext only to holzi's own media server on 127.0.0.1; every
+<!-- Spec 044 (T016, research R4): cleartext only to haex-vault's own media server on 127.0.0.1; every
      other address keeps the platform default (no cleartext). -->
 <network-security-config>
     <domain-config cleartextTrafficPermitted="true">

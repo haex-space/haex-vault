@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * The notice before a file of an encrypted folder opens with the system's app (spec 048 FR-028):
- * holzi places a decrypted copy on this device, which the other app may keep; holzi removes its
+ * haex-vault places a decrypted copy on this device, which the other app may keep; haex-vault removes its
  * copy when the vault closes. "Nicht mehr fragen" holds for this folder on this device.
  */
 const emit = defineEmits<{ confirm: [dontAskAgain: boolean] }>()

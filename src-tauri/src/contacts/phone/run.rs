@@ -1,6 +1,6 @@
 //! One run of the sync with this phone (spec 051 FR-016, FR-019 to FR-026, research R6 to R9):
 //! gather both sides, hold back mass deletions, plan per contact, write the phone, read back what
-//! it holds now, then write holzi, the links and the state in one transaction. A batch the phone
+//! it holds now, then write haex-vault, the links and the state in one transaction. A batch the phone
 //! refuses leaves its contacts with an issue and the rest of the run goes on.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -30,7 +30,7 @@ pub enum Mode<'a> {
     /// A run on its own: after opening, on coming back, by hand.
     Normal,
     /// A run because contacts changed in the vault (FR-021). It takes no deletions over from the
-    /// phone: a phone that deletes contacts one by one while holzi is open would otherwise be
+    /// phone: a phone that deletes contacts one by one while haex-vault is open would otherwise be
     /// followed run by run, each below the guard. The next full run sees them all at once.
     Changes,
     /// The person decided on held-back deletions.
@@ -195,9 +195,9 @@ fn save_state(
     db.write_blocking(move |tx| store::save_run_row(tx, &device, &next).map_err(Into::into))
 }
 
-/// "Keep" on held-back deletions (FR-016): contacts the phone deleted stay in holzi and go to the
-/// phone again (they keep their target, their links go); raw contacts whose contact holzi deleted
-/// stay on the phone and come back into holzi (the phone forgets it linked them).
+/// "Keep" on held-back deletions (FR-016): contacts the phone deleted stay in haex-vault and go to the
+/// phone again (they keep their target, their links go); raw contacts whose contact haex-vault deleted
+/// stay on the phone and come back into haex-vault (the phone forgets it linked them).
 fn keep(db: &VaultDb, device: &str, found: &Deletions) -> Result<()> {
     let device = device.to_owned();
     let raws: Vec<i64> = found
@@ -374,7 +374,7 @@ fn sync(
         false
     });
 
-    // holzi's side of every contact the run touches.
+    // haex-vault's side of every contact the run touches.
     let wanted: Vec<String> = jobs
         .values()
         .filter_map(|job| match job {

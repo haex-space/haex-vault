@@ -44,7 +44,7 @@ use crate::storage::query::Query;
 
 pub use state::PeerState;
 
-/// The holzi function channels read the address book as (`Caller::Internal`).
+/// The haex-vault function channels read the address book as (`Caller::Internal`).
 pub const FEATURE: &str = "extensionPeers";
 
 /// The limits of research R14.

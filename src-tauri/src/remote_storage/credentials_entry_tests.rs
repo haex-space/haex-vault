@@ -238,10 +238,10 @@ async fn the_list_holds_the_fitting_entries_the_user_may_choose_without_a_value(
             entry("Mail", "m", SECRET, &[]),
         )
         .await
-        .expect("an entry of another holzi function");
+        .expect("an entry of another HaexVault function");
     let owned = credentials::create(&passwords, Protocol::S3, "RustFS", "", &placeholder())
         .await
-        .expect("an entry holzi created for a connection");
+        .expect("an entry HaexVault created for a connection");
 
     let ids = |protocol| {
         let db = db.clone();
@@ -269,7 +269,7 @@ async fn the_list_holds_the_fitting_entries_the_user_may_choose_without_a_value(
     assert_eq!(webdav[0].url.as_deref(), Some("https://alpha.example/"));
     assert!(
         webdav[1].owned && webdav[1].tagged,
-        "holzi's own entry is tagged"
+        "HaexVault's own entry is tagged"
     );
 
     let sftp = ids(Protocol::Sftp).await;
@@ -331,7 +331,7 @@ async fn vault_open_backfills_the_tag_on_old_storage_entries() {
         "only the tag changes"
     );
 
-    // Entries of the user and of other holzi functions keep their tags.
+    // Entries of the user and of other haex-vault functions keep their tags.
     let users = add(&passwords, entry("Bank", "anna", SECRET, &[])).await;
     let mail = passwords
         .create_owned_item(
@@ -339,7 +339,7 @@ async fn vault_open_backfills_the_tag_on_old_storage_entries() {
             entry("Mail", "m", SECRET, &[]),
         )
         .await
-        .expect("an entry of another holzi function");
+        .expect("an entry of another HaexVault function");
     db.write(credentials::backfill_owned_tags)
         .await
         .expect("backfill");

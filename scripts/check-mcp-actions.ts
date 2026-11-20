@@ -317,7 +317,7 @@ test('an incomplete password tag selection revokes access instead of retaining a
   }
 })
 
-test('every scope of "holzi bedienen" is in exactly one row of the rights list', () => {
+test('every scope of "HaexVault bedienen" is in exactly one row of the rights list', () => {
   const grouped = OPERATE_GROUPS.flatMap((group) => [...group.scopes])
   assert.deepEqual([...grouped].sort(), [...OPERATE_SCOPES].sort())
 })

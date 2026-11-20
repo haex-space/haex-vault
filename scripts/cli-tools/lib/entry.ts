@@ -252,7 +252,7 @@ export function codexEntry(
     const summary = summariseTarListing(item.listing)
     if (summary.unsafe.length > 0) {
       throw new Error(
-        `${asset}: the archive holds entries holzi refuses: ${summary.unsafe.slice(0, 3).join(', ')}`,
+        `${asset}: the archive holds entries HaexVault refuses: ${summary.unsafe.slice(0, 3).join(', ')}`,
       )
     }
     const executable = executables[key]

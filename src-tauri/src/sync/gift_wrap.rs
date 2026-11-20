@@ -1,4 +1,4 @@
-//! The three layers of NIP-59 (gift wrap, seal, unsigned rumor) for every holzi event that travels
+//! The three layers of NIP-59 (gift wrap, seal, unsigned rumor) for every haex-vault event that travels
 //! over Nostr-Relays: presence and the link rendezvous (spec 024, ephemeral kind 21059) and the chat
 //! with contacts (spec 072 research R1, stored kind 1059). One implementation; only the
 //! [`WrapShape`] differs.

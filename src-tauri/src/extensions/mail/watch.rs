@@ -1,7 +1,7 @@
 //! Watching a mailbox for new messages (spec 017, US11, FR-056, FR-058): `mail:new-messages
 //! {accountId, mailboxName, newCount}` to the frames of the extension that watches.
 //!
-//! holzi keeps one connection per watch and waits with IMAP IDLE (RFC 2177): the server reports
+//! haex-vault keeps one connection per watch and waits with IMAP IDLE (RFC 2177): the server reports
 //! a new message itself. IDLE is renewed every [`IDLE_RENEW`] (servers may end it after 30
 //! minutes); a lost connection is opened again after a growing pause. A server without IDLE is
 //! asked every `intervalSeconds` instead. Only messages that arrive after the start count. The
@@ -31,7 +31,7 @@ use crate::vault_gate::VaultDb;
 /// The SDK's event for new messages.
 pub const NEW_MESSAGES: &str = "mail:new-messages";
 
-/// How long one IDLE runs before holzi renews it.
+/// How long one IDLE runs before haex-vault renews it.
 pub const IDLE_RENEW: Duration = Duration::from_secs(25 * 60);
 /// The bounds of the polling interval of a server without IDLE (the SDK's `intervalSeconds`).
 #[cfg(not(test))]

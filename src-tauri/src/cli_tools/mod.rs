@@ -1,10 +1,10 @@
 //! CLI tools per vault (spec 094).
 //!
 //! The delegate backends (Claude Code, Codex; later the Abacus AI CLI) run a command-line tool.
-//! holzi does not take that tool from the host: every vault has its own installation inside its
+//! haex-vault does not take that tool from the host: every vault has its own installation inside its
 //! folder, `<vault>/cli-tools/<vendor>/<version>/`, and its own home folder, `<vault>/home/`,
 //! which every delegate process gets as `HOME`. The user installs, updates and removes a tool in
-//! Settings; holzi never does it silently, and only installs versions it has tested (the
+//! Settings; haex-vault never does it silently, and only installs versions it has tested (the
 //! [`catalog`], with a SHA-256 per download).
 //!
 //! This module owns the data and the logic: [`catalog`] (what can be installed), [`platform`]

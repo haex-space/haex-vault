@@ -61,7 +61,7 @@ fn contact_row(r: &haex_crdt::rusqlite::Row<'_>) -> haex_crdt::rusqlite::Result<
         },
         photo: r.get(11)?,
         origin: Origin {
-            // A row of a newer version with an origin this one does not know reads as holzi.
+            // A row of a newer version with an origin this one does not know reads as haex-vault.
             kind: OriginKind::parse(&origin_kind).unwrap_or(OriginKind::Haex),
             device: r.get(13)?,
             caller: r.get(14)?,

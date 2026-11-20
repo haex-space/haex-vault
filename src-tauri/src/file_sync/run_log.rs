@@ -56,7 +56,7 @@ pub enum SyncRuleRunAction {
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub enum SyncRuleTrashKind {
-    /// The system's trash; holzi cannot open it.
+    /// The system's trash; haex-vault cannot open it.
     System,
     /// The rule trash of the place.
     Rule,

@@ -235,7 +235,7 @@ pub(crate) async fn load_model_inner(
             emit,
             database: Some(active_database(state)?),
             children: chat.children().clone(),
-            // Spec 021 US6: a registered delegate gets holzi's own MCP server.
+            // Spec 021 US6: a registered delegate gets haex-vault's own MCP server.
             haex: app
                 .try_state::<crate::mcp_server::McpServer>()
                 .map(|server| server.delegate_access()),

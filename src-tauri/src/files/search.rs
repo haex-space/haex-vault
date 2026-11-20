@@ -2,7 +2,7 @@
 //! with `walkdir`: it never follows links (no loops), stays on the file system it starts on (so a
 //! search from `/` skips `/proc`, `/sys`, `/dev`), and skips folders the system denies without a
 //! word. Names match typo-tolerant with `frizbee`. Hits go out in batches while the walk runs; the
-//! window sorts them by score. Agents search with tighter limits and never see holzi's own places.
+//! window sorts them by score. Agents search with tighter limits and never see haex-vault's own places.
 
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -97,7 +97,7 @@ impl SearchLimits {
 pub struct SearchOptions {
     pub filters: SearchFilters,
     pub show_hidden: bool,
-    /// holzi's own places: hits in them are marked read-only.
+    /// haex-vault's own places: hits in them are marked read-only.
     pub own: OwnPlaces,
     /// Leaves the own places out with all below (agents, FR-033).
     pub hide_own: bool,

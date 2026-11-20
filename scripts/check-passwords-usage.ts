@@ -1,5 +1,5 @@
 // Part of `pnpm check:passwords` (spec 034-password-manager, FR-034): which entries about to be
-// deleted a holzi function uses (src/lib/passwords/usage.ts).
+// deleted a haex-vault function uses (src/lib/passwords/usage.ts).
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 

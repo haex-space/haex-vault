@@ -1,7 +1,7 @@
 //! Files of the device for extensions (spec 017, US9, FR-046–FR-049, FR-066, research R19): the
 //! SDK's `extension_filesystem_*` methods, all in Rust.
 //!
-//! Every path is checked at its real target ([`resolve`]), against a fixed list of holzi's own
+//! Every path is checked at its real target ([`resolve`]), against a fixed list of haex-vault's own
 //! places first ([`FsEnvironment::denied`], FR-049), then against what the user chose in a dialog
 //! from this frame ([`FsState::grant`], FR-048), then against the extension's `filesystem`
 //! permissions, which may ask the user (1004). On Android and iOS only dialog choices hold; a free
@@ -61,9 +61,9 @@ pub enum Reach {
     Tree,
 }
 
-/// holzi's places and helpers on this device, set once at start.
+/// haex-vault's places and helpers on this device, set once at start.
 pub struct FsEnvironment {
-    /// holzi's own data, vaults, configuration, cache and logs: never reachable (FR-049).
+    /// haex-vault's own data, vaults, configuration, cache and logs: never reachable (FR-049).
     pub denied: OwnPlaces,
     /// The SDK's known places (`home`, `documents`, …) that exist here.
     pub known: Vec<(&'static str, PathBuf)>,
@@ -77,9 +77,9 @@ pub struct FsEnvironment {
     pub opener: Arc<dyn Opener + Send + Sync>,
 }
 
-/// The environment of the running app: holzi's own app folders are protected (resolved, so a link
+/// The environment of the running app: haex-vault's own app folders are protected (resolved, so a link
 /// cannot hide them), the SDK's known places that exist are offered, and opened copies go to a
-/// folder in holzi's cache, itself protected.
+/// folder in haex-vault's cache, itself protected.
 pub fn environment_for<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> FsEnvironment {
     use tauri::Manager;
     let paths = app.path();
@@ -209,7 +209,7 @@ fn protected() -> BridgeError {
     BridgeError::new(ExtensionErrorCode::PermissionDenied, "path is protected")
 }
 
-/// Whether `path` touches one of holzi's own places (lies in one, or, for a call that reaches the
+/// Whether `path` touches one of haex-vault's own places (lies in one, or, for a call that reaches the
 /// whole tree, holds one) or goes through the raw directory of an encrypted folder, which an
 /// extension reaches only through that folder's own permission (spec 048 FR-051). A tree call on
 /// a folder that holds an encrypted folder is not refused: it moves or removes the whole folder,

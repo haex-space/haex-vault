@@ -1,5 +1,5 @@
-//! `extension_peer_invitation_answer`: holzi's window answers an invitation prompt (spec 057
-//! T040, contracts/bridge.md §Befehle für holzis Fenster). Only holzi's own window calls it; an
+//! `extension_peer_invitation_answer`: haex-vault's window answers an invitation prompt (spec 057
+//! T040, contracts/bridge.md §Befehle für haex-vaults Fenster). Only haex-vault's own window calls it; an
 //! extension has no way to accept or decline anything (FR-016).
 
 use serde::Serialize;
@@ -60,7 +60,7 @@ pub fn frame_overflow(host: &ExtensionHost, frame: &str, channel_id: &str) {
         .end(session.extension_id, channel, EndReason::Lost);
 }
 
-/// holzi's window reports the overflow of a frame's queue (`FrameEventQueue`, spec 057 T066).
+/// haex-vault's window reports the overflow of a frame's queue (`FrameEventQueue`, spec 057 T066).
 #[tauri::command]
 pub async fn extension_peers_frame_overflow(
     state: State<'_, AppState>,

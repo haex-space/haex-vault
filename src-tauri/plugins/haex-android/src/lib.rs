@@ -1,4 +1,4 @@
-//! holzi's Android platform code (spec 043, ADR-0010).
+//! haex-vault's Android platform code (spec 043, ADR-0010).
 //!
 //! Everything only Android has goes through this crate, so its Kotlin, manifest entries and
 //! Gradle dependencies stay out of the generated `gen/android` project. On every other
