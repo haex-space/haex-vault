@@ -67,12 +67,16 @@ const askingToLeave = ref(false)
 const isNew = computed(() => props.itemId === null)
 const dirty = computed(() => isDirty(initial.value, draft.value))
 
-/** Refreshes only the attachment list: the draft and the update token stay as they are. */
+/** Refreshes only the attachment and passkey lists: the draft and the update token stay as they are. */
 async function reloadAttachmentsAsync() {
   if (props.itemId === null || !detail.value) return
   try {
     const fresh = await getItemAsync(props.itemId)
-    detail.value = { ...detail.value, attachments: fresh.attachments }
+    detail.value = {
+      ...detail.value,
+      attachments: fresh.attachments,
+      passkeys: fresh.passkeys,
+    }
   } catch (cause) {
     toast.error(errString(cause))
   }

@@ -260,7 +260,6 @@ async function removeOtpAsync() {
             <PasswordsViewExtra
               :item-id="itemId"
               :detail="detail"
-              :readonly="inTrash"
               @changed="loadAsync"
             />
           </template>

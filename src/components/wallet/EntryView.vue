@@ -245,7 +245,6 @@ function back() {
               :item-id="itemId"
               :detail="detail"
               pass
-              :readonly="inTrash"
               @changed="loadAsync"
             />
           </template>

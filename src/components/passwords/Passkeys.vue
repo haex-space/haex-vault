@@ -124,10 +124,10 @@ async function confirmDeleteAsync() {
     >
       <template v-if="passkey.linkedFrom">
         <UiButton
-          v-if="!readonly"
           type="button"
           variant="ghost"
           size="sm"
+          :disabled="readonly"
           :data-testid="`passwords-passkey-unlink-${passkey.id}`"
           @click="unlinkAsync(passkey)"
         >
@@ -148,11 +148,12 @@ async function confirmDeleteAsync() {
           t('passwords.save')
         }}</UiButton>
       </template>
-      <template v-else-if="!readonly">
+      <template v-else>
         <UiButton
           type="button"
           variant="ghost"
           size="icon"
+          :disabled="readonly"
           :aria-label="t('passwords.passkeys.rename')"
           :tooltip="t('passwords.passkeys.rename')"
           :data-testid="`passwords-passkey-rename-${passkey.id}`"
@@ -164,6 +165,7 @@ async function confirmDeleteAsync() {
           type="button"
           variant="ghost"
           size="icon"
+          :disabled="readonly"
           :aria-label="t('passwords.passkeys.delete')"
           :tooltip="t('passwords.passkeys.delete')"
           :data-testid="`passwords-passkey-delete-${passkey.id}`"
