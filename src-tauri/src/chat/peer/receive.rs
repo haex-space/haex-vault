@@ -6,7 +6,7 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 
-use super::envelope::{Attachment, Body, Envelope, Receipt, To};
+use super::envelope::{self, Attachment, Body, Envelope, Receipt, To};
 use super::verify::vault_bytes;
 use super::{ids, store};
 use crate::contacts::card::{format, received};
@@ -164,10 +164,14 @@ pub fn insert_attachments(
         let key = decode_hex(&file.blossom.key)
             .ok()
             .filter(|key| key.len() == 32);
+        // The marker is the sender's word: it counts only for a text file of a size we would read.
+        let inline = file.inline
+            && file.mime == envelope::INLINE_MIME
+            && file.size <= envelope::MAX_INLINE_FILE_BYTES;
         tx.execute(
             "INSERT INTO chat_attachments (id, message_id, kind, name, mime, size, sha256, \
-               blossom_url, blob_sha256, blob_key) \
-             VALUES (?1, ?2, 'file', ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+               blossom_url, blob_sha256, blob_key, inline) \
+             VALUES (?1, ?2, 'file', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             params![
                 ids::attachment_id(message_id, index).to_string(),
                 message_id.to_string(),
@@ -177,7 +181,8 @@ pub fn insert_attachments(
                 file.sha256.to_ascii_lowercase(),
                 file.blossom.url,
                 file.blossom.sha256.to_ascii_lowercase(),
-                key
+                key,
+                i64::from(inline)
             ],
         )?;
     }

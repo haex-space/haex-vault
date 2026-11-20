@@ -333,6 +333,34 @@ confirm (sent) (spec US7, quickstart A10).
 
 ---
 
+## Phase 12: Long messages (Priority: P1) (PR L)
+
+**Goal**: A text of any length up to 1,000,000 characters can be sent, in conversations and as a note
+(FR-012, FR-012a, R2 amendment of 2026-11-20); design in
+[docs/plans/2026-11-20-long-messages-design.md](../../docs/plans/2026-11-20-long-messages-design.md).
+Needs the send and download backend of PR E (merged); not the attachment window of E3.
+
+### Tests for long messages
+
+- [x] T123 [P] Tests in `src-tauri/src/chat/peer/send_tests.rs`, `envelope_tests.rs` and `long_text_tests.rs`: a text that fits goes inline without a character limit; a text of 4-byte characters and one full of quotes and newlines (doubled by escaping) fall to a file; the preview is ≤ 1,000 characters cut at a word boundary; 1,000,000 characters are accepted, 1,000,001 refused with `chat.error.tooLong`; a note takes 100,000 characters and refuses 1,000,001; without a Blossom-Server nothing is queued (`chat.file.noServer`)
+- [x] T124 [P] Tests in `src-tauri/src/chat/peer/long_text_tests.rs` (two vaults over a mock relay and the test Blossom-Server): the receiver stores the preview and an `inline` attachment and gets the text by automatic download; the marker is ignored for another type or above 4 MB; a retry with the same key sends once
+- [x] T125 [P] Tests in `src-tauri/src/chat/peer/long_text_tests.rs` for `ChatFiles::text`, which `chat_attachment_text` calls: returns the text of a stored `inline` attachment, refuses a file that is not `inline`, answers the state when the file is not stored yet, refuses text that is not UTF-8
+
+### Implementation for long messages
+
+- [x] T126 `src-tauri/src/chat/peer/envelope.rs`: `MAX_TEXT_CHARS` becomes the upper bound of 1,000,000 (keep the rumor and wrap limits), `FileAttachment.inline` (`#[serde(default, skip_serializing_if)]`), preview length, `chat.error.tooLong`; a receiver honours `inline` only for `text/plain` ≤ 4 MB
+- [x] T127 Migration `chat_attachments.inline` in `src-tauri/src/identity/migrations_chat_contacts.rs`, written by `receive::insert_attachments`, read for `ChatPeerAttachment.inline`; regenerate the binding and run the trailing-space `sed` of CI on `src/types/bindings/*.ts`
+- [x] T128 `src-tauri/src/chat/peer/send.rs` (`fits_inline`, shared `queued_content` also checking the 20 KiB ratchet plaintext of spec 095), new `long_text.rs` and `commands/messages.rs`: `chat_peer_send` checks with the own card and a trial wrap whether the text fits; if not, builds `message.txt` as `Picked` and sends it through `ChatFiles::send` with the preview as `text` and `inline`, including when the user also attaches files; notes check only the upper bound
+- [x] T129 Command `chat_attachment_text` in `src-tauri/src/chat/peer/commands/files.rs` (only for `inline` attachments), registered in `src-tauri/src/lib.rs`
+- [x] T130 Frontend: `src/composables/usePeerConversation.ts` keeps one mirror of the upper bound; `PeerConversation.vue` shows the counter only near it and locks sending over it (notes and contacts share the bound); new `src/components/chat/PeerMessageText.vue` (clamp of ~12 lines, "Weiterlesen"/"Weniger anzeigen", size, progress from `chat-transfer`, retry, gone) used by `PeerMessageList.vue`
+- [x] T131 [P] i18n `chat.peer.readMore`, `chat.peer.readLess`, `chat.peer.textGone`, `chat.error.tooLong`, counter text in `src/i18n/locales/de.json` and `en.json`
+- [x] T132 Checks: `scripts/check-chat-long-text.ts` for what "Weiterlesen" offers by the state of the file (`src/lib/chat/longText.ts`, part of `check:chat-state`; the CSS clamp is not testable without a DOM), all `check:*`, `pnpm lint`, `pnpm typecheck`, `pnpm typecheck:scripts`, `pnpm format:check`; targeted `cargo test` and clippy including the Android target
+
+**Checkpoint**: A 100,000-character text goes to a contact and to "Ich", shows collapsed on every device
+and fully after a click.
+
+---
+
 ## Dependencies & Execution Order
 
 - **Setup (T001–T003)** → **Foundational (T004–T008)** → US1 (PR B).
@@ -343,7 +371,8 @@ confirm (sent) (spec US7, quickstart A10).
 - **US6 (PR G)** needs PR C; large photos need PR E.
 - **US7 (PR H)** needs PR C (read) and works for files after E.
 - **US8 (PR I)** needs PR E (Blossom settings) and finishes T069's default via T104.
-- Merge order: B → C → D → E → F → G → H → I.
+- **Long messages (PR L)** needs PR E2a (merged); independent of the rest.
+- Merge order: B → C → D → E → F → G → H → I; PR L any time after E.
 
 ### Within each story
 

@@ -43,6 +43,7 @@ use super::migrations_agent_profiles::{AGENT_PROFILES_0054, AGENT_PROFILE_INDEXE
 use super::migrations_assistant_speakers::ASSISTANT_SPEAKERS_0058;
 use super::migrations_assistant_tones::ASSISTANT_TONES_0051;
 use super::migrations_browser_clients::BROWSER_CLIENTS_0038;
+use super::migrations_chat_attachment_inline::CHAT_ATTACHMENT_INLINE_0067;
 use super::migrations_chat_contacts::CHAT_CONTACTS_0049;
 use super::migrations_chat_ratchet::CHAT_RATCHET_0063;
 use super::migrations_chat_record_relays::CHAT_RECORD_RELAYS_0066;
@@ -154,7 +155,9 @@ use super::migrations_voice::VOICE_0050;
 ///   CRDT-tracked `haex_passwords_pass_details` and `haex_passwords_pass_barcodes`.
 /// - 41: `0062_extension_default_model` (spec 055) dropped the CRDT-tracked `extension_model_order`
 ///   and added the CRDT-tracked `extension_default_model`.
-pub const HAEX_TRIGGER_VERSION: i32 = 41;
+/// - 42: `0067_chat_attachment_inline` (spec 072 FR-012) added `inline` to the CRDT-tracked
+///   `chat_attachments`.
+pub const HAEX_TRIGGER_VERSION: i32 = 42;
 
 /// Returns the frozen haex-vault migration set at the pinned haex-crdt revision.
 pub fn haex_migration_source() -> Arc<StaticMigrationSource> {
@@ -868,6 +871,11 @@ pub fn haex_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0066_chat_record_relays"),
         CHAT_RECORD_RELAYS_0066.to_owned(),
+    );
+    // Spec 072 FR-012: a file of a message can be the full text of a long message.
+    m.insert(
+        MigrationName::from("0067_chat_attachment_inline"),
+        CHAT_ATTACHMENT_INLINE_0067.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

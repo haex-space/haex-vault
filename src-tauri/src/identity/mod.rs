@@ -30,6 +30,9 @@ mod migrations_assistant_tones_tests;
 mod migrations_browser_clients;
 #[cfg(test)]
 mod migrations_browser_clients_tests;
+mod migrations_chat_attachment_inline;
+#[cfg(test)]
+mod migrations_chat_attachment_inline_tests;
 mod migrations_chat_contacts;
 #[cfg(test)]
 mod migrations_chat_contacts_tests;

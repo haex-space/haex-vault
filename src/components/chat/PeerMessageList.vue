@@ -7,6 +7,7 @@
  */
 import type { ChatPeerMessage } from '@bindings/ChatPeerMessage'
 import type { ChatDeliveryState } from '@bindings/ChatDeliveryState'
+import { textFile } from '~/lib/chat/longText'
 
 const props = defineProps<{
   messages: ChatPeerMessage[]
@@ -16,6 +17,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   resend: [messageId: string]
+  /** Fetch the file of this attachment now (a long text's file, FR-012a). */
+  download: [attachmentId: string]
 }>()
 
 const { t, locale } = useI18n()
@@ -85,9 +88,11 @@ function reason(code: string | null) {
         <span v-if="!message.own" class="text-xs font-medium opacity-80">
           {{ peerName }}
         </span>
-        <p class="whitespace-pre-wrap break-words text-sm">
-          {{ message.text }}
-        </p>
+        <ChatPeerMessageText
+          :text="message.text ?? ''"
+          :file="textFile(message.attachments)"
+          @download="emit('download', $event)"
+        />
         <span
           class="flex items-center justify-end gap-1 text-[0.7rem] opacity-70"
         >

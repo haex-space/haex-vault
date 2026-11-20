@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::chat::peer::delivery::now_ms;
 use crate::chat::peer::messages::{self, Page, PeerMessage, PAGE};
 use crate::chat::peer::session::{PeerRegistry, Session};
-use crate::chat::peer::{outbox, send};
+use crate::chat::peer::{long_text, outbox, send};
 use crate::error::{HaexError, Result};
 use crate::state::AppState;
 use crate::state_utils::active_database;
@@ -68,7 +68,8 @@ fn uuid(raw: &str, name: &str) -> Result<Uuid> {
     })
 }
 
-/// Sends a text to a direct conversation (FR-010, FR-012).
+/// Sends a text to a direct conversation or a note (FR-010, FR-012): as a message of its own, or,
+/// when it does not fit one wrap, as a file with a preview.
 #[tauri::command]
 pub async fn chat_peer_send(
     app: AppHandle,
@@ -80,31 +81,26 @@ pub async fn chat_peer_send(
         .simple()
         .to_string();
     if !args.files.is_empty() {
-        let message_id =
-            super::files::send_with_files(&app, thread_id, &event_id, &args.text, args.files)
-                .await?;
+        let session = session(&app)?;
+        let db = active_database(&state)?;
+        let (text, inline_text) =
+            long_text::prepare_with_files(&db, &session, thread_id, &args.text).await?;
+        let message_id = super::files::send_with_files(
+            &app,
+            thread_id,
+            &event_id,
+            &text,
+            args.files,
+            inline_text,
+        )
+        .await?;
         return Ok(SentMessage {
             message_id: message_id.to_string(),
         });
     }
     let session = session(&app)?;
     let db = active_database(&state)?;
-    let me = session.me.clone();
-    let now = now_ms();
-    let message_id = db
-        .write(move |tx| {
-            Ok(send::message(
-                tx,
-                &me,
-                thread_id,
-                &event_id,
-                &args.text,
-                Vec::new(),
-                now,
-            )?)
-        })
-        .await?;
-    session.kick.notify_one();
+    let message_id = long_text::send_text(&db, &session, thread_id, &event_id, &args.text).await?;
     Ok(SentMessage {
         message_id: message_id.to_string(),
     })

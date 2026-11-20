@@ -74,7 +74,12 @@ check `v` is known. Any failure: drop silently, no receipt.
 }
 ```
 
-- `text` ≤ 4,000 characters; at least one of `text` or `attachments`; ≤ 10 attachments.
+- `text` ≤ 1,000,000 characters, but only what fits the wrap travels inline; at least one of `text` or
+  `attachments`; ≤ 10 attachments.
+- A file with `"inline": true` is the full text of the message (`text` is then a preview of ~1,000
+  characters); absent means `false`. The receiver honours it only with `mime: text/plain` and `size`
+  ≤ 4 MB, otherwise the file is an ordinary attachment. Additive in `v: 1`; a device without it shows the
+  preview and a plain file.
 - Every file carries `blossom` (R7: no other path). The file is uploaded before the message is queued.
 - A contact photo larger than fits the wrap goes as a file attachment with `mime: image/*` and the contact
   entry references it by index (`"photo": {"attachment": 1}`).

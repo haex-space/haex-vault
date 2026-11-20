@@ -42,6 +42,11 @@ export function useConversationCommands() {
       }),
     resendAsync: (messageId: string) =>
       invoke<null>('chat_peer_resend', { args: { messageId } }),
+    // Spec 072 FR-012a: the full text of a long message, from this device's copy of its file.
+    textAsync: (attachmentId: string) =>
+      invoke<string>('chat_attachment_text', { args: { attachmentId } }),
+    downloadAsync: (attachmentId: string) =>
+      invoke<null>('chat_attachment_download', { args: { attachmentId } }),
     messagesAsync: (threadId: string, before?: number) =>
       invoke<ChatPeerMessage[]>('chat_peer_messages_list', {
         args: { threadId, before: before ?? null, limit: null },
@@ -76,11 +81,11 @@ export function useConversations(errString: (error: unknown) => string) {
     return rows.value
       .filter((row) => row.kind !== 'agent')
       .map((row) => {
-        // The notes read "Ich" with the own contact's picture, as in the address book (FR-002b).
+        // The notes read "Notiz an mich selber" with the own contact's picture (FR-002b).
         if (row.kind === 'note')
           return {
             ...row,
-            displayName: t('contacts.self'),
+            displayName: t('chat.notes.title'),
             photo: self.value?.photo ?? null,
           }
         const contact = row.peerContactId ? byId.get(row.peerContactId) : null
@@ -96,7 +101,7 @@ export function useConversations(errString: (error: unknown) => string) {
       })
   })
 
-  /** The "Ich" entry: the notes, or an entry without id before the first note (FR-002b). */
+  /** The notes entry: the notes, or an entry without id before the first note (FR-002b). */
   const notes = computed<PeerConversationEntry>(
     () =>
       conversations.value.find((c) => c.kind === 'note') ?? {
@@ -112,7 +117,7 @@ export function useConversations(errString: (error: unknown) => string) {
         unread: 0,
         lastText: null,
         lastAt: 0,
-        displayName: t('contacts.self'),
+        displayName: t('chat.notes.title'),
         photo: self.value?.photo ?? null,
       },
   )

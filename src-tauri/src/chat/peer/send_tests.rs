@@ -71,15 +71,70 @@ fn a_message_becomes_its_row_a_delivery_and_an_outbox_row_once() {
 }
 
 #[test]
-fn an_empty_or_too_long_text_or_an_agent_thread_is_refused() {
+fn an_empty_text_or_an_agent_thread_is_refused() {
     let anna = ChatDevice::genesis(&[]);
     let thread = direct(&anna);
     assert!(send(&anna, thread, "e1", "   ").is_err());
-    let long = "a".repeat(envelope::MAX_TEXT_CHARS + 1);
-    let error = send(&anna, thread, "e2", &long).expect_err("too long");
-    assert!(error.to_string().contains("chat.error.tooLarge"), "{error}");
     assert!(send(&anna, Uuid::new_v4(), "e3", "hallo").is_err());
     assert!(outbox(&anna).is_empty());
+}
+
+#[test]
+fn a_message_has_no_character_limit_but_the_wrap_and_the_bound() {
+    let anna = ChatDevice::genesis(&[]);
+    let thread = direct(&anna);
+    send(&anna, thread, "e1", &"a".repeat(10_000)).expect("10,000 characters fit one wrap");
+
+    let large = send(&anna, thread, "e2", &"a".repeat(30_000)).expect_err("over one wrap");
+    assert!(large.to_string().contains("chat.error.tooLarge"), "{large}");
+    let long = send(
+        &anna,
+        thread,
+        "e3",
+        &"a".repeat(envelope::MAX_TEXT_CHARS + 1),
+    )
+    .expect_err("over the bound");
+    assert!(long.to_string().contains("chat.error.tooLong"), "{long}");
+    assert_eq!(outbox(&anna).len(), 1, "only the first one was queued");
+}
+
+fn fits(anna: &ChatDevice, thread: Uuid, text: &str) -> bool {
+    let (me, text) = (anna.me.clone(), text.to_owned());
+    anna.db
+        .read_blocking(move |r| Ok(fits_inline(r, &me, thread, &text, 100)?))
+        .expect("fits")
+}
+
+#[test]
+fn a_text_fits_inline_by_the_size_of_its_encoded_event_not_by_its_length() {
+    let anna = ChatDevice::genesis(&[]);
+    let thread = direct(&anna);
+    assert!(fits(&anna, thread, &"a".repeat(10_000)));
+    assert!(!fits(&anna, thread, &"a".repeat(30_000)));
+    // Escaping doubles every quote in the event and again in the ratchet's plaintext (spec 095),
+    // so as many quotes as there were letters do not fit although the letters do.
+    assert!(!fits(&anna, thread, &"\"".repeat(10_000)));
+    // Four bytes each: 6,000 characters are 24,000 bytes.
+    assert!(!fits(&anna, thread, &"😀".repeat(6_000)));
+    assert!(fits(&anna, thread, &"😀".repeat(2_000)));
+}
+
+#[test]
+fn a_note_always_fits_and_a_missing_conversation_is_an_error() {
+    let anna = ChatDevice::genesis(&[]);
+    let own = anna.me.vault_hex.clone();
+    let note = anna
+        .db
+        .write_blocking(move |tx| Ok(store::open_note(tx, &own, 1)?))
+        .expect("note");
+    assert!(fits(&anna, note, &"a".repeat(200_000)));
+
+    let (me, missing) = (anna.me.clone(), Uuid::new_v4());
+    let error = anna
+        .db
+        .read_blocking(move |r| Ok(fits_inline(r, &me, missing, "hallo", 100)?))
+        .expect_err("no such conversation");
+    assert!(error.to_string().contains("direct conversation"), "{error}");
 }
 
 fn incoming(anna: &ChatDevice, thread: Uuid, event: &str, sort_at: i64) {

@@ -24,6 +24,12 @@ pub struct DownloadArgs {
     pub attachment_id: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextArgs {
+    pub attachment_id: String,
+}
+
 pub(super) fn session(app: &AppHandle) -> Result<Arc<Session>> {
     app.try_state::<Arc<PeerRegistry>>()
         .ok_or_else(|| HaexError::NotFound {
@@ -43,11 +49,15 @@ fn chat_files(session: &Session) -> Result<Arc<ChatFiles>> {
 }
 
 /// Reads the picked files, each at most 100 MB (FR-034).
-async fn read_picked(app: &AppHandle, files: Vec<PickedFile>) -> Result<Vec<Picked>> {
+async fn read_picked(
+    app: &AppHandle,
+    files: Vec<PickedFile>,
+    inline_text: Option<Picked>,
+) -> Result<Vec<Picked>> {
     let app = app.clone();
     tokio::task::spawn_blocking(move || {
         let mut total = 0_u64;
-        files
+        let mut picked: Vec<Picked> = files
             .iter()
             .map(|file| {
                 let name = picked::display_name(&app, file);
@@ -63,9 +73,24 @@ async fn read_picked(app: &AppHandle, files: Vec<PickedFile>) -> Result<Vec<Pick
                 let mime = mime_for(&name)
                     .unwrap_or("application/octet-stream")
                     .to_owned();
-                Ok(Picked { name, mime, bytes })
+                Ok(Picked {
+                    name,
+                    mime,
+                    bytes,
+                    inline: false,
+                })
             })
-            .collect()
+            .collect::<Result<_>>()?;
+        if let Some(file) = inline_text {
+            let remaining = remaining_message_limit(total)?;
+            if file.bytes.len() as u64 > remaining {
+                return Err(HaexError::InvalidInput {
+                    reason: "chat.file.tooLarge".into(),
+                });
+            }
+            picked.push(file);
+        }
+        Ok(picked)
     })
     .await
     .map_err(|e| HaexError::InvalidInput {
@@ -88,9 +113,10 @@ pub(super) async fn send_with_files(
     event_id: &str,
     text: &str,
     files: Vec<PickedFile>,
+    inline_text: Option<Picked>,
 ) -> Result<Uuid> {
     let session = session(app)?;
-    let picked = read_picked(app, files).await?;
+    let picked = read_picked(app, files, inline_text).await?;
     let id = chat_files(&session)?
         .send(&session.me, thread_id, event_id, text, picked)
         .await?;
@@ -107,6 +133,16 @@ pub async fn chat_attachment_download(app: AppHandle, args: DownloadArgs) -> Res
     let session = session(&app)?;
     let files = chat_files(&session)?;
     files.download(&id.to_string()).await
+}
+
+/// The full text of a long message from this device's copy of its `inline` file (FR-012a).
+#[tauri::command]
+pub async fn chat_attachment_text(app: AppHandle, args: TextArgs) -> Result<String> {
+    let id = Uuid::parse_str(&args.attachment_id).map_err(|_| HaexError::InvalidInput {
+        reason: "attachmentId must be a valid UUID".into(),
+    })?;
+    let session = session(&app)?;
+    chat_files(&session)?.text(&id.to_string()).await
 }
 
 #[cfg(test)]

@@ -478,6 +478,14 @@
       "deleteButton": "Löschen",
       "missing": "Diese Unterhaltung gibt es nicht mehr.",
       "counter": "{count} / {max} Zeichen",
+      "readMore": "Weiterlesen",
+      "readMoreSize": "Weiterlesen ({size})",
+      "readLess": "Weniger anzeigen",
+      "textLoading": "Text wird geladen …",
+      "textLoadingPercent": "Text wird geladen … {percent} %",
+      "textDownload": "Text herunterladen ({size})",
+      "textRetry": "Erneut versuchen",
+      "textGone": "Text nicht mehr verfügbar",
       "ownRelaysInstead": "Die Visitenkarte dieses Kontakts nennt keinen Nostr-Relay. Nachrichten gehen über deine eigenen Nostr-Relays."
     },
     "newContact": {
@@ -502,8 +510,13 @@
       },
       "resend": "Erneut senden"
     },
+    "file": {
+      "noServer": "Dieser Text ist zu lang für eine einzelne Nachricht und müsste als Datei gesendet werden. Dafür ist kein Blossom-Server eingestellt.",
+      "damaged": "Die Datei ist beschädigt."
+    },
     "error": {
-      "tooLarge": "Die Nachricht ist zu lang (höchstens 4.000 Zeichen).",
+      "tooLong": "Der Text ist zu lang (höchstens 1.000.000 Zeichen).",
+      "tooLarge": "Die Nachricht ist zu groß.",
       "resendElsewhere": "Diese Nachricht wurde auf einem anderen deiner Geräte geschrieben. Sende sie von dort erneut.",
       "modelNotInProfile": "Dieses Modell gehört nicht zum aktiven Agentenprofil. Wähle ein anderes Modell oder ein anderes Agentenprofil."
     },
@@ -520,6 +533,7 @@
       "noSession": "Noch keine Sitzung"
     },
     "notes": {
+      "title": "Notiz an mich selber",
       "empty": "Schreib dir hier Notizen. Sie bleiben in deiner Vault und erscheinen auf all deinen Geräten."
     },
     "request": {

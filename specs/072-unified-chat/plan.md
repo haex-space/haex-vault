@@ -20,7 +20,7 @@ Technical approach (reasons and rejected alternatives in [research.md](./researc
 
 - **Wrapping** (R1, R2): generalise `sync::presence::wrap_payload` / `unwrap_rumor` (wrap kind, time
   tweak, size limit as parameters); chat uses kind 1059, rumor kinds 24120/24121, wraps ≤ 60 KiB, text
-  ≤ 4,000 characters.
+  inline as far as the wrap holds, longer text (≤ 1,000,000 characters) as an `inline` file (R2).
 - **Delivery service** (R3, R6): `chat::peer::delivery` owns its own `nostr_sdk::Client` per vault
   session, subscribes `#p = own device key` since cursor − 48 h, publishes to the recipients' Nostr-Relays
   from their cards; outbox with back-off in `chat_outbox_no_sync`; delivery states as set-once timestamp

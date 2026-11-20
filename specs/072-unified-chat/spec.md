@@ -61,7 +61,7 @@ sowie dateien hatte ich gehofft, wir können nostr dafür nutzen".
     **session** of the agent.
   - **Direct conversation**: the user and one contact.
   - **Group conversation**: the user and two or more contacts, with a name.
-  - **Notes**: the user's conversation with themselves, shown as the own contact "Ich". There is at
+  - **Notes**: the user's conversation with themselves, shown with the own contact's picture as "Notiz an mich selber". There is at
     most one per vault.
 - **Member**: a vault taking part in a direct or group conversation, identified by its vault identity
   (spec 024) and reached through its Visitenkarte (spec 051). The user's own vault is always a member.
@@ -146,9 +146,9 @@ conversation unchanged, start a direct conversation from the address book and se
 6. **Given** a contact without a confirmed Visitenkarte (no vault identity), **When** Anna looks at it,
    **Then** "Nachricht senden" is not offered, with a hint that the contact first needs to share its
    Visitenkarte.
-7. **Given** the list, **When** Anna looks at it, **Then** it holds exactly one entry "Ich" with the
-   name and picture of her own contact, also before her first note; **When** she clicks it and writes
-   "Reifen wechseln", **Then** the note shows at once with its time and no delivery state, "Ich" moves
+7. **Given** the list, **When** Anna looks at it, **Then** it holds exactly one entry "Notiz an mich selber"
+   with the picture of her own contact, also before her first note; **When** she clicks it and writes
+   "Reifen wechseln", **Then** the note shows at once with its time and no delivery state, the entry moves
    to the top, and the note appears on her phone through the sync of her own devices, without any
    Nostr-Relay involved.
 
@@ -406,8 +406,9 @@ where her files go and what others see.
   next message on (spec 051/060 rules for newer cards).
 - The recipient's devices all were removed according to a newer card: the message shows _failed_, "Der
   Kontakt hat keine Geräte mehr auf seiner Visitenkarte".
-- A message is larger than a Nostr-Relay accepts (FR-012): the text is refused before sending with the
-  limit named; long texts can be sent as a file.
+- A text is larger than one wrap holds (FR-012): it goes as a text file with a preview and shows in full
+  in the conversation; without a Blossom-Server it stays in the input field with the hint to the
+  settings; above 1,000,000 characters it is refused before sending with the limit named.
 - A Nostr-Relay drops a stored message before the recipient picked it up: the message stays _sent_;
   another Nostr-Relay of the recipient that still has it delivers it; if none does, the sender sees no
   _delivered_ and can resend.
@@ -449,12 +450,14 @@ where her files go and what others see.
   one conversation.
 - **FR-003**: Existing agent conversations MUST be kept with all their messages and keep working as
   before; the update MUST NOT need any action of the user.
-- **FR-002b**: The list MUST always show exactly one entry "Ich" with the name and picture of the
-  user's own contact (spec 051), sorted by its last note like any entry. A click opens the notes; the
+- **FR-002b**: The list MUST always show exactly one entry "Notiz an mich selber" (_changed 2026-11-20,
+  operator; it read "Ich") with the picture of the user's own contact (spec 051), sorted by its last
+  note like any entry. The address book still calls the own contact "Ich". A click opens the notes; the
   first note creates them. The notes view offers the same composer as a direct conversation (FR-006),
   shows each note with its time and no delivery state, and can be deleted (FR-008). A note MUST NOT be
   sent to any Nostr-Relay or Blossom-Server and MUST NOT cause receipts or notifications; it reaches
-  the own devices only through the vault's sync (FR-009).
+  the own devices only through the vault's sync (FR-009). A note is limited only to 1,000,000
+  characters (FR-012), not to what fits into one wrap.
 - **FR-004**: "Neue Unterhaltung" MUST let the user choose one contact (direct) or several contacts plus
   a name (group); the agent and the notes are reached through their list entries (FR-001, FR-002b). Only contacts with a confirmed Visitenkarte of another vault are
   offered; the user's own contact ("Ich") is never offered.
@@ -481,9 +484,22 @@ where her files go and what others see.
   Visitenkarte of every other member.
 - **FR-011**: The wraps MUST go to every Nostr-Relay on the recipient's Visitenkarte; if the card lists
   none, to the sender's own Nostr-Relays, with the hint of US2 scenario 8.
-- **FR-012**: A message MUST fit into one wrap within the size Nostr-Relays commonly accept; text that
-  does not fit MUST be refused before sending with the limit named. At least 4,000 characters of text
-  MUST fit.
+- **FR-012**: A message MUST fit into one wrap within the size Nostr-Relays commonly accept. _Changed
+  2026-11-20 (operator: 4,000 characters are far too few, at least 100,000):_ a text that does not fit
+  MUST NOT be refused up to 1,000,000 characters. It MUST be sent as a text file (`message.txt`,
+  `text/plain`, marked `inline`) with the first ~1,000 characters as the message's `text`, and every
+  device of the sender and the recipient MUST show the full text in the conversation like any text,
+  as soon as the file is on that device (FR-033, FR-036 never holds it back: it is below the
+  automatic limit). A text over 1,000,000 characters MUST be refused before sending with the limit
+  named. Without a Blossom-Server (FR-038) such a text MUST stay in the input field with the hint to
+  the settings. A note (FR-002b) has no wrap and no file; only the 1,000,000-character limit applies
+  to it.
+- **FR-012a**: A text longer than about twelve lines MUST be shown collapsed with a "Weiterlesen"
+  button and fully shown after a click, with "Weniger anzeigen" to collapse it again; the state is
+  not stored. For a message with an `inline` file the button always shows, with the size, and reads
+  the text from the file on this device; while the file is coming it shows the progress, on failure
+  the reason and a retry, and when the file is gone from the server the preview stays with "Text
+  nicht mehr verfügbar". Search, notifications and the conversation list use the preview.
 - **FR-013**: Nostr-Relays and anyone watching them MUST NOT learn the text, attachments, sender, group,
   group name or membership; they see only the recipient device key, the size and a time that is
   deliberately blurred (NIP-59).
@@ -669,7 +685,7 @@ where her files go and what others see.
 - Public Blossom-Servers may limit size, keep files only for a while or refuse uploads; HaexVault shows
   their errors and the user may choose another server. The 30-day removal (FR-035) is HaexVault's own,
   servers may remove earlier.
-- Default limits (4,000 characters, 100 MB per file, 25 MB / 5 MB automatic download, 32 group members,
+- Default limits (1,000,000 characters per text, 100 MB per file, 25 MB / 5 MB automatic download, 32 group members,
   30 days on the Blossom-Server) are first values the plan may adjust with a reason.
 - Message edit, "delete for everyone", reactions, replies to a single message, voice messages, calls
   and stickers are not part of this spec. _Changed 2026-11-02 (operator):_ message search is now part of

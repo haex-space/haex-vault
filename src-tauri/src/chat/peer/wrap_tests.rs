@@ -132,7 +132,7 @@ fn the_largest_rumor_fits_the_wrap_limit() {
 }
 
 #[test]
-fn a_rumor_over_24_kib_or_a_text_over_4000_characters_is_refused() {
+fn a_rumor_over_24_kib_or_a_text_over_the_bound_is_refused() {
     let at = 1_761_900_000_000;
     let text = "ä".repeat(envelope::MAX_TEXT_CHARS);
     let message = envelope::message(
@@ -143,19 +143,23 @@ fn a_rumor_over_24_kib_or_a_text_over_4000_characters_is_refused() {
         To::Direct("bb".into()),
         at,
     )
-    .expect("4,000 characters are fine");
-    envelope::encode(&message).expect("fits in 24 KiB");
+    .expect("the bound itself is fine");
+    assert!(
+        envelope::encode(&message).is_err(),
+        "but it does not fit one rumor: such a text goes as a file"
+    );
 
     let longer = format!("{text}ä");
-    assert!(envelope::message(
+    let error = envelope::message(
         &longer,
         Vec::new(),
         "aa",
         "card",
         To::Direct("bb".into()),
-        at
+        at,
     )
-    .is_err());
+    .expect_err("over the bound");
+    assert!(error.to_string().contains("chat.error.tooLong"), "{error}");
 
     let huge_card = "c".repeat(MAX_RUMOR_BYTES);
     let message = envelope::message(
