@@ -40,6 +40,8 @@ provideWmTab({
     wm.setTabCloseGuard(props.tab.id, guard)
     return () => wm.setTabCloseGuard(props.tab.id, null)
   },
+  registerNavigationGuard: (guard) =>
+    wm.registerNavigationGuard(props.tab.id, guard),
   // action-exempt: the window manager↔App contract's programmatic API (closeSelf, openApp) — apps call it
   // from their own logic, not as a user control.
   closeSelf: () => wm.closeTab(props.windowId, props.tab.id),

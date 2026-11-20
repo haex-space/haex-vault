@@ -7,7 +7,11 @@ import {
 import { tabCandidates } from '~/lib/actions/handlers'
 import { createActionRunner } from '~/lib/actions/runner'
 import type { ActionCaller, ActionOutcome } from '~/lib/actions/types'
-import type { TabHistory, TabLocation } from '~/lib/wm/navigation'
+import {
+  parseLocation,
+  type TabHistory,
+  type TabLocation,
+} from '~/lib/wm/navigation'
 import {
   goTab,
   navigateTab,
@@ -17,7 +21,7 @@ import {
   syncHistories,
   type TabHistories,
 } from '~/lib/wm/tabNavigation'
-import type { WmState } from '~/lib/wm/types'
+import type { NavigationGuard, WmState } from '~/lib/wm/types'
 import { flushingFirst } from '~/stores/wmTabHeader'
 
 /**
@@ -47,6 +51,10 @@ export function createWmNavigation(deps: {
   const { state } = deps
   const histories: TabHistories = reactive(new Map<string, TabHistory>())
   const handlers = createHandlerRegistry()
+  /** What a tab's app registered to hold back its navigation (unsaved changes), never persisted. */
+  const navigationGuards = new Map<string, NavigationGuard>()
+  /** Tabs whose guard is being passed right now (`proceed`). */
+  const passing = new Set<string>()
   /** Last travel direction per tab, for skipping a stale entry the same way (FR-027). */
   const lastDirection = new Map<string, -1 | 1>()
 
@@ -89,11 +97,45 @@ export function createWmNavigation(deps: {
   const setHistory = flushingFirst(deps.flushTabHeader, setHistoryNow)
   const skipCurrent = flushingFirst(deps.flushTabHeader, skipCurrentNow)
 
+  /** Asks the tab's navigation guard; `true` if it holds the navigation back. Its `proceed` runs
+   * `run` once without asking again. */
+  function held(
+    tabId: string,
+    to: TabLocation | null,
+    run: () => void,
+  ): boolean {
+    const guard = navigationGuards.get(tabId)
+    if (!guard || passing.has(tabId)) return false
+    return guard({
+      to,
+      proceed: () => {
+        passing.add(tabId)
+        try {
+          run()
+        } finally {
+          passing.delete(tabId)
+        }
+      },
+    })
+  }
+
+  function registerNavigationGuard(
+    tabId: string,
+    guard: NavigationGuard,
+  ): () => void {
+    navigationGuards.set(tabId, guard)
+    return () => {
+      if (navigationGuards.get(tabId) === guard) navigationGuards.delete(tabId)
+    }
+  }
+
   function navigateNow(
     tabId: string,
     to: string | TabLocation,
     options: { replace?: boolean } = {},
   ): boolean {
+    if (held(tabId, parseLocation(to), () => navigateNow(tabId, to, options)))
+      return false
     const changed = navigateTab(histories, tabId, to, {
       replace: options.replace,
       leavingTitle: deps.titleOverrideOf(tabId),
@@ -106,6 +148,7 @@ export function createWmNavigation(deps: {
   }
 
   function goNow(tabId: string, delta: number): boolean {
+    if (held(tabId, null, () => goNow(tabId, delta))) return false
     const changed = goTab(histories, tabId, delta, deps.titleOverrideOf(tabId))
     if (changed) {
       lastDirection.set(tabId, delta < 0 ? -1 : 1)
@@ -200,6 +243,7 @@ export function createWmNavigation(deps: {
     go,
     setHistory,
     skipCurrent,
+    registerNavigationGuard,
     runAction,
     registerGlobalActionHandler,
     registerTabActionHandler,

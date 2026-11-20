@@ -8,7 +8,9 @@
  * only when they changed. A save that finds the entry changed or
  * deleted meanwhile asks what to do instead of overwriting (`ConflictDialog`), and leaving with
  * unsaved changes asks too (`UnsavedDialog`). The draft is a local object that the quiet reload of
- * the store never touches.
+ * the store never touches. The generator, a place in the same tab, unmounts this
+ * editor: an unsaved draft is stashed then (`passwordsDrafts`) and comes back, with the update token
+ * it started from (so the conflict check still works), when the editor opens again.
  */
 import { toast } from 'vue-sonner'
 import type { ItemDetail } from '@bindings/ItemDetail'
@@ -34,6 +36,7 @@ const { errString } = useErrorString()
 const router = useTabRouter()
 const tab = useWmTab()
 const store = usePasswordsStore()
+const drafts = usePasswordsDraftsStore()
 const { getItemAsync, createItemAsync, updateItemAsync, revealAsync } =
   usePasswords()
 
@@ -102,7 +105,32 @@ async function loadAsync() {
   }
 }
 
-onMounted(loadAsync)
+/** The key of the stashed draft: a new entry or the entry being edited. */
+const editKey = props.itemId ?? 'new'
+/** Set once the draft is saved or given up for good, so unmounting does not stash it. */
+let settled = false
+
+onMounted(() => {
+  const kept = drafts.take(tab.tabId, editKey)
+  if (!kept) {
+    void loadAsync()
+    return
+  }
+  detail.value = kept.detail
+  initial.value = kept.initial
+  draft.value = kept.draft
+  loading.value = false
+  void reloadAttachmentsAsync()
+})
+
+onBeforeUnmount(() => {
+  if (settled || loadFailed.value || !dirty.value) return
+  drafts.keep(tab.tabId, editKey, {
+    detail: detail.value,
+    initial: initial.value,
+    draft: draft.value,
+  })
+})
 
 // Leaving the tab or window with unsaved changes is guarded by the window manager.
 const unregister = tab.registerCloseGuard(() =>
@@ -114,6 +142,26 @@ const unregister = tab.registerCloseGuard(() =>
     : null,
 )
 onBeforeUnmount(() => unregister())
+
+/** A navigation the guard below held back, run once the user has decided. */
+let pendingNavigation: (() => void) | null = null
+
+/** Whether a move of the tab keeps the editor: its own place (the other tab, the saved entry) or
+ * the generator, a detour whose draft comes back (see the stash above). */
+function keepsEditor(to: { path: string; query: Record<string, string> }) {
+  if (to.path === '/generator') return true
+  return to.path === viewPath(editKey) && (isNew.value || 'edit' in to.query)
+}
+
+// Moving the tab elsewhere (another entry or folder, back, a header command) with unsaved changes
+// asks first, like leaving with the arrow does.
+const unregisterNavigation = tab.registerNavigationGuard(({ to, proceed }) => {
+  if (settled || !dirty.value || (to && keepsEditor(to))) return false
+  pendingNavigation = proceed
+  askingToLeave.value = true
+  return true
+})
+onBeforeUnmount(() => unregisterNavigation())
 
 function viewPath(id: string): string {
   return `/entry/${id}`
@@ -149,6 +197,7 @@ async function saveAsync(): Promise<boolean> {
   try {
     if (props.itemId === null) {
       const created = await createItemAsync(toInput(draft.value))
+      settled = true
       await store.quietReloadAsync()
       router.replace(viewPath(created.itemId))
       return true
@@ -192,15 +241,30 @@ async function saveAsync(): Promise<boolean> {
   }
 }
 
+/** Takes the navigation the guard held back, if any. */
+function takePendingNavigation() {
+  const proceed = pendingNavigation
+  pendingNavigation = null
+  return proceed
+}
+
 async function saveAndLeaveAsync() {
   askingToLeave.value = false
-  await saveAsync()
+  const proceed = takePendingNavigation()
+  if ((await saveAsync()) && proceed) proceed()
 }
 
 function discardAndLeave() {
   askingToLeave.value = false
   draft.value = cloneDraft(initial.value)
-  leave()
+  const proceed = takePendingNavigation()
+  if (proceed) proceed()
+  else leave()
+}
+
+function stay() {
+  askingToLeave.value = false
+  pendingNavigation = null
 }
 
 /** The draft with the stored TOTP secret if the user did not touch it (every other value is in the
@@ -229,6 +293,7 @@ async function saveAsNewAsync() {
   try {
     const created = await createItemAsync(toInput(await materialiseAsync()))
     conflict.value = null
+    settled = true
     initial.value = cloneDraft(draft.value)
     await store.quietReloadAsync()
     router.replace(viewPath(created.itemId))
@@ -330,7 +395,7 @@ watch(saveError, (message) => {
       :open="askingToLeave"
       @save="saveAndLeaveAsync"
       @discard="discardAndLeave"
-      @stay="askingToLeave = false"
+      @stay="stay"
     />
   </div>
 </template>

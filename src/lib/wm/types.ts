@@ -76,6 +76,18 @@ export type CloseGuardResult = {
 
 export type CloseGuard = () => CloseGuardResult | null
 
+/** What a `registerNavigationGuard` callback gets when the tab's history is about to move. */
+export type NavigationRequest = {
+  /** Where it goes; `null` for back/forward, where the target is not looked up. */
+  to: { path: string; query: Record<string, string> } | null
+  /** Carries out the held navigation, past this guard. */
+  proceed: () => void
+}
+
+/** Returns `true` to hold the navigation back (the tab asks the user and calls `proceed` if the
+ * answer lets it go on), `false` to let it through. */
+export type NavigationGuard = (request: NavigationRequest) => boolean
+
 /** Never persisted (data-model.md): per-tab runtime bookkeeping the store keeps alongside the
  * persisted `WmTab`, keyed by tab id. */
 export type TabRuntime = {

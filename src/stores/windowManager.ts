@@ -504,5 +504,6 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     runAction: navigation.runAction,
     registerGlobalActionHandler: navigation.registerGlobalActionHandler,
     registerTabActionHandler: navigation.registerTabActionHandler,
+    registerNavigationGuard: navigation.registerNavigationGuard,
   }
 })
