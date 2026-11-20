@@ -196,7 +196,7 @@ async fn haexs_own_files_are_blocked_however_they_are_named() {
     let variant = scene
         .run(
             "files.read",
-            json!({ "source": "device", "path": scene.at("HAEX/vault.db") }),
+            json!({ "source": "device", "path": scene.at("HOLZI/vault.db") }),
         )
         .await;
     assert!(variant.is_err());
