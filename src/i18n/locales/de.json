@@ -520,6 +520,7 @@
       "noSession": "Noch keine Sitzung"
     },
     "notes": {
+      "title": "Notiz an mich selber",
       "empty": "Schreib dir hier Notizen. Sie bleiben in deiner Vault und erscheinen auf all deinen Geräten."
     },
     "request": {

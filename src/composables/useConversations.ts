@@ -76,11 +76,11 @@ export function useConversations(errString: (error: unknown) => string) {
     return rows.value
       .filter((row) => row.kind !== 'agent')
       .map((row) => {
-        // The notes read "Ich" with the own contact's picture, as in the address book (FR-002b).
+        // The notes read "Notiz an mich selber" with the own contact's picture (FR-002b).
         if (row.kind === 'note')
           return {
             ...row,
-            displayName: t('contacts.self'),
+            displayName: t('chat.notes.title'),
             photo: self.value?.photo ?? null,
           }
         const contact = row.peerContactId ? byId.get(row.peerContactId) : null
@@ -96,7 +96,7 @@ export function useConversations(errString: (error: unknown) => string) {
       })
   })
 
-  /** The "Ich" entry: the notes, or an entry without id before the first note (FR-002b). */
+  /** The notes entry: the notes, or an entry without id before the first note (FR-002b). */
   const notes = computed<PeerConversationEntry>(
     () =>
       conversations.value.find((c) => c.kind === 'note') ?? {
@@ -112,7 +112,7 @@ export function useConversations(errString: (error: unknown) => string) {
         unread: 0,
         lastText: null,
         lastAt: 0,
-        displayName: t('contacts.self'),
+        displayName: t('chat.notes.title'),
         photo: self.value?.photo ?? null,
       },
   )

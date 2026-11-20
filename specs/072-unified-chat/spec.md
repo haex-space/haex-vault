@@ -61,7 +61,7 @@ sowie dateien hatte ich gehofft, wir können nostr dafür nutzen".
     **session** of the agent.
   - **Direct conversation**: the user and one contact.
   - **Group conversation**: the user and two or more contacts, with a name.
-  - **Notes**: the user's conversation with themselves, shown as the own contact "Ich". There is at
+  - **Notes**: the user's conversation with themselves, shown with the own contact's picture as "Notiz an mich selber". There is at
     most one per vault.
 - **Member**: a vault taking part in a direct or group conversation, identified by its vault identity
   (spec 024) and reached through its Visitenkarte (spec 051). The user's own vault is always a member.
@@ -146,9 +146,9 @@ conversation unchanged, start a direct conversation from the address book and se
 6. **Given** a contact without a confirmed Visitenkarte (no vault identity), **When** Anna looks at it,
    **Then** "Nachricht senden" is not offered, with a hint that the contact first needs to share its
    Visitenkarte.
-7. **Given** the list, **When** Anna looks at it, **Then** it holds exactly one entry "Ich" with the
-   name and picture of her own contact, also before her first note; **When** she clicks it and writes
-   "Reifen wechseln", **Then** the note shows at once with its time and no delivery state, "Ich" moves
+7. **Given** the list, **When** Anna looks at it, **Then** it holds exactly one entry "Notiz an mich selber"
+   with the picture of her own contact, also before her first note; **When** she clicks it and writes
+   "Reifen wechseln", **Then** the note shows at once with its time and no delivery state, the entry moves
    to the top, and the note appears on her phone through the sync of her own devices, without any
    Nostr-Relay involved.
 
@@ -450,8 +450,9 @@ where her files go and what others see.
   one conversation.
 - **FR-003**: Existing agent conversations MUST be kept with all their messages and keep working as
   before; the update MUST NOT need any action of the user.
-- **FR-002b**: The list MUST always show exactly one entry "Ich" with the name and picture of the
-  user's own contact (spec 051), sorted by its last note like any entry. A click opens the notes; the
+- **FR-002b**: The list MUST always show exactly one entry "Notiz an mich selber" (_changed 2026-11-20,
+  operator; it read "Ich") with the picture of the user's own contact (spec 051), sorted by its last
+  note like any entry. The address book still calls the own contact "Ich". A click opens the notes; the
   first note creates them. The notes view offers the same composer as a direct conversation (FR-006),
   shows each note with its time and no delivery state, and can be deleted (FR-008). A note MUST NOT be
   sent to any Nostr-Relay or Blossom-Server and MUST NOT cause receipts or notifications; it reaches

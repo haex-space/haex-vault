@@ -520,6 +520,7 @@
       "noSession": "No session yet"
     },
     "notes": {
+      "title": "Note to self",
       "empty": "Write notes to yourself here. They stay in your vault and show on all your devices."
     },
     "request": {
