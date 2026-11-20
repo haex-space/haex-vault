@@ -44,6 +44,10 @@ const { onKeydown } = providePasswordsShortcuts()
 // window stays mounted, so only the shown one takes them.
 const wm = useWindowManagerStore()
 const wmTab = useWmTab()
+// The unsaved drafts of the editor outlive its place, not the tab. `onUnmounted` runs after the
+// editor below has gone and stashed its last draft.
+const drafts = usePasswordsDraftsStore()
+onUnmounted(() => drafts.dropTab(wmTab.tabId))
 const tabActive = computed(
   () =>
     wm.windows.find((window) => window.id === wmTab.windowId)?.activeTabId ===

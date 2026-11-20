@@ -3,7 +3,7 @@ import type { useWindowManagerStore } from '~/stores/windowManager'
 import { requestConfirmation } from '~/composables/useWmCloseConfirm'
 import type { ActionHandler } from '~/lib/actions/handlers'
 import type { TabLocation } from '~/lib/wm/navigation'
-import type { CloseGuard } from '~/lib/wm/types'
+import type { CloseGuard, NavigationGuard } from '~/lib/wm/types'
 import type { WmHeaderDescription } from '~/types/bindings/WmHeaderDescription'
 import type { WmHeaderEvent } from '~/types/bindings/WmHeaderEvent'
 
@@ -26,6 +26,9 @@ export type WmTabApi = {
   setTitle(title: string | null): void
   /** Registers a guard; a new one replaces the previous. Returns an unregister function. */
   registerCloseGuard(guard: CloseGuard): () => void
+  /** Registers a guard asked before this tab's history moves (a link, back, forward), to hold
+   * unsaved changes back; a new one replaces the previous. Returns an unregister function. */
+  registerNavigationGuard(guard: NavigationGuard): () => void
   /** Closes this tab (the window too, if it is the last tab) without asking any guard. */
   closeSelf(): void
   /** Opens another app, optionally at a location (spec 020 FR-012): a singleton already open is
@@ -55,6 +58,9 @@ const INERT_WM_TAB: WmTabApi = {
   clearAttention() {},
   setTitle() {},
   registerCloseGuard() {
+    return () => {}
+  },
+  registerNavigationGuard() {
     return () => {}
   },
   closeSelf() {},

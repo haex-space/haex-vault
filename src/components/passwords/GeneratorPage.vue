@@ -6,7 +6,7 @@ const router = useTabRouter()
 
 <template>
   <div class="min-h-0 flex-1 overflow-y-auto px-4 pb-6 @md:px-6">
-    <div class="mx-auto flex w-full max-w-xl flex-col gap-4">
+    <div class="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <div class="flex items-center gap-2 pt-1">
         <UiButton
           variant="ghost"

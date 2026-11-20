@@ -6,7 +6,8 @@
  * never touches; a save that finds the pass changed or deleted meanwhile asks what to do instead of
  * overwriting; leaving with unsaved changes asks too. A code that does not fit its format is
  * refused with its reason, shown at the code. The codes load only for this pass, when the editor
- * opens.
+ * opens. Moving the tab elsewhere (another pass or folder, back, a header command) with unsaved
+ * changes asks too, through a navigation guard.
  */
 import { toast } from 'vue-sonner'
 import type { ItemDetail } from '@bindings/ItemDetail'
@@ -123,6 +124,27 @@ const unregister = tab.registerCloseGuard(() =>
 )
 onBeforeUnmount(() => unregister())
 
+/** Set once a new pass is saved, so the move to its view is not held back. */
+let settled = false
+/** A navigation the guard below held back, run once the user has decided. */
+let pendingNavigation: (() => void) | null = null
+
+/** Whether a move of the tab keeps the editor: its own place (the other tab, the saved pass). */
+function keepsEditor(to: { path: string; query: Record<string, string> }) {
+  return (
+    to.path === viewPath(props.itemId ?? 'new') &&
+    (isNew.value || 'edit' in to.query)
+  )
+}
+
+const unregisterNavigation = tab.registerNavigationGuard(({ to, proceed }) => {
+  if (settled || !dirty.value || (to && keepsEditor(to))) return false
+  pendingNavigation = proceed
+  askingToLeave.value = true
+  return true
+})
+onBeforeUnmount(() => unregisterNavigation())
+
 function viewPath(id: string): string {
   return `/entry/${id}`
 }
@@ -187,6 +209,7 @@ async function saveAsync(): Promise<boolean> {
         toPassInput(draft.value),
         folderId.value,
       )
+      settled = true
       await store.quietReloadAsync()
       router.replace(viewPath(created.id))
       return true
@@ -214,15 +237,30 @@ async function saveAsync(): Promise<boolean> {
   }
 }
 
+/** Takes the navigation the guard held back, if any. */
+function takePendingNavigation() {
+  const proceed = pendingNavigation
+  pendingNavigation = null
+  return proceed
+}
+
 async function saveAndLeaveAsync() {
   askingToLeave.value = false
-  await saveAsync()
+  const proceed = takePendingNavigation()
+  if ((await saveAsync()) && proceed) proceed()
 }
 
 function discardAndLeave() {
   askingToLeave.value = false
   draft.value = clonePassDraft(initial.value)
-  leave()
+  const proceed = takePendingNavigation()
+  if (proceed) proceed()
+  else leave()
+}
+
+function stay() {
+  askingToLeave.value = false
+  pendingNavigation = null
 }
 
 /** The draft as a new pass, for a conflict. The codes go with their ids: the backend gives every
@@ -235,6 +273,7 @@ async function saveAsNewAsync() {
       folderId.value,
     )
     conflict.value = null
+    settled = true
     initial.value = clonePassDraft(draft.value)
     await store.quietReloadAsync()
     router.replace(viewPath(created.id))
@@ -354,7 +393,7 @@ watch(saveError, (message) => {
       :open="askingToLeave"
       @save="saveAndLeaveAsync"
       @discard="discardAndLeave"
-      @stay="askingToLeave = false"
+      @stay="stay"
     />
   </div>
 </template>
