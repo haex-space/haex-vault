@@ -8784,7 +8784,7 @@ var manifest_default = {
   name: "peers",
   version: "1.0.0",
   displayName: "Kanal-Testerweiterung",
-  publicKey: "1549fb64ff115627d507f8c95a8fd7b4bd5381c6df97120f910ed904ba50e63f",
+  publicKey: "8f62b28601741e95513b05ee6a7b2b44de0680432d52c6d94de2139dec841264",
   permissions: {
     peers: [{ target: "*", action: "connect" }],
     contacts: [{ target: "*", action: "read" }]
