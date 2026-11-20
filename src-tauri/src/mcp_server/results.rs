@@ -25,7 +25,11 @@ pub fn not_allowed() -> CallToolResult {
 }
 
 pub(super) fn unavailable() -> CallToolResult {
-    error_result("unavailable", "holzi could not run the action now.", None)
+    error_result(
+        "unavailable",
+        "HaexVault could not run the action now.",
+        None,
+    )
 }
 
 /// A native executor's answer as the agent sees it; a refusal of the caller reads as missing

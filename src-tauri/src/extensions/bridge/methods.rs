@@ -115,7 +115,7 @@ fn optional_text(params: &Value, key: &str) -> Result<Option<String>, BridgeErro
     }
 }
 
-/// `{message, title?, confirmLabel?, cancelLabel?, destructive?}` → `true` or `false`: holzi asks
+/// `{message, title?, confirmLabel?, cancelLabel?, destructive?}` → `true` or `false`: haex-vault asks
 /// the user over the calling frame's own tab (replaces `confirm()`, which the sandbox blocks;
 /// research R12, T045). Blocks this call until the answer, the frame's end or [`DIALOG_WAIT`].
 pub fn dialog_confirm(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {

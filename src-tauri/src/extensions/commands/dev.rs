@@ -1,4 +1,4 @@
-//! Developer mode for holzi's window (spec 017, US12, T094, contracts/tauri-commands.md): the
+//! Developer mode for haex-vault's window (spec 017, US12, T094, contracts/tauri-commands.md): the
 //! switch, loading a project folder, confirming its permissions and unloading it.
 
 use std::path::PathBuf;
@@ -17,13 +17,13 @@ use crate::state::AppState;
 use crate::state_utils::active_database;
 use crate::storage::wm_session_commands::current_device_uuid;
 
-/// Developer mode on this device and whether holzi's window can show development servers yet.
+/// Developer mode on this device and whether haex-vault's window can show development servers yet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub struct DevModeState {
     pub enabled: bool,
-    /// The document holzi's window shows was served with the development origins; when `enabled`
+    /// The document haex-vault's window shows was served with the development origins; when `enabled`
     /// differs, the window reloads to take the new policy.
     pub frames_allowed: bool,
 }
@@ -43,7 +43,7 @@ fn state_of(state: &State<'_, AppState>, enabled: bool) -> DevModeState {
     }
 }
 
-/// Developer mode on this device; also tells the next document of holzi's window whether it may
+/// Developer mode on this device; also tells the next document of haex-vault's window whether it may
 /// frame development servers.
 #[tauri::command]
 pub async fn extension_dev_mode_get(
@@ -58,7 +58,7 @@ pub async fn extension_dev_mode_get(
     Ok(state_of(&state, enabled))
 }
 
-/// Switches developer mode on this device (FR-063). The caller reloads holzi's window.
+/// Switches developer mode on this device (FR-063). The caller reloads haex-vault's window.
 #[tauri::command]
 pub async fn extension_dev_mode_set(
     app: AppHandle,

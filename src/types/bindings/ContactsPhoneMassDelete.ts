@@ -9,7 +9,7 @@ export type ContactsPhoneMassDelete = {
  */
 fromPhone: number,
 /**
- * Contacts deleted in holzi that would go from the phone.
+ * Contacts deleted in haex-vault that would go from the phone.
  */
 fromHaex: number,
 /**

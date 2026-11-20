@@ -11,6 +11,6 @@ export type PasskeyView = { id: string, relyingPartyId: string, relyingPartyName
  */
 itemId: string | null, isDiscoverable: boolean,
 /**
- * The imported counter; holzi's own confirmations leave it as it is (research R5).
+ * The imported counter; haex-vault's own confirmations leave it as it is (research R5).
  */
 signCount: number, linkedFrom: LinkedFrom | null, };

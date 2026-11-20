@@ -18,7 +18,7 @@ export interface ReservedPort {
 
 /**
  * Holds a free loopback port for a server that starts later, such as a container whose address a
- * scenario types into holzi first. Release it right before the server binds it.
+ * scenario types into haex-vault first. Release it right before the server binds it.
  */
 export function reservePort(): Promise<ReservedPort> {
   return new Promise((resolve, reject) => {

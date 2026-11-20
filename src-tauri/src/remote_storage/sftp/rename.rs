@@ -1,5 +1,5 @@
 //! Renaming over an existing name (spec 050 research R3): plain SFTP rename refuses a target that
-//! exists (OpenSSH), and russh-sftp does not speak `posix-rename@openssh.com`. holzi sends that
+//! exists (OpenSSH), and russh-sftp does not speak `posix-rename@openssh.com`. haex-vault sends that
 //! extension on its second channel when the server offers it; otherwise it removes the target file
 //! first and renames, as rclone does. The short time without a target is the "as far as the
 //! server allows" of the spec's edge case.

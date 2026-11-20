@@ -47,7 +47,7 @@ pub trait SharesEnv: Send + Sync {
     /// The open vault and this device's `vault_device_uuid`.
     async fn vault(&self) -> Result<(VaultDb, String), FilesError>;
 
-    /// holzi's own places, never shared (FR-007).
+    /// haex-vault's own places, never shared (FR-007).
     fn own(&self) -> OwnPlaces;
 
     fn confirm(&self) -> &ShareConfirm;
@@ -71,7 +71,7 @@ struct SaveAccess<'a> {
 }
 
 impl<E: SharesEnv> SharesAgent<E> {
-    /// The executor of the agent of the holzi chat.
+    /// The executor of the agent of the haex-vault chat.
     pub fn builtin(env: E) -> Self {
         Self { env }
     }

@@ -24,7 +24,7 @@ confirmed: boolean,
  */
 previousVersion: string | null,
 /**
- * The version in use is not on the list and newer than it: a vault from a newer holzi. It
+ * The version in use is not on the list and newer than it: a vault from a newer haex-vault. It
  * is still started.
  */
 untested: boolean,

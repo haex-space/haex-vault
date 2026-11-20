@@ -1,4 +1,4 @@
-//! Spec 021 US5 (T073): holzi's command tool for external agents. `run_command` is listed only with
+//! Spec 021 US5 (T073): haex-vault's command tool for external agents. `run_command` is listed only with
 //! the group "Befehle ausführen" and only where the device runs commands; it counts as destructive,
 //! so Auto asks before every command and Plan refuses it. The prompt and the log show the command
 //! line without the credentials in it (research R10).

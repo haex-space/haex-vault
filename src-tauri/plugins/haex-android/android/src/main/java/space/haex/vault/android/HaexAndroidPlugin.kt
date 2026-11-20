@@ -64,7 +64,7 @@ class ShortcutArgs {
 }
 
 /**
- * holzi's Android platform code (spec 043, ADR-0010); the core calls it directly. The core asks for
+ * haex-vault's Android platform code (spec 043, ADR-0010); the core calls it directly. The core asks for
  * the microphone (FR-029), before API 30 the storage (spec 044 FR-039) and the address book (spec
  * 051 FR-017) through the plugin's own `checkPermissions`/`requestPermissions`.
  */
@@ -131,7 +131,7 @@ class HaexAndroidPlugin(private val activity: Activity) : Plugin(activity) {
         sharedFiles.handle(intent)
     }
 
-    /** Reports each file shared to holzi to the core's channel; earlier ones are reported now. */
+    /** Reports each file shared to haex-vault to the core's channel; earlier ones are reported now. */
     @Command
     fun watchSharedFiles(invoke: Invoke) {
         val args = invoke.parseArgs(SharedFilesArgs::class.java)
@@ -281,7 +281,7 @@ class HaexAndroidPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     /**
-     * Whether holzi may read and write the shared storage (spec 044 FR-039): "Zugriff auf alle
+     * Whether haex-vault may read and write the shared storage (spec 044 FR-039): "Zugriff auf alle
      * Dateien" from API 30 on, the storage permissions before.
      */
     @Command
@@ -300,7 +300,7 @@ class HaexAndroidPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     /**
-     * Opens the system's page for "Zugriff auf alle Dateien" (API 30 on): holzi's own page, else
+     * Opens the system's page for "Zugriff auf alle Dateien" (API 30 on): haex-vault's own page, else
      * the list of all apps where a system has no page per app. The person comes back by themselves;
      * the window checks again then (research R11). Before API 30 nothing opens (`opened` false) and
      * the core asks for the storage permission instead.

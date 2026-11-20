@@ -23,12 +23,12 @@ pub const INPUT_LIMIT: u64 = 50 * 1024 * 1024;
 pub const TEXT_CHARS: usize = 200_000;
 
 pub const NOTE_SCANNED: &str =
-    "This PDF has no text layer, probably a scan; holzi cannot read text from it.";
+    "This PDF has no text layer, probably a scan; HaexVault cannot read text from it.";
 pub const NOTE_TOO_LARGE: &str =
-    "The file is larger than 50 MB; holzi reads text only from smaller files.";
+    "The file is larger than 50 MB; HaexVault reads text only from smaller files.";
 pub const NOTE_UNREADABLE: &str =
-    "holzi could not read this document; it may be damaged or protected by a password.";
-pub const NOTE_FORMAT: &str = "holzi cannot get the text out of this format.";
+    "HaexVault could not read this document; it may be damaged or protected by a password.";
+pub const NOTE_FORMAT: &str = "HaexVault cannot get the text out of this format.";
 
 /// What a document gives an agent.
 #[derive(Debug, Clone, PartialEq, Eq)]

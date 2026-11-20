@@ -23,7 +23,7 @@ use crate::files::{
 };
 use crate::remote_storage::{DirListing, Protocol};
 
-/// The most entries of one level holzi lists to find the encrypted folders in it.
+/// The most entries of one level haex-vault lists to find the encrypted folders in it.
 const MAX_ENTRIES: usize = 100_000;
 
 /// Where a window path of a storage leads.
@@ -77,7 +77,7 @@ pub async fn route(files: &StorageFiles, path: &str) -> Result<Route, FilesError
         let heads = match heads_of(files, scope, &prefix).await {
             Ok(heads) => heads,
             // A level of the device that cannot be listed (Android's `/storage`) holds no
-            // encrypted folder for holzi; deeper levels may still be (spec 048 US7).
+            // encrypted folder for haex-vault; deeper levels may still be (spec 048 US7).
             Err(_) if files.access().location.protocol == Protocol::Local => Vec::new(),
             Err(error) => return Err(error),
         };

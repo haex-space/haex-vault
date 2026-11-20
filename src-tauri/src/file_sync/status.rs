@@ -1,6 +1,6 @@
 //! The status of a rule for the window (research R9, FR-025): its state from the switch, the
 //! control loop and the last result, and what the last run of this session found. The window shows
-//! "holzi nicht aktiv" (`inactive`) itself when the service does not run.
+//! "haex-vault nicht aktiv" (`inactive`) itself when the service does not run.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -22,7 +22,7 @@ pub enum SyncRuleState {
     /// (spec 074 FR-006, FR-007).
     InvalidSource,
     Paused,
-    /// holzi or the vault was not active; only the window sets it.
+    /// haex-vault or the vault was not active; only the window sets it.
     Inactive,
 }
 

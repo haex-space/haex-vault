@@ -11,7 +11,7 @@ use super::remote_storage::invalid;
 use super::remote_storage_keys::fits_tree;
 use crate::remote_storage::{case_clash, Access, ObjectStore, StorageError};
 
-/// The most entries of one folder holzi reads to compare names.
+/// The most entries of one folder haex-vault reads to compare names.
 const MAX_ENTRIES: usize = 100_000;
 
 /// 3001 for an extension's key or prefix `text` a server with real folders cannot store; on S3

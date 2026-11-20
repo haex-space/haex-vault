@@ -1,6 +1,6 @@
 // Action types (spec 020-tab-navigation, T011, data-model.md). Every state-changing control of the
 // window manager and its apps is an action: the UI, keyboard shortcuts and — from spec 021 on — agents call
-// the same definitions. "Action", never "command": in holzi "command" means Tauri commands
+// the same definitions. "Action", never "command": in haex-vault "command" means Tauri commands
 // (research R8). Pure types, relative sibling imports only.
 import type { ActionScopeId } from './scopes.ts'
 

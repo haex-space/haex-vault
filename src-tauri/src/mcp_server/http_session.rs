@@ -1,8 +1,8 @@
 //! One MCP session on the HTTP way (spec 021 US1, US7, US8, T093). rmcp serves the session; the
 //! HTTP layer (`http.rs`) has checked the access token and put its agent on every request. The
-//! session takes that agent at `notifications/initialized` or the first request, whichever holzi
+//! session takes that agent at `notifications/initialized` or the first request, whichever haex-vault
 //! handles first, joins the open connections as the program way does (`attach.rs`), and answers
-//! only requests that carry the same agent. When holzi
+//! only requests that carry the same agent. When haex-vault
 //! ends the link (revocation, access off, vault closed) rmcp closes the session.
 
 use std::sync::atomic::{AtomicUsize, Ordering};

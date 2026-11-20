@@ -30,7 +30,7 @@ use crate::passwords::clock;
 use crate::passwords::service::PasswordsService;
 use crate::vault_gate::VaultDb;
 
-/// How long holzi waits for the addresses of an endpoint when it is set.
+/// How long haex-vault waits for the addresses of an endpoint when it is set.
 const RESOLVE_TIME: Duration = Duration::from_secs(10);
 
 /// Storage connections over the open vault and a provider.
@@ -85,7 +85,7 @@ impl StorageService {
         }
     }
 
-    /// The scope of the endpoint `url` as it is set now (research R8): an address holzi never
+    /// The scope of the endpoint `url` as it is set now (research R8): an address haex-vault never
     /// reaches, a mix of local and public ones or `http` to a public host is an invalid endpoint, a
     /// name without addresses an unreachable one.
     async fn scope_of(&self, url: &Url) -> Result<EndpointScope> {
@@ -483,7 +483,7 @@ impl StorageService {
     }
 
     /// The test of `access`; when it finds the folder of a WebDAV or SFTP storage missing and
-    /// `create` says so, holzi makes the folder (with missing folders above it) and tests again.
+    /// `create` says so, haex-vault makes the folder (with missing folders above it) and tests again.
     /// Never makes a folder without `create` (FR-006).
     async fn probe_creating(
         &self,

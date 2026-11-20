@@ -1,6 +1,6 @@
 //! A job on a model on this device (spec 055 T045 (3), SC-003): after the spike T057 local vision
 //! runs as an OpenAI-compatible server on loopback (research R8). Such a job asks for no consent
-//! and its image reaches only that server, through holzi's real adapter.
+//! and its image reaches only that server, through haex-vault's real adapter.
 
 use serde_json::json;
 use wiremock::matchers::{method, path};

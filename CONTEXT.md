@@ -1,4 +1,6 @@
-# holzi
+# HaexVault
+
+Formerly known as holzi.
 
 Portable personal-agent Tauri app. One user, one operator, small set of
 their own devices sharing an encrypted SQLite vault via CRDT sync.
@@ -29,7 +31,7 @@ vault's `preferences` (`agentBrowser.trackers` vault-wide, `agentBrowser.dns` pe
 Per-app-installation identifier stored in a file at
 `<AppLocalData>/installation-id`. The corresponding `installation_uuid` is
 also recorded in the sync-tracked `known_devices` table, so a copied vault
-can carry that historical row with it. The lookup key `HolziBootstrap` uses to
+can carry that historical row with it. The lookup key `HaexBootstrap` uses to
 decide whether the current open is genesis, resume, or adoption of a copied
 vault; adoption mints a fresh `vault_device_uuid` for the new installation.
 _Avoid_: device id (ambiguous — see below).
@@ -49,7 +51,7 @@ keypair. Copies of the vault share the same keypair — this is the
 identity the vault itself holds and moves with the file.
 
 **Adoption**:
-The `HolziBootstrap` path taken when a copied vault file is opened on
+The `HaexBootstrap` path taken when a copied vault file is opened on
 a device that has never seen it. Mints a fresh `vault_device_uuid`,
 which automatically isolates the new device from the source device's
 per-device rows.
@@ -207,7 +209,7 @@ Where a Tab stands inside its App: an app-relative path plus query
 (`/thread/<id>`, `/models?sort=size`), pure data (`TabLocation`). Each
 Tab keeps its own linear back/forward **Tab-Historie** (`TabHistory`),
 in memory only. "Ort" and "Verlauf" as German UI wording; never the
-webview's browser history, which holzi does not use as navigation state.
+webview's browser history, which HaexVault does not use as navigation state.
 
 **Aktion (Action) / Berechtigungsbereich (Scope) / Aufrufer (Caller)**
 (spec 020):
@@ -216,10 +218,10 @@ catalog **Aktion** (`ActionDefinition`, `runAction`) with a JSON
 schema, a target, a **Berechtigungsbereich** and an effect; the
 **Aufrufer** is the user, the built-in agent or an external agent.
 Actions in the `guardrails` scope are user-only.
-_Avoid_: "command" for these — in holzi "command" means Tauri commands.
+_Avoid_: "command" for these — in HaexVault "command" means Tauri commands.
 
 **Werkzeug (tool) / Wirkungsart / Risikostufe** (spec 032):
-A **Werkzeug** is an **Aktion** offered to a model that holzi's own chat
+A **Werkzeug** is an **Aktion** offered to a model that HaexVault's own chat
 drives, local or reached with an API key; the tool loop lists it with source
 `action`. A chat turn starts with a fixed core of tools and the search
 `find_actions`; the model finds the rest and gets it from the next step on. The
@@ -227,7 +229,7 @@ drives, local or reached with an API key; the tool loop lists it with source
 **Risikostufe** the approval mode decides on: `Safe`, `Change`, `Risky`.
 Actions in the `guardrails` scope are never offered. Whether a model can call
 tools at all is its capability `tool_use` (`ModelCapabilities`).
-_Avoid_: "command" for tools — in holzi "command" means Tauri commands.
+_Avoid_: "command" for tools — in HaexVault "command" means Tauri commands.
 
 **Passwortmanager / Kopfdaten / Verlaufsstand** (spec 034):
 The built-in secret store: the app `system.passwords` of the window manager
@@ -244,7 +246,7 @@ holds a password, a TOTP secret, custom fields, attachments and passkeys).
 **Aufrufer (`Caller`) / Freigabe (`Grant`) / Bereich (`Scope`)** (spec 034):
 Every access to the password manager goes through one `PasswordsService` that
 takes a **Caller** — the user, the built-in agent, an extension, an external
-agent, or a holzi function (`Internal`) — fixed by the entrance, never by an
+agent, or a HaexVault function (`Internal`) — fixed by the entrance, never by an
 argument. A **Freigabe** gives a caller `Read` or `ReadWrite` for a **Bereich**:
 all entries, or those with a tag. The user needs none. The built-in agent can
 only search titles, tags and folder names; no action reads a secret.
@@ -268,31 +270,31 @@ over the tables `haex_contacts_*`, synced like all vault data and behind one
 `ContactsService` with the same Callers as the password manager. A
 **Kontakt** has name parts, organization, note, photo, groups and any number
 of **Angaben**: rows with an open **Art** (`kind`: phone, email, address,
-messenger, …, custom, holzi addresses), so later kinds need no migration and
+messenger, …, custom, HaexVault addresses), so later kinds need no migration and
 an older device keeps and shows a kind it does not know, read-only. The
-**Herkunft** says where a contact came from (made in holzi, taken over from a
+**Herkunft** says where a contact came from (made in HaexVault, taken over from a
 phone, read from a **Visitenkarte**) and never changes. An **Abgleichsziel** is
-a phone and account a contact is written to; contacts made in holzi have none
-until the user picks one. **holzi-Adressen** are the vault identity, devices
+a phone and account a contact is written to; contacts made in HaexVault have none
+until the user picks one. **HaexVault-Adressen** are the vault identity, devices
 and Nostr-Relays of another vault, confirmed when they come from its signed
 Visitenkarte.
 _Avoid_: "Kontaktbuch" (the operator says Adressbuch); "Kontakte" for the
-sharing identities of haex-vault 2.x, which holzi does not have.
+sharing identities of haex-vault 2.x, which HaexVault does not have.
 
 **Öffner / Öffner-Anmeldung / Öffnen-Auswahl** (spec 063):
 An **Öffner** is an extension that takes over one kind of link, for now `mail.compose`: it
 writes an e-mail. The extension registers itself in the `openers` block of its manifest
-(**Öffner-Anmeldung**); holzi lists it only while it is installed and enabled, and the
+(**Öffner-Anmeldung**); HaexVault lists it only while it is installed and enabled, and the
 registration grants no access. The **Öffnen-Auswahl** is the choice the person makes: a menu at
 the mail button of an address (the system's mail program and one row per Öffner), or a dialog for
 a `mailto:` link from another app (one row per Öffner and "Link kopieren", never the system).
-holzi reads the link; the Öffner gets the fields (`to`, `cc`, `bcc`, `subject`, `body`) once,
+HaexVault reads the link; the Öffner gets the fields (`to`, `cc`, `bcc`, `subject`, `body`) once,
 through the bridge method `extension_opener_take`, never the link, and only after the person
 chose it.
-_Avoid_: "Handler" or "Standard-Programm" (holzi never makes itself the default for a link);
+_Avoid_: "Handler" or "Standard-Programm" (HaexVault never makes itself the default for a link);
 "Mail-Extension" for the registration (it is the Öffner-Anmeldung, whatever the extension is called).
 
-**Ich-Kontakt / Weitergabe / Teilen-Dialog / Echtheitsnachweis der holzi-Adressen** (spec 060):
+**Ich-Kontakt / Weitergabe / Teilen-Dialog / Echtheitsnachweis der HaexVault-Adressen** (spec 060):
 The **Ich-Kontakt** is the one contact of the Adressbuch that is the person
 themselves: a fixed id, always there, never deleted, shown first as "Ich" whatever
 name its parts give, and never offered to the phone. A **Weitergabe** is the text
@@ -302,7 +304,7 @@ and a choice per item that adds by default and never replaces a vault identity.
 The **Teilen-Dialog** is the same for every contact: one row per detail, all
 chosen when it opens, the choice never stored; an agent shares only through
 `contacts.share`, a destructive action that asks in this dialog on every call.
-The **Echtheitsnachweis der holzi-Adressen** is the signed card of a vault inside
+The **Echtheitsnachweis der HaexVault-Adressen** is the signed card of a vault inside
 a Weitergabe (or an older `haex:card:` text): it proves only that the addresses
 belong to that vault, not who the person is. The interface never shows the word
 "Karte".
@@ -316,7 +318,7 @@ directions; it runs after opening the vault, on coming back to the foreground
 and when contacts change in the vault, never in the background. It writes to
 the phone only contacts with that phone as their Abgleichsziel; removing the
 target asks whether the phone deletes the contact or keeps it, unsynced. Android keeps a person as one
-aggregated contact made of **Roh-Kontakte**, one per phone account; holzi
+aggregated contact made of **Roh-Kontakte**, one per phone account; HaexVault
 makes one Kontakt of them. A **Zuordnung** (`haex_contacts_phone_links`) ties
 a Roh-Kontakt of one phone to a Kontakt and keeps the state both sides agreed
 on, so a run compares three ways and the later change wins. Before the first
@@ -428,22 +430,22 @@ _Avoid_: "Relay" on its own.
 ### Erweiterungen (spec 017)
 
 **Erweiterung / haextension**:
-An app of a third party that runs inside holzi in a tab, from a signed bundle (`.xt`, ADR-0008)
+An app of a third party that runs inside HaexVault in a tab, from a signed bundle (`.xt`, ADR-0008)
 that is vault data, so every own device has it. Identified by publisher key and name; its tables
 carry the prefix `<publicKey>__<name>__`.
 _Avoid_: plugin, add-on.
 
 **Prüfstelle**:
-The one place in holzi that takes every request of an extension, knows which extension sent it
+The one place in HaexVault that takes every request of an extension, knows which extension sent it
 (from its frame, never from the request), checks the permission and runs the host function
 (`extensions::bridge::dispatch`, ADR-0004 direction B).
 _Avoid_: gateway, proxy.
 
 **Erweiterungsrahmen**:
 The sandboxed iframe in which an extension runs in a tab, with the channel over which it talks to
-holzi. holzi creates both, so it knows whose a frame is; a frame has no access to holzi's own
+HaexVault. HaexVault creates both, so it knows whose a frame is; a frame has no access to HaexVault's own
 interface on any platform.
-_Avoid_: webview (holzi has no native extension webviews).
+_Avoid_: webview (HaexVault has no native extension webviews).
 
 **Berechtigung (vault-weit / Gerät)**:
 The permission of an extension to run one kind of host function on a target, in the state
@@ -457,13 +459,13 @@ _Avoid_: grant for the stored row (use it only for the password manager's `Grant
 A tool an extension declares in its signed manifest and the built-in agent may call. The user
 confirms it when the extension is installed or updated; its effect (`read`, `change`,
 `destructive`) sets how a call is approved, and an unticked tool is on "ask": every call needs the
-user's consent. The model sees it as `x_<slug>_<tool>`; holzi calls it over the MCP connection of a
+user's consent. The model sees it as `x_<slug>_<tool>`; HaexVault calls it over the MCP connection of a
 frame of the extension, and the history names the extension (a development version is marked as
-such). Not an action of holzi's own catalog.
+such). Not an action of HaexVault's own catalog.
 _Avoid_: plugin tool, skill.
 
 **Passendes Angebot** (matched offer, spec 018):
-The up to three extension tools that fit the user's message, which holzi adds to the first step's
+The up to three extension tools that fit the user's message, which HaexVault adds to the first step's
 offer so a small model does not have to search for them. Deterministic and without a model: the
 words of the message against the titles, description and examples of every tool, each word
 weighted by how rare it is; naming the extension offers its tools. Measured by the model
@@ -478,7 +480,7 @@ tool's input, so those inputs repeat what the user agrees to (recipients, subjec
 draft, the subject of each mail to delete) and the tool refuses when the stored mail says
 otherwise. A password never passes through a mail tool: an account comes from a tagged password
 manager entry or from a form the user fills in.
-_Avoid_: mail action (an **Aktion** is holzi's own catalog), mail plugin.
+_Avoid_: mail action (an **Aktion** is HaexVault's own catalog), mail plugin.
 
 **Regel** (mail rule, spec 019):
 A lasting instruction of haex-mail: all its conditions (sender, recipient or subject contains a text,
@@ -494,14 +496,14 @@ _Avoid_: filter (that is the search of `find_messages`), automation.
 What a **Regel** does to a matching message: move it to a mailbox (by role, or by name for a single
 account), mark it read, or flag it. A rule has at most one of each; of all matching rules the
 earliest created one decides the move, and a rule whose target folder is gone is skipped as a whole.
-_Avoid_: action without "rule" (see **Aktion** for the catalog of holzi).
+_Avoid_: action without "rule" (see **Aktion** for the catalog of HaexVault).
 
 **Modellauftrag** (model job, spec 055):
-What an extension asks of holzi's language and vision models through the SDK (`models.runAsync`):
+What an extension asks of HaexVault's language and vision models through the SDK (`models.runAsync`):
 up to four steps, each with the extension's instruction, text or images or the result of an earlier
-step, and the format of the answer as a schema. holzi picks a granted model per step, drops broken
+step, and the format of the answer as a schema. HaexVault picks a granted model per step, drops broken
 output (empty, a loop, a switch of script, not the format) and tries the next granted model; only an
-answer in the format is a result. A job gives its model no tools of holzi, lives only in memory and
+answer in the format is a result. A job gives its model no tools of HaexVault, lives only in memory and
 leaves no trace in the vault; a connected subscription (Claude Code, Codex) runs as an agent with full
 access, which the grant says to the user.
 _Avoid_: agent task (the earlier spec 047), prompt, request.
@@ -509,7 +511,7 @@ _Avoid_: agent task (the earlier spec 047), prompt, request.
 **Modellfreigabe** (model grant, spec 055):
 The **Berechtigung** of kind `model`: an extension may use this model up to this effort (`none` to
 `high`). The user answers a first job's question or sets it in the extension's settings, where the
-granted models also get their rank. Every model holzi knows can be granted, whatever its source. A wish
+granted models also get their rank. Every model HaexVault knows can be granted, whatever its source. A wish
 above the ceiling is capped, not refused.
 _Avoid_: model permission, model access.
 
@@ -539,8 +541,8 @@ secret that never travels in the clear. It names no person, vault or contact.
 _Avoid_: invite link, token.
 
 **Einladungsabfrage** (invitation prompt, spec 057):
-holzi's own question "[Kontakt] lädt dich zu [Erweiterung] ein" with Annehmen/Ablehnen, in the
-window or as holzi's notification. Only the user answers it; the extension learns of an invitation
+HaexVault's own question "[Kontakt] lädt dich zu [Erweiterung] ein" with Annehmen/Ablehnen, in the
+window or as HaexVault's notification. Only the user answers it; the extension learns of an invitation
 only after it was accepted.
 _Avoid_: invitation dialog of the extension, accept call.
 
@@ -598,12 +600,12 @@ _Avoid_: Anklopfen, knock (dropped 2026-10-23), presence (presence is for own de
 
 **Sync-Regel** (sync rule):
 Keeps two folders of the file browser equal, one-way (A→B) or both ways. It belongs to the device
-that created it, runs only there while holzi is active, and is not synced to other devices.
+that created it, runs only there while HaexVault is active, and is not synced to other devices.
 _Avoid_: "Sync" alone (that is the vault's own sync between devices, spec 024), "Space".
 
 **Ort (einer Sync-Regel)** (rule place):
 A folder of a file browser source as a rule sees it: the source (`SourceRef`) and the window path,
-also into an encrypted folder or another own device. Fremde Dateifreigaben and holzi's own places
+also into an encrypted folder or another own device. Fremde Dateifreigaben and HaexVault's own places
 are never one.
 _Avoid_: "Ort" without context where the wm **Ort** (tab location, spec 020) is meant.
 
@@ -618,7 +620,7 @@ where both could be meant.
 A file changed on both sides keeps the newer version under its name; the older one lies beside it as
 `Name (Konflikt Gerätename Datum).Endung` on both sides. The **Löschmodus** (spiegeln, behalten,
 nachfragen) says what a deletion on one side does to the other; mirrored deletions go to the system
-trash or to the **Regel-Papierkorb** `.holzi-trash` in the place, never for good.
+trash or to the **Regel-Papierkorb** `.haex-trash` in the place, never for good.
 
 **Ausnahmedatei** (exclusion file):
 `.haex-ignore` in the root of a place, with patterns as in `.gitignore`. A file is excluded when the

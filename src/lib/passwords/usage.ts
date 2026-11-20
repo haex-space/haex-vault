@@ -1,5 +1,5 @@
 // The warning before a delete (spec 034-password-manager, FR-034): which of the entries about to be
-// deleted a holzi function uses. The functions report this themselves (`passwords_item_usage`); the
+// deleted a haex-vault function uses. The functions report this themselves (`passwords_item_usage`); the
 // password manager recognizes it by nothing else. Pure, so `scripts/check-passwords-usage.ts` runs
 // it without vue.
 

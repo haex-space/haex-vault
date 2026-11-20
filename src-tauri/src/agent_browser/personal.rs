@@ -13,7 +13,7 @@ use serde_json::Value;
 
 use super::submit::secret_name;
 
-/// One field of a form as the reading script reports it: name, value, whether the page or holzi
+/// One field of a form as the reading script reports it: name, value, whether the page or haex-vault
 /// made it a secret, and what it declares about its kind (its `type` and `autocomplete`).
 pub type FormField = (String, String, bool, String);
 

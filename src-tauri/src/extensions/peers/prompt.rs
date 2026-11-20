@@ -1,9 +1,9 @@
-//! holzi's own invitation prompt (spec 057 T039, FR-014, FR-015, research R9): "[contact]
+//! haex-vault's own invitation prompt (spec 057 T039, FR-014, FR-015, research R9): "[contact]
 //! invites you to [extension]" with accept and decline. The extension is not told before the
 //! user accepted here (FR-016), and the prompt does not depend on its `notifications`
 //! permission.
 //!
-//! With a frame of the extension open the prompt is an event to holzi's window; without one it is
+//! With a frame of the extension open the prompt is an event to haex-vault's window; without one it is
 //! a system notification with two buttons, answered here in Rust. A click on the notification
 //! itself brings the window prompt, and a system that shows no notification gets the window
 //! prompt too. When the invitation goes away the prompt goes with it ([`Prompt::gone`]).
@@ -21,15 +21,15 @@ use crate::extensions::notifications::{
     NotificationButton, NotificationResponse, NotificationSpec, Respond, ShownNotification,
 };
 
-/// The invitation, for holzi's window.
+/// The invitation, for haex-vault's window.
 pub const INVITATION: &str = "extension-peer-invitation";
-/// The invitation went away, for holzi's window.
+/// The invitation went away, for haex-vault's window.
 pub const INVITATION_GONE: &str = "extension-peer-invitation-gone";
 
 const ACCEPT: &str = "accept";
 const DECLINE: &str = "decline";
 
-/// What the window needs to ask (contracts/bridge.md §Befehle für holzis Fenster). `contact_name`
+/// What the window needs to ask (contracts/bridge.md §Befehle für haex-vaults Fenster). `contact_name`
 /// is the name from the address book of this vault and never goes to an extension.
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -197,7 +197,7 @@ fn respond(frames: Frames, info: Arc<PromptInfo>, answer: Answer) -> Respond {
     })
 }
 
-/// `extensions.peers.invitation.<key>` in the language of holzi's window, with `{name}`
+/// `extensions.peers.invitation.<key>` in the language of haex-vault's window, with `{name}`
 /// placeholders filled; the key itself when it is missing.
 fn text(locale: &str, key: &str, values: &[(&str, &str)]) -> String {
     let full = format!("extensions.peers.invitation.{key}");

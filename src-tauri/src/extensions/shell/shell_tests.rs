@@ -218,7 +218,7 @@ fn a_granted_shell_runs_echo_resizes_and_reports_its_end() {
 
 #[test]
 fn a_shell_does_not_inherit_haexs_own_variables() {
-    // Names nobody else sets; the test process is holzi's process here.
+    // Names nobody else sets; the test process is haex-vault's process here.
     std::env::set_var("WEBKIT_HAEX_SHELL_PROBE", "leak");
     std::env::set_var("LD_HAEX_SHELL_PROBE", "leak");
     let s = setup();

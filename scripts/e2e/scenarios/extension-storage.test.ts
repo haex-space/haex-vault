@@ -48,8 +48,8 @@ function textFields(page: Page, testid: string): Promise<number> {
 }
 
 // Spec 038, US2 and US3 (quickstart §5): an extension uses a storage the user made in the
-// settings and proposes another bucket on the same provider. holzi confirms it over the tab with a
-// dialog that has no field for credentials; new credentials are typed only in holzi's window over
+// settings and proposes another bucket on the same provider. haex-vault confirms it over the tab with a
+// dialog that has no field for credentials; new credentials are typed only in haex-vault's window over
 // the whole app, which names wrong ones and stays open for a correction. Objects land in the
 // extension's own area of the bucket. A call carrying credentials is refused without a dialog, and
 // a local endpoint needs the add permission for its host first. Needs Docker for RustFS; skipped
@@ -225,7 +225,9 @@ scenario(
         ),
       { timeoutMs: 20_000 },
     )
-    ctx.step('wrong credentials are named in holzi’s window, which stays open')
+    ctx.step(
+      'wrong credentials are named in HaexVault’s window, which stays open',
+    )
 
     await page.type(
       'storage-secret',
@@ -239,7 +241,9 @@ scenario(
       !JSON.stringify(updated).includes(rustfs.secretAccessKey),
       'the extension never gets the credentials',
     )
-    ctx.step('corrected credentials typed in holzi’s window over the whole app')
+    ctx.step(
+      'corrected credentials typed in HaexVault’s window over the whole app',
+    )
 
     const withCredentials = await probeRequest(
       page,

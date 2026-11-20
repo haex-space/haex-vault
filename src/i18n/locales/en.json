@@ -1,6 +1,6 @@
 {
   "landing": {
-    "welcome": "Welcome to Holzi",
+    "welcome": "Welcome to HaexVault",
     "lastUsed": "Recently used",
     "language": "Language"
   },
@@ -129,12 +129,12 @@
       "title": "Open vault file",
       "passphrase": "Passphrase",
       "submit": "Open",
-      "hint": "holzi makes a copy of the file and opens it. The chosen file stays as it is.",
+      "hint": "HaexVault makes a copy of the file and opens it. The chosen file stays as it is.",
       "errors": {
         "notALinkCode": "This is not the code of a vault.",
         "unsupportedVersion": "This code comes from a newer version. Update HaexVault and try again.",
-        "wrongPassphrase": "Wrong password, or not a vault file of holzi.",
-        "notAVault": "This is not a vault file of holzi.",
+        "wrongPassphrase": "Wrong password, or not a vault file of HaexVault.",
+        "notAVault": "This is not a vault file of HaexVault.",
         "alreadyHere": "This vault is already on this device: {name}",
         "notEnoughSpace": "Not enough free space.",
         "unreadable": "The file cannot be read."
@@ -354,7 +354,7 @@
       "noModelsDescription": "Download one of the suggested models below to chat locally. Alternatively, add an API provider (Anthropic …) in Settings — the chat will then use its models."
     },
     "composer": {
-      "placeholder": "Message Holzi …",
+      "placeholder": "Message HaexVault …",
       "newlineHint": "Shift + Enter for a new line",
       "settingsLabel": "Chat settings",
       "settingsButton": "Open model and effort settings",
@@ -417,9 +417,9 @@
       }
     },
     "toolNotice": {
-      "unverified": "Nobody has checked yet whether this model can operate holzi. It gets the tools anyway; if it answers oddly, try another model.",
+      "unverified": "Nobody has checked yet whether this model can operate HaexVault. It gets the tools anyway; if it answers oddly, try another model.",
       "unsupported": "This model cannot call tools, so it chats without them. A model that can, such as Claude or a Qwen3 model, can change settings and open apps for you.",
-      "delegateOff": "{name} reaches holzi's tools only through the MCP access, and that is off on this device. Turn it on in Settings under AI → External access.",
+      "delegateOff": "{name} reaches HaexVault's tools only through the MCP access, and that is off on this device. Turn it on in Settings under AI → External access.",
       "delegateStatusUnknown": "MCP access for {name} could not be checked right now.",
       "retry": "Check again"
     },
@@ -616,8 +616,8 @@
       "size": "{download} to download, {disk} in this vault",
       "updateAvailable": "Version {version} is available",
       "unconfirmed": "This version has not finished a request yet. Version {previous} is kept until it has, and you can go back to it.",
-      "untested": "Newer than the versions Holzi has tested. It is still used.",
-      "outdated": "Older than the versions Holzi has tested. Update to get a tested one.",
+      "untested": "Newer than the versions HaexVault has tested. It is still used.",
+      "outdated": "Older than the versions HaexVault has tested. Update to get a tested one.",
       "statusUnavailable": "Tool status unavailable",
       "info": "Details",
       "actions": "Actions",
@@ -673,7 +673,7 @@
     },
     "autonomyMode": {
       "standardDescription": "Tool calls go through the same approval rule as every other model (Manual/Auto/Plan, adjustable in chat).",
-      "ungatedDescription": "The subscription agent runs fully on its own, using its own native full-autonomy mechanism — Holzi does not intervene or ask.",
+      "ungatedDescription": "The subscription agent runs fully on its own, using its own native full-autonomy mechanism — HaexVault does not intervene or ask.",
       "gated_permissiveDescription": "The subscription agent can act freely, but the deny rules set below stay off-limits — no prompts, every action is logged."
     },
     "denyRules": {
@@ -893,12 +893,12 @@
       "unavailable": "Not available on this device"
     },
     "licenses": {
-      "intro": "holzi ships these icon sets. Each is under an open license. The marks and logos of companies, products and tools that some images of the Material set show belong to their owners and only mark the file type.",
+      "intro": "HaexVault ships these icon sets. Each is under an open license. The marks and logos of companies, products and tools that some images of the Material set show belong to their owners and only mark the file type.",
       "author": "Author",
       "license": "License",
       "source": "Source",
       "text": "License text",
-      "speechIntro": "holzi ships these voices and downloads the speech models when needed. Each is under a free licence and credited as its licence asks. The names of the voices in holzi are made up.",
+      "speechIntro": "HaexVault ships these voices and downloads the speech models when needed. Each is under a free licence and credited as its licence asks. The names of the voices in HaexVault are made up.",
       "speech": {
         "voice": "Voices",
         "speechModel": "Speech models",
@@ -911,11 +911,11 @@
       "failed": "The icon set could not be saved",
       "reset": "Reset",
       "states": {
-        "syncing": "The chosen icon set is still being synchronised. Until then holzi shows the standard icons.",
+        "syncing": "The chosen icon set is still being synchronised. Until then HaexVault shows the standard icons.",
         "missing": "The chosen icon set was removed. Choose another one.",
         "damaged": "The chosen icon set is damaged. Remove it or choose another one.",
         "damagedShort": "damaged",
-        "unknown": "The chosen icon set needs a newer version of the app. Until then holzi shows the standard icons."
+        "unknown": "The chosen icon set needs a newer version of the app. Until then HaexVault shows the standard icons."
       },
       "images": "{count} image | {count} images",
       "sets": {
@@ -931,7 +931,7 @@
         "chooseFolder": "Choose a folder",
         "checking": "Checking the icon set …",
         "summary": "{count} images, {size}",
-        "licenseNotice": "You are responsible for the license of this icon set. holzi does not check it.",
+        "licenseNotice": "You are responsible for the license of this icon set. HaexVault does not check it.",
         "skipped": "Not taken ({count})",
         "replace": "An icon set with this name exists. Replace it.",
         "cancel": "Cancel",
@@ -940,7 +940,7 @@
       "remove": {
         "label": "Remove {name}",
         "title": "Remove \"{name}\"?",
-        "body": "The icon set is deleted on every device of this vault. If it is chosen, holzi shows the default set afterwards.",
+        "body": "The icon set is deleted on every device of this vault. If it is chosen, HaexVault shows the default set afterwards.",
         "confirm": "Remove"
       }
     },
@@ -1206,7 +1206,7 @@
         "ask": "Ask",
         "denied": "Denied"
       },
-      "temporary": "until holzi is closed",
+      "temporary": "until HaexVault is closed",
       "temporaryFrame": "until the extension reloads",
       "allDevices": "all devices",
       "thisDevice": "this device",
@@ -1261,14 +1261,14 @@
       "dev": {
         "title": "Developer mode",
         "mode": "Developer mode",
-        "modeHint": "On this device only. Switching reloads holzi's window.",
+        "modeHint": "On this device only. Switching reloads HaexVault's window.",
         "load": "Load project",
         "loadHint": "Folder with haextension/manifest.json",
         "unload": "Unload"
       },
       "models": {
         "title": "Models",
-        "none": "holzi knows no model yet.",
+        "none": "HaexVault knows no model yet.",
         "notAllowed": "Not allowed",
         "allowed": "Allowed",
         "takesImages": "takes images",
@@ -1277,7 +1277,7 @@
         "held": "for this session only",
         "ceiling": "Effort for {name}",
         "default": "Default model",
-        "defaultHint": "The extension's jobs go to this model. When it cannot take a job, holzi asks which other model should.",
+        "defaultHint": "The extension's jobs go to this model. When it cannot take a job, HaexVault asks which other model should.",
         "noDefault": "None",
         "defaultBadge": "Default",
         "groupAll": "All models of this provider",
@@ -1322,7 +1322,7 @@
       "invalid": {
         "providerName": "The name needs 1 to 80 characters.",
         "region": "The region needs 1 to 64 characters.",
-        "endpoint": "This endpoint is not allowed: http only goes to addresses in your own network, holzi never reaches addresses like 169.254.x.x, and a name may not point to both your own and public addresses.",
+        "endpoint": "This endpoint is not allowed: http only goes to addresses in your own network, HaexVault never reaches addresses like 169.254.x.x, and a name may not point to both your own and public addresses.",
         "credentials": "Access key and secret are required.",
         "name": "The name needs 1 to 80 characters.",
         "bucket": "Bucket names have 3 to 63 characters: lower-case letters, digits, dot and hyphen.",
@@ -1395,7 +1395,7 @@
       },
       "credentialsLinked": "Linked password-manager entry",
       "openCredentialsEntry": "Open entry",
-      "testBucketHint": "holzi checks the connection with this bucket before saving it.",
+      "testBucketHint": "HaexVault checks the connection with this bucket before saving it.",
       "save": "Test and save",
       "saveName": "Save",
       "testing": "Testing …",
@@ -1424,7 +1424,7 @@
         "kdrive": "The number is in the address of the kDrive web app after /drive/. kSuite Free and Standard have no WebDAV; with two-factor sign-in you need an app password."
       },
       "placeholdersHint": "Replace the parts in angle brackets with your details.",
-      "testFolderHint": "holzi tests the connection with this folder before saving it. Empty is the top folder.",
+      "testFolderHint": "HaexVault tests the connection with this folder before saving it. Empty is the top folder.",
       "createFolder": "Create folder",
       "createFolderAndSave": "Create folder and save",
       "warnings": {
@@ -1442,12 +1442,12 @@
         "confirmHostKey": "Confirm and save",
         "acceptHostKey": "Accept the new key"
       },
-      "generatedKeyHint": "Add this public key at your provider. holzi keeps the private key; it goes to the password manager when you save.",
+      "generatedKeyHint": "Add this public key at your provider. HaexVault keeps the private key; it goes to the password manager when you save.",
       "sftpHints": {
         "hetznerStorageBox": "Turn on “SSH support” and “External reachability” in the Hetzner console. Port 23 takes keys as an OpenSSH line."
       },
       "hostKey": {
-        "unknown": "The server shows this host key. Compare the fingerprint with what your provider publishes before you confirm. Only then does holzi send your credentials.",
+        "unknown": "The server shows this host key. Compare the fingerprint with what your provider publishes before you confirm. Only then does HaexVault send your credentials.",
         "changed": "The server shows another host key than the confirmed one. The server may have moved, or someone pretends to be your server. Accept the new key only when your provider confirms it.",
         "previous": "Before",
         "shown": "Now",
@@ -1463,12 +1463,12 @@
         "title": "Sync with the phone's contacts",
         "description": "Contacts of the phone come into the address book, changes go both ways.",
         "target": "Target account",
-        "targetHint": "holzi writes contacts that newly go to the phone here. Contacts already written stay in their account.",
+        "targetHint": "HaexVault writes contacts that newly go to the phone here. Contacts already written stay in their account.",
         "localAccount": "Phone (no account)",
         "stateTitle": "State",
         "state": {
           "review": "The overview before the first sync is waiting for you.",
-          "permission": "Paused: holzi may not access the phone's contacts.",
+          "permission": "Paused: HaexVault may not access the phone's contacts.",
           "massDelete": "Paused: many contacts would be deleted. Decide what should happen.",
           "never": "Not synced yet.",
           "last": "Last {at}: {imported} taken over, {written} written to the phone, {deleted} deleted."
@@ -1482,8 +1482,8 @@
           "unknown": "Unknown contact",
           "read_only": "The phone account of this contact is read-only.",
           "account_removed": "The phone account is no longer on the phone.",
-          "permission": "holzi may not access the phone's contacts.",
-          "failed": "The phone refused the change. holzi tries again at the next sync."
+          "permission": "HaexVault may not access the phone's contacts.",
+          "failed": "The phone refused the change. HaexVault tries again at the next sync."
         }
       },
       "blocked": {
@@ -1493,7 +1493,7 @@
       }
     },
     "modelServers": {
-      "intro": "A machine with a graphics card, a school server or a service with an OpenAI-compatible API (Ollama, vLLM, llama.cpp and others). holzi reads the server's models and offers them like the others.",
+      "intro": "A machine with a graphics card, a school server or a service with an OpenAI-compatible API (Ollama, vLLM, llama.cpp and others). HaexVault reads the server's models and offers them like the others.",
       "models": "no models | one model | {n} models",
       "add": "Add a server",
       "name": "Name",
@@ -1507,7 +1507,7 @@
         "query": "The address ends without ? or #."
       },
       "key": "Key (optional)",
-      "keyHint": "Many servers in your own network need none. holzi stores it encrypted in the vault.",
+      "keyHint": "Many servers in your own network need none. HaexVault stores it encrypted in the vault.",
       "addButton": "Add",
       "adding": "Adding …",
       "readFailed": "“{name}” was added, but its models could not be read: {reason}. If the key is wrong, remove the server and add it again.",
@@ -1516,7 +1516,7 @@
       "withoutKey": "Without a key",
       "refresh": "Read models again",
       "refreshing": "Reading …",
-      "statementsIntro": "State here what the server does not report; it stays after the next read. What it does report, holzi takes as it is.",
+      "statementsIntro": "State here what the server does not report; it stays after the next read. What it does report, HaexVault takes as it is.",
       "kind": {
         "text": "Text models",
         "image": "Image models",
@@ -1959,7 +1959,7 @@
     "noSpeechDetected": "No speech detected",
     "error": {
       "deviceUnavailable": "No microphone available",
-      "microphoneDenied": "holzi may not use the microphone. You can allow it in the Android settings under Apps › holzi › Permissions › Microphone.",
+      "microphoneDenied": "HaexVault may not use the microphone. You can allow it in the Android settings under Apps › HaexVault › Permissions › Microphone.",
       "alreadyRecording": "A recording is already in progress",
       "transcriptionFailed": "Transcription failed",
       "generic": "Voice recording failed"
@@ -1994,8 +1994,8 @@
       "no_space": "There is not enough free space for this program.",
       "offline": "The download server cannot be reached. Check the connection and try again.",
       "server_error": "The download server answered with an error ({status}). Try again later.",
-      "integrity_mismatch": "The download does not match the checksum holzi has for it. It was not installed.",
-      "unpack_refused": "The downloaded package holds something holzi does not unpack. It was not installed.",
+      "integrity_mismatch": "The download does not match the checksum HaexVault has for it. It was not installed.",
+      "unpack_refused": "The downloaded package holds something HaexVault does not unpack. It was not installed.",
       "smoke_failed": "The downloaded program did not start correctly. It was not installed.",
       "cancelled": "The install was cancelled.",
       "unconfirmed_update": "The version in use has not finished a request yet. Use it once, or go back, before updating again.",
@@ -2005,7 +2005,7 @@
       "io_error": "The program could not be written to this vault's folder.",
       "failed": "The program could not be installed."
     },
-    "vaultAlreadyOpenElsewhere": "This vault is open in another Holzi instance.",
+    "vaultAlreadyOpenElsewhere": "This vault is open in another HaexVault instance.",
     "vaultAlreadyActive": "A vault is already open in this window.",
     "vaultClosed": "The vault was closed.",
     "transactionTooLarge": "The change is too large to save. Large files do not belong in the vault database.",
@@ -2438,9 +2438,9 @@
     "noValue": "(empty)",
     "untitled": "(untitled)",
     "unknownType": {
-      "title": "This entry needs a newer holzi",
-      "body": "It was saved by a newer version of holzi, with a type this version does not know. It is kept as it is and not changed. Update holzi on this device to open it.",
-      "badge": "Newer holzi needed"
+      "title": "This entry needs a newer HaexVault",
+      "body": "It was saved by a newer version of HaexVault, with a type this version does not know. It is kept as it is and not changed. Update HaexVault on this device to open it.",
+      "badge": "Newer HaexVault needed"
     },
     "expired": "Expired",
     "expiredOn": "Expired on {date}",
@@ -2796,7 +2796,7 @@
       "noFile": "No file chosen yet",
       "chooseFile": "Choose file",
       "fileHint": "The file is only read; nothing of it stays outside the vault.",
-      "fileHintAndroidLegacyHaexVault": "On Android holzi reads only the chosen file, no companion file beside it. Close haex-vault 2.x before you copy the file, so all changes are in it.",
+      "fileHintAndroidLegacyHaexVault": "On Android HaexVault reads only the chosen file, no companion file beside it. Close haex-vault 2.x before you copy the file, so all changes are in it.",
       "password": "Database password",
       "noKeyFile": "No key file",
       "chooseKeyFile": "Choose key file",
@@ -2831,7 +2831,7 @@
         "history_unreadable": "A history state could not be read.",
         "group_reparented": "A folder pointed at a missing parent folder and goes to the top.",
         "tag_merged": "Tags that only differ in spelling become one.",
-        "unknown_source_data": "The source holds data holzi does not know; it is not taken over."
+        "unknown_source_data": "The source holds data HaexVault does not know; it is not taken over."
       },
       "onDuplicate": "If an entry already exists",
       "skip": "Skip",
@@ -2881,7 +2881,7 @@
         "history_unreadable": "The history state of {field} could not be read and is missing.",
         "group_reparented": "Folder “{field}” pointed at a missing parent folder and now sits at the top.",
         "tag_merged": "The tags “{field}” only differ in spelling and became one.",
-        "unknown_source_data": "“{field}” of the source is unknown to holzi; the value was not taken over."
+        "unknown_source_data": "“{field}” of the source is unknown to HaexVault; the value was not taken over."
       }
     },
     "openUrl": "Open address",
@@ -3082,7 +3082,7 @@
         "dev_tables_exist": "Tables with this extension's prefix exist already.",
         "dev_project_changed": "The project now names another key or name; load it again.",
         "dev_prefix_conflict": "A development version of this extension is loaded on this device; unload it first.",
-        "forbidden_permission": "The manifest asks for access to encrypted folders. Only you give that access, when holzi asks you, never a manifest."
+        "forbidden_permission": "The manifest asks for access to encrypted folders. Only you give that access, when HaexVault asks you, never a manifest."
       },
       "title": "Install extension",
       "fileType": "Extension",
@@ -3100,12 +3100,12 @@
       "groupCount": "{granted} of {total} ticked",
       "agentTools": {
         "title": "Tools for the agent",
-        "unavailable": "Not supported by holzi",
-        "hint": "Ticked: the agent may use the tool; tools that change something may still ask, depending on the mode. Unticked: holzi asks before every call."
+        "unavailable": "Not supported by HaexVault",
+        "hint": "Ticked: the agent may use the tool; tools that change something may still ask, depending on the mode. Unticked: HaexVault asks before every call."
       },
       "vaultWide": "The extension is installed in the whole vault and also appears on your linked devices. Its permissions hold there as well, except those for the shell.",
-      "deviceOnly": "Holds on this device only: holzi asks again on your other devices.",
-      "unsupported": "Not supported by holzi: {categories}",
+      "deviceOnly": "Holds on this device only: HaexVault asks again on your other devices.",
+      "unsupported": "Not supported by HaexVault: {categories}",
       "openers": {
         "mailCompose": "Can open e-mail links, for example from the address book. It needs no permission for that."
       },
@@ -3175,7 +3175,7 @@
       "introDevice": "Choose an encrypted folder on this device. The extension learns its name only once you allow it.",
       "wantsRead": "The extension wants to read.",
       "wantsReadWrite": "The extension wants to read and write.",
-      "none": "This cloud storage holds no encrypted folder holzi can open.",
+      "none": "This cloud storage holds no encrypted folder HaexVault can open.",
       "remember": "Remember permission",
       "untilReload": "Without the tick the answer holds until the extension reloads or closes.",
       "allowRead": "Allow reading",
@@ -3190,13 +3190,13 @@
       "shellWarning": "Caution: with this permission the extension can run programs on this device.",
       "remember": "Remember",
       "scopeVault": "Then holds on all your devices.",
-      "scopeDevice": "Then holds on this device only. holzi asks again on your other devices.",
+      "scopeDevice": "Then holds on this device only. HaexVault asks again on your other devices.",
       "allow": "Allow",
       "deny": "Deny",
       "encryptedFolder": "Folder “{folder}” in the cloud storage “{storage}”",
       "encryptedFolderDevice": "Folder “{folder}” on this device",
       "model": {
-        "intro": "The extension wants to use one of holzi's models. Pick one that fits the job:",
+        "intro": "The extension wants to use one of HaexVault's models. Pick one that fits the job:",
         "models": "Models",
         "effort": "Effort",
         "effortHint": "You set the effort; the extension cannot change it.",
@@ -3210,7 +3210,7 @@
         "text": "Text ({size})",
         "images": "One image ({size}) | {count} images ({size})",
         "earlierResult": "The result of an earlier step",
-        "hint": "holzi sends nothing until you allow it. The extension does not learn the destination."
+        "hint": "HaexVault sends nothing until you allow it. The extension does not learn the destination."
       }
     },
     "statusError": {
@@ -3248,7 +3248,7 @@
       "existing": "From the connection “{name}”",
       "newCredentials": "Enter new credentials",
       "createFolder": "Make the folder at the provider if it is missing",
-      "credentialsNext": "holzi then asks for the credentials in its own window. The extension never gets them.",
+      "credentialsNext": "HaexVault then asks for the credentials in its own window. The extension never gets them.",
       "others": "These extensions lose access too: {names}",
       "continue": "Continue",
       "confirm": {
@@ -3261,7 +3261,7 @@
     "storageCredentials": {
       "title": "Credentials for a cloud storage",
       "for": "“{name}” wants to use a cloud storage at {provider}.",
-      "onlyHere": "holzi asks for credentials only in this window over the whole app, never in an extension's tab. They go to the password manager; the extension never gets them.",
+      "onlyHere": "HaexVault asks for credentials only in this window over the whole app, never in an extension's tab. They go to the password manager; the extension never gets them.",
       "confirm": "Test and save"
     },
     "models": {
@@ -3318,7 +3318,7 @@
     "empty": "This folder is empty.",
     "loading": "Loading folder …",
     "symlink": "Link",
-    "haexOwned": "holzi's own data, read-only",
+    "haexOwned": "HaexVault's own data, read-only",
     "search": {
       "placeholder": "Search in this folder",
       "clear": "Clear search",
@@ -3394,7 +3394,7 @@
       "clear": "Clear selection"
     },
     "clipboard": {
-      "waiting": "In holzi's clipboard"
+      "waiting": "In HaexVault's clipboard"
     },
     "create": {
       "label": "Create new",
@@ -3429,7 +3429,7 @@
       "title": "Delete for good?",
       "body": "{count} entry will be deleted for good. This cannot be undone. | {count} entries will be deleted for good. This cannot be undone.",
       "confirm": "Delete",
-      "foreign": "{count} foreign file that does not come from holzi goes with the encrypted folder. | {count} foreign files that do not come from holzi go with the encrypted folder.",
+      "foreign": "{count} foreign file that does not come from HaexVault goes with the encrypted folder. | {count} foreign files that do not come from HaexVault go with the encrypted folder.",
       "remoteTrash": "Moved to the other device's trash."
     },
     "transfer": {
@@ -3542,7 +3542,7 @@
       "next": "Next file",
       "openSystem": "Open with system app",
       "truncated": "Only the first 5 MB are shown.",
-      "unplayable": "holzi cannot play or show this file.",
+      "unplayable": "HaexVault cannot play or show this file.",
       "pdf": {
         "previous": "Previous page",
         "next": "Next page",
@@ -3559,20 +3559,20 @@
     },
     "encrypted": {
       "damagedEntry": "Damaged entry",
-      "foreign": "This folder holds {count} foreign file, such as a sync program's conflict copy. holzi does not show it and never deletes it on its own. | This folder holds {count} foreign files, such as a sync program's conflict copies. holzi does not show them and never deletes them on its own.",
+      "foreign": "This folder holds {count} foreign file, such as a sync program's conflict copy. HaexVault does not show it and never deletes it on its own. | This folder holds {count} foreign files, such as a sync program's conflict copies. HaexVault does not show them and never deletes them on its own.",
       "notice": {
         "title": "Encrypted folder",
-        "body": "What you put into an encrypted folder is encrypted by holzi before it is stored, in the cloud storage as on this device. Neither the provider nor other programs see contents or names. Only this vault can read it, on any of its devices. If the vault is lost and there is no backup, the files can no longer be read.",
+        "body": "What you put into an encrypted folder is encrypted by HaexVault before it is stored, in the cloud storage as on this device. Neither the provider nor other programs see contents or names. Only this vault can read it, on any of its devices. If the vault is lost and there is no backup, the files can no longer be read.",
         "confirm": "Understood"
       },
       "state": {
         "otherVault": "Another vault's encrypted folder",
-        "newerFormat": "Needs a newer version of holzi",
+        "newerFormat": "Needs a newer version of HaexVault",
         "damaged": "Damaged: cannot be decrypted"
       },
       "openSystem": {
         "title": "Decrypted copy on this device",
-        "body": "So that another app can open the file, holzi places a decrypted copy on this device. The app may keep it. holzi removes its copy when you lock or close the vault.",
+        "body": "So that another app can open the file, HaexVault places a decrypted copy on this device. The app may keep it. HaexVault removes its copy when you lock or close the vault.",
         "dontAskAgain": "Don't ask again",
         "confirm": "Open"
       }
@@ -3584,7 +3584,7 @@
       "binary": "This is not a text file.",
       "tooLarge": "Too large to show here.",
       "broken": "This image cannot be shown.",
-      "haexOwned": "holzi's own data cannot be changed.",
+      "haexOwned": "HaexVault's own data cannot be changed.",
       "readOnly": "This place is read only.",
       "blocked": "Not available.",
       "notGranted": "Not granted.",
@@ -3602,14 +3602,14 @@
       "noKey": "This device does not have the vault's key yet. Wait until it has synced.",
       "damaged": "Damaged: this cannot be decrypted.",
       "otherVault": "This folder belongs to another vault.",
-      "newerFormat": "This needs a newer version of holzi.",
+      "newerFormat": "This needs a newer version of HaexVault.",
       "needsNotice": "This needs the notice first.",
       "sameFolder": "Source and target are the same folder.",
       "noOtherPanel": "There is no second panel open."
     },
     "allAccess": {
       "title": "Access to all files",
-      "text": "To show, open and manage the files of your device, holzi needs the permission “All files access”. You give it in Android’s settings; your files show here afterwards. The cloud storages stay reachable without it.",
+      "text": "To show, open and manage the files of your device, HaexVault needs the permission “All files access”. You give it in Android’s settings; your files show here afterwards. The cloud storages stay reachable without it.",
       "button": "Allow in the settings"
     },
     "agentPermission": {
@@ -3619,7 +3619,7 @@
       "unknownAgent": "An external agent",
       "read": "{agent} wants to read files in the cloud storage “{name}”.",
       "readWrite": "{agent} wants to read and change files in the cloud storage “{name}”.",
-      "hint": "holzi remembers your answer for this cloud storage.",
+      "hint": "HaexVault remembers your answer for this cloud storage.",
       "allowRead": "Allow reading",
       "allowReadWrite": "Allow reading and writing",
       "deny": "Deny",
@@ -3635,14 +3635,14 @@
         "remember": "Remember this permission",
         "alsoCloud": "also for cloud models",
         "thisTask": "Without the checkbox the answer holds for this task only.",
-        "kept": "holzi remembers the answer for this folder.",
-        "keptLocal": "holzi remembers the answer for models on this device only; it still holds for this task."
+        "kept": "HaexVault remembers the answer for this folder.",
+        "keptLocal": "HaexVault remembers the answer for models on this device only; it still holds for this task."
       },
       "contacts": {
         "title": "Access to your contacts",
         "read": "{agent} wants to read your contacts.",
         "readWrite": "{agent} wants to read and change your contacts. Changes go to all your devices and into the phone address books.",
-        "hint": "“Allow once” holds for this access only. holzi remembers “Always allow” and “Deny”; you can change that in the settings under AI.",
+        "hint": "“Allow once” holds for this access only. HaexVault remembers “Always allow” and “Deny”; you can change that in the settings under AI.",
         "once": "Allow once",
         "always": "Always allow"
       }
@@ -3822,10 +3822,10 @@
         "open": "Settings",
         "title": "Sync rule settings",
         "logHeading": "Log",
-        "logIntro": "After each run holzi writes down what happened: when it ran, how long it took, how it ended and which files it copied, moved, deleted or saved as a conflict copy. You open the log of a rule in its menu. There you also see where a mirrored deletion put the file.",
+        "logIntro": "After each run HaexVault writes down what happened: when it ran, how long it took, how it ended and which files it copied, moved, deleted or saved as a conflict copy. You open the log of a rule in its menu. There you also see where a mirrored deletion put the file.",
         "depth": "Runs per rule",
-        "hint": "holzi keeps this many of the latest runs for each rule, from 0 to 100. Older runs are deleted. If you set a smaller number, the oldest runs disappear at once.",
-        "cost": "More runs let you look further back but take more storage, especially for rules with many files. At 0 holzi keeps no log, and you cannot look up what happened to a file.",
+        "hint": "HaexVault keeps this many of the latest runs for each rule, from 0 to 100. Older runs are deleted. If you set a smaller number, the oldest runs disappear at once.",
+        "cost": "More runs let you look further back but take more storage, especially for rules with many files. At 0 HaexVault keeps no log, and you cannot look up what happened to a file.",
         "scope": "The setting applies to all sync rules on this device. The log stays on this device and is not synced to other devices. It stores run metadata such as times, duration, trigger, outcome and counters, plus file paths, actions and error reasons. It never stores file contents.",
         "invalid": "A whole number from 0 to 100."
       },
@@ -3851,7 +3851,7 @@
         "waiting": "waiting",
         "error": "error",
         "paused": "paused",
-        "inactive": "holzi not active",
+        "inactive": "HaexVault not active",
         "invalidSource": "source invalid"
       },
       "filter": "Search rules",
@@ -3885,7 +3885,7 @@
         "invalidInterval": "The interval lies between 1 minute and 1 day.",
         "invalidName": "The name has 1 to 80 characters.",
         "notFound": "This rule no longer exists.",
-        "readOnly": "holzi cannot write to this place.",
+        "readOnly": "HaexVault cannot write to this place.",
         "unreachable": "A place of the rule cannot be reached right now.",
         "unavailable": "The vault is not available right now.",
         "invalidDepth": "The log depth lies between 0 and 100.",
@@ -4138,7 +4138,7 @@
       "spouse": "Spouse"
     },
     "haexAddresses": {
-      "title": "holzi addresses",
+      "title": "HaexVault addresses",
       "unconfirmed": "unconfirmed"
     },
     "fields": {
@@ -4154,8 +4154,8 @@
       "note": "Note"
     },
     "origin": {
-      "haex": "Created in holzi on {device}",
-      "haexBy": "Created in holzi on {device} by {caller}",
+      "haex": "Created in HaexVault on {device}",
+      "haexBy": "Created in HaexVault on {device} by {caller}",
       "phone": "Taken over from the phone {device} ({account})",
       "card": "From a business card, read on {device}",
       "thisDevice": "this device",
@@ -4190,7 +4190,7 @@
     },
     "review": {
       "title": "First sync with the phone",
-      "description": "This is how holzi syncs the phone's contacts and the address book. Nothing is written before you confirm.",
+      "description": "This is how HaexVault syncs the phone's contacts and the address book. Nothing is written before you confirm.",
       "loading": "Reading the phone's contacts …",
       "toAddressBook": "No contact is new in the address book | One contact is new in the address book | {count} contacts are new in the address book",
       "toPhone": "No contact goes newly to the phone | One contact goes newly to the phone | {count} contacts go newly to the phone",
@@ -4208,7 +4208,7 @@
       "title": "Delete many contacts?",
       "description": "The sync would delete many contacts at once and is paused.",
       "fromPhone": "No contact | One contact was deleted on the phone and would go from the address book | {count} contacts were deleted on the phone and would go from the address book",
-      "fromHaex": "No contact | One contact was deleted in holzi and would go from the phone | {count} contacts were deleted in holzi and would go from the phone",
+      "fromHaex": "No contact | One contact was deleted in HaexVault and would go from the phone | {count} contacts were deleted in HaexVault and would go from the phone",
       "later": "Later",
       "keep": "Keep",
       "delete": "Delete",
@@ -4218,23 +4218,23 @@
       }
     },
     "error": {
-      "contactsDenied": "holzi may not access the phone's contacts. You can allow it in the Android settings under Apps › holzi › Permissions › Contacts.",
+      "contactsDenied": "HaexVault may not access the phone's contacts. You can allow it in the Android settings under Apps › HaexVault › Permissions › Contacts.",
       "cardInvalid": "This is no valid business card, or it was changed.",
       "cardOwn": "This is the business card of your own vault.",
       "cardOlder": "This business card is older than the stored one. Everything stays as it is.",
       "cardTooLarge": "The business card is too large.",
       "self": "This is your own contact. It cannot be deleted, and its display name is always “Me”.",
-      "shareInvalid": "This is not a valid share, or it comes from a newer version of holzi.",
+      "shareInvalid": "This is not a valid share, or it comes from a newer version of HaexVault.",
       "shareTooLarge": "The share is too large for a link. Deselect some details."
     },
     "targets": {
       "title": "Sync with phones",
       "question": "On a phone too?",
-      "onlyHaex": "Only in holzi: the contact goes to no phone.",
+      "onlyHaex": "Only in HaexVault: the contact goes to no phone.",
       "unnamedPhone": "Phone",
       "targetAccount": "The phone’s target account",
       "removeTitle": "Stop syncing with {phone}?",
-      "removeQuestion": "Should {phone} delete the contact or keep it? Keep means: it stays on the phone, but holzi no longer syncs it there. | Should {phone} delete the {count} contacts or keep them? Keep means: they stay on the phone, but holzi no longer syncs them there.",
+      "removeQuestion": "Should {phone} delete the contact or keep it? Keep means: it stays on the phone, but HaexVault no longer syncs it there. | Should {phone} delete the {count} contacts or keep them? Keep means: they stay on the phone, but HaexVault no longer syncs them there.",
       "keepOnPhone": "Keep on the phone",
       "deleteOnPhone": "Delete on the phone",
       "send": "Add to a phone …",
@@ -4253,7 +4253,7 @@
       "year": "YYYY"
     },
     "card": {
-      "confirmed": "Confirmed holzi addresses",
+      "confirmed": "Confirmed HaexVault addresses",
       "confirmedAt": "confirmed on {at}"
     },
     "import": {
@@ -4264,10 +4264,10 @@
       "scan": "Scan",
       "preview": "Preview",
       "vault": "It will be saved in the vault “{vault}”.",
-      "identityNew": "“Confirmed” only proves that these holzi addresses belong to the vault {npub}, not who the person is.",
+      "identityNew": "“Confirmed” only proves that these HaexVault addresses belong to the vault {npub}, not who the person is.",
       "identityMatches": "Fits the vault of this contact.",
       "identityMismatch": "This contact belongs to another vault ({npub}). Its vault identity is never replaced; choose a new contact.",
-      "unreachable": "This contact cannot be reached through holzi: the share holds no holzi addresses.",
+      "unreachable": "This contact cannot be reached through HaexVault: the share holds no HaexVault addresses.",
       "skipped": "One invalid detail was left out. | {count} invalid details were left out.",
       "legacy": "This is a business card in the older format.",
       "target": "Where to?",
@@ -4291,7 +4291,7 @@
       },
       "replaces": "Replaces",
       "replacesOne": "Replaces: {value}",
-      "replaceHint": "Replaces this vault's stored holzi addresses with those of this card.",
+      "replaceHint": "Replaces this vault's stored HaexVault addresses with those of this card.",
       "addresses": "Vault {npub} · {devices} devices, {relays} relays, of which new: {newDevices} devices, {newRelays} relays",
       "summary": "{added} to add, {updated} to update, {skipped} not taken",
       "accept": "Take over",
@@ -4312,9 +4312,9 @@
       "noName": "The contact has no name; it stays empty for the receiver.",
       "all": "All",
       "none": "None",
-      "ownAddresses": "My holzi addresses",
+      "ownAddresses": "My HaexVault addresses",
       "identity": "Vault identity, always goes along",
-      "linkedDevice": "This device cannot pass on holzi addresses because only a main device signs them. Share from a main device if they should go along.",
+      "linkedDevice": "This device cannot pass on HaexVault addresses because only a main device signs them. Share from a main device if they should go along.",
       "confirmedRow": "{devices} devices, {relays} relays · confirmed {at}",
       "confirmedHint": "The contact's original proof goes along unchanged. It also holds what the contact released for it; devices and relays go together only.",
       "photoHint": "Photos are not passed on by link, clipboard or QR code.",
@@ -4398,7 +4398,7 @@
     },
     "notification": {
       "title": "Browser extension waiting",
-      "body": "A browser extension wants to connect to holzi. Open holzi to answer."
+      "body": "A browser extension wants to connect to HaexVault. Open HaexVault to answer."
     },
     "settings": {
       "enabled": "Connect browser extensions",
@@ -4406,7 +4406,7 @@
       "port": "Port",
       "portHint": "Must be set the same in the extension. Default: 19455",
       "state": "State",
-      "portInUseHint": "Port {port} is in use, for example by another holzi instance or by HaexVault 2.x. Choose another port and set it in the extension too.",
+      "portInUseHint": "Port {port} is in use, for example by another HaexVault instance or by HaexVault 2.x. Choose another port and set it in the extension too.",
       "portInvalid": "The port must be between 1024 and 65535.",
       "changePort": "Choose another port",
       "outdatedClient": "An outdated version of haex-pass tried to connect. Please update the extension to 1.4.0 or newer.",
@@ -4431,7 +4431,7 @@
     },
     "clients": {
       "title": "Approved extensions",
-      "empty": "No browser extension approved yet. When one connects, holzi asks.",
+      "empty": "No browser extension approved yet. When one connects, HaexVault asks.",
       "blockedTitle": "Blocked extensions",
       "connected": "connected",
       "remembered": "remembered",
@@ -4447,10 +4447,10 @@
       "notFound": "This extension is no longer approved or blocked.",
       "revoke": "Revoke",
       "revokeTitle": "Revoke the approval?",
-      "revokeBody": "“{name}” is disconnected at once. When it connects again, holzi asks again.",
+      "revokeBody": "“{name}” is disconnected at once. When it connects again, HaexVault asks again.",
       "unblock": "Unblock",
       "unblockTitle": "Lift the block?",
-      "unblockBody": "When “{name}” connects again, holzi asks again whether to approve it.",
+      "unblockBody": "When “{name}” connects again, HaexVault asks again whether to approve it.",
       "cancel": "Cancel"
     },
     "time": {
@@ -4465,8 +4465,8 @@
         "get": "Sign in with a passkey?"
       },
       "body": {
-        "create": "“{name}” wants to create a passkey for {site} in holzi.",
-        "get": "“{name}” wants to sign you in to {site} with a passkey from holzi."
+        "create": "“{name}” wants to create a passkey for {site} in HaexVault.",
+        "get": "“{name}” wants to sign you in to {site} with a passkey from HaexVault."
       },
       "site": "Site",
       "challenge": "Challenge hash",
@@ -4512,7 +4512,7 @@
         },
         "settings": {
           "title": "Settings",
-          "description": "See and change the settings of holzi and this device"
+          "description": "See and change the settings of HaexVault and this device"
         },
         "models": {
           "title": "Models",
@@ -4533,7 +4533,7 @@
     "state": {
       "off": "Off",
       "running": "Ready",
-      "inUse": "Another holzi instance serves this vault",
+      "inUse": "Another HaexVault instance serves this vault",
       "noVault": "No vault open",
       "notAvailable": "Not available on this device"
     },
@@ -4548,11 +4548,11 @@
       "copy": "Copy",
       "copied": "Copied",
       "httpTitle": "Connect over HTTP",
-      "httpHint": "holzi listens on 127.0.0.1:{port}. On its first connection the agent opens a page in the browser; then confirm it here in holzi."
+      "httpHint": "HaexVault listens on 127.0.0.1:{port}. On its first connection the agent opens a page in the browser; then confirm it here in HaexVault."
     },
     "notification": {
-      "title": "An agent wants to use holzi",
-      "body": "Open holzi to register or decline it."
+      "title": "An agent wants to use HaexVault",
+      "body": "Open HaexVault to register or decline it."
     },
     "call": {
       "title": "Allow an agent call",
@@ -4574,7 +4574,7 @@
     },
     "callNotification": {
       "title": "An agent waits for your approval",
-      "body": "Open holzi to allow or deny the call."
+      "body": "Open HaexVault to allow or deny the call."
     },
     "agents": {
       "title": "Registered agents",
@@ -4665,17 +4665,17 @@
       "title": "Run commands",
       "enabled": "Run commands",
       "enabledHint": "Run shell commands on this device, with your rights and access to your programs and files",
-      "askHint": "Every command counts as destructive: in the approval mode Auto holzi asks before each command, in Plan it refuses all of them."
+      "askHint": "Every command counts as destructive: in the approval mode Auto HaexVault asks before each command, in Plan it refuses all of them."
     },
     "delegate": {
       "title": "Subscription agents",
-      "hint": "How the own tools of a subscription agent run when its model is in this agent profile. The other groups limit holzi’s tools.",
+      "hint": "How the own tools of a subscription agent run when its model is in this agent profile. The other groups limit HaexVault’s tools.",
       "denyTitle": "Deny rules"
     },
     "contacts": {
       "title": "Contacts",
       "all": "All contacts",
-      "allHint": "The address book; without an entry holzi asks at the first access",
+      "allHint": "The address book; without an entry HaexVault asks at the first access",
       "ask": "Asks",
       "group": "Contacts of the group “{name}”",
       "groupGone": "deleted group",
@@ -4738,7 +4738,7 @@
     },
     "notification": {
       "title": "The agent browser asks",
-      "body": "An agent wants to do something in the browser. Open holzi to answer."
+      "body": "An agent wants to do something in the browser. Open HaexVault to answer."
     },
     "prompt": {
       "builtinAgent": "Built-in agent",
@@ -4772,19 +4772,19 @@
       },
       "takeover": {
         "title": "The agent asks you to take over",
-        "hint": "With “Take over”, holzi brings the tab to the front and you use the browser yourself, for a captcha or a confirmation. The agent waits and learns nothing of what you do. Afterwards, give it back with “Give back” in holzi or in the tab.",
+        "hint": "With “Take over”, HaexVault brings the tab to the front and you use the browser yourself, for a captcha or a confirmation. The agent waits and learns nothing of what you do. Afterwards, give it back with “Give back” in HaexVault or in the tab.",
         "allow": "Take over",
         "reason": "Reason"
       },
       "download": {
         "title": "Keep a large download?",
-        "hint": "The agent started a download over 100 MB. It goes on until you decide; the agent gets the file only once you allow it. Otherwise holzi cancels it and deletes what arrived.",
+        "hint": "The agent started a download over 100 MB. It goes on until you decide; the agent gets the file only once you allow it. Otherwise HaexVault cancels it and deletes what arrived.",
         "allow": "Keep",
         "size": "Size"
       },
       "fill": {
         "title": "Fill in login details?",
-        "hint": "The agent wants to log in on this website. holzi fills in the username, password and, if any, the one-time code itself; the agent sees none of them. With “Remember for this website” holzi fills here without asking from now on, as long as only one entry matches.",
+        "hint": "The agent wants to log in on this website. HaexVault fills in the username, password and, if any, the one-time code itself; the agent sees none of them. With “Remember for this website” HaexVault fills here without asking from now on, as long as only one entry matches.",
         "remember": "Remember for this website",
         "choose": "Which entry?",
         "entry": "Entry",
@@ -4792,7 +4792,7 @@
       },
       "entryFill": {
         "title": "Fill in data from the password manager?",
-        "hint": "holzi fills the checked fields of the chosen entry itself; the agent sees neither the entry nor the values. Sending the form asks again afterwards. This question comes with every call.",
+        "hint": "HaexVault fills the checked fields of the chosen entry itself; the agent sees neither the entry nor the values. Sending the form asks again afterwards. This question comes with every call.",
         "allow": "Fill in",
         "purpose": "Purpose",
         "rows": "What gets filled in",
@@ -4801,7 +4801,7 @@
       },
       "newCredentials": {
         "title": "Save new login details?",
-        "hint": "The agent is creating a login on this website. holzi generated a password and entered it itself; the agent does not see it. “Save” creates an entry with this username in the password manager, “Decline” empties the password fields again.",
+        "hint": "The agent is creating a login on this website. HaexVault generated a password and entered it itself; the agent does not see it. “Save” creates an entry with this username in the password manager, “Decline” empties the password fields again.",
         "allow": "Save",
         "username": "Username"
       },

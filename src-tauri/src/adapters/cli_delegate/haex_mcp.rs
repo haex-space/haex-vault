@@ -1,7 +1,7 @@
-//! holzi's own MCP server for a delegate in the chat (spec 021 US6, FR-024, research R7): a
+//! haex-vault's own MCP server for a delegate in the chat (spec 021 US6, FR-024, research R7): a
 //! registered Claude Code or Codex gets the server `haex` in its temporary configuration on every
-//! start, in every autonomy mode, without the user setting anything up. The server is holzi's
-//! `--mcp-agent` helper with a pass that lives only for this start. holzi checks each of its tools
+//! start, in every autonomy mode, without the user setting anything up. The server is haex-vault's
+//! `--mcp-agent` helper with a pass that lives only for this start. haex-vault checks each of its tools
 //! against the delegate's rights and approval mode itself, so the delegate's own approval lets them
 //! through: "Ungated" (009) never reaches them.
 
@@ -14,13 +14,13 @@ use uuid::Uuid;
 use super::{DelegateChatContext, DelegateVendor};
 use crate::adapters::AdapterError;
 
-/// The name of holzi's server in the delegate's configuration.
+/// The name of haex-vault's server in the delegate's configuration.
 pub const SERVER_NAME: &str = "haex";
-/// Claude's permission rule for every tool of [`SERVER_NAME`]: holzi asks for them itself.
+/// Claude's permission rule for every tool of [`SERVER_NAME`]: haex-vault asks for them itself.
 pub const CLAUDE_HAEX_TOOLS: &str = "mcp__haex";
 
-/// What a delegate with holzi's server reads on top of the chat's system prompt: holzi's tools come
-/// before its own web tools, and a request for an app's data is looked up in holzi's tool list.
+/// What a delegate with haex-vault's server reads on top of the chat's system prompt: haex-vault's tools come
+/// before its own web tools, and a request for an app's data is looked up in haex-vault's tool list.
 pub const DELEGATE_INSTRUCTION: &str = "You work inside haex and have its tools through the MCP \
     server `haex` (tool names start with `mcp__haex__` or are listed under `haex`). Use them \
     before your own tools. Research on the web, searching a shop or opening a website: use \
@@ -31,7 +31,7 @@ pub const DELEGATE_INSTRUCTION: &str = "You work inside haex and have its tools 
     named after the extension) and use it; only when none fits, say that no installed extension \
     can do it. Never claim you cannot use haex tools without having looked at the list.";
 
-/// `system_prompt` with [`DELEGATE_INSTRUCTION`] when the delegate has holzi's server.
+/// `system_prompt` with [`DELEGATE_INSTRUCTION`] when the delegate has haex-vault's server.
 pub fn with_instruction(system_prompt: Option<&str>, haex: bool) -> Option<String> {
     if !haex {
         return system_prompt.map(str::to_owned);
@@ -44,7 +44,7 @@ pub fn with_instruction(system_prompt: Option<&str>, haex: bool) -> Option<Strin
     )
 }
 
-/// How a delegate starts holzi's server. Its arguments carry the pass, so `Debug` hides them; the
+/// How a delegate starts haex-vault's server. Its arguments carry the pass, so `Debug` hides them; the
 /// pass ends when this value is dropped, together with the delegate's start.
 pub struct HaexServer {
     pub command: String,
@@ -70,10 +70,10 @@ impl std::fmt::Debug for HaexServer {
     }
 }
 
-/// Whether and how a delegate reaches holzi; the MCP server answers it (`mcp_server::delegates`).
+/// Whether and how a delegate reaches haex-vault; the MCP server answers it (`mcp_server::delegates`).
 #[async_trait]
 pub trait HaexAccess: Send + Sync {
-    /// holzi's server for a start of `vendor` with the model `model` (`<provider id>:<remote id>`) in
+    /// haex-vault's server for a start of `vendor` with the model `model` (`<provider id>:<remote id>`) in
     /// the chat thread `thread`; `None` while the access is off or the active agent profile does not
     /// offer the model. What the delegate may do is the profile of that model.
     async fn server_for(
@@ -84,7 +84,7 @@ pub trait HaexAccess: Send + Sync {
     ) -> Option<HaexServer>;
 }
 
-/// holzi's server for this start, if the context has the access (a job has none, spec 055).
+/// haex-vault's server for this start, if the context has the access (a job has none, spec 055).
 pub async fn server_for(
     context: &DelegateChatContext,
     vendor: DelegateVendor,
@@ -104,7 +104,7 @@ pub struct ApproveBridge<'a> {
     pub socket: &'a Path,
 }
 
-/// Claude's `mcp-config.json`: `haex-approve` for the approval bridge, and `holzi` where the
+/// Claude's `mcp-config.json`: `haex-approve` for the approval bridge, and `haex` where the
 /// delegate is registered. `None` when neither applies.
 pub fn claude_config(
     approve: Option<ApproveBridge<'_>>,
@@ -137,7 +137,7 @@ pub async fn write_claude_config(
 ) -> Result<Option<PathBuf>, AdapterError> {
     let executable = match approve_socket {
         Some(_) => Some(std::env::current_exe().map_err(|error| AdapterError::Http {
-            reason: format!("failed to locate holzi executable for approval bridge: {error}"),
+            reason: format!("failed to locate HaexVault executable for approval bridge: {error}"),
         })?),
         None => None,
     };
@@ -159,9 +159,9 @@ pub async fn write_claude_config(
     Ok(Some(path))
 }
 
-/// The `config.toml` of `CODEX_HOME` with holzi's server. Codex asks the client before every call
+/// The `config.toml` of `CODEX_HOME` with haex-vault's server. Codex asks the client before every call
 /// of an MCP tool (`mcpServer/elicitation/request`) unless the server's approval mode is
-/// `approve`; holzi checks its tools against the delegate's rights and the chat's approval mode
+/// `approve`; haex-vault checks its tools against the delegate's rights and the chat's approval mode
 /// itself, so the delegate's own question is switched off for this server and for no other. Codex
 /// accepts `auto`, `prompt`, `writes` and `approve` (measured with codex 0.169.0).
 pub fn codex_config(haex: &HaexServer) -> String {
@@ -173,7 +173,7 @@ pub fn codex_config(haex: &HaexServer) -> String {
     )
 }
 
-/// Writes `config.toml` into Codex's home `home` when the delegate gets holzi's server.
+/// Writes `config.toml` into Codex's home `home` when the delegate gets haex-vault's server.
 pub async fn write_codex_config(
     home: &Path,
     haex: Option<&HaexServer>,

@@ -30,7 +30,7 @@ pub fn tool_of(tool: &dyn ChatTool) -> Tool {
 }
 
 /// An extension tool's answer as the agent sees it (spec 018 `tool.rs`): its data on success; a
-/// connection holzi could not make, a stop or a timeout is `unavailable`; an error of the extension
+/// connection haex-vault could not make, a stop or a timeout is `unavailable`; an error of the extension
 /// itself keeps the extension's data, which the agent reads as data, never as instructions.
 pub fn result(result: ToolResult) -> (CallToolResult, Outcome) {
     let body = serde_json::from_str::<Value>(&result.content)

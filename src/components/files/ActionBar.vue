@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * The bar below the folder while entries are selected or something waits in holzi's clipboard
+ * The bar below the folder while entries are selected or something waits in haex-vault's clipboard
  * (spec 044 FR-017, FR-018): the same commands as the context menu, reachable on touch without a
  * long press.
  */

@@ -143,7 +143,7 @@ fn the_switch_takes_an_extensions_tools_from_the_agent_and_gives_them_back() {
     assert_eq!(offered(&vault, device), 3);
 }
 
-/// The settings list an extension's tools with their titles and whether holzi can offer them.
+/// The settings list an extension's tools with their titles and whether haex-vault can offer them.
 #[test]
 fn the_settings_list_the_tools_with_title_and_support() {
     use crate::extensions::commands::permissions::list;

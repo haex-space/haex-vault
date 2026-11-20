@@ -1,4 +1,4 @@
-//! Tests for attachments shown inside holzi (spec 058, research R2–R4): text the way the file
+//! Tests for attachments shown inside haex-vault (spec 058, research R2–R4): text the way the file
 //! viewer reads it, PDFs as they are, the refusal of everything else, and the copies for the
 //! system's app with names every system can create.
 

@@ -1,8 +1,8 @@
 /**
- * Runs holzi built with the feature `platform-probe` and judges its one result line (spec 044,
+ * Runs haex-vault built with the feature `platform-probe` and judges its one result line (spec 044,
  * T007, research R4). Used by the CI jobs `platform-probe` on Windows and macOS:
  *
- *   node scripts/run-platform-probe.ts <path to the holzi binary>
+ *   node scripts/run-platform-probe.ts <path to the haex-vault binary>
  *
  * and by `platform-probe-android`, which judges a saved logcat:
  *
@@ -30,7 +30,7 @@ if (process.argv[2] === '--judge') {
 
 const binary = process.argv[2]
 if (!binary) {
-  console.error('usage: node scripts/run-platform-probe.ts <holzi binary>')
+  console.error('usage: node scripts/run-platform-probe.ts <HaexVault binary>')
   process.exit(2)
 }
 

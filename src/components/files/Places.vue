@@ -107,7 +107,7 @@ function isCurrent(pin: FilesPin): boolean {
 
 const over = ref(false)
 
-/** A drag of holzi's entries that may hold a folder to add. While it hovers the browser hides what
+/** A drag of haex-vault's entries that may hold a folder to add. While it hovers the browser hides what
  * it carries, so the drag under way says; a drag from elsewhere is judged at the drop. */
 function offered(event: DragEvent): boolean {
   if (!event.dataTransfer?.types.includes(ENTRIES_MIME)) return false

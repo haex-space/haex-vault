@@ -54,7 +54,7 @@ pub(super) fn chosen_model(model_id: &str) -> Option<&str> {
     (!model_id.is_empty() && model_id != super::codex_models::LEGACY_MODEL_ID).then_some(model_id)
 }
 
-/// The answer to a question of an MCP server that holzi does not answer for.
+/// The answer to a question of an MCP server that haex-vault does not answer for.
 pub(super) fn elicitation_decline() -> Value {
     json!({"action": "decline"})
 }
@@ -232,7 +232,7 @@ async fn respond_to_server_request(
     autonomy_mode: AutonomyMode,
     workspace_root: &Path,
 ) -> io::Result<()> {
-    // A question of an MCP server is answered in its own shape (`action`, not `decision`). holzi's
+    // A question of an MCP server is answered in its own shape (`action`, not `decision`). haex-vault's
     // server is set to `approve` and does not ask; anything else asking is not ours to allow.
     if method == "mcpServer/elicitation/request" {
         return write_message(
@@ -474,7 +474,7 @@ pub(super) async fn spawn_codex_app_server(
             reason: format!("failed to write codex auth.json: {error}"),
         })?;
 
-    // holzi's own server for a registered delegate (spec 021 R7).
+    // haex-vault's own server for a registered delegate (spec 021 R7).
     let haex = haex_mcp::server_for(&context, DelegateVendor::Codex, req.thread_id, &model).await;
     haex_mcp::write_codex_config(tmp.path(), haex.as_ref()).await?;
 
@@ -538,7 +538,7 @@ pub(super) async fn spawn_codex_app_server(
             "approvalPolicy": "on-request",
             "approvalsReviewer": "user",
             // Codex's equivalent of Claude's `--append-system-prompt-file`
-            // (spec.md FR-010) — holzi passes context explicitly rather
+            // (spec.md FR-010) — haex-vault passes context explicitly rather
             // than relying on file-based discovery.
             "developerInstructions": haex_mcp::with_instruction(
                 req.system_prompt.as_deref(),
@@ -654,7 +654,7 @@ pub(super) async fn spawn_codex_app_server(
     let task_cancellation = cancellation.clone();
     let join = tokio::spawn(async move {
         let _tmp = tmp;
-        // holzi's pass for this start ends with it.
+        // haex-vault's pass for this start ends with it.
         let _haex = haex;
         let start = Instant::now();
         let mut ttft_ms = None;

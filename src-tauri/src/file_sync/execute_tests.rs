@@ -193,7 +193,7 @@ async fn a_conflict_copy_is_logged_when_a_later_copy_fails() {
     let (source, target) = (MemPlace::new(), MemPlace::new());
     source.put("x.txt", b"new", 2);
     target.put("x.txt", b"old", 1);
-    let aside = "x (Konflikt holzi 2026-10-27).txt";
+    let aside = "x (Konflikt HaexVault 2026-10-27).txt";
     target.fail(aside);
 
     let done = exec(

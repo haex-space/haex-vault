@@ -43,9 +43,8 @@ fn call(adapter: &dyn ProviderAdapter, timeout: Duration) -> RouteCall<'_> {
 #[test]
 fn the_prompt_lists_every_installed_domain_and_none() {
     let prompt = routing_prompt(&installed());
-    assert!(
-        prompt.starts_with("Which area of the app holzi does the user's request need? Areas:\n")
-    );
+    assert!(prompt
+        .starts_with("Which area of the app HaexVault does the user's request need? Areas:\n"));
     assert!(prompt.contains("\napps: open, close or switch apps, windows and tabs\n"));
     assert!(prompt.contains("\nmail: haex-mail: search mail, delete mail for good\n"));
     assert!(prompt

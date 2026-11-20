@@ -11,7 +11,7 @@ import { sourceFromToken, sourceToken } from './split.ts'
 export type FilesPin = { source: SourceRef; path: string }
 
 /** Every source the sidebar lists may be pinned (FR-002); a `device:` storage only names an encrypted
- * folder of this device inside holzi and is never browsed as a source of its own. */
+ * folder of this device inside haex-vault and is never browsed as a source of its own. */
 export function pinnableSource(source: SourceRef): boolean {
   if (source.kind === 'device') return true
   return (

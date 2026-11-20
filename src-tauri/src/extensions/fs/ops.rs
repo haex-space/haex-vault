@@ -196,7 +196,7 @@ pub fn rename(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
 }
 
 /// Refuses to write at `target` below the copy's checked destination when it is already a link:
-/// copying through it would write where nobody checked, perhaps into one of holzi's own places.
+/// copying through it would write where nobody checked, perhaps into one of haex-vault's own places.
 fn not_a_link(target: &Path) -> std::io::Result<()> {
     match std::fs::symlink_metadata(target) {
         Ok(metadata) if metadata.file_type().is_symlink() => Err(std::io::Error::other(format!(
@@ -208,7 +208,7 @@ fn not_a_link(target: &Path) -> std::io::Result<()> {
 }
 
 /// Copies the tree at `from` (already checked at its real target) to `to`. A symbolic link inside
-/// the tree is left out: its target was never checked and may be one of holzi's own places. For
+/// the tree is left out: its target was never checked and may be one of haex-vault's own places. For
 /// the same reason nothing is written through a link that already lies below `to`.
 fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
     if !std::fs::metadata(from)?.is_dir() {

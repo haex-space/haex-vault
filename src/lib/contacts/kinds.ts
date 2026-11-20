@@ -25,7 +25,7 @@ export type KindDefinition = {
   labels: readonly string[]
   /** How the value is entered. */
   input: 'text' | 'address' | 'im' | 'date'
-  /** Only in holzi, never on a phone (FR-014). */
+  /** Only in haex-vault, never on a phone (FR-014). */
   haexOnly: boolean
 }
 
@@ -138,7 +138,7 @@ export function kindOf(id: string): KindDefinition | undefined {
   return BY_ID.get(id as KindId)
 }
 
-/** The kinds whose values are the holzi addresses of a contact (FR-008). */
+/** The kinds whose values are the haex-vault addresses of a contact (FR-008). */
 export const HAEX_ADDRESS_KINDS: readonly KindId[] = [
   'haex_vault',
   'haex_nostr_relay',

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * The rows of the share dialog (spec 060 FR-009 to FR-014): the head fields and the details of the
- * contact, each with its checkbox, then the holzi addresses: for the own vault every device and
+ * contact, each with its checkbox, then the haex-vault addresses: for the own vault every device and
  * every Nostr-Relay on its own, for another contact's confirmed addresses one row. The name is not
  * a row, it always goes along (FR-011).
  */

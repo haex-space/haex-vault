@@ -1,5 +1,5 @@
 //! The questions to the user (spec 021): the registration dialog (US1, FR-006, FR-009, FR-011) and
-//! the call prompt (US3, FR-021 to FR-023). An unknown agent that connects asks holzi's window, and
+//! the call prompt (US3, FR-021 to FR-023). An unknown agent that connects asks haex-vault's window, and
 //! the answer carries its agent profile and approval mode; at most one dialog per slug and three in all
 //! may be open, a further unknown agent is turned away without a dialog. A call asks when the
 //! agent's approval mode says so. Both park on `prompt_park.rs` for five minutes.

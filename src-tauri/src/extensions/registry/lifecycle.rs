@@ -7,7 +7,7 @@
 //! check, the applied migrations kept, pending migrations) and its state on this device written.
 //! A disabled one only gets `disabled` as its state. The tables of an extension that does not run
 //! here, disabled or removed with "keep data", follow its migrations in the vault all the same, so
-//! its synced rows have somewhere to go (FR-008, FR-037). Then parked sync groups whose tables now exist are replayed. holzi's window hears
+//! its synced rows have somewhere to go (FR-008, FR-037). Then parked sync groups whose tables now exist are replayed. haex-vault's window hears
 //! `extension-status-changed` for every changed state, with `reload` when the effective bundle of
 //! a running extension changed, so its open tabs load the new one (FR-038).
 
@@ -35,7 +35,7 @@ use crate::storage::wm_session_commands::current_device_uuid;
 use crate::sync::inbound::park;
 use crate::vault_gate::VaultDb;
 
-/// Event for holzi's window: an extension's state on this device changed.
+/// Event for haex-vault's window: an extension's state on this device changed.
 pub const EXTENSION_STATUS_CHANGED: &str = "extension-status-changed";
 
 /// Changes to these tables can change what an extension is on this device.
@@ -71,7 +71,7 @@ struct Registered {
     purge_hlc: Option<String>,
 }
 
-/// Every registered extension; a row holzi cannot read is left out.
+/// Every registered extension; a row haex-vault cannot read is left out.
 fn registered(q: &mut impl Query) -> haex_crdt::Result<Vec<Registered>> {
     let rows: Vec<Option<Registered>> = q.query_map(
         "SELECT id, public_key, name, state, enabled, purge_data, purge_hlc FROM extensions",
@@ -340,7 +340,7 @@ pub fn start_for_active_instance<R: Runtime>(app: &AppHandle<R>, state: &AppStat
     }
 }
 
-/// Tells holzi's window what changed; after a registry change the extension list is read again
+/// Tells haex-vault's window what changed; after a registry change the extension list is read again
 /// even when no state here changed (a removal on another device).
 fn announce<R: Runtime>(
     app: &AppHandle<R>,

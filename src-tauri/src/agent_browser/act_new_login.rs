@@ -1,12 +1,12 @@
 //! `browser.credentials.create` (spec 065 US4, FR-036, research R7): a website needs a new login
 //! (an account, a changed password). The agent names the new password field and the username;
-//! holzi generates the password from the default preset (`haex-passgen`), writes it into that
+//! haex-vault generates the password from the default preset (`haex-passgen`), writes it into that
 //! field and the repeat field of its form, and asks every time. "Speichern" stores an entry with
 //! the username, the password and the website in the password manager; "Ablehnen" empties the
 //! fields again. The agent learns only `created`.
 //!
 //! The entry is created with the agent's resolved caller and its grants (the built-in agent through
-//! the holzi function `agent_browser`), so 034's checks hold: the rights group "Passwörter" must
+//! the haex-vault function `agent_browser`), so 034's checks hold: the rights group "Passwörter" must
 //! allow writing, and the entry gets the tag chosen there for new entries (with chosen tags it is
 //! one of them). Those checks run before anything is generated; the question never replaces them.
 
@@ -152,7 +152,7 @@ impl Acting<'_> {
             }
             Ok(_) => Err(NativeError::new(
                 "user_declined",
-                "The user did not save the new login; holzi emptied the fields.",
+                "The user did not save the new login; HaexVault emptied the fields.",
             )),
             Err(error) => Err(error),
         };
@@ -172,7 +172,7 @@ impl Acting<'_> {
     }
 
     /// Reports on the password field `element` of `tab`, or writes `value` into it and its repeat
-    /// field in holzi's world.
+    /// field in haex-vault's world.
     async fn new_password(
         &self,
         tab: &Tab,

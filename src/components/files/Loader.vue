@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * The loader over a folder that takes a moment to list, mostly a storage or another device answering
- * over the network: holzi's squirrel gnaws at an acorn over the dimmed old entries, so a click shows
+ * over the network: haex-vault's squirrel gnaws at an acorn over the dimmed old entries, so a click shows
  * it landed while the answer is still on its way. It appears only after a short delay, so a local
  * folder that lists at once does not flash it, and it lets clicks through to the list below.
  *

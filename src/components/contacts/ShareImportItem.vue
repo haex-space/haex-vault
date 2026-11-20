@@ -2,7 +2,7 @@
 /**
  * One item of a share that is read in (spec 060 FR-024b to FR-025): what it says, whether the
  * target has it already, and the choices the person has: add, update (naming the value to
- * replace), skip; keep or update for a field the target filled; add or skip the holzi addresses as
+ * replace), skip; keep or update for a field the target filled; add or skip the haex-vault addresses as
  * a whole. An item that is the same, or a field the target fills without asking, has no control.
  */
 import type { ContactShareItem } from '@bindings/ContactShareItem'

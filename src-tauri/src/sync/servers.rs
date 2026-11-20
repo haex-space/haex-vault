@@ -210,7 +210,7 @@ pub fn validate(config: &ServerConfig) -> Result<(), String> {
 }
 
 /// Whether `url` is the address of a Nostr server: `ws://` or `wss://`, at most 256 characters, no
-/// whitespace. The settings and the holzi addresses of contacts (spec 051) share it.
+/// whitespace. The settings and the haex-vault addresses of contacts (spec 051) share it.
 pub fn is_nostr_relay(url: &str) -> bool {
     address_ok(url, &["ws", "wss"]) && NostrRelayUrl::parse(url).is_ok()
 }

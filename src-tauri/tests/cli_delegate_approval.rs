@@ -12,11 +12,11 @@
 //!
 //! T029 (Claude): a real Unix socket bound by `approval_bridge::bind_socket`/
 //! `start_listener` (the exact code `claude.rs` sets up per invocation), with
-//! the actual built `holzi` binary spawned as the bridge child process via
+//! the actual built `haex-vault` binary spawned as the bridge child process via
 //! `--internal-cli-delegate-approval-bridge` (T034/T035) standing in for what
 //! `claude` itself would spawn per `--mcp-config`. The test plays the role of
 //! `claude`'s own MCP client, since that client's behavior is Anthropic's
-//! code, not holzi's — what's under test here is holzi's server/bridge side.
+//! code, not haex-vault's — what's under test here is haex-vault's server/bridge side.
 
 #![cfg(unix)]
 
@@ -218,7 +218,7 @@ async fn claude_approval_round_trips_through_the_real_socket_and_bridge_child() 
         dir.path().to_path_buf(),
     );
 
-    // The real hidden entrypoint (T034), run as the actual compiled `holzi`
+    // The real hidden entrypoint (T034), run as the actual compiled `haex-vault`
     // binary — exactly what `claude.rs` points `--mcp-config` at, not a
     // simplified in-process stand-in.
     let haex_bin = env!("CARGO_BIN_EXE_haex");
@@ -229,7 +229,7 @@ async fn claude_approval_round_trips_through_the_real_socket_and_bridge_child() 
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
-        .expect("spawn the real holzi binary as the bridge child");
+        .expect("spawn the real HaexVault binary as the bridge child");
 
     let mut stdin = bridge.stdin.take().expect("piped stdin");
     let stdout = bridge.stdout.take().expect("piped stdout");

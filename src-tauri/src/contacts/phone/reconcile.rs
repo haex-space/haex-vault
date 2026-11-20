@@ -1,19 +1,19 @@
 //! The three-way comparison of one contact (spec 051, research R6, R7): the base of the last run,
-//! the raw contacts on the phone and the contact in holzi, per head field and per value.
+//! the raw contacts on the phone and the contact in haex-vault, per head field and per value.
 //!
 //! - Changed on one side only: the other side follows.
 //! - Changed on both sides to different things: the later change wins; the phone's time is the
-//!   aggregated contact's `lastUpdated`, holzi's the HLC time of the field. A missing time, or an
-//!   equal one, lets holzi win.
+//!   aggregated contact's `lastUpdated`, haex-vault's the HLC time of the field. A missing time, or an
+//!   equal one, lets haex-vault win.
 //! - Deleted on one side, changed on the other: the deletion wins (spec 024 FR-017).
 //! - Different fields are never weighed against each other; both changes stay.
 //!
-//! Only kinds that go to a phone take part; holzi addresses, custom values and unknown kinds are
-//! neither written to the phone nor touched by it (FR-014). Rows of the phone holzi does not map
-//! stay as they are (FR-022). A value changed in holzi goes to the rows that hold it; a new one to
+//! Only kinds that go to a phone take part; haex-vault addresses, custom values and unknown kinds are
+//! neither written to the phone nor touched by it (FR-014). Rows of the phone haex-vault does not map
+//! stay as they are (FR-022). A value changed in haex-vault goes to the rows that hold it; a new one to
 //! the primary raw contact (the one in the target's account, else the first writable one). A
 //! contact taken over or merged for the first time runs through the same comparison with a base
-//! that has holzi's state and no phone values: every phone value is new then, and holzi's values
+//! that has haex-vault's state and no phone values: every phone value is new then, and haex-vault's values
 //! that the phone lacks go to it.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -24,22 +24,22 @@ use uuid::Uuid;
 use super::mapping::{self, PhoneSide, PhoneValue};
 use super::store::{Base, BaseValue};
 
-/// A value of holzi of a kind that goes to a phone.
+/// A value of haex-vault of a kind that goes to a phone.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HaexValue {
     pub id: String,
     pub kind: String,
     pub label: String,
     pub value: String,
-    /// When holzi last changed it (Unix ms).
+    /// When haex-vault last changed it (Unix ms).
     pub millis: Option<i64>,
 }
 
-/// holzi's side of a contact.
+/// haex-vault's side of a contact.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HaexSide {
     pub head: BTreeMap<String, String>,
-    /// Head column → when holzi last changed it (Unix ms).
+    /// Head column → when haex-vault last changed it (Unix ms).
     pub head_millis: BTreeMap<String, i64>,
     pub values: Vec<HaexValue>,
 }
@@ -82,7 +82,7 @@ pub enum RowOp {
 /// What the comparison decided for one contact.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Plan {
-    /// Head columns holzi sets; `None` clears one.
+    /// Head columns haex-vault sets; `None` clears one.
     pub head: Vec<(String, Option<String>)>,
     pub inserts: Vec<HaexValue>,
     /// Value id, label, value.
@@ -107,14 +107,14 @@ fn same(kind: &str, a: (&str, &str), b: (&str, &str)) -> bool {
     a.0 == b.0 && mapping::same_value(kind, a.1, b.1)
 }
 
-/// The state of a holzi value or a phone row against the base.
+/// The state of a haex-vault value or a phone row against the base.
 enum Side<'a> {
     Same,
     Changed(&'a str, &'a str),
     Deleted,
 }
 
-/// Compares one contact. `fill_head` takes every head field holzi lacks from the phone (a contact
+/// Compares one contact. `fill_head` takes every head field haex-vault lacks from the phone (a contact
 /// taken over or merged for the first time).
 pub fn reconcile(haex: &HaexSide, raws: &[RawSide], primary: Option<i64>, fill_head: bool) -> Plan {
     let mut plan = Plan::default();
@@ -157,7 +157,7 @@ fn values(
         .iter()
         .map(|value| (value.id.as_str(), value))
         .collect();
-    // Holzi values a phone row already holds, so they need no insert.
+    // haex-vault values a phone row already holds, so they need no insert.
     let mut held: BTreeSet<String> = BTreeSet::new();
     // Agreed values no row holds (the phone could not take them before, or a merge just began):
     // they go to the phone unless a new row of the phone holds them.
@@ -247,7 +247,7 @@ fn values(
             }
             (Side::Deleted, Side::Same | Side::Changed(..)) => {
                 for (raw, data_id) in &rows {
-                    // A read-only row is never deleted from holzi's side.
+                    // A read-only row is never deleted from haex-vault's side.
                     if raw
                         .now()
                         .values
@@ -261,7 +261,7 @@ fn values(
         }
     }
 
-    // Rows the phone has that the base does not: matched to a holzi value, else new in holzi.
+    // Rows the phone has that the base does not: matched to a haex-vault value, else new in haex-vault.
     let mut finals: Vec<(String, String, String)> = haex
         .values
         .iter()
@@ -295,7 +295,7 @@ fn values(
         }
     }
 
-    // Holzi values the phone does not have.
+    // haex-vault values the phone does not have.
     for value in &haex.values {
         let new_in_haex = !agreed.contains_key(value.id.as_str());
         if (new_in_haex || pending.contains(&value.id.as_str())) && !held.contains(&value.id) {
@@ -318,7 +318,7 @@ fn new_value(row: &PhoneValue) -> HaexValue {
     }
 }
 
-/// Whether the phone's change is later than holzi's; without both times holzi wins.
+/// Whether the phone's change is later than haex-vault's; without both times haex-vault wins.
 pub(super) fn later(phone: Option<i64>, haex: Option<i64>) -> bool {
     matches!((phone, haex), (Some(phone), Some(haex)) if phone > haex)
 }
@@ -382,8 +382,8 @@ fn delete_row(raw: i64, data_id: i64, writable: &BTreeSet<i64>, plan: &mut Plan)
     }
 }
 
-/// The base after a run: holzi's state and what the phone holds now, with each row mapped to the
-/// holzi value it holds (kept from before where the value still exists, else by equal value).
+/// The base after a run: haex-vault's state and what the phone holds now, with each row mapped to the
+/// haex-vault value it holds (kept from before where the value still exists, else by equal value).
 pub fn next_base(
     updated_at: &str,
     head: &BTreeMap<String, String>,

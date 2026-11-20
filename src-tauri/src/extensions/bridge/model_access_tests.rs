@@ -1,6 +1,6 @@
 //! The way from an extension to its grant (spec 055 US9, T088/T090): asking for access names the
 //! granted models that fit or asks like the first job, without sending anything and without asking
-//! for a destination; opening the model settings tells holzi's window about the calling extension
+//! for a destination; opening the model settings tells haex-vault's window about the calling extension
 //! only.
 
 use serde_json::{json, Value};

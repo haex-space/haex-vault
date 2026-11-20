@@ -1,14 +1,14 @@
-// The marker of an agent tab (spec 065, FR-014, FR-017, research R6). holzi adds it to every
+// The marker of an agent tab (spec 065, FR-014, FR-017, research R6). haex-vault adds it to every
 // document of the tab's main frame from its own isolated world: a bar in a closed shadow root with
 // the agent's name, "Eingreifen" (or "Zurückgeben" while the user has the tab) and "Stoppen", and a
 // prefix on the tab's title. The page shares the DOM but not this world: it cannot reach the bar's
 // buttons, cannot call the binding `__haex`, and its synthetic events are not trusted. It can
-// remove the bar; the bar comes back a few times, and holzi's own window stays the binding place
+// remove the bar; the bar comes back a few times, and haex-vault's own window stays the binding place
 // to stop (FR-015).
 //
 // A trusted press of a mouse button or a key anywhere in the page, outside the bar, reports
-// `input`: holzi pauses the agent when the input is not its own (FR-017). Each new bar says
-// `hello`, and holzi sets the state the session has now; run again with a new config (the agent
+// `input`: haex-vault pauses the agent when the input is not its own (FR-017). Each new bar says
+// `hello`, and haex-vault sets the state the session has now; run again with a new config (the agent
 // paused or steering again), the script updates the bar that is there.
 // Rust wraps the declaration in parentheses and calls it, so nothing here calls it.
 // eslint-disable-next-line no-unused-vars
@@ -145,7 +145,7 @@ function haexMarker(config) {
   }
   render()
 
-  // The user's own input in the page while the agent steers. holzi tells its own input apart.
+  // The user's own input in the page while the agent steers. haex-vault tells its own input apart.
   const noticed = (event) => {
     if (!byUser(event) || current.paused) return
     if (event.composedPath().includes(host)) return

@@ -27,7 +27,7 @@ use super::VAULT_SCOPE_UUID;
 pub struct HaexBootstrap {
     installation_id_path: PathBuf,
     /// Human-readable alias inserted into the freshly minted `known_devices`
-    /// row on first open. Defaults to `"holzi"`; tests may override.
+    /// row on first open. Defaults to `"haex-vault"`; tests may override.
     alias: String,
 }
 
@@ -36,7 +36,7 @@ impl HaexBootstrap {
     pub fn new(installation_id_path: PathBuf) -> Self {
         Self {
             installation_id_path,
-            alias: "holzi".to_string(),
+            alias: "HaexVault".to_string(),
         }
     }
 

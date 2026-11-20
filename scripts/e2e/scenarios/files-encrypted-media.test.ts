@@ -74,7 +74,7 @@ scenario(
     await setName(instance, 'Filme')
     await instance.waitForDisplayed('files-entry-Filme')
 
-    // In from the device, one by one through holzi's clipboard.
+    // In from the device, one by one through haex-vault's clipboard.
     for (const name of MEDIA) {
       await filesGo(instance, `/device?p=${encodeURIComponent(device.folder)}`)
       await instance.waitForDisplayed(`files-entry-${name}`)
@@ -114,7 +114,7 @@ scenario(
     )
     ctx.step('the MP4 plays and seeks to the middle')
 
-    // A range across the border of the first two blocks, decrypted by holzi.
+    // A range across the border of the first two blocks, decrypted by haex-vault.
     const film = fileFixture('film.mp4')
     const url = await instance.exec<string>(
       `return document.querySelector('[data-testid="files-viewer-video"]').src`,

@@ -1,7 +1,7 @@
 //! Developer mode (spec 017, US12, FR-063–FR-065, research R16): an extension that is not signed
 //! yet runs from a development server on this device.
 //!
-//! The switch is a setting of this device. The developer picks the project folder; holzi reads
+//! The switch is a setting of this device. The developer picks the project folder; haex-vault reads
 //! `haextension.config.json` (the dev server's host and port, as the SDK writes them),
 //! `haextension/manifest.json` and, for the name as in the SDK, `package.json` from it. The server
 //! must be `localhost` or `127.0.0.1`.
@@ -46,7 +46,7 @@ use crate::vault_gate::VaultDb;
 pub const MODE_KEY: &str = "extensions.devMode";
 
 /// The hosts a development server may have; the frame shim acts on the same (`protocol::shim`).
-/// Not `[::1]`: a Content-Security-Policy source cannot name an IPv6 address, so holzi's window
+/// Not `[::1]`: a Content-Security-Policy source cannot name an IPv6 address, so haex-vault's window
 /// could not frame it.
 pub(crate) const LOOPBACK: [&str; 2] = ["localhost", "127.0.0.1"];
 
@@ -77,7 +77,7 @@ pub fn set_mode(
     Ok(())
 }
 
-/// `haextension.config.json` as far as holzi reads it.
+/// `haextension.config.json` as far as haex-vault reads it.
 #[derive(Debug, Default, Deserialize)]
 struct ProjectConfig {
     #[serde(default)]
@@ -116,7 +116,7 @@ fn default_dir() -> String {
     "haextension".to_owned()
 }
 
-/// A project folder as holzi reads it for developer mode.
+/// A project folder as haex-vault reads it for developer mode.
 #[derive(Debug, Clone)]
 pub struct DevProject {
     pub path: PathBuf,
@@ -202,7 +202,7 @@ fn raw(r: &haex_crdt::rusqlite::Row<'_>) -> haex_crdt::rusqlite::Result<RawRegis
     ))
 }
 
-/// A row as a registration; `None` for a row holzi cannot read.
+/// A row as a registration; `None` for a row haex-vault cannot read.
 fn parsed(
     (id, key, name, display_name, project_path, url): RawRegistration,
 ) -> Option<DevRegistration> {
@@ -219,7 +219,7 @@ fn parsed(
     })
 }
 
-/// The development versions registered on `device`; a row holzi cannot read is left out.
+/// The development versions registered on `device`; a row haex-vault cannot read is left out.
 pub fn registrations(q: &mut impl Query, device: Uuid) -> Result<Vec<DevRegistration>> {
     let rows = q.query_map(
         &format!(
@@ -401,7 +401,7 @@ pub fn confirm(
 /// without a registration and block loading the prefix again (`dev_tables_exist`).
 pub fn unload(db: &VaultDb, id: Uuid) -> Result<()> {
     let _applying = applying().lock().unwrap_or_else(PoisonError::into_inner);
-    // holzi's own statements on names read from sqlite_master, as when clearing up a removal.
+    // haex-vault's own statements on names read from sqlite_master, as when clearing up a removal.
     let guard = SqlGuard {
         authorizer: Arc::new(|_: &AuthContext<'_>| Authorization::Allow),
         progress: None,

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * The place of an entry whose type this build does not know (spec 092-wallet-passes, FR-042): a
- * newer holzi wrote it. It says so and offers nothing that would write the entry; moving it to the
+ * newer haex-vault wrote it. It says so and offers nothing that would write the entry; moving it to the
  * trash stays possible in the list.
  */
 const { t } = useI18n()

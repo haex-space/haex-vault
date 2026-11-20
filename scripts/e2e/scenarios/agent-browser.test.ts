@@ -45,7 +45,7 @@ function content(result: ToolResult): Record<string, unknown> {
 
 // Spec 065, US1 and US3 (T060, quickstart M1 and M5 in part): the stand-in agent of spec 021,
 // registered in Auto with the rights group "browser" for one website, opens and reads a page in
-// holzi's own Chromium. The desktop shows its session in the sessions bar with the page's title;
+// haex-vault's own Chromium. The desktop shows its session in the sessions bar with the page's title;
 // "Stoppen" there ends a call that waits for a page that never answers, and the agent's further
 // browser calls are refused until it connects anew.
 scenario('agent-browser', { timeoutMs: 300_000 }, async (ctx) => {

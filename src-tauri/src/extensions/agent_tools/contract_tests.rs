@@ -1,10 +1,10 @@
 //! The MCP exchange of a tool connection as transcripts (spec 018, contracts/mcp-port.md). Each
-//! scenario runs holzi's client against the in-memory server through JSON and writes every message
+//! scenario runs haex-vault's client against the in-memory server through JSON and writes every message
 //! with its direction to `specs/018-extension-agent-tools/contracts/transcripts/<name>.jsonl`. The
 //! vault-sdk replays them against its own server, so both sides speak the same protocol.
 //!
 //! The committed files must equal what this records; `HAEX_WRITE_MCP_TRANSCRIPTS=1` rewrites them.
-//! Versions in `clientInfo` and `serverInfo` are replaced by `<version>`, so a release of holzi or
+//! Versions in `clientInfo` and `serverInfo` are replaced by `<version>`, so a release of haex-vault or
 //! rmcp does not change a transcript.
 
 use std::path::{Path, PathBuf};
@@ -138,7 +138,7 @@ async fn call_cancelled() {
         .await
         .expect("cancel");
     // The server may answer the cancelled call or not; give it the chance, then keep only what
-    // holzi sent, which is what the contract fixes.
+    // haex-vault sent, which is what the contract fixes.
     tokio::time::sleep(Duration::from_millis(100)).await;
     let messages: Vec<_> = after_handshake(&pipe)
         .into_iter()

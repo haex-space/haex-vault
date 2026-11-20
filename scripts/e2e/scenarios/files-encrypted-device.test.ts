@@ -10,7 +10,7 @@ import { runAction } from '../lib/settings.ts'
 
 // Spec 048 user story 7, quickstart §10 (T078): an encrypted folder in an ordinary folder of the
 // device. It is created after the one-time notice; a text, an image and a film are copied in through
-// holzi's clipboard and open from it; a rename and a search work by the decrypted names. On the disk
+// haex-vault's clipboard and open from it; a rename and a search work by the decrypted names. On the disk
 // the folder holds only `h`, `m/…` and `c/…` under a random name, nothing in the clear. A file
 // another program puts there (a sync program's conflict copy) is no entry, the folder hints at it,
 // and deleting the folder asks first, names it and takes it along: nothing goes to the trash.
@@ -78,7 +78,7 @@ scenario('files-encrypted-device', { timeoutMs: 420_000 }, async (ctx) => {
   const dir = (raw[0] ?? '').split('/')[0] ?? ''
   ctx.step('created after the notice: one head in a random directory')
 
-  // A text, an image and a film go in through holzi's clipboard.
+  // A text, an image and a film go in through haex-vault's clipboard.
   for (const name of ['notiz.txt', 'foto.png', 'film.mp4']) {
     await filesGo(instance, folderAt)
     await instance.waitForDisplayed(`files-entry-${name}`)

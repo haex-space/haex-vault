@@ -1,7 +1,7 @@
 //! Dragging with the mouse (spec 065 FR-060, research R22): press at one point, move in small
 //! steps, release at another, within [`BUDGET`]. A page that makes an element draggable would hand
 //! the drag to the operating system; with `Input.setInterceptDrags` the browser reports it as
-//! `Input.dragIntercepted` instead, and holzi finishes it with `Input.dispatchDragEvent`. The
+//! `Input.dragIntercepted` instead, and haex-vault finishes it with `Input.dispatchDragEvent`. The
 //! release is always sent, and interception always ends, whatever went wrong on the way: no
 //! button stays held.
 

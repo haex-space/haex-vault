@@ -1,5 +1,5 @@
 //! The reading file actions of the built-in agent (contracts/agent-actions.md) and the catalogue of
-//! SC-005: holzi's own places are never reached, by direct path, `..`, a link or a search, and a
+//! SC-005: haex-vault's own places are never reached, by direct path, `..`, a link or a search, and a
 //! storage without a grant stays unknown.
 
 use serde_json::json;
@@ -74,9 +74,12 @@ async fn a_list_leaves_haexs_own_places_out() {
 #[tokio::test]
 async fn links_to_haexs_own_data_are_hidden_from_list_and_search() {
     let scene = Scene::new(None);
-    std::os::unix::fs::symlink(scene.path("holzi/vault.db"), scene.path("link-to-vault.db"))
-        .unwrap();
-    std::os::unix::fs::symlink(scene.path("holzi"), scene.path("link-to-haex")).unwrap();
+    std::os::unix::fs::symlink(
+        scene.path("haex-vault/vault.db"),
+        scene.path("link-to-vault.db"),
+    )
+    .unwrap();
+    std::os::unix::fs::symlink(scene.path("haex-vault"), scene.path("link-to-haex")).unwrap();
 
     let list = scene
         .run(
@@ -163,21 +166,22 @@ async fn a_search_finds_names_and_never_haexs_own_files() {
     );
 }
 
-/// SC-005: every way to holzi's own files is refused without content.
+/// SC-005: every way to haex-vault's own files is refused without content.
 #[tokio::test]
 async fn haexs_own_files_are_blocked_however_they_are_named() {
     let scene = Scene::new(None);
     // Only Unix adds the links below.
     #[cfg_attr(not(unix), allow(unused_mut))]
     let mut ways = vec![
-        scene.at("holzi/vault.db"),
-        scene.at("holzi"),
-        scene.at("steuer/../holzi/vault.db"),
+        scene.at("haex-vault/vault.db"),
+        scene.at("haex-vault"),
+        scene.at("steuer/../haex-vault/vault.db"),
     ];
     #[cfg(unix)]
     {
-        std::os::unix::fs::symlink(scene.path("holzi/vault.db"), scene.path("link.db")).unwrap();
-        std::os::unix::fs::symlink(scene.path("holzi"), scene.path("link-dir")).unwrap();
+        std::os::unix::fs::symlink(scene.path("haex-vault/vault.db"), scene.path("link.db"))
+            .unwrap();
+        std::os::unix::fs::symlink(scene.path("haex-vault"), scene.path("link-dir")).unwrap();
         ways.push(scene.at("link.db"));
         ways.push(scene.at("link-dir/vault.db"));
     }
@@ -196,7 +200,7 @@ async fn haexs_own_files_are_blocked_however_they_are_named() {
     let variant = scene
         .run(
             "files.read",
-            json!({ "source": "device", "path": scene.at("HOLZI/vault.db") }),
+            json!({ "source": "device", "path": scene.at("HAEX-VAULT/vault.db") }),
         )
         .await;
     assert!(variant.is_err());
@@ -370,7 +374,7 @@ async fn files_show_names_the_folder_and_the_file() {
     assert_eq!((folder, open), (scene.at("steuer"), None));
     let refused = scene
         .agent
-        .show_target("device", &scene.at("holzi/vault.db"), &cancel)
+        .show_target("device", &scene.at("haex-vault/vault.db"), &cancel)
         .await
         .expect_err("blocked");
     assert_eq!(refused.code, "files_blocked");

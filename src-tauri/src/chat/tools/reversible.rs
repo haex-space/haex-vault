@@ -1,5 +1,5 @@
 //! The reversible way first (spec 088): before the dialog asks about a call that cannot be undone,
-//! holzi asks the model one short question, like the routing call: did the user ask for exactly
+//! haex-vault asks the model one short question, like the routing call: did the user ask for exactly
 //! this, and which offered tool of the same area does what the user asked in a way that can be
 //! undone. If the user did not ask for it and a tool is named, the call is turned away with an
 //! answer naming that tool; in every other case the dialog asks as before.
@@ -39,7 +39,7 @@ pub enum Verdict {
     Final,
     /// The user did not; this candidate does it reversibly: the call is turned away.
     Use(Candidate),
-    /// `none`, an answer holzi cannot read, an error or no answer in time: the dialog asks.
+    /// `none`, an answer haex-vault cannot read, an error or no answer in time: the dialog asks.
     NoVerdict,
 }
 

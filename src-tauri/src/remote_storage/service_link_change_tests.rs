@@ -1,6 +1,6 @@
 //! A linked entry is the only source of the credentials (spec 052 US3, T032): a changed value
 //! applies on the next call, removing a connection never deletes an entry the user chose and
-//! deletes holzi's own only when no other connection uses it, and an entry in the trash or deleted
+//! deletes haex-vault's own only when no other connection uses it, and an entry in the trash or deleted
 //! for good leaves the connection asking for new credentials without naming any value.
 
 // These tests count rows directly, which the CRDT write path does not expose.

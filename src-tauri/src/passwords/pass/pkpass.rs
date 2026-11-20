@@ -2,7 +2,7 @@
 //! stranger, so it is read as untrusted input: a hard limit on the number of entries and on the
 //! size of each entry and of all of them, a limit on how far an entry may be inflated, names with
 //! `..`, an absolute path or a drive refused, nothing extracted to disk, nothing executed, and no
-//! address in the file called (FR-029). Only the few entries holzi uses are read, each through a
+//! address in the file called (FR-029). Only the few entries haex-vault uses are read, each through a
 //! bounded reader, so a size the central directory lies about cannot fill the memory.
 //!
 //! [`read`] returns the pass in the shape the rest of the system knows ([`ParsedPass`]); the mapping
@@ -79,7 +79,7 @@ impl From<Refusal> for HaexError {
     }
 }
 
-/// One thing in the file that holzi does not keep, named in the report (FR-028, FR-032): `what` is
+/// One thing in the file that haex-vault does not keep, named in the report (FR-028, FR-032): `what` is
 /// the name in the file, `why` a short code the window turns into a sentence.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/")]
@@ -91,10 +91,10 @@ pub struct NotKept {
 
 /// Why something is not kept: the update service of the pass is never called.
 pub const WHY_UPDATE_SERVICE: &str = "update_service";
-/// Why something is not kept: holzi does not use it (a place, a colour, a picture of the layout).
+/// Why something is not kept: haex-vault does not use it (a place, a colour, a picture of the layout).
 pub const WHY_NOT_SUPPORTED: &str = "not_supported";
 
-/// Why something is not kept: the pass holds more of it than holzi keeps.
+/// Why something is not kept: the pass holds more of it than haex-vault keeps.
 pub const WHY_OVER_LIMIT: &str = "over_limit";
 
 /// A pass as read from a file, before the user has seen it.
@@ -147,7 +147,7 @@ pub fn read(bytes: &[u8], language: &str) -> Result<ParsedPass, Refusal> {
     super::pkpass_map::map(entries, language)
 }
 
-/// Opens the ZIP, applies every limit and reads the entries holzi uses.
+/// Opens the ZIP, applies every limit and reads the entries haex-vault uses.
 pub(super) fn open(bytes: &[u8]) -> Result<Entries, Refusal> {
     let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|_| Refusal::NotAZip)?;
     if archive.len() > MAX_ENTRIES {

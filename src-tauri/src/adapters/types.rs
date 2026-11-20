@@ -101,7 +101,7 @@ pub struct ToolCall {
 #[derive(Debug, Clone)]
 pub struct ChatRequest {
     pub model_id: String,
-    /// The holzi conversation id used for delegate approval events.
+    /// The haex-vault conversation id used for delegate approval events.
     pub thread_id: Option<uuid::Uuid>,
     pub system_prompt: Option<String>,
     pub messages: Vec<ChatMessage>,

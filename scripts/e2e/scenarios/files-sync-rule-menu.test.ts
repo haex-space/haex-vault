@@ -250,7 +250,7 @@ scenario('files-sync-rule-menu', { timeoutMs: 180_000 }, async (ctx) => {
     })
     // The first window of the browser stays in the page behind the one the action opened, and it has an
     // active panel too, so the folder's list is the newest visible one, tagged here.
-    await ctx.waitFor('the list of holzi’s own folder is shown', () =>
+    await ctx.waitFor('the list of HaexVault’s own folder is shown', () =>
       instance.exec<boolean>(
         `for (const el of document.querySelectorAll('[data-e2e-target]')) el.removeAttribute('data-e2e-target')
          const lists = [...document.querySelectorAll('[data-files-panel][data-active="true"] [data-files-list]')]
@@ -269,7 +269,7 @@ scenario('files-sync-rule-menu', { timeoutMs: 180_000 }, async (ctx) => {
       ),
     )
     assert.equal(await gone(instance, 'files-menu-syncRule'), true)
-    ctx.step('holzi’s own folder never offers a sync rule')
+    ctx.step('HaexVault’s own folder never offers a sync rule')
   } finally {
     files.remove()
   }

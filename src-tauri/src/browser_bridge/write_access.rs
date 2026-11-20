@@ -1,4 +1,4 @@
-//! Writing with a read-only approval (spec 049, FR-015): holzi asks like a permission prompt of
+//! Writing with a read-only approval (spec 049, FR-015): haex-vault asks like a permission prompt of
 //! spec 017, but only when the client declared writing; a remembered "no" holds without a question,
 //! and remembering never widens the approval beyond the declaration. The answer is held back for at
 //! most 120 s; then the method fails with `PERMISSION_PROMPT_TIMEOUT`.

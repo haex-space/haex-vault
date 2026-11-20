@@ -17,7 +17,7 @@ use crate::error::{HaexError, Result};
 const MAX_NAME_CHARS: usize = 100;
 
 impl ContactsService {
-    /// Every group; for the window and for holzi's own functions, which turn the group names of
+    /// Every group; for the window and for haex-vault's own functions, which turn the group names of
     /// permissions into grants (FR-029).
     pub async fn groups(&self, caller: &Caller) -> Result<Vec<Group>> {
         require_haex(caller)?;

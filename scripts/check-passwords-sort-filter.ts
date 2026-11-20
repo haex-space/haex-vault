@@ -134,7 +134,7 @@ test('filterByKind keeps one kind, null keeps all, an unknown kind counts as oth
     { id: 'a', passKind: 'ticket' },
     { id: 'b', passKind: 'voucher' },
     { id: 'c', passKind: 'ticket' },
-    { id: 'd', passKind: 'hologram' }, // written by a newer holzi
+    { id: 'd', passKind: 'hologram' }, // written by a newer haex-vault
     { id: 'e', passKind: null },
     { id: 'f' },
   ]

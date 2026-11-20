@@ -7,7 +7,7 @@ import type { WmHeaderEvent } from '~/types/bindings/WmHeaderEvent'
 /**
  * A system app's way to put controls into its window's header (spec 090-app-header-bar, FR-007,
  * FR-022; extensions use the SDK's `header.set` instead). `description` is read reactively: every
- * change hands holzi the new description whole, so the app keeps its controls up to date by
+ * change hands haex-vault the new description whole, so the app keeps its controls up to date by
  * deriving them from its state. `onEvent` receives what the user does to a control (FR-012). Both
  * end with the app's scope: the controls leave the header when the app goes away, so a tab never
  * shows another app's controls. Returning `null` gives the header back to the title alone.

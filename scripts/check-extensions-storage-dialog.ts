@@ -1,5 +1,5 @@
 // Spec 038, research R6, T041: the storage dialog over an extension's tab never has a field for
-// credentials. An extension can draw a look-alike inside its frame, so holzi asks for credentials
+// credentials. An extension can draw a look-alike inside its frame, so haex-vault asks for credentials
 // only in its window over the whole app (`StorageCredentialsModal.vue`). This walks the template of
 // `StorageDialog.vue`: radio buttons and checkboxes are fine, every other input is not.
 import assert from 'node:assert/strict'

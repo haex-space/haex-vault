@@ -1,5 +1,5 @@
 //! Reading a page (spec 065, research R4, R10, R12, contracts/browser-tools.md "Seite"): the
-//! reading script runs in holzi's own world; this module cuts its result to what an agent gets and
+//! reading script runs in haex-vault's own world; this module cuts its result to what an agent gets and
 //! marks all of it as coming from the website.
 
 use serde::Deserialize;
@@ -38,7 +38,7 @@ pub struct Raw {
     pub gone: bool,
 }
 
-/// Runs the page script with `args` in holzi's world of the main frame of the tab in `session`.
+/// Runs the page script with `args` in haex-vault's world of the main frame of the tab in `session`.
 pub async fn script(connection: &Connection, session: &str, args: &Value) -> Result<Value> {
     let (frame, _) = page::main_frame(connection, session).await?;
     let context = page::isolated_world(connection, session, &frame).await?;
@@ -46,7 +46,7 @@ pub async fn script(connection: &Connection, session: &str, args: &Value) -> Res
     runtime::evaluate(connection, session, context, &expression).await
 }
 
-/// Runs the page script with `args` in holzi's world of `frame`, a frame of the page in `session`.
+/// Runs the page script with `args` in haex-vault's world of `frame`, a frame of the page in `session`.
 pub async fn script_in(
     connection: &Connection,
     session: &str,

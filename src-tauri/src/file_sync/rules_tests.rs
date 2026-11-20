@@ -1,4 +1,4 @@
-//! Which rules holzi accepts (FR-002, FR-004): every error code, overlap within the rule and with
+//! Which rules haex-vault accepts (FR-002, FR-004): every error code, overlap within the rule and with
 //! other rules also crosswise.
 
 use std::path::PathBuf;
@@ -59,7 +59,7 @@ fn stored_rule(name: &str, source: SyncRulePlace, target: SyncRulePlace) -> Sync
 }
 
 fn own() -> OwnPlaces {
-    OwnPlaces::new(vec![PathBuf::from("/data/holzi")])
+    OwnPlaces::new(vec![PathBuf::from("/data/haex-vault")])
 }
 
 fn code(result: Result<SyncRuleDraft, SyncRuleError>) -> SyncRuleErrorCode {
@@ -110,7 +110,7 @@ fn names_and_intervals_out_of_range_are_refused() {
 fn contact_shares_own_places_and_bad_paths_are_refused() {
     for place in [
         storage("share:abc", "x/"),
-        device("/data/holzi/models"),
+        device("/data/haex-vault/models"),
         device("/data"),
         device("relative/path"),
         device("/home/a/../b"),
@@ -326,7 +326,7 @@ fn a_file_that_is_not_there_is_let_through_for_a_rule_to_report() {
 fn a_file_under_haexs_own_places_is_refused() {
     assert_eq!(
         code(validate(
-            file_draft(device("/data/holzi/models/x.gguf"), device("/home/b")),
+            file_draft(device("/data/haex-vault/models/x.gguf"), device("/home/b")),
             &[],
             &own()
         )),

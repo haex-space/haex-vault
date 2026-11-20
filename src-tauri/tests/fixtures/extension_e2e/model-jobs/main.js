@@ -1,10 +1,10 @@
 // The test extension of spec 055 (T065): sends the page recognition of `contracts/job-format.md`
-// §Beispiel to holzi's models through the released vault-sdk. `build.sh` bundles this file with the
+// §Beispiel to haex-vault's models through the released vault-sdk. `build.sh` bundles this file with the
 // SDK into app.js.
 //
-// `access` and `settings` are the way to the grant (US9, T092): ask before the first job, open holzi's page of this extension's models.
-// The test modes ask the model for broken output (a loop, nothing, Chinese) that holzi must drop. A
-// real model mostly obeys; the stand-in server of the e2e scene answers by the `[holzi-test:…]` mark.
+// `access` and `settings` are the way to the grant (US9, T092): ask before the first job, open haex-vault's page of this extension's models.
+// The test modes ask the model for broken output (a loop, nothing, Chinese) that haex-vault must drop. A
+// real model mostly obeys; the stand-in server of the e2e scene answers by the `[haex-test:…]` mark.
 import { createHaexVaultSdk } from '@haex-space/vault-sdk'
 import manifest from './manifest.json'
 import pageFormat from './page-format.json'
@@ -38,9 +38,9 @@ that were clearly misread in their "text"; keep abbreviations, line breaks and t
 Return ONLY {"texts": [...]} with one corrected text per region that has a "text", in the same order.`
 
 const TEST_MODES = {
-  loop: '[holzi-test:loop] Answer only with the word "ja", repeated 40 times.',
-  empty: '[holzi-test:empty] Answer with nothing at all.',
-  cjk: '[holzi-test:cjk] Answer only in Chinese characters.',
+  loop: '[haex-test:loop] Answer only with the word "ja", repeated 40 times.',
+  empty: '[haex-test:empty] Answer with nothing at all.',
+  cjk: '[haex-test:cjk] Answer only in Chinese characters.',
 }
 
 const textFix = {
@@ -95,7 +95,7 @@ function show(status, value) {
   document.getElementById('result').textContent = JSON.stringify(value, null, 2)
 }
 
-// The e2e scene starts a job and reads `last` once it is set; the SDK answers holzi's questions by
+// The e2e scene starts a job and reads `last` once it is set; the SDK answers haex-vault's questions by
 // waiting for the user, so `run` returns before the job ends.
 window.modelJobs = {
   last: undefined,
@@ -120,7 +120,7 @@ window.modelJobs = {
         show('abgelehnt', this.last)
       })
   },
-  /** The way to the grant (spec 055 US9): ask before the first job, or open holzi's model page. */
+  /** The way to the grant (spec 055 US9): ask before the first job, or open haex-vault's model page. */
   lead(mode) {
     const end =
       mode === 'access'

@@ -205,7 +205,7 @@ export const WM_READ_ACTIONS: readonly ActionDefinition[] = [
   read({
     id: 'wm.apps.list',
     description:
-      "List every installed app that can be opened: holzi's system apps and all installed extensions, each with its id, title, an extension's description, whether several instances are allowed, and its location patterns.",
+      "List every installed app that can be opened: HaexVault's system apps and all installed extensions, each with its id, title, an extension's description, whether several instances are allowed, and its location patterns.",
     input: { type: 'object', properties: {} },
     target: 'none',
   }),

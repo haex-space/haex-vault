@@ -10,11 +10,11 @@
 //!   back from: the first model the extension may use that can take the step goes first. There is
 //!   no list of fallbacks either way; when the model fails while the job runs, the runner asks the
 //!   user as well.
-//! - No granted model fits the step and there is no default: holzi asks for a grant (1004 `model`)
+//! - No granted model fits the step and there is no default: haex-vault asks for a grant (1004 `model`)
 //!   when some model of the vault fits and the user has not refused it, else `consent_denied`
 //!   (1002) or `no_capable_model` (8001). The question can make the picked model the default. With
 //!   a default the runner asks instead, so no model of the vault fitting is `no_capable_model`.
-//! - The model is outside this device without consent: holzi asks (1004 `modelDestination`, with a
+//! - The model is outside this device without consent: haex-vault asks (1004 `modelDestination`, with a
 //!   summary of what would be sent). A refused destination ends the job with `consent_denied`.
 
 use std::time::Duration;

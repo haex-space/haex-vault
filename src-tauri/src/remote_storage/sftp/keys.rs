@@ -1,4 +1,4 @@
-//! SSH keys of SFTP connections (spec 050 research R4, R5): holzi generates an Ed25519 key whose
+//! SSH keys of SFTP connections (spec 050 research R4, R5): haex-vault generates an Ed25519 key whose
 //! private half never leaves the process before it is saved (FR-008), reads the keys a user gives
 //! (OpenSSH, PKCS#1, PKCS#8, PuTTY), and names host keys by their OpenSSH line and their
 //! `SHA256:` fingerprint, as OpenSSH shows them.
@@ -14,19 +14,19 @@ use tokio::time::Instant;
 use uuid::Uuid;
 use zeroize::Zeroizing;
 
-/// The comment of a key holzi generates.
+/// The comment of a key haex-vault generates.
 const COMMENT: &str = "haex";
 
 /// How long a generated key waits for its connection to be saved.
 const PENDING_FOR: Duration = Duration::from_secs(30 * 60);
 
-/// A key holzi could not generate: the system gave no randomness.
+/// A key haex-vault could not generate: the system gave no randomness.
 #[derive(Debug, thiserror::Error)]
 #[error("no SSH key could be generated")]
 pub struct KeyError;
 
 /// A new Ed25519 key: the private key in OpenSSH form and the public key as one line
-/// (`ssh-ed25519 AAAA… holzi`).
+/// (`ssh-ed25519 AAAA… haex`).
 pub fn generate() -> Result<(Zeroizing<String>, String), KeyError> {
     let mut seed = Zeroizing::new([0u8; 32]);
     getrandom::fill(seed.as_mut()).map_err(|_| KeyError)?;
@@ -38,7 +38,7 @@ pub fn generate() -> Result<(Zeroizing<String>, String), KeyError> {
 }
 
 /// Reads a private key the user gave, with its passphrase when it has one; `None` when it is no
-/// key holzi can read or the passphrase does not open it.
+/// key haex-vault can read or the passphrase does not open it.
 pub fn decode(private_key: &str, passphrase: Option<&str>) -> Option<PrivateKey> {
     russh::keys::decode_secret_key(private_key, passphrase.filter(|p| !p.is_empty())).ok()
 }
@@ -60,7 +60,7 @@ pub fn fingerprint(line: &str) -> Option<String> {
     parse_host_key(line).map(|key| key.fingerprint(HashAlg::Sha256).to_string())
 }
 
-/// Keys holzi generated whose connection is not saved yet: by an id the window keeps, the
+/// Keys haex-vault generated whose connection is not saved yet: by an id the window keeps, the
 /// private key only here. A key goes when it is taken, after 30 minutes, and when the vault locks.
 #[derive(Default)]
 pub struct PendingKeys {

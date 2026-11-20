@@ -21,14 +21,14 @@ import {
 } from '../lib/extensions.ts'
 
 // Spec 017, US12, T093/T096 (quickstart §7 last bullet): developer mode switched on in the
-// settings reloads holzi's window; a project served from 127.0.0.1 loads unsigned, opens with the
-// permanent mark on its tab, talks to holzi like an installed extension, keeps its tables on this
+// settings reloads haex-vault's window; a project served from 127.0.0.1 loads unsigned, opens with the
+// permanent mark on its tab, talks to haex-vault like an installed extension, keeps its tables on this
 // device, shows its console output and gets a new document after a change. Its tab behaves like an
 // installed extension's through the frame shim; switched off, it is gone.
 
 type Instance = Page & FlowInstance
 
-/** Waits until `change` replaced holzi's document and the workspace is back. */
+/** Waits until `change` replaced haex-vault's document and the workspace is back. */
 async function reloaded(page: Instance, change: () => Promise<unknown>) {
   await page.exec(`window.__beforeDevSwitch = true; return true`)
   await change()
@@ -38,7 +38,7 @@ async function reloaded(page: Instance, change: () => Promise<unknown>) {
       .exec<boolean>(`return window.__beforeDevSwitch === true`)
       .catch(() => true)
   ) {
-    if (Date.now() > end) throw new Error('holzi did not reload')
+    if (Date.now() > end) throw new Error('HaexVault did not reload')
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
   await waitForWorkspace(page)
@@ -72,7 +72,7 @@ scenario('extension-dev-mode', { timeoutMs: 300_000 }, async (ctx) => {
       await page.click('settings-category-extensions')
       await page.click('extension-dev-mode')
     })
-    ctx.step('developer mode on; holzi reloaded')
+    ctx.step('developer mode on; HaexVault reloaded')
 
     // The folder dialog is native: the scene does what it hands over.
     const preview = unwrap<{ name: string }>(
@@ -175,8 +175,8 @@ scenario('extension-dev-mode', { timeoutMs: 300_000 }, async (ctx) => {
     )
     ctx.step('a hash navigation keeps the channel')
 
-    // The frame shim comes with holzi's init script (research R16): title, navigation with
-    // holzi Back, holzi's shortcuts and the close guard work as in an installed extension.
+    // The frame shim comes with haex-vault's init script (research R16): title, navigation with
+    // haex-vault Back, haex-vault's shortcuts and the close guard work as in an installed extension.
     const place = () =>
       inFrame<string>(
         page,
@@ -200,7 +200,7 @@ scenario('extension-dev-mode', { timeoutMs: 300_000 }, async (ctx) => {
       `document.getElementById('to-second').click(); return true`,
     )
     await ctx.waitFor(
-      'holzi to record the place inside the page',
+      'HaexVault to record the place inside the page',
       async () =>
         JSON.stringify(await page.invoke('wm_session_load')).includes(
           '/second',
@@ -209,11 +209,11 @@ scenario('extension-dev-mode', { timeoutMs: 300_000 }, async (ctx) => {
     )
     await backInTab(page, dev)
     await ctx.waitFor(
-      'the page to follow holzi Back',
+      'the page to follow HaexVault Back',
       async () => (await place()) === '#/elsewhere',
       { timeoutMs: 10_000 },
     )
-    ctx.step('navigation inside the tab and holzi Back')
+    ctx.step('navigation inside the tab and HaexVault Back')
 
     await inFrame(
       page,
@@ -227,9 +227,9 @@ scenario('extension-dev-mode', { timeoutMs: 300_000 }, async (ctx) => {
         timeoutMs: 5_000,
       },
     )
-    // Alt+ArrowLeft is holzi's Back; pressed inside the frame, the shim hands it to holzi, which
+    // Alt+ArrowLeft is haex-vault's Back; pressed inside the frame, the shim hands it to haex-vault, which
     // acts only while the frame has the focus. WebKitWebDriver cannot send keys into this sandboxed
-    // frame, so the page gets the key as an event after holzi focused the frame.
+    // frame, so the page gets the key as an event after haex-vault focused the frame.
     await page.exec(
       `document.querySelector('[data-testid="extension-frame"][data-extension-id="${dev.id}"]').focus(); return true`,
     )
@@ -239,11 +239,11 @@ scenario('extension-dev-mode', { timeoutMs: 300_000 }, async (ctx) => {
       `window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowLeft', key: 'ArrowLeft', altKey: true, bubbles: true })); return true`,
     )
     await ctx.waitFor(
-      'holzi Back from a key pressed in the frame',
+      'HaexVault Back from a key pressed in the frame',
       async () => (await place()) === '#/elsewhere',
       { timeoutMs: 10_000 },
     )
-    ctx.step('a holzi shortcut pressed inside the frame')
+    ctx.step('a HaexVault shortcut pressed inside the frame')
 
     await inFrame(
       page,
@@ -298,7 +298,7 @@ scenario('extension-dev-mode', { timeoutMs: 300_000 }, async (ctx) => {
       params: [],
     })
     assert.deepEqual((again.result as { rows?: unknown[][] }).rows, [['n1']])
-    ctx.step('a new document talks to holzi again')
+    ctx.step('a new document talks to HaexVault again')
 
     // The settings came back with the session; switching off as the settings do it.
     await reloaded(page, async () => {

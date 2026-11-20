@@ -1,5 +1,5 @@
 //! The checks before a request runs (spec 056 FR-004, FR-005, FR-007): what holds now for the
-//! connection's device, the share it names, the path and holzi's own places.
+//! connection's device, the share it names, the path and haex-vault's own places.
 
 use std::sync::Arc;
 
@@ -97,7 +97,7 @@ pub(super) async fn grant_of(
 }
 
 /// The target of `path` after every check: the request may run, the path stays in its root, and
-/// holzi's own places are kept as FR-007 says. A share of a storage leads into it (T081).
+/// haex-vault's own places are kept as FR-007 says. A share of a storage leads into it (T081).
 pub(super) async fn locate(
     ctx: &ServeContext,
     peer: &Peer,

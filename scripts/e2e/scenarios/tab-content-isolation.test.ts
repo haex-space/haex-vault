@@ -6,7 +6,7 @@ import { WM } from '../lib/settings.ts'
 const settle = () => new Promise((resolve) => setTimeout(resolve, 500))
 
 // Spec 020-tab-navigation, quickstart M13/M21 (FR-020, FR-034, FR-035, SC-009): neither the webview's own
-// history nor an embedded document's history changes holzi's navigation. The top document stays on the
+// history nor an embedded document's history changes haex-vault's navigation. The top document stays on the
 // workspace page, the chat stays open, and the chat tab's history keeps no back entry.
 scenario('tab-content-isolation', {}, async (ctx) => {
   const instance = await ctx.startInstance()

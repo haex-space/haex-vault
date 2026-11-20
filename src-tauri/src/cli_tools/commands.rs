@@ -238,7 +238,7 @@ pub async fn cli_tools_install(
 
 /// Goes back to the older version while the newest is unconfirmed (spec FR-022): deletes the
 /// newest and leaves the older one in use. Refused while a run of the tool is in progress, and
-/// while an install of it runs. holzi never calls this by itself.
+/// while an install of it runs. haex-vault never calls this by itself.
 pub(crate) fn revert_tool(
     tools: &DelegateTools,
     vendor: &VendorDefinition,

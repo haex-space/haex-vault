@@ -42,7 +42,7 @@ pub fn token_of(path: &str) -> Option<&str> {
     (!token.is_empty() && !token.contains('/')).then_some(token)
 }
 
-/// Headers on every answer: no caching, any origin may read (only holzi's window knows a token),
+/// Headers on every answer: no caching, any origin may read (only haex-vault's window knows a token),
 /// and pdf.js may see the range headers.
 const COMMON: &str = "Cache-Control: no-store\r\n\
 Access-Control-Allow-Origin: *\r\n\

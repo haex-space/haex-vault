@@ -93,7 +93,7 @@ impl PublicKey {
 pub struct ExtensionName(String);
 
 impl ExtensionName {
-    /// The rule is the bundle format's (`haex-bundle`), so a name the tool signs is a name holzi
+    /// The rule is the bundle format's (`haex-bundle`), so a name the tool signs is a name haex-vault
     /// accepts.
     pub fn parse(value: &str) -> Result<Self, IdError> {
         if haex_bundle::verify::is_valid_extension_name(value) {

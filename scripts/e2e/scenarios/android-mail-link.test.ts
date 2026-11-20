@@ -11,7 +11,7 @@ import {
 import type { Page } from '../lib/page.ts'
 import { errorToasts } from '../lib/toasts.ts'
 
-// Spec 063 US2 (FR-017 to FR-020): a `mailto:` link opened outside holzi, as another app does,
+// Spec 063 US2 (FR-017 to FR-020): a `mailto:` link opened outside haex-vault, as another app does,
 // shows the choice, with a row for the extension that writes mail and never one for the system's
 // mail program. A tap opens the extension with the fields of the link. With the vault locked the
 // link waits and the choice follows the unlocking; a second link replaces the first; a link with a

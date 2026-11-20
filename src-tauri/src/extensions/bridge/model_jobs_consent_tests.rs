@@ -63,7 +63,7 @@ impl Consent {
             .clone()
     }
 
-    /// The last question holzi's window was shown.
+    /// The last question haex-vault's window was shown.
     fn question(&self) -> Value {
         let recorded = self.s.recorded.0.lock().unwrap();
         recorded

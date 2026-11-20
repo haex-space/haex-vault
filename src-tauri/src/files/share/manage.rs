@@ -302,7 +302,7 @@ pub async fn delete(here: &Here<'_>, share_id: String) -> Result<(), FilesError>
 }
 
 /// The stored path and kind of a new share's root: a folder or file of this device, never in
-/// holzi's own places (FR-007, FR-015).
+/// haex-vault's own places (FR-007, FR-015).
 /// The path a share of `storage_id` stores for the window path `path`, and what lies there: a
 /// storage of this vault only, never another device's or a received share (FR-015), nor the device
 /// as a storage.
@@ -347,7 +347,7 @@ fn root_path(
     if own.contains(&real) {
         return Err(FilesError::new(
             FilesErrorCode::HaexOwned,
-            "holzi's own data is never shared",
+            "HaexVault's own data is never shared",
         ));
     }
     let meta = std::fs::metadata(&real).map_err(|_| not_found("not found"))?;

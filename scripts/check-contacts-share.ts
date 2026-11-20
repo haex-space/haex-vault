@@ -120,7 +120,7 @@ test('the arguments of a foreign share never carry device or relay lists', () =>
   assert.equal(JSON.stringify(args).includes('relays'), false)
 })
 
-test('a contact without addresses has no holzi choice', () => {
+test('a contact without addresses has no HaexVault choice', () => {
   assert.deepEqual(selectAll(plain).haex, { kind: 'none' })
   assert.deepEqual(toggleCard(selectAll(plain)).haex, { kind: 'card' })
 })
@@ -230,7 +230,7 @@ test('a choice an item does not offer is ignored', () => {
   assert.equal(choose(imported, decisions, 9, 'add'), decisions)
 })
 
-test('the holzi addresses are added or skipped as one', () => {
+test('the HaexVault addresses are added or skipped as one', () => {
   const decisions = choose(imported, defaultDecisions(imported), 3, 'skip')
   assert.equal(decisions.get(3)?.choice, 'skip')
   assert.deepEqual(

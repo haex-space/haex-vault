@@ -1,7 +1,7 @@
 //! Spec 065 US10 (FR-067) against a real Chromium and the fixture site over HTTPS: a page that is a
 //! check is named with a fixed kind, the checkbox of a check in a frame of another website is an
 //! element the agent ticks with `browser.click`, a frame the agent may not operate is named and
-//! not listed, and an ordinary page is named nothing. holzi solves nothing itself. Without a
+//! not listed, and an ordinary page is named nothing. haex-vault solves nothing itself. Without a
 //! Chromium-based browser the test says so and stops.
 
 #[path = "common/agent_browser_fixture.rs"]

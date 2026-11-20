@@ -19,7 +19,7 @@ import {
 
 // Spec 049, US1 (T036, quickstart M1–M2 without a browser): the External Bridge is off until it is
 // turned on in Einstellungen → Erweiterungen → Browser-Erweiterungen; a stand-in for haex-pass-browser
-// connects, holzi asks with the client's name, fingerprint and origin, "Zulassen" with "Erlaubnis
+// connects, haex-vault asks with the client's name, fingerprint and origin, "Zulassen" with "Erlaubnis
 // merken" reaches the open connection at once, and the next connection is approved without a
 // question. A client approved for reading only is asked before it saves (US3, FR-015), and the
 // saved entry is in the vault at once. The settings list the clients (US5, T058): narrowing one to

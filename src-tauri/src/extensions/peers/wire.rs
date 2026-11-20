@@ -154,7 +154,7 @@ pub const JOIN_CODE_PREFIX: &str = "haex-vault:join:";
 /// Longest text read as a join code; anything longer is not one, and is not decoded.
 const JOIN_CODE_MAX_CHARS: usize = 512;
 
-/// What a join code carries (research R6): the host's endpoint and relay to reach it, holzi's
+/// What a join code carries (research R6): the host's endpoint and relay to reach it, haex-vault's
 /// random key of the lobby and its secret; no name, no vault and no contact (FR-021). The text
 /// is `haex-vault:join:` + Base32 without padding of the postcard bytes. Never printed by
 /// `Debug`, never logged.

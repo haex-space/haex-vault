@@ -112,7 +112,7 @@ fn ordinary_keys_and_list_prefixes_pass() {
 #[test]
 fn keys_of_the_provider_outside_the_area_are_dropped() {
     let area = Area::new(storage_vault_id(&VAULT_A), installed(), false);
-    assert_eq!(area.strip("holzi-test/123"), None);
+    assert_eq!(area.strip("haex-test/123"), None);
     assert_eq!(
         area.strip(area.prefix()),
         None,

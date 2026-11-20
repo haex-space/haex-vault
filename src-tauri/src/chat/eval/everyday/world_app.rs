@@ -1,4 +1,4 @@
-//! The answers of holzi's own reading tools beyond mail, contacts, passwords and the file search
+//! The answers of haex-vault's own reading tools beyond mail, contacts, passwords and the file search
 //! (spec 087 research R12, FR-016): the conversations, a file's details, the open window, the
 //! installed models and this device, and empty sync rules, shares and agent tabs. An unknown id or
 //! path is an error, as the real tool answers it, so that a model told "nothing here" can look
@@ -21,7 +21,7 @@ pub struct ConversationMessage {
     pub status: Option<String>,
 }
 
-/// One of the user's own conversations with holzi. Conversations with contacts look absent to an
+/// One of the user's own conversations with haex-vault. Conversations with contacts look absent to an
 /// agent without spec 072's grant (FR-070), so the world holds none.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -119,7 +119,7 @@ impl FixtureWorld {
     }
 
     /// The app `name` opens, as the app's own matching decides it in short (`src/lib/wm/appMatch.ts`):
-    /// its id, its title or the word of a holzi id ("passwords"), ignoring case, or a name that holds
+    /// its id, its title or the word of a haex-vault id ("passwords"), ignoring case, or a name that holds
     /// one of those ("haex-chat"). Where the app would offer a choice, the world has none to offer.
     fn app_named(&self, name: &str) -> Option<&super::world::App> {
         let query = name.trim().to_lowercase();

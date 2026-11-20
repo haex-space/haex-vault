@@ -119,7 +119,7 @@ scenario(
     await instance.click('files-viewer-close')
     ctx.step('a text shows and a film plays and seeks from the server')
 
-    // Up: a file of the device onto the server, through holzi's clipboard.
+    // Up: a file of the device onto the server, through haex-vault's clipboard.
     await filesGo(instance, `/device?p=${encodeURIComponent(device.folder)}`)
     await instance.waitForDisplayed('files-entry-hoch.txt')
     await contextMenu(instance, 'files-entry-hoch.txt')
@@ -171,6 +171,6 @@ scenario(
       !left.some((path) => path.includes('.haex-')),
       `no temporary file stays: ${left.join(', ')}`,
     )
-    ctx.step('deleted after the question, nothing of holzi left')
+    ctx.step('deleted after the question, nothing of HaexVault left')
   },
 )

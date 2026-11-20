@@ -67,7 +67,7 @@ impl ProcessPresence {
     }
 
     /// Whether this process took the exclusive lock in [`ProcessPresence::announce`], that is no
-    /// other holzi process was running or starting then (spec 060 research R9: a link opened by a
+    /// other haex-vault process was running or starting then (spec 060 research R9: a link opened by a
     /// new process goes to the others' inbox only when there are others).
     pub fn was_alone(&self) -> bool {
         self.alone

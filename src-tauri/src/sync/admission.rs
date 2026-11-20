@@ -273,7 +273,7 @@ pub fn own_name(q: &mut impl Query, vault_device_uuid: Uuid) -> haex_crdt::Resul
 }
 
 /// Gives a copy the computer's name as its alias while the alias is still the
-/// default, so the copy and its source do not both show as "holzi". A name the
+/// default, so the copy and its source do not both show as "haex-vault". A name the
 /// user chose stays; without a computer name nothing changes.
 pub fn adopt_computer_name(
     tx: &mut CrdtTransaction<'_>,

@@ -3,10 +3,10 @@ import type { AttentionRow } from "./AttentionRow";
 
 export type ImportReport = { imported: number, trashed: number, historyStates: number, skippedDuplicates: number,
 /**
- * KeePass references that became holzi placeholders (spec 036, FR-050).
+ * KeePass references that became haex-vault placeholders (spec 036, FR-050).
  */
 referencesConverted: number,
 /**
- * KeePass references that stayed text (no unique source, or a field holzi cannot point at).
+ * KeePass references that stayed text (no unique source, or a field haex-vault cannot point at).
  */
 referencesLeftAsText: number, needsAttention: Array<AttentionRow>, };

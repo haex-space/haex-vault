@@ -21,7 +21,7 @@ const exportAction = useActionOrThrow('settings.appearance.export')
 const importAction = useActionOrThrow('settings.appearance.import')
 const busy = ref(false)
 
-const FILTERS = [{ name: 'holzi appearance', extensions: ['json'] }]
+const FILTERS = [{ name: 'HaexVault appearance', extensions: ['json'] }]
 const { readyAsync } = useDeviceCapabilities()
 
 /** Android's document providers do not report extensions reliably (spec 043): no filter there. */
@@ -40,7 +40,7 @@ async function exportAsync() {
   busy.value = true
   try {
     const path = await save({
-      defaultPath: 'holzi.haex-appearance.json',
+      defaultPath: 'haex-vault.haex-appearance.json',
       filters: await filtersAsync(),
     })
     if (!path) return

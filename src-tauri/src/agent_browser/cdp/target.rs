@@ -8,12 +8,12 @@ use serde_json::{json, Value};
 use super::{runtime, Connection};
 use crate::agent_browser::error::Result;
 
-/// Takes a new target that waits for holzi (the `params` of its `Target.attachedToTarget`):
+/// Takes a new target that waits for haex-vault (the `params` of its `Target.attachedToTarget`):
 /// `true` when the taker lets it go on itself once it is set up.
 pub type Claim = Arc<dyn Fn(&Arc<Connection>, &Value) -> bool + Send + Sync>;
 
 /// `Target.setAutoAttach` of the browser in flat mode: every target gets a session whose events
-/// carry its `sessionId`, and each new one waits until holzi lets it go on. A page could otherwise
+/// carry its `sessionId`, and each new one waits until haex-vault lets it go on. A page could otherwise
 /// open a tab that loads before anything checks it (research R9); [`resume_unclaimed`] lets every
 /// target go on that `claim` does not take. Call that first.
 pub async fn auto_attach(connection: &Connection) -> Result<()> {
@@ -128,7 +128,7 @@ pub async fn activate(connection: &Connection, target: &str) -> Result<()> {
         .map(drop)
 }
 
-/// Ends holzi's session `session` of a target; the target stays open, and what the session set
+/// Ends haex-vault's session `session` of a target; the target stays open, and what the session set
 /// up (scripts, bindings, held requests) ends with it.
 pub async fn detach(connection: &Connection, session: &str) -> Result<()> {
     connection
@@ -141,7 +141,7 @@ pub async fn detach(connection: &Connection, session: &str) -> Result<()> {
         .map(drop)
 }
 
-/// Attaches the frames of the page in `session` as they appear, each waiting until holzi has set
+/// Attaches the frames of the page in `session` as they appear, each waiting until haex-vault has set
 /// it up (research R9: their documents are checked too).
 pub async fn attach_frames(connection: &Connection, session: &str) -> Result<()> {
     connection

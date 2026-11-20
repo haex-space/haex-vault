@@ -475,7 +475,7 @@ fn everything_beyond_the_item_methods_is_for_the_user_only() {
     assert_eq!(require_user(&Caller::User), Ok(()));
 }
 
-// Z14 (spec 038): an entry that belongs to a holzi function exists only for the user and that
+// Z14 (spec 038): an entry that belongs to a haex-vault function exists only for the user and that
 // function, whatever the grants say.
 #[test]
 fn an_owned_entry_exists_only_for_the_user_and_its_owner() {

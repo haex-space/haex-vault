@@ -10,7 +10,7 @@ use crate::error::{HaexError, Result};
 
 pub const SCHEME: &str = "mailto:";
 
-/// Largest link holzi reads (FR-008).
+/// Largest link haex-vault reads (FR-008).
 pub const MAX_LINK_BYTES: usize = 32 * 1024;
 /// Most addresses in one of `to`, `cc` and `bcc`.
 const MAX_RECIPIENTS: usize = 50;

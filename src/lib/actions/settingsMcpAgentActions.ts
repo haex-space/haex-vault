@@ -1,7 +1,7 @@
 // The settings actions of the MCP access for external agents (spec 021, FR-001, FR-016, FR-026 to
 // FR-028, contracts/tauri-commands.md): turning it on or off on this device, and an agent's
 // approval mode, revocation, block and log, and the registration of a chat delegate (US6). Rights are not set per agent any more: they belong to its agent profile (spec 083, `settingsAgentProfileActions.ts`). Guardrails: they decide which
-// agents may reach holzi at all, which is the user's choice only, so no agent can call them. Listed in
+// agents may reach haex-vault at all, which is the user's choice only, so no agent can call them. Listed in
 // `catalog.ts` (`settingsActions.ts` is at its size limit); the handlers are in `stores/settingsActionHandlers.ts`. Pure, relative `.ts`
 // imports only.
 import type { ActionDefinition } from './types.ts'

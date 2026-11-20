@@ -29,7 +29,7 @@ pub(crate) async fn run_bridge_process(socket_path: &Path) -> io::Result<()> {
             Some("tools/list") => json!({
                 "tools": [{
                     "name": "approve",
-                    "description": "Ask holzi to approve a delegate tool call.",
+                    "description": "Ask HaexVault to approve a delegate tool call.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -89,7 +89,7 @@ async fn call_approval(socket_path: &Path, params: Option<&Value>) -> io::Result
         }))
     } else {
         Ok(json!({
-            "content": [{"type": "text", "text": "{\"behavior\":\"deny\",\"message\":\"Denied by holzi\"}"}],
+            "content": [{"type": "text", "text": "{\"behavior\":\"deny\",\"message\":\"Denied by HaexVault\"}"}],
             "isError": false
         }))
     }

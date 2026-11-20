@@ -13,7 +13,7 @@ use haex_crdt::{DatabaseLock, DatabaseLockError};
 pub enum Probe {
     /// Nobody has the vault open. The guard keeps it that way until it is dropped.
     Free(DatabaseLock),
-    /// Another handle holds the vault, usually another holzi process.
+    /// Another handle holds the vault, usually another haex-vault process.
     Held,
 }
 

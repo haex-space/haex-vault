@@ -1,4 +1,4 @@
-//! The `Page` domain: navigation, the isolated world `holzi` and screenshots (research R4, R12).
+//! The `Page` domain: navigation, the isolated world `haex` and screenshots (research R4, R12).
 
 use base64::Engine;
 use serde_json::{json, Value};
@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 use super::Connection;
 use crate::agent_browser::error::{BrowserError, Result};
 
-/// The name of holzi's own world in every agent tab (research R4).
+/// The name of haex-vault's own world in every agent tab (research R4).
 pub const WORLD: &str = "haex";
 
 pub async fn enable(connection: &Connection, session: &str) -> Result<()> {

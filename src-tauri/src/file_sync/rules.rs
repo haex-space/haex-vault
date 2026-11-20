@@ -1,5 +1,5 @@
-//! Which rules holzi accepts (FR-002, FR-004, data-model.md): two different places, none a contact's
-//! share or one of holzi's own places, no overlap with another rule of this device, a name and an
+//! Which rules haex-vault accepts (FR-002, FR-004, data-model.md): two different places, none a contact's
+//! share or one of haex-vault's own places, no overlap with another rule of this device, a name and an
 //! interval in range.
 
 use std::path::Path;
@@ -23,7 +23,7 @@ pub enum SyncRuleErrorCode {
     /// A place lies in, holds or equals a place of another rule of this device, or both places of
     /// the rule overlap.
     Overlap,
-    /// A contact's share, one of holzi's own places, or not a folder path; for a file rule a source that
+    /// A contact's share, one of haex-vault's own places, or not a folder path; for a file rule a source that
     /// is not a regular file.
     InvalidPlace,
     InvalidInterval,
@@ -199,7 +199,9 @@ fn checked_place(place: SyncRulePlace, own: &OwnPlaces) -> Result<SyncRulePlace,
                     .as_deref()
                     .is_some_and(|real| own.touches(real, true))
             {
-                return Err(invalid("holzi's own places cannot be a place of a rule"));
+                return Err(invalid(
+                    "HaexVault's own places cannot be a place of a rule",
+                ));
             }
             path.components()
                 .collect::<std::path::PathBuf>()

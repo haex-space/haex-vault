@@ -1,7 +1,7 @@
-// Links of a share, opened outside holzi (spec 060 FR-018a). The checks of what the window does
+// Links of a share, opened outside haex-vault (spec 060 FR-018a). The checks of what the window does
 // with a link live here so Node can run them (scripts/check-contacts-deeplink.ts).
 
-/** What the link of a share starts with; other schemes and other hosts are not holzi's. */
+/** What the link of a share starts with; other schemes and other hosts are not haex-vault's. */
 export const CONTACT_LINK_PREFIX = 'haex-vault://contact/'
 
 /** More than a share can be (16,384 characters of text, FR-018) is not a share. Rust agrees. */

@@ -1,15 +1,15 @@
 //! What the host keeps for the remote storage of extensions (spec 038, research R6): the provider
-//! and resolver (S3 and the system's resolver in holzi, fakes in tests) and the storage dialogs that
+//! and resolver (S3 and the system's resolver in haex-vault, fakes in tests) and the storage dialogs that
 //! wait for the user.
 //!
 //! A management call of an extension (add, update, test, remove) waits like
-//! `extension_dialog_confirm`: holzi sends `extension-storage-request` to its window, which shows a
+//! `extension_dialog_confirm`: haex-vault sends `extension-storage-request` to its window, which shows a
 //! confirmation over the tab (never with credential fields) and, when new credentials are needed,
-//! holzi's own window over the whole app. The answer comes back through `storage_dialog_resolve`;
-//! credentials in it travel from holzi's window to Rust only and never reach the extension.
+//! haex-vault's own window over the whole app. The answer comes back through `storage_dialog_resolve`;
+//! credentials in it travel from haex-vault's window to Rust only and never reach the extension.
 //! Closing the frame or [`DIALOG_WAIT`] counts as cancel.
 //!
-//! holzi tests typed credentials while its window stays open: a failed test goes back to that
+//! haex-vault tests typed credentials while its window stays open: a failed test goes back to that
 //! window ([`StorageTrial::Failed`]), which lets the user correct them or cancel, and the call waits
 //! for the next answer. The extension learns only the end: the storage, or 1002.
 
@@ -45,7 +45,7 @@ pub enum StorageAnswer {
         #[ts(optional)]
         #[serde(default)]
         connection_id: Option<String>,
-        /// New credentials; only holzi's window over the whole app sends them.
+        /// New credentials; only haex-vault's window over the whole app sends them.
         #[ts(optional)]
         #[serde(default)]
         credentials: Option<CredentialsInput>,
@@ -59,7 +59,7 @@ pub enum StorageAnswer {
         #[ts(as = "Option<bool>", optional)]
         #[serde(default)]
         create_folder: bool,
-        /// The host key (an OpenSSH line) the user confirmed in holzi's window after
+        /// The host key (an OpenSSH line) the user confirmed in haex-vault's window after
         /// `hostKeyUnknown` (SFTP, spec 050 research R5).
         #[ts(optional)]
         #[serde(default)]
@@ -79,7 +79,7 @@ impl StorageAnswer {
     }
 }
 
-/// What holzi's window learns of the credentials it sent (`storage_dialog_resolve`).
+/// What haex-vault's window learns of the credentials it sent (`storage_dialog_resolve`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/")]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -89,7 +89,7 @@ pub enum StorageTrial {
     /// The test of the credentials failed; the window shows why and waits for another answer.
     Failed {
         outcome: TestOutcome,
-        /// The test object holzi could not delete, if the failed probe left one behind.
+        /// The test object haex-vault could not delete, if the failed probe left one behind.
         #[serde(rename = "leftoverKey")]
         leftover_key: Option<String>,
         /// The key an SFTP server showed at `hostKeyUnknown`, for the user to compare and confirm.
@@ -214,7 +214,7 @@ fn cancelled() -> BridgeError {
     )
 }
 
-/// A dialog over the calling frame, open until dropped: then holzi's windows for it close.
+/// A dialog over the calling frame, open until dropped: then haex-vault's windows for it close.
 pub struct Dialog<'a> {
     ctx: &'a CallContext,
     request_id: String,
@@ -243,7 +243,7 @@ impl Dialog<'_> {
         }
     }
 
-    /// The test of the credentials of the last answer failed: holzi's window shows `outcome` and
+    /// The test of the credentials of the last answer failed: haex-vault's window shows `outcome` and
     /// the dialog waits for the next answer.
     pub fn failed(
         &mut self,
@@ -260,7 +260,7 @@ impl Dialog<'_> {
 
     fn end_trial(&mut self, trial: StorageTrial) {
         if let Some(sender) = self.trial.take() {
-            // holzi's window may be closed already.
+            // haex-vault's window may be closed already.
             let _ = sender.send(trial);
         }
     }

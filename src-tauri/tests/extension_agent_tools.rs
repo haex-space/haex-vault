@@ -54,7 +54,7 @@ async fn the_agent_answers_with_a_confirmed_tool_of_the_test_extension() {
     ];
     install_agent_tools(&vault, device, choices).await;
 
-    // The tool outside holzi's schema subset is installed but never offered.
+    // The tool outside haex-vault's schema subset is installed but never offered.
     let defs = vault
         .read(move |q| load(q, device).map_err(Into::into))
         .await
@@ -121,7 +121,7 @@ async fn the_agent_answers_with_a_confirmed_tool_of_the_test_extension() {
     )
     .await;
 
-    // holzi keeps a call's source on its call row.
+    // haex-vault keeps a call's source on its call row.
     let call = rows
         .iter()
         .find(|row| row.role == MessageRole::ToolCall)

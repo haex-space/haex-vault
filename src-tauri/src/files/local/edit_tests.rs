@@ -103,9 +103,9 @@ fn nothing_changes_in_haexs_own_places() {
 #[test]
 fn renaming_a_folder_that_holds_haexs_data_is_refused() {
     let (_dir, real) = folder();
-    std::fs::create_dir_all(real.join("share/holzi")).unwrap();
-    let own = OwnPlaces::new(vec![real.join("share/holzi")]);
+    std::fs::create_dir_all(real.join("share/haex-vault")).unwrap();
+    let own = OwnPlaces::new(vec![real.join("share/haex-vault")]);
     let error = rename(&real.join("share"), "weg", &own).unwrap_err();
     assert_eq!(error.code, FilesErrorCode::HaexOwned);
-    assert!(real.join("share/holzi").is_dir());
+    assert!(real.join("share/haex-vault").is_dir());
 }

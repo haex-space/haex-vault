@@ -17,7 +17,7 @@ signatureValid: boolean, error?: BundleRejection, extensionId?: string, name?: s
  */
 publisherFingerprint?: string, declared: Array<DeclaredPermissionView>,
 /**
- * Manifest categories holzi does not offer ("wird von holzi nicht unterstützt").
+ * Manifest categories haex-vault does not offer ("wird von haex-vault nicht unterstützt").
  */
 unsupportedCategories: Array<string>, existing?: ExistingInstall,
 /**
@@ -30,7 +30,7 @@ replacesSameVersion: boolean,
  */
 sameNameOtherPublisher: boolean,
 /**
- * The kinds of link it opens that holzi knows (spec 063 FR-014); no permission, so the
+ * The kinds of link it opens that haex-vault knows (spec 063 FR-014); no permission, so the
  * dialog only says it.
  */
 openers: Array<string>,

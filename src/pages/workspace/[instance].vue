@@ -127,7 +127,7 @@ watch([sessionRestored, () => passLinkInbox.id], ([restored, id]) => {
     })
 })
 
-// Spec 092 (FR-037): a pass file, a PDF or a picture shared to holzi waits in the core until a
+// Spec 092 (FR-037): a pass file, a PDF or a picture shared to haex-vault waits in the core until a
 // vault is open; once the saved session is in place the files go to their dialog in Wallet.
 const sharedFile = useSharedFile()
 watch(sessionRestored, (restored) => {
@@ -192,7 +192,7 @@ onMounted(async () => {
   })
 
   // Spec 032 (ADR-0006): offer the actions to the built-in agent. Started once per vault session,
-  // like the sync listener; without it the chat simply has no holzi tools. Wait for the initial
+  // like the sync listener; without it the chat simply has no haex-vault tools. Wait for the initial
   // registration so the first chat turn cannot race the action list being installed in Rust.
   try {
     await permissionDialogReady

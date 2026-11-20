@@ -135,7 +135,7 @@ fn error_kind(error: &HaexError) -> String {
         .to_owned()
 }
 
-/// Methods the extension knows that holzi answers with `NOT_SUPPORTED` (FR-028).
+/// Methods the extension knows that haex-vault answers with `NOT_SUPPORTED` (FR-028).
 pub const NOT_SUPPORTED: &[&str] = &[
     "update-item",
     "bookmarks-collections-list",

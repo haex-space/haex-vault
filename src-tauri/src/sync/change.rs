@@ -1,7 +1,7 @@
 //! Changes and pages as they travel between the devices of a vault
 //! (contracts/sync-protocol.md, research R4, R6).
 //!
-//! A [`Change`] is haex-crdt's `ColumnChange` without the fields holzi does
+//! A [`Change`] is haex-crdt's `ColumnChange` without the fields haex-vault does
 //! not send: `device_id` (the origin is the node in the HLC) and `sig`
 //! (per-change signatures arrive with specs 027/028). The value travels as
 //! its JSON text in haex-crdt's encoding, so a BLOB stays a BLOB. postcard

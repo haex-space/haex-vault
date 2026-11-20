@@ -113,8 +113,8 @@ pub(crate) fn etag_of(meta: &Metadata) -> String {
     format!("\"{:x}-{nanos:x}-{inode:x}\"", meta.len())
 }
 
-/// The entries of the folder `dir`, without holzi's temporary files and without links (a link
-/// could lead out of the root; holzi never writes one into an encrypted folder).
+/// The entries of the folder `dir`, without haex-vault's temporary files and without links (a link
+/// could lead out of the root; haex-vault never writes one into an encrypted folder).
 pub(super) fn read_entries(dir: &Path) -> Result<Vec<DirEntry>, StorageError> {
     let mut entries = Vec::new();
     for entry in fs::read_dir(dir).map_err(error_of)? {

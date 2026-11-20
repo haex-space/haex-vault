@@ -183,7 +183,7 @@ impl<R: Runtime> HaexAndroid<R> {
             .map_err(|error| error.to_string())
     }
 
-    /// Calls `on_file` with the JSON of each copy of a file another app shared to holzi (spec 092,
+    /// Calls `on_file` with the JSON of each copy of a file another app shared to haex-vault (spec 092,
     /// FR-037): `{ path, name, mime }`. The files shared before this is called (a cold start by a
     /// share) are reported at once.
     pub fn watch_shared_files(
@@ -248,7 +248,7 @@ impl<R: Runtime> HaexAndroid<R> {
         state_of(states, permission)
     }
 
-    /// Whether holzi may read and write the shared storage (spec 044 FR-039).
+    /// Whether haex-vault may read and write the shared storage (spec 044 FR-039).
     pub fn all_files_access(&self) -> Result<bool, String> {
         self.0
             .run_mobile_plugin::<AllFilesAccess>("allFilesAccess", ())

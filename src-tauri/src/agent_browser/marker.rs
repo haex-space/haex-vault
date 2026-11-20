@@ -1,10 +1,10 @@
-//! The marker of an agent tab (spec 065, FR-014, FR-017, research R6): holzi's own world adds it to
+//! The marker of an agent tab (spec 065, FR-014, FR-017, research R6): haex-vault's own world adds it to
 //! every document of the tab (marker.js); its buttons call the binding [`BINDING`], which exists in
 //! that world only, and only for a trusted click. So does the user's own input in the page
 //! ([`Signal::Input`]). While the user has the tab, the marker offers "Zurückgeben" instead of
 //! "Eingreifen" ([`update`]); a new document's marker says [`Signal::Hello`] and gets the state
 //! then. When the tab goes back to the user, the marker leaves the current document and, with
-//! holzi's session of the tab, every later one.
+//! haex-vault's session of the tab, every later one.
 
 use serde_json::{json, Value};
 
@@ -12,7 +12,7 @@ use super::cdp::{page, runtime, Connection};
 use super::error::Result;
 use crate::window_texts::text;
 
-/// The binding the marker calls, in holzi's world only.
+/// The binding the marker calls, in haex-vault's world only.
 pub const BINDING: &str = "__haex";
 
 /// What the marker reports through [`BINDING`].
@@ -62,7 +62,7 @@ impl Signal {
 
 const SCRIPT: &str = include_str!("marker.js");
 
-/// The marker's texts in the language of holzi's window.
+/// The marker's texts in the language of haex-vault's window.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarkerTexts {
     pub text: String,
@@ -121,7 +121,7 @@ pub async fn install(connection: &Connection, session: &str, texts: &MarkerTexts
     page::add_script(connection, session, &texts.script(false)).await
 }
 
-/// Shows the marker as `paused` or not, in the document of holzi's world `context`, or in the
+/// Shows the marker as `paused` or not, in the document of haex-vault's world `context`, or in the
 /// tab's current document.
 pub async fn update(
     connection: &Connection,

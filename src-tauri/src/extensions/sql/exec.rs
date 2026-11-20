@@ -1,6 +1,6 @@
 //! Running extension SQL (contracts/sql-policy.md §Ausführung, T059): pre-check, permission
 //! decision, then haex-crdt's guarded read or write with the authorizer and a run-time limit.
-//! Writes go through the CRDT transformer like every other write of holzi (FR-028).
+//! Writes go through the CRDT transformer like every other write of haex-vault (FR-028).
 
 use std::cell::Cell;
 use std::collections::HashSet;
@@ -105,7 +105,7 @@ fn is_limit_hit(error: &haex_crdt::Error) -> bool {
     )
 }
 
-/// Maps a failure of the guarded run to the bridge's codes; nothing of holzi's schema leaks.
+/// Maps a failure of the guarded run to the bridge's codes; nothing of haex-vault's schema leaks.
 fn map_error(error: haex_crdt::Error) -> BridgeError {
     if is_limit_hit(&error) {
         return limit("result too large");
@@ -167,7 +167,7 @@ pub fn existing_tables(db: &VaultDb) -> Result<HashSet<String>, BridgeError> {
 }
 
 /// SQLite's answer for a missing table, in one spelling: lower case, without `main.`, so it does not
-/// tell a table that never existed from one that holzi hides.
+/// tell a table that never existed from one that haex-vault hides.
 fn no_such_table(name: &str) -> BridgeError {
     let name = name.to_ascii_lowercase();
     let name = name.strip_prefix("main.").unwrap_or(&name);
@@ -395,7 +395,7 @@ pub fn run_in(
                 tx.execute(&statement.sql, &params)? as u64
             };
             result.rows_affected += changed;
-            // The connection's last rowid belongs to whatever holzi inserted last; only an insert of
+            // The connection's last rowid belongs to whatever haex-vault inserted last; only an insert of
             // this statement that wrote a row may report it.
             if statement.is_insert && changed > 0 {
                 result.last_insert_id = Some(tx.last_insert_rowid());

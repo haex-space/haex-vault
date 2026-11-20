@@ -7,7 +7,7 @@ use crate::files::local::OwnPlaces;
 use crate::files::FilesErrorCode;
 
 fn own() -> OwnPlaces {
-    OwnPlaces::new(vec![PathBuf::from("/data/holzi")])
+    OwnPlaces::new(vec![PathBuf::from("/data/haex-vault")])
 }
 
 fn device(path: &str) -> Target {
@@ -61,7 +61,7 @@ fn the_user_reaches_the_device_and_storages() {
 #[test]
 fn the_user_sees_haexs_own_places_read_only() {
     let grants = AgentGrants::default();
-    let target = device("/data/holzi/instances/a.db");
+    let target = device("/data/haex-vault/instances/a.db");
     assert_eq!(
         check(&Caller::User, &target, Want::Read, &own(), &grants),
         Verdict::ReadOnly
@@ -132,7 +132,7 @@ fn a_revoked_device_grant_holds_for_the_builtin_agent_too() {
     );
 }
 
-/// SC-005: no agent reaches holzi's own places, whatever the spelling, and the refusal comes
+/// SC-005: no agent reaches haex-vault's own places, whatever the spelling, and the refusal comes
 /// before any grant question.
 #[test]
 fn agents_never_reach_haexs_own_places() {
@@ -142,9 +142,9 @@ fn agents_never_reach_haexs_own_places() {
     };
     for caller in [builtin(), external()] {
         for path in [
-            "/data/holzi",
-            "/data/holzi/instances/a.db",
-            "/data/holzi/models/x.gguf",
+            "/data/haex-vault",
+            "/data/haex-vault/instances/a.db",
+            "/data/haex-vault/models/x.gguf",
         ] {
             for want in [Want::Read, Want::Write] {
                 assert_eq!(
@@ -162,7 +162,7 @@ fn agents_never_reach_haexs_own_places() {
 fn spelling_and_links_do_not_lead_an_agent_into_an_own_place() {
     let dir = tempfile::tempdir().unwrap();
     let real = std::fs::canonicalize(dir.path()).unwrap();
-    let haex = real.join("holzi");
+    let haex = real.join("haex-vault");
     std::fs::create_dir_all(haex.join("instances")).unwrap();
     std::fs::create_dir_all(real.join("home").join("docs")).unwrap();
     std::os::unix::fs::symlink(&haex, real.join("home").join("shortcut")).unwrap();
@@ -173,7 +173,7 @@ fn spelling_and_links_do_not_lead_an_agent_into_an_own_place() {
             .join("docs")
             .join("..")
             .join("..")
-            .join("holzi"),
+            .join("haex-vault"),
         real.join("home").join("shortcut").join("instances"),
         real.join("home").join("shortcut").join("new.db"),
     ] {
@@ -189,7 +189,7 @@ fn spelling_and_links_do_not_lead_an_agent_into_an_own_place() {
 #[cfg(any(windows, target_os = "macos"))]
 #[test]
 fn letter_case_does_not_lead_an_agent_into_an_own_place() {
-    let target = device("/DATA/Holzi/instances/a.db");
+    let target = device("/DATA/Haex-Vault/instances/a.db");
     assert_eq!(
         refused(check(
             &builtin(),
@@ -207,7 +207,7 @@ fn a_search_hit_inside_an_own_place_is_hidden_from_agents() {
     let grants = AgentGrants::default();
     assert!(!visible_to(
         &builtin(),
-        &PathBuf::from("/data/holzi/instances/a.db"),
+        &PathBuf::from("/data/haex-vault/instances/a.db"),
         &own(),
         &grants
     ));
@@ -219,7 +219,7 @@ fn a_search_hit_inside_an_own_place_is_hidden_from_agents() {
     ));
     assert!(visible_to(
         &Caller::User,
-        &PathBuf::from("/data/holzi/instances/a.db"),
+        &PathBuf::from("/data/haex-vault/instances/a.db"),
         &own(),
         &grants
     ));

@@ -83,7 +83,7 @@ export type TabRuntime = {
   titleOverride: string | null
   guard: CloseGuard | null
   mounted: boolean
-  /** What the tab's app handed holzi for its window's header (spec 090, data-model.md); kept while
+  /** What the tab's app handed haex-vault for its window's header (spec 090, data-model.md); kept while
    * the tab is in the background, gone with the tab. */
   header: WmHeaderDescription | null
   /** Gets the events of that header's controls. */

@@ -2,7 +2,7 @@
 /**
  * The exclusions of a rule (spec 061 US4 scenario 8, FR-038, FR-041, FR-042): the `.haex-ignore`
  * file of the source in a small editor, the fixed exclusions that always hold, how many files and
- * folders both places leave out now, and lines holzi does not understand. The file is the only
+ * folders both places leave out now, and lines haex-vault does not understand. The file is the only
  * copy of the patterns; a source that cannot be written shows them with the reason.
  */
 import type { SyncRuleIgnore } from '@bindings/SyncRuleIgnore'

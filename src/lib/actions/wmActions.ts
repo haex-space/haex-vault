@@ -151,7 +151,7 @@ export const WM_OPEN_ACTIONS: readonly ActionDefinition[] = [
     titleKey: 'actions.wm.app.open',
     description:
       'Open an app in a new window, optionally at a location. A single-instance app that is already open is activated and navigated there instead.' +
-      ' Apps of holzi only: a website or web address (like example.com) is no app and goes to browser.open.',
+      ' Apps of HaexVault only: a website or web address (like example.com) is no app and goes to browser.open.',
     input: {
       type: 'object',
       properties: { appId: APP_ID, at: AT },
@@ -169,7 +169,7 @@ export const WM_OPEN_ACTIONS: readonly ActionDefinition[] = [
     titleKey: 'actions.wm.tab.new',
     description:
       'Open an app as a new tab in a window, optionally at a location. A single-instance app that is already open is activated instead.' +
-      ' Apps of holzi only: a website or web address (like example.com) is no app and goes to browser.open.',
+      ' Apps of HaexVault only: a website or web address (like example.com) is no app and goes to browser.open.',
     input: {
       type: 'object',
       properties: {

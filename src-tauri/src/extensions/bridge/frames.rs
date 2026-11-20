@@ -1,4 +1,4 @@
-//! Frame sessions (research R13, R14): holzi's own window opens a session for every extension
+//! Frame sessions (research R13, R14): haex-vault's own window opens a session for every extension
 //! frame it mounts. The session, never the extension, says which extension a bridge call comes
 //! from. Sessions live in memory and end with the frame or the process (ADR-0003: one process, one
 //! vault).
@@ -16,9 +16,9 @@ use crate::extensions::protocol::token;
 /// What a frame shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FrameSource {
-    /// A stored bundle, served by holzi's protocol.
+    /// A stored bundle, served by haex-vault's protocol.
     Bundle(Uuid),
-    /// A development server on this device (US12); holzi serves nothing for it.
+    /// A development server on this device (US12); haex-vault serves nothing for it.
     DevServer,
 }
 

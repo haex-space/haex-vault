@@ -1,5 +1,5 @@
 // Which app shows an entry (spec 092-wallet-passes, Phase W): the password manager shows logins, and
-// whatever type a newer holzi wrote, which it must not hide; Wallet shows the cards and tickets.
+// whatever type a newer haex-vault wrote, which it must not hide; Wallet shows the cards and tickets.
 // The store keeps every header, these pure functions cut the views. `scripts/check-wallet-scope.ts`
 // runs them without vue.
 import { walletGroupIds } from '../wallet/folders.ts'

@@ -9,14 +9,14 @@ use serde_json::{json, Value};
 use super::Connection;
 use crate::agent_browser::error::BrowserError;
 
-/// The browser's ends: where it reads holzi's commands and where it writes.
+/// The browser's ends: where it reads haex-vault's commands and where it writes.
 pub(super) struct FakeBrowser {
     commands: BufReader<PipeReader>,
     out: PipeWriter,
 }
 
 impl FakeBrowser {
-    /// The next command holzi sent.
+    /// The next command haex-vault sent.
     pub(super) fn command(&mut self) -> Value {
         let mut bytes = Vec::new();
         self.commands.read_until(0, &mut bytes).expect("read");
@@ -24,7 +24,7 @@ impl FakeBrowser {
         serde_json::from_slice(&bytes).expect("json")
     }
 
-    /// The next command, or `None` when holzi closed its end.
+    /// The next command, or `None` when haex-vault closed its end.
     pub(super) fn try_command(&mut self) -> Option<Value> {
         let mut bytes = Vec::new();
         self.commands.read_until(0, &mut bytes).ok()?;

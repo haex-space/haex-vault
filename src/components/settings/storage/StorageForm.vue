@@ -4,7 +4,7 @@
  * bucket, or folder on WebDAV. A new storage or a new bucket or folder is tested before it is
  * saved; a new name is not. A missing folder is made only when the user says so (FR-006), and a
  * folder inside another storage's folder of the connection gets a warning (FR-003). "Jetzt testen" runs the
- * test again and remembers its outcome on this device; a test object holzi could not delete is
+ * test again and remembers its outcome on this device; a test object haex-vault could not delete is
  * named (SC-004). The credentials come from the connection, so none are typed here. When an SFTP
  * server shows another host key than the confirmed one, the test names both fingerprints and the
  * user may take the new key (spec 050 research R5).
@@ -104,7 +104,7 @@ async function createFolderAsync() {
   }
 }
 
-/** Shows the outcome of a test, naming a test object holzi could not delete (SC-004). */
+/** Shows the outcome of a test, naming a test object haex-vault could not delete (SC-004). */
 function show(result: TestResult) {
   const text = t(`settings.storage.outcome.${result.outcome}`)
   const message = result.leftoverKey

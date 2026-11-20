@@ -1,5 +1,5 @@
 //! Bitwarden exports (spec 034, US7, `contracts/import-mapping.md` §Bitwarden): the unencrypted
-//! JSON and the CSV. Everything a source item has that holzi has no field for becomes a custom
+//! JSON and the CSV. Everything a source item has that haex-vault has no field for becomes a custom
 //! field (named in German so it reads in the window) or a tag; nothing is left out. Pure functions
 //! `bytes → ImportModel`.
 

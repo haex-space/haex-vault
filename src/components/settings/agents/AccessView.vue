@@ -2,9 +2,9 @@
 /**
  * "KI → Externer Zugang" (spec 021, US1, FR-001, FR-026; spec 083 PR M2): the switch of the MCP
  * access on this device, its state, and the setup snippets for Claude Code, Codex and any other
- * MCP client: by starting holzi's helper (desktop) or over loopback HTTP, where the agent signs in
+ * MCP client: by starting haex-vault's helper (desktop) or over loopback HTTP, where the agent signs in
  * through the registration dialog (PR G, the only way on a phone). The snippets carry the path of
- * holzi and the vault or the HTTP address, never a credential. The switch goes through the
+ * haex-vault and the vault or the HTTP address, never a credential. The switch goes through the
  * guardrail action `settings.agents.mcp.enable`, which no agent can call. Below are the agents
  * that registered, each with its log and revoking it (`settings.agents.mcp.revoke`), and the
  * blocked ones, where lifting the block goes through `settings.agents.mcp.unblock`. Their rights

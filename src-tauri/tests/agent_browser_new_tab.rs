@@ -1,6 +1,6 @@
 //! Spec 065 T053 `newTab` against a real Chromium and the fixture site over HTTPS: a tab a page of
 //! an agent tab opens, through `window.open` or a link with `target=_blank` (which Chromium opens
-//! without an opener), loads nothing before holzi decided. In Auto it asks for another website: a
+//! without an opener), loads nothing before haex-vault decided. In Auto it asks for another website: a
 //! declined tab loads nothing and closes, an allowed one joins the agent's tabs with the marker. A
 //! tab on an allowed website joins without a question, and at five tabs a new one closes at once.
 //! Without a Chromium-based browser the test says so and stops.

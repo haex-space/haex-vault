@@ -1,5 +1,5 @@
 //! Contact methods of the service (spec 051 FR-001 to FR-007, FR-018a, FR-028 to FR-031): list,
-//! read, create, change, delete and the photo. Every caller but the user and holzi's own functions
+//! read, create, change, delete and the photo. Every caller but the user and haex-vault's own functions
 //! reaches only what its grants cover; a contact outside the scope answers like a missing one.
 
 use std::collections::BTreeSet;
@@ -124,7 +124,7 @@ impl ContactsService {
             .await
     }
 
-    /// Creates a contact made in holzi: its origin is this device and the caller (FR-018a).
+    /// Creates a contact made in haex-vault: its origin is this device and the caller (FR-018a).
     pub async fn create(
         &self,
         caller: &Caller,

@@ -1,5 +1,5 @@
 //! `ContactsService`: the single entrance to the address book (spec 051 FR-028, research R1). The
-//! window, the built-in agent, extensions, external agents and holzi's own functions all come
+//! window, the built-in agent, extensions, external agents and haex-vault's own functions all come
 //! through here, each as a [`Caller`]; no code reads or writes the `haex_contacts_*` tables around
 //! it, and the Tauri commands call nothing else.
 //!

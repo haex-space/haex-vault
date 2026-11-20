@@ -1,5 +1,5 @@
 //! A real vault for the tests of the marketplace store and its commands (spec 069): opened with the
-//! holzi migrations, so `haex_marketplaces` is the real table with its CRDT triggers.
+//! haex-vault migrations, so `haex_marketplaces` is the real table with its CRDT triggers.
 
 use std::sync::Arc;
 

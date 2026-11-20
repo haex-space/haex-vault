@@ -29,7 +29,7 @@ export type TransferView = {
 }
 
 /**
- * holzi's clipboard of files and the running transfers (spec 044 FR-018, FR-019, T050). All file
+ * haex-vault's clipboard of files and the running transfers (spec 044 FR-018, FR-019, T050). All file
  * browser tabs share them (one webview); a transfer runs on in Rust when its tab closes, and the
  * vault's close ends it (FR-026). Neither is restored with the session.
  */

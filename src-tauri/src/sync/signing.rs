@@ -1,4 +1,4 @@
-//! BIP-340 signatures over holzi's own payloads (spec 024, research R10).
+//! BIP-340 signatures over haex-vault's own payloads (spec 024, research R10).
 //!
 //! Every signature covers `SHA-256(domain tag ‖ canonical bytes)`, where the
 //! canonical bytes are the postcard encoding of a fixed struct. The domain tag

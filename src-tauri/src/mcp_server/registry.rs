@@ -1,7 +1,7 @@
 //! The external agents registered on this device (spec 021, data-model.md): rows of
 //! `haex_mcp_agents` for this device only (ADR-0001). Their rights are not kept here: an agent is
 //! in an agent profile (spec 083, `crate::agent_profiles`) and [`load_rights`] resolves it. An agent is found
-//! by its credential, which holzi keeps only as a SHA-256 hash (FR-007); the name it reports is its
+//! by its credential, which haex-vault keeps only as a SHA-256 hash (FR-007); the name it reports is its
 //! own claim and only shown.
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -17,7 +17,7 @@ use super::grants::Rights;
 use crate::chat::tools::permission::PermissionMode;
 use crate::storage::query::Query;
 
-/// The longest reported name holzi keeps (data-model.md).
+/// The longest reported name haex-vault keeps (data-model.md).
 pub const MAX_CLIENT_NAME_CHARS: usize = 64;
 
 /// What kind of agent a row is.
@@ -50,7 +50,7 @@ impl AgentKind {
     }
 }
 
-/// How the agent reaches holzi.
+/// How the agent reaches haex-vault.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
@@ -110,8 +110,8 @@ impl AgentStatus {
     }
 }
 
-/// The approval mode of one agent (FR-021, ADR-0006). An external agent always runs in `Auto`: holzi
-/// is an MCP server like any other, the agent profile decides what it may do, and holzi asks only
+/// The approval mode of one agent (FR-021, ADR-0006). An external agent always runs in `Auto`: haex-vault
+/// is an MCP server like any other, the agent profile decides what it may do, and haex-vault asks only
 /// before a destructive call or one that hands out a secret. A model of an Abo-Agent follows the
 /// mode of the chat.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
@@ -167,7 +167,7 @@ pub struct Agent {
     pub last_seen_at: Option<i64>,
 }
 
-/// A fresh credential. Shown to the agent once; holzi keeps only [`hash`] of it.
+/// A fresh credential. Shown to the agent once; haex-vault keeps only [`hash`] of it.
 pub struct Credential(String);
 
 impl Credential {

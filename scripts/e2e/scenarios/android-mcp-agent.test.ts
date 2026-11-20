@@ -5,10 +5,10 @@ import { connectOverHttp } from '../lib/mcp-http.ts'
 import { runAction, waitForLocation } from '../lib/settings.ts'
 
 // Spec 021 T097 (US1, US8 on Android, quickstart M9): a phone has no `--mcp-agent` helper, so
-// external agents reach holzi over loopback HTTP with OAuth. The access is off until it is turned
-// on in Einstellungen → KI → Externe Agenten; then the settings show the HTTP snippets with holzi's
+// external agents reach haex-vault over loopback HTTP with OAuth. The access is off until it is turned
+// on in Einstellungen → KI → Externe Agenten; then the settings show the HTTP snippets with haex-vault's
 // port and none for the program way. An MCP client in the test driver (through `adb forward`)
-// registers, opens the authorization page, the person registers it in holzi's dialog with the
+// registers, opens the authorization page, the person registers it in haex-vault's dialog with the
 // preset rights (reading) and the approval mode Auto (no prompt per call), and the client lists and
 // calls a reading tool.
 scenario(

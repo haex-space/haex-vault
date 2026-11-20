@@ -78,7 +78,7 @@ async fn a_change_in_haex_reaches_the_raw_contact_in_its_account() {
     assert_eq!(summary.counts.written, 1);
     assert_eq!(rig.book.values(raw, "Email"), vec!["anna@example.org"]);
 
-    // holzi's own write does not come back as a change of the phone.
+    // haex-vault's own write does not come back as a change of the phone.
     let ops = rig.book.ops().len();
     let again = rig.run(Mode::Normal).expect("again");
     assert_eq!(again.counts, Counts::default());
@@ -215,7 +215,7 @@ async fn deleting_many_on_the_phone_waits_for_the_person() {
         Some(Paused::MassDelete)
     );
 
-    // "Keep": the contacts stay in holzi and go to the phone again.
+    // "Keep": the contacts stay in haex-vault and go to the phone again.
     let summary = rig.run(Mode::Decided(MassDecision::Keep)).expect("keep");
     assert_eq!(summary.paused, None);
     assert_eq!(rig.headers().len(), 100);
@@ -333,7 +333,7 @@ async fn a_change_a_read_only_account_cannot_take_stays_and_is_shown() {
     assert_eq!(
         rig.contact(&id).values[0].value,
         "0170 7654321",
-        "holzi keeps its change"
+        "HaexVault keeps its change"
     );
     assert_eq!(rig.status().issues[0].reason, IssueReason::ReadOnly);
 }

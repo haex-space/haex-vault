@@ -1,13 +1,13 @@
 //! Operating a page (spec 065 US2, research R4, R5): clicking, typing and choosing. Clicks and
 //! typing are real input events at the element the reading script numbered; choosing sets a
-//! selection list from holzi's world. A website the agent may only read refuses all of it
+//! selection list from haex-vault's world. A website the agent may only read refuses all of it
 //! (`read_only_site`, FR-008).
 //!
 //! Each action asks once at most (contracts/browser-tools.md "Freigabe"): in Manuell before it
 //! changes something, in Manuell and Auto before it submits (research R5 step 1). A submit the user
 //! allowed lets exactly its next changing request go ([`Session::arm`]); any other such request
 //! asks on its own (step 2). The action reports after the page settled and every question it set
-//! off is answered. Its input is holzi's own ([`Session::own`]): the marker's report of it does
+//! off is answered. Its input is haex-vault's own ([`Session::own`]): the marker's report of it does
 //! not pause the agent.
 
 use std::sync::Arc;

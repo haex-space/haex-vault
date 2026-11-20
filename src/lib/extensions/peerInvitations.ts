@@ -1,4 +1,4 @@
-// The queue of invitations that holzi's prompt asks about (spec 057 US1, T043): Rust sends
+// The queue of invitations that haex-vault's prompt asks about (spec 057 US1, T043): Rust sends
 // `extension-peer-invitation` for each and `extension-peer-invitation-gone` when one goes away.
 // Pure: the store moves it, `scripts/check-extensions-peer-invitations.ts` tests it. One
 // invitation is shown at a time, the oldest first.

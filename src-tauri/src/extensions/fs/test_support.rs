@@ -1,5 +1,5 @@
 //! Test support of the filesystem tests: a vault, an extension host with a fake dialog and viewer,
-//! and a granted folder that holds one of holzi's protected places.
+//! and a granted folder that holds one of haex-vault's protected places.
 
 // The setup sets permissions and creates files directly.
 #![allow(clippy::disallowed_methods)]
@@ -74,7 +74,7 @@ impl FileDialogs for FakeDialogs {
 pub(crate) struct Setup {
     _vault_dir: tempfile::TempDir,
     _files: tempfile::TempDir,
-    /// A folder the tests grant, holding a protected folder of holzi.
+    /// A folder the tests grant, holding a protected folder of haex-vault.
     pub(crate) root: PathBuf,
     pub(crate) outside: PathBuf,
     pub(crate) protected: PathBuf,

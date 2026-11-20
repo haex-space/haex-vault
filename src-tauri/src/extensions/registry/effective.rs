@@ -17,7 +17,7 @@ pub struct EffectiveBundle {
 }
 
 /// Every bundle of the extension that is not retired, with its version. Rows whose version or id
-/// does not parse are skipped (they cannot have been written by holzi).
+/// does not parse are skipped (they cannot have been written by haex-vault).
 pub fn live_bundles(q: &mut impl Query, extension_id: Uuid) -> Result<Vec<EffectiveBundle>> {
     let rows = q.query_map(
         "SELECT id, version FROM extension_bundles WHERE extension_id = ?1 AND retired = 0",

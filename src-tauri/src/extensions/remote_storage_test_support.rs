@@ -1,5 +1,5 @@
 //! The setup of the remote storage tests of the bridge (spec 038): a vault with an identity, the
-//! probe extension installed, the fake provider in the host for S3 and holzi's WebDAV client for
+//! probe extension installed, the fake provider in the host for S3 and haex-vault's WebDAV client for
 //! WebDAV (spec 050), two S3 storages the user made in the settings, and events that answer
 //! storage dialogs as a test sets them. [`Setup::add_webdav`] adds a storage on a WebDAV server
 //! of the test process ([`WebdavServer`]).
@@ -39,12 +39,12 @@ pub(crate) const ENDPOINT: &str = "http://127.0.0.1:9000";
 pub(crate) const REGION: &str = "region-leak-marker";
 
 /// Records events and answers storage dialogs with the answers set for the test, one after the
-/// other, as holzi's windows would after a failed test.
+/// other, as haex-vault's windows would after a failed test.
 pub(crate) struct Events {
     pub host: Arc<ExtensionHost>,
     pub seen: Mutex<Vec<(String, Value)>>,
     pub answers: Mutex<Vec<StorageAnswer>>,
-    /// What holzi's window learned of each answer with credentials.
+    /// What haex-vault's window learned of each answer with credentials.
     pub trials: Mutex<Vec<oneshot::Receiver<StorageTrial>>>,
     /// Close the frame instead of answering.
     pub close_frame: Mutex<bool>,
@@ -96,7 +96,7 @@ impl Events {
         *self.answers.lock().expect("lock") = answers;
     }
 
-    /// What holzi's window learned of each answer with credentials so far.
+    /// What haex-vault's window learned of each answer with credentials so far.
     pub fn trials(&self) -> Vec<Option<StorageTrial>> {
         self.trials
             .lock()
@@ -111,7 +111,7 @@ pub(crate) struct Setup {
     _dir: tempfile::TempDir,
     pub vault: VaultDb,
     pub fake: Arc<FakeStore>,
-    /// The fake for S3 and holzi's WebDAV client, as the host's storage calls see them.
+    /// The fake for S3 and haex-vault's WebDAV client, as the host's storage calls see them.
     pub store: Arc<dyn ObjectStore>,
     pub events: Arc<Events>,
     pub ctx: CallContext,

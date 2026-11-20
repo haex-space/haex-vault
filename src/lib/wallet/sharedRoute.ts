@@ -1,4 +1,4 @@
-// Which dialog a file shared to holzi opens (spec 092, FR-037). Pure, so
+// Which dialog a file shared to haex-vault opens (spec 092, FR-037). Pure, so
 // `scripts/check-wallet-shared.ts` runs it without the generated bindings.
 
 /** What a shared file is (`SharedKind` of the bindings). */

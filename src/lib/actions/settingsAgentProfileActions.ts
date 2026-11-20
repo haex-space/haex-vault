@@ -27,7 +27,7 @@ export const RIGHTS_SCHEMA = {
     operate: {
       type: 'object',
       description:
-        'Per scope of "holzi bedienen" (wm.read, wm.navigation, wm.layout, chat.read, chat.write, settings.read, settings.device, settings.models): "read" or "write".',
+        'Per scope of "HaexVault bedienen" (wm.read, wm.navigation, wm.layout, chat.read, chat.write, settings.read, settings.device, settings.models): "read" or "write".',
     },
     browser: {
       type: 'object',
@@ -119,7 +119,7 @@ export const AGENT_PROFILE_ACTIONS: readonly ActionDefinition[] = [
     id: 'settings.agents.profiles.rights.set',
     titleKey: 'actions.settings.agents.profiles.rights.set',
     description:
-      'Set what every agent in an agent profile may do, in every kind of access at once: "holzi bedienen" per scope and the rights groups "browser", "passwords", "extensions" and "commands". A scope left out is nothing; a group left out is off. User only.',
+      'Set what every agent in an agent profile may do, in every kind of access at once: "HaexVault bedienen" per scope and the rights groups "browser", "passwords", "extensions" and "commands". A scope left out is nothing; a group left out is off. User only.',
     input: {
       type: 'object',
       properties: { id: PROFILE_ID, rights: RIGHTS_SCHEMA },

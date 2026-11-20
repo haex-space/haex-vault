@@ -52,7 +52,7 @@ fn required<'a>(field: &'static str, value: &'a str) -> Result<&'a str> {
     Ok(value)
 }
 
-/// Bytes stored as text by the import or by holzi: standard or URL-safe Base64, padded or not.
+/// Bytes stored as text by the import or by haex-vault: standard or URL-safe Base64, padded or not.
 fn stored_bytes(text: &str) -> Option<Vec<u8>> {
     let text = text.trim();
     STANDARD

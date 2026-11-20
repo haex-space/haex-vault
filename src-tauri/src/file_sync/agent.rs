@@ -2,7 +2,7 @@
 //! research R11). Every call needs the agent's permission "Sync-Regeln verwalten". Reading the rules
 //! and their status runs without a question; creating, changing and deleting a rule waits for the
 //! user's confirmation in the window, every time and whatever the approval mode. The rule is checked
-//! before the question, so holzi's own places and contacts' shares are refused without asking
+//! before the question, so haex-vault's own places and contacts' shares are refused without asking
 //! (FR-002). A confirmed rule runs on its own, with what the user confirmed (FR-036).
 
 use std::sync::{Arc, Mutex};
@@ -49,7 +49,7 @@ pub trait SyncRulesEnv: Send + Sync {
     /// The open vault and this device's `vault_device_uuid`.
     async fn vault(&self) -> Result<(VaultDb, String), SyncRuleError>;
 
-    /// holzi's own places, never a place of a rule (FR-002).
+    /// haex-vault's own places, never a place of a rule (FR-002).
     fn own(&self) -> OwnPlaces;
 
     fn confirm(&self) -> &SyncRuleConfirm;
@@ -72,7 +72,7 @@ pub struct SyncRulesAgent<E> {
 }
 
 impl<E: SyncRulesEnv> SyncRulesAgent<E> {
-    /// The executor of the agent of the holzi chat.
+    /// The executor of the agent of the haex-vault chat.
     pub fn builtin(env: E) -> Self {
         Self { env }
     }

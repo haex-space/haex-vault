@@ -3,7 +3,7 @@
 /**
  * Why a bundle was refused: the error kind of the format (`archive_invalid`, `file_mismatch`, …,
  * contracts/bundle-format.md) and, for entry-level errors and `file_mismatch`, the path inside the
- * bundle. holzi adds [`BundleRejection::FORBIDDEN_PERMISSION`] with the manifest's category.
+ * bundle. haex-vault adds [`BundleRejection::FORBIDDEN_PERMISSION`] with the manifest's category.
  */
 export type BundleRejection = { kind: string, path?: string,
 /**

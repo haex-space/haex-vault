@@ -3,6 +3,6 @@ import type { DnsPreset } from "./DnsPreset";
 import type { DnsSettings } from "./DnsSettings";
 
 /**
- * What "KI → Browser" shows: the choice and the providers holzi knows by itself.
+ * What "KI → Browser" shows: the choice and the providers haex-vault knows by itself.
  */
 export type DnsOverview = { settings: DnsSettings, presets: Array<DnsPreset>, };

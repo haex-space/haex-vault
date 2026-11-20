@@ -1,7 +1,7 @@
 //! An extension proposes a WebDAV storage (spec 050 US6, T056, contracts/bridge.md): the `add`
 //! permission names host and port of the address, credentials of every kind are refused before any
 //! dialog, `sameProviderAs` keeps to one protocol, a missing folder is made only on the user's
-//! word in holzi's window, and a change of a WebDAV storage knows `folder`, not `bucket`.
+//! word in haex-vault's window, and a change of a WebDAV storage knows `folder`, not `bucket`.
 
 use serde_json::{json, Value};
 use zeroize::Zeroizing;
@@ -73,7 +73,7 @@ fn a_webdav_proposal_asks_for_its_host_and_makes_a_missing_folder_only_on_the_us
             }),
             Some(StorageTrial::Ended),
         ],
-        "the missing folder goes back to holzi's window, which says to make it"
+        "the missing folder goes back to HaexVault's window, which says to make it"
     );
     let dialog = s.events.dialogs().pop().expect("a dialog");
     assert_eq!(dialog["proposal"]["protocol"], json!("webdav"));
@@ -114,7 +114,7 @@ fn credentials_of_every_kind_are_refused_before_any_dialog() {
                 .call("extension_remote_storage_add_backend", call)
                 .unwrap_err();
             assert_eq!(error.code.as_u16(), 3001, "{field}");
-            assert_eq!(error.message, "credentials are entered in holzi");
+            assert_eq!(error.message, "credentials are entered in HaexVault");
         }
     }
     assert!(s.events.dialogs().is_empty(), "no dialog appeared");

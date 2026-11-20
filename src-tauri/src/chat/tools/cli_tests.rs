@@ -211,7 +211,7 @@ fn the_description_keeps_the_model_from_reaching_haex_data_through_the_shell() {
         "{description}"
     );
     assert!(
-        description.contains("not holzi's apps or extensions"),
+        description.contains("not HaexVault's apps or extensions"),
         "{description}"
     );
     assert!(

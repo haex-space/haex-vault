@@ -1,5 +1,5 @@
 //! Delegates in the chat (spec 021 US6, FR-024, FR-025, research R7, data-model.md; spec 083 PR J):
-//! Claude Code and Codex, which holzi starts itself (specs 007/009). Each running model has a
+//! Claude Code and Codex, which haex-vault starts itself (specs 007/009). Each running model has a
 //! technical row in `haex_mcp_agents` with an id derived from the device, kind and model; it asks
 //! nothing and carries no rights of its own. What a delegate may do is the profile of the model
 //! the start runs with, like for any model (FR-027, FR-028). Each start gets a pass that lives only
@@ -44,7 +44,7 @@ pub fn slug_of(kind: AgentKind) -> Option<&'static str> {
     }
 }
 
-/// The name the registration dialog shows; holzi starts the delegate, so it is no claim.
+/// The name the registration dialog shows; haex-vault starts the delegate, so it is no claim.
 fn name_of(kind: AgentKind) -> &'static str {
     match kind {
         AgentKind::CodexDelegate => "Codex",
@@ -189,10 +189,10 @@ impl HaexAccess for DelegateHub {
         thread: Option<Uuid>,
         model: &str,
     ) -> Option<HaexServer> {
-        // Every refusal below says why: a delegate without holzi's server answers that holzi's
+        // Every refusal below says why: a delegate without haex-vault's server answers that haex-vault's
         // tools are not available, and nothing else shows where the server was withheld.
         let Some(core) = self.core() else {
-            log::info!("mcp server: no holzi tools for a delegate, the server is not running");
+            log::info!("mcp server: no HaexVault tools for a delegate, the server is not running");
             return None;
         };
         let kind = kind_of(vendor);
@@ -227,7 +227,7 @@ impl HaexAccess for DelegateHub {
             Ok(true) => {}
             Ok(false) => {
                 log::info!(
-                    "mcp server: no holzi tools for the delegate model {model}, the active agent \
+                    "mcp server: no HaexVault tools for the delegate model {model}, the active agent \
                      profile does not offer it"
                 );
                 return None;
@@ -267,14 +267,14 @@ impl HaexAccess for DelegateHub {
     }
 }
 
-/// Whether a delegate has holzi's tools, as the chat shows it (FR-025).
+/// Whether a delegate has haex-vault's tools, as the chat shows it (FR-025).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub enum DelegateStatus {
-    /// The MCP access is off; no delegate gets holzi's tools.
+    /// The MCP access is off; no delegate gets haex-vault's tools.
     Off,
-    /// The delegate gets holzi's tools as far as the profile of its model allows (FR-029).
+    /// The delegate gets haex-vault's tools as far as the profile of its model allows (FR-029).
     Available,
 }
 

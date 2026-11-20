@@ -2,6 +2,6 @@
 import type { DnsProvider } from "./DnsProvider";
 
 /**
- * A provider holzi knows by itself.
+ * A provider haex-vault knows by itself.
  */
 export type DnsPreset = { id: DnsProvider, name: string, url: string, };

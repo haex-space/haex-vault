@@ -1,7 +1,7 @@
 //! An extension proposes a new storage (spec 038 US3, FR-009b, FR-013; spec 050 US6,
 //! contracts/bridge.md): on the connection of a storage it may read (`sameProviderAs`, same
 //! protocol only), on an S3 endpoint or AWS by region, or on a WebDAV address. Every proposal goes
-//! through holzi's dialog; credentials are typed only in holzi's window over the whole app. A
+//! through haex-vault's dialog; credentials are typed only in haex-vault's window over the whole app. A
 //! missing folder of a WebDAV storage is made only when the user says so in that dialog (050
 //! FR-006).
 
@@ -182,7 +182,7 @@ fn add_webdav(
 
 /// An SFTP storage on a proposed server (spec 050 US6): `config: {host, port?, folder}`, port 22
 /// unless given. The host key is never part of a proposal: the user confirms the one the server
-/// shows in holzi's window (FR-017b).
+/// shows in haex-vault's window (FR-017b).
 fn add_sftp(
     ctx: &CallContext,
     service: &StorageService,
@@ -227,7 +227,7 @@ fn add_sftp(
 }
 
 /// The new storage of `target`: on an existing connection the user picks, or on a new one with
-/// credentials typed in holzi's window.
+/// credentials typed in haex-vault's window.
 fn add_on_endpoint(
     ctx: &CallContext,
     service: &StorageService,

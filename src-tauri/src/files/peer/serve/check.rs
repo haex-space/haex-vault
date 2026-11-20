@@ -1,5 +1,5 @@
 //! The decision on every request (spec 056 FR-004, FR-005, FR-007): what the mode of the connection,
-//! the grant read for this very request and holzi's own places allow. Pure, so every rule is tested
+//! the grant read for this very request and haex-vault's own places allow. Pure, so every rule is tested
 //! without a connection.
 
 use crate::files::peer::wire::{Caller, Expected, FailCode, Mode, Op};
@@ -61,7 +61,7 @@ pub fn at_root(op: &Op, key: &str) -> Result<(), FailCode> {
     }
 }
 
-/// Whether a request about a path in holzi's own places (`own`) may run (FR-007): an own device's
+/// Whether a request about a path in haex-vault's own places (`own`) may run (FR-007): an own device's
 /// user may read there as in the local file browser, an agent and a contact may not reach it at all.
 pub fn own_data(mode: Mode, caller: Caller, writes: bool, own: bool) -> Result<(), FailCode> {
     if !own {
@@ -73,7 +73,7 @@ pub fn own_data(mode: Mode, caller: Caller, writes: bool, own: bool) -> Result<(
     }
 }
 
-/// Whether entries in holzi's own places are left out of a listing: for agents and contacts, who
+/// Whether entries in haex-vault's own places are left out of a listing: for agents and contacts, who
 /// never see them (FR-007; for agents as `access::visible_to` does locally).
 pub fn hides_own(mode: Mode, caller: Caller) -> bool {
     !(mode == Mode::OwnDevice && caller == Caller::User)

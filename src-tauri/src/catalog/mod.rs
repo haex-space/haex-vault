@@ -75,7 +75,7 @@ pub struct CatalogDrafter {
     /// `general.architecture` the file must state before it is loaded.
     pub architecture: String,
     /// Allows the drafter while the model sits only partly on the GPU (research R7 rule 3). Set only after
-    /// a measurement in holzi's own placement showed a gain.
+    /// a measurement in haex-vault's own placement showed a gain.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub measured_partly_on_gpu: bool,
 }

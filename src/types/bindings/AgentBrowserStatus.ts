@@ -13,7 +13,7 @@ available: boolean,
  */
 chosenPath: string | null,
 /**
- * The browser holzi would start now.
+ * The browser haex-vault would start now.
  */
 foundPath: string | null,
 /**

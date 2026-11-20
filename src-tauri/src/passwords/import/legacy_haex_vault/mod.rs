@@ -1,5 +1,5 @@
 //! Import from haex-vault 2.x (Legacy) (spec 037): haex-vault 2.x has no export, so its vault file is read directly.
-//! The password manager of holzi took its data model from haex-vault 2.x (spec 034), so the mapping is
+//! The password manager of haex-vault took its data model from haex-vault 2.x (spec 034), so the mapping is
 //! nearly one to one (`specs/037-haex-vault-import/contracts/haex-vault-mapping.md`). Unlike the
 //! other parsers this one needs the file on disk, not its bytes: it opens a copy with the vault
 //! password ([`open`]), checks the layout and reads the rows ([`read`]).

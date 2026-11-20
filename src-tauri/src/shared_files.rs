@@ -1,4 +1,4 @@
-//! Files another app shared to holzi (spec 092, FR-037, FR-035, `contracts/android-intents.md`): a
+//! Files another app shared to haex-vault (spec 092, FR-037, FR-035, `contracts/android-intents.md`): a
 //! pkpass, a PDF or a picture from the share sheet of Android. The Kotlin side copies each shared
 //! stream at once into the app's own cache directory (the read permission of the address is
 //! transient) and reports the copy; this store holds the copies until the window asks for them,

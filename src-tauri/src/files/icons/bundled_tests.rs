@@ -342,7 +342,7 @@ fn every_state_resolves_for_both_packs_and_never_takes_a_name_or_extension_image
             );
             assert!(
                 image.starts_with("icons/haex-"),
-                "{set:?} {state}: the state has holzi's own image, not {image}"
+                "{set:?} {state}: the state has HaexVault's own image, not {image}"
             );
         }
     }

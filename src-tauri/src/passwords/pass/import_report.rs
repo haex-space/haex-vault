@@ -28,8 +28,8 @@ pub fn render_text(reports: &[PassImportReport]) -> String {
         for item in &report.not_kept {
             let why = match item.why.as_str() {
                 WHY_UPDATE_SERVICE => "the update service is never called",
-                WHY_NOT_SUPPORTED => "not used by holzi",
-                WHY_OVER_LIMIT => "more than holzi keeps",
+                WHY_NOT_SUPPORTED => "not used by HaexVault",
+                WHY_OVER_LIMIT => "more than HaexVault keeps",
                 _ => "could not be read",
             };
             text.push_str(&format!("  Not kept: {} ({why})\n", item.what));

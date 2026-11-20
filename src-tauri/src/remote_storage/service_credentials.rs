@@ -1,6 +1,6 @@
 //! Credentials as the window typed them, checked against the protocol of their connection (spec
 //! 050 contracts/tauri-commands.md): an access key for S3, a password for WebDAV and SFTP, a key or
-//! a key holzi generated for SFTP. Secrets are kept exactly as entered.
+//! a key haex-vault generated for SFTP. Secrets are kept exactly as entered.
 
 use zeroize::Zeroizing;
 
@@ -65,7 +65,7 @@ pub(super) fn credentials_of(input: CredentialsInput, protocol: Protocol) -> Res
                 passphrase: passphrase.filter(|text| !text.is_empty()),
             }))
         }
-        // A key holzi generated: its private half from the process (research R4).
+        // A key haex-vault generated: its private half from the process (research R4).
         (CredentialsInput::GeneratedKey { username, key_id }, Protocol::Sftp) => {
             let username = username.trim().to_owned();
             let private_key = keys::pending()

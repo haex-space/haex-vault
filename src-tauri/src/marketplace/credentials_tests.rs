@@ -218,7 +218,7 @@ async fn the_form_creates_a_tagged_entry_only_the_user_and_this_module_see() {
         .unwrap_err();
     assert!(
         matches!(hidden, HaexError::PasswordsNotFound),
-        "rule Z14: another holzi function does not see it"
+        "rule Z14: another HaexVault function does not see it"
     );
     assert!(matches!(
         credentials::read(&pw, &db, MarketplaceAuthType::Bearer, &item)

@@ -28,7 +28,7 @@ fn structured(result: &rmcp::model::CallToolResult) -> Value {
     result.structured_content.clone().unwrap_or(Value::Null)
 }
 
-/// Contract "unavailable": holzi could not reach the extension.
+/// Contract "unavailable": haex-vault could not reach the extension.
 #[tokio::test]
 async fn an_extension_that_cannot_be_reached_is_unavailable() {
     let def = ExtensionToolDef {
@@ -67,7 +67,7 @@ fn the_data_of_the_extension_comes_back_as_it_is() {
     assert_eq!(structured(&result), answer);
 }
 
-/// An error the extension answered keeps its data; a failure inside holzi says nothing internal.
+/// An error the extension answered keeps its data; a failure inside haex-vault says nothing internal.
 #[test]
 fn an_error_keeps_the_extension_s_data_but_never_haex_s_internals() {
     let (own, outcome) = extension_result(ToolResult::error(

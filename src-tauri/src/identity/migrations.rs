@@ -15,7 +15,7 @@
 //! columns (`haex_hlc_no_sync`, `haex_column_hlcs_no_sync`,
 //! `haex_column_sigs_no_sync`) added by haex-crdt's `CrdtTransformer` at
 //! migration time, and the triggers installed by
-//! `ensure_triggers_initialized` inside `Database::open`. holzi does NOT
+//! `ensure_triggers_initialized` inside `Database::open`. haex-vault does NOT
 //! call `install_crdt` (Etappe-0 finding: the transformer + trigger
 //! installer cover every non-`_no_sync` *table* automatically).
 //!
@@ -76,7 +76,7 @@ use super::migrations_sync_runs_timing::SYNC_RUNS_TIMING_0064;
 use super::migrations_tts_voices::TTS_VOICES_0052;
 use super::migrations_voice::VOICE_0050;
 
-/// CRDT trigger-schema version holzi installs on open.
+/// CRDT trigger-schema version haex-vault installs on open.
 ///
 /// haex-crdt bakes the tracked-column list into each table's
 /// `AFTER UPDATE OF <cols>` trigger when the trigger is created, and
@@ -156,7 +156,7 @@ use super::migrations_voice::VOICE_0050;
 ///   and added the CRDT-tracked `extension_default_model`.
 pub const HAEX_TRIGGER_VERSION: i32 = 41;
 
-/// Returns the frozen holzi migration set at the pinned haex-crdt revision.
+/// Returns the frozen haex-vault migration set at the pinned haex-crdt revision.
 pub fn haex_migration_source() -> Arc<StaticMigrationSource> {
     let mut m: BTreeMap<MigrationName, String> = BTreeMap::new();
 

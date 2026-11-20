@@ -17,7 +17,7 @@ const fieldLabels = useFieldLabels()
 
 type Field = keyof ExtensionLimits
 
-/** The fields in the order shown; their bounds come from holzi, which alone checks them. */
+/** The fields in the order shown; their bounds come from haex-vault, which alone checks them. */
 const FIELDS: Field[] = [
   'maxRows',
   'maxConcurrent',

@@ -1,6 +1,6 @@
 // File actions for agents (spec 044 US6, contracts/agent-actions.md, ADR 0011). All but
 // `files.show` run in Rust without a window (`runner: 'native'`, `src-tauri/src/files/agent/`);
-// Rust fixes the caller, keeps holzi's own data closed and asks the user for a storage.
+// Rust fixes the caller, keeps haex-vault's own data closed and asks the user for a storage.
 // `files.show` opens the file browser and runs here (`stores/filesActionHandlers.ts`). Pure,
 // relative `.ts` imports only.
 import type { ActionDefinition, JsonSchema } from './types.ts'
@@ -79,7 +79,7 @@ export const FILES_ACTIONS: readonly ActionDefinition[] = [
     id: 'files.sources',
     titleKey: 'actions.files.sources',
     description:
-      'Where files can be reached: the drives and known folders of this device (source "device") and the storages you have access to (source "storage:<id>"). Call it first to learn where to list or search. A storage the user names but that is not listed can be used as "storage:<name>"; holzi asks the user then.',
+      'Where files can be reached: the drives and known folders of this device (source "device") and the storages you have access to (source "storage:<id>"). Call it first to learn where to list or search. A storage the user names but that is not listed can be used as "storage:<name>"; HaexVault asks the user then.',
     input: { type: 'object' },
     result: {
       type: 'object',

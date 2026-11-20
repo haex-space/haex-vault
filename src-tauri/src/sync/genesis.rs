@@ -31,7 +31,7 @@ use crate::sync::device_list::{self, DeviceList, ListedDevice, Role};
 use crate::sync::keys;
 
 /// Name used in the device list when this installation has no alias yet.
-pub(crate) const FALLBACK_DEVICE_NAME: &str = "holzi";
+pub(crate) const FALLBACK_DEVICE_NAME: &str = "HaexVault";
 
 /// What [`ensure_sync_state`] found or created.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -23,7 +23,7 @@ use crate::vault_gate::VaultGate;
 
 /// Signs the bundles of these tests only; derived from a public seed, never trusted elsewhere.
 pub(super) fn key() -> SigningKey {
-    let seed = Sha256::digest(b"holzi spec 017 lifecycle tests only, never use for signing");
+    let seed = Sha256::digest(b"HaexVault spec 017 lifecycle tests only, never use for signing");
     SigningKey::from_bytes(&seed.into())
 }
 

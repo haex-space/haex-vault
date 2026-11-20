@@ -1,6 +1,6 @@
 //! The way from an extension to its grant (spec 055 US9, R17, `contracts/bridge.md`): the user
-//! chooses models and effort in holzi, never in the extension. The extension may open holzi's
-//! page of its own models, and ask for a grant before its first job: holzi asks as it would for
+//! chooses models and effort in haex-vault, never in the extension. The extension may open haex-vault's
+//! page of its own models, and ask for a grant before its first job: haex-vault asks as it would for
 //! that job, without a destination and without sending anything.
 
 use serde::Deserialize;
@@ -14,7 +14,7 @@ use super::preflight::{ask_for_model, read_facts};
 use crate::extensions::bridge::dispatch::CallContext;
 use crate::extensions::error::BridgeError;
 
-/// Tells holzi's window to show the model settings of an extension.
+/// Tells haex-vault's window to show the model settings of an extension.
 pub(crate) const MODEL_SETTINGS_EVENT: &str = "extension-open-model-settings";
 
 #[derive(Deserialize)]

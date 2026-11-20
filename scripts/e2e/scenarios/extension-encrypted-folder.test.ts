@@ -51,7 +51,7 @@ function text(page: Page, testid: string): Promise<string> {
 }
 
 // Spec 048, US6 extension part (quickstart §8, T065): an extension without `remoteStorage` is
-// refused without a question; with it, holzi's chooser names the folders and asks in the same
+// refused without a question; with it, haex-vault's chooser names the folders and asks in the same
 // view; an answer without "Erlaubnis merken" holds until the extension reloads, one with it is not
 // asked again; a revoke holds at once. The forbidden encrypted-folder manifest case is covered by
 // the Rust registry/developer-mode tests because developer project folders are not available on

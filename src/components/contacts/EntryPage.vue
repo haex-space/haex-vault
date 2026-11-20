@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * One contact (spec 051, FR-002, FR-003, FR-006, FR-007, FR-018a): photo or initials, name and
- * organization, every value grouped by kind with copy and open, the holzi addresses (confirmed ones
+ * organization, every value grouped by kind with copy and open, the haex-vault addresses (confirmed ones
  * from the contact's Visitenkarte, FR-008), the note, the
  * groups, the phones it goes to and where the contact came from. Values of a kind this version does not know show as they
  * are, read-only. Reloads quietly when the contact changes elsewhere.
@@ -60,7 +60,7 @@ watch(
 
 const KIND_ORDER = KINDS.map((kind) => kind.id as string)
 
-/** The values without the holzi addresses, by kind; unknown kinds last. */
+/** The values without the haex-vault addresses, by kind; unknown kinds last. */
 const groupedValues = computed(() => {
   const groups = new Map<string, ContactValue[]>()
   for (const value of contact.value?.values ?? []) {

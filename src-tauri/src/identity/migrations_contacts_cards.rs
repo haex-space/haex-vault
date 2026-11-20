@@ -3,7 +3,7 @@
 //!
 //! The old table (`vault_pubkey` as the primary key) is dropped and made again; no row is copied.
 //! The key of a row is the SHA-256 of the card's signed payload, which only Rust can compute, so an
-//! old row could not get its key in SQL. **Confirmed holzi addresses of existing contacts go with
+//! old row could not get its key in SQL. **Confirmed haex-vault addresses of existing contacts go with
 //! it and come back when their card is read again**; the contacts stay. `DROP TABLE` fires no
 //! triggers, so no delete marker reaches other devices (precedent: `0021_own_device_sync`), and
 //! `HAEX_TRIGGER_VERSION` is raised so the new table gets its triggers on every existing vault.

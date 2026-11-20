@@ -1,6 +1,6 @@
 //! The OAuth endpoints of the HTTP way (spec 021 US1, T094, contracts/http-auth.md): metadata,
 //! dynamic client registration, the authorization page that waits for the registration dialog in
-//! the holzi window, and the token endpoint.
+//! the haex-vault window, and the token endpoint.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -165,7 +165,7 @@ pub(super) async fn token(context: &HttpContext, body: &Bytes) -> Response<Body>
     }
 }
 
-/// The page in the browser: "In holzi bestätigen" while the dialog is open, refreshing itself;
+/// The page in the browser: "In haex-vault bestätigen" while the dialog is open, refreshing itself;
 /// no script, no outside resource. Rust has no localized texts, so the page names both languages.
 fn page(code: StatusCode, waiting: Option<&str>, failure: &str) -> Response<Body> {
     let refresh = waiting
@@ -176,12 +176,12 @@ fn page(code: StatusCode, waiting: Option<&str>, failure: &str) -> Response<Body
         })
         .unwrap_or_default();
     let text = if waiting.is_some() {
-        "<h1>In holzi bestätigen</h1><p>Confirm in holzi</p>".to_owned()
+        "<h1>In HaexVault bestätigen</h1><p>Confirm in HaexVault</p>".to_owned()
     } else {
-        format!("<h1>holzi</h1><p>{failure}</p>")
+        format!("<h1>HaexVault</h1><p>{failure}</p>")
     };
     let html = format!(
-        "<!doctype html><html><head><meta charset=\"utf-8\"><title>holzi</title>{refresh}\
+        "<!doctype html><html><head><meta charset=\"utf-8\"><title>HaexVault</title>{refresh}\
          <style>body{{font-family:system-ui,sans-serif;margin:3rem auto;max-width:28rem;\
          text-align:center}}</style></head><body>{text}</body></html>"
     );

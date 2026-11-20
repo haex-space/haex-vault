@@ -144,7 +144,7 @@ async fn haexs_own_data_is_never_shared() {
         device: &anna.uuid,
         own: &own,
     };
-    let refused = super::save(&here, args(&anna.own_place(), "holzi", Vec::new()))
+    let refused = super::save(&here, args(&anna.own_place(), "haex-vault", Vec::new()))
         .await
         .expect_err("own data");
     assert_eq!(refused.code, FilesErrorCode::HaexOwned);

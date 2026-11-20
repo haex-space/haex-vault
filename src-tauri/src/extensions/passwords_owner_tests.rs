@@ -1,4 +1,4 @@
-//! Entries that belong to a holzi function (spec 038, rule Z14) through the bridge: an extension
+//! Entries that belong to a haex-vault function (spec 038, rule Z14) through the bridge: an extension
 //! with a `passwords` grant for `*` never reaches one, neither in a list nor by its id (SC-002).
 
 use serde_json::json;

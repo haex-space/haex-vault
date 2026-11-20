@@ -1,6 +1,6 @@
 //! The question when the model of a step could not take it (spec 055, changes of 2026-11-13 and
 //! 2026-11-14): a job goes to one model, the extension's default or, without one, the first it may
-//! use. holzi never tries another model on its own. When the model fails while the job runs (an
+//! use. haex-vault never tries another model on its own. When the model fails while the job runs (an
 //! unusable answer, no connection), or cannot be asked at all (the default cannot take the step or
 //! is no longer available, which is found before any request is sent), the job waits and the
 //! window asks the user which other model should take the step, and whether that model becomes the

@@ -1,5 +1,5 @@
 //! Links of the form `haex-vault://contact/…`, `haex-vault://pass/<id>` (spec 092, the pinned
-//! shortcut of a pass) and `mailto:…` opened outside holzi (spec 060 FR-018a, research R9; spec 063
+//! shortcut of a pass) and `mailto:…` opened outside haex-vault (spec 060 FR-018a, research R9; spec 063
 //! research R6).
 //! The plugin hands the link to the process: on Android and macOS as an event, on Linux and
 //! Windows as the argument of a **new** process. [`inbox`] gets such a link to the process that
@@ -21,7 +21,7 @@ use crate::state::AppState;
 /// Sent to the window with the link as payload when another process passed one on.
 pub const RECEIVED_EVENT: &str = "deep-link-received";
 
-/// What a link of a share starts with; the host `contact` is the only one holzi answers to.
+/// What a link of a share starts with; the host `contact` is the only one haex-vault answers to.
 pub const LINK_PREFIX: &str = "haex-vault://contact/";
 
 /// More than a share can be (spec 060 FR-018: 16,384 characters of text) is not a share.
@@ -56,10 +56,10 @@ fn inbox_dir(app: &AppHandle) -> Result<PathBuf> {
     Ok(get_app_local_data(app)?.join(inbox::INBOX_DIRECTORY))
 }
 
-/// Registers the scheme with the system where holzi is started from a build directory, so a
+/// Registers the scheme with the system where haex-vault is started from a build directory, so a
 /// link opens the binary being developed. Installed builds register through their package. Only
-/// `haex-vault`: `register_all` would also make holzi the program for `mailto` on a developer's
-/// machine, and holzi never makes itself the default (spec 063 FR-016).
+/// `haex-vault`: `register_all` would also make haex-vault the program for `mailto` on a developer's
+/// machine, and haex-vault never makes itself the default (spec 063 FR-016).
 #[cfg(any(target_os = "linux", windows))]
 pub fn register_for_development(app: &AppHandle) {
     use tauri_plugin_deep_link::DeepLinkExt;
@@ -70,7 +70,7 @@ pub fn register_for_development(app: &AppHandle) {
     }
 }
 
-/// A process the system started with a link as argument (Linux, Windows): when other holzi
+/// A process the system started with a link as argument (Linux, Windows): when other haex-vault
 /// processes run, the link goes to their inbox, and a process that another took it from has
 /// nothing left to do. Returns `true` then, and the caller ends the process. Otherwise the
 /// plugin keeps the link for the window (`getCurrent`).

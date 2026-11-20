@@ -1,5 +1,5 @@
 //! The building blocks of [`super::SftpStore`] (spec 050 research R3, R7–R9): paths below the
-//! folder of a storage, one level of a folder as holzi lists it, missing folders made below the
+//! folder of a storage, one level of a folder as haex-vault lists it, missing folders made below the
 //! storage's folder (never the storage's folder itself, FR-006), a file written through a
 //! temporary file, and a folder removed from the bottom up.
 

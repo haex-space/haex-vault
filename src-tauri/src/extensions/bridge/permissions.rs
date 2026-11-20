@@ -19,9 +19,9 @@ use crate::model_jobs::grants;
 use crate::model_jobs::Need;
 use crate::storage::query::Query;
 
-/// Event to holzi's window: a question for the user.
+/// Event to haex-vault's window: a question for the user.
 pub const PERMISSION_REQUEST: &str = "extension-permission-request";
-/// Event to holzi's window: a question nobody waits for any more.
+/// Event to haex-vault's window: a question nobody waits for any more.
 pub const PERMISSION_REQUEST_CANCELLED: &str = "extension-permission-request-cancelled";
 
 /// Puts the question of a 1004 answer before the user, once per identical open question. It names

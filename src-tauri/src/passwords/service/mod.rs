@@ -1,11 +1,11 @@
 //! `PasswordsService`: the single entrance to the data of the password manager (spec 034,
 //! `contracts/access.md` §Dienst, FR-024). The window, the built-in agent, extensions, external
-//! agents and holzi functions all come through here, each as a [`Caller`]; no code reads or writes
+//! agents and haex-vault functions all come through here, each as a [`Caller`]; no code reads or writes
 //! the `haex_passwords_*` tables around it, and the Tauri commands call nothing else.
 //!
 //! Every method takes the caller first and checks it before it touches data. The caller is the
 //! entrance, never an argument of a command: a command fixes it (`Caller::User` for the window,
-//! `Caller::BuiltinAgent` for the chat action), a holzi function passes `Caller::Internal` with a
+//! `Caller::BuiltinAgent` for the chat action), a haex-vault function passes `Caller::Internal` with a
 //! grant fixed in its code. Each area adds its methods in its own file (`items`, `organize`,
 //! `trash`, `history`, `attachments`, `passkeys`, `presets`, `import`, `usage`).
 //!

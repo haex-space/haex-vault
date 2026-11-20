@@ -1,16 +1,16 @@
-//! The frame shim (contracts/bridge.md §Rahmen-Shim): a small inline script holzi puts into every
+//! The frame shim (contracts/bridge.md §Rahmen-Shim): a small inline script haex-vault puts into every
 //! HTML document of an extension, right after `<head>`, so it runs before the extension's own
-//! scripts. It talks to holzi over its own port and reports navigation, title, close guards,
-//! `window.close()`, holzi's shortcuts and clicks into the frame.
+//! scripts. It talks to haex-vault over its own port and reports navigation, title, close guards,
+//! `window.close()`, haex-vault's shortcuts and clicks into the frame.
 //!
 //! WebKitGTK fires `load` on the frame element for a fragment navigation inside the frame, so
-//! holzi cannot take every `load` for a new document. The shim answers each init with
-//! `hello { fresh }`: `fresh` only on the first init of its document, and only then holzi hands
+//! haex-vault cannot take every `load` for a new document. The shim answers each init with
+//! `hello { fresh }`: `fresh` only on the first init of its document, and only then haex-vault hands
 //! the SDK a new port.
 //!
 //! The shim runs in the extension's realm, so every message it sends can be forged by the
-//! extension; holzi applies them only to the extension's own tab (bridge.md). Shortcuts arrive as
-//! fields (`code`, `ctrl`, `alt`, `shift`, `meta`) that holzi derives from its own chords, so the
+//! extension; haex-vault applies them only to the extension's own tab (bridge.md). Shortcuts arrive as
+//! fields (`code`, `ctrl`, `alt`, `shift`, `meta`) that haex-vault derives from its own chords, so the
 //! shim compares fields and holds no copy of the chord rules (`src/lib/wm/keybindings.ts`).
 //!
 //! ponytail: attention ("the tab wants attention") has no web equivalent the shim could observe;
@@ -95,8 +95,8 @@ pub const SHIM: &str = r#"(() => {
     send({ type: 'shortcut', id: hit.id });
   }, true);
 
-  // A click inside the frame never reaches holzi's own document, so the window around the frame
-  // could not come to the front; the shim says so, holzi raises the window.
+  // A click inside the frame never reaches haex-vault's own document, so the window around the frame
+  // could not come to the front; the shim says so, haex-vault raises the window.
   listen('pointerdown', () => send({ type: 'focus' }), true);
 
   const readShortcuts = (list) => (Array.isArray(list) ? list : []).filter((s) => s
@@ -132,10 +132,10 @@ pub const SHIM: &str = r#"(() => {
   });
 })();"#;
 
-/// The shim for the page of a development version (US12, research R16 addendum): holzi does not
+/// The shim for the page of a development version (US12, research R16 addendum): haex-vault does not
 /// serve that page, so its main window runs the same shim as an init script in every frame. It
 /// acts only in a frame on a development server's address (`dev::server_url`), the frames
-/// developer mode allows; a frame holzi serves has another address and gets the shim injected.
+/// developer mode allows; a frame haex-vault serves has another address and gets the shim injected.
 /// A sandboxed frame's origin is opaque, so the guard reads protocol and host of its URL.
 pub fn dev_init_script() -> String {
     let elsewhere = crate::extensions::dev::LOOPBACK

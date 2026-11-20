@@ -2,7 +2,7 @@
 import type { ContactCardDevice } from "./ContactCardDevice";
 
 /**
- * The confirmed holzi addresses of a contact, from its Visitenkarte (FR-008, FR-009).
+ * The confirmed haex-vault addresses of a contact, from its Visitenkarte (FR-008, FR-009).
  */
 export type ContactCardInfo = {
 /**

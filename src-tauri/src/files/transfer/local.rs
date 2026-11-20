@@ -116,7 +116,7 @@ pub fn prepare(
     Ok(totals)
 }
 
-/// Whether `job` would change holzi's own places (FR-037): moving or deleting a folder that holds
+/// Whether `job` would change haex-vault's own places (FR-037): moving or deleting a folder that holds
 /// one, or a folder merging into a folder of the same name that holds one. Reading them is allowed.
 pub fn touches_own(job: &Job, own: &OwnPlaces) -> bool {
     job.sources.iter().any(|source| {

@@ -1,4 +1,4 @@
-// Removing the copy of a file another app shared to holzi once it is read (spec 092, FR-035). The
+// Removing the copy of a file another app shared to haex-vault once it is read (spec 092, FR-035). The
 // copies are made by the Android side and held by the core until a vault is open
 // (`shared_files.rs`); a copy is only a path inside the app's own cache.
 import { invoke } from '@tauri-apps/api/core'

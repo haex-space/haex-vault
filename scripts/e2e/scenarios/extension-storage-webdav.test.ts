@@ -43,13 +43,13 @@ async function replaceText(page: Page, hook: string, text: string) {
 }
 
 // Spec 050, US3 and US6 (quickstart §6): an extension proposes a WebDAV storage. The add
-// permission names host and port of the address; holzi's dialog over the tab marks the local,
-// unencrypted address and has no field for a login; holzi's window over the whole app asks for
+// permission names host and port of the address; haex-vault's dialog over the tab marks the local,
+// unencrypted address and has no field for a login; haex-vault's window over the whole app asks for
 // username and password, names a wrong one, says the folder is missing and makes it only when the
 // user says so. Then the extension uses the storage as it would an S3 one: objects in its own
 // area, a name that differs only in case refused, and the folders it leaves empty removed up to
 // its area. Spec 052 US4 (quickstart §3): for a second storage the user takes an entry of the
-// password manager in holzi's window; the extension learns neither its id nor its title. Needs
+// password manager in haex-vault's window; the extension learns neither its id nor its title. Needs
 // Docker; skipped without it.
 scenario(
   'extension-storage-webdav',
@@ -148,7 +148,7 @@ scenario(
       'the extension never gets the login',
     )
     ctx.step(
-      'a login typed in holzi’s window; the folder made on the user’s word',
+      'a login typed in HaexVault’s window; the folder made on the user’s word',
     )
 
     const listed = await probeRequest(
@@ -256,6 +256,6 @@ scenario(
       entries,
       'SC-002: no copy of the chosen entry',
     )
-    ctx.step('an entry of the password manager chosen in holzi’s window')
+    ctx.step('an entry of the password manager chosen in HaexVault’s window')
   },
 )

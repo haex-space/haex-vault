@@ -114,10 +114,10 @@ function droppable(event: FrameEvent): boolean {
  * Events for one frame. Until the SDK confirms its port (`haexspace:port:ready`) they are held
  * (FR-042); a new port (the frame loaded again) starts holding again. At most
  * {@link MAX_HELD_EVENTS} are held: beyond that the oldest droppable event goes (`shell:output`,
- * a fast `peers:message`; holzi does not wait for a frame that never acknowledged, so a frame
+ * a fast `peers:message`; haex-vault does not wait for a frame that never acknowledged, so a frame
  * that never gets ready would hold a flooding shell's whole output); only when none is held, the
  * oldest event of any type goes. Losing a reliable `peers:message` is reported once per channel
- * through `onLost`, so holzi ends that channel instead of delivering it with a gap (spec 057
+ * through `onLost`, so haex-vault ends that channel instead of delivering it with a gap (spec 057
  * R8).
  */
 export class FrameEventQueue {

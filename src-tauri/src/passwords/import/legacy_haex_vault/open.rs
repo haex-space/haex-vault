@@ -168,7 +168,7 @@ pub(super) fn open(path: &Path, password: &str) -> Result<Source> {
     )
     .map_err(|_| failed("unreadable"))?;
     // ponytail: rusqlite renders the key into the text of a `PRAGMA key` statement that is not
-    // zeroed, as holzi's own vault open does (haex-crdt). Ceiling: a plain copy of the vault
+    // zeroed, as haex-vault's own vault open does (haex-crdt). Ceiling: a plain copy of the vault
     // password in freed memory until it is reused. Upgrade path: `sqlite3_key_v2` through
     // `rusqlite::ffi` with a zeroizing buffer.
     conn.pragma_update(None, "key", password)

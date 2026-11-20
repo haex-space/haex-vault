@@ -48,7 +48,7 @@ const TLDS = new Set(
   ).split(' '),
 )
 
-/** The first words of holzi's own ids and titles ("system.notes", "wm.apps.chat") a model may guess;
+/** The first words of haex-vault's own ids and titles ("system.notes", "wm.apps.chat") a model may guess;
  * dotted like a domain name, but never a website. */
 const ID_ROOTS = new Set(['system', 'extension', 'wm', 'apps'])
 
@@ -82,7 +82,7 @@ export function matchApp(
   const entries: Entry[] = apps.map((app) => ({
     app,
     title: fold(titleOf(app)),
-    // An extension's id is a UUID; only holzi's own ids carry a word ("settings").
+    // An extension's id is a UUID; only haex-vault's own ids carry a word ("settings").
     idRest: app.id.startsWith('system.') ? app.id.replace(ID_PREFIX, '') : '',
   }))
 

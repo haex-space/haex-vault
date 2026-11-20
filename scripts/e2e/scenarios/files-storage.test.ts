@@ -12,7 +12,7 @@ import { runAction } from '../lib/settings.ts'
 // Spec 044, US5, quickstart §5 (T068): a storage of RustFS in the file browser. Its prefixes are
 // folders, a new folder is a marker object, renaming a folder moves every object under it, a text
 // shows and a film plays and seeks from the storage through the media server, a search with a typo
-// finds a file in it, a file goes up from the device (holzi's clipboard across tabs), and deleting
+// finds a file in it, a file goes up from the device (haex-vault's clipboard across tabs), and deleting
 // asks first (no trash) and leaves nothing of the folder. Downloading is `files-storage-down`.
 // The bucket is checked directly each time.
 // Needs Docker for RustFS; skipped without it.
@@ -117,7 +117,7 @@ scenario(
     await instance.waitForDisplayed('files-entry-notiz.txt')
     ctx.step('a search in the storage')
 
-    // Up: a file of the device into the storage, through holzi's clipboard.
+    // Up: a file of the device into the storage, through haex-vault's clipboard.
     await filesGo(instance, `/device?p=${encodeURIComponent(device.folder)}`)
     await instance.waitForDisplayed('files-entry-hoch.txt')
     await contextMenu(instance, 'files-entry-hoch.txt')

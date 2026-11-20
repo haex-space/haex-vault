@@ -4,7 +4,7 @@
 //! [`PhoneBook`] trait, so the desktop tests run it against a fake. On/off and the target account
 //! are device settings in `preferences`; the state of the run (`review`, `active`, `paused`) is a
 //! row of `haex_contacts_phone_runs`, which exists only while the sync is on. A run reads the
-//! phone's index, compares, writes the phone and then holzi in one transaction; it never holds the
+//! phone's index, compares, writes the phone and then haex-vault in one transaction; it never holds the
 //! vault while it talks to the phone.
 
 pub mod android;
@@ -46,7 +46,7 @@ pub use store::{Issue, IssueReason};
 /// The phone's address book as the run sees it: the commands of contracts/android-plugin.md.
 /// Every call blocks; the run calls them on a blocking thread.
 pub trait PhoneBook: Send + Sync {
-    /// Whether holzi may read and write the address book now (without asking).
+    /// Whether haex-vault may read and write the address book now (without asking).
     fn permitted(&self) -> Result<bool>;
     fn accounts(&self) -> Result<Vec<PhoneAccount>>;
     /// The raw contacts with an id above `after_id`, at most `limit`, by id.
@@ -157,7 +157,7 @@ impl Paused {
 pub struct MassDelete {
     /// Contacts deleted on the phone that would go from the address book.
     pub from_phone: u32,
-    /// Contacts deleted in holzi that would go from the phone.
+    /// Contacts deleted in haex-vault that would go from the phone.
     pub from_haex: u32,
     /// Contacts linked on this phone.
     pub linked: u32,

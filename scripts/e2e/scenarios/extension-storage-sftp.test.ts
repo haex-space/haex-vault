@@ -37,7 +37,7 @@ function answer(page: Page, probe: InstalledExtension): Promise<BridgeAnswer> {
 }
 
 // Spec 050, US5 and US6 (SFTP): an extension proposes an SFTP storage by host, port and folder.
-// The add permission names `host:port`; holzi's window over the whole app asks for the login,
+// The add permission names `host:port`; haex-vault's window over the whole app asks for the login,
 // then shows the host key the server presents, and saves only after the user confirmed it; the
 // dialog over the tab never shows a key. Then the extension uses the storage as an S3 one: objects
 // in its own area, a round trip, and the folders it leaves empty removed. Needs Docker; skipped
@@ -120,7 +120,7 @@ scenario(
         !JSON.stringify(added).includes(sftp.hostKey.split(' ')[1] ?? '-'),
       'the extension gets neither the login nor the host key',
     )
-    ctx.step('the host key confirmed in holzi’s window, the storage added')
+    ctx.step('the host key confirmed in HaexVault’s window, the storage added')
 
     const object = { backendId: storage.id, key: 'a/b.txt' }
     const put = await probeRequest(

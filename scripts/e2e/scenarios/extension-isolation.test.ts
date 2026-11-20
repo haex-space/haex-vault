@@ -10,7 +10,7 @@ import {
 
 const settle = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-// Spec 017, US3, T073 (quickstart §5): from inside an extension frame nothing of holzi, the
+// Spec 017, US3, T073 (quickstart §5): from inside an extension frame nothing of haex-vault, the
 // network or the IPC is reachable. Each attempt reports how it ended; none may succeed. A shortcut
 // forged on the shim's port does nothing while the frame has no focus, and the frame can neither
 // leave for the web nor load another extension's page without that frame's token.
@@ -45,7 +45,7 @@ scenario('extension-isolation', { timeoutMs: 180_000 }, async (ctx) => {
   for (const [attempt, outcome] of Object.entries(attempts)) {
     assert.equal(outcome, 'blocked', `${attempt} from inside the frame`)
   }
-  ctx.step('holzi, network and IPC unreachable from the frame')
+  ctx.step('HaexVault, network and IPC unreachable from the frame')
 
   await inFrame(
     instance,
@@ -64,7 +64,7 @@ scenario('extension-isolation', { timeoutMs: 180_000 }, async (ctx) => {
     { timeoutMs: 10_000 },
   )
   // The extension takes the shim's port by wrapping postMessage and changing the title, and sends
-  // the forged shortcut a moment later; meanwhile holzi takes the focus back from the frame
+  // the forged shortcut a moment later; meanwhile haex-vault takes the focus back from the frame
   // (switching into the frame to run this script may have given it the focus).
   const captured = await inFrame<boolean>(
     instance,
@@ -89,9 +89,9 @@ scenario('extension-isolation', { timeoutMs: 180_000 }, async (ctx) => {
      if (document.activeElement === frame) frame.blur()
      return document.activeElement === frame`,
   )
-  assert.equal(frameFocused, false, 'holzi took the focus back')
+  assert.equal(frameFocused, false, 'HaexVault took the focus back')
   await ctx.waitFor(
-    'the forged title in holzi',
+    'the forged title in HaexVault',
     async () =>
       instance.exec<boolean>(
         `return document.body.innerText.includes('Forged')`,

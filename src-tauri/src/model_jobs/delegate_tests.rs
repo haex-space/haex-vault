@@ -1,5 +1,5 @@
 //! A subscription that runs a job (spec 055 FR-032, R16): the agent runs with full access and
-//! without a conversation, and holzi gives it no vault and no chat to approve in.
+//! without a conversation, and haex-vault gives it no vault and no chat to approve in.
 
 use super::delegate::{job_context, job_request};
 use crate::adapters::cli_delegate::autonomy::AutonomyMode;
@@ -50,7 +50,7 @@ fn a_job_changes_nothing_else_of_the_request() {
     assert_eq!(sent.messages[0].content, before.messages[0].content);
     assert_eq!(sent.reasoning_option, before.reasoning_option);
     assert_eq!(sent.max_new_tokens, before.max_new_tokens);
-    assert!(sent.tools.is_empty(), "no tool of holzi (FR-026)");
+    assert!(sent.tools.is_empty(), "no tool of HaexVault (FR-026)");
 }
 
 #[test]

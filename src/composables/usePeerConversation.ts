@@ -10,7 +10,7 @@ export const MAX_TEXT_CHARS = 4000
 /**
  * The messages of one contact conversation (spec 072 US2, FR-021–FR-024): loaded by `sortAt`,
  * refreshed whenever chat rows change (here, on another own device or by a delivery), and marked
- * read while the conversation is the active tab of a visible, focused window. While it is, holzi
+ * read while the conversation is the active tab of a visible, focused window. While it is, haex-vault
  * shows no notification for it (FR-023): the view tells Rust under an id of its own.
  */
 export function usePeerConversation(

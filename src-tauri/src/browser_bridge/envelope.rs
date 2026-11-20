@@ -111,7 +111,7 @@ pub fn seal_with(
 }
 
 /// The fingerprint of a client: the first 16 bytes of SHA-256 over its raw public key, as 32
-/// lowercase hex digits (`background/crypto.ts`). holzi checks it against the claimed id (FR-006).
+/// lowercase hex digits (`background/crypto.ts`). haex-vault checks it against the claimed id (FR-006).
 pub fn client_id_of(public_key: &[u8]) -> Result<String, EnvelopeError> {
     if public_key.len() != KEY_LEN {
         return Err(EnvelopeError::KeyLength);

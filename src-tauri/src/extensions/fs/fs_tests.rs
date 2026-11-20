@@ -204,7 +204,7 @@ fn a_watch_belongs_to_its_extension_and_reports_only_to_its_frames() {
     let notes = s.frame("good-notes-like.xt");
     let minimal = s.frame("good-minimal.xt");
     s.grant(&notes, "read", &s.root);
-    // Not the granted folder itself: it holds one of holzi's places, and a watch reaches the tree.
+    // Not the granted folder itself: it holds one of haex-vault's places, and a watch reaches the tree.
     let watched = s.root.join("watched");
     std::fs::create_dir(&watched).unwrap();
     let holding = json!({ "ruleId": "r0", "path": s.root.to_string_lossy() });
@@ -313,13 +313,13 @@ fn nothing_is_written_through_a_link_nobody_checked() {
     let s = setup();
     let ctx = s.frame("good-notes-like.xt");
     s.grant(&ctx, "readWrite", &s.root);
-    // A broken link inside the granted folder that points into one of holzi's places.
+    // A broken link inside the granted folder that points into one of haex-vault's places.
     std::os::unix::fs::symlink(s.protected.join("new.db"), s.root.join("dangling")).unwrap();
     let write = json!({ "path": s.root.join("dangling").to_string_lossy(), "data": "eA==" });
     assert!(call(&ctx, "extension_filesystem_write_file", &write).is_err());
     assert!(!s.protected.join("new.db").exists());
 
-    // A link already lying in a copy's destination that leads into one of holzi's places.
+    // A link already lying in a copy's destination that leads into one of haex-vault's places.
     let (from, to) = (s.root.join("from"), s.root.join("to"));
     std::fs::create_dir_all(from.join("inner")).unwrap();
     std::fs::write(from.join("inner").join("vault.db"), "overwritten").unwrap();

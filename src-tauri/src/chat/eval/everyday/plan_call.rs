@@ -1,5 +1,5 @@
 //! One call of a measured step, planned as `chat/turn/plan_calls.rs` plans it: a tool the registry
-//! holds, one of holzi's actions only when the step offered it, the guard, the check before the
+//! holds, one of haex-vault's actions only when the step offered it, the guard, the check before the
 //! dialog (spec 088), then the dialog with a played user; a call that runs is answered by the
 //! fixture world (moved out of `runner.rs`, spec 088 T002).
 
@@ -75,7 +75,7 @@ impl RequestChecks {
 
 /// What a call gives back to the model.
 pub(super) enum Back {
-    /// Its answer, holzi's or the world's.
+    /// Its answer, haex-vault's or the world's.
     Answer(Answer),
     /// The question of `ask_user`, which ends the request.
     Question(String),
@@ -177,7 +177,7 @@ impl StepCalls<'_> {
         Back::Answer(answer)
     }
 
-    /// Records `call` as turned away before it ran, with holzi's answer `content`; `risky` when
+    /// Records `call` as turned away before it ran, with haex-vault's answer `content`; `risky` when
     /// its tool cannot be undone.
     fn refused(
         &self,

@@ -29,7 +29,7 @@ use crate::storage::known_devices;
 const LEGACY_TABLES: [&str; 3] = ["workspaces", "shell_windows", "shell_window_tabs"];
 
 /// The frozen migration set, truncated to everything before `name` — models
-/// "a vault provisioned by an older holzi build that hasn't seen this
+/// "a vault provisioned by an older haex-vault build that hasn't seen this
 /// migration yet".
 pub(super) fn migration_source_before(name: &str) -> Arc<StaticMigrationSource> {
     let full = haex_migration_source();

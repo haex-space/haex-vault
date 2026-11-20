@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * "Vault-Datei öffnen" (spec 043 FR-002a, contract import-instance.md): the chosen vault file and
- * its passphrase. holzi copies the file into its own storage and opens the copy; the chosen file is
+ * its passphrase. haex-vault copies the file into its own storage and opens the copy; the chosen file is
  * only read. An error goes out as a toast; the sheet stays open.
  */
 import { toast } from 'vue-sonner'

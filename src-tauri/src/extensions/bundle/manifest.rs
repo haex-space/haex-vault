@@ -1,7 +1,7 @@
 //! The typed view of a verified manifest (data-model.md §Rust-Typen).
 //!
 //! The manifest is valid once `haex-bundle` accepted the bundle; this view only reads the fields
-//! holzi uses. Optional fields of the wrong type count as absent, never as an error: the format
+//! haex-vault uses. Optional fields of the wrong type count as absent, never as an error: the format
 //! does not constrain them, so the tool would sign them.
 
 use std::collections::BTreeMap;
@@ -37,12 +37,12 @@ pub struct Manifest {
     pub permissions: DeclaredPermissions,
     /// Tools the extension offers to the agent (spec 018), in manifest order.
     pub tools: Vec<ManifestTool>,
-    /// Kinds of link the extension opens (spec 063), as the manifest writes them. A kind holzi
+    /// Kinds of link the extension opens (spec 063), as the manifest writes them. A kind haex-vault
     /// does not know stays here; [`Manifest::opens`] only answers for the known ones.
     pub openers: Vec<String>,
 }
 
-/// A kind of link holzi can hand to an extension (spec 063 `contracts/manifest-openers.md`).
+/// A kind of link haex-vault can hand to an extension (spec 063 `contracts/manifest-openers.md`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OpenerKind {
     /// Write an e-mail: `mailto:` links and the mail button.
@@ -69,7 +69,7 @@ pub enum ToolEffect {
 }
 
 /// A tool of the manifest's `tools` block (`contracts/manifest-tools.md`). The format is checked
-/// by `haex-bundle`; whether holzi can check the input is `supported`.
+/// by `haex-bundle`; whether haex-vault can check the input is `supported`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ManifestTool {
     pub name: String,
@@ -81,7 +81,7 @@ pub struct ManifestTool {
     pub effect: ToolEffect,
     pub examples_de: Vec<String>,
     pub examples_en: Vec<String>,
-    /// The input schema keeps to the subset holzi validates (research R5); a tool outside it is
+    /// The input schema keeps to the subset haex-vault validates (research R5); a tool outside it is
     /// installed but never offered.
     pub supported: bool,
 }
@@ -266,7 +266,7 @@ impl Manifest {
         })
     }
 
-    /// The kinds in [`Manifest::openers`] that holzi knows, in manifest order (FR-013).
+    /// The kinds in [`Manifest::openers`] that haex-vault knows, in manifest order (FR-013).
     pub fn known_openers(&self) -> Vec<String> {
         self.openers
             .iter()

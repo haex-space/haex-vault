@@ -1,10 +1,10 @@
-//! Attachments shown inside holzi (spec 058, research R2): a text attachment goes through the text
+//! Attachments shown inside haex-vault (spec 058, research R2): a text attachment goes through the text
 //! reader of the file viewer (spec 044 FR-015), so the limit of 5 MB, the detection of binary files
 //! and the replacement of invalid UTF-8 are the same in both apps. A PDF goes to the media server
 //! as it is (research R3). Which attachment counts as text or PDF is decided by [`viewer_kind`],
 //! never by a list of its own (FR-002). For the system's app an attachment becomes a decrypted copy
 //! in a folder of its own below the place of spec 048 (research R4), under a name every system can
-//! create; holzi removes it when opening fails, when the vault closes and after a crash.
+//! create; haex-vault removes it when opening fails, when the vault closes and after a crash.
 
 use std::path::{Path, PathBuf};
 

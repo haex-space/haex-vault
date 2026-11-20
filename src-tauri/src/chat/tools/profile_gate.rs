@@ -28,7 +28,7 @@ pub enum Missing {
     Browser,
     /// The password manager is off.
     Passwords,
-    /// A topic of "holzi bedienen" with no access (`topic`) or only reading (`topicWrite`).
+    /// A topic of "haex-vault bedienen" with no access (`topic`) or only reading (`topicWrite`).
     Topic {
         topic: String,
     },

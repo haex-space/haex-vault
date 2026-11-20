@@ -2,7 +2,7 @@
 /**
  * The host key of an SFTP server to confirm (spec 050 US4, research R5): the fingerprint the
  * server showed, to compare with what the provider publishes, and for a changed key the one
- * confirmed before. holzi sends no credentials to a server whose key the user has not confirmed
+ * confirmed before. haex-vault sends no credentials to a server whose key the user has not confirmed
  * (FR-012); confirming takes exactly the key shown here.
  */
 import type { ShownHostKey } from '@bindings/ShownHostKey'

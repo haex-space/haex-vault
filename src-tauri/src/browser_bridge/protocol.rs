@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// The protocol version holzi speaks; a handshake below it is refused (FR-049). Version 3 adds the
+/// The protocol version haex-vault speaks; a handshake below it is refused (FR-049). Version 3 adds the
 /// proof of the client's key (FR-048).
 pub const PROTOCOL_VERSION: u32 = 3;
 

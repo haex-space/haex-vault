@@ -21,7 +21,7 @@ type Overview = {
 type Header = { id: string; title: string | null; owner?: string | null }
 
 // Spec 050, US4 (quickstart §3, SC-004, FR-008, FR-012): in Einstellungen → Cloud-Speicher the
-// user connects a local SFTP server with a key holzi generates; only its public key reaches the
+// user connects a local SFTP server with a key haex-vault generates; only its public key reaches the
 // window, and it is registered with the server. The first test stops at the unknown host key and
 // shows its fingerprint, which is compared with the server's; after the confirmation the
 // connection is saved with the key in the password manager. The server then shows another host
@@ -65,7 +65,7 @@ scenario(
     )
     sftp.authorize(publicKey)
     await sftp.startAsync()
-    ctx.step('a key generated in holzi, its public key at the server')
+    ctx.step('a key generated in HaexVault, its public key at the server')
 
     await typeChecked(laptop, 'storage-bucket', FOLDER)
     await typeChecked(laptop, 'storage-name', 'Ablage')

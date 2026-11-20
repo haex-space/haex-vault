@@ -10,7 +10,7 @@ import {
   reachableFromDevice,
 } from '../lib/extensions.ts'
 
-// Spec 017, US8, T097 (quickstart §8): network only through holzi. A request to a local server asks
+// Spec 017, US8, T097 (quickstart §8): network only through haex-vault. A request to a local server asks
 // for the server's origin, runs once allowed and answers with status, headers, body and final
 // address; a redirect to a second server asks again for that one. The frame's own network is
 // covered by `extension-isolation`.

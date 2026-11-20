@@ -93,7 +93,7 @@ pub(super) struct Found {
     pub scan_limit: bool,
 }
 
-/// Sessions holzi attached to targets of other processes for a moment; each ends with
+/// Sessions haex-vault attached to targets of other processes for a moment; each ends with
 /// [`Attached::release`].
 pub(super) struct Attached<'a> {
     connection: &'a Connection,

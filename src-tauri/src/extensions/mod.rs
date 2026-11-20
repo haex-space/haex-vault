@@ -1,5 +1,5 @@
 //! The host for haextensions (spec 017, ADR-0004, ADR-0008): signed web bundles that run in
-//! sandboxed frames and reach holzi only through one checkpoint in Rust.
+//! sandboxed frames and reach haex-vault only through one checkpoint in Rust.
 //!
 //! This module grows with the deliveries of the spec (research R1). The foundation holds the
 //! identifiers, the error codes of the bridge and the pure permission model.

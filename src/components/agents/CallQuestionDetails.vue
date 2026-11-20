@@ -1,14 +1,14 @@
 <script setup lang="ts">
 /**
  * What an agent's call does (spec 021, US3, FR-022): the agent's name, marked as its own claim
- * unless holzi named it, the localized action, its effect, target and inputs without secrets.
+ * unless haex-vault named it, the localized action, its effect, target and inputs without secrets.
  * Shared by the call dialog and the chat's prompt for a delegate (US6).
  */
 import type { CallQuestion } from '~/types/bindings/CallQuestion'
 
 const props = defineProps<{
   question: CallQuestion
-  /** A delegate of the chat: holzi named it, so the name is no claim. */
+  /** A delegate of the chat: haex-vault named it, so the name is no claim. */
   delegate?: boolean
 }>()
 

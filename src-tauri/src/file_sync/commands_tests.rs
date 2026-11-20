@@ -33,7 +33,7 @@ fn setup() -> (tempfile::TempDir, VaultDb) {
 }
 
 fn own() -> OwnPlaces {
-    OwnPlaces::new(vec![PathBuf::from("/data/holzi")])
+    OwnPlaces::new(vec![PathBuf::from("/data/haex-vault")])
 }
 
 fn draft(source: &str, target: &str) -> SyncRuleDraft {

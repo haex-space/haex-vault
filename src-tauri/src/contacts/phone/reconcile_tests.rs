@@ -145,7 +145,7 @@ fn changes_of_different_fields_on_both_sides_both_stay() {
 
 #[test]
 fn the_same_field_changed_on_both_sides_goes_to_the_later_change() {
-    // The phone changed later: its value comes to holzi as a change of this device.
+    // The phone changed later: its value comes to haex-vault as a change of this device.
     let (mut haex, mut phone, base) = agreed();
     set_phone(&mut phone, 11, "0170 1111111");
     set_haex(&mut haex, "v-phone", "0170 2222222", Some(2_000));
@@ -168,7 +168,7 @@ fn the_same_field_changed_on_both_sides_goes_to_the_later_change() {
         "the phone already holds the winning value"
     );
 
-    // holzi changed later, at the same time, or the phone has no time: holzi's value goes there.
+    // haex-vault changed later, at the same time, or the phone has no time: haex-vault's value goes there.
     for last_updated in [Some(1_500), Some(2_000), None] {
         let plan = reconcile(
             &haex,
@@ -185,7 +185,7 @@ fn the_same_field_changed_on_both_sides_goes_to_the_later_change() {
 fn a_deletion_beats_a_change() {
     let (mut haex, mut phone, base) = agreed();
     phone.values.retain(|row| row.data_id != 11);
-    set_haex(&mut haex, "v-phone", "0170 holzi", Some(9_000));
+    set_haex(&mut haex, "v-phone", "0170 HaexVault", Some(9_000));
     let plan = reconcile(
         &haex,
         &[raw(base.clone(), phone, Some(1))],
@@ -222,7 +222,7 @@ fn haex_only_kinds_are_neither_written_nor_removed() {
 #[test]
 fn rows_the_phone_has_and_haex_does_not_map_stay_untouched() {
     let (haex, phone, base) = agreed();
-    // A WhatsApp row is not in the phone side at all; the plan only names rows holzi maps.
+    // A WhatsApp row is not in the phone side at all; the plan only names rows haex-vault maps.
     let mut haex = haex;
     set_haex(&mut haex, "v-phone", "0170 9", Some(2_000));
     let plan = reconcile(&haex, &[raw(base, phone, Some(1))], Some(RAW), false);
@@ -261,7 +261,7 @@ fn new_values_on_either_side_reach_the_other() {
     );
 }
 
-/// The number in Telegram's profile row flows into holzi, but nothing of holzi reaches that row.
+/// The number in Telegram's profile row flows into haex-vault, but nothing of haex-vault reaches that row.
 #[test]
 fn a_read_only_row_flows_into_haex_and_is_never_written() {
     let (haex, mut phone, base) = agreed();
@@ -274,10 +274,10 @@ fn a_read_only_row_flows_into_haex_and_is_never_written() {
         Some(RAW),
         false,
     );
-    assert_eq!(plan.inserts.len(), 1, "the number is new in holzi");
-    assert!(plan.ops.is_empty(), "holzi writes nothing back");
+    assert_eq!(plan.inserts.len(), 1, "the number is new in HaexVault");
+    assert!(plan.ops.is_empty(), "HaexVault writes nothing back");
 
-    // Known to the base now; holzi changes it and then deletes it: the row stays as it is.
+    // Known to the base now; haex-vault changes it and then deletes it: the row stays as it is.
     let mut base = base;
     base.phone = phone.clone();
     base.mapping.insert(13, "v-tg".to_owned());
@@ -324,7 +324,7 @@ fn a_change_a_read_only_raw_contact_cannot_take_is_blocked() {
     assert!(plan.ops.is_empty());
     assert!(
         plan.blocked,
-        "the change stays in holzi and is shown as not arrived (FR-025)"
+        "the change stays in HaexVault and is shown as not arrived (FR-025)"
     );
 }
 
@@ -366,7 +366,7 @@ fn a_first_run_fills_what_haex_lacks_and_leaves_the_phone_head_alone() {
         plan.head,
         vec![("family_name".to_owned(), Some("Beck".to_owned()))]
     );
-    assert_eq!(plan.inserts.len(), 2, "both phone values come to holzi");
+    assert_eq!(plan.inserts.len(), 2, "both phone values come to HaexVault");
     assert!(plan.ops.is_empty());
 }
 

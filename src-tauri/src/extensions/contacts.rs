@@ -35,7 +35,7 @@ const LIST_LIMIT: (usize, usize) = (100, 1000);
 /// Hits of `extension_contacts_search` when the call names no limit, and the most.
 const SEARCH_LIMIT: (usize, usize) = (20, 200);
 
-/// How holzi's own lookup of the group names is written into the service's checks.
+/// How haex-vault's own lookup of the group names is written into the service's checks.
 const GROUP_LOOKUP: Caller = Caller::Internal {
     feature: "extension_contacts_grants",
 };

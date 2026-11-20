@@ -1,11 +1,11 @@
-// Mail links opened outside holzi (spec 063, US2, FR-017). Pure: `useDeepLink` feeds it, and
+// Mail links opened outside haex-vault (spec 063, US2, FR-017). Pure: `useDeepLink` feeds it, and
 // `scripts/check-extensions-openers-link.ts` tests it. Whether the link is a good one is for
 // Rust to say (`opener_mail_check`); the window only keeps what may be one.
 import { isRepeat, type ReceivedLink } from '../contacts/deepLink.ts'
 
 const SCHEME = 'mailto:'
 
-/** The largest link holzi reads (FR-008), in bytes. Rust agrees (`openers::mail`). */
+/** The largest link haex-vault reads (FR-008), in bytes. Rust agrees (`openers::mail`). */
 export const MAX_MAIL_LINK_BYTES = 32 * 1024
 
 /** The text of a mail link if `url` is one: only the scheme and the size are checked here. */

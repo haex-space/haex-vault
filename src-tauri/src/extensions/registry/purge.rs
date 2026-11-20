@@ -73,7 +73,7 @@ pub(crate) fn quoted(name: &str) -> String {
 /// add a table that would outlive the cleared journal. Blocking.
 pub fn run(db: &VaultDb, removal: &Removal, device: Uuid) -> Result<()> {
     let _applying = applying().lock().unwrap_or_else(PoisonError::into_inner);
-    // holzi's own statements on names read from sqlite_master; schema mode switches foreign keys
+    // haex-vault's own statements on names read from sqlite_master; schema mode switches foreign keys
     // off, so the tables of one extension can go in any order.
     let guard = SqlGuard {
         authorizer: Arc::new(|_: &AuthContext<'_>| Authorization::Allow),

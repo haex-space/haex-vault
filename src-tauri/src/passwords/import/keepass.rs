@@ -1,6 +1,6 @@
 //! KeePass (KDBX) databases (spec 034, US7, `contracts/import-mapping.md` §KeePass), read with the
 //! `keepass` crate (KDBX 3 and 4; password and key file). The recycle bin becomes the trash, the
-//! history becomes earlier states with their attachments, standard icons map to pictures of holzi
+//! history becomes earlier states with their attachments, standard icons map to pictures of haex-vault
 //! and custom icons stay as pictures. Everything without a field of its own (colours, override URL,
 //! Auto-Type, custom data, custom fields) becomes a custom field. Pure: `bytes → ImportModel`.
 
@@ -76,7 +76,7 @@ struct Reader {
     model: ImportModel,
     recycle_bin: Option<String>,
     /// A group or entry carries a setting of the application (search or Auto-Type per group,
-    /// quality check) that holzi has no use for; it is reported once.
+    /// quality check) that haex-vault has no use for; it is reported once.
     settings_seen: bool,
 }
 
@@ -185,7 +185,7 @@ fn otpauth_in(text: &str) -> Option<String> {
 }
 
 /// `TOTP Settings` as `period;digits` (a number for each); anything else, such as Steam's `S`, is
-/// not a setting holzi can reproduce.
+/// not a setting haex-vault can reproduce.
 fn totp_settings(text: &str) -> Option<(i64, i64)> {
     let mut parts = text.split(';');
     let period = parts.next()?.trim().parse().ok()?;
@@ -308,7 +308,7 @@ fn read_entry(entry: &EntryRef<'_>) -> ImportItem {
     item
 }
 
-/// Colours, override URL, Auto-Type and custom data: no field of holzi, so custom fields.
+/// Colours, override URL, Auto-Type and custom data: no field of haex-vault, so custom fields.
 fn extras(entry: &EntryRef<'_>, fields: &mut Vec<KeyValueInput>) {
     if let Some(c) = &entry.foreground_color {
         push_kv(

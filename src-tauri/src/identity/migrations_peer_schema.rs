@@ -4,7 +4,7 @@
 //!
 //! `device_presence_no_sync` is device-local, so nothing here is tracked by haex-crdt and
 //! [`super::migrations::HAEX_TRIGGER_VERSION`] stays as it is. The migration still counts in the
-//! number of holzi migrations that two devices compare, as every migration does.
+//! number of haex-vault migrations that two devices compare, as every migration does.
 
 /// The migration `0040_device_peer_schema`; registered in
 /// [`super::migrations::haex_migration_source`].

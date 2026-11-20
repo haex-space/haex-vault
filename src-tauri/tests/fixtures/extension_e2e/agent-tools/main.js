@@ -1,4 +1,4 @@
-// The test extension of spec 018 (research R13): offers holzi's agent the tools of manifest.json
+// The test extension of spec 018 (research R13): offers haex-vault's agent the tools of manifest.json
 // through the released vault-sdk. `build.sh` bundles this file with the SDK into app.js.
 import { createHaexVaultSdk } from '@haex-space/vault-sdk'
 import manifest from './manifest.json'
@@ -34,7 +34,7 @@ sdk.tools.register('add_entry', async (input) => {
   await sdk.database.insert(await table(), { id: crypto.randomUUID(), text })
   const count = await countAsync()
   log(`add_entry: ${text}`)
-  // Needs the notifications permission; unticked at install, holzi asks (quickstart step 9).
+  // Needs the notifications permission; unticked at install, haex-vault asks (quickstart step 9).
   await sdk.notifications.show({ title: 'Eintrag hinzugefügt', body: text })
   return { added: text, entries: count }
 })

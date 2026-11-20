@@ -18,7 +18,7 @@ pub enum ToolAvailability {
     OfferedUnverified,
     /// The model cannot call tools: it chats without them.
     Unsupported,
-    /// A CLI delegate runs its own agent; holzi's tools reach it only over MCP (spec 021).
+    /// A CLI delegate runs its own agent; haex-vault's tools reach it only over MCP (spec 021).
     Delegate,
 }
 

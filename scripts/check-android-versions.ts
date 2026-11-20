@@ -2,7 +2,7 @@
 // environment instead of the Nix devShell, so this check keeps both on the same versions. The
 // devShell is the source: `.devshell/packages.nix` (SDK platforms, build tools, NDK) and
 // `.devshell/rust-toolchain.toml` (Rust channel and Android targets), both delivered by the atoms
-// molecule `holzi`. Every workflow that installs SDK packages must name exactly the devShell's
+// molecule `haex-vault`. Every workflow that installs SDK packages must name exactly the devShell's
 // packages, the same Rust channel, and only Android targets the devShell has.
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'

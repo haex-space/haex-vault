@@ -1,6 +1,6 @@
 //! Devices in one process for the tests of file access (spec 056 T026): each a device of a vault
 //! (`Member`) on a loopback endpoint without relays, serving `haex-files/1` over a temporary
-//! folder that stands for its file system, with holzi's own places in a folder of their own.
+//! folder that stands for its file system, with haex-vault's own places in a folder of their own.
 
 // These tests insert devices and cards directly, which the CRDT write path does not expose.
 #![allow(clippy::disallowed_methods)]
@@ -116,7 +116,7 @@ impl Device {
         self.files.path().canonicalize().expect("root")
     }
 
-    /// holzi's own place on this device.
+    /// haex-vault's own place on this device.
     pub(crate) fn own_place(&self) -> PathBuf {
         self.root().join("haex-own")
     }

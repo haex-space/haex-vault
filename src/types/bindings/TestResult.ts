@@ -3,7 +3,7 @@ import type { ShownHostKey } from "./ShownHostKey";
 import type { TestOutcome } from "./TestOutcome";
 
 /**
- * `storage_test`: the outcome, and the key of a test object holzi could not delete (SC-004).
+ * `storage_test`: the outcome, and the key of a test object haex-vault could not delete (SC-004).
  */
 export type TestResult = { outcome: TestOutcome, leftoverKey: string | null,
 /**

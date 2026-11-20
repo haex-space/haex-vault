@@ -1,4 +1,4 @@
-//! Files of this device (spec 044, research R3): resolving paths, holzi's own places and the known
+//! Files of this device (spec 044, research R3): resolving paths, haex-vault's own places and the known
 //! places. Extensions (`extensions::fs`), the file browser and agents share these rules.
 
 pub mod drives;

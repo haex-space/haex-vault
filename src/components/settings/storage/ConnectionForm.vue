@@ -5,7 +5,7 @@
  * a new connection. The provider presets prefill endpoint and addressing; a WebDAV preset shows the
  * parts in `<…>` the user fills in (spec 050 research R11). An `http` endpoint is marked
  * unencrypted. Unlike other settings this form is confirmed once ("Testen und
- * speichern"), because holzi tests a new connection, new credentials or a moved endpoint before it
+ * speichern"), because haex-vault tests a new connection, new credentials or a moved endpoint before it
  * saves anything (FR-003); a failed test saves nothing and names the reason. A new connection
  * also gets its first storage on the tested bucket or folder; a missing folder is made only when
  * the user says so (FR-006). Typed credentials go to the password manager ("S3: <Name>",
@@ -63,7 +63,7 @@ const shown = ref<{ key: ShownHostKey; changed: boolean } | null>(null)
 const confirmedKey = ref<string | undefined>()
 const replaceCredentials = ref(false)
 const busy = ref(false)
-/** The last test found the folder missing; the user may let holzi make it (FR-006). */
+/** The last test found the folder missing; the user may let haex-vault make it (FR-006). */
 const folderMissing = ref(false)
 const tree = computed(() => draft.protocol !== 's3')
 

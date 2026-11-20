@@ -323,7 +323,7 @@ async fn a_run_leaves_the_host_alone_and_its_environment_is_the_contract() {
         "the host's account key does not reach the tool"
     );
     // Only the vendor's own account variables go: another vendor's key is not Claude's business,
-    // and holzi leaves what it has no reason to touch (the Codex run removes `OPENAI_` in turn).
+    // and haex-vault leaves what it has no reason to touch (the Codex run removes `OPENAI_` in turn).
     assert_eq!(
         env_value(&seen, "OPENAI_API_KEY").as_deref(),
         Some("host-openai-key")

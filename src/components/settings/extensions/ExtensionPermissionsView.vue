@@ -4,7 +4,7 @@
  * action, target, state and where it holds ("alle Geräte" or the device's name), declared or not;
  * the state changes on selection; "Widerrufen" removes it. Where a permission holds follows its
  * kind (shell on this device, everything else on all devices); nobody chooses.
- * Decisions held until holzi is closed are listed with "Entfernen"; those about an encrypted
+ * Decisions held until haex-vault is closed are listed with "Entfernen"; those about an encrypted
  * folder (spec 048 FR-038) only until the extension reloads, and every encrypted folder is named
  * by its cloud storage and decrypted name.
  * The tools it offers to the agent (spec 018) come first, with their title and effect, under the

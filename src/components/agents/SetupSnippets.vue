@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * The setup snippets of one way to reach holzi (spec 021 FR-005, T095): one row per client with a
+ * The setup snippets of one way to reach haex-vault (spec 021 FR-005, T095): one row per client with a
  * copy button. Shown only when the snippets are loaded.
  */
 import { toast } from 'vue-sonner'

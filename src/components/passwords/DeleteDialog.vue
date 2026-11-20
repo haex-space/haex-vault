@@ -2,7 +2,7 @@
 /**
  * The confirmation before something goes into the trash (spec 034, US4, FR-015, FR-034): it names
  * what is deleted, says that it goes to the trash and can be restored, says that a folder takes its
- * content with it, and warns when a holzi function uses one of the entries (the delete stays
+ * content with it, and warns when a haex-vault function uses one of the entries (the delete stays
  * allowed). Used for one entry, for a selection and for a folder.
  */
 import { toast } from 'vue-sonner'
@@ -27,7 +27,7 @@ const emit = defineEmits<{
 
 const { t, te } = useI18n()
 
-/** The name of a holzi function that uses an entry, as the owner badge shows it (spec 038). */
+/** The name of a haex-vault function that uses an entry, as the owner badge shows it (spec 038). */
 const featureName = (feature: string) =>
   te(`passwords.owners.${feature}`) ? t(`passwords.owners.${feature}`) : feature
 const { errString } = useErrorString()

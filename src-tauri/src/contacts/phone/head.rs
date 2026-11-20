@@ -1,6 +1,6 @@
 //! The head fields in the three-way comparison (spec 051, research R6): per field, like a value.
-//! A change from holzi goes to the raw contacts that held the old value and to the primary one; a
-//! first run only fills what holzi lacks and never changes the phone's head.
+//! A change from haex-vault goes to the raw contacts that held the old value and to the primary one; a
+//! first run only fills what haex-vault lacks and never changes the phone's head.
 
 use std::collections::{BTreeMap, BTreeSet};
 

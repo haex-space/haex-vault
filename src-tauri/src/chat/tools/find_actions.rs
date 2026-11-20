@@ -73,7 +73,7 @@ impl Tool for FindActionsTool {
     }
 
     fn description(&self) -> &str {
-        "Search holzi actions by keywords, or enumerate the catalog when query is omitted. Matching actions become tools in the next step."
+        "Search HaexVault actions by keywords, or enumerate the catalog when query is omitted. Matching actions become tools in the next step."
     }
 
     fn source(&self) -> &'static str {
@@ -114,7 +114,7 @@ impl Tool for FindActionsTool {
         if found.is_empty() && input.query.is_some() {
             result["hint"] = json!(
                 "no action matches these keywords; this is about actions, not about the user's data. \
-                 Try other keywords once, e.g. in English. If those find nothing either, holzi has no \
+                 Try other keywords once, e.g. in English. If those find nothing either, HaexVault has no \
                  action for this: tell the user so instead of listing the catalog."
             );
         }

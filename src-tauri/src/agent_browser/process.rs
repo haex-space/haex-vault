@@ -1,5 +1,5 @@
 //! Starting the agent browser over `--remote-debugging-pipe` (spec 065, research R2,
-//! contracts/agent-browser.md "Start"): the browser reads holzi's commands on descriptor 3 and
+//! contracts/agent-browser.md "Start"): the browser reads haex-vault's commands on descriptor 3 and
 //! writes on descriptor 4. No debugging port is ever opened, so no other program reaches it
 //! (FR-004). On Linux and macOS the descriptors are set in the child before `exec`; Windows passes
 //! them through the C runtime's handle inheritance ([`super::process_windows`]).
@@ -27,7 +27,7 @@ pub struct Launch {
     pub executable: PathBuf,
     /// The profile's working directory (`--user-data-dir`).
     pub workdir: PathBuf,
-    /// Where downloads land until holzi moves them (research R11).
+    /// Where downloads land until haex-vault moves them (research R11).
     pub downloads: PathBuf,
     /// Without a window: only for tests on machines without a display.
     pub headless: bool,
@@ -294,7 +294,7 @@ fn spawn(os: Os, launch: &Launch) -> Result<(Connection, BrowserProcess)> {
             launch.executable.display()
         ))
     })?;
-    // holzi keeps only its own ends; the browser's are in the child now.
+    // haex-vault keeps only its own ends; the browser's are in the child now.
     drop((child_reads, child_writes));
     let pid = child.id();
     let (report, exit) = watch::channel(None);

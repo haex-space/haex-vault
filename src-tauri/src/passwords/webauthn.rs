@@ -17,7 +17,7 @@ use zeroize::Zeroizing;
 use super::model_passkeys::UserPresence;
 use super::passkeys::{EDDSA, ES256};
 
-/// User present. Not set: holzi has no trusted, ceremony-bound proof that a person is there (R8).
+/// User present. Not set: haex-vault has no trusted, ceremony-bound proof that a person is there (R8).
 pub const FLAG_UP: u8 = 0x01;
 /// User verified. Never set: no person confirms the request (R8).
 pub const FLAG_UV: u8 = 0x04;
@@ -326,7 +326,7 @@ pub fn get_auth_data(rp_id: &str, presence: UserPresence) -> Vec<u8> {
 
 /// The attestation object `{fmt: "none", attStmt: {}, authData}`.
 pub fn attestation_object(auth_data: &[u8]) -> Vec<u8> {
-    // ponytail: attestation "none"; holzi has no attestation key a relying party could trust.
+    // ponytail: attestation "none"; haex-vault has no attestation key a relying party could trust.
     let map = Value::Map(vec![
         (Value::Text("fmt".into()), Value::Text("none".into())),
         (Value::Text("attStmt".into()), Value::Map(vec![])),

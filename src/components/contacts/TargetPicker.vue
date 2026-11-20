@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * Where a new contact goes (spec 051 FR-018c): the phones of the vault with the sync on, each
- * with its target account suggested. Nothing chosen keeps the contact only in holzi, which is
+ * with its target account suggested. Nothing chosen keeps the contact only in haex-vault, which is
  * the preselection. Without a phone with the sync on the question is not asked.
  */
 import type { ContactsPhoneSummary } from '@bindings/ContactsPhoneSummary'

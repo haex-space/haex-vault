@@ -34,7 +34,7 @@ export type WmTabApi = {
   /** Registers this tab's handler for one of its app's tab-bound actions (spec 020 research R19);
    * returns the unregister function. */
   registerActionHandler(actionId: string, handler: ActionHandler): () => void
-  /** Hands holzi what to draw in this tab's window header (spec 090); replaces the previous
+  /** Hands haex-vault what to draw in this tab's window header (spec 090); replaces the previous
    * description whole, `null` clears it. Apps use `useWmHeader`, which calls this and clears it
    * when the app goes away. Never persisted. */
   setHeader(header: WmHeaderDescription | null): void

@@ -6,7 +6,7 @@
 //! - Up: a file under [`PART`] in one `put`, a larger one in parts of [`PART`]; a cancel or a
 //!   failure aborts the upload, so no part stays at the provider (FR-020).
 //! - Down: into a part file beside the target, renamed at the end, as on the device.
-//! - Within one bucket the provider copies; between storages the bytes stream through holzi, never
+//! - Within one bucket the provider copies; between storages the bytes stream through haex-vault, never
 //!   more than one part in memory.
 //! - A network error is tried again after 1, 2 and 4 seconds, then the transfer fails and can be
 //!   started again (FR-025).

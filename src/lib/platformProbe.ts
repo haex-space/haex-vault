@@ -24,7 +24,7 @@ interface ProbeImage {
 
 const IMAGE_PROBE_TIMEOUT_MS = 2_000
 
-/** The answer of holzi's health route (`platform_probe::HEALTH_BODY`). */
+/** The answer of haex-vault's health route (`platform_probe::HEALTH_BODY`). */
 export const HEALTH_BODY = 'ok'
 
 /** What the page knows about itself; it explains a blocked fetch (policy or network access). */

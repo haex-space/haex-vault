@@ -25,7 +25,7 @@ pub struct DeclaredPermissionView {
     #[ts(optional)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title_en: Option<String>,
-    /// For `agentTool`: whether holzi can offer the tool to the agent.
+    /// For `agentTool`: whether haex-vault can offer the tool to the agent.
     #[ts(optional)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub supported: Option<bool>,

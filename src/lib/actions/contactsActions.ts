@@ -1,6 +1,6 @@
 // Address book actions for agents (spec 051 US6, FR-030, FR-032, research R15): search, read and
 // change contacts. They run in Rust (`runner: 'native'`, `src-tauri/src/contacts/agent_actions.rs`)
-// as the calling agent, the built-in one or an external one (spec 021 US5); without a grant holzi
+// as the calling agent, the built-in one or an external one (spec 021 US5); without a grant haex-vault
 // asks the user there, and a refusal looks like a missing contact. Agents never change groups, phone targets or where a contact came
 // from. Pure, relative `.ts` imports only.
 import type { ActionDefinition, JsonSchema } from './types.ts'
@@ -34,7 +34,7 @@ const VALUE: JsonSchema = {
     kind: {
       type: 'string',
       description:
-        'phone, email, address, url, date, im, relation, custom or a kind of a newer holzi.',
+        'phone, email, address, url, date, im, relation, custom or a kind of a newer HaexVault.',
     },
     label: { type: 'string' },
     value: { type: 'string' },
@@ -65,7 +65,7 @@ const CONTACT: JsonSchema = {
     haexAddresses: {
       type: 'object',
       description:
-        "The confirmed holzi addresses from the contact's business card: vault identity, devices and Nostr relays; absent without a card.",
+        "The confirmed HaexVault addresses from the contact's business card: vault identity, devices and Nostr relays; absent without a card.",
     },
     isSelf: {
       type: 'boolean',
@@ -138,7 +138,7 @@ export const CONTACTS_ACTIONS: readonly ActionDefinition[] = [
     id: 'contacts.update',
     titleKey: 'actions.contacts.update',
     description:
-      'Change the name, organization, note or values of one contact. Only the fields given change; a value with an id from contacts.get is changed, one without an id is added, ids in `remove` are removed. The change reaches every device and the phone address books like one made in holzi. Needs the user to allow changing contacts.',
+      'Change the name, organization, note or values of one contact. Only the fields given change; a value with an id from contacts.get is changed, one without an id is added, ids in `remove` are removed. The change reaches every device and the phone address books like one made in HaexVault. Needs the user to allow changing contacts.',
     input: {
       type: 'object',
       properties: {
@@ -197,7 +197,7 @@ export const CONTACTS_ACTIONS: readonly ActionDefinition[] = [
             haex: {
               type: 'object',
               description:
-                'Which confirmed holzi addresses to propose: none, the stored card, or selected own-vault devices and relays.',
+                'Which confirmed HaexVault addresses to propose: none, the stored card, or selected own-vault devices and relays.',
               properties: {
                 kind: { type: 'string', enum: ['none', 'card', 'own'] },
                 devices: {

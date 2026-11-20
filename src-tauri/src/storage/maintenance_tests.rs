@@ -1,7 +1,7 @@
 //! Tests for `maintenance` (spec 022-session-restore, research R5/R6,
 //! contracts/wm-session.md §2). They open a real vault: the legacy
 //! preference delete needs `current_hlc()` and the maintenance table only
-//! exists after holzi's migrations.
+//! exists after haex-vault's migrations.
 
 // These tests seed and inspect raw vault state that the CRDT write path does
 // not expose.

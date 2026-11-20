@@ -165,7 +165,7 @@ async fn start_transfer(
     if touches_own(&job, &files.own) {
         return Err(FilesError::new(
             FilesErrorCode::HaexOwned,
-            "holzi's own data is read-only",
+            "HaexVault's own data is read-only",
         ));
     }
     let (job, totals) = blocking(move || {

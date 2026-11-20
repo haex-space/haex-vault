@@ -1,5 +1,5 @@
 //! Asking to switch the browser on (spec 065 revision 2026-11-02, FR-040): when the built-in agent
-//! reaches for the browser while its rights group `browser` is off, holzi asks the user once instead
+//! reaches for the browser while its rights group `browser` is off, haex-vault asks the user once instead
 //! of refusing silently. "Erlauben" switches the group on without any website; every website then
 //! asks on its first visit as before (FR-007). External agents keep their rights from the MCP
 //! settings and are refused as before.

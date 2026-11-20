@@ -48,7 +48,7 @@ pub struct Listing {
 /// Where a mirrored deletion went (FR-046).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Trashed {
-    /// The system's trash; holzi cannot open it.
+    /// The system's trash; haex-vault cannot open it.
     System,
     /// The rule trash of the place, at this relative path.
     Rule(String),

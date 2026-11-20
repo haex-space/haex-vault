@@ -79,7 +79,7 @@ impl McpSlot {
     }
 
     /// The open connection, or a new one: handshake and `tools/list`, with `send` carrying
-    /// holzi's messages to the frame. No time limit of its own; the caller bounds it (R9).
+    /// haex-vault's messages to the frame. No time limit of its own; the caller bounds it (R9).
     pub async fn link<F>(&self, send: F) -> Result<Arc<McpLink>, LinkError>
     where
         F: Fn(Value) + Send + 'static,

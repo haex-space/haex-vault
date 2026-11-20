@@ -12,7 +12,7 @@ use crate::cli_tools::runtime::DelegateRuntime;
 
 fn haex(slug: &str) -> HaexServer {
     HaexServer::new(
-        "/opt/holzi/holzi".to_owned(),
+        "/opt/haex-vault/haex".to_owned(),
         vec![
             "--mcp-agent".to_owned(),
             slug.to_owned(),
@@ -44,7 +44,7 @@ fn claude_args(mcp_config: Option<&Path>, haex: bool, mode: AutonomyMode) -> Vec
 fn a_registered_claude_delegate_gets_both_servers_outside_ungated() {
     let server = haex("claude-code-delegate");
     let approve = ApproveBridge {
-        executable: Path::new("/opt/holzi/holzi"),
+        executable: Path::new("/opt/haex-vault/haex"),
         socket: Path::new("/tmp/x/approval.sock"),
     };
     let config = claude_config(Some(approve), Some(&server)).expect("a config");
@@ -53,12 +53,12 @@ fn a_registered_claude_delegate_gets_both_servers_outside_ungated() {
         servers["haex-approve"]["args"][0],
         "--internal-cli-delegate-approval-bridge"
     );
-    assert_eq!(servers["haex"]["command"], "/opt/holzi/holzi");
+    assert_eq!(servers["haex"]["command"], "/opt/haex-vault/haex");
     assert_eq!(servers["haex"]["args"][1], "claude-code-delegate");
     assert_eq!(servers["haex"]["args"][4], "--delegate-token");
 }
 
-/// FR-024: "Ungated" has no approval bridge, but holzi's server is there all the same.
+/// FR-024: "Ungated" has no approval bridge, but haex-vault's server is there all the same.
 #[test]
 fn ungated_keeps_haex_and_drops_only_the_approval_bridge() {
     let server = haex("claude-code-delegate");
@@ -84,7 +84,7 @@ fn ungated_keeps_haex_and_drops_only_the_approval_bridge() {
     assert!(at("--permission-prompt-tool").is_none());
 }
 
-/// holzi asks for its own tools; Claude's approval bridge must not ask for them again.
+/// haex-vault asks for its own tools; Claude's approval bridge must not ask for them again.
 #[test]
 fn outside_ungated_haex_tools_skip_claudes_own_approval() {
     let path = Path::new("/tmp/x/mcp-config.json");
@@ -96,7 +96,7 @@ fn outside_ungated_haex_tools_skip_claudes_own_approval() {
 #[test]
 fn an_unregistered_delegate_gets_no_haex_server() {
     let approve = ApproveBridge {
-        executable: Path::new("/opt/holzi/holzi"),
+        executable: Path::new("/opt/haex-vault/haex"),
         socket: Path::new("/tmp/x/approval.sock"),
     };
     let config = claude_config(Some(approve), None).expect("the bridge");
@@ -131,7 +131,7 @@ async fn the_written_files_hold_haex_only_when_registered() {
 fn codex_gets_haex_in_its_config_toml() {
     let config = codex_config(&haex("codex-delegate"));
     assert!(config.starts_with("[mcp_servers.haex]\n"));
-    assert!(config.contains("command = \"/opt/holzi/holzi\"\n"));
+    assert!(config.contains("command = \"/opt/haex-vault/haex\"\n"));
     assert!(config.contains(
         "args = [\"--mcp-agent\", \"codex-delegate\", \"--vault\", \
          \"0b7d3c62-9f2e-4c1a-8d55-2a4b6e1f0c99\", \"--delegate-token\", \"pass\"]\n"
@@ -139,7 +139,7 @@ fn codex_gets_haex_in_its_config_toml() {
 }
 
 /// Codex asks before every call of an MCP tool unless the server is set to `approve`; without it
-/// holzi's tools (the agent browser among them) were refused before holzi saw the call.
+/// haex-vault's tools (the agent browser among them) were refused before haex-vault saw the call.
 #[test]
 fn codex_calls_the_tools_of_haex_without_its_own_question() {
     let config = codex_config(&haex("codex-delegate"));
@@ -147,7 +147,7 @@ fn codex_calls_the_tools_of_haex_without_its_own_question() {
     assert_eq!(
         config.matches("default_tools_approval_mode").count(),
         1,
-        "set for holzi's server only"
+        "set for HaexVault's server only"
     );
 }
 
@@ -155,12 +155,12 @@ fn codex_calls_the_tools_of_haex_without_its_own_question() {
 #[test]
 fn codex_paths_are_escaped_as_toml_strings() {
     let server = HaexServer::new(
-        r#"C:\Program Files\holzi "beta"\haex.exe"#.to_owned(),
+        r#"C:\Program Files\HaexVault "beta"\haex.exe"#.to_owned(),
         vec!["line\nbreak\u{7f}".to_owned()],
         (),
     );
     let config = codex_config(&server);
-    assert!(config.contains(r#"command = "C:\\Program Files\\holzi \"beta\"\\haex.exe""#));
+    assert!(config.contains(r#"command = "C:\\Program Files\\HaexVault \"beta\"\\haex.exe""#));
     assert!(config.contains(r#"args = ["line\u000Abreak\u007F"]"#));
 }
 

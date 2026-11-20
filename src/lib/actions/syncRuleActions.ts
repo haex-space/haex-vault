@@ -155,7 +155,7 @@ export const SYNC_RULE_ACTIONS: readonly ActionDefinition[] = [
     id: 'syncRules.create',
     titleKey: 'actions.syncRules.create',
     description:
-      "Create a sync rule that keeps two folders equal. The user confirms every call in a dialog; holzi's own data and contacts' shares cannot be a place.",
+      "Create a sync rule that keeps two folders equal. The user confirms every call in a dialog; HaexVault's own data and contacts' shares cannot be a place.",
     input: DRAFT,
     result: VIEW,
     effect: 'destructive',

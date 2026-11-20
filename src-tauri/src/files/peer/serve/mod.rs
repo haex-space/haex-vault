@@ -1,7 +1,7 @@
 //! The handler of `haex-files/1` on the session endpoint (spec 056 research R5, R6): every
 //! connection runs on the session's tracker, proves itself (`handshake`), and then sends one request
 //! per bi-stream. Every request is checked again (FR-005): the switch for an own device, the card
-//! and the grant for a contact, the path and holzi's own places for both. A refusal looks the same
+//! and the grant for a contact, the path and haex-vault's own places for both. A refusal looks the same
 //! from outside whatever its reason (FR-042).
 
 pub mod change;
@@ -63,7 +63,7 @@ pub struct ServeContext {
     pub keys: DeviceKeys,
     pub vault: [u8; 32],
     pub db: VaultDb,
-    /// holzi's own places on this device (FR-007).
+    /// haex-vault's own places on this device (FR-007).
     pub own: OwnPlaces,
     /// The known places an own device starts in (home, documents, …).
     pub known: Vec<Place>,

@@ -37,9 +37,9 @@ pub struct PermissionView {
     #[ts(optional)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub device_name: Option<String>,
-    /// Held only until holzi is closed.
+    /// Held only until haex-vault is closed.
     pub temporary: bool,
-    /// holzi cannot read the row (FR-022); it counts as absent.
+    /// haex-vault cannot read the row (FR-022); it counts as absent.
     pub unreadable: bool,
     /// For `encryptedFolder`: the storage's name and the folder's decrypted name as this device
     /// last read it (spec 048 FR-038); absent when this device does not know them.
@@ -47,7 +47,7 @@ pub struct PermissionView {
     #[ts(optional, inline)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub folder: Option<FolderNames>,
-    /// For `agentTool` (spec 018): the tool's title per locale and whether holzi can offer it,
+    /// For `agentTool` (spec 018): the tool's title per locale and whether haex-vault can offer it,
     /// from the manifest of the effective bundle.
     #[ts(optional)]
     #[serde(skip_serializing_if = "Option::is_none")]

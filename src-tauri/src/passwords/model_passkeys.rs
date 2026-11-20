@@ -34,7 +34,7 @@ pub struct PasskeyView {
     /// The entry the passkey belongs to (`None` only for old data without an entry).
     pub item_id: Option<String>,
     pub is_discoverable: bool,
-    /// The imported counter; holzi's own confirmations leave it as it is (research R5).
+    /// The imported counter; haex-vault's own confirmations leave it as it is (research R5).
     #[ts(type = "number")]
     pub sign_count: i64,
     pub linked_from: Option<LinkedFrom>,

@@ -2,7 +2,7 @@
 //! requests read and write the vault (spec 024, research R19).
 //!
 //! [`VaultDb::write`] runs a closure in one [`Database::write`] transaction: every statement goes
-//! through haex-crdt's CRDT transformer and shares the transaction's HLC, so holzi never stamps
+//! through haex-crdt's CRDT transformer and shares the transaction's HLC, so haex-vault never stamps
 //! an HLC by hand and the whole closure is one transaction group for sync. [`VaultDb::read`]
 //! runs a closure on haex-crdt's read-only view. Both run on the blocking pool; the closure owns
 //! a clone of the handle, so the tracker stays busy until the SQL is done even if the awaiting

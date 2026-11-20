@@ -110,7 +110,7 @@ pub enum ApprovalRequestPayload {
     /// Deliberately field-less: `FileChangeRequestApprovalParams` exposes
     /// no path (research.md §3) — not a placeholder to fill in later.
     CodexFileChange,
-    /// A Codex approval callback whose method holzi does not recognize, or
+    /// A Codex approval callback whose method haex-vault does not recognize, or
     /// whose `item/commandExecution/requestApproval` params are missing a
     /// field research.md §2 says the real schema always carries
     /// (`command`/`cwd`) — schema drift, not a legitimate empty command.

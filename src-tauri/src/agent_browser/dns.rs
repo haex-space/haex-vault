@@ -1,5 +1,5 @@
 //! DNS over HTTPS for the agent browser (spec 065 FR-048, research R18): the user's choice of mode
-//! and provider (kept in the vault, see `choices`), and its effect: before the browser starts, holzi
+//! and provider (kept in the vault, see `choices`), and its effect: before the browser starts, haex-vault
 //! writes Chromium's own secure-DNS keys into the profile's `Local State`. The choice applies to
 //! the agent browser only; it takes effect at the browser's next start.
 
@@ -43,7 +43,7 @@ pub enum DnsProvider {
     Custom,
 }
 
-/// A provider holzi knows by itself.
+/// A provider haex-vault knows by itself.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
@@ -53,7 +53,7 @@ pub struct DnsPreset {
     pub url: &'static str,
 }
 
-/// What "KI → Browser" shows: the choice and the providers holzi knows by itself.
+/// What "KI → Browser" shows: the choice and the providers haex-vault knows by itself.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]

@@ -1,12 +1,12 @@
 //! What a registered agent may do (spec 021 research R3, FR-008, FR-012 to FR-016). One function
 //! decides the tool list and every call, so a tool an agent does not see is also a tool it cannot
-//! call. The rights group "holzi bedienen" (`operate`) has per scope of the action catalog nothing,
+//! call. The rights group "haex-vault bedienen" (`operate`) has per scope of the action catalog nothing,
 //! reading, or reading and changing; the group `browser` (spec 065) opens the browser tools and
 //! names the websites an agent may read or operate; the group `extension` names the extensions
 //! whose tools it sees (US4, FR-018). Files and contacts follow the agent's rows in
 //! `agent_file_permissions` ([`DataRights`], US5, FR-020), and a native action is offered only when
 //! its executor serves external agents. The group `passwords` opens the search of the password
-//! manager and the single secret, within its tags (US5, FR-019); the group `commands` opens holzi's
+//! manager and the single secret, within its tags (US5, FR-019); the group `commands` opens haex-vault's
 //! command tool (`command_tool.rs`). The scope `guardrails` is never a right. A later group adds a
 //! field that is off when missing (FR-008).
 
@@ -30,7 +30,7 @@ use crate::passwords::access::{
     Grant as PasswordGrant, GrantAction as PasswordAction, Scope as PasswordScope,
 };
 
-/// The scopes of the group "holzi bedienen" (`src/lib/actions/scopes.ts`): the window manager, the
+/// The scopes of the group "haex-vault bedienen" (`src/lib/actions/scopes.ts`): the window manager, the
 /// chat and the settings an agent may reach. Files, contacts and passwords are their own groups.
 pub const OPERATE_SCOPES: [&str; 8] = [
     "wm.layout",
@@ -72,7 +72,7 @@ impl OperateLevel {
 }
 
 /// The scope of the browser tools (spec 065); it belongs to the group `browser`, not to
-/// "holzi bedienen".
+/// "haex-vault bedienen".
 pub const BROWSER_SCOPE: &str = "browser";
 
 /// How far an agent may act on one website (spec 065 FR-005, FR-008).
@@ -469,7 +469,7 @@ impl ContactsRights {
 
 /// How an Abo-Agent's own tools run in the chat, a right of the agent profile of its model (spec 083
 /// FR-030; specs 009, 032): the autonomy mode and what the permissive mode still refuses. It says
-/// nothing about holzi's tools, which the other groups limit. Only the model of an Abo-Agent's
+/// nothing about haex-vault's tools, which the other groups limit. Only the model of an Abo-Agent's
 /// provider uses it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -493,7 +493,7 @@ impl DelegateRights {
 }
 
 /// What a new agent may do until the user changes it (FR-009): read in every scope of
-/// "holzi bedienen", nothing else.
+/// "haex-vault bedienen", nothing else.
 pub fn default_rights() -> Rights {
     Rights {
         operate: OPERATE_SCOPES
@@ -515,10 +515,10 @@ pub fn default_rights() -> Rights {
     }
 }
 
-/// Rights the window sent that holzi does not store.
+/// Rights the window sent that haex-vault does not store.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum InvalidRights {
-    /// `guardrails` or a scope outside "holzi bedienen" (FR-016).
+    /// `guardrails` or a scope outside "haex-vault bedienen" (FR-016).
     #[error("the scope {0} cannot be granted")]
     Scope(String),
     /// A website over plain http can only be read (spec 065 research R9).
@@ -713,7 +713,7 @@ pub fn check<'a>(
         .filter(|def| covers(rights, reach, def))
 }
 
-/// Whether `rights` cover a tool of an extension (FR-018); holzi's own tools have no origin and
+/// Whether `rights` cover a tool of an extension (FR-018); haex-vault's own tools have no origin and
 /// are never covered here.
 pub fn covers_extension_tool(rights: &Rights, tool: &dyn Tool) -> bool {
     tool.origin()

@@ -68,7 +68,7 @@ fn an_image_job_never_reaches_a_model_without_images() {
     );
     allow(&s, "model", "medium", &text[0].id, "granted");
 
-    // Only the text model is granted: holzi asks for the one that takes images.
+    // Only the text model is granted: haex-vault asks for the one that takes images.
     let details = prompt_of(start(&s, &job(vec![image_step()])));
     assert_eq!(details["target"], json!(vision[0].id));
     assert_eq!(details["needs"], json!(["text", "image"]));

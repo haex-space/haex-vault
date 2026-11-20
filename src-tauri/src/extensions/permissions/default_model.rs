@@ -1,5 +1,5 @@
 //! The default model of an extension (spec 055 FR-007): at most one of the models it may use, to
-//! which its jobs go first. There is no rank; when the default cannot take a job, holzi asks the
+//! which its jobs go first. There is no rank; when the default cannot take a job, haex-vault asks the
 //! user which other model should (`model_jobs::preflight`, `model_jobs::runner`).
 //!
 //! The row lives in `extension_default_model`, a vault-wide table that syncs; its id is the

@@ -234,7 +234,7 @@ fn wrong_language(request: &Request, text: &str) -> bool {
     answer_language(text).is_some_and(|lang| lang != request.lang)
 }
 
-/// The trace with only the calls that ran: a call the dialog stopped or holzi turned away did
+/// The trace with only the calls that ran: a call the dialog stopped or haex-vault turned away did
 /// nothing, so it neither fails nor completes the request (spec 082 research R2).
 fn ran(trace: &Trace) -> Trace {
     Trace {

@@ -1,4 +1,4 @@
-//! The areas of holzi a request can be about (spec 082 FR-010, research R4, contracts/domains.md):
+//! The areas of haex-vault a request can be about (spec 082 FR-010, research R4, contracts/domains.md):
 //! the domains the frontend declares for its actions (`AGENT_DOMAINS`), and one per installed
 //! extension. A routing call names a request's domains, and the first step offers their tools.
 
@@ -34,7 +34,7 @@ pub struct AgentDomain {
 /// One installed domain, as the routing prompt and the routed offer use it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Domain {
-    /// `contacts` for holzi's contacts actions, `x_<prefix>` for an extension.
+    /// `contacts` for haex-vault's contacts actions, `x_<prefix>` for an extension.
     pub key: String,
     /// The word the routing prompt uses; unique among the installed domains.
     pub name: String,

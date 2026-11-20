@@ -17,7 +17,7 @@ use crate::model_jobs::local_slot::LocalSlot;
 use crate::model_jobs::model_source::{ModelSource, Providers};
 use crate::vault_gate::ChildRegistry;
 
-/// What holzi's window reports about itself for `extension_context_get`.
+/// What haex-vault's window reports about itself for `extension_context_get`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostContext {
     /// `light`, `dark` or `system`, as the SDK's `ApplicationContext` names them.
@@ -34,7 +34,7 @@ impl Default for HostContext {
     }
 }
 
-/// What holzi does outside its window for extensions (US8): the app sets it once at start; tests
+/// What haex-vault does outside its window for extensions (US8): the app sets it once at start; tests
 /// set a recording one. Without it these functions are not available (8001).
 pub trait Desktop: Send + Sync {
     /// Opens an address in the system's browser.
@@ -50,7 +50,7 @@ pub trait Desktop: Send + Sync {
         Err("notifications are not available".to_owned())
     }
 
-    /// Whether the system lets holzi show notifications; asks the person the first time where the
+    /// Whether the system lets haex-vault show notifications; asks the person the first time where the
     /// system wants that (Android's `POST_NOTIFICATIONS`, spec 043 FR-023). Blocking: the bridge
     /// calls it on a worker thread.
     fn notifications_allowed(&self) -> bool {
@@ -68,7 +68,7 @@ pub struct ExtensionHost {
     pub replacements: crate::model_jobs::replacement::ModelReplacements,
     /// Frames the agent's tool calls wait for (spec 018, research R9).
     pub agent_frames: super::agent_tools::frame_request::FrameRequests,
-    /// Dialog choices per frame, holzi's protected places and folder watches (US9).
+    /// Dialog choices per frame, haex-vault's protected places and folder watches (US9).
     pub fs: super::fs::FsState,
     /// Open permission questions and decisions held in memory (US3).
     pub permissions: PermissionState,
@@ -95,12 +95,12 @@ pub struct ExtensionHost {
     dialogs: Mutex<HashMap<String, (String, Sender<bool>)>>,
     /// Running SQL calls per extension (limit `max_concurrent`).
     running_sql: Arc<Mutex<HashMap<Uuid, u64>>>,
-    /// Developer mode is on for the open vault: holzi's document may frame development servers.
+    /// Developer mode is on for the open vault: haex-vault's document may frame development servers.
     dev_frames: AtomicBool,
-    /// The document holzi's window shows was served with the development origins.
+    /// The document haex-vault's window shows was served with the development origins.
     served_dev_frames: AtomicBool,
     desktop: OnceLock<Arc<dyn Desktop>>,
-    /// Where model jobs get their adapters; holzi's providers unless a test sets a scripted one.
+    /// Where model jobs get their adapters; haex-vault's providers unless a test sets a scripted one.
     model_source: OnceLock<Arc<dyn ModelSource>>,
     /// The vault's registry of child processes, for the agents of subscriptions that run model jobs.
     model_children: OnceLock<ChildRegistry>,
@@ -170,7 +170,7 @@ impl ExtensionHost {
         let _ = self.model_source.set(source);
     }
 
-    /// Sets what holzi does on the desktop; only the first call counts.
+    /// Sets what haex-vault does on the desktop; only the first call counts.
     pub fn set_desktop(&self, desktop: Arc<dyn Desktop>) {
         let _ = self.desktop.set(desktop);
     }
@@ -210,7 +210,7 @@ impl ExtensionHost {
             .remove(&extension_id);
     }
 
-    /// Whether holzi's next document may frame development servers (`dev_csp`).
+    /// Whether haex-vault's next document may frame development servers (`dev_csp`).
     pub fn dev_frames(&self) -> bool {
         self.dev_frames.load(Ordering::SeqCst)
     }
@@ -219,7 +219,7 @@ impl ExtensionHost {
         self.dev_frames.store(allowed, Ordering::SeqCst);
     }
 
-    /// Whether the document holzi's window shows may frame development servers.
+    /// Whether the document haex-vault's window shows may frame development servers.
     pub fn served_dev_frames(&self) -> bool {
         self.served_dev_frames.load(Ordering::SeqCst)
     }
@@ -235,7 +235,7 @@ impl ExtensionHost {
             .clone()
     }
 
-    /// Takes over the color scheme and language holzi's window reports (a theme outside the SDK's
+    /// Takes over the color scheme and language haex-vault's window reports (a theme outside the SDK's
     /// names counts as `system`); returns whether either changed.
     pub fn set_context(&self, theme: &str, locale: &str) -> bool {
         let theme = match theme {

@@ -1,6 +1,6 @@
 // A local SFTP server for the storage scenarios (spec 050, T080): `rclone serve sftp` in Docker on
 // a free port of the loopback interface, with a host key and the user's authorized public keys
-// from a temporary folder, so a scenario can register a key holzi generated and restart the
+// from a temporary folder, so a scenario can register a key haex-vault generated and restart the
 // server with another host key on the same port. Reached from an Android emulator like RustFS.
 import { spawnSync } from 'node:child_process'
 import { createHash, createPublicKey, generateKeyPairSync } from 'node:crypto'
@@ -29,13 +29,13 @@ export interface Sftp {
   listTree(name: string): string[]
   /** Writes the file `name` (with its folders) below the server root for scenario setup. */
   writeFile(name: string, body: Uint8Array | string): void
-  /** `SHA256:…` of the host key the server shows now, as holzi and OpenSSH name it. */
+  /** `SHA256:…` of the host key the server shows now, as haex-vault and OpenSSH name it. */
   fingerprint: string
   /** The host key the server shows now as an OpenSSH line (`ssh-ed25519 AAAA…`). */
   hostKey: string
   /** The password of the user, when the server takes one (`prepareSftp({ password })`). */
   password?: string
-  /** Lets the user sign in with the public key line `line` (`ssh-ed25519 AAAA… holzi`). */
+  /** Lets the user sign in with the public key line `line` (`ssh-ed25519 AAAA… haex-vault`). */
   authorize(line: string): void
   /** Starts the server, or starts it again with a new host key. */
   startAsync(options?: { newHostKey?: boolean }): Promise<void>

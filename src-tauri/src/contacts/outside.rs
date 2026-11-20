@@ -1,6 +1,6 @@
-//! What a caller outside holzi sees of a contact (spec 051 FR-028, contracts/bridge.md): extensions
+//! What a caller outside haex-vault sees of a contact (spec 051 FR-028, contracts/bridge.md): extensions
 //! and agents get the same view. Everything a person reads on the contact: the head fields, every
-//! value (unknown kinds too), group names, the photo hash and the confirmed holzi addresses. Never
+//! value (unknown kinds too), group names, the photo hash and the confirmed haex-vault addresses. Never
 //! where the contact came from, which phones it goes to, what did not reach them or how it is linked
 //! there. A field without a value is left out, never `null`.
 
@@ -46,7 +46,7 @@ pub struct OutsideDevice {
     pub iroh_relay: Option<String>,
 }
 
-/// The confirmed holzi addresses, from the contact's Visitenkarte.
+/// The confirmed haex-vault addresses, from the contact's Visitenkarte.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OutsideAddresses {

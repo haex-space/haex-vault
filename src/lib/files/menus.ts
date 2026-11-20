@@ -1,7 +1,7 @@
 // The context menus of the file browser (spec 044 FR-017 to FR-023, T050): the menu of entries and
 // the menu of the open folder's empty area. The right-click menu (a long press on touch) and the
 // selection bar run the same commands. Pure, so `scripts/check-files-clipboard.ts` runs it without
-// vue. holzi's own places are read-only (FR-037): their changes stay disabled. An item names its
+// vue. haex-vault's own places are read-only (FR-037): their changes stay disabled. An item names its
 // keyboard shortcut (FR-017b, `lib/files/shortcuts.ts`).
 import type { ShortcutHint } from '../wm/shortcutLabel.ts'
 
@@ -42,17 +42,17 @@ export type EntriesMenuInput = {
   count: number
   /** The one entry is a file (open with the system's app). */
   singleFile: boolean
-  /** The open folder is one of holzi's own places. */
+  /** The open folder is one of haex-vault's own places. */
   readOnly: boolean
   /** The selection mode is on (touch selects through the menu). */
   selecting: boolean
   /** The system's apps can open files here; not on Android yet (spec 048 research R11). */
   systemApps?: boolean
-  /** The one entry may be shared with contacts: of this device, not holzi's own (spec 056). */
+  /** The one entry may be shared with contacts: of this device, not haex-vault's own (spec 056). */
   shareable?: boolean
   /** The tab shows two panels: the menu offers copying and moving into the other one (spec 062). */
   split?: boolean
-  /** The other panel's folder takes no changes: holzi's own place, or a share read only. */
+  /** The other panel's folder takes no changes: haex-vault's own place, or a share read only. */
   readOnlyTarget?: boolean
   /** What the menu offers for the one folder entry: pin it or unpin it (spec 071); none for
    * anything else. */
@@ -118,7 +118,7 @@ export function entriesMenu(input: EntriesMenuInput): FilesMenuEntry[] {
 
 export type FolderMenuInput = {
   readOnly: boolean
-  /** Something is in holzi's clipboard and may go here. */
+  /** Something is in haex-vault's clipboard and may go here. */
   canPaste: boolean
   /** An encrypted folder may be created here (spec 048 FR-001, `lib/files/encrypted.ts`). */
   canEncrypt?: boolean

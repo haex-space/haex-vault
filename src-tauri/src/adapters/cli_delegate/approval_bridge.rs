@@ -40,7 +40,7 @@ struct ApprovalRequest {
     input: Value,
 }
 
-/// Applies holzi's existing permission posture (`Standard`) or, under
+/// Applies haex-vault's existing permission posture (`Standard`) or, under
 /// `GatedPermissive`, the operator's persisted deny rules
 /// (spec 009-autonomous-delegate-mode) instead. `Ungated` never reaches
 /// this function in practice — Claude spawns no bridge for it and Codex's
@@ -144,8 +144,8 @@ async fn gated_permissive_decision(
 }
 
 /// Persists one `tool_call`/`tool_result` row pair recording a
-/// `gated-permissive` approval callback and holzi's decision on it — the
-/// only outcome holzi itself observes at this boundary; the delegate
+/// `gated-permissive` approval callback and haex-vault's decision on it — the
+/// only outcome haex-vault itself observes at this boundary; the delegate
 /// executes the tool in its own process, so no actual tool output is
 /// available to record (unlike the built-in tool loop's own rows). Both
 /// rows commit in one transaction — a partial pair (a call row with no

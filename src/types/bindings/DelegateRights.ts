@@ -5,7 +5,7 @@ import type { DenyCategory } from "./DenyCategory";
 /**
  * How an Abo-Agent's own tools run in the chat, a right of the agent profile of its model (spec 083
  * FR-030; specs 009, 032): the autonomy mode and what the permissive mode still refuses. It says
- * nothing about holzi's tools, which the other groups limit. Only the model of an Abo-Agent's
+ * nothing about haex-vault's tools, which the other groups limit. Only the model of an Abo-Agent's
  * provider uses it.
  */
 export type DelegateRights = { autonomy: AutonomyMode,

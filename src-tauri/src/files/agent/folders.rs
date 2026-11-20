@@ -31,7 +31,7 @@ use crate::files::storage_source::StorageFiles;
 use crate::files::{EncryptedRole, EncryptedState, Entry, FilesError, FilesErrorCode};
 use crate::sync::keys::random_bytes;
 
-/// What the question says when no task names the model: one holzi does not know, so a cloud model
+/// What the question says when no task names the model: one haex-vault does not know, so a cloud model
 /// (FR-030a).
 const UNKNOWN_MODEL: &str = "unknown";
 

@@ -260,7 +260,7 @@ impl Scene {
 /// Chromium on a CI runner whose page cache the build emptied reads the browser from disk: in the
 /// failed runs its first log line came 11 to 18 seconds after the start, and it did not answer
 /// within the 30 seconds a start gets. A run of its own loads it into the cache, so the tests
-/// measure holzi and not the runner's disk. Only on Linux, where the tests run headless.
+/// measure haex-vault and not the runner's disk. Only on Linux, where the tests run headless.
 fn warm_up(executable: &Path) {
     static WARM: std::sync::Once = std::sync::Once::new();
     if !cfg!(target_os = "linux") {

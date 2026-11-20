@@ -2,7 +2,7 @@
 //! stop ends the running call within a second and holds until a new session begins; revoking ends
 //! a session, stopped or not; the end of the browser ends its sessions. Taking over pauses the
 //! agent until the user gives back: its running call ends within a second, further calls get
-//! `paused`, and its tabs' requests go without asking; holzi's own input does not pause it.
+//! `paused`, and its tabs' requests go without asking; haex-vault's own input does not pause it.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -415,7 +415,7 @@ async fn haexs_own_input_does_not_pause_the_agent() {
     let (sessions, _) = registry();
     let session = start(&sessions, &agent()).unwrap();
     session.own(session.noticed_input()).await;
-    assert!(!session.is_paused(), "while holzi's input runs");
+    assert!(!session.is_paused(), "while HaexVault's input runs");
     session.noticed_input().await;
     assert!(!session.is_paused(), "right after it");
 

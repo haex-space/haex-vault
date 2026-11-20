@@ -5395,7 +5395,7 @@ var HAEXSPACE_MESSAGE_TYPES = {
    */
   PORT_READY: "haexspace:port:ready",
   /**
-   * One MCP message of the tool connection (holzi spec 018), in both directions over the
+   * One MCP message of the tool connection (haex-vault spec 018), in both directions over the
    * MessagePort: the host calls the extension's tools, `sdk.tools` answers.
    *
    * Payload: `{ type: MCP, message }`, where `message` is a JSON-RPC 2.0 object.
@@ -5526,7 +5526,7 @@ var MODEL_JOB_EVENTS = {
 var PEERS_EVENTS = {
   /** The outcome of an invitation, once per invitation (inviting side). */
   INVITE_STATUS: "peers:invite-status",
-  /** A channel opened after the user accepted an invitation in holzi's prompt (invited side). */
+  /** A channel opened after the user accepted an invitation in haex-vault's prompt (invited side). */
   CHANNEL_OPENED: "peers:channel-opened",
   /** A device joined one of this device's lobbies by code (host). */
   JOINED: "peers:joined",
@@ -7100,7 +7100,7 @@ var ModelsAPI = class {
     return answer.models;
   }
   /**
-   * Asks for a grant before the first job (holzi spec 055 US9) and resolves with the allowed
+   * Asks for a grant before the first job (haex-vault spec 055 US9) and resolves with the allowed
    * models that fit `needs`. Without one, the host asks the user as it would for a job, and the
    * SDK waits for the answer. Rejects with `no_capable_model` (8001) when no model of the host
    * fits and with a denial (1002) when the user refused. Nothing is sent to a model, and consent
@@ -7489,7 +7489,7 @@ var MailAPI = class {
    * interval for servers without IDLE. Listen for results via `onNewMessages`.
    *
    * `imap` is optional for hosts that resolve the credentials themselves from
-   * `accountId`; holzi requires it.
+   * `accountId`; haex-vault requires it.
    */
   async startWatchingAsync(accountId, mailboxName, intervalSeconds, imap) {
     return this.client.request(MAIL_COMMANDS.startWatch, {
@@ -8874,9 +8874,9 @@ var FIX = `These are the regions of a German page read from handwriting. Correct
 that were clearly misread in their "text"; keep abbreviations, line breaks and the wording otherwise.
 Return ONLY {"texts": [...]} with one corrected text per region that has a "text", in the same order.`;
 var TEST_MODES = {
-  loop: '[holzi-test:loop] Answer only with the word "ja", repeated 40 times.',
-  empty: "[holzi-test:empty] Answer with nothing at all.",
-  cjk: "[holzi-test:cjk] Answer only in Chinese characters."
+  loop: '[haex-test:loop] Answer only with the word "ja", repeated 40 times.',
+  empty: "[haex-test:empty] Answer with nothing at all.",
+  cjk: "[haex-test:cjk] Answer only in Chinese characters."
 };
 var textFix = {
   name: "text-fix",
@@ -8945,7 +8945,7 @@ window.modelJobs = {
       show("abgelehnt", this.last);
     });
   },
-  /** The way to the grant (spec 055 US9): ask before the first job, or open holzi's model page. */
+  /** The way to the grant (spec 055 US9): ask before the first job, or open haex-vault's model page. */
   lead(mode) {
     const end = mode === "access" ? sdk.models.requestAccessAsync({
       needs: ["text", "image"]

@@ -7,7 +7,7 @@
 //!
 //! All tables are CRDT-tracked (no `_no_sync` suffix): haex-crdt adds the HLC columns and the
 //! triggers, so none of them is in the SQL. Every table has a primary key and none is
-//! `WITHOUT ROWID`. The statements are separated the way the other holzi migrations are
+//! `WITHOUT ROWID`. The statements are separated the way the other haex-vault migrations are
 //! (`--> statement-breakpoint`). The `identity/migrations.rs` file is over the 500-line boundary
 //! already, so the new SQL lives here and that file only registers it.
 

@@ -247,7 +247,7 @@ fn the_chooser_names_the_folders_and_an_answer_without_remember_is_held_until_th
         .unwrap();
     assert_eq!(file, json!("U3Ryb20gMjAyNg=="));
 
-    // The frame reloads: the held answer is gone and holzi asks again.
+    // The frame reloads: the held answer is gone and haex-vault asks again.
     s.ctx
         .host
         .permissions

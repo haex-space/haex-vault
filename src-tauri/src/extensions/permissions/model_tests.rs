@@ -80,7 +80,7 @@ fn a_stored_model_row_reads_back_and_a_malformed_one_is_absent() {
     let destination =
         Permission::from_row("modelDestination", "send", PROVIDER, "granted", device).expect("row");
     assert_eq!(destination.kind, PermissionKind::ModelDestination);
-    // A row holzi cannot read is absent, never another permission (FR-022).
+    // A row haex-vault cannot read is absent, never another permission (FR-022).
     assert!(Permission::from_row("model", "minimal", "*", "granted", device).is_none());
     assert!(Permission::from_row("model", "low", "", "granted", device).is_none());
     assert!(Permission::from_row("modelDestination", "send", "*", "granted", device).is_none());

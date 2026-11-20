@@ -1,6 +1,6 @@
-//! holzi's side of a contact for the comparison with a phone, and the writes of a plan to holzi
+//! haex-vault's side of a contact for the comparison with a phone, and the writes of a plan to haex-vault
 //! (spec 051). Runs inside the run's reads and writes; the access checks of the service do not
-//! apply, the sync with the phone is holzi's own function (`Caller::Internal`).
+//! apply, the sync with the phone is haex-vault's own function (`Caller::Internal`).
 
 use std::collections::BTreeMap;
 
@@ -18,7 +18,7 @@ use crate::contacts::store::{self, HEAD_COLUMNS};
 use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
-/// A contact of holzi as the run sees it.
+/// A contact of haex-vault as the run sees it.
 #[derive(Debug, Clone)]
 pub struct Loaded {
     pub side: HaexSide,
@@ -55,7 +55,7 @@ pub fn head_map(head: &Head) -> BTreeMap<String, String> {
         .collect()
 }
 
-/// A head from head fields, cut to holzi's limits (a phone's note can be longer).
+/// A head from head fields, cut to haex-vault's limits (a phone's note can be longer).
 pub fn head_of(map: &BTreeMap<String, String>) -> Head {
     let get = |column: &str| {
         map.get(column).map(|value| {
@@ -94,7 +94,7 @@ fn cut(text: &str, limit: usize, bytes: bool) -> String {
     }
 }
 
-/// holzi's side of a contact; `None` when it does not exist (any more).
+/// haex-vault's side of a contact; `None` when it does not exist (any more).
 pub fn load(q: &mut impl Query, contact_id: &str) -> Result<Option<Loaded>> {
     let contact = match store::load(q, contact_id) {
         Ok(contact) => contact,
@@ -164,7 +164,7 @@ pub fn create(tx: &mut CrdtTransaction<'_>, id: &str, origin: &Origin, now: &str
     store::insert(tx, id, &Head::default(), origin, now)
 }
 
-/// Writes what a plan changes in holzi and stamps the contact when anything changed.
+/// Writes what a plan changes in haex-vault and stamps the contact when anything changed.
 pub fn apply(tx: &mut CrdtTransaction<'_>, contact_id: &str, plan: &Plan, now: &str) -> Result<()> {
     if !plan.head.is_empty() {
         let next = head_of(
@@ -215,7 +215,7 @@ pub fn apply(tx: &mut CrdtTransaction<'_>, contact_id: &str, plan: &Plan, now: &
     Ok(())
 }
 
-/// The id of the group with this name, made when holzi has none (groups meet by name, T096).
+/// The id of the group with this name, made when haex-vault has none (groups meet by name, T096).
 fn group_named(tx: &mut CrdtTransaction<'_>, name: &str) -> Result<String> {
     let name = name.trim();
     let found: Option<String> = tx.query_row(
@@ -259,7 +259,7 @@ fn leave_group(tx: &mut CrdtTransaction<'_>, contact_id: &str, name: &str) -> Re
     Ok(())
 }
 
-/// holzi's head fields and phone values after a plan.
+/// haex-vault's head fields and phone values after a plan.
 pub fn after(side: &HaexSide, plan: &Plan) -> (BTreeMap<String, String>, Vec<HaexValue>) {
     let mut head = side.head.clone();
     for (column, value) in &plan.head {

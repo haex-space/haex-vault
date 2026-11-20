@@ -33,7 +33,7 @@ trashedFromGroupId: string | null, tags: Array<TagRef>,
  */
 expiresAt: string | null, hasPassword: boolean, hasTotp: boolean, passkeyCount: number, attachmentCount: number, createdAt: string | null, updatedAt: string | null,
 /**
- * The holzi function the entry belongs to (spec 038, rule Z14), `None` for the user's own; the
+ * The haex-vault function the entry belongs to (spec 038, rule Z14), `None` for the user's own; the
  * window marks such entries.
  */
 owner: string | null,

@@ -13,7 +13,7 @@ node scripts/icon-sets/prepare.ts material <unpacked VSIX> <Apache-2.0 license t
 
 ## States of an entry (`scripts/icon-sets/haex-states/`)
 
-Both packs carry five images drawn for holzi, in colour and the same in every set: a readable
+Both packs carry five images drawn for HaexVault, in colour and the same in every set: a readable
 encrypted folder (green with a large padlock), a folder of another vault or of a newer format (red,
 locked), a folder without access (grey with a prohibition sign), a locked file and a damaged one.
 They are named by the roles `encryptedFolder`, `lockedFolder`, `folderNoAccess`, `lockedFile` and
@@ -63,7 +63,7 @@ English counterpart.
   `material/LICENSE-APACHE-2.0` with `material/NOTICE`; the logos and marks
   shown in some icons belong to their owners and only mark the file type)
 - Selection rule: all 1251 images of `extension/icons/` and the manifest
-  `extension/dist/material-icons.json` without the parts holzi ignores
+  `extension/dist/material-icons.json` without the parts HaexVault ignores
   (`folderNamesExpanded`, `rootFolder*`, `rootFolderNamesExpanded`, `languageIds`,
   `highContrast`, `hidesExplorerArrows`, `folderExpanded`); `./../icons/x.svg`
   becomes `icons/x.svg`.
@@ -78,5 +78,5 @@ English counterpart.
 - Commit: `d672fc43dbf60962d9d829e35bc3b3e5ed89a178` (the license text in `lucide.LICENSE` is the file `LICENSE` of this commit)
 - License: `ISC AND MIT` (ISC for Lucide, MIT for the icons derived from Feather)
 - Lucide is the standard set and the fallback of every role another set does not cover. It has no
-  images in a pack: holzi draws its symbols with the Iconify icons of the app (`lucide:*`), in the
+  images in a pack: HaexVault draws its symbols with the Iconify icons of the app (`lucide:*`), in the
   colour of the text. `lucide.LICENSE` is the text for the page "Lizenzen".

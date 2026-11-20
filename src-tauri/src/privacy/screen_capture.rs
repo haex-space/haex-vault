@@ -1,5 +1,5 @@
 //! Screen capture protection (spec 043 FR-011a): while a vault is open, Android allows no
-//! screenshots or recordings of holzi's window and shows an empty preview among the recent apps.
+//! screenshots or recordings of haex-vault's window and shows an empty preview among the recent apps.
 //! On by default; the person can switch it off for this device only (a device setting, like
 //! developer mode in `extensions/dev.rs`), and the choice takes effect at once.
 

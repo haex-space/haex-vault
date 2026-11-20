@@ -219,11 +219,11 @@ impl PeerState {
     }
 
     /// Tells the frames of `channel`'s extension that an invitation became a channel
-    /// (`peers:channel-opened`, FR-016). Without a frame, holzi's window opens the extension and
+    /// (`peers:channel-opened`, FR-016). Without a frame, haex-vault's window opens the extension and
     /// the event waits, with the channel's messages, for [`Self::frame_opened`]; after
     /// `pending_open` without one the channel closes (research R9).
     ///
-    /// ponytail: "a frame" is a registered session, which exists a moment before holzi's window
+    /// ponytail: "a frame" is a registered session, which exists a moment before haex-vault's window
     /// knows its id; an event sent in that moment is lost to it. Upgrade: count a frame only once
     /// its first handshake reported (`extension_frame_reloaded`).
     pub(super) fn opened(
@@ -280,7 +280,7 @@ impl PeerState {
     }
 
     /// A frame of `extension_id` is there: what waited for one goes to it, in order. Called when
-    /// the frame reports its handshake, as only then does holzi's window know the frame and keep
+    /// the frame reports its handshake, as only then does haex-vault's window know the frame and keep
     /// events for it.
     pub fn frame_opened(&self, extension_id: Uuid, frame: &str) {
         self.ready_frames()

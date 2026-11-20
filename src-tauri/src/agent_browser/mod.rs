@@ -1,4 +1,4 @@
-//! The browser that agents drive (spec 065, ADR-0019): holzi starts a Chromium-based browser of its
+//! The browser that agents drive (spec 065, ADR-0019): haex-vault starts a Chromium-based browser of its
 //! own and steers it over a pipe; agents reach it through the native catalog actions `browser.*`
 //! within the rights group `browser`.
 //!
@@ -65,7 +65,7 @@ use crate::vault_gate::{ChildGuard, VaultGate};
 /// How long the browser runs on without a session (FR-003).
 pub const IDLE_LIMIT: Duration = Duration::from_secs(15 * 60);
 
-/// How long the browser gets to end in order before holzi ends its process. Chrome with a window on
+/// How long the browser gets to end in order before haex-vault ends its process. Chrome with a window on
 /// a busy Mac can take longer than five seconds to write its profile and quit.
 pub const CLOSE_GRACE: Duration = Duration::from_secs(20);
 
@@ -91,7 +91,7 @@ struct Running {
     workdir: Workdir,
     store: Arc<ProfileStore>,
     product: String,
-    /// Set when holzi ends the browser itself, so the watcher does not save a second time.
+    /// Set when haex-vault ends the browser itself, so the watcher does not save a second time.
     ending: Arc<AtomicBool>,
     _child: Option<ChildGuard>,
 }

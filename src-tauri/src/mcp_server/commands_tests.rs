@@ -24,7 +24,9 @@ fn the_http_snippets_name_haexs_loopback_url() {
 #[test]
 fn the_program_snippets_start_the_helper_for_this_vault() {
     let device = Uuid::from_u128(7);
-    let claude = snippet(SnippetClient::ClaudeCode, "/opt/holzi", device);
-    assert!(claude.starts_with("claude mcp add haex -- \"/opt/holzi\" --mcp-agent claude-code"));
+    let claude = snippet(SnippetClient::ClaudeCode, "/opt/haex-vault", device);
+    assert!(
+        claude.starts_with("claude mcp add haex -- \"/opt/haex-vault\" --mcp-agent claude-code")
+    );
     assert!(claude.ends_with(&format!("--vault {device}")));
 }

@@ -9,7 +9,7 @@ import { runAction } from '../lib/settings.ts'
 import { connectStorage, filesGo } from '../lib/storage-setup.ts'
 
 // Spec 044, US5, quickstart §5 (T065): a folder of a storage comes down onto the device through
-// holzi's clipboard, its tree kept, written through part files. Needs Docker for RustFS; skipped
+// haex-vault's clipboard, its tree kept, written through part files. Needs Docker for RustFS; skipped
 // without it.
 
 const BUCKET = 'haex-files-down'

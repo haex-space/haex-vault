@@ -15,7 +15,7 @@ use ts_rs::TS;
 use super::cdp::{target, Connection};
 use super::error::{BrowserError, Result};
 
-/// One cookie as the browser reports it; the fields holzi uses.
+/// One cookie as the browser reports it; the fields haex-vault uses.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Cookie {

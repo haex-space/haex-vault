@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * holzi's own invitation prompt (spec 057, US1, T043, FR-014): "[Kontakt] lädt dich zu
+ * haex-vault's own invitation prompt (spec 057, US1, T043, FR-014): "[Kontakt] lädt dich zu
  * [Erweiterung] ein" with "Annehmen" and "Ablehnen". It is the only place an invitation is
  * accepted; the extension has no way to answer for the user. Several open prompts queue and
  * are asked one at a time. An answer that finds the invitation gone (withdrawn, expired, or taken

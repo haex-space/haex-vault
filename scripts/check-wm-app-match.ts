@@ -91,7 +91,7 @@ test('the name of an app opens it, in any case', () => {
   assert.deepEqual(match('Passworter'), exact('system.passwords'))
 })
 
-test('the english name of a holzi app is the rest of its id', () => {
+test('the english name of a HaexVault app is the rest of its id', () => {
   assert.deepEqual(match('settings'), exact('system.settings'))
   assert.deepEqual(match('passwords'), exact('system.passwords'))
 })

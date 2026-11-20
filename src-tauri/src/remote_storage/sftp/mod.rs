@@ -1,9 +1,9 @@
-//! SFTP, spoken by holzi through `russh` and `russh-sftp` (spec 050 research R3–R5, contracts/
+//! SFTP, spoken by haex-vault through `russh` and `russh-sftp` (spec 050 research R3–R5, contracts/
 //! object-store.md): a storage is a folder on the server, a key a path below it. The host key
 //! must be the confirmed one before any login (FR-012); files are written to a temporary file and
 //! renamed onto their name (FR-016); folders are real folders and show in listings as S3 shows
-//! its folder markers. Sessions are shared between calls ([`pool`]). A copy streams through holzi:
-//! SFTP has no copy on the server that holzi can count on (research R8).
+//! its folder markers. Sessions are shared between calls ([`pool`]). A copy streams through haex-vault:
+//! SFTP has no copy on the server that haex-vault can count on (research R8).
 
 mod connect;
 pub mod keys;
@@ -326,7 +326,7 @@ impl ObjectStore for SftpStore {
         .await
     }
 
-    /// SFTP has no copy holzi can count on; [`ObjectStore::copies_on_provider`] says so.
+    /// SFTP has no copy haex-vault can count on; [`ObjectStore::copies_on_provider`] says so.
     async fn copy(
         &self,
         _access: &Access,

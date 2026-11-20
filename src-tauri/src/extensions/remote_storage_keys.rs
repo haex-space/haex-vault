@@ -61,7 +61,7 @@ pub(super) fn valid(text: &str, list: bool) -> bool {
 
 /// Whether a key or list prefix that passed [`valid`] can be stored on a server with real folders
 /// (WebDAV, SFTP; spec 050 research R9): no part longer than 255 bytes, none with a character
-/// common file systems refuse, none named like holzi's temporary files.
+/// common file systems refuse, none named like haex-vault's temporary files.
 pub(super) fn fits_tree(text: &str) -> bool {
     text.split('/').all(|part| {
         part.len() <= MAX_PART_BYTES

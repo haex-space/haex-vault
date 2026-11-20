@@ -14,7 +14,7 @@ val tauriProperties = Properties().apply {
     }
 }
 
-// holzi (spec 043, contracts/ci.md): release builds are signed with holzi's own key. Only the
+// haex-vault (spec 043, contracts/ci.md): release builds are signed with haex-vault's own key. Only the
 // workflow `android-release` writes `keystore.properties` (ignored by git) from its secrets; without
 // the file a release build stays unsigned, and that workflow refuses unsigned APKs.
 val keystoreProperties = Properties().apply {
@@ -51,7 +51,7 @@ android {
             isDebuggable = true
             isJniDebuggable = true
             isMinifyEnabled = false
-            // holzi (spec 043): the template keeps the debug symbols of the Rust library, which
+            // haex-vault (spec 043): the template keeps the debug symbols of the Rust library, which
             // makes it about 1.9 GB per ABI; stripped it is about 210 MB. Debug APKs go to phones
             // and CI artifacts, so they are stripped like release APKs.
         }

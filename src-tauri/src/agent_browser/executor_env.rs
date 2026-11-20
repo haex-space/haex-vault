@@ -42,14 +42,14 @@ pub trait BrowserEnv: Send + Sync + 'static {
     async fn profile_note(&self, _caller: &Caller) -> Option<BrowserProfileNote> {
         None
     }
-    /// The language of holzi's window, for the marker in the tabs.
+    /// The language of haex-vault's window, for the marker in the tabs.
     fn locale(&self) -> String;
     /// How to start the browser now.
     async fn start_config(&self) -> Result<StartConfig, BrowserError>;
     /// The folder downloads of agents land in: `HaexVault/<vault>` in the system's downloads
     /// folder (research R11).
     fn downloads_folder(&self) -> Result<std::path::PathBuf, String>;
-    /// What the file rights (044) of `caller` reach: holzi's own places and its grants; `None`
+    /// What the file rights (044) of `caller` reach: haex-vault's own places and its grants; `None`
     /// when they cannot be read.
     async fn file_rights(&self, caller: &Caller) -> Option<(OwnPlaces, AgentGrants)>;
     /// The rights group "Passwörter" of `caller` (021; for the built-in agent its own setting);

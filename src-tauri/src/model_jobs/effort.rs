@@ -1,5 +1,5 @@
 //! The effort of a model job (spec 055 FR-003, FR-036, `contracts/job-format.md` §Aufwand): the
-//! user chooses it for each model, the extension has no say; holzi maps it onto what the model offers.
+//! user chooses it for each model, the extension has no say; haex-vault maps it onto what the model offers.
 
 use serde::{Deserialize, Serialize};
 

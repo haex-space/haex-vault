@@ -4,7 +4,7 @@ import type { SharedCapture } from '~/lib/wallet/sharedRoute'
 import { releaseSharedFile } from '~/lib/wallet/sharedFiles'
 
 /**
- * The pictures and PDFs another app shared to holzi, waiting for the capture dialog of Wallet
+ * The pictures and PDFs another app shared to haex-vault, waiting for the capture dialog of Wallet
  * (spec 092, FR-037). The dialog takes one at a time; what is dropped unread has its copy removed.
  */
 export const useWalletCaptureStore = defineStore('walletCapture', () => {

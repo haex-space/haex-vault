@@ -47,7 +47,7 @@ function diagnosis(): string {
         .shell('logcat', '-d', '-t', '2000')
         .split('\n')
         .filter((line) =>
-          /holzi|SharedFiles|AndroidRuntime|FATAL|SecurityException|Permission Denial|ContentProviderHelper|ActivityTaskManager.*SEND/i.test(
+          /haex|SharedFiles|AndroidRuntime|FATAL|SecurityException|Permission Denial|ContentProviderHelper|ActivityTaskManager.*SEND/i.test(
             line,
           ),
         )

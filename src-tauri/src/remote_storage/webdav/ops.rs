@@ -15,7 +15,7 @@ use super::WebDavStore;
 use crate::files::storage_time::parse_http_date_ms;
 use crate::passwords::clock::format_millis;
 
-/// The largest `PROPFIND` answer holzi reads (about 100 000 entries).
+/// The largest `PROPFIND` answer haex-vault reads (about 100 000 entries).
 const MAX_LISTING: usize = 64 * 1024 * 1024;
 
 /// The entry of a `PROPFIND` as one entry of its folder: the HTTP date as the time of an S3
@@ -131,7 +131,7 @@ impl WebDavStore {
 
     /// Creates the folders of `key` below the folder of the storage, from the top; one that is
     /// there already is fine. A missing folder of the storage itself is [`StorageError::NotFound`]:
-    /// holzi creates it only on the user's word (FR-006).
+    /// haex-vault creates it only on the user's word (FR-006).
     pub(super) async fn make_parents(
         &self,
         access: &Access,

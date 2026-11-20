@@ -2,7 +2,7 @@
 //! external agent (spec 021 US5) read and, with a grant, change contacts through the service like
 //! every caller. Their grants are the group `contacts` of the agent profile that applies to them (spec
 //! 083 FR-032): for the built-in agent the model of its turn, for an external agent itself, for an
-//! Abo-Agent the model it runs with. Without one that covers the call, holzi asks the user (the
+//! Abo-Agent the model it runs with. Without one that covers the call, haex-vault asks the user (the
 //! question of spec 044): "Einmal erlauben" holds for this call, "Immer erlauben" and "Ablehnen" are
 //! kept in that profile. A refusal looks like a missing contact.
 
@@ -25,7 +25,7 @@ use crate::vault_gate::VaultDb;
 /// Hits of a search when the call names no limit, and the most.
 const SEARCH_LIMIT: (u32, u32) = (20, 100);
 
-/// How holzi's own lookup of the group names is written into the service's checks.
+/// How haex-vault's own lookup of the group names is written into the service's checks.
 const GROUP_LOOKUP: Caller = Caller::Internal {
     feature: "contacts_agent",
 };
@@ -81,7 +81,7 @@ pub fn grants_from(rows: &Rows) -> Vec<Grant> {
         .collect()
 }
 
-/// Whether holzi asks before a call that wants `want`: not under a denied `*`, not when a row
+/// Whether haex-vault asks before a call that wants `want`: not under a denied `*`, not when a row
 /// already covers it.
 pub fn asks(rows: &Rows, want: GrantAction) -> bool {
     star(rows) != Some(AgentFileStatus::Denied)

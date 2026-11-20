@@ -1,4 +1,4 @@
-//! The `Runtime` domain: running holzi's script in its own world (research R4).
+//! The `Runtime` domain: running haex-vault's script in its own world (research R4).
 
 use serde_json::{json, Value};
 

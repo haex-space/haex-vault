@@ -14,10 +14,10 @@ import { scenario, type ScenarioContext } from '../lib/scenario.ts'
 
 // Spec 051 US6-1 to US6-3 (quickstart `agent-contacts`): a scripted model reaches the contacts
 // through the catalog (`find_actions`, then `contacts_search` and `contacts_update`). Without a
-// grant holzi asks; "Ablehnen" is kept and the agent learns nothing. With "Lesen" set in the
+// grant haex-vault asks; "Ablehnen" is kept and the agent learns nothing. With "Lesen" set in the
 // agent profile (spec 083 FR-032; the model is in "Standard") it finds Ben but may not change him:
 // the write question, denied, keeps the read grant. "Immer erlauben" lets the change through, and
-// it is stored like one made in holzi. That it
+// it is stored like one made in haex-vault. That it
 // reaches the phones is the phone sync's rule, tested in `contacts/agent_tests.rs`.
 // Spec 060 US5: `contacts_share` asks in the share dialog on every call, in "Auto" too and without a
 // second question of the chat. "Ablehnen" gives the agent nothing of Ben; after "Freigeben" with the
@@ -170,7 +170,7 @@ scenario('agent-contacts', { timeoutMs: 240_000 }, async (ctx) => {
   })
   await connectProvider(instance, provider)
 
-  // Turn 1: no grant; holzi asks, "Ablehnen" is kept.
+  // Turn 1: no grant; haex-vault asks, "Ablehnen" is kept.
   await startReply(instance, provider, 'Wie ist Bens Nummer?')
   await answer(ctx, instance, /Kontakte lesen\./, 'deny')
   let requests = await waitForRequests(provider, 3)
@@ -189,7 +189,7 @@ scenario('agent-contacts', { timeoutMs: 240_000 }, async (ctx) => {
     steps: [
       { tool: 'find_actions', input: { query: 'Kontakte suchen' } },
       search,
-      // The change names the id of Ben's phone number; holzi turns away an id no earlier result
+      // The change names the id of Ben's phone number; haex-vault turns away an id no earlier result
       // named, so the agent reads Ben in full first, as a model has to.
       get,
       { tool: 'find_actions', input: { query: 'Kontakt ändern' } },
@@ -235,7 +235,7 @@ scenario('agent-contacts', { timeoutMs: 240_000 }, async (ctx) => {
     kind: 'script',
     steps: [
       { tool: 'find_actions', input: { query: 'Kontakt teilen' } },
-      // A new turn starts without the results of the earlier ones, and holzi turns away an id no
+      // A new turn starts without the results of the earlier ones, and haex-vault turns away an id no
       // result of this turn named: the agent finds Ben first.
       search,
       share,

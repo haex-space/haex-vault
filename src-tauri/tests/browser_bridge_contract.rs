@@ -1,7 +1,7 @@
 //! Spec 049, FR-041, T023: the method table of the External Bridge is the contract. Every method of
 //! `browser_bridge::methods::METHODS` has its section in `contracts/wire-protocol.md` §Methoden,
 //! the unsupported list matches the contract's, and no handler lives under `chat`, `llm`,
-//! `adapters` or `providers`: a browser extension never reaches the model side of holzi (ADR-0004).
+//! `adapters` or `providers`: a browser extension never reaches the model side of haex-vault (ADR-0004).
 
 use std::collections::BTreeSet;
 use std::path::Path;

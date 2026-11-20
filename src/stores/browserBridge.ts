@@ -8,7 +8,7 @@ import type { BridgePromptEvent } from '~/types/bindings/BridgePromptEvent'
 /**
  * The questions of the External Bridge (spec 049, research R10, contracts/tauri-commands.md): Rust
  * asks with `browser-bridge-prompt` and closes a question nobody waits for any more with
- * `browser-bridge-prompt-cancelled`. One question is shown at a time; holzi comes to the front for
+ * `browser-bridge-prompt-cancelled`. One question is shown at a time; haex-vault comes to the front for
  * it. Only this window answers; no client, extension or agent can (FR-013).
  */
 export const useBrowserBridgeStore = defineStore('browserBridge', () => {
@@ -40,7 +40,7 @@ export const useBrowserBridgeStore = defineStore('browserBridge', () => {
         changes.value += 1
       }),
       listen('browser-bridge-wrong-passphrase', onWrongPassphrase),
-      // haex-pass up to 1.3.0 does not show why holzi refused it (049 FR-049).
+      // haex-pass up to 1.3.0 does not show why haex-vault refused it (049 FR-049).
       listen('browser-bridge-outdated-client', onOutdatedClient),
     ])
   }

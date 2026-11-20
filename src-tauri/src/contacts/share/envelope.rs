@@ -1,7 +1,7 @@
 //! The envelope of a share and its text (spec 060, contracts/share-format.md):
 //! `haex-vault://contact/<base64url(postcard(ShareEnvelope))>`, one text for link, clipboard and
 //! QR code. The envelope carries no signature; only the card in it proves anything, and only the
-//! holzi addresses. The old `haex:card:` text is read as an envelope too.
+//! haex-vault addresses. The old `haex:card:` text is read as an envelope too.
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
@@ -172,12 +172,12 @@ pub fn decode(text: &str, own_vault: &[u8; 32]) -> Result<Decoded> {
     }
     let encoded = text
         .strip_prefix(PREFIX_LINK)
-        .ok_or_else(|| invalid("not a holzi contact"))?;
+        .ok_or_else(|| invalid("not a HaexVault contact"))?;
     let bytes = URL_SAFE_NO_PAD
         .decode(encoded)
         .map_err(|_| invalid("not base64url"))?;
     let (mut envelope, rest) = postcard::take_from_bytes::<ShareEnvelope>(&bytes)
-        .map_err(|_| invalid("not a holzi contact"))?;
+        .map_err(|_| invalid("not a HaexVault contact"))?;
     if !rest.is_empty() {
         return Err(invalid("trailing bytes"));
     }
@@ -206,7 +206,7 @@ fn own_check(card: SignedCard, own_vault: &[u8; 32]) -> Result<SignedCard> {
     Ok(card)
 }
 
-/// A known kind must validate; an unknown one stays as it is. A holzi address as a detail is an
+/// A known kind must validate; an unknown one stays as it is. A haex-vault address as a detail is an
 /// ordinary, unconfirmed value (FR-014): it proves nothing, only the signed card does.
 fn valid_value(value: &ShareValue) -> bool {
     !kinds::is_known(&value.kind)

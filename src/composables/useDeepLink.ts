@@ -4,17 +4,17 @@ import { parkOrOpen, type ReceivedLink } from '~/lib/contacts/deepLink'
 import { acceptMailLink } from '~/lib/mail/link'
 import { passIdFromLink } from '~/lib/wallet/passLink'
 
-/** Sent by Rust when another holzi process passed on a link (`deep_link::RECEIVED_EVENT`). */
+/** Sent by Rust when another haex-vault process passed on a link (`deep_link::RECEIVED_EVENT`). */
 const RECEIVED_EVENT = 'deep-link-received'
 
 let started = false
 let last: ReceivedLink | null = null
 
 /**
- * Links opened outside holzi: of a share (spec 060 FR-018a, research R9) and mail links (spec 063
+ * Links opened outside haex-vault: of a share (spec 060 FR-018a, research R9) and mail links (spec 063
  * FR-017), each parked in its own inbox. Three ways bring one: the
- * link a start was made with (`getCurrent`), a link while holzi runs or a cold start on Android,
- * which arrives only after `setup` through `onOpenUrl`, and another holzi process passing one on
+ * link a start was made with (`getCurrent`), a link while haex-vault runs or a cold start on Android,
+ * which arrives only after `setup` through `onOpenUrl`, and another haex-vault process passing one on
  * (`deep-link-received`). The link is parked in its inbox; the workspace page opens the preview
  * or the choice once a vault is open. Nothing is saved from here.
  */

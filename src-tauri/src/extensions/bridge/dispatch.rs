@@ -14,7 +14,7 @@ use crate::extensions::host::ExtensionHost;
 use crate::storage::query::Query;
 use crate::vault_gate::VaultDb;
 
-/// Sends an event to holzi's own window.
+/// Sends an event to haex-vault's own window.
 pub trait Emit: Send + Sync {
     fn emit(&self, event: &str, payload: Value);
 }

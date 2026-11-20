@@ -68,7 +68,7 @@ pub struct Session {
     /// The agent's name as it claims it; empty for the built-in agent.
     agent: OnceCell<String>,
     name_notified: AtomicBool,
-    /// A page went fullscreen and holzi sent it back; the next result says so (FR-055).
+    /// A page went fullscreen and haex-vault sent it back; the next result says so (FR-055).
     fullscreen_refused: AtomicBool,
     /// Tabs a page opened that closed themselves because the filters blocked their page; the next
     /// result tells the agent.
@@ -99,7 +99,7 @@ pub struct Session {
     own_input: Mutex<pause::OwnInput>,
     /// The last page each tab loaded while the user had the browser, perhaps still on its way.
     loaded_while_paused: Mutex<BTreeMap<String, String>>,
-    /// What holzi filled from the password manager; it never flows back (research R7).
+    /// What haex-vault filled from the password manager; it never flows back (research R7).
     filled: Mutex<Filled>,
     /// Requests the tracker filters blocked, by the website they went to (FR-045).
     blocked: Mutex<BTreeMap<String, u32>>,
@@ -191,7 +191,7 @@ impl Session {
         })
     }
 
-    /// Remembers `values` holzi filled into a page of this session: from now on they are removed
+    /// Remembers `values` haex-vault filled into a page of this session: from now on they are removed
     /// from every reply, and screenshots stay refused for the rest of the session (research R7).
     pub fn note_filled<'a>(&self, values: impl IntoIterator<Item = &'a str>) {
         let mut filled = self.filled.lock().unwrap_or_else(PoisonError::into_inner);
@@ -560,7 +560,7 @@ impl Session {
     }
 
     /// Ends the session: its questions and running call end, and its tabs go back to the user,
-    /// open, without marker and without holzi's check (FR-016).
+    /// open, without marker and without haex-vault's check (FR-016).
     pub async fn end(&self) {
         self.cancel.cancel();
         let blocked = self.blocked();

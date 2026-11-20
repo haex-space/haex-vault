@@ -2,7 +2,7 @@
 /**
  * "Modell-Server" (spec 055 US5, T056): OpenAI-compatible servers such as a GPU machine, a school
  * server or a cloud API, each with its address and an optional key. A row leads to the server's
- * models; below the list a form adds one, and holzi reads its models at once. A failed read keeps
+ * models; below the list a form adds one, and haex-vault reads its models at once. A failed read keeps
  * the server and says why in a toast; with a wrong key the user removes it and adds it again.
  * Writes run the catalog actions.
  */

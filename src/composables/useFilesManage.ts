@@ -37,7 +37,7 @@ import {
 
 /**
  * Managing files in a file browser tab (spec 044 US3): the selection, the context menu and the
- * action bar, holzi's clipboard, dragging inside holzi and from the system, the name and delete
+ * action bar, haex-vault's clipboard, dragging inside haex-vault and from the system, the name and delete
  * dialogs, and the transfers they start (`stores/filesTransfers.ts`). `shown` is the folder as
  * listed, `reload` loads it again, `activate` opens an entry.
  */
@@ -94,7 +94,7 @@ export function useFilesManage(options: {
 
   const { folderEntry, folderOwned, folderEncrypted, folderForeign } =
     useFilesFolderFacts(source, path)
-  /** Nothing changes in the open folder: holzi's own place, or a share read only. */
+  /** Nothing changes in the open folder: haex-vault's own place, or a share read only. */
   const folderLock = computed((): PlaceLock => ({
     haexOwned: folderOwned.value,
     readOnly: options.readOnlySource?.value ?? false,
@@ -236,7 +236,7 @@ export function useFilesManage(options: {
   }
 
   /**
-   * Copies or moves `clip` into the folder `target` of `targetSource` (paste, a drop inside holzi,
+   * Copies or moves `clip` into the folder `target` of `targetSource` (paste, a drop inside haex-vault,
    * or the other panel's folder, spec 062). Whether the transfer started; `onDone` runs when it is
    * through.
    */

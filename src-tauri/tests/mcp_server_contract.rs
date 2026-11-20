@@ -9,7 +9,7 @@ use haex_lib::mcp_server::grants::{OperateLevel, Rights, OPERATE_SCOPES};
 use haex_lib::mcp_server::hello::CloseReason;
 use mcp_fixture::*;
 
-/// Every scope of "holzi bedienen" at the highest level.
+/// Every scope of "haex-vault bedienen" at the highest level.
 fn everything() -> Rights {
     Rights {
         operate: OPERATE_SCOPES

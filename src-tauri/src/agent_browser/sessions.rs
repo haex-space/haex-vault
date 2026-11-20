@@ -1,5 +1,5 @@
 //! The browser sessions of all agents (spec 065, data-model.md "Browser-Sitzung", FR-015,
-//! FR-016): one per agent, shared by the browser tools and holzi's window. The window lists them
+//! FR-016): one per agent, shared by the browser tools and haex-vault's window. The window lists them
 //! in the sessions bar and stops them; a stop ends the running call within a second, gives the
 //! tabs back to the user and refuses the agent's further browser calls with `stopped` until it
 //! begins a new session: an external agent with a new connection, the built-in agent with the

@@ -1,4 +1,4 @@
-//! The full measurement of how well one model calls holzi's tools (spec 032 US5, FR-019 to FR-022).
+//! The full measurement of how well one model calls haex-vault's tools (spec 032 US5, FR-019 to FR-022).
 //! Skipped by default (`#[ignore]`): it asks a real model every sentence of the example set.
 //! It needs no vault and runs no action, so it cannot change any data.
 //!

@@ -57,7 +57,7 @@ pub struct ItemHeader {
     pub attachment_count: u32,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
-    /// The holzi function the entry belongs to (spec 038, rule Z14), `None` for the user's own; the
+    /// The haex-vault function the entry belongs to (spec 038, rule Z14), `None` for the user's own; the
     /// window marks such entries.
     pub owner: Option<String>,
     /// `login`, `pass` or the text of a type of a newer build (spec 092, FR-001, FR-042).
@@ -258,9 +258,9 @@ pub struct ImportReport {
     pub trashed: u32,
     pub history_states: u32,
     pub skipped_duplicates: u32,
-    /// KeePass references that became holzi placeholders (spec 036, FR-050).
+    /// KeePass references that became haex-vault placeholders (spec 036, FR-050).
     pub references_converted: u32,
-    /// KeePass references that stayed text (no unique source, or a field holzi cannot point at).
+    /// KeePass references that stayed text (no unique source, or a field haex-vault cannot point at).
     pub references_left_as_text: u32,
     pub needs_attention: Vec<AttentionRow>,
 }

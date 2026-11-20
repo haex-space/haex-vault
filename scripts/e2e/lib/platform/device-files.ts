@@ -46,7 +46,7 @@ export interface DeviceFiles {
 /**
  * The app's own folders in the shared storage on Android and its download folder there (Tauri's
  * download folder, `getExternalFilesDir(DIRECTORY_DOWNLOADS)`). Not the app's private storage: on
- * Android all of it is holzi's own data, which the file browser only reads (spec 044 FR-037), and
+ * Android all of it is haex-vault's own data, which the file browser only reads (spec 044 FR-037), and
  * only `run-as` reaches it (a read-back through its `exec-out` once differed from the file in CI).
  * The app needs no permission for this folder, a chosen path may lie in it (contract
  * picked-file.md), adb reaches it directly, and `pm clear` before each scenario empties it.

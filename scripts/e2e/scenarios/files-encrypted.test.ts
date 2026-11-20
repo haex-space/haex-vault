@@ -86,7 +86,7 @@ async function keysUnder(rustfs: Rustfs, prefix: string, kind: 'm' | 'c') {
     .sort()
 }
 
-/** Pastes holzi's clipboard into the open folder and waits for the transfer to end. */
+/** Pastes haex-vault's clipboard into the open folder and waits for the transfer to end. */
 async function pasteAndWait(ctx: ScenarioContext, instance: FlowInstance) {
   await instance.click('files-action-paste')
   await ctx.waitFor(
@@ -149,7 +149,7 @@ scenario(
     const prefix = (created[0] ?? '').slice(0, -1)
     ctx.step('created after the notice: one head under a random prefix')
 
-    // Files and a folder go in from the device, one by one through holzi's clipboard.
+    // Files and a folder go in from the device, one by one through haex-vault's clipboard.
     for (const name of ['notiz.txt', 'brief.pdf', 'foto.png', 'Belege']) {
       await filesGo(instance, `/device?p=${encodeURIComponent(device.folder)}`)
       await instance.waitForDisplayed(`files-entry-${name}`)

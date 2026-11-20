@@ -1,7 +1,7 @@
 //! The writing file actions of agents (contracts/agent-actions.md): create a folder, rename, copy,
 //! move and delete. They run without a window: the decision on a taken name is in `onConflict`
 //! (a copy never replaces), a delete goes to the trash on desktops. Folders that hold one of
-//! holzi's own places are refused as a whole (FR-033).
+//! haex-vault's own places are refused as a whole (FR-033).
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -127,11 +127,11 @@ fn summary(report: Report, choice: ConflictChoice) -> Result<Value, NativeError>
 fn blocked() -> NativeError {
     files_error(FilesError::new(
         FilesErrorCode::Blocked,
-        "holzi's own data is not available to agents",
+        "HaexVault's own data is not available to agents",
     ))
 }
 
-/// Refuses sources that hold one of holzi's own places: copying them would read it.
+/// Refuses sources that hold one of haex-vault's own places: copying them would read it.
 fn refuse_own_trees(own: &OwnPlaces, sources: &[PathBuf]) -> Result<(), NativeError> {
     if sources.iter().any(|source| own.touches(source, true)) {
         return Err(blocked());

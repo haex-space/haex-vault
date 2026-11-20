@@ -1,7 +1,7 @@
 //! Asking the user at run time (US3, T065, T066, contracts/permissions.md §Anfrage zur Laufzeit).
 //!
 //! A call that needs a permission answers 1004 (the vault-sdk waits for
-//! `extension:permission-resolved` and repeats). holzi's window gets one
+//! `extension:permission-resolved` and repeats). haex-vault's window gets one
 //! `extension-permission-request` per open question: identical questions of several frames are
 //! merged, and a question disappears when all frames that wait for it are closed. The SDK waits
 //! for the target its 1004 named, which for a shell program is the name the extension gave, not
@@ -22,7 +22,7 @@ use crate::extensions::protocol::token;
 use crate::model_jobs::destinations::{ExtensionModelDestination, ExtensionModelTransfer};
 use crate::model_jobs::grants::ExtensionModelChoice;
 
-/// One open question, as holzi's window shows it.
+/// One open question, as haex-vault's window shows it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
@@ -80,7 +80,7 @@ pub struct FolderNames {
     pub on_device: bool,
 }
 
-/// The answer of holzi's window (`extension_permission_resolve`).
+/// The answer of haex-vault's window (`extension_permission_resolve`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
@@ -108,7 +108,7 @@ pub struct HeldDecision {
 }
 
 impl HeldDecision {
-    /// As a permission for decisions; one holzi cannot read is absent (FR-022).
+    /// As a permission for decisions; one haex-vault cannot read is absent (FR-022).
     pub fn permission(&self) -> Option<Permission> {
         Permission::from_row(
             self.kind.as_str(),
@@ -157,7 +157,7 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 
 impl PermissionState {
     /// Registers that `frame` waits for `question`, told as `told`. Returns the request id and
-    /// whether the question is new (only then holzi's window is told).
+    /// whether the question is new (only then haex-vault's window is told).
     pub fn ask(&self, question: Question, frame: &str, told: &str) -> (String, bool) {
         self.ask_with_context(question, frame, told, None)
     }

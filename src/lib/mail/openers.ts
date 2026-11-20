@@ -38,7 +38,7 @@ export function mailTargetBehavior(
 export type MailSource = 'button' | 'external'
 
 /** A link from outside never goes to the system's mail program, whatever the person picks next
- * (FR-018): holzi would hand an unvetted link on. */
+ * (FR-018): haex-vault would hand an unvetted link on. */
 export function systemAllowed(source: MailSource): boolean {
   return source === 'button'
 }

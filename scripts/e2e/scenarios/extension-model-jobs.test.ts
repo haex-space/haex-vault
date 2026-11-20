@@ -14,8 +14,8 @@ import {
 } from '../lib/extensions.ts'
 
 // Spec 055, US7 (T067, quickstart steps 2–6): the test extension `model-jobs`, the released
-// vault-sdk bundled in, runs its page recognition on holzi's models. A stand-in server with the
-// OpenAI-compatible interface answers for every model; holzi knows it twice, at `127.0.0.1` (this
+// vault-sdk bundled in, runs its page recognition on haex-vault's models. A stand-in server with the
+// OpenAI-compatible interface answers for every model; haex-vault knows it twice, at `127.0.0.1` (this
 // device) and at this machine's address in its private network (a server, which needs consent).
 // Before its first job the extension asks for its grant (US9, T092) and sends nothing. The first job
 // runs on this device; a job on the server asks for consent, held for the session only; after a restart the denied consent sends nothing; revoked models are
@@ -169,7 +169,7 @@ scenario('extension-model-jobs', { timeoutMs: 300_000 }, async (ctx) => {
         15_000,
       )
 
-    // US9: no grant, the extension asks before its first job; holzi asks for a model, and
+    // US9: no grant, the extension asks before its first job; haex-vault asks for a model, and
     // nothing is sent to it.
     await run('access')
     await asked('extension-model-pick')
@@ -224,7 +224,7 @@ scenario('extension-model-jobs', { timeoutMs: 300_000 }, async (ctx) => {
     const third = await end()
     assert.equal(third.status, 'completed', JSON.stringify(third))
     assert.equal(sentToServer(), 4, 'no second question in the session')
-    // … and ends with it: after a restart holzi asks again, and a denial sends nothing.
+    // … and ends with it: after a restart haex-vault asks again, and a denial sends nothing.
     await device.restart()
     page = device.page
     await openFromLauncher(page, extension)
@@ -253,7 +253,7 @@ scenario('extension-model-jobs', { timeoutMs: 300_000 }, async (ctx) => {
     assert.equal(sentToServer(), 4)
     ctx.step('revoked models are asked for again')
 
-    // US9: the extension leads the user to its model settings in holzi.
+    // US9: the extension leads the user to its model settings in haex-vault.
     await run('settings')
     assert.equal((await end()).opened, true)
     await page.waitForDisplayed('[data-testid="extension-models"]', 15_000)

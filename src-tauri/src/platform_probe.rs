@@ -2,11 +2,11 @@
 //!
 //! Built only with the feature `platform-probe` and active only when asked for: `HAEX_PROBE=1` on
 //! desktops, the system property `debug.haex.probe=1` on Android (set with `adb shell setprop`).
-//! It answers one question before any media code exists: may holzi's web view reach a server on
+//! It answers one question before any media code exists: may haex-vault's web view reach a server on
 //! `127.0.0.1`? Chromium's Local Network Access could forbid that in WebView2 and Android WebView.
 //!
 //! The probe starts a tiny HTTP server on `127.0.0.1`, adds `http://127.0.0.1:*` to the
-//! `connect-src` of holzi's document (the shipped policy has no loopback yet, T016), and hands the
+//! `connect-src` of haex-vault's document (the shipped policy has no loopback yet, T016), and hands the
 //! port to the window. The window fetches `/__probe` and reports through IPC, which no network rule
 //! can block, so a failed fetch still arrives with its reason. The probe prints one line starting
 //! with [`RESULT_MARKER`] and ends the process: 0 when every step passed, 1 when one failed, 2 when
@@ -20,7 +20,7 @@
 //! runs the test vectors of encrypted folders on the platform, so Windows, macOS and Android check
 //! them too.
 //!
-//! Spec 044 (T090, FR-039): on Android one more step, [`ALL_FILES_STEP`], says whether holzi holds
+//! Spec 044 (T090, FR-039): on Android one more step, [`ALL_FILES_STEP`], says whether haex-vault holds
 //! "Zugriff auf alle Dateien" and, when it does, whether the shared storage lists. The Android job
 //! runs the probe without the permission and again with it.
 //!
@@ -227,7 +227,7 @@ pub fn with_loopback_connect(csp: &str) -> String {
     directives.join("; ")
 }
 
-/// The hook on holzi's web resources while probing: the document may fetch from the loopback.
+/// The hook on haex-vault's web resources while probing: the document may fetch from the loopback.
 pub fn allow_loopback(response: &mut tauri::http::Response<std::borrow::Cow<'static, [u8]>>) {
     // The diagnosis variants also load an image from the loopback (`img-src`).
     let headers = response.headers_mut();
@@ -376,7 +376,7 @@ pub fn platform_probe_report<R: Runtime>(app: AppHandle<R>, mut report: Report) 
     app.exit(code);
 }
 
-/// Files in holzi's cache directory that the Android job reads with `adb shell run-as`, because a
+/// Files in haex-vault's cache directory that the Android job reads with `adb shell run-as`, because a
 /// GUI app's stdout reaches no one there and logcat proved unreliable on the emulator.
 pub const STARTED_FILE: &str = "platform-probe-started.txt";
 pub const RESULT_FILE: &str = "platform-probe-result.txt";

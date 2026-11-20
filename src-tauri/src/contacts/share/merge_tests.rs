@@ -347,7 +347,7 @@ async fn haex_addresses_are_added_next_to_the_old_ones_and_skip_leaves_them() {
         .items
         .iter()
         .find(|item| item.item == ContactShareItemKind::HaexAddresses)
-        .expect("holzi")
+        .expect("HaexVault")
         .id;
     let skipped = read_in(
         &vault,
@@ -421,13 +421,13 @@ async fn replace_works_only_for_an_old_card_text_and_removes_only_that_vaults_ol
         .items
         .iter()
         .find(|item| item.item == ContactShareItemKind::HaexAddresses)
-        .expect("holzi")
+        .expect("HaexVault")
         .id;
     assert!(!preview
         .items
         .iter()
         .find(|item| item.id == haex)
-        .expect("holzi")
+        .expect("HaexVault")
         .choices
         .contains(&Choice::Replace));
     assert!(matches!(
@@ -448,7 +448,7 @@ async fn replace_works_only_for_an_old_card_text_and_removes_only_that_vaults_ol
         .items
         .iter()
         .find(|item| item.item == ContactShareItemKind::HaexAddresses)
-        .expect("holzi")
+        .expect("HaexVault")
         .id;
     let after = read_in(
         &vault,
@@ -468,7 +468,7 @@ async fn replace_works_only_for_an_old_card_text_and_removes_only_that_vaults_ol
         .items
         .iter()
         .find(|item| item.item == ContactShareItemKind::HaexAddresses)
-        .expect("holzi")
+        .expect("HaexVault")
         .id;
     assert!(matches!(
         read_in(

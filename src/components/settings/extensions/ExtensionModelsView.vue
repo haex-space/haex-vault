@@ -2,7 +2,7 @@
 /**
  * The models one extension may use (spec 055 US2, T037): every model of the vault, one accordion
  * per provider so a long list stays short. The select at the top chooses the extension's default
- * model among those it may use: its jobs go to that one, and when it cannot take a job holzi asks
+ * model among those it may use: its jobs go to that one, and when it cannot take a job haex-vault asks
  * which other model should. The select of a model sets the highest effort ("Nicht erlaubt" takes
  * the model away again, the next job asks); the select of a provider allows or takes away all its
  * models at once, each with its own starting effort, since the models do not offer the same

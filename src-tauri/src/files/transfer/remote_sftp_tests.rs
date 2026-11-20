@@ -1,5 +1,5 @@
 //! Copies inside one SFTP storage (spec 050 US5, T083): the server cannot copy, so the bytes
-//! stream through holzi in parts with progress, and a cancelled copy leaves nothing under the
+//! stream through haex-vault in parts with progress, and a cancelled copy leaves nothing under the
 //! target name and no temporary file on the server.
 
 use std::sync::Arc;

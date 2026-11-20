@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 // ponytail: process groups on Unix, also every group of a session the child leads, and
 // `taskkill /T` on Windows. Ceiling: a descendant that left the child's session (`setsid`, or a
 // double fork outside a session the child leads) survives; only cgroups or a subreaper could hold
-// it, and both would reach all of holzi. For an extension's shell this is accepted: its
+// it, and both would reach all of haex-vault. For an extension's shell this is accepted: its
 // permission already lets it do anything the user can, `systemd-run --user` too. Upgrade path: a
 // Windows Job Object with kill-on-close, a cgroup per child on Linux.
 

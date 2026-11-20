@@ -1,4 +1,4 @@
-//! Entries that belong to a holzi function (spec 038, rule Z14), such as the credentials of a
+//! Entries that belong to a haex-vault function (spec 038, rule Z14), such as the credentials of a
 //! storage connection: only that function creates them and deletes them for good, and nobody but
 //! the user and that function reaches them ([`crate::passwords::access::sees_owned`]). No command
 //! and no bridge method sets or changes the owner; `create_item` and `update_item` leave it alone,
@@ -13,7 +13,7 @@ use crate::passwords::access::Caller;
 use crate::passwords::model::ItemInput;
 use crate::passwords::{items, trash};
 
-/// The holzi function behind `caller`; every other caller is `PasswordsForbidden`.
+/// The haex-vault function behind `caller`; every other caller is `PasswordsForbidden`.
 fn feature_of(caller: &Caller) -> Result<&'static str> {
     match caller {
         Caller::Internal { feature } => Ok(feature),
@@ -22,7 +22,7 @@ fn feature_of(caller: &Caller) -> Result<&'static str> {
 }
 
 impl PasswordsService {
-    /// Creates an entry outside every folder that belongs to the calling holzi function.
+    /// Creates an entry outside every folder that belongs to the calling haex-vault function.
     pub async fn create_owned_item(&self, caller: &Caller, input: ItemInput) -> Result<String> {
         let feature = feature_of(caller)?;
         self.db()
@@ -37,7 +37,7 @@ impl PasswordsService {
             .await
     }
 
-    /// Deletes an entry of the calling holzi function for good, without the trash: an exception to
+    /// Deletes an entry of the calling haex-vault function for good, without the trash: an exception to
     /// Z11 for its own entries, so removing a storage connection leaves no credentials behind. An
     /// entry of anybody else, or a missing one, is `PasswordsNotFound`.
     pub async fn delete_owned_item(&self, caller: &Caller, item_id: String) -> Result<()> {

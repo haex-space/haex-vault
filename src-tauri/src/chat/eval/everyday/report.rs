@@ -121,7 +121,7 @@ pub struct EverydayReport {
     pub changed_unasked: usize,
     /// Proposals the played dialog declined.
     pub stopped: usize,
-    /// Calls holzi refused before they ran.
+    /// Calls haex-vault refused before they ran.
     pub turned_away: usize,
     /// Final proposals the check turned away (also in `turned_away`, spec 088).
     pub turned_to_reversible: usize,

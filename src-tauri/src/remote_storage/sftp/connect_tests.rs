@@ -1,7 +1,7 @@
 //! Connecting to an SFTP server (spec 050 research R3, R5, T064): an unknown or changed host key
 //! stops the connection before any login (SC-004) and names the key the server showed; with the
 //! confirmed key a password and a key sign in; a wrong password is refused; a slow server runs
-//! into the deadline; an address holzi never reaches is not dialled.
+//! into the deadline; an address haex-vault never reaches is not dialled.
 
 use std::time::Duration;
 

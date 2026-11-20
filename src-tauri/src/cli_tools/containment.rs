@@ -1,6 +1,6 @@
 //! How a delegate process is kept inside its vault (spec 094 FR-011, FR-020).
 //!
-//! Every process holzi starts for a delegate goes through one [`Containment`]. The portable base
+//! Every process haex-vault starts for a delegate goes through one [`Containment`]. The portable base
 //! layer here, [`EnvContainment`], changes the child's environment and nothing else, so it is
 //! honest about what it is: [`IsolationLevel::BestEffort`]. It moves what the measurements
 //! showed must move (the home, the temp folders, the tool's own configuration variable), removes
@@ -9,7 +9,7 @@
 //! reach the tool unchanged. A later OS sandbox implements the same trait and reports
 //! [`IsolationLevel::Enforced`] without touching the install, update, removal or run logic.
 //!
-//! Everything here applies to the child's environment alone; holzi's own environment is never
+//! Everything here applies to the child's environment alone; haex-vault's own environment is never
 //! written to (an environment variable of the whole process is exactly what a host may already
 //! rely on).
 

@@ -1,4 +1,4 @@
-//! Provider seams holzi implements against `haex-crdt` 0.4.0.
+//! Provider seams haex-vault implements against `haex-crdt` 0.4.0.
 //!
 //! Contract: [`specs/001-frontend-onboarding/contracts/tauri-commands.md`](../../../../specs/001-frontend-onboarding/contracts/tauri-commands.md)
 //! §"Vault identity and device model" and §"Provider implementations".

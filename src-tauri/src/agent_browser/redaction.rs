@@ -1,4 +1,4 @@
-//! What holzi wrote into a page from the password manager never flows back to the agent (spec 065
+//! What haex-vault wrote into a page from the password manager never flows back to the agent (spec 065
 //! FR-019, FR-022, FR-038, research R7). A session remembers the values it filled; every reply to
 //! the agent and every question shown with page content passes [`Filled::scrub_json`], which
 //! replaces each value, also URL-, Base64- and HTML-entity-encoded, with `•••`. From the first
@@ -108,7 +108,7 @@ impl Filled {
 
     /// Refuses a screenshot once anything was filled.
     ///
-    /// ponytail: refused for the whole session, since holzi cannot tell whether a page shows a
+    /// ponytail: refused for the whole session, since haex-vault cannot tell whether a page shows a
     /// filled value somewhere. Ceiling: no screenshots after a login. Upgrade path: a new session
     /// (a new profile run) lifts it.
     pub fn allows_screenshots(&self) -> Result<(), NativeError> {

@@ -1,8 +1,8 @@
 # End-to-end tests
 
-Starts the real, built Holzi binary under a virtual screen, drives it through `tauri-driver` the way a
+Starts the real, built HaexVault binary under a virtual screen, drives it through `tauri-driver` the way a
 user does, and checks what it does — without opening a window on your desktop and without touching your
-own Holzi data. Background and design decisions: [`specs/016-e2e-testing/`](../../specs/016-e2e-testing/).
+own HaexVault data. Background and design decisions: [`specs/016-e2e-testing/`](../../specs/016-e2e-testing/).
 
 ## Running
 
@@ -29,7 +29,7 @@ one. The full option and exit-status list is in
 
 ## The tools
 
-`tauri-driver`, `WebKitWebDriver` and `xvfb-run` come from the Nix dev shell (holzi's atoms pin,
+`tauri-driver`, `WebKitWebDriver` and `xvfb-run` come from the Nix dev shell (HaexVault's atoms pin,
 `.devshell/packages.nix`). A missing tool, or a driver whose WebKit version does not match the host's
 `webkit2gtk-4.1`, stops the run before anything starts, with a message naming the tool or the versions
 and the fix.
@@ -290,7 +290,7 @@ directory too. Full shape: [`contracts/report.md`](../../specs/016-e2e-testing/c
 
 Every process the suite starts carries `HAEX_E2E_RUN` in its environment, so a killed run's leftovers
 are found and removed by the next one automatically — never by matching a process by name or path, so
-your own Holzi is never touched. To check by hand:
+your own HaexVault is never touched. To check by hand:
 
 ```sh
 grep -l HAEX_E2E_RUN /proc/*/environ 2>/dev/null

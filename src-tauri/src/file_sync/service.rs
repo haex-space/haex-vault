@@ -178,7 +178,7 @@ struct TauriRunner {
     device: String,
 }
 
-/// The name of `device` in conflict copies: its alias, or "holzi".
+/// The name of `device` in conflict copies: its alias, or "haex-vault".
 pub(super) async fn device_name(db: &VaultDb, device: &str) -> String {
     let device = device.to_owned();
     db.read(move |r| {
@@ -194,7 +194,7 @@ pub(super) async fn device_name(db: &VaultDb, device: &str) -> String {
     .ok()
     .flatten()
     .filter(|name| !name.trim().is_empty())
-    .unwrap_or_else(|| "holzi".to_owned())
+    .unwrap_or_else(|| "HaexVault".to_owned())
 }
 
 #[async_trait]

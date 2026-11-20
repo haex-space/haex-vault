@@ -1,4 +1,4 @@
-//! Brings the sync of the open vault up to date when holzi comes back to the foreground or the
+//! Brings the sync of the open vault up to date when haex-vault comes back to the foreground or the
 //! network changes (spec 043, FR-018, FR-019, research R5).
 //!
 //! Android stops a backgrounded app's sockets without telling it, and iroh does not see Android's

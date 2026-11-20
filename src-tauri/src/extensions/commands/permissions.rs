@@ -1,5 +1,5 @@
-//! The permission commands of holzi's window (US3, T067, contracts/tauri-commands.md
-//! §Berechtigungen). Only holzi's own window reaches them; an extension cannot grant, resolve or
+//! The permission commands of haex-vault's window (US3, T067, contracts/tauri-commands.md
+//! §Berechtigungen). Only haex-vault's own window reaches them; an extension cannot grant, resolve or
 //! change a permission (FR-021).
 
 use serde::Deserialize;
@@ -53,7 +53,7 @@ pub struct PermissionSetArgs {
     pub replaces: Option<String>,
 }
 
-/// Writes a permission as the settings chose it; only forms holzi can read are accepted.
+/// Writes a permission as the settings chose it; only forms haex-vault can read are accepted.
 pub fn set(db: &VaultDb, device: Uuid, args: PermissionSetArgs, now_ms: i64) -> Result<()> {
     let extension_id = parse_id(&args.extension_id)?;
     let kind = PermissionKind::parse(&args.kind).ok_or_else(|| invalid("unknown kind"))?;

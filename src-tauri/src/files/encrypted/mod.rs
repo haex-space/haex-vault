@@ -115,7 +115,7 @@ pub fn state_error(state: EncryptedState) -> FilesError {
         ),
         EncryptedState::NewerFormat => FilesError::new(
             FilesErrorCode::NewerFormat,
-            "an encrypted folder of a newer format; holzi needs an update",
+            "an encrypted folder of a newer format; HaexVault needs an update",
         ),
         EncryptedState::Damaged => damaged(),
     }

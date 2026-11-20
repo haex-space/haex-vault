@@ -18,7 +18,7 @@ use std::sync::Mutex;
 static LATEST: Mutex<Option<Subject>> = Mutex::new(None);
 
 /// The subject of a turn with `session`'s model. A CLI delegate is an Abo-Agent that reaches
-/// holzi over MCP as itself and is judged there, so it has no subject here.
+/// haex-vault over MCP as itself and is judged there, so it has no subject here.
 pub fn subject_of_session(session: &ActiveSession) -> Option<Subject> {
     match session.provider_kind {
         ProviderKind::CliDelegate => None,

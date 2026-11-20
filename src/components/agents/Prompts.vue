@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * The questions of agents (spec 021, US1, US3; spec 065): the registration dialog, the call prompt
- * and the questions of the agent browser, mounted once in the desktop. For each question holzi comes to the front; where the system
+ * and the questions of the agent browser, mounted once in the desktop. For each question haex-vault comes to the front; where the system
  * keeps it in the back, a system notification leads to it (FR-023), the same way the External
  * Bridge does.
  */

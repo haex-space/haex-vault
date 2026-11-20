@@ -1,4 +1,4 @@
-//! Files in holzi. Spec 043: files the person hands to holzi, chosen in the system's dialog, read
+//! Files in haex-vault. Spec 043: files the person hands to haex-vault, chosen in the system's dialog, read
 //! and written the same way on every platform (`picked`, `commands`). Spec 044: the file browser's
 //! core, files of the device and of storages for the window, the built-in agent and extensions
 //! (`local`, [`FilesError`]).
@@ -167,7 +167,7 @@ pub struct Entry {
     pub symlink: bool,
     /// The system denies access.
     pub no_access: bool,
-    /// In one of holzi's own places: read-only for the user (FR-037).
+    /// In one of haex-vault's own places: read-only for the user (FR-037).
     pub haex_owned: bool,
     /// An encrypted folder or an entry in one (spec 048).
     pub encrypted: Option<EncryptedInfo>,
@@ -196,7 +196,7 @@ pub enum EncryptedRole {
     Inside,
 }
 
-/// What holzi can do with an encrypted folder or an entry (data-model.md). A `damaged` entry can
+/// What haex-vault can do with an encrypted folder or an entry (data-model.md). A `damaged` entry can
 /// only be deleted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]

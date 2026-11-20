@@ -1,6 +1,6 @@
 //! The load of a four-player game (spec 057 T024, SC-003, SC-004 baseline): a host with three
 //! channels, 35 fast messages of 1,024 bytes per second in each direction for 10 seconds, on
-//! loopback. At least 99 % arrive; the delay holzi adds is printed as the baseline for SC-004.
+//! loopback. At least 99 % arrive; the delay haex-vault adds is printed as the baseline for SC-004.
 
 use std::time::{Duration, Instant};
 

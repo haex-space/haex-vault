@@ -3,7 +3,7 @@
  * The editor of a contact (spec 051, FR-002, FR-003, FR-007): a new one (`entry/new/edit`, in the
  * group of `?group=` when given) or an existing one. Name parts, organization and note, any number
  * of values of every known kind, the groups, and for a new one the phones it goes to (FR-018c,
- * "only in holzi" unless chosen). Saving sends only what changed (`toPatch`), so values of kinds
+ * "only in haex-vault" unless chosen). Saving sends only what changed (`toPatch`), so values of kinds
  * this version does not know stay as they are; the backend checks every value and says what it
  * refuses.
  */
@@ -62,7 +62,7 @@ async function loadAsync() {
 }
 watch(id, loadAsync, { immediate: true })
 
-/** The kinds the menu offers: the own contact has no holzi addresses to type in, holzi knows its
+/** The kinds the menu offers: the own contact has no haex-vault addresses to type in, haex-vault knows its
  * own (spec 060 FR-005). */
 const offeredKinds = computed(() =>
   KINDS.filter(

@@ -1,7 +1,7 @@
 //! The pipe on Windows (spec 065, research R2): Chromium reads its pipe ends as the C runtime's
 //! descriptors 3 and 4, which a child inherits through `STARTUPINFOW.lpReserved2` (the way
 //! Puppeteer's Node starts it). Only the two pipe ends are inherited (`PROC_THREAD_ATTRIBUTE_
-//! HANDLE_LIST`), so no other handle of holzi leaks into the browser.
+//! HANDLE_LIST`), so no other handle of haex-vault leaks into the browser.
 //!
 //! The command line and the `lpReserved2` block are plain functions, tested on every system; the
 //! system calls exist only on Windows.
@@ -209,7 +209,7 @@ mod system {
                 executable.display()
             )));
         }
-        // holzi keeps only its own ends; the browser's are in the child now.
+        // haex-vault keeps only its own ends; the browser's are in the child now.
         drop((child_reads, child_writes));
         // SAFETY: the thread handle is not used.
         unsafe { CloseHandle(info.hThread) };

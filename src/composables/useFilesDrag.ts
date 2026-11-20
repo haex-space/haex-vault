@@ -9,20 +9,20 @@ import {
   sameSource,
 } from '~/lib/files/clipboard'
 
-/** The drag under way inside holzi: the browser hides its data while it hovers, and the cursor
+/** The drag under way inside haex-vault: the browser hides its data while it hovers, and the cursor
  * should say move or copy by then. Shared by all panels, as the drag crosses them. */
 let dragging: DragPayload | null = null
 
-/** The drag of holzi's entries under way, `null` when none: what a drop target may look at while
+/** The drag of haex-vault's entries under way, `null` when none: what a drop target may look at while
  * the drag hovers (spec 071: the sidebar decides whether it takes a folder). */
 export const currentDrag = (): DragPayload | null => dragging
 
 /**
- * Dragging entries inside holzi (spec 044 US3, spec 062 US2): a row starts the drag with the
+ * Dragging entries inside haex-vault (spec 044 US3, spec 062 US2): a row starts the drag with the
  * selection (or itself), a folder row or the open folder takes it in. The payload carries the
  * source, so a drag from the other panel lands in this one; whether it moves or copies is decided by
  * the panel that takes it (`useFilesManage.onDrop`). A folder that takes no changes (`droppable`
- * false: holzi's own place, a share read only) refuses at the hover, so nothing is offered that
+ * false: haex-vault's own place, a share read only) refuses at the hover, so nothing is offered that
  * would only be refused after the drop.
  */
 export function useFilesDrag(options: {
@@ -59,7 +59,7 @@ export function useFilesDrag(options: {
     if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copyMove'
   }
 
-  /** Accepts a drag of holzi's entries over a folder row (`entry`) or the open folder (`null`). */
+  /** Accepts a drag of haex-vault's entries over a folder row (`entry`) or the open folder (`null`). */
   function onDragOver(entry: Entry | null, event: DragEvent) {
     if (!event.dataTransfer?.types.includes(ENTRIES_MIME)) return
     if (entry && entry.kind !== 'dir') return

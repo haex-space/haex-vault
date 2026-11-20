@@ -1,5 +1,5 @@
 // The browser tools (spec 065, contracts/browser-tools.md): agents open, read and navigate pages in
-// holzi's agent browser. They run in Rust (`runner: 'native'`, src-tauri/src/agent_browser/
+// haex-vault's agent browser. They run in Rust (`runner: 'native'`, src-tauri/src/agent_browser/
 // executor.rs) for the built-in agent and the MCP access alike; the window never runs them. Every
 // tool that changes something asks the user itself (`confirmsItself`), so the general call prompt
 // does not ask twice; before anything is submitted it asks in Auto too. Pure, relative `.ts`
@@ -8,7 +8,7 @@ import type { ActionDefinition, JsonSchema } from './types.ts'
 
 const TAB: JsonSchema = {
   type: 'string',
-  description: 'The agent tab, as holzi named it (t1, t2, …).',
+  description: 'The agent tab, as HaexVault named it (t1, t2, …).',
 }
 
 const ELEMENT: JsonSchema = {
@@ -338,7 +338,7 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'browser.click_at',
     titleKey: 'actions.browser.clickAt',
     description:
-      'Click a point of the last screenshot (x and y in its pixels), for what has no element number: a place on a canvas, a game, a map, a player control. Use browser.click with an element number wherever there is one. holzi finds the element under the point and asks as it would for a click on it; a point with no known element counts as a change. button is left (default) or right, count 1 or 2 (a double click). The result says what was hit (hit: the element number, kind and name, or none) and reads the page after it. Take a screenshot first: view_changed means the page moved on (scrolled, loaded, resized), no_view that there was no screenshot; nothing was clicked then.' +
+      'Click a point of the last screenshot (x and y in its pixels), for what has no element number: a place on a canvas, a game, a map, a player control. Use browser.click with an element number wherever there is one. HaexVault finds the element under the point and asks as it would for a click on it; a point with no known element counts as a change. button is left (default) or right, count 1 or 2 (a double click). The result says what was hit (hit: the element number, kind and name, or none) and reads the page after it. Take a screenshot first: view_changed means the page moved on (scrolled, loaded, resized), no_view that there was no screenshot; nothing was clicked then.' +
       UNTRUSTED,
     input: {
       type: 'object',
@@ -366,7 +366,7 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'browser.drag',
     titleKey: 'actions.browser.drag',
     description:
-      'Drag from one point of the last screenshot to another (from and to, each x and y in its pixels): press, move in small steps, release, within 3 seconds. Use it for sliders, sortable lists, puzzles and maps. holzi looks at the element at both ends and asks as the stricter of the two would. The result says what was hit at each end (hit: two entries, the grab and the drop) and reads the page after it. view_changed and no_view work as for browser.click_at.' +
+      'Drag from one point of the last screenshot to another (from and to, each x and y in its pixels): press, move in small steps, release, within 3 seconds. Use it for sliders, sortable lists, puzzles and maps. HaexVault looks at the element at both ends and asks as the stricter of the two would. The result says what was hit at each end (hit: two entries, the grab and the drop) and reads the page after it. view_changed and no_view work as for browser.click_at.' +
       UNTRUSTED,
     input: {
       type: 'object',
@@ -441,7 +441,7 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'browser.credentials.fill',
     titleKey: 'actions.browser.credentialsFill',
     description:
-      'Log in on the page of an agent tab with an entry of the password manager: holzi fills in the username, the password and a one-time code itself; you never see them and get only filled: true, or filled: false with a reason (not_encrypted, no_fields). Name the form by the number of any of its elements, or leave it out for the login form. The first fill per website asks the user. Never type passwords yourself. Filled values are hidden from every later result, and screenshots stay off for the rest of the session.',
+      'Log in on the page of an agent tab with an entry of the password manager: HaexVault fills in the username, the password and a one-time code itself; you never see them and get only filled: true, or filled: false with a reason (not_encrypted, no_fields). Name the form by the number of any of its elements, or leave it out for the login form. The first fill per website asks the user. Never type passwords yourself. Filled values are hidden from every later result, and screenshots stay off for the rest of the session.',
     input: {
       type: 'object',
       properties: {
@@ -468,7 +468,7 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'browser.credentials.create',
     titleKey: 'actions.browser.credentialsCreate',
     description:
-      'Create a new login on the page of an agent tab (sign up, change a password): name the new password field by its element number and the username. holzi generates the password, enters it into that field and its repeat field, and asks the user to save it in the password manager; you never see it and get only created: true, or created: false with a reason (not_encrypted). If the user declines, the fields are emptied (user_declined). Needs password rights that allow writing. Never make up or type passwords yourself.',
+      'Create a new login on the page of an agent tab (sign up, change a password): name the new password field by its element number and the username. HaexVault generates the password, enters it into that field and its repeat field, and asks the user to save it in the password manager; you never see it and get only created: true, or created: false with a reason (not_encrypted). If the user declines, the fields are emptied (user_declined). Needs password rights that allow writing. Never make up or type passwords yourself.',
     input: {
       type: 'object',
       properties: {
@@ -499,7 +499,7 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'browser.entry.fill',
     titleKey: 'actions.browser.entryFill',
     description:
-      'Fill data from the password manager that is not a login, such as bank or card data, into a form of an agent tab. Give your purpose (at most 200 characters); the user sees it as your statement, chooses the entry and which fields to fill, every time. You never see the entry, its field names or values and get only filled: the element numbers holzi filled (and in_frames: how many fields it filled in frames of payment providers on websites you may operate), or filled: [] with reason not_encrypted. Name the form by the number of any of its elements, or leave it out. Filled values are hidden from every later result, sending the form asks the user again, and screenshots stay off for the rest of the session.',
+      'Fill data from the password manager that is not a login, such as bank or card data, into a form of an agent tab. Give your purpose (at most 200 characters); the user sees it as your statement, chooses the entry and which fields to fill, every time. You never see the entry, its field names or values and get only filled: the element numbers HaexVault filled (and in_frames: how many fields it filled in frames of payment providers on websites you may operate), or filled: [] with reason not_encrypted. Name the form by the number of any of its elements, or leave it out. Filled values are hidden from every later result, sending the form asks the user again, and screenshots stay off for the rest of the session.',
     input: {
       type: 'object',
       properties: {

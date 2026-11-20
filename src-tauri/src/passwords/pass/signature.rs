@@ -4,7 +4,7 @@
 //! caller only shows it.
 //!
 //! It is purely offline and takes only the bytes of the file (no address in the file or in a
-//! certificate is ever called, so a pass cannot make holzi open a connection by being checked), and it
+//! certificate is ever called, so a pass cannot make haex-vault open a connection by being checked), and it
 //! never panics. The steps:
 //!
 //! 1. the files of the pass match the SHA-1 hashes in `manifest.json`, none missing, none extra;

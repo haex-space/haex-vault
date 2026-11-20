@@ -13,6 +13,6 @@ deviceScoped: boolean,
  */
 titleDe?: string, titleEn?: string,
 /**
- * For `agentTool`: whether holzi can offer the tool to the agent.
+ * For `agentTool`: whether haex-vault can offer the tool to the agent.
  */
 supported?: boolean, };

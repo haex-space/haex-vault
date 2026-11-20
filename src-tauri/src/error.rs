@@ -41,7 +41,7 @@ pub enum HaexError {
     #[error("Instance '{name}' is active; close it before this operation")]
     InstanceActive { name: String },
 
-    #[error("File is not a valid holzi instance: {reason}")]
+    #[error("File is not a valid haex-vault instance: {reason}")]
     NotAValidInstance { reason: String },
 
     #[error("SQLCipher error from haex-crdt: {reason}")]
@@ -412,7 +412,7 @@ pub enum HaexError {
     // --- Storage connections (spec 038, contracts/tauri-commands.md) ---
     // None of these carries an endpoint, a credential or the text of a provider.
     /// A field of a connection or a storage breaks its rule (`field`: `providerName`, `region`,
-    /// `endpoint`, `credentials`, `name`, `bucket`); for `endpoint` also an address holzi does not
+    /// `endpoint`, `credentials`, `name`, `bucket`); for `endpoint` also an address haex-vault does not
     /// reach (research R8).
     #[error("Invalid storage field: {field}")]
     StorageInvalid { field: String },
@@ -422,7 +422,7 @@ pub enum HaexError {
     StorageNotFound,
 
     /// The connection test failed, nothing was saved (FR-003). `leftoverKey` names the test object
-    /// when holzi could not delete it (SC-004).
+    /// when haex-vault could not delete it (SC-004).
     #[error("Storage test failed: {outcome:?}")]
     StorageTestFailed {
         outcome: crate::remote_storage::TestOutcome,
@@ -464,7 +464,7 @@ pub enum HaexError {
 pub type Result<T> = std::result::Result<T, HaexError>;
 
 impl From<CrdtError> for HaexError {
-    /// Maps a `haex-crdt` error into the stable error contract exposed by holzi.
+    /// Maps a `haex-crdt` error into the stable error contract exposed by haex-vault.
     fn from(err: CrdtError) -> Self {
         match err {
             CrdtError::Sqlite(e) => HaexError::CrdtSqlite {
@@ -514,7 +514,7 @@ impl From<CrdtError> for HaexError {
                 },
             },
             // RemoteHlcDriftTooLarge and the remaining database-layer variants have no
-            // dedicated holzi variant yet; sync (spec 024) adds the ones it surfaces.
+            // dedicated haex-vault variant yet; sync (spec 024) adds the ones it surfaces.
             other => HaexError::CrdtInit {
                 reason: other.to_string(),
             },
@@ -523,7 +523,7 @@ impl From<CrdtError> for HaexError {
 }
 
 impl From<HaexError> for CrdtError {
-    /// Carries a holzi error out of a `Database::write` / `Database::read` closure; the
+    /// Carries a haex-vault error out of a `Database::write` / `Database::read` closure; the
     /// reverse mapping above unwraps it again.
     fn from(err: HaexError) -> Self {
         CrdtError::consumer(err)

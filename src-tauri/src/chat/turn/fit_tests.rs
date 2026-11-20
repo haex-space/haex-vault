@@ -8,7 +8,7 @@ fn request(messages: Vec<ChatMessage>) -> ChatRequest {
         sampling: Default::default(),
         model_id: "m".to_owned(),
         thread_id: None,
-        system_prompt: Some("You operate holzi.".to_owned()),
+        system_prompt: Some("You operate HaexVault.".to_owned()),
         messages,
         reasoning_requested: false,
         max_new_tokens: None,

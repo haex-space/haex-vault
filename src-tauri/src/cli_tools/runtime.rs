@@ -23,7 +23,7 @@ use crate::instances::vault_paths::VaultPaths;
 use crate::mcp_server::endpoint::MAX_SOCKET_PATH_BYTES;
 
 /// A folder for one delegate run or connect flow, below `<vault>/home/run/`: the tool's
-/// configuration folder, its working folder, its temp folder and holzi's own files for the run
+/// configuration folder, its working folder, its temp folder and haex-vault's own files for the run
 /// (attachments, system prompt, MCP config, the approval socket). It is removed when the value
 /// is dropped; whatever a killed process leaves behind is swept at the next vault open.
 ///
@@ -106,7 +106,7 @@ impl RunFolder {
         &self.home
     }
 
-    /// Where holzi's approval socket for this run lies: in the run folder, which keeps it inside
+    /// Where haex-vault's approval socket for this run lies: in the run folder, which keeps it inside
     /// the vault. A Unix socket address holds about 104 bytes, so for a vault whose folder path is
     /// too long the socket gets a random name in the system temp folder instead, and is removed
     /// with the run. That is one of the two residuals the spec lists (spec 094 Assumptions): it

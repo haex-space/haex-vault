@@ -1,11 +1,11 @@
 // The MCP messages of an extension's tools on its frame's port (spec 018, contracts/mcp-port.md):
-// holzi's client in Rust and the extension's server talk JSON-RPC 2.0, wrapped as
+// haex-vault's client in Rust and the extension's server talk JSON-RPC 2.0, wrapped as
 // `{type: "haexspace:mcp", message}` so they stay apart from the bridge's requests. Pure:
 // `composables/useExtensionFrame.ts` relays them, `scripts/check-extensions-mcp-relay.ts` tests it.
 
 export const MCP_PORT_TYPE = 'haexspace:mcp'
 
-/** A JSON-RPC 2.0 message; holzi passes it on unchanged. */
+/** A JSON-RPC 2.0 message; haex-vault passes it on unchanged. */
 export type McpMessage = Record<string, unknown> & { jsonrpc: '2.0' }
 
 function isObject(value: unknown): value is Record<string, unknown> {

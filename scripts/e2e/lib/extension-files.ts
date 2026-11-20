@@ -1,5 +1,5 @@
 // The device side of the files scene (spec 017, US9): a folder of the device the probe reads,
-// writes and watches, outside holzi's own places.
+// writes and watches, outside haex-vault's own places.
 import { deviceFiles as platformDeviceFiles } from './platform/device-files.ts'
 import type { DeviceFiles } from './platform/device-files.ts'
 

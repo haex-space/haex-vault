@@ -1,7 +1,7 @@
 //! Spec 017, FR-009, T074: the allowlist of the bridge is the contract. Every method of
 //! `bridge::dispatch::METHODS` is listed in `contracts/bridge.md` §Methoden, and no handler lives
 //! under `chat`, `llm`, `adapters` or `providers`: an extension never reaches the model side of
-//! holzi (ADR-0004).
+//! haex-vault (ADR-0004).
 
 use std::path::Path;
 

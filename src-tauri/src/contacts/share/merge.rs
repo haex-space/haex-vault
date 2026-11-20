@@ -1,7 +1,7 @@
 //! Reading a share in (spec 060 FR-024 to FR-025a): everything is recomputed from the text, the
 //! person's choices are checked against what each item allows, and then everything is written in the
 //! caller's one transaction or nothing is. A share only ever adds: it fills an empty field, adds a
-//! value, adds holzi addresses next to the ones a contact has. It replaces only what the person
+//! value, adds haex-vault addresses next to the ones a contact has. It replaces only what the person
 //! chose for exactly that item, and never the confirmed vault identity of a contact.
 
 use std::collections::HashSet;

@@ -1,5 +1,5 @@
 //! The pinned client of the storages (spec 050 research R2): it follows no redirect, and an address
-//! holzi never reaches gets no client at all.
+//! haex-vault never reaches gets no client at all.
 
 use std::sync::mpsc;
 use std::time::Duration;

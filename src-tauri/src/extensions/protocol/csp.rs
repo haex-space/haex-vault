@@ -1,6 +1,6 @@
 //! The Content-Security-Policy of extension frames (research R12), sent as a response header.
 //!
-//! Scripts run only from the extension's own URL prefix or as inline scripts whose SHA-256 holzi
+//! Scripts run only from the extension's own URL prefix or as inline scripts whose SHA-256 haex-vault
 //! computed after verifying the bundle (Nuxt configuration, import maps, SDK polyfills) plus the
 //! frame shim. WebAssembly may be compiled (`'wasm-unsafe-eval'`), JavaScript never evaluated
 //! (`'unsafe-eval'`). Never `ipc:` or `http://ipc.localhost`, no network.
@@ -14,7 +14,7 @@ use super::shim::{find_ascii_case_insensitive, tag_end, SHIM};
 use crate::extensions::bundle::VerifiedBundle;
 use crate::extensions::mime;
 
-/// Origins of holzi's own window, the only allowed parents of a frame.
+/// Origins of haex-vault's own window, the only allowed parents of a frame.
 fn haex_origins() -> &'static str {
     // The dev server origin is `build.devUrl` of tauri.conf.json.
     match (

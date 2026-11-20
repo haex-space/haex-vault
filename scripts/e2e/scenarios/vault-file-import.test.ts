@@ -40,7 +40,7 @@ scenario(
     await createAndUnlock(first, { name: 'anna', passphrase })
     await createEntry(first, { title: ENTRY })
     // The vault's public identity is published a moment after the first unlock; a file copied
-    // before it has no identity, and holzi refuses it as no vault.
+    // before it has no identity, and haex-vault refuses it as no vault.
     await ctx.waitFor(
       'the vault to hold its public identity',
       async () => {

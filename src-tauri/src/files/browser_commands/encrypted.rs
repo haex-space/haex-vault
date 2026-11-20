@@ -31,7 +31,7 @@ pub struct EncryptedNotice {
 }
 
 /// The storage of `path` with the path in it: a storage, or the device as its storage (spec 048
-/// US7). A device folder must be one the user may change (not in holzi's own places).
+/// US7). A device folder must be one the user may change (not in haex-vault's own places).
 async fn storage_at(
     app: &AppHandle,
     state: &AppState,

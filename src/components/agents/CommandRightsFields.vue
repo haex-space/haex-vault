@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * The rights group "Befehle ausführen" of an agent (spec 021 US5, FR-012): off by default; when
- * on, the agent sees holzi's command tool. Every command counts as destructive, so Auto asks before
+ * on, the agent sees haex-vault's command tool. Every command counts as destructive, so Auto asks before
  * each one and Plan refuses it. Hidden where the device runs no commands (Android, iOS), as the
  * command tool is never offered there.
  */

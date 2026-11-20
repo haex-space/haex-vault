@@ -1,6 +1,6 @@
-//! The data rows of a raw contact as holzi's head fields and values, and back (spec 051 SC-004,
+//! The data rows of a raw contact as haex-vault's head fields and values, and back (spec 051 SC-004,
 //! contracts/android-plugin.md, data-model.md). Only the mimetypes of the contract are read; a row
-//! whose value holzi cannot store (an event in a form that is no date, an empty number) is not
+//! whose value haex-vault cannot store (an event in a form that is no date, an empty number) is not
 //! mapped and stays on the phone untouched, like every row of another mimetype (FR-022).
 
 use std::collections::BTreeMap;
@@ -14,7 +14,7 @@ use crate::contacts::kinds::{
     self, ADDRESS, ADDRESS_PARTS, EMAIL, EVENT, IM, PHONE, RELATION, SIP, WEBSITE,
 };
 
-/// Where the phone holds a head field of holzi: the column of `haex_contacts`, the mimetype and the
+/// Where the phone holds a head field of haex-vault: the column of `haex_contacts`, the mimetype and the
 /// field of the row.
 pub struct HeadField {
     pub column: &'static str,
@@ -88,12 +88,12 @@ fn legacy_rev() -> u32 {
 }
 
 /// The mimetype (short name) of the profile row Telegram's account keeps for a contact; the plugin
-/// reads it, holzi never writes it.
+/// reads it, haex-vault never writes it.
 pub const TELEGRAM_PROFILE: &str = "TelegramProfile";
 
-/// A value on the phone: the data row that holds it and the value as holzi stores it. A read-only
-/// value comes from a row holzi must not write (the number in Telegram's profile row): it flows
-/// into holzi, but a change or deletion in holzi never reaches the row.
+/// A value on the phone: the data row that holds it and the value as haex-vault stores it. A read-only
+/// value comes from a row haex-vault must not write (the number in Telegram's profile row): it flows
+/// into haex-vault, but a change or deletion in haex-vault never reaches the row.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PhoneValue {
@@ -105,7 +105,7 @@ pub struct PhoneValue {
     pub read_only: bool,
 }
 
-/// What holzi knows of one raw contact: its head fields with the rows that hold them, and its
+/// What haex-vault knows of one raw contact: its head fields with the rows that hold them, and its
 /// values.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -132,7 +132,7 @@ impl Default for PhoneSide {
 }
 
 /// The kind of a group membership in the comparison (spec 051 T096). It is no kind of
-/// `haex_contacts_values`: holzi keeps memberships in `haex_contacts_group_members`, the phone in
+/// `haex_contacts_values`: haex-vault keeps memberships in `haex_contacts_group_members`, the phone in
 /// `GroupMembership` rows; both meet by the group's name, per account on the phone.
 pub const GROUP: &str = "group";
 
@@ -180,7 +180,7 @@ fn text<'a>(fields: &'a Map<String, Json>, key: &str) -> Option<&'a str> {
         .filter(|text| !text.is_empty())
 }
 
-/// The data rows of one raw contact as holzi sees them. The first row of a head mimetype holds the
+/// The data rows of one raw contact as haex-vault sees them. The first row of a head mimetype holds the
 /// head fields; a further one of the same mimetype is not mapped.
 pub fn map_raw(rows: &[DataRow]) -> PhoneSide {
     let mut side = PhoneSide::default();
@@ -248,7 +248,7 @@ fn telegram_number(fields: &Map<String, Json>) -> Option<String> {
     Some(value)
 }
 
-/// The label and value of a row of `kind`, if holzi can store them.
+/// The label and value of a row of `kind`, if haex-vault can store them.
 fn value_of(kind: &str, fields: &Map<String, Json>) -> Option<(String, String)> {
     if kind == GROUP {
         // The plugin names the group; the system's own groups are not mapped (FR-022).

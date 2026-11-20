@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * "Allgemein → Erscheinungsbild" (spec 042, FR-016): the workspace background. The user picks the
- * image with the system's file chooser (a native file input, no file access for holzi beyond the
+ * image with the system's file chooser (a native file input, no file access for haex-vault beyond the
  * chosen file); it is scaled down and stored for the whole vault. Removing goes through
  * `settings.appearance.removeBackground`, which an agent can call too.
  */

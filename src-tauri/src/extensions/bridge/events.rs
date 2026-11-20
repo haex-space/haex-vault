@@ -1,5 +1,5 @@
-//! Messages from holzi to the frames of one extension (contracts/bridge.md §Meldungen): Rust
-//! sends `extension-frame-event {frame, type, data, timestamp}` to holzi's window for every open
+//! Messages from haex-vault to the frames of one extension (contracts/bridge.md §Meldungen): Rust
+//! sends `extension-frame-event {frame, type, data, timestamp}` to haex-vault's window for every open
 //! frame of that extension; the window hands it to the frame's port. Frames of other extensions
 //! get nothing.
 

@@ -1,4 +1,4 @@
-//! The MCP connection to one extension frame (spec 018, research R1, R2). holzi is the client; its
+//! The MCP connection to one extension frame (spec 018, research R1, R2). haex-vault is the client; its
 //! messages leave as JSON through `send`, which the caller hands to the frontend for the frame's
 //! port, and the frame's answers arrive as JSON on `receive`.
 
@@ -21,7 +21,7 @@ use serde_json::Value;
 
 /// The client side of a tool connection. It declares no capabilities and answers every request of
 /// the extension except `ping` with "method not found" (research R2): this connection carries
-/// holzi's calls of the extension's tools and nothing else. A route from an extension to the agent, with a model the
+/// haex-vault's calls of the extension's tools and nothing else. A route from an extension to the agent, with a model the
 /// user chose, is later work (spec 047 and after) and does not run over this connection.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ToolClient;

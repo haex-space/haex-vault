@@ -15,7 +15,7 @@ import { registerWmLayoutHandlers } from '~/stores/wmLayoutHandlers'
  *
  * Where the system has a back gesture (Android, spec 043 FR-013), it triggers
  * `wm.system.back` (research R7) instead of the webview's own history, which
- * holzi never uses as navigation state (FR-035). The device's capability table
+ * haex-vault never uses as navigation state (FR-035). The device's capability table
  * decides, not the user agent.
  */
 export default defineNuxtPlugin((nuxtApp) => {

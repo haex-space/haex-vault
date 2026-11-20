@@ -1,9 +1,9 @@
 //! Spec 065 T062 (US4) against a real Chromium and the fixture site over `https`: an agent with the
-//! rights group "Passwörter" has holzi fill a login into a page that copies what was typed into its
+//! rights group "Passwörter" has haex-vault fill a login into a page that copies what was typed into its
 //! own text; the agent never sees the password in a result, and screenshots stay off. The first
 //! fill asks; "Für diese Website merken" lets the next one go without asking; two matching entries
 //! ask every time; without the rights group there is no entry. A new login (FR-036) gets a password
-//! holzi generates into the new field and its repeat field; "Speichern" stores it as an entry,
+//! haex-vault generates into the new field and its repeat field; "Speichern" stores it as an entry,
 //! "Ablehnen" empties the fields, and reading rights alone save nothing. Without a Chromium-based
 //! browser the tests say so and stop.
 

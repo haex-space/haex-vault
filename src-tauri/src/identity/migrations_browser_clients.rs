@@ -2,7 +2,7 @@
 //! approvals and blocks of browser extensions that connect through the External Bridge.
 //!
 //! A row belongs to one device (ADR-0001): the extension lives in a browser on that device and
-//! connects only to holzi there, so `vault_device_uuid` references `known_devices` and the bridge
+//! connects only to haex-vault there, so `vault_device_uuid` references `known_devices` and the bridge
 //! reads only its own device's rows. The table syncs like every device-scoped table; another
 //! device never reads the rows. It carries no UNIQUE constraint (a conflict would halt the sync,
 //! as in [`super::migrations_storage`]): the id derives from the device and the client

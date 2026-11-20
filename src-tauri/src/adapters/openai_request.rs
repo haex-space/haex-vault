@@ -80,7 +80,7 @@ pub(super) fn build_chat_body_with_limit(
     body
 }
 
-/// Regroups holzi's flat per-row history: consecutive `ToolCall` rows become one `assistant`
+/// Regroups haex-vault's flat per-row history: consecutive `ToolCall` rows become one `assistant`
 /// message with one entry in `tool_calls` each, every `ToolResult` row becomes one `tool` message.
 fn build_messages(messages: &[ChatMessage]) -> Vec<Value> {
     let mut out = Vec::new();

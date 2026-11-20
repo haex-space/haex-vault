@@ -1,5 +1,5 @@
 //! Keys, hover and the mouse wheel (spec 065 US7, research R19): pages that need more than clicks
-//! and text. Every input is real and holzi's own ([`Session::own`]); a key goes under the rules of
+//! and text. Every input is real and haex-vault's own ([`Session::own`]); a key goes under the rules of
 //! a click or of typing (FR-062): Enter or Space on an element that submits asks as a click on it
 //! would (research R5 step 1), the held requests of step 2 stay, and the website must be one the
 //! agent may operate. Hovering and the wheel only read, as scrolling always did.

@@ -1,4 +1,4 @@
-//! The system's notifications as tests see them (spec 017 US8, spec 057 T034): what holzi asked the
+//! The system's notifications as tests see them (spec 017 US8, spec 057 T034): what haex-vault asked the
 //! system to show, a way to answer as the system would, and a way to wait for one to appear.
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -75,7 +75,7 @@ impl FakeDesktop {
         self.shown.lock().unwrap().len()
     }
 
-    /// The indexes of the notifications holzi took away again, in order.
+    /// The indexes of the notifications haex-vault took away again, in order.
     pub(crate) fn closed(&self) -> Vec<usize> {
         self.closed.lock().unwrap().clone()
     }

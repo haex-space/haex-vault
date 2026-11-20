@@ -1,5 +1,5 @@
-//! holzi as MCP server for external agents (spec 021, ADR-0005): Claude Code, Codex and other MCP
-//! clients start the holzi executable with `--mcp-agent` as their MCP server, register in holzi's
+//! haex-vault as MCP server for external agents (spec 021, ADR-0005): Claude Code, Codex and other MCP
+//! clients start the haex-vault executable with `--mcp-agent` as their MCP server, register in haex-vault's
 //! window, and then call the actions their rights cover. Off by default, per device, and only while
 //! a vault is open (FR-001, FR-002).
 
@@ -91,7 +91,7 @@ use crate::state::AppState;
 pub enum McpRunState {
     Off,
     Running,
-    /// Another holzi serves the same vault on this device.
+    /// Another haex-vault serves the same vault on this device.
     InUse,
     NoVault,
     NotAvailable,
@@ -172,7 +172,7 @@ impl McpServer {
         &self.calls
     }
 
-    /// How a delegate in the chat reaches holzi (US6).
+    /// How a delegate in the chat reaches haex-vault (US6).
     pub fn delegate_access(&self) -> Arc<dyn HaexAccess> {
         Arc::clone(&self.delegates) as Arc<dyn HaexAccess>
     }

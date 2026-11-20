@@ -69,7 +69,7 @@ impl Resolved {
 
 impl StorageService {
     /// Resolves the credentials of a save for a connection of `protocol`. A chosen entry that is not
-    /// there for holzi is [`crate::error::HaexError::StorageCredentialsUnavailable`]; one without the
+    /// there for haex-vault is [`crate::error::HaexError::StorageCredentialsUnavailable`]; one without the
     /// values of the protocol is invalid credentials (contracts/tauri-commands.md).
     pub(super) async fn resolve(
         &self,

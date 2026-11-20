@@ -1,4 +1,4 @@
-//! The `Fetch` domain: holding a tab's requests until holzi has decided about them: documents for
+//! The `Fetch` domain: holding a tab's requests until haex-vault has decided about them: documents for
 //! the website check (research R9), and every request that may change something on a website
 //! (research R5 step 2). While the tracker filters are on, every request of every type is held,
 //! so the filters see images, styles, scripts, fonts and media as well (research R16); those are
@@ -12,7 +12,7 @@ use crate::agent_browser::error::Result;
 /// The kinds of request a page can change something with, or that load a document.
 const HELD: [&str; 6] = ["Document", "XHR", "Fetch", "Ping", "EventSource", "Other"];
 
-/// Whether requests of `kind` are held for holzi's checks, not only for the tracker filters.
+/// Whether requests of `kind` are held for haex-vault's checks, not only for the tracker filters.
 pub fn checked(kind: &str) -> bool {
     HELD.contains(&kind)
 }

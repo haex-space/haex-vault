@@ -1,5 +1,5 @@
 //! Stored Visitenkarten and blocked vaults in the service (spec 051 FR-013, FR-039): what the address
-//! book knows of a vault for holzi's own handshakes, and blocking. Reading cards in is
+//! book knows of a vault for haex-vault's own handshakes, and blocking. Reading cards in is
 //! `service/share.rs` (spec 060).
 
 use super::{Caller, ContactsService};
@@ -8,7 +8,7 @@ use crate::contacts::card::format::SignedCard;
 use crate::contacts::card::received::{self, BlockedVault};
 use crate::error::{HaexError, Result};
 
-/// What the address book knows of a vault, for holzi's own handshakes with its devices.
+/// What the address book knows of a vault, for haex-vault's own handshakes with its devices.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VaultCard {
     /// Its card is stored on this contact, and the vault is not blocked.
@@ -22,7 +22,7 @@ pub enum VaultCard {
     Unknown,
 }
 
-/// The holzi functions that look vaults up by their identity: channels between extensions (spec
+/// The haex-vault functions that look vaults up by their identity: channels between extensions (spec
 /// 057) and file shares (spec 056).
 const CARD_LOOKUP_FEATURES: [&str; 2] = ["extensionPeers", "fileShares"];
 
@@ -33,7 +33,7 @@ fn invalid(reason: &str) -> HaexError {
 }
 
 impl ContactsService {
-    /// The stored card of `vault`, for a handshake with one of its devices. Only the holzi
+    /// The stored card of `vault`, for a handshake with one of its devices. Only the haex-vault
     /// functions of [`CARD_LOOKUP_FEATURES`] ask; nothing of it reaches an extension.
     pub async fn card_of_vault(&self, caller: &Caller, vault: [u8; 32]) -> Result<VaultCard> {
         match caller {

@@ -1,5 +1,5 @@
 //! What a run does with each contact (spec 051, research R7, R8): a contact linked on this phone,
-//! a new contact of the phone merged into one of holzi, or one taken over; and the plan of each.
+//! a new contact of the phone merged into one of haex-vault, or one taken over; and the plan of each.
 
 use std::collections::BTreeMap;
 
@@ -47,7 +47,7 @@ fn raw_side(
     }
 }
 
-/// The base of a raw contact merged into a contact for the first time: holzi's state as agreed,
+/// The base of a raw contact merged into a contact for the first time: haex-vault's state as agreed,
 /// the phone's head as agreed, and no phone values (each one is new).
 fn merge_base(loaded: Option<&Loaded>, current: &PhoneSide) -> Base {
     let mut base = match loaded {

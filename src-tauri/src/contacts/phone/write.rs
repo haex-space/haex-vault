@@ -153,7 +153,7 @@ fn row_op(raw: Target, op: RowOp) -> Op {
     }
 }
 
-/// One insert per head mimetype with the fields holzi has.
+/// One insert per head mimetype with the fields haex-vault has.
 fn head_rows(head: &BTreeMap<String, String>) -> Vec<(String, Map<String, Json>)> {
     let mut by_mimetype: BTreeMap<&str, BTreeMap<&str, Option<&str>>> = BTreeMap::new();
     for field in &HEAD_FIELDS {

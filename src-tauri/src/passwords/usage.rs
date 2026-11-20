@@ -1,4 +1,4 @@
-//! Which holzi functions use an entry (spec 034, FR-034, `contracts/access.md`): a function such as
+//! Which haex-vault functions use an entry (spec 034, FR-034, `contracts/access.md`): a function such as
 //! the own S3 storage (spec 029) registers a provider at its start, and the window asks before an
 //! entry is deleted, so the user is warned that a function depends on it (the delete is still
 //! allowed). The password manager recognizes this by nothing but what the functions report: not by
@@ -6,7 +6,7 @@
 
 use std::sync::{Arc, Mutex};
 
-/// A holzi function that keeps references to entries and can say whether it uses one.
+/// A haex-vault function that keeps references to entries and can say whether it uses one.
 pub trait EntryUsage: Send + Sync {
     /// The name the warning shows, for example `s3-storage`.
     fn feature(&self) -> &'static str;

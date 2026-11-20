@@ -2,7 +2,7 @@
 //! of any origin (Android's origin rules stay `"*"`; Linux and macOS behave the same). What keeps a
 //! foreign top-level page from using the key is Tauri's ACL: a request from a non-local origin is
 //! refused unless a capability lists that origin under `remote`
-//! (`tauri-2.12.1/src/webview/mod.rs:2075-2108`). No capability of holzi may do so.
+//! (`tauri-2.12.1/src/webview/mod.rs:2075-2108`). No capability of haex-vault may do so.
 
 use std::path::Path;
 

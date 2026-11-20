@@ -117,7 +117,7 @@ fn the_allowlist_lists_the_eight_methods_of_this_module_and_no_way_to_answer_an_
         METHODS
             .iter()
             .all(|m| !m.name.contains("accept") && !m.name.contains("decline")),
-        "an invitation is answered only in holzi's prompt (FR-016)"
+        "an invitation is answered only in HaexVault's prompt (FR-016)"
     );
 }
 

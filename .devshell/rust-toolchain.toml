@@ -1,4 +1,4 @@
-# The Rust toolchain of holzi's devShell (read by `nix-devshell-base`'s `flake.nix` through
+# The Rust toolchain of haex-vault's devShell (read by `nix-devshell-base`'s `flake.nix` through
 # rust-overlay). The channel matches the nixpkgs `rustc` the shell had before, so desktop builds see
 # the same compiler; the targets are the four Android ABIs `tauri android build` compiles for.
 [toolchain]

@@ -5390,7 +5390,7 @@ var HAEXSPACE_MESSAGE_TYPES = {
    */
   PORT_READY: "haexspace:port:ready",
   /**
-   * One MCP message of the tool connection (holzi spec 018), in both directions over the
+   * One MCP message of the tool connection (haex-vault spec 018), in both directions over the
    * MessagePort: the host calls the extension's tools, `sdk.tools` answers.
    *
    * Payload: `{ type: MCP, message }`, where `message` is a JSON-RPC 2.0 object.
@@ -7091,7 +7091,7 @@ var MailAPI = class {
    * interval for servers without IDLE. Listen for results via `onNewMessages`.
    *
    * `imap` is optional for hosts that resolve the credentials themselves from
-   * `accountId`; holzi requires it.
+   * `accountId`; haex-vault requires it.
    */
   async startWatchingAsync(accountId, mailboxName, intervalSeconds, imap) {
     return this.client.request(MAIL_COMMANDS.startWatch, {
@@ -8459,7 +8459,7 @@ var manifest_default = {
     {
       name: "optional_note",
       title: { de: "Optionale Notiz", en: "Optional note" },
-      description: "Outside holzi's schema subset (a union type); installed but never offered.",
+      description: "Outside HaexVault's schema subset (a union type); installed but never offered.",
       inputSchema: {
         type: "object",
         properties: { note: { type: ["string", "null"] } }

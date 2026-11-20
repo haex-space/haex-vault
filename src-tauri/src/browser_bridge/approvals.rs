@@ -15,7 +15,7 @@ use crate::storage::query::Query;
 /// Namespace of `haex_browser_clients.id`: `UUIDv5(NS, vault_device_uuid ":" client_id)`.
 const NS_BROWSER_CLIENT: Uuid = Uuid::from_u128(0x4b0e_6f53_9c1a_4d8e_a2f7_51c3_0b9d_e049);
 
-/// The longest client name holzi keeps; the name is the client's own claim and only shown.
+/// The longest client name haex-vault keeps; the name is the client's own claim and only shown.
 pub const MAX_NAME_CHARS: usize = 100;
 
 /// One client per device has one row; the id says which.
@@ -174,7 +174,7 @@ fn from_row(
         "blocked" => Status::Blocked,
         "allowed" => {
             // A row another device or an old build wrote in a shape this one cannot read counts as
-            // absent, so holzi asks again instead of guessing a grant.
+            // absent, so haex-vault asks again instead of guessing a grant.
             let Some(access) = access.as_deref().and_then(BridgeAccess::parse) else {
                 return Ok(None);
             };
@@ -463,7 +463,7 @@ pub enum Decision {
         remembered: bool,
     },
     Blocked,
-    /// Unknown, or known with another key, origin or declaration: holzi asks (FR-008, FR-012).
+    /// Unknown, or known with another key, origin or declaration: haex-vault asks (FR-008, FR-012).
     Ask,
 }
 

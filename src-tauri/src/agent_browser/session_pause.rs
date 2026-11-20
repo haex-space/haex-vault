@@ -1,8 +1,8 @@
 //! Taking over and giving back (spec 065, FR-017, FR-018, research R6). The user takes over with
-//! "Eingreifen" (in holzi or in the marker), by the agent's request (`browser.takeover.request`)
+//! "Eingreifen" (in haex-vault or in the marker), by the agent's request (`browser.takeover.request`)
 //! or by pressing a mouse button or key in an agent tab while the agent steers. Then the agent's
 //! running call ends and every further one gets `paused`, the markers say the user has the tab,
-//! and the tabs' requests go without holzi's questions, since the user is the one acting.
+//! and the tabs' requests go without haex-vault's questions, since the user is the one acting.
 //!
 //! Giving back checks each tab's page against the agent's rights, as a new document would be: a
 //! page outside them asks, and a tab without the user's yes stays with the user, without marker.
@@ -16,14 +16,14 @@ use super::{Session, Tabs};
 use crate::agent_browser::sessions::BrowserPause;
 use crate::agent_browser::sites::Verdict;
 
-/// How long after its own input holzi takes an input the marker reports for its own: the report
+/// How long after its own input haex-vault takes an input the marker reports for its own: the report
 /// comes back over the browser's pipe after the input event.
 const OWN_INPUT_ECHO: Duration = Duration::from_millis(500);
 
 /// How long changing one tab's marker or bringing it to the front may take.
 const MARKER_STEP: Duration = Duration::from_secs(1);
 
-/// holzi's own input into the pages of a session.
+/// haex-vault's own input into the pages of a session.
 #[derive(Default)]
 pub(super) struct OwnInput {
     running: usize,
@@ -40,7 +40,7 @@ pub enum Front {
     Tab(String),
 }
 
-/// Counts holzi's own input while it runs, also when the call is dropped halfway.
+/// Counts haex-vault's own input while it runs, also when the call is dropped halfway.
 struct Inputting<'a>(&'a Session);
 
 impl Drop for Inputting<'_> {
@@ -189,7 +189,7 @@ impl Session {
         futures::future::join_all(shown).await;
     }
 
-    /// The marker saw the user press a mouse button or key in a tab: unless that was holzi's own
+    /// The marker saw the user press a mouse button or key in a tab: unless that was haex-vault's own
     /// input, the agent pauses (FR-017).
     pub async fn noticed_input(self: &Arc<Self>) {
         let (own, since) = {
@@ -204,14 +204,14 @@ impl Session {
             // One line per pause, so a pause nobody asked for can be told from the user's own input
             // (an echo that came later than OWN_INPUT_ECHO shows as a small `since`).
             log::info!(
-                "agent browser: input in an agent tab paused the agent (holzi's last own input: {})",
+                "agent browser: input in an agent tab paused the agent (HaexVault's last own input: {})",
                 since.map_or_else(|| "none".to_owned(), |since| format!("{} ms ago", since.as_millis()))
             );
             self.take_over(BrowserPause::User, Front::Stay).await;
         }
     }
 
-    /// Runs `input`, holzi's own input into a page, so that the marker's report of it does not
+    /// Runs `input`, haex-vault's own input into a page, so that the marker's report of it does not
     /// pause the agent.
     pub async fn own<T>(&self, input: impl Future<Output = T>) -> T {
         self.own_input().running += 1;

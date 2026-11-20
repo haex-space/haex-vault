@@ -199,7 +199,7 @@ scenario('extension-lifecycle', { timeoutMs: 300_000 }, async (ctx) => {
     async () => (await listed(page, probe))?.enabled === true,
     { timeoutMs: 10_000 },
   )
-  // The launcher reloads its list after holzi stored the change.
+  // The launcher reloads its list after haex-vault stored the change.
   await ctx.waitFor(
     'the extension in the launcher again',
     () => inLauncher(page, probe),

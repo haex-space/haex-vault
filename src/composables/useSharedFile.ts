@@ -11,7 +11,7 @@ const CHANGED_EVENT = 'shared-files-changed'
 let listening = false
 
 /**
- * Files other apps share to holzi (spec 092, FR-037): a pass file, a PDF or a picture. The core
+ * Files other apps share to haex-vault (spec 092, FR-037): a pass file, a PDF or a picture. The core
  * holds the copies while no vault is open; this is started once a vault is, takes what waits and
  * what comes later, puts the files in the queue of their dialog and opens Wallet so the dialog
  * shows. Nothing is imported or saved from here: the person confirms in the dialog.

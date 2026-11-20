@@ -1,4 +1,4 @@
-//! What the executors of the file actions need from the running app: holzi's own places, the
+//! What the executors of the file actions need from the running app: haex-vault's own places, the
 //! stored grants, the storages and the question to the user. [`TauriEnv`] reads them from the
 //! managed states; tests put in their own.
 
@@ -32,7 +32,7 @@ use crate::state::AppState;
 
 #[async_trait]
 pub trait AgentEnv: Send + Sync {
-    /// holzi's own places, closed to every agent (FR-033).
+    /// haex-vault's own places, closed to every agent (FR-033).
     fn own(&self) -> OwnPlaces;
 
     /// The known places of the device (`files.sources`).
@@ -280,7 +280,7 @@ impl<R: Runtime> AgentEnv for TauriEnv<R> {
                 &root,
             );
         }
-        // Another own device answers an agent as one (FR-007: holzi's own data stays closed).
+        // Another own device answers an agent as one (FR-007: haex-vault's own data stays closed).
         if is_remote(storage_id) {
             return peer_storage(
                 &self.app,

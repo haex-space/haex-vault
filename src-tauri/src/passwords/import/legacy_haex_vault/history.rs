@@ -1,5 +1,5 @@
 //! The history of haex-vault 2.x (Legacy) entries (spec 037, research R7). haex-vault 2.x writes the JSON of a state
-//! in three shapes (its editor, its KeePass import, its external API); holzi's [`SnapshotData`]
+//! in three shapes (its editor, its KeePass import, its external API); haex-vault's [`SnapshotData`]
 //! reads all of them, unknown fields such as `tags` are ignored. The attachments of a state come
 //! from `snapshot_binaries`, because the KeePass import of haex-vault 2.x leaves the JSON list empty.
 

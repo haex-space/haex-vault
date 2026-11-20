@@ -1,4 +1,4 @@
-//! SSH keys (spec 050 research R4, T065): a generated key reads back and names itself `holzi`,
+//! SSH keys (spec 050 research R4, T065): a generated key reads back and names itself `haex`,
 //! keys of other forms read, a wrong passphrase does not open a key, pending keys go when taken
 //! and when the vault locks, and a host key line gives the fingerprint OpenSSH shows.
 

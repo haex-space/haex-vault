@@ -11,7 +11,7 @@ import { pinnedModelFile, QWEN3_0_6B } from '../lib/local-model.ts'
 import { onDevice } from '../lib/platform/device-files.ts'
 import { scenario } from '../lib/scenario.ts'
 
-// Spec 070 T040 (US5): holzi runs its local models through llama.cpp, on the desktop and on the
+// Spec 070 T040 (US5): haex-vault runs its local models through llama.cpp, on the desktop and on the
 // phone. A real model, Qwen3 0.6B (the catalog's smallest, `lib/local-model.ts`), is imported from a
 // file, activated, and answers one message. Run on Linux and on the Android emulator, it shows that
 // the platform's local engine loads it and answers there.

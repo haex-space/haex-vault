@@ -4,7 +4,7 @@
 //! build cannot read counts as no right, so a newer build's rows never widen an older one's rights
 //! (FR-008).
 //!
-//! - `operate`: one row per scope of "holzi bedienen", keyed by the scope.
+//! - `operate`: one row per scope of "haex-vault bedienen", keyed by the scope.
 //! - `browser` (spec 065): a switch row with an empty key, a row `user-browser` and one row per
 //!   website; a website whose credential fill is remembered carries the tags `["fill"]`; a rule
 //!   for the requests a page sends to a website is a row `request:<website>` at `allow` or `deny`

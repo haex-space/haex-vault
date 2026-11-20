@@ -34,7 +34,7 @@ test('an encrypted folder may be created in a storage folder and on the device',
   assert.equal(
     canCreateEncrypted({
       source: device,
-      path: '/home/a/.local/share/holzi',
+      path: '/home/a/.local/share/haex-vault',
       inEncrypted: false,
       owned: true,
     }),

@@ -9,7 +9,7 @@ use serde_json::Value;
 /// The version of this greeting.
 pub const HELLO_VERSION: u32 = 1;
 
-/// The longest greeting line holzi reads (contracts/agent-helper.md, "Grenzen").
+/// The longest greeting line haex-vault reads (contracts/agent-helper.md, "Grenzen").
 pub const MAX_GREETING_BYTES: usize = 4 * 1024;
 
 /// The longest slug: `[a-z0-9-]{1,32}`.
@@ -24,7 +24,7 @@ pub struct Greeting {
     pub slug: String,
     /// The credential from the file or from `--delegate-token`, if any.
     pub token: Option<String>,
-    /// A delegate holzi started itself (spec 007/009); its credential never touches a file.
+    /// A delegate haex-vault started itself (spec 007/009); its credential never touches a file.
     #[serde(default)]
     pub delegate: bool,
 }

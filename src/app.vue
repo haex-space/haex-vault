@@ -1,5 +1,5 @@
 <script setup lang="ts">
-useHead({ title: 'Holzi' })
+useHead({ title: 'HaexVault' })
 
 // Spec 060 FR-018a: a link of a share is parked until a vault is open.
 const deepLink = useDeepLink()

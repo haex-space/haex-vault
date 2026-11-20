@@ -1,5 +1,5 @@
-//! Spec 024, T008 (research R19): every write of holzi's storage modules runs through haex-crdt's
-//! CRDT transformer, which has to understand holzi's SQL. Each case writes through
+//! Spec 024, T008 (research R19): every write of haex-vault's storage modules runs through haex-crdt's
+//! CRDT transformer, which has to understand haex-vault's SQL. Each case writes through
 //! `Database::write` against a freshly migrated vault and checks what sync relies on: the row
 //! carries the transaction HLC, its column HLCs are filled and the table is marked dirty. A
 //! delete leaves a delete marker instead. `_no_sync` tables pass through untouched.

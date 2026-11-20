@@ -14,7 +14,7 @@ import {
 // allow it later. A permission taken back after the sync was on pauses it with the reason, and
 // nothing changes on either side.
 
-/** The explanation in every language holzi speaks. */
+/** The explanation in every language haex-vault speaks. */
 const EXPLANATIONS = translations('contacts.error.contactsDenied')
 
 scenario('android-contacts-denied', { needs: { phone: true } }, async (ctx) => {

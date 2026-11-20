@@ -76,7 +76,7 @@ pub async fn extension_remove(
     .await
 }
 
-/// Runs a blocking registry write and tells holzi's window the extension changed.
+/// Runs a blocking registry write and tells haex-vault's window the extension changed.
 async fn change(
     app: &AppHandle,
     state: &State<'_, AppState>,

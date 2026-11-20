@@ -1,7 +1,7 @@
 /**
- * The prebuilt sherpa-onnx libraries holzi links (spec 066, T001, research R3).
+ * The prebuilt sherpa-onnx libraries haex-vault links (spec 066, T001, research R3).
  *
- * `sherpa-onnx-sys`'s build script downloads them from GitHub without checking a checksum. holzi
+ * `sherpa-onnx-sys`'s build script downloads them from GitHub without checking a checksum. haex-vault
  * hands them over through `SHERPA_ONNX_ARCHIVE_DIR` (root `.cargo/config.toml`) instead, after
  * `scripts/fetch-sherpa-onnx.ts` has checked each one against the SHA-256 below. The digests are
  * the ones GitHub lists for the release assets.
@@ -110,7 +110,7 @@ export function downloadUrl(archive: SherpaArchive): string {
     : `${base}/v${SHERPA_ONNX_VERSION}/${archive.name}`
 }
 
-/** The Rust target of the machine running node, for the desktops holzi builds on. */
+/** The Rust target of the machine running node, for the desktops haex-vault builds on. */
 export function hostTarget(
   platform: NodeJS.Platform = process.platform,
   arch: string = process.arch,

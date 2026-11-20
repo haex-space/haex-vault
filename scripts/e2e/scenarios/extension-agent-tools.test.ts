@@ -19,9 +19,9 @@ interface DeclaredRow {
 }
 
 // Spec 018, US2 (T032, quickstart step 1): the install preview the dialog shows lists the test
-// extension's tools with their effect, a tool outside holzi's schema subset marked; the confirmed
+// extension's tools with their effect, a tool outside haex-vault's schema subset marked; the confirmed
 // tools are stored as `agentTool` permissions; and the extension's code, the released vault-sdk
-// bundled in, starts in holzi's frame. The agent's call is covered by
+// bundled in, starts in haex-vault's frame. The agent's call is covered by
 // `src-tauri/tests/extension_agent_tools.rs`, since this harness runs no model. The dialog itself
 // picks its file with the system's file dialog, which the harness cannot drive.
 scenario('extension-agent-tools', { timeoutMs: 300_000 }, async (ctx) => {

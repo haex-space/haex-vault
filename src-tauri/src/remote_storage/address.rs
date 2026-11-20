@@ -1,4 +1,4 @@
-//! Which endpoints holzi talks to (spec 038 FR-017, FR-009b, research R8).
+//! Which endpoints haex-vault talks to (spec 038 FR-017, FR-009b, research R8).
 //!
 //! [`check_endpoint`] looks at the address as typed: only `http`, `https` and `sftp` (spec 050,
 //! port 22 unless given), no user name or password in it, and no IP address that is never
@@ -31,7 +31,7 @@ pub enum AddressError {
     /// or a fragment.
     #[error("invalid endpoint")]
     Invalid,
-    /// The address is one holzi does not reach for this endpoint.
+    /// The address is one haex-vault does not reach for this endpoint.
     #[error("endpoint not allowed")]
     NotAllowed,
     /// The host name did not resolve to any address.
@@ -185,7 +185,7 @@ pub fn is_insecure(url: &Url) -> bool {
     url.scheme() == "http"
 }
 
-/// Turns a host name into addresses; the system resolver in holzi, a fixed table in tests.
+/// Turns a host name into addresses; the system resolver in haex-vault, a fixed table in tests.
 #[async_trait]
 pub trait Resolver: Send + Sync {
     /// Resolves `host` and `port` to candidate IP addresses, or returns a lookup error.

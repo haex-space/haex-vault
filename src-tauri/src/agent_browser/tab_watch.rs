@@ -122,7 +122,7 @@ pub(super) fn watch(
                     let all = reports.filter.is_some();
                     let consent = reports.consent;
                     tokio::spawn(async move {
-                        // The frame waits for holzi; its documents are held before it may go on.
+                        // The frame waits for haex-vault; its documents are held before it may go on.
                         let _ = fetch::hold_requests(&connection, &child, all).await;
                         let _ = target::attach_frames(&connection, &child).await;
                         let _ = page::enable(&connection, &child).await;

@@ -1,4 +1,4 @@
-//! The warning before a delete (spec 034, FR-034): which holzi functions use an entry.
+//! The warning before a delete (spec 034, FR-034): which haex-vault functions use an entry.
 
 use serde::{Deserialize, Serialize};
 use tauri::State;

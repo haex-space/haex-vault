@@ -131,7 +131,7 @@ fn a_messenger_of_a_known_protocol_or_a_custom_one_is_read() {
             r#"{"handle":"@anna","service":"Signal"}"#
         ]
     );
-    // holzi writes every service with PROTOCOL_CUSTOM.
+    // haex-vault writes every service with PROTOCOL_CUSTOM.
     let (_, fields) = insert_fields(IM, "home", services[0]).expect("a messenger");
     assert_eq!(fields.get("protocol"), Some(&json!("-1")));
     assert_eq!(fields.get("customProtocol"), Some(&json!("Skype")));

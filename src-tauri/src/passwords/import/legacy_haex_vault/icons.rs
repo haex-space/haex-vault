@@ -1,8 +1,8 @@
-//! The icon names haex-vault 2.x (Legacy) stores (spec 037, research R8) as pictures of holzi. haex-vault 2.x keeps
+//! The icon names haex-vault 2.x (Legacy) stores (spec 037, research R8) as pictures of haex-vault. haex-vault 2.x keeps
 //! Iconify names in three spellings: `i-lucide-<name>` (its KeePass import, the defaults of folders
 //! and the trash), `mdi:<name>` (its icon picker, `editor/iconPicker.vue`) and the short names of
 //! the old haex-pass extension (`useIconComponents.ts`), all at haex-vault 2.x @ `8dce379`. Every
-//! picture holzi may end up with is in [`TARGETS`], and each of those is a literal of
+//! picture haex-vault may end up with is in [`TARGETS`], and each of those is a literal of
 //! `src/lib/passwords/icons.ts` (checked by a test), so the build bundles it.
 
 /// The Lucide names a haex-vault 2.x icon can become.
@@ -219,7 +219,7 @@ const LEGACY: &[(&str, &str)] = &[
     ("message", "lucide:message-square"),
 ];
 
-/// The picture of holzi for a haex-vault 2.x icon name; `None` when there is none (the caller reports
+/// The picture of haex-vault for a haex-vault 2.x icon name; `None` when there is none (the caller reports
 /// it). `binary:` values are pictures of their own and not handled here.
 pub(super) fn map_icon(name: &str) -> Option<&'static str> {
     let name = name.trim();

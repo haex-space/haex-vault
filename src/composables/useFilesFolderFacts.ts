@@ -2,7 +2,7 @@ import type { SourceRef } from '@bindings/SourceRef'
 import type { Entry } from '@bindings/Entry'
 
 /**
- * What the open folder is, from its own entry (spec 044 FR-037, spec 048): one of holzi's own places
+ * What the open folder is, from its own entry (spec 044 FR-037, spec 048): one of haex-vault's own places
  * (nothing changes in it), in or below an encrypted folder, and how many foreign files an encrypted
  * folder holds (FR-048, 0 below its top), and its readable state (spec 073). They reset while the next folder is being read.
  */

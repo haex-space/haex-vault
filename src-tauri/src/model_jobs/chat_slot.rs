@@ -1,4 +1,4 @@
-//! holzi's own [`LocalSlot`]: the single local-model place of the device, which is the active
+//! haex-vault's own [`LocalSlot`]: the single local-model place of the device, which is the active
 //! local model (spec 055 FR-033, R15).
 //!
 //! A job on a local model takes one of three ways, by what is in memory (the active local model is

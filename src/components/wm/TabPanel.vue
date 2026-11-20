@@ -25,7 +25,7 @@ const props = defineProps<{
 const wm = useWindowManagerStore()
 
 const hasRoutes = computed(() => getAppRoutes(props.tab.appId) !== undefined)
-// Spec 017: an extension's tab shows its frame instead of holzi routes.
+// Spec 017: an extension's tab shows its frame instead of haex-vault routes.
 const extensionId = extensionIdOf(props.tab.appId)
 const mounted = computed(() => wm.runtimeFor(props.tab.id).mounted)
 

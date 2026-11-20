@@ -73,7 +73,7 @@ async fn the_extension_is_opened_and_hears_the_channel_first() {
     let (a, b1) = (&scene.a, &scene.b1);
     accepted_without_a_frame(&scene).await;
 
-    // holzi's window is asked to open the extension; the notification was the only prompt.
+    // haex-vault's window is asked to open the extension; the notification was the only prompt.
     b1.window
         .wait_until(|w| !w.window_events(CLICKED).is_empty())
         .await;

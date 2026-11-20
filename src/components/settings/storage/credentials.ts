@@ -1,9 +1,9 @@
 /**
  * Credentials as a form holds them and as Rust takes them (spec 038, spec 050
  * contracts/tauri-commands.md): an access key for S3, a password for WebDAV, and for SFTP a
- * password, a pasted key or a key holzi generated (only its id reaches the window, research R4).
+ * password, a pasted key or a key haex-vault generated (only its id reaches the window, research R4).
  * Or an entry of the password manager the user chose (spec 052): only its id travels, its values
- * stay in Rust. The settings form and holzi's window for extensions share this.
+ * stay in Rust. The settings form and haex-vault's window for extensions share this.
  */
 import type { CredentialsInput } from '../../../types/bindings/CredentialsInput.ts'
 import type { Protocol } from '../../../types/bindings/Protocol.ts'
@@ -21,7 +21,7 @@ export type CredentialsDraft = {
   authMethod: 'password' | 'key'
   privateKey: string
   passphrase: string
-  /** A key holzi generated; its private half never reaches the window. */
+  /** A key haex-vault generated; its private half never reaches the window. */
   keyId: string
   publicKey: string
 }

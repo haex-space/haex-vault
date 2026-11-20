@@ -1,5 +1,5 @@
 //! What WebDAV and SFTP share as servers with real folders (spec 050 research R7–R9): the names of
-//! holzi's temporary files, the parent folder of a key, listings of one level and of many levels
+//! haex-vault's temporary files, the parent folder of a key, listings of one level and of many levels
 //! that show folders like S3 shows its folder markers (`ordner/`, size 0), temporary files a broken
 //! upload left behind, and names that differ only in case.
 
@@ -9,7 +9,7 @@ use uuid::Uuid;
 use super::{DirListing, ObjectInfo, StorageError};
 use crate::files::storage_time::parse_iso_ms;
 
-/// The start of the name of a temporary file holzi writes before it moves it to its name.
+/// The start of the name of a temporary file haex-vault writes before it moves it to its name.
 pub const PART_PREFIX: &str = ".haex-part-";
 
 /// How many folders a listing reads at once (spec 050 research R12).
@@ -37,14 +37,14 @@ pub(super) fn part_name() -> String {
     format!("{PART_PREFIX}{}", Uuid::new_v4())
 }
 
-/// Whether `name` (the last part of a key) is one of holzi's temporary files; no listing shows
+/// Whether `name` (the last part of a key) is one of haex-vault's temporary files; no listing shows
 /// them (FR-022).
 pub(super) fn is_part(name: &str) -> bool {
     name.starts_with(PART_PREFIX)
 }
 
 /// Whether `entry` is a temporary file older than a day at `now_ms` (milliseconds since 1970). One
-/// without a time stays: holzi cannot tell its age.
+/// without a time stays: haex-vault cannot tell its age.
 fn stale(entry: &DirEntry, now_ms: i64) -> bool {
     !entry.is_dir
         && is_part(&entry.name)

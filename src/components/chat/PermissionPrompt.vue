@@ -14,7 +14,7 @@ const props = defineProps<{
    * pending at once (spec.md Edge Case: independent tool calls each get
    * their own request). */
   pendingPrompts: PendingPrompt[]
-  /** The open thread: its delegate's calls to holzi are asked here too (spec 021 US6). */
+  /** The open thread: its delegate's calls to haex-vault are asked here too (spec 021 US6). */
   threadId?: string | null
 }>()
 

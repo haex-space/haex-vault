@@ -168,7 +168,7 @@ fn emit(
 }
 
 /// The tags of the source: names by id, and the colour of each name. Names that only differ in
-/// the way holzi compares them become one tag (holzi's rule), which the report names.
+/// the way haex-vault compares them become one tag (haex-vault's rule), which the report names.
 pub(super) struct Tags {
     pub names: HashMap<String, String>,
     pub colors: Vec<(String, String)>,

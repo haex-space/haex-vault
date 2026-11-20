@@ -1,5 +1,5 @@
 // Maintainer script (spec 094 FR-006, FR-009): puts one release of a delegate tool into
-// `src-tauri/src/cli_tools/catalog.json`, the tested-version list holzi ships.
+// `src-tauri/src/cli_tools/catalog.json`, the tested-version list haex-vault ships.
 //
 //   node scripts/cli-tools/add-version.ts --vendor claude --version 2.1.311
 //   node scripts/cli-tools/add-version.ts --vendor codex  --version 0.169.0

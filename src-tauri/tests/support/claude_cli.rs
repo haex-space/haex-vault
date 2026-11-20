@@ -3,7 +3,7 @@
 //! in an empty directory with Claude Code's own tools (`--tools ""`), MCP servers
 //! (`--strict-mcp-config`), hooks (`disableAllHooks`) and the user's CLAUDE.md
 //! (`--setting-sources local`) switched off. `--bare` is no option: it never reads the subscription
-//! login. The model sees holzi's instruction, the offered tools and the conversation, and answers with
+//! login. The model sees haex-vault's instruction, the offered tools and the conversation, and answers with
 //! one JSON object naming its tool calls; the report says it is not deterministic.
 
 use std::path::PathBuf;

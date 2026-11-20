@@ -57,7 +57,7 @@ impl From<Problem> for DeviceProblem {
 pub struct DeviceSchema {
     /// The version of the sync protocol.
     pub protocol: u32,
-    /// How many holzi migrations the device knows: how the vault's tables are built.
+    /// How many haex-vault migrations the device knows: how the vault's tables are built.
     pub haex_migration: u32,
     /// The version of the rules that track changes for the sync.
     pub crdt_trigger: u32,

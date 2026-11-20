@@ -5,7 +5,7 @@
  */
 export type CustomList = {
 /**
- * Empty for a list the user just added; holzi gives it one.
+ * Empty for a list the user just added; haex-vault gives it one.
  */
 id: string,
 /**

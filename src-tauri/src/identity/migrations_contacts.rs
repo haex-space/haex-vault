@@ -1,5 +1,5 @@
 //! SQL of migration `0033_contacts` (spec 051, data-model.md): the address book. Contacts and
-//! their values, confirmed holzi addresses from business cards, groups, photos, sync targets, the
+//! their values, confirmed haex-vault addresses from business cards, groups, photos, sync targets, the
 //! per-phone mapping to the phone's address book (ADR 0001: synced, keyed by `vault_device_uuid`),
 //! open phone issues, the state of each phone's sync, the own business card and blocked vaults.
 //!
@@ -123,7 +123,7 @@ CREATE TABLE haex_contacts_blocked_vaults (
 );"#;
 
 /// The migration `0034_contacts_phone_known` (spec 051, data-model.md): the raw contacts of this
-/// phone that holzi linked, and to which contact. Device-local (`_no_sync`, no CRDT triggers): a
+/// phone that haex-vault linked, and to which contact. Device-local (`_no_sync`, no CRDT triggers): a
 /// link goes with its contact when the contact is deleted, and this list is how the phone still
 /// knows which raw contact to delete then.
 pub const CONTACTS_PHONE_KNOWN_0034: &str = r#"CREATE TABLE haex_contacts_phone_known_no_sync (

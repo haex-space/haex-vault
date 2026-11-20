@@ -12,7 +12,7 @@ use super::{RiskClass, ToolRegistry};
 use crate::chat::eval::runner::register_extensions;
 use crate::chat::eval::{embedded_extension_tools, embedded_tools};
 
-/// The chat's registry on a desktop: holzi's actions, haex-mail's fifteen tools and the command tool.
+/// The chat's registry on a desktop: haex-vault's actions, haex-mail's fifteen tools and the command tool.
 fn desktop() -> ToolRegistry {
     let mut registry = registry_with(Vec::new());
     let mail: Vec<_> = embedded_extension_tools()

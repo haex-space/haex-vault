@@ -12,9 +12,9 @@ import {
 // Spec 060 US2 to US4 and spec 051 US4 (quickstart `contacts-share`): two vaults. Ben fills his own
 // contact "Ich", opens the share dialog, deselects his phone number and gets a link and a QR code
 // that carry exactly the rest. Mara pastes the link, sees the preview (nothing is stored yet) and
-// takes it as a new contact with confirmed holzi addresses. A changed link is refused; Ben's second
-// share goes to the same contact (one vault, one contact) and only adds. A holzi address typed in by
-// hand shows as unconfirmed. US4-6 (the phone keeps holzi addresses) is the phone sync's rule,
+// takes it as a new contact with confirmed haex-vault addresses. A changed link is refused; Ben's second
+// share goes to the same contact (one vault, one contact) and only adds. A haex-vault address typed in by
+// hand shows as unconfirmed. US4-6 (the phone keeps haex-vault addresses) is the phone sync's rule,
 // covered by its tests (FR-014).
 
 /** The error kind of a command that must fail. */
@@ -133,7 +133,7 @@ scenario('contacts-share', { timeoutMs: 240_000 }, async (ctx) => {
     'only what Ben chose, not the phone number he left out',
   )
   assert.equal(accepted.card?.devices.length, 1)
-  ctx.step('the share became a contact with confirmed holzi addresses')
+  ctx.step('the share became a contact with confirmed HaexVault addresses')
 
   const chars = [...older]
   const at = chars.length - 12
@@ -219,5 +219,5 @@ scenario('contacts-share', { timeoutMs: 240_000 }, async (ctx) => {
     `return document.querySelector('[data-testid="contacts-haex-addresses"]')?.textContent ?? ''`,
   )
   assert.ok(marked.includes('unbestätigt'), marked)
-  ctx.step('a holzi address typed in by hand shows as unconfirmed')
+  ctx.step('a HaexVault address typed in by hand shows as unconfirmed')
 })

@@ -1,5 +1,5 @@
 //! The file browser on another own device (spec 056 US1, T037): browsing, reading, copying in,
-//! renaming and deleting through `StorageFiles` over `PeerStore`, holzi's own data kept read-only,
+//! renaming and deleting through `StorageFiles` over `PeerStore`, haex-vault's own data kept read-only,
 //! the device switch, which leaves contacts in (US5), and a watched folder (scenarios 2, 4, 5, 7,
 //! 8).
 

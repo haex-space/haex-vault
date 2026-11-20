@@ -1,14 +1,14 @@
 <script setup lang="ts">
 /**
- * holzi's window for the credentials of a storage an extension asked for (spec 038, US3, FR-013,
+ * haex-vault's window for the credentials of a storage an extension asked for (spec 038, US3, FR-013,
  * research R6). Mounted in the desktop, not in an extension's frame, so it lies over the tab bar
  * and the toolbar, which no extension can draw. It is the only place besides Einstellungen →
  * Speicher with fields for credentials; they go to Rust (`storage_dialog_resolve`), are tested
  * there and stored in the password manager, and never reach the extension. The window stays open
- * while holzi tests them; a failed test says why in a toast, as in the settings, and the user
+ * while haex-vault tests them; a failed test says why in a toast, as in the settings, and the user
  * corrects them or cancels. Closing cancels. WebDAV and SFTP ask for a login, SFTP also by key
  * (spec 050); when its folder is missing the user may say here to make it, and an SFTP server's
- * host key is shown here to compare and confirm before holzi sends any credentials (research R5).
+ * host key is shown here to compare and confirm before haex-vault sends any credentials (research R5).
  */
 import type { ShownHostKey } from '@bindings/ShownHostKey'
 import type { TestOutcome } from '@bindings/TestOutcome'

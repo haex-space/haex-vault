@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * The list of entries (spec 034, US1, FR-007): every entry outside the trash, filtered by the
- * search text of the place (`?q=`), in the boxed list style of the other holzi views. While the
+ * search text of the place (`?q=`), in the boxed list style of the other haex-vault views. While the
  * overview has not been loaded once it shows a spinner instead of the empty state.
  *
  * Spec 036 (US3, US4): above it the breadcrumbs, or the selection bar while rows are selected (the

@@ -49,7 +49,7 @@ pub struct CliToolStatus {
     /// While the version in use is unconfirmed and an older complete one is still on disk: that
     /// older version, which "go back" returns to.
     pub previous_version: Option<String>,
-    /// The version in use is not on the list and newer than it: a vault from a newer holzi. It
+    /// The version in use is not on the list and newer than it: a vault from a newer haex-vault. It
     /// is still started.
     pub untested: bool,
     /// The version in use is older than the oldest listed one; the update is offered.

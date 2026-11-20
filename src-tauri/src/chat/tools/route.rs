@@ -48,7 +48,7 @@ pub fn route_timeout(kind: ProviderKind) -> Duration {
 /// The system message of the routing call: every installed domain and `none`.
 pub fn routing_prompt(domains: &[Domain]) -> String {
     let mut prompt =
-        String::from("Which area of the app holzi does the user's request need? Areas:\n");
+        String::from("Which area of the app HaexVault does the user's request need? Areas:\n");
     for domain in domains {
         prompt.push_str(&format!("{}: {}\n", domain.name, domain.description));
     }

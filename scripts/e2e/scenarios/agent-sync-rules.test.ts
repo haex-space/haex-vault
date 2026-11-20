@@ -13,7 +13,7 @@ import { scenario } from '../lib/scenario.ts'
 import { openStandardProfile, standardRights } from '../lib/agent-profiles.ts'
 
 // Spec 061 US5 (T067, quickstart §5): a scripted model manages sync rules. Without the permission
-// "Sync-Regeln verwalten" holzi refuses to list them. Turned on in Einstellungen → Agents → Dateien,
+// "Sync-Regeln verwalten" haex-vault refuses to list them. Turned on in Einstellungen → Agents → Dateien,
 // creating a rule shows the confirmation with its places, direction and delete mode, also in the
 // approval mode "auto": declined, no rule comes into being; allowed, the rule is stored and runs on
 // its own.
@@ -113,7 +113,7 @@ scenario('agent-sync-rules', { timeoutMs: 240_000 }, async (ctx) => {
     await startReply(instance, provider, 'Welche Sync-Regeln gibt es?')
     const refused = await waitForRequests(provider, 3)
     assert.match(toolResult(refused[2]!), /sync_rules_not_granted/)
-    ctx.step('without the permission holzi refuses')
+    ctx.step('without the permission HaexVault refuses')
 
     await openStandardProfile(instance)
     await instance.click('mcp-files-sync-rules')

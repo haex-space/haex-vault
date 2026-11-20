@@ -10,7 +10,7 @@ export type StorageAnswer = { "kind": "cancel" } | { "kind": "confirm",
  */
 connectionId?: string,
 /**
- * New credentials; only holzi's window over the whole app sends them.
+ * New credentials; only haex-vault's window over the whole app sends them.
  */
 credentials?: CredentialsInput, name?: string, bucket?: string,
 /**
@@ -18,7 +18,7 @@ credentials?: CredentialsInput, name?: string, bucket?: string,
  */
 createFolder?: boolean,
 /**
- * The host key (an OpenSSH line) the user confirmed in holzi's window after
+ * The host key (an OpenSSH line) the user confirmed in haex-vault's window after
  * `hostKeyUnknown` (SFTP, spec 050 research R5).
  */
 hostKey?: string, };

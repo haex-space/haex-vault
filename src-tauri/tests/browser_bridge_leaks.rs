@@ -63,8 +63,8 @@ impl log::Log for Capture {
         true
     }
 
-    /// Keeps what a log could hold: holzi's own lines at every level, and every line at `Info` and
-    /// above, the level holzi writes (`lib.rs`). Below that, tungstenite traces raw frames, whose
+    /// Keeps what a log could hold: haex-vault's own lines at every level, and every line at `Info` and
+    /// above, the level haex-vault writes (`lib.rs`). Below that, tungstenite traces raw frames, whose
     /// envelope repeats the action in the clear and whose payload is sealed.
     fn log(&self, record: &log::Record<'_>) {
         if record.level() > log::Level::Info && !record.target().starts_with("haex_lib") {
@@ -389,7 +389,7 @@ async fn no_secret_reaches_an_answer_an_error_a_question_or_the_log() {
         .await;
     assert_eq!(created["success"], true, "{created}");
 
-    // Methods holzi does not answer, and a request that does not open.
+    // Methods haex-vault does not answer, and a request that does not open.
     assert_eq!(
         code(
             &talk

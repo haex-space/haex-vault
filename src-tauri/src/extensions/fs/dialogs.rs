@@ -1,7 +1,7 @@
 //! The dialogs of the filesystem API (spec 017, US9, FR-048, research R19 steps 4 and 5): what the
 //! user chooses becomes a choice of the frame that asked, for exactly that file or folder, reading
 //! when opening and reading and writing when saving, until the frame closes. `save_file` writes in
-//! the same call; `open_file` and `show_image` hand a copy in holzi's scratch folder, named only
+//! the same call; `open_file` and `show_image` hand a copy in haex-vault's scratch folder, named only
 //! by its file name, to the system's viewer.
 //!
 //! The open and save dialogs hand over a chosen file ([`PickedFile`], spec 043 FR-022): a path on a
@@ -34,7 +34,7 @@ pub struct DialogRequest {
     pub multiple: bool,
 }
 
-/// The system's file dialogs and viewer. holzi's own is [`TauriDialogs`]; tests use a fake.
+/// The system's file dialogs and viewer. haex-vault's own is [`TauriDialogs`]; tests use a fake.
 pub trait FileDialogs: Send + Sync {
     fn save(&self, request: DialogRequest) -> Option<PickedFile>;
     fn pick_folder(&self, request: DialogRequest) -> Option<PathBuf>;
@@ -242,7 +242,7 @@ pub fn save_file(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError
     Ok(json!({ "path": path.to_string_lossy(), "success": true }))
 }
 
-/// A fresh folder in holzi's scratch place and `name` reduced to a plain file name in it.
+/// A fresh folder in haex-vault's scratch place and `name` reduced to a plain file name in it.
 fn scratch_file(scratch: &Path, name: &str) -> Result<PathBuf, BridgeError> {
     let name = Path::new(name)
         .file_name()
@@ -252,11 +252,11 @@ fn scratch_file(scratch: &Path, name: &str) -> Result<PathBuf, BridgeError> {
     Ok(dir.join(name))
 }
 
-/// Copies in the scratch place older than this are removed when holzi starts.
+/// Copies in the scratch place older than this are removed when haex-vault starts.
 const SCRATCH_KEEP: std::time::Duration = std::time::Duration::from_secs(24 * 60 * 60);
 
 /// Removes the copies an earlier start handed to the viewer, so files of the user do not pile up
-/// in holzi's cache. Recent ones stay: another holzi process may have just opened them.
+/// in haex-vault's cache. Recent ones stay: another haex-vault process may have just opened them.
 pub fn prune_scratch(scratch: &Path) {
     let Ok(entries) = std::fs::read_dir(scratch) else {
         return;

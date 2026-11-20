@@ -150,7 +150,7 @@ pub(super) fn place_gate(
 }
 
 /// The storage with the scope that goes through encrypted folders, sharing the opened folders of
-/// this session with holzi's window; for `device:<root>` the device behind its local store.
+/// this session with haex-vault's window; for `device:<root>` the device behind its local store.
 pub(super) fn files(ctx: &CallContext, storage_id: &str) -> Result<StorageFiles, BridgeError> {
     let db = ctx.db.clone();
     let scope = Scope {

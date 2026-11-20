@@ -38,7 +38,7 @@ async fn the_client_declares_no_capabilities() {
     assert_eq!(initialize["params"]["capabilities"], json!({}));
 }
 
-/// Every request of the extension to holzi ends with "method not found" (research R2): the tool
+/// Every request of the extension to haex-vault ends with "method not found" (research R2): the tool
 /// connection is no route from an extension to the model, the user's roots or the user.
 #[tokio::test]
 async fn every_request_of_the_extension_is_refused() {
@@ -51,7 +51,7 @@ async fn every_request_of_the_extension_is_refused() {
         json!({ "jsonrpc": "2.0", "id": 903, "method": "elicitation/create",
                 "params": { "mode": "form", "message": "name?",
                     "requestedSchema": { "type": "object", "properties": {} } } }),
-        json!({ "jsonrpc": "2.0", "id": 904, "method": "holzi/anything", "params": {} }),
+        json!({ "jsonrpc": "2.0", "id": 904, "method": "haex-vault/anything", "params": {} }),
     ];
     for request in requests {
         let id = request["id"].clone();
@@ -66,7 +66,7 @@ async fn every_request_of_the_extension_is_refused() {
     }
 }
 
-/// `ping` is the one request holzi answers (contracts/mcp-port.md).
+/// `ping` is the one request haex-vault answers (contracts/mcp-port.md).
 #[tokio::test]
 async fn a_ping_of_the_extension_is_answered() {
     let pipe = pipe().await;

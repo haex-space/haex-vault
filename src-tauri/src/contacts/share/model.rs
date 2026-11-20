@@ -41,7 +41,7 @@ pub struct ContactShareDevice {
     pub iroh_relay: Option<String>,
 }
 
-/// The holzi addresses of a share.
+/// The haex-vault addresses of a share.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/", optional_fields)]
 #[serde(
@@ -50,7 +50,7 @@ pub struct ContactShareDevice {
     rename_all_fields = "camelCase"
 )]
 pub enum ContactShareHaex {
-    /// A contact without confirmed holzi addresses.
+    /// A contact without confirmed haex-vault addresses.
     None,
     /// A foreign contact's confirmed addresses: one choice, the original card goes unchanged.
     Card {
@@ -83,7 +83,7 @@ pub struct ContactShareOptions {
     pub can_share: bool,
 }
 
-/// What the person chose about the holzi addresses.
+/// What the person chose about the haex-vault addresses.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/")]
 #[serde(
@@ -240,7 +240,7 @@ pub struct ContactShareExisting {
     pub value: String,
 }
 
-/// The confirmed holzi addresses of a share against what the target has.
+/// The confirmed haex-vault addresses of a share against what the target has.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/")]
 #[serde(rename_all = "camelCase")]
@@ -272,7 +272,7 @@ pub struct ContactShareItem {
     pub existing: Vec<ContactShareExisting>,
     /// What a single field of the target says now, for a conflict.
     pub current: Option<String>,
-    /// Only for the holzi addresses.
+    /// Only for the haex-vault addresses.
     pub addresses: Option<ContactShareAddresses>,
 }
 
@@ -295,7 +295,7 @@ pub struct ContactSharePreview {
     pub candidates: Vec<ContactShareCandidate>,
     pub identity: ContactShareIdentity,
     pub items: Vec<ContactShareItem>,
-    /// There are holzi addresses to reach the contact by (FR-017a).
+    /// There are haex-vault addresses to reach the contact by (FR-017a).
     pub reachable: bool,
     /// Details left out because they did not validate.
     pub skipped: u32,

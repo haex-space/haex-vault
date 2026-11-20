@@ -10,7 +10,7 @@ use ts_rs::TS;
 use super::codes::Drawing;
 use crate::passwords::model::{KeyValueInput, KeyValuePatch, Patch};
 
-/// The kind of a pass. A text this build does not know (written by a newer holzi, or imported) is
+/// The kind of a pass. A text this build does not know (written by a newer haex-vault, or imported) is
 /// kept as it is, shown as "other" and written back unchanged (FR-004).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum PassKind {

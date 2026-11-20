@@ -103,7 +103,7 @@ export function shareableSource(
 /** What the menu knows of an entry (or of the open folder) for `syncRuleOffer`. */
 export type SyncRuleOfferInput = {
   source: SourceRef
-  /** One of holzi's own places (spec 044 FR-037). */
+  /** One of haex-vault's own places (spec 044 FR-037). */
   haexOwned: boolean
   symlink: boolean
   /** The system denies access. */
@@ -115,7 +115,7 @@ export type SyncRuleOfferInput = {
 /**
  * Whether the context menu offers "Sync-Regel erstellen …" for an entry (spec 073 FR-004, research R2): the
  * places the folder picker of the dialog could pick. This device, an own cloud storage and another own device;
- * not a contact's share, not a `device:` store, not holzi's own data, not a link or a folder without access, not
+ * not a contact's share, not a `device:` store, not haex-vault's own data, not a link or a folder without access, not
  * an encrypted folder that cannot be read. The backend checks on save (spec 061 FR-002) regardless.
  */
 export function syncRuleOffer(input: SyncRuleOfferInput): boolean {

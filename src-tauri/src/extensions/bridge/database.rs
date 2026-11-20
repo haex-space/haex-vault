@@ -84,7 +84,7 @@ pub fn policy(ctx: &CallContext) -> Result<SqlPolicy, BridgeError> {
     policy_for(&ctx.db, &ctx.host, ctx.session.extension_id, ctx.device)
 }
 
-/// The table prefixes of the installed extensions; a row holzi cannot read is left out.
+/// The table prefixes of the installed extensions; a row haex-vault cannot read is left out.
 fn installed_prefixes(q: &mut impl Query) -> haex_crdt::Result<HashSet<TablePrefix>> {
     let rows = q.query_map(
         "SELECT public_key, name FROM extensions WHERE state = 'installed'",
