@@ -30,6 +30,7 @@ export function usePeerConversation(
   const messages = ref<ChatPeerMessage[]>([])
   const error = ref<string | null>(null)
   const loading = ref(false)
+  let refreshSeq = 0
 
   // action-exempt: which conversation a view shows is view state, not an action.
   const viewId = crypto.randomUUID()
@@ -96,20 +97,27 @@ export function usePeerConversation(
   async function refresh() {
     const id = threadId.value
     if (!id) {
+      refreshSeq++
       messages.value = []
+      loading.value = false
       return
     }
+    const request = ++refreshSeq
     loading.value = true
     try {
       const list = await commands.messagesAsync(id)
-      if (threadId.value !== id) return
+      if (request !== refreshSeq || threadId.value !== id) return
       messages.value = list
       error.value = null
       await markRead()
     } catch (e: unknown) {
-      error.value = errString(e)
+      if (request === refreshSeq && threadId.value === id) {
+        error.value = errString(e)
+      }
     } finally {
-      loading.value = false
+      if (request === refreshSeq && threadId.value === id) {
+        loading.value = false
+      }
     }
   }
 
@@ -138,6 +146,7 @@ export function usePeerConversation(
     listen<{
       attachmentId: string
       bytesDone: number
+      bytesTotal: number
       state: string
     }>('chat-transfer', ({ payload }) => {
       if (payload.state === 'downloading') {
@@ -148,6 +157,7 @@ export function usePeerConversation(
           if (attachment) {
             attachment.state = payload.state
             attachment.bytesDone = payload.bytesDone
+            attachment.size = payload.bytesTotal
             break
           }
         }
