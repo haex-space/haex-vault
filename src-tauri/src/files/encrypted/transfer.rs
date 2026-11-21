@@ -360,6 +360,7 @@ pub async fn put_file(files: &StorageFiles, at: &Located, data: &[u8]) -> Result
 /// any error it must call [`Self::abort`], which leaves no content object behind.
 pub struct PutStream<'a> {
     files: &'a StorageFiles,
+    runtime: tokio::runtime::Handle,
     target: Option<Target>,
     oid: Id,
     key: String,
@@ -377,6 +378,7 @@ impl<'a> PutStream<'a> {
         let key = target.folder.content_key(&oid);
         Ok(Self {
             files,
+            runtime: tokio::runtime::Handle::current(),
             target: Some(target),
             oid,
             key,
@@ -478,11 +480,9 @@ impl Drop for PutStream<'_> {
         let store = Arc::clone(self.files.store());
         let access = self.files.access().clone();
         let key = self.key.clone();
-        if let Ok(runtime) = tokio::runtime::Handle::try_current() {
-            runtime.spawn(async move {
-                let _ = store.abort_upload(&access, &key, &id, soon()).await;
-            });
-        }
+        self.runtime.spawn(async move {
+            let _ = store.abort_upload(&access, &key, &id, soon()).await;
+        });
     }
 }
 
