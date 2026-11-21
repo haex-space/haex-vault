@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import ts from 'typescript'
 
+import { downloadSpeed, formatSpeed } from '../src/lib/transferSpeed.ts'
 import {
   cliToolErrorCode,
   formatBytes,
@@ -85,6 +86,50 @@ test('sizes are written in decimal units', () => {
   assert.equal(formatBytes(1_200_000_000), '1.2 GB')
 })
 
+test('the speed is the average of the last seconds, and none without enough of them', () => {
+  const at = 100_000
+  assert.equal(downloadSpeed([], at), null)
+  assert.equal(downloadSpeed([{ at, bytes: 10 }], at), null)
+  // 300 ms apart is too short to say anything.
+  assert.equal(
+    downloadSpeed(
+      [
+        { at: at - 300, bytes: 0 },
+        { at, bytes: 3_000_000 },
+      ],
+      at,
+    ),
+    null,
+  )
+  assert.equal(
+    downloadSpeed(
+      [
+        { at: at - 2000, bytes: 1_000_000 },
+        { at: at - 1000, bytes: 5_000_000 },
+        { at, bytes: 9_000_000 },
+      ],
+      at,
+    ),
+    4_000_000,
+  )
+  // Samples older than the window do not count, so a stalled download shows no speed.
+  assert.equal(
+    downloadSpeed(
+      [
+        { at: at - 9000, bytes: 0 },
+        { at: at - 8000, bytes: 8_000_000 },
+      ],
+      at,
+    ),
+    null,
+  )
+})
+
+test('a speed is written in MB/s, or kB/s below one', () => {
+  assert.equal(formatSpeed(8_340_000), '8.3 MB/s')
+  assert.equal(formatSpeed(640_000), '640 kB/s')
+})
+
 test('every state and phase has words in English and German', () => {
   const keys = [
     stateKey({ state: 'not_installed', reason: null }),
@@ -95,6 +140,7 @@ test('every state and phase has words in English and German', () => {
     stateKey({ state: 'needs_reinstall', reason: 'incomplete' }),
     stateKey({ state: 'unsupported', reason: null }),
     'settings.cliTools.state.installedVersion',
+    'settings.cliTools.downloadProgress',
     isolationKey({ isolation: 'best_effort' }),
     isolationKey({ isolation: 'enforced' }),
     ...(['downloading', 'verifying', 'unpacking', 'publishing'] as const).map(

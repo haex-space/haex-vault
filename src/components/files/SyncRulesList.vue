@@ -158,7 +158,8 @@ function running(view: SyncRuleView) {
       : progress?.phase === 'scanning'
         ? t('files.syncRules.progress.scanning')
         : t('files.syncRules.progress.running')
-  return { share, text }
+  const bytes = progress?.phase === 'copying' ? progress.bytesDone : null
+  return { share, text, bytes }
 }
 
 const activity = computed(() =>
@@ -322,7 +323,11 @@ async function confirmDeleteAsync() {
                   :label="t('files.syncRules.progress.label')"
                   :data-testid="`files-sync-rule-progress-${view.rule.name}`"
                 />
-                <span class="truncate">{{ activity[view.rule.id]?.text }}</span>
+                <span class="truncate"
+                  >{{ activity[view.rule.id]?.text
+                  }}<FilesSyncRuleSpeed
+                    :bytes="activity[view.rule.id]?.bytes ?? null"
+                /></span>
               </template>
               <span v-else class="truncate">{{ lastRun(view) }}</span>
             </div>
