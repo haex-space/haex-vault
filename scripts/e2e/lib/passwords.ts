@@ -431,7 +431,13 @@ export async function inEditorExtra(
   )
   await change()
   await instance.click('passwords-editor-cancel')
-  await instance.waitForDisplayed('entry-tabs')
+  await ctx.waitFor(
+    'the editor to close',
+    async () =>
+      !(await instance.exec<boolean>(
+        `return Boolean(document.querySelector('[data-testid="passwords-editor"]'))`,
+      )),
+  )
   await selectTab(instance, 'extra')
   await ctx.waitFor('the view slide Extra to rest', () =>
     slideSettled(instance, 'extra'),
