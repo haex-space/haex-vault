@@ -2,11 +2,10 @@
 
 Run from the worktree with `pnpm tauri:dev` (a release build behaves the same; the dev build also prints to the terminal).
 
-1. **Nothing before the unlock.** Start the app and stay on the vault list. Look in `vaults/<name>/`: there is no `logs/` folder
-   yet. Unlock the vault; `logs/haex.log` appears and its first line is after the unlock.
-2. **Standard.** In "Einstellungen → Allgemein → Grundeinstellung" find "Protokoll", level "Standard". Import a wrong file
-   (a text file in the password manager's import with the source "haex-vault 2.x (Legacy, Vault-Datei)"): `haex.log` gets a
-   `WARN` line that names the cause.
+1. **Nothing before the unlock.** Use a fresh vault that has never been opened. Start the app and stay on the vault list. Look
+   in its folder: there is no `logs/` folder yet. Unlock the vault; `logs/haex.log` appears and its first line is after unlock.
+2. **Standard.** In "Einstellungen → Allgemein → Grundeinstellung" find "Protokoll", level "Standard". Import a legacy-format
+   database with a malformed field (as prepared by T016): `haex.log` gets a `WARN` line that names the corruption cause.
 3. **Ausführlich.** Switch to "Ausführlich": the setting shows the end time (24 hours from now). Repeat step 2; detail lines
    that exist by now appear without a restart. Switch back and the detail lines stop.
 4. **The interface is in the same log.** In the dev tools console run `console.error(new Error('probe'))`; a line
@@ -17,4 +16,5 @@ Run from the worktree with `pnpm tauri:dev` (a release build behaves the same; t
    share sheet with `haex.log`.
 7. **No secret.** Run `cargo test --test diagnostic_log_secrets`: it imports the pre-rename fixture in "Ausführlich" and finds none
    of the fixture's secrets in the log.
-8. **Unwritable.** Make `logs/` read-only: the app keeps working, the setting says the log cannot be written.
+8. **Unwritable.** Close the app, make both the existing `logs/haex.log` file and its containing `logs/` directory read-only,
+   then unlock the vault. The app keeps working and the setting says the log cannot be written.

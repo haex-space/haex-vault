@@ -6,22 +6,18 @@ Every decision names what was read in the code and what was rejected. File refer
 
 **Facts.** `tauri-plugin-log` 2.10 builds its `fern` dispatch once, when the plugin is created, from fixed targets. Its
 `Folder`/`LogDir` target takes one directory for the life of the process and its rotation is private to the plugin. It also has
-`TargetKind::Dispatch(fern::Dispatch)` for a target of our own, and the interface's `plugin:log|log` command (permission
-`log:default`) turns an interface message into a record on the same `log` facade, with a target that starts with
-`WEBVIEW_TARGET`. Today the plugin is created only `if cfg!(debug_assertions)` (`src-tauri/src/lib.rs`, level fixed at `Info`).
+`TargetKind::Dispatch(fern::Dispatch)` for a target of our own, and the plugin owns the process-wide `log` facade used by backend macros. Today the plugin is created only `if cfg!(debug_assertions)` (`src-tauri/src/lib.rs`, level fixed at `Info`).
 
 **Decision.** Create the plugin in every build, with one `TargetKind::Dispatch` whose output is our own `log::Log` sink
 (`diagnostic_log/sink.rs`). The sink holds `RwLock<Option<Writer>>`: with no writer it drops the record, with one it formats the
 line and writes it. In debug builds a `Stdout` target stays beside it, so the developer still sees the lines in the terminal.
 
-**Why.** It is the only way to point the log at a different folder per vault without a second logger, and the interface's
-messages need no extra path because they already arrive on the facade.
+**Why.** It is the only way to point the log at a different folder per vault without a second logger, and a swappable sink is needed to route backend records into the currently open vault.
 
 **Rejected.**
 
 - `TargetKind::Folder` per vault: the folder is fixed when the plugin is built, before any vault is known.
-- Our own `log::set_logger` without the plugin: the interface's `@tauri-apps/plugin-log` calls the plugin's command, so the
-  plugin must stay. We would also lose `WEBVIEW_TARGET`.
+- Our own `log::set_logger` without the plugin: this would replace the existing process logger integration unnecessarily.
 - A second plugin instance per vault: a process has one `log` logger; a second `set_logger` fails.
 
 ## R2: The level is the global max level, with module filters
@@ -77,8 +73,8 @@ observation. The repository has the other precedent for a setting of one device 
 that switched, only with `verbose`); no row means `standard`. At `begin`: if `verbose` and the end time has passed or the run id
 differs from this run's, the row is reset to `standard`. While `verbose` is on, a task (tracked as session work like the sync)
 sleeps until the end time, then resets it and emits the event of the change (contracts/events.md). The end time is computed from the
-system clock at the switch and capped against the monotonic start of the run, so moving the clock backwards cannot extend it
-(spec edge case). A vault file copied to another device carries the row; its `run_id` is then never the new device's run, so
+system clock at the switch and capped at 24 hours from the monotonic instant of the switch (not app start), so moving the clock
+backwards cannot extend it (spec edge case). A vault file copied to another device carries the row; its `run_id` is then never the new device's run, so
 the copy starts at `standard`.
 
 **Why.** It is local by construction, which is what the spec says ("does not sync to other devices"), it costs the sync nothing
@@ -105,17 +101,17 @@ capabilities files apply to the window `main` only, so extension frames get noth
 and `console.debug` while "Ausführlich" is on), listens to `window.onerror` and `unhandledrejection`, and listens to
 the Nuxt hooks `vue:error` and `app:error` for errors of the view layer (Nuxt itself sets `vueApp.config.errorHandler` in
 `nuxt/dist/app/entry.js`, so the plugin must not replace it). Each message becomes a string (the text of the arguments, the stack of an `Error`); objects other
-than errors are not serialised, they become `[object]` (FR-006). The plugin calls the `@tauri-apps/plugin-log` functions, so the
-record gets the `WEBVIEW_TARGET` and the sink prints it with the `[ui]` origin. The original `console` call still runs. The
+than errors are not serialised, they become `[object]` (FR-006). The plugin calls a dedicated `diagnostic_log_ui_message` command with the current opaque `session_id`; the backend drops a
+queued message unless its token matches the attached vault session. The original `console` call still runs. The
 plugin takes the current level from the change event, which the backend sends at every `begin` (the plugin loads before the unlock and cannot ask then), and from one `diagnostic_log_get` at its start for a reload of the window, and drops `info`/`debug` without an IPC
 call in "Standard". A token bucket (100 messages a second, burst 200) limits a loop; once a second the plugin writes one line with
-the number of messages it dropped (FR-014). `log:default` goes into both capabilities files.
+the number of messages it dropped (FR-014). The scoped app command is available only to the main window.
 
-**Why.** It is the standard route of the plugin and costs no new Rust command for the messages.
+**Why.** The session token prevents a message queued by the webview from crossing a vault switch; formatting and redaction stay
+in one typed command.
 
 **Rejected.**
 
-- A `plugin:log|log` call per `console.*` always: a `console.debug` in a loop would cost an IPC call each.
 - Serialising arguments to JSON: an object with an entry's fields would put them in the log (FR-009).
 - `attachConsole` (backend to console): the opposite direction, not needed.
 
@@ -127,7 +123,8 @@ the number of messages it dropped (FR-014). `log:default` goes into both capabil
 **Decision.** `logs/haex.log` plus `haex.log.1` to `haex.log.N` in the vault's folder. `rotation.rs` rotates when the current file
 would pass the limit: the oldest is deleted, the others shift up, a new `haex.log` starts. Limits are constants of the module
 and arguments of the type, so a test uses small ones: "Standard" 4 files of 256 KiB (about 1 MiB), "Ausführlich" 5 files of 4 MiB
-(about 20 MiB). A switch of the level changes the limits from the next write. An I/O error on a write sets a flag `unwritable`
+(about 20 MiB). On a switch from "Ausführlich" to "Standard", immediately retain only the newest complete lines that fit
+within four files of 256 KiB total, with each file at most 256 KiB; discard older lines first. An I/O error on a write sets a flag `unwritable`
 (shown by the setting, FR-016), drops the line and tries again on the next one; it never panics and never blocks beyond the single
 write. The folder is created at `begin`; a failure there leaves the sink detached and sets the same flag.
 
@@ -159,8 +156,8 @@ comfort.
 
 **Decision.** Desktop: a Rust command `diagnostic_log_reveal` calls `OpenerExt::reveal_item_in_dir` on `haex.log`, so no frontend
 permission is added. Android: a new call `share_file(path, mime)` in the Android plugin starts a `Intent.createChooser` with
-`ACTION_SEND` and a `content://` URI from a `FileProvider` declared in the plugin's manifest and limited to the vault's `logs/`
-folder. The command `diagnostic_log_share` hands the path of a copy of the current log (a snapshot, so the file can keep
+`ACTION_SEND` and a `content://` URI from a `FileProvider` declared in the plugin's manifest and limited to the app cache folder
+used for diagnostic-log snapshots. The command `diagnostic_log_share` hands the path of a copy of the current log (a snapshot, so the file can keep
 rotating) to it. Nothing is sent by the app; the share sheet's target is the user's choice (spec User Story 3).
 
 **Risk.** There is no Kotlin test setup and the repository's Android emulator procedure is manual (memory: local emulator). The

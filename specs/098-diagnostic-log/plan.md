@@ -17,7 +17,7 @@ Before the unlock nothing is written, kept or buffered. The approach and its alt
 **Language/Version**: Rust 2021 (the `haex` crate, version 3.0.0), TypeScript with Vue 3 / Nuxt 4 for the interface.
 
 **Primary Dependencies**: `tauri-plugin-log` 2.10 (already in `Cargo.toml`, with `fern` 0.7), `log` 0.4, `tauri-plugin-opener`
-2.5 (already present). New in the interface: `@tauri-apps/plugin-log` (pinned, to be added). New on Android: a share call in the
+2.5 (already present). Interface messages use the session-scoped `diagnostic_log_ui_message` app command. New on Android: a share call in the
 `tauri-plugin-haex-android` plugin with a `FileProvider`.
 
 **Storage**: Plain-text files `logs/haex.log` and its rotated files in the vault's folder (`vaults/<name>/`, spec 084). The
@@ -107,11 +107,10 @@ src-tauri/src/
 src-tauri/tests/
 └── diagnostic_log_secrets.rs       # runs the pre-rename vault import in "Ausführlich" and searches the log for secrets
 
-src-tauri/capabilities/{default,mobile}.json   # `log:default` for the main window only
 src-tauri/plugins/haex-android/                # `share_file` (ACTION_SEND with a FileProvider)
 
 src/
-├── plugins/diagnosticLog.client.ts          # forwards warnings/errors/uncaught errors, rate limit, level from the backend
+├── plugins/diagnosticLog.client.ts          # forwards session-tagged warnings/errors, rate limit, level from the backend
 ├── lib/diagnosticLog.ts                     # pure helpers: text and stack of a message, the token bucket (tested in a node check)
 ├── components/settings/DiagnosticLogSetting.vue    # the section "Protokoll" in "Allgemein → Grundeinstellung"
 ├── lib/settings/registry.ts, lib/actions/settingsActions.ts   # the location and the catalog action (not callable by agents)

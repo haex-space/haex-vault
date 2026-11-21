@@ -38,7 +38,12 @@ standard ───────────────► verbose ────�
                               switch (user) back to standard
 ```
 
-A switch to `verbose` sets `until_ms = now + 24 h` and `run_id = this run`. A switch back writes `standard` and clears both.
+A switch to `verbose` sets `until_ms = now + 24 h` and `run_id = this run`. Its deadline is capped at 24 hours from the
+monotonic instant of that switch, so a backward wall-clock change cannot extend it; the monotonic deadline is held for the
+current run. A new app run resets the level to `standard`. A switch back writes `standard` and clears both.
+
+Each `begin` creates a fresh opaque `session_id`, returned in `DiagnosticLogStatus` and in the changed event. Interface records
+carry that token; the backend drops a record unless it matches the currently attached vault session.
 
 ## Log
 
@@ -66,7 +71,7 @@ a file outside `logs/` of the open vault, and never a file of another vault (FR-
 | ------- | ---------------------------------------------------------------------------------------------- |
 | time    | local date and time with milliseconds                                                          |
 | level   | `ERROR`, `WARN`, `INFO`, `DEBUG`                                                               |
-| origin  | the module path of the backend, or `ui` for a record whose target starts with `WEBVIEW_TARGET` |
+| origin  | the module path of the backend, or `ui` for a record written through `diagnostic_log_ui_message` |
 | message | the text; line breaks of a stack are kept and indented by the formatter                        |
 
 A line is never written with an object's fields (FR-006) or a secret (FR-009). One extra line kind, written by the interface

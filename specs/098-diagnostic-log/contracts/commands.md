@@ -10,6 +10,7 @@ bindings).
 | `diagnostic_log_set`    | `level: "standard" \| "verbose"` | `DiagnosticLogStatus` | applies at once: writes the row of the level, sets the global max level, starts or stops the end timer, emits the event |
 | `diagnostic_log_reveal` | none                             | `()`                  | desktop only; reveals `logs/haex.log` in the file manager; `unsupported` elsewhere                                      |
 | `diagnostic_log_share`  | none                             | `()`                  | Android only; copies the log to a temporary snapshot and starts the share sheet; `unsupported` elsewhere                |
+| `diagnostic_log_ui_message` | `session_id`, `level`, `message` | `()`               | writes only when the token matches the attached vault session                                                        |
 
 ```text
 DiagnosticLogStatus {
@@ -18,6 +19,7 @@ DiagnosticLogStatus {
   writable: boolean,              // false after a failed write or a failed begin
   can_reveal: boolean,            // desktop
   can_share: boolean,             // Android
+  session_id: string | null,      // fresh opaque token per begin; null with no attached vault
 }
 ```
 
@@ -27,5 +29,6 @@ with the level it already has changes nothing and returns the status.
 The catalog action `settings.diagnostics.logLevel.set` calls `diagnostic_log_set` and is marked as not callable by an agent
 (guardrail, as `settings.privacy.screenCapture.set`).
 
-The interface messages use no command of ours: they go through the log plugin's `plugin:log|log` (permission `log:default` in
-`capabilities/default.json` and `mobile.json`, window `main`).
+The interface plugin sends each message through `diagnostic_log_ui_message` with the `session_id` most recently received from
+the backend. The command compares it with the currently attached session before writing; stale or missing tokens are dropped.
+This binds queued IPC messages to the vault open when they were emitted and prevents a message from vault A reaching vault B.
