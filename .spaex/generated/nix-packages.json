@@ -27,5 +27,6 @@
   "rustfmt",
   "wget",
   "xdotool",
-  "xvfb-run"
+  "xvfb-run",
+  "xz"
 ]
