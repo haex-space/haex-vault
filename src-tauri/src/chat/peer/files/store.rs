@@ -13,9 +13,11 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, Weak};
 
 use tokio::sync::{Mutex as AsyncMutex, OwnedMutexGuard, Semaphore};
+use tokio_util::sync::CancellationToken;
 
 use crate::error::{HaexError, Result};
 use crate::files::encrypted::device::DeviceRoot;
+use crate::files::encrypted::manage;
 use crate::files::encrypted::ops::{create_encrypted_folder, file_at};
 use crate::files::encrypted::route::{route, Route};
 use crate::files::encrypted::source::EncryptedFile;
@@ -171,6 +173,24 @@ impl ChatFileStore {
             put,
             _same_id: same_id,
         })
+    }
+
+    /// Deletes the file of attachment `id`; a missing one is not an error.
+    pub async fn remove(&self, id: &str) -> Result<()> {
+        if !self.dir.is_dir() {
+            return Ok(());
+        }
+        let _same_id = self.lock_attachment(id).await;
+        let Route::Encrypted(at) = route(&self.files, &self.view(&[FOLDER, id]))
+            .await
+            .map_err(store_error)?
+        else {
+            return Ok(());
+        };
+        match manage::delete(&self.files, &at, &CancellationToken::new(), &mut |_| {}).await {
+            Err(error) if error.code == FilesErrorCode::NotFound => Ok(()),
+            other => other.map_err(store_error),
+        }
     }
 
     /// Stores `bytes` as the file of attachment `id`.

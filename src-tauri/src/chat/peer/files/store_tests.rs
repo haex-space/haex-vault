@@ -86,3 +86,24 @@ async fn two_writers_of_one_attachment_take_turns_and_other_ones_do_not_wait() {
         .expect("second writer");
     second.abort().await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_removed_file_is_gone_and_removing_a_missing_one_is_fine() {
+    let (_vault, db) = vault();
+    give_key(&db, 1);
+    let data = tempfile::tempdir().expect("tempdir");
+    let files = store(&dir(data.path(), "anna"), &db);
+    files.remove("never-there").await.expect("no folder yet");
+
+    files.put("a1", b"first").await.expect("put");
+    files.put("a2", b"second").await.expect("put");
+    files.remove("a1").await.expect("remove");
+    files.remove("a1").await.expect("removing twice");
+    files.remove("a3").await.expect("a file that never was");
+    assert_eq!(files.get("a1").await.expect("get"), None);
+    assert_eq!(
+        files.get("a2").await.expect("get").as_deref(),
+        Some(&b"second"[..]),
+        "another file stays"
+    );
+}
