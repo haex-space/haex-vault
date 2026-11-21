@@ -228,6 +228,18 @@ impl ChatFiles {
             remaining_message_limit(total)?;
             prepared.push(Prepared { file, key, facts });
         }
+        // Keep upload, local copies, queueing, and failure cleanup for one message together. A
+        // second call may have passed the first idempotency check while this one was measuring.
+        let message_lock = format!("message:{message_id}");
+        let _same_message = self.store.lock_attachment(&message_lock).await;
+        let (check_me, check_event) = (me.clone(), event_id.to_owned());
+        if let Some(message_id) = self
+            .db
+            .read(move |r| Ok(send::sent_already(r, &check_me, thread_id, &check_event)?))
+            .await?
+        {
+            return Ok(message_id);
+        }
         let mut uploaded = Vec::with_capacity(prepared.len());
         for file in prepared {
             match self.upload(&server, file).await {
