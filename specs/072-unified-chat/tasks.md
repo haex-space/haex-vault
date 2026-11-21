@@ -382,7 +382,7 @@ file format and no migration.
 - [x] T139 `src-tauri/src/files/encrypted/transfer.rs`: a streaming put next to `put_file`; `src-tauri/src/chat/peer/files/store.rs`: `put_stream` behind the same semaphore.
 - [x] T140 `src-tauri/src/chat/peer/files/transfers.rs`, `commands/files.rs`: `Picked` has a source (bytes or a picked file opened per pass); send in three passes (measure, upload, own copy); receive writes while it downloads and commits after the check; `MAX_MESSAGE_PLAINTEXT` bounds the sum of a message's files at the new limit.
 - [x] T141 [P] i18n `chat.file.tooLarge`, `chat.file.changed` and `chat.file.unreadable` in `src/i18n/locales/de.json` and `en.json`.
-- [ ] T142 Checks: `pnpm check:*`, `typecheck:scripts`, clippy for the host and `aarch64-linux-android`; the memory bound is shown by construction (T135: parts are at the storage before the commit), not by a measurement.
+- [x] T142 Checks: `pnpm check:*`, `typecheck:scripts`, clippy for the host and `aarch64-linux-android`; the memory bound is shown by construction (T135: parts are at the storage before the commit), not by a measurement.
 
 **Checkpoint**: A 200 MiB file goes to a contact and arrives, on desktop and on a phone, with the
 process well below the file's size in memory.
