@@ -140,6 +140,7 @@ test('every error code of the tool manager has a message in both languages', () 
     'failed',
     'notInstalled',
     'needsReinstall',
+    'notRunnable',
   ]
   for (const [name, messages] of Object.entries(locales)) {
     for (const code of codes) {
@@ -175,6 +176,10 @@ test('a delegate that cannot start names the tool the vault lacks', () => {
     kind: 'needs_reinstall',
     vendor: 'codex',
   })
+  assert.deepEqual(
+    unavailableTool('adapter start: not runnable: codex: permission denied'),
+    { kind: 'not_runnable', vendor: 'codex' },
+  )
   assert.equal(unavailableTool('provider rejected credentials'), null)
 })
 

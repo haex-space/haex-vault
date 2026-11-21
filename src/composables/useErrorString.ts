@@ -170,12 +170,14 @@ export function useErrorString() {
         }
         const missingTool = unavailableTool(reason)
         if (missingTool) {
-          return t(
-            missingTool.kind === 'needs_reinstall'
-              ? 'errors.cliTools.needsReinstall'
-              : 'errors.cliTools.notInstalled',
-            { name: t(`chat.model.delegate.${missingTool.vendor}`) },
-          )
+          const toolKeys = {
+            not_installed: 'errors.cliTools.notInstalled',
+            needs_reinstall: 'errors.cliTools.needsReinstall',
+            not_runnable: 'errors.cliTools.notRunnable',
+          } as const
+          return t(toolKeys[missingTool.kind], {
+            name: t(`chat.model.delegate.${missingTool.vendor}`),
+          })
         }
         // Spec 072: the chat with contacts names its cause by a language key.
         if (

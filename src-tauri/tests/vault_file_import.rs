@@ -1,7 +1,8 @@
 //! Taking over a vault file (spec 043 FR-002a, contract `import-instance.md`), over the mock runtime
 //! so the vault folders are the real ones: the copy opens under a name from the file name, a
 //! second copy of the same vault is refused, a wrong passphrase or a file that is no vault leaves
-//! no file behind, a taken name gets a number, and the chosen file is only read.
+//! no file behind, a taken name gets a number, the chosen file is only read, and no tool or home
+//! folder of the other device comes along (spec 094 FR-018).
 //!
 //! Linux only: storage is redirected through `XDG_DATA_HOME`, which Tauri's `AppLocalData`
 //! honours only on Linux.
@@ -19,6 +20,10 @@ use tokio::sync::Mutex;
 
 use chosen_files::{chosen, Paths};
 use haex_lib::chat::session::ChatState;
+use haex_lib::cli_tools::catalog::Catalog;
+use haex_lib::cli_tools::containment::{Containment, EnvContainment};
+use haex_lib::cli_tools::platform::PlatformKey;
+use haex_lib::cli_tools::status::{derive, CliToolState};
 use haex_lib::instances::{create_instance_core, import_instance_core};
 use haex_lib::state::AppState;
 use haex_lib::vault_gate::VaultGate;
@@ -68,6 +73,11 @@ fn checksum(path: &Path) -> Vec<u8> {
 
 /// Creates a vault on "another device" (its own data folder) and copies its file to `target`.
 async fn vault_file_from_elsewhere(name: &str, target: &Path) {
+    vault_file_from_elsewhere_with(name, target, |_| {}).await;
+}
+
+/// The same, after `prepare` has had a look at the vault folder of "the other device".
+async fn vault_file_from_elsewhere_with(name: &str, target: &Path, prepare: impl FnOnce(&Path)) {
     let elsewhere = tempfile::tempdir().expect("elsewhere");
     std::env::set_var("XDG_DATA_HOME", elsewhere.path());
     let app = mock_app();
@@ -76,7 +86,9 @@ async fn vault_file_from_elsewhere(name: &str, target: &Path) {
         .await
         .expect("create on the other device");
     drop(state.take().expect("take"));
-    std::fs::copy(vaults_dir(&app).join(name).join("vault.db"), target).expect("copy out");
+    let folder = vaults_dir(&app).join(name);
+    prepare(&folder);
+    std::fs::copy(folder.join("vault.db"), target).expect("copy out");
 }
 
 async fn import(
@@ -190,4 +202,41 @@ async fn a_taken_name_gets_a_number() {
             .expect("second"),
         "work-2"
     );
+}
+
+#[tokio::test]
+async fn an_imported_vault_arrives_without_the_tools_of_the_other_device() {
+    let _turn = TURN.lock().await;
+    let files = tempfile::tempdir().expect("files");
+    let source = files.path().join("elena.db");
+    vault_file_from_elsewhere_with("elena", &source, |folder| {
+        // The other device has a tool installed and a home folder with a history in it.
+        let version = folder.join("cli-tools").join("claude").join("1.0.0");
+        std::fs::create_dir_all(&version).expect("tool folder");
+        std::fs::write(version.join("claude"), b"program").expect("program");
+        let home = folder.join("home").join(".claude");
+        std::fs::create_dir_all(&home).expect("home folder");
+        std::fs::write(home.join("history"), b"x").expect("history");
+    })
+    .await;
+
+    let here = tempfile::tempdir().expect("here");
+    std::env::set_var("XDG_DATA_HOME", here.path());
+    let app = mock_app();
+    let name = import(&app, &source, PASSPHRASE).await.expect("import");
+
+    let paths = haex_lib::instances::paths::vault_paths(&app).expect("vault paths");
+    assert!(!paths.cli_tools(&name).exists(), "no tool arrives");
+    assert!(!paths.home(&name).exists(), "no home folder arrives");
+    for vendor in ["claude", "codex"] {
+        let status = derive(
+            Catalog::shipped().vendor(vendor).expect("a shipped vendor"),
+            &paths.cli_tool_dir(&name, vendor),
+            PlatformKey::host(),
+            false,
+            EnvContainment.level(),
+        );
+        assert_eq!(status.state, CliToolState::NotInstalled, "{vendor}");
+        assert_eq!(status.installed_version, None, "{vendor}");
+    }
 }
