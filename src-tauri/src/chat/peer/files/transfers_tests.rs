@@ -595,6 +595,69 @@ async fn a_file_that_grows_after_it_was_measured_stops_the_copy_and_takes_the_bl
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_send_that_fails_after_a_copy_was_kept_deletes_the_copies() {
+    let (_relay, url) = mock_relay().await;
+    let blossom = BlossomTestServer::start().await;
+    let (anna, ben) = two_vaults(&[url]).await;
+    anna.enable_files(&blossom.url, None);
+    ben.enable_files(&blossom.url, None);
+    anna.start().await;
+    ben.start().await;
+
+    let opened = Arc::new(Mutex::new(0_u32));
+    let counted = Arc::clone(&opened);
+    // The second file grows between the upload and its own copy, after the first copy was kept.
+    let growing = Source::opened_by(move || {
+        let mut times = counted.lock().expect("count");
+        *times += 1;
+        let mut bytes = b"second file".to_vec();
+        if *times > 2 {
+            bytes.extend_from_slice(b" and more");
+        }
+        Ok(Box::new(std::io::Cursor::new(bytes)) as Box<dyn Read + Send>)
+    });
+    let files = vec![
+        picked(PLAN),
+        Picked {
+            name: "Two.txt".into(),
+            mime: "text/plain".into(),
+            source: growing,
+            inline: false,
+        },
+    ];
+    let thread = anna.thread_with(&ben);
+    let (own, peer) = (anna.me.vault_hex.clone(), ben.me.vault_hex.clone());
+    anna.db
+        .write_blocking(move |tx| {
+            Ok(crate::chat::peer::store::open_direct(
+                tx,
+                &own,
+                &peer,
+                now_ms(),
+            )?)
+        })
+        .expect("open");
+    let chat_files = anna.session.files.get().expect("files").clone();
+    let event = crate::chat::peer::envelope::new_event_id();
+    let error = chat_files
+        .send(&anna.me, thread, &event, "", files)
+        .await
+        .expect_err("the grown file is not sent");
+    assert!(error.to_string().contains("chat.file.changed"), "{error}");
+    assert!(anna.messages_with(&ben).is_empty(), "no message was queued");
+
+    let message = ids::message_id(thread, &anna.me.vault_hex, &event);
+    for index in 0..2 {
+        let id = ids::attachment_id(message, index).to_string();
+        assert_eq!(
+            stored(&anna, &id).await,
+            None,
+            "file {index} left a copy nothing refers to"
+        );
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_deletion_that_fails_is_remembered_and_done_when_the_server_is_back() {
     let blossom = BlossomTestServer::start().await;
     let (anna, _ben) = two_vaults(&[]).await;

@@ -260,13 +260,16 @@ impl ChatFiles {
                 .await
             {
                 self.delete_unqueued(&server, &cleanup_credentials).await;
+                self.discard_copies(message_id, index + 1).await;
                 return Err(error);
             }
         }
+        let copies = uploaded.len();
         let pending = match self.expected_devices(me, &peer).await {
             Ok(pending) => pending,
             Err(error) => {
                 self.delete_unqueued(&server, &cleanup_credentials).await;
+                self.discard_copies(message_id, copies).await;
                 return Err(error);
             }
         };
@@ -313,7 +316,19 @@ impl ChatFiles {
             Ok(id) => Ok(id),
             Err(error) => {
                 self.delete_unqueued(&server, &cleanup_credentials).await;
+                self.discard_copies(message_id, copies).await;
                 Err(error)
+            }
+        }
+    }
+
+    /// Deletes the own copies of the first `count` files of a message that was not queued, so a
+    /// failed send leaves no file nothing refers to.
+    async fn discard_copies(&self, message_id: Uuid, count: usize) {
+        for index in 0..count {
+            let id = ids::attachment_id(message_id, index).to_string();
+            if let Err(error) = self.store.remove(&id).await {
+                log::warn!("chat: an unsent file's own copy was not deleted: {error}");
             }
         }
     }
