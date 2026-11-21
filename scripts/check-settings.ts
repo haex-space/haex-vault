@@ -69,6 +69,7 @@ const LOCATION_PATHS: Record<string, string> = {
   'storage.storage': '/storage/connections/c1/storages/new',
   'storage.remove': '/storage/remove/connection/c1',
   contacts: '/contacts',
+  chat: '/chat',
   extensions: '/extensions',
   'extensions.browserBridge': '/extensions/browser-bridge',
   'extensions.marketplaces': '/extensions/marketplaces',
@@ -112,7 +113,7 @@ function germanT(): (key: string) => string {
   }
 }
 
-test('six categories in the order of FR-005 (storage from spec 038, contacts from spec 051, extensions from spec 017, no appearance since spec 042, models and agents merged into ai), each at its own location', () => {
+test('seven categories in the order of FR-005 (storage from spec 038, contacts from spec 051, chat from spec 072, extensions from spec 017, no appearance since spec 042, models and agents merged into ai), each at its own location', () => {
   assert.deepEqual(
     SETTINGS_CATEGORIES.map((category) => [category.id, category.path]),
     [
@@ -120,6 +121,7 @@ test('six categories in the order of FR-005 (storage from spec 038, contacts fro
       ['ai', '/ai'],
       ['storage', '/storage'],
       ['contacts', '/contacts'],
+      ['chat', '/chat'],
       ['extensions', '/extensions'],
       ['federation', '/federation'],
     ],

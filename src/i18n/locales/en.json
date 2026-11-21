@@ -726,6 +726,10 @@
       "contacts": {
         "title": "Contacts",
         "keywords": "contacts address book phone book people groups"
+      },
+      "chat": {
+        "title": "Chat",
+        "keywords": "chat messages contacts files Blossom server attachments"
       }
     },
     "groups": {
@@ -1507,6 +1511,21 @@
         "title": "Blocked vaults",
         "since": "Blocked since {at}",
         "unblock": "Unblock"
+      }
+    },
+    "chat": {
+      "server": {
+        "label": "Blossom server for files",
+        "hint": "Files in the chat go through this server, encrypted. Without a server you cannot attach files.",
+        "placeholder": "None, or https://…",
+        "check": "Check",
+        "verdict": {
+          "accepts": "The server takes files up to 200 MB.",
+          "onlySmall": "The server takes smaller files only. {reason}",
+          "refused": "The server refuses files ({status}). {reason}",
+          "unreachable": "The server does not answer.",
+          "notAllowed": "This address is not allowed: it must start with https://."
+        }
       }
     },
     "modelServers": {

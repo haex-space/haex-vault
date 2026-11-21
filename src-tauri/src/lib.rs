@@ -88,6 +88,7 @@ use chat::peer::commands::messages::{
     chat_peer_send,
 };
 use chat::peer::commands::requests::{chat_request_answer, chat_request_card};
+use chat::peer::commands::settings::chat_blossom_check;
 use chat::search::chat_search;
 use chat::session::ChatState;
 use chat::thread_commands::{
@@ -910,6 +911,7 @@ pub fn run() {
             chat_request_answer,
             chat_attachment_download,
             chat_attachment_text,
+            chat_blossom_check,
             chat_peer_send,
             chat_peer_resend,
             chat_peer_messages_list,

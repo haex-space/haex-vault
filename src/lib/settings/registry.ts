@@ -6,7 +6,13 @@ import { normalizePath, type TabHistory } from '../wm/navigation.ts'
 import { matchRoute } from '../wm/routeMatch.ts'
 
 export type SettingsCategoryId =
-  'general' | 'ai' | 'storage' | 'contacts' | 'extensions' | 'federation'
+  | 'general'
+  | 'ai'
+  | 'storage'
+  | 'contacts'
+  | 'chat'
+  | 'extensions'
+  | 'federation'
 
 /** Headings of an overview that groups its rows by task. */
 export type SettingsGroupId = 'chat' | 'local' | 'speech' | 'agents'
@@ -62,6 +68,7 @@ export const SETTINGS_CATEGORIES: readonly SettingsCategory[] = [
   category('ai', '/ai', 'lucide:sparkles'),
   category('storage', '/storage', 'lucide:cloud'),
   category('contacts', '/contacts', 'lucide:contact'),
+  category('chat', '/chat', 'lucide:message-circle'),
   category('extensions', '/extensions', 'lucide:puzzle'),
   category('federation', '/federation', 'lucide:share-2'),
 ]
@@ -252,6 +259,8 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
   // Spec 051 FR-015a: the address book; phone sync, business card and blocked vaults come with
   // their stories.
   categoryLocation('contacts'),
+  // Spec 072 FR-080: the settings of the chat with contacts; the Blossom-Server comes first.
+  categoryLocation('chat'),
   // Spec 017: installed extensions, installing from a file.
   categoryLocation('extensions'),
   // Reached from an extension's row in the list, never searched for.

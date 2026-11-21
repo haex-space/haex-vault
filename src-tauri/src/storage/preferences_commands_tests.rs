@@ -56,6 +56,25 @@ fn the_sync_log_depth_takes_a_whole_number_up_to_a_hundred() {
 }
 
 #[test]
+fn the_chat_file_server_is_none_or_an_address_a_file_may_go_to() {
+    for value in [
+        "",
+        "  ",
+        "https://blossom.example.com/",
+        "http://127.0.0.1:3000",
+    ] {
+        validate_value("chat.blossom.server", value).expect("none or an address");
+    }
+    for value in [
+        "http://blossom.example.com/",
+        "https://user:secret@blossom.example.com/",
+        "blossom.example.com",
+    ] {
+        validate_value("chat.blossom.server", value).expect_err("not an address");
+    }
+}
+
+#[test]
 fn the_background_takes_only_a_webp_data_url_within_the_limit() {
     let key = "appearance.background";
     validate_value(key, "data:image/webp;base64,UklGRg==").expect("a WebP data URL");

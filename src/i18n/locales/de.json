@@ -726,6 +726,10 @@
       "contacts": {
         "title": "Kontakte",
         "keywords": "Kontakte Adressbuch Telefonbuch Personen Gruppen"
+      },
+      "chat": {
+        "title": "Chat",
+        "keywords": "Chat Nachrichten Kontakte Dateien Blossom Server Anhänge"
       }
     },
     "groups": {
@@ -1507,6 +1511,21 @@
         "title": "Blockierte Vaults",
         "since": "Blockiert seit {at}",
         "unblock": "Freigeben"
+      }
+    },
+    "chat": {
+      "server": {
+        "label": "Blossom-Server für Dateien",
+        "hint": "Dateien im Chat gehen verschlüsselt über diesen Server. Ohne Server kannst du keine Dateien anhängen.",
+        "placeholder": "Keiner, oder https://…",
+        "check": "Prüfen",
+        "verdict": {
+          "accepts": "Der Server nimmt Dateien bis 200 MB an.",
+          "onlySmall": "Der Server nimmt nur kleinere Dateien an. {reason}",
+          "refused": "Der Server lehnt Dateien ab ({status}). {reason}",
+          "unreachable": "Der Server antwortet nicht.",
+          "notAllowed": "Diese Adresse ist nicht erlaubt: sie muss mit https:// beginnen."
+        }
       }
     },
     "modelServers": {
