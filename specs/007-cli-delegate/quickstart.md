@@ -44,11 +44,11 @@ bleiben als Regressionserwartungen bestehen:
 1. Delegate wie in Szenario 1 verbinden.
 2. Die Vault-Datei auf eine zweite Maschine kopieren, die **noch nie** `claude login`/`codex login`
    ausgeführt hat.
-3. Dort holzi mit dieser Vault öffnen, denselben Delegate für eine Nachricht wählen.
+3. Dort HaexVault mit dieser Vault öffnen, denselben Delegate für eine Nachricht wählen.
 4. **Erwartung**: funktioniert ohne weiteren Login-Schritt auf der zweiten Maschine (spec.md
    Acceptance Scenario 2).
 5. Credential im Backend absichtlich ungültig machen (z.B. `codex logout` _auf der ursprünglichen
-   Maschine_ ändert nichts an holzis eigener gespeicherter Kopie — stattdessen die gespeicherten Bytes
+   Maschine_ ändert nichts an HaexVaults eigener gespeicherter Kopie — stattdessen die gespeicherten Bytes
    in der DB testweise verfälschen) und erneut senden. **Erwartung**: klare "Verbindung erneuern"-
    Führung statt Rohfehler (FR-014).
 
@@ -78,7 +78,7 @@ Planungssession beim Operator selbst vorgefunden):
 2. **Erwartung**: das host-eigene Setting/Hook beeinflusst die Delegate-Antwort **nicht** — genau der
    Fehler, der in dieser Planungssession beim ersten (nicht-isolierten) Testlauf tatsächlich auftrat
    und durch `CLAUDE_CONFIG_DIR`-Isolation behoben wurde (research.md §3).
-3. Nach Abschluss: Host-Verzeichnis auf neu angelegte Dateien/Settings außerhalb holzis eigener
+3. Nach Abschluss: Host-Verzeichnis auf neu angelegte Dateien/Settings außerhalb HaexVaults eigener
    Vault-Datei prüfen. **Erwartung**: keine.
 
 ## Szenario 5: Abbruch mitten in einer Delegate-Antwort (User Story 5)

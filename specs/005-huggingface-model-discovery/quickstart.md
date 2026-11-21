@@ -2,7 +2,7 @@
 
 ## Voraussetzungen
 
-- Holzi mit geöffneter Vault starten.
+- HaexVault mit geöffneter Vault starten.
 - Mindestens ein bestehendes Katalog- oder Importmodell für Regressionstests
   installiert haben.
 - Für automatisierte Tests: `cargo test` und `pnpm typecheck` ausführen.
@@ -46,7 +46,7 @@
 8. Prüfen: Modell kann ohne erneute Hugging-Face-Suche geladen werden.
 9. Die Modellverwaltung aktualisieren und einen neuen Stand des verfolgten
    HF-Refs simulieren.
-10. Prüfen: Holzi zeigt installierte und neue Commit-SHA sowie eine
+10. Prüfen: HaexVault zeigt installierte und neue Commit-SHA sowie eine
     ausdrückliche Update-Aktion; das Modell wird nicht automatisch ersetzt.
 11. Update installieren und prüfen: Die neue Datei wird atomar unter derselben
     Modell-ID veröffentlicht; bei einem simulierten Fehler bleiben alte Datei

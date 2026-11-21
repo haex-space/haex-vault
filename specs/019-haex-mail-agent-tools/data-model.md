@@ -1,7 +1,7 @@
 # Datenmodell: haex-mail für den Agenten, Regeln und Regel-Oberfläche
 
 Alle Änderungen liegen in der Erweiterungs-Datenbank von haex-mail (Repository haex-space/haextension,
-`apps/haex-mail/app/database/schemas/index.ts`, Migration 0003). holzi bekommt keine neue Tabelle und keine
+`apps/haex-mail/app/database/schemas/index.ts`, Migration 0003). haex-vault bekommt keine neue Tabelle und keine
 neue Spalte; die Bridge-Methoden (`contracts/host-mail-commands.md`) sind zustandslos.
 
 Tabellennamen entstehen wie bei den vorhandenen Tabellen über `getTableName(manifest.publicKey,

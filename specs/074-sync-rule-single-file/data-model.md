@@ -33,12 +33,12 @@ For a file rule:
 
 ## Validation (`rules::validate`)
 
-| Check                                                                                                        | Error          |
-| ------------------------------------------------------------------------------------------------------------ | -------------- |
-| a device source of a file rule is a regular file, not a link, not a folder, not missing (`symlink_metadata`) | `invalidPlace` |
-| a file rule's source path has a file name (is not a root)                                                    | `invalidPlace` |
-| the claims of the rule overlap another rule's claims, or each other (research R6)                            | `overlap`      |
-| everything spec 061 checks for a place (contact's share, holzi's own places, `..`, absolute device path)     | as before      |
+| Check                                                                                                         | Error          |
+| ------------------------------------------------------------------------------------------------------------- | -------------- |
+| a device source of a file rule is a regular file, not a link, not a folder, not missing (`symlink_metadata`)  | `invalidPlace` |
+| a file rule's source path has a file name (is not a root)                                                     | `invalidPlace` |
+| the claims of the rule overlap another rule's claims, or each other (research R6)                             | `overlap`      |
+| everything spec 061 checks for a place (contact's share, haex-vault's own places, `..`, absolute device path) | as before      |
 
 **Claims of a rule** (for overlap): a folder rule claims `source.path` and `target.path`. A file rule claims
 `source.path` and `target.path` joined with the source file's name. Two claims overlap when one is the other or

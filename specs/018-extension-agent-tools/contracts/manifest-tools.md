@@ -1,7 +1,7 @@
 # Vertrag: Manifest-Block `tools`
 
-Gilt für vault-sdk (Crate `haex-bundle`, Typ `ExtensionManifest`, Werkzeug `haex sign`), holzi und
-haex-vault 2.x (Legacy). Normativ für das Format ist das Crate; holzi prüft zusätzlich die Schema-Teilmenge.
+Gilt für vault-sdk (Crate `haex-bundle`, Typ `ExtensionManifest`, Werkzeug `haex sign`), haex-vault und
+haex-vault 2.x (Legacy). Normativ für das Format ist das Crate; haex-vault prüft zusätzlich die Schema-Teilmenge.
 
 ## Beispiel
 
@@ -41,7 +41,7 @@ Das Manifest ist kanonisches JSON ohne Gleitkommazahlen (RFC 8785, `jcs.rs`): Sc
 Zahlen. Neue Testvektoren: `bad-tools-name.xt`, `bad-tools-effect.xt`, `bad-tools-duplicate.xt`,
 `bad-tools-examples.xt`, `ok-tools.xt`.
 
-## Schema-Teilmenge (holzi)
+## Schema-Teilmenge (haex-vault)
 
 Wie Aktionen (`schema_in_subset`, `chat/tools/action_tool.rs`). Ein Werkzeug außerhalb der Teilmenge wird
 nicht angeboten und in den Einstellungen als „nicht unterstützt“ gezeigt; die Installation scheitert daran

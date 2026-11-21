@@ -19,8 +19,8 @@ Begründung: [research.md](../research.md) R15, R18–R21. Modul `src-tauri/src/
 - `readWrite` deckt `read`, nicht `add` (Spec 038 FR-009b: einen Endpunkt vorschlagen).
 - Manifest-Schreibweisen werden vereinheitlicht: `readWrite`/`read_write`, `http`/`web`,
   `cloudStorage`/`remoteStorage`, Feld `operation` oder `action`.
-- Kategorien im Manifest, die holzi nicht anbietet (`spaces`, `identities`, `bookmarks`, `syncServers`,
-  `syncRules`), zeigt der Installationsdialog als „wird von holzi nicht unterstützt“; sie werden nie gespeichert.
+- Kategorien im Manifest, die haex-vault nicht anbietet (`spaces`, `identities`, `bookmarks`, `syncServers`,
+  `syncRules`), zeigt der Installationsdialog als „wird von haex-vault nicht unterstützt“; sie werden nie gespeichert.
 - Ein `database`-Ziel, das kein Präfix einer Erweiterung ist (etwa `chat_*`), wird beim Speichern abgelehnt.
 
 ## Auswertung

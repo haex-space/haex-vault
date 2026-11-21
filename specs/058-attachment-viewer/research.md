@@ -28,7 +28,7 @@ Code aus 034, 036, 044 und 048 trifft.
   UTF-8-Folgen kommen damit von genau einer Stelle. `text_from` und `TEXT_LIMIT` sind schon `pub`
   (`files::local` und `files::local::text` sind `pub mod`), es braucht keine Änderung an der
   Sichtbarkeit.
-- **Fehler**: `FilesErrorCode::Binary` wird zu `HolziError::InvalidInput { reason: "binary" }`, eine
+- **Fehler**: `FilesErrorCode::Binary` wird zu `HaexError::InvalidInput { reason: "binary" }`, eine
   andere Art zu `reason: "not_text"`; ein fehlender Anhang (auch einer, dessen Binärzeile noch nicht
   angekommen ist) bleibt `PasswordsNotFound`. `useErrorString` bekommt die Texte dafür.
 - **Rationale**: SC-003 (gleiches Verhalten wie im Datei-Viewer) ohne zweite Umsetzung; nur der
@@ -53,7 +53,7 @@ Code aus 034, 036, 044 und 048 trifft.
   (graphify-first-authoring); ohne Zustimmung bleibt `Fixture` unverändert und `BytesSource` entsteht
   trotzdem, weil `Fixture` nur statische Bytes kann.
 - **Rationale**: `PdfViewer.vue` erwartet eine URL und lädt mit Bereichsanfragen
-  (`lib/files/pdf.ts:30`); der Media-Server ist der Weg, auf dem holzi das schon für entschlüsselte
+  (`lib/files/pdf.ts:30`); der Media-Server ist der Weg, auf dem haex-vault das schon für entschlüsselte
   Dateien tut (`EncryptedFileSource`). Keine Datei auf dem Gerät (FR-006).
 - **Alternatives considered**: Blob-URL im Fenster aus `attachment_preview` – verworfen: zweiter
   Ladeweg für pdf.js, und die CSP für `connect-src blob:` müsste geprüft und geöffnet werden;
@@ -79,7 +79,7 @@ dontAskAgain) -> OpenSystemOutcome` (`opened` | `needsNotice`). Ablauf:
 - **Sicherer Dateiname**: Der Name entsteht in Rust, weil dort die Datei entsteht.
   `binaries::sanitize_file_name` (binaries.rs:42) ersetzt Trenner und Steuerzeichen, kennt aber die
   Zeichen nicht, die Windows ablehnt. Die Kopie braucht einen Namen, der auf jedem System angelegt
-  werden kann (holzi läuft auf Windows, macOS und Linux; eine Lücke ist ein Fehler). Neue Funktion
+  werden kann (haex-vault läuft auf Windows, macOS und Linux; eine Lücke ist ein Fehler). Neue Funktion
   `copy_file_name(name)` im neuen Modul: `sanitize_file_name`, dann jedes Zeichen aus
   `files::local::edit::FORBIDDEN` (edit.rs:17, dafür `pub(crate)`) zu `_`, ein Punkt oder Leerzeichen
   am Ende zu `_`, und ein Stamm, der ein reservierter Gerätename von Windows ist (CON, PRN, AUX, NUL,

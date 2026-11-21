@@ -118,7 +118,7 @@ Oberfläche (Länge 20, alle vier Klassen).
 `created_at`. Index: `idx_pw_tags_name (name)`. Regeln: `fold` = NFC, Kleinschreibung, getrimmt;
 leere Namen und Namen mit mehr als 64 Zeichen sind ungültig; die Anwendung verhindert
 Doppelte nach `fold` beim Anlegen und Umbenennen; `reconcile_tags` heilt Wettläufe (R2).
-Es gibt keine für holzi reservierten Tagnamen; was eine holzi-Funktion nutzt, meldet sie selbst (`EntryUsage`, FR-034).
+Es gibt keine für haex-vault reservierten Tagnamen; was eine haex-vault-Funktion nutzt, meldet sie selbst (`EntryUsage`, FR-034).
 
 ### `haex_passwords_item_tags` — Tag-Zuordnung
 

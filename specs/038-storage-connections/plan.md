@@ -6,11 +6,11 @@
 
 ## Summary
 
-holzi spricht S3 selbst: Der Nutzer legt in den Einstellungen Speicherverbindungen (Anbieter, Endpunkt,
+haex-vault spricht S3 selbst: Der Nutzer legt in den Einstellungen Speicherverbindungen (Anbieter, Endpunkt,
 Region, Zugangsdaten) und darauf Speicher (je ein Bucket) an, testet und entfernt sie; die Zugangsdaten
 liegen im Passwortmanager. Erweiterungen nutzen einen Speicher über die neun Funktionen
 `extension_remote_storage_*` des vault-sdk, nur mit Berechtigung je Speicher und nur in ihrem eigenen
-Präfix-Bereich. Neue Speicher kann eine Erweiterung nur anstoßen: holzi öffnet einen eigenen Dialog, in
+Präfix-Bereich. Neue Speicher kann eine Erweiterung nur anstoßen: haex-vault öffnet einen eigenen Dialog, in
 dem allein der Nutzer Zugangsdaten eingibt. Das erfüllt Spec 017 T106 (FR-054, FR-055) und liefert die
 Speicherverbindungen, die der Dateibrowser und Spec 056 als Quellen nutzen.
 
@@ -19,16 +19,16 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 - **S3-Client** (R1): `rusty-s3` signiert (SigV4, Sans-IO), das vorhandene `reqwest` mit rustls und ring
   überträgt; Grenzen werden streamend wie in `extensions/web.rs` durchgesetzt.
 - **Zugangsdaten** (R2): ein Eintrag im Passwortmanager mit Eigentümer `storage`; neue Regel Z14 in 034
-  macht Einträge mit Eigentümer für jeden Aufrufer außer dem Nutzer und der besitzenden holzi-Funktion
+  macht Einträge mit Eigentümer für jeden Aufrufer außer dem Nutzer und der besitzenden haex-vault-Funktion
   unsichtbar, auch für eine Freigabe für `*` und als Quelle eines Verweises. Gelesen wird als
   `Caller::Internal { feature: "storage" }`.
 - **Daten** (R3): Migration `0027_passwords_owner` (Spalte `owner` in `haex_passwords_item_details`,
   mit PR B) und `0028_storage_connections`: `haex_storage_connections` und `haex_storages`
   (synchronisiert), `storage_tests_no_sync` (geräteeigen); Trigger-Version jeweils erhöht.
-- **Erweiterungen** (R4–R7): Präfix `holzi-ext/<vault_id>/<extension_id>/` (Entwicklerversionen
-  getrennt unter `holzi-ext-dev/`), strenge Schlüsselprüfung vor jedem Aufruf, Liste nur mit Namen,
+- **Erweiterungen** (R4–R7): Präfix `haex-ext/<vault_id>/<extension_id>/` (Entwicklerversionen
+  getrennt unter `haex-ext-dev/`), strenge Schlüsselprüfung vor jedem Aufruf, Liste nur mit Namen,
   Dialog nach dem Muster von `extension_dialog_confirm` (nur Bestätigung; Zugangsdaten nur im Fenster
-  von holzi über der ganzen App), Grenzen und Fehlerarten aus Spec 017; Aufrufe mit Zugangsdaten werden
+  von haex-vault über der ganzen App), Grenzen und Fehlerarten aus Spec 017; Aufrufe mit Zugangsdaten werden
   abgelehnt.
 - **Sicherheit des Transports** (R8): `https` immer, `http` nur zu lokalen Adressen und gekennzeichnet;
   jede aufgelöste Adresse geprüft und für die Verbindung festgehalten, Link-Local nie, lokale Adressen
@@ -112,12 +112,12 @@ src-tauri/src/
 ├── identity/
 │   ├── migrations_passwords_owner.rs   # 0027 (neu, PR B) + _tests
 │   ├── migrations_storage.rs           # 0028 (neu, PR C) + _tests
-│   └── migrations.rs                   # Registrierung, HOLZI_TRIGGER_VERSION
+│   └── migrations.rs                   # Registrierung, HAEX_TRIGGER_VERSION
 ├── passwords/
 │   ├── access.rs                       # ItemState.owner, Z14
 │   ├── items.rs                        # item_state/headers_in_scope/agent_headers mit owner
 │   └── service/items.rs, trash.rs      # create mit owner (nur Internal), endgültiges Löschen eigener Einträge
-├── remote_storage/                     # neu: holzis S3 (unabhängig von Erweiterungen)
+├── remote_storage/                     # neu: haex-vaults S3 (unabhängig von Erweiterungen)
 │   ├── mod.rs                          # Typen, Trait ObjectStore
 │   ├── s3.rs                           # rusty-s3 + reqwest, Grenzen, Fehlerabbildung + _tests (wiremock)
 │   ├── address.rs                      # Endpunkt-Prüfung http/https (R8) + _tests
@@ -143,7 +143,7 @@ src/
 ```
 
 **Structure Decision**: Das S3-Protokoll liegt in `src-tauri/src/remote_storage/`, nicht unter
-`extensions/`, weil holzi es selbst nutzt (Dateibrowser und Spec 056) und Erweiterungen nur ein Verbraucher
+`extensions/`, weil haex-vault es selbst nutzt (Dateibrowser und Spec 056) und Erweiterungen nur ein Verbraucher
 sind (Grundsatz des Betreibers). Das Erweiterungs-Modul ist ein dünner Adapter wie
 `extensions/passwords.rs`. Der Name `storage/` ist schon für Vault-Einstellungen belegt, daher
 `remote_storage/`.

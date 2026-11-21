@@ -1,4 +1,4 @@
-# Research: holzi für Android
+# Research: haex-vault für Android
 
 **Spec**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md) | **Stand**: 2026-10-07
 
@@ -6,12 +6,12 @@ Versionen aus `src-tauri/Cargo.lock` und dem Tauri-Gerüst: tauri 2.12.1, tauri-
 wry 0.57.0 (Fork `haexmas/wry@47037dd`), tao 0.37.1, tauri-plugin-dialog 2.8.1,
 tauri-plugin-fs 2.6.0, rustls-platform-verifier 0.7.1 (`-android` 0.2.0), lettre 0.11.23,
 reqwest 0.13.5, sysinfo 0.39.6, cpal 0.18.2; Tauri-CLI 2.12.0. Das Android-Gerüst von
-Tauri 2.12 setzt `compileSdk`/`targetSdk` 37, `minSdk` 24, NDK 28.2.13676358, AGP 9.3.1. holzi hebt
+Tauri 2.12 setzt `compileSdk`/`targetSdk` 37, `minSdk` 24, NDK 28.2.13676358, AGP 9.3.1. haex-vault hebt
 `minSdk` auf 26 (Android 8.0): cpal nimmt das Mikrofon über AAudio auf und bindet `libaaudio`
 fest ein, die das NDK erst ab API 26 hat; mit 24 scheitert der Link-Schritt (2026-10-07).
 
 Ausgangslage (`cargo check --target aarch64-linux-android`, 2026-10-07): Von gut 960 Crates
-bricht nur `lettre` (R2); in holzi brechen `FileDialogBuilder::blocking_pick_folder`
+bricht nur `lettre` (R2); in haex-vault brechen `FileDialogBuilder::blocking_pick_folder`
 (`src/extensions/fs/dialogs.rs:79`) und `PathResolver::desktop_dir`
 (`src/extensions/fs/mod.rs:97`). SQLCipher (vendored OpenSSL), haex-crdt (bindgen), mistralrs,
 candle, cpal, portable-pty, iroh und nostr übersetzen. Gelinkt und gestartet wurde noch nichts.
@@ -23,7 +23,7 @@ eingecheckt; `.gitignore` ignoriert künftig nur noch `src-tauri/gen/schemas/` (
 die das Gerüst selbst ausschließt, regelt dessen eigene `.gitignore`). Aller Kotlin-Code,
 alle Berechtigungen im Manifest, die ProGuard-Regeln und die Gradle-Abhängigkeit für die
 Zertifikatsprüfung liegen in einer **lokalen Tauri-Plugin-Crate**
-`src-tauri/plugins/holzi-android/` (`tauri_plugin::Builder::new(..).android_path("android")`).
+`src-tauri/plugins/haex-android/` (`tauri_plugin::Builder::new(..).android_path("android")`).
 `MainActivity.kt` bleibt das Gerüst; ergänzt werden nur `configChanges` um
 `density|fontScale|layoutDirection`, damit auch diese Änderungen die Activity nicht neu
 erzeugen (FR-009).
@@ -59,7 +59,7 @@ Netzwechsel melden (R10).
    stehen in der Gradle-Datei der Plugin-Crate (R1).
    Nachtrag 2026-10-14: Das Maven-Repo auf GitHub antwortete in CI mit HTTP 500 und ließ den
    Android-Build scheitern. `.aar` und `.pom` aus diesem Repo liegen seitdem unter
-   `src-tauri/plugins/holzi-android/android/maven/`, und Gradle lädt sie von dort (ab 0.2.0
+   `src-tauri/plugins/haex-android/android/maven/`, und Gradle lädt sie von dort (ab 0.2.0
    enthält das Crate `rustls-platform-verifier-android` den Maven-Ordner nicht mehr).
 2. `lettre` bekommt einen Patch nach dem Muster von reqwest: Ohne zusätzliche Wurzeln (und auf
    Android immer) `Verifier::new(provider)` statt `new_with_extra_roots`
@@ -130,7 +130,7 @@ Plugin-Crate.
 - `vault_gate::close_policy()` (`vault_gate/mod.rs:51-67`) gibt auf Android immer `Exit`
   zurück. `request_end` ruft `app.exit(0)`; Tauri beendet darauf die Activity
   (`finishAffinity`, `tauri-2.12.1/src/app.rs:1457-1493`). Weil Android den Prozess danach im
-  Cache behalten würde, ruft holzi in `RunEvent::Exit` auf Android `std::process::exit(0)`, damit
+  Cache behalten würde, ruft haex-vault in `RunEvent::Exit` auf Android `std::process::exit(0)`, damit
   der nächste Start wirklich die Tresorauswahl in einem neuen Prozess zeigt (Spec 013, ADR 0003).
   `force_end` endet auf Android mit `std::process::exit`. `tauri::process::restart` wird auf
   Android nie aufgerufen (es startet `current_binary`, `process.rs:74-88`).
@@ -141,7 +141,7 @@ Plugin-Crate.
   ist (`instances/presence.rs:297-321`).
 - Zweiter Start: Das Gerüst setzt `launchMode="singleTask"`; Android holt die laufende App nach
   vorn (FR-008).
-- Zurück-Geste: holzi meldet sich für `back-button` an (`src/plugins/actions.client.ts`), damit
+- Zurück-Geste: haex-vault meldet sich für `back-button` an (`src/plugins/actions.client.ts`), damit
   Tauri nicht `onBackPressed()` aufruft, was ab Android 12 die App in den Hintergrund schiebt.
   Das Verhalten selbst steht in Spec 020 FR-019; die Erkennung über den User-Agent wird durch
   die Plattformangabe (R9) ersetzt.
@@ -155,20 +155,20 @@ wenn die App endet).
 der Tresor lässt sich wieder entsperren. Kein Beenden in `onDestroy` nötig. Auf einem echten Telefon
 noch nicht geprüft.
 
-**Fund dabei**: SELinux verbietet Apps auf Android harte Links (`avc: denied { link }`). holzi legte
+**Fund dabei**: SELinux verbietet Apps auf Android harte Links (`avc: denied { link }`). haex-vault legte
 die Installationskennung über eine temporäre Datei und `fs::hard_link` an, sodass auf Android kein
 Tresor angelegt werden konnte. Sie wird jetzt mit `tempfile::persist_noclobber` veröffentlicht, das
 auf Linux und Android `renameat2(RENAME_NOREPLACE)` benutzt (gleiche Garantie: erscheint nur
-vollständig, überschreibt nie). Sonst benutzt holzi keine harten Links.
+vollständig, überschreibt nie). Sonst benutzt haex-vault keine harten Links.
 
 ## R5 — Hintergrund und Rückkehr (FR-018, FR-019)
 
-**Entscheidung**: holzi hört auf `RunEvent::Resumed` (Tauri meldet die Lebenszyklus-Ereignisse
+**Entscheidung**: haex-vault hört auf `RunEvent::Resumed` (Tauri meldet die Lebenszyklus-Ereignisse
 der Activity) und stößt dann denselben Weg an, den der Sync nach einer verlorenen Verbindung
 geht: Verbindungen zu Sync-Diensten neu aufbauen, verpasste Änderungen holen. Netzwechsel
-meldet die Plugin-Crate über `ConnectivityManager.registerDefaultNetworkCallback`; holzi ruft
+meldet die Plugin-Crate über `ConnectivityManager.registerDefaultNetworkCallback`; haex-vault ruft
 darauf `Endpoint::network_change()` von iroh und baut WebSocket-Verbindungen neu auf. Im
-Hintergrund tut holzi nichts Eigenes; was Android dort anhält, bleibt angehalten (FR-018: kein
+Hintergrund tut haex-vault nichts Eigenes; was Android dort anhält, bleibt angehalten (FR-018: kein
 Hintergrund-Sync).
 
 **Begründung**: Der Sync kann sich schon von abgebrochenen Verbindungen erholen (Spec 033,
@@ -177,7 +177,7 @@ das nächste Zeitfenster zu warten (SC-005: 10 s).
 
 **Geklärt (Stufe 2)**: iroh 1.3 erkennt Netzwechsel auf Android nicht selbst; die Dokumentation
 von `Endpoint::network_change` sagt, Android gebe diese Information nur an Java-Code. Der Anstoß
-aus der Plugin-Crate ist also nötig. Bei der Rückkehr in den Vordergrund baut holzi außerdem die
+aus der Plugin-Crate ist also nötig. Bei der Rückkehr in den Vordergrund baut haex-vault außerdem die
 Nostr-Verbindungen neu auf, weil Android die Sockets einer Hintergrund-App schließen kann, ohne
 dass der Client es sofort merkt.
 
@@ -185,8 +185,8 @@ dass der Client es sofort merkt.
 
 **Entscheidung**: Die Plugin-Crate setzt in `load(webView)` einen
 `ViewCompat.setOnApplyWindowInsetsListener` auf die Webview: Systemleisten und Aussparung
-werden als CSS-Variablen `--holzi-inset-top|right|bottom|left` (in CSS-Pixeln) auf
-`document.documentElement` geschrieben, die Höhe der Tastatur als `--holzi-inset-keyboard`. Der
+werden als CSS-Variablen `--haex-inset-top|right|bottom|left` (in CSS-Pixeln) auf
+`document.documentElement` geschrieben, die Höhe der Tastatur als `--haex-inset-keyboard`. Der
 Window Manager (wm) rückt seinen Wurzelbereich um diese Werte ein; das Gerüst setzt
 `enableEdgeToEdge()`. Am Desktop sind die Variablen nicht gesetzt und fallen auf `0px` zurück.
 Ein fokussiertes Feld wird nach einer Änderung der Tastaturhöhe mit `scrollIntoView` in den
@@ -203,7 +203,7 @@ ab.
 **Entscheidung**: Gerätebezogene Einstellung `privacy.screenCaptureProtection` als
 `preferences`-Zeile mit `PrefScope::Device` (ADR 0001; Muster `extensions/dev.rs:46-79`),
 Standard „an“ (fehlender Wert = an). Nach dem Entsperren oder Anlegen eines Tresors und bei jeder
-Änderung der Einstellung setzt holzi über die Plugin-Crate
+Änderung der Einstellung setzt haex-vault über die Plugin-Crate
 `window.addFlags/clearFlags(FLAG_SECURE)` auf dem UI-Thread; auf Android 13+ zusätzlich
 `setRecentsScreenshotEnabled(false)`. Vor dem Entsperren ist der Schutz aus (es gibt nichts zu
 schützen; das Passwortfeld zeigt Punkte). Die Einstellung steht in der Kategorie „Allgemein“
@@ -311,7 +311,7 @@ Mobilgeräte ein natives MLC-Backend vorsieht; die Modellfamilie und die Voreins
   Datenordner (`sysinfo::Disks` bzw. `statvfs`), Warnung, wenn es nicht reicht. Heute zeigen nur
   `SttModelChoiceStep.vue:63` und der HuggingFace-Picker die Größe; `DownloadModels.vue`,
   `ModelChoiceStep.vue` und `SttModelSetting.vue` laden ohne Bestätigung.
-- Mikrofon: Vor der ersten Aufnahme fragt holzi über die Plugin-Crate `RECORD_AUDIO` an (R12);
+- Mikrofon: Vor der ersten Aufnahme fragt haex-vault über die Plugin-Crate `RECORD_AUDIO` an (R12);
   cpal nimmt über AAudio auf.
 
 **Begründung**: mistralrs, candle und cpal übersetzen für `aarch64-linux-android`; ein zweites
@@ -329,15 +329,15 @@ zuerst die 0.6B-Voreinstellung vorgeschlagen und das Ergebnis im ADR festgehalte
 **Entscheidung**: Die Plugin-Crate erklärt `RECORD_AUDIO` (Alias `microphone`) in ihrem Manifest
 und bietet die Standard-Commands `checkPermissions`/`requestPermissions` der
 Tauri-Plugin-Basis. Benachrichtigungen: Der Fork von `tauri-plugin-notification`
-(`haexmas/plugins-workspace@b38883e`) erklärt `POST_NOTIFICATIONS` schon; holzi ruft
+(`haexmas/plugins-workspace@b38883e`) erklärt `POST_NOTIFICATIONS` schon; haex-vault ruft
 `request_permission()` beim ersten Versuch einer Erweiterung, eine Benachrichtigung zu senden.
-Abgelehnt: die Nachricht erscheint in holzi (vorhandene Anzeige aus Spec 017), und die
+Abgelehnt: die Nachricht erscheint in haex-vault (vorhandene Anzeige aus Spec 017), und die
 Einstellungen nennen den Weg zur Android-Einstellung.
 
-**Umsetzung (Stufe 3)**: Eine Anzeige von Erweiterungs-Benachrichtigungen in holzi gab es aus
-Spec 017 nicht. Bei abgelehnter Berechtigung zeigt holzi die Nachricht jetzt als Meldung im
+**Umsetzung (Stufe 3)**: Eine Anzeige von Erweiterungs-Benachrichtigungen in haex-vault gab es aus
+Spec 017 nicht. Bei abgelehnter Berechtigung zeigt haex-vault die Nachricht jetzt als Meldung im
 Fenster (Titel, Text, „Öffnen“ bringt den Tab der Erweiterung nach vorn). Gefragt wird beim ersten
-Senden einer Erweiterung, nicht beim Start. Der Hinweis auf die Android-Einstellung in holzis
+Senden einer Erweiterung, nicht beim Start. Der Hinweis auf die Android-Einstellung in haex-vaults
 Einstellungen fehlt noch.
 
 ## R13 — Entwicklungsmodus auf dem Telefon (FR-034)
@@ -354,7 +354,7 @@ geht es heute schon (`adb reverse tcp:3030`), auf einem echten Telefon nicht.
 
 **Entscheidung**: **chromedriver direkt**, ohne Appium. Die Suite spricht schon W3C
 (`scripts/e2e/lib/webdriver.ts`); nur `newSession` bekommt Fähigkeiten pro Plattform:
-`goog:chromeOptions: { androidPackage: 'com.haex.holzi', androidDeviceSerial,
+`goog:chromeOptions: { androidPackage: 'space.haex.vault', androidDeviceSerial,
 androidUseRunningApp: true }` (`androidUseRunningApp` ist Pflicht, sonst löscht chromedriver
 die App-Daten). Debug-Builds schalten das WebView-Debugging ein
 (`wry-0.57.0/src/android/main_pipe.rs`, `setWebContentsDebuggingEnabled` unter
@@ -365,7 +365,7 @@ Neue Plattform `scripts/e2e/lib/platform/android.ts` nach `PLATFORMS.md`:
 
 - `start`: `am start -W`, auf den DevTools-Socket warten, Sitzung anhängen. `stop`: Home, dann
   `am kill`. `kill`: `am force-stop`. `alive`: `adb shell pidof` (synchron). `dispose`:
-  `pm clear`. `copyVaultFile`/`keep`: `run-as com.haex.holzi` über `adb exec-in/exec-out`.
+  `pm clear`. `copyVaultFile`/`keep`: `run-as space.haex.vault` über `adb exec-in/exec-out`.
 - Dienste auf dem Testrechner (Nostr-Testrelay, RustFS, Anbieter-Attrappe, Dev-Server der
   Erweiterungen) per `adb reverse tcp:P tcp:P`; die Adressen bleiben `127.0.0.1` auf allen
   Geräten, was für synchronisierte Relay-Listen und die Regel „Klartext-Mail nur über Loopback“
@@ -377,7 +377,7 @@ Neue Plattform `scripts/e2e/lib/platform/android.ts` nach `PLATFORMS.md`:
   Gerät).
 - Änderungen in `lib/` (keine Änderung an Szenarien): `ctx.startInstance` läuft künftig über
   `DeviceHost`; `navigate` übersetzt `tauri://localhost` in `http://tauri.localhost` und
-  `holzi-ext://localhost` in `http://holzi-ext.localhost`; Dateien für `install`,
+  `haex-ext://localhost` in `http://haex-ext.localhost`; Dateien für `install`,
   `importExport`, `addAttachments` werden per `run-as` in die Sandbox gelegt und mit Gerätepfad
   übergeben; der Emulator bekommt `wm size 2560x1600` und `wm density 320` (etwa 1280×800 dp wie
   Xvfb), damit Desktop-Fälle dieselbe Darstellung sehen; Telefon-Breite prüfen eigene

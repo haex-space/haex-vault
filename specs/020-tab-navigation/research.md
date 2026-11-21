@@ -113,7 +113,7 @@ Funktionen `(history, …) → history` und damit ohne Vue testbar.
 | Maustasten Zurück/Vor           | aktiver Tab des Fensters unter dem Zeiger    | `mouseup`/`auxclick` mit `button` 3/4 am Fenster-Wurzelelement, Default unterdrückt; Spike unten   |
 | System-Zurück (Android-Geste)   | aktiver Tab des obersten sichtbaren Fensters | nativer Zurück-Hook → Aktion `wm.system.back` (R7)                                                 |
 
-Für Alt+Pfeil gilt: Liegt der Fokus in einem editierbaren Element und läuft holzi
+Für Alt+Pfeil gilt: Liegt der Fokus in einem editierbaren Element und läuft haex-vault
 unter macOS, wird die Taste nicht abgefangen (Wortsprung hat Vorrang, FR-017).
 Unter Linux und Windows hat Alt+Pfeil in Textfeldern keine Textbedeutung und
 navigiert.
@@ -127,14 +127,14 @@ in haex-vault 2.x).
 vom Webview selbst als History-Navigation verarbeitet werden. Kommen sie im DOM
 an, gilt die Tabelle. Verarbeitet der Webview sie selbst, wird das abgeschaltet,
 wo die Plattform es erlaubt (Webview-Einstellung beim Fensteraufbau in
-Rust); wo nicht, bewirken sie wegen der flachen Historie (R7) nichts in holzi —
+Rust); wo nicht, bewirken sie wegen der flachen Historie (R7) nichts in haex-vault —
 FR-018 ist dann für diese Plattform als Einschränkung im PR zu vermerken.
 
 ## R7 — Webview-Historie: keine Sperr-Einträge, System-Zurück nativ
 
 **Decision**:
 
-- holzi hält die Browser-Historie des obersten Dokuments bewusst **flach**: Der
+- haex-vault hält die Browser-Historie des obersten Dokuments bewusst **flach**: Der
   Einstieg in die Workspace-Seite erfolgt per `router.replace`, es gibt keine
   Sperr- oder Hilfseinträge.
 - `pages/workspace/[instance].vue` registriert `onBeforeRouteLeave` nur als
@@ -148,11 +148,11 @@ FR-018 ist dann für diese Plattform als Einschränkung im PR zu vermerken.
   sichtbaren Fensters; ohne Zurück-Eintrag in der Kompaktdarstellung die
   Fensterübersicht; offenes Shell-Overlay schließen (FR-019).
 
-**Rationale**: Ein eingebettetes Dokument (iframe) teilt sich mit holzi die
+**Rationale**: Ein eingebettetes Dokument (iframe) teilt sich mit haex-vault die
 gemeinsame Browser-Historie des Webviews. Mit Sperr-Einträgen könnte ein
-`history.back()` aus einem iframe holzis Eintrag treffen und würde dann als
+`history.back()` aus einem iframe haex-vaults Eintrag treffen und würde dann als
 Zurück eines Tabs gedeutet — ein Verstoß gegen FR-034. Mit flacher Historie und
-„abbrechen, nicht deuten“ hat Webview-Historie keinerlei Wirkung auf holzi
+„abbrechen, nicht deuten“ hat Webview-Historie keinerlei Wirkung auf haex-vault
 (FR-035).
 
 **Alternatives considered**: Sperr-Eintrag im Router mit Deutung als
@@ -161,7 +161,7 @@ System-Zurück (erste Planfassung) — von iframes auslösbar; roher
 mit vue-router.
 
 **Spike (tasks)**: Die genaue Tauri-2-Schnittstelle für die Android-Zurück-Taste
-(Plugin-Event bzw. `onBackButtonPress`) ist zu verifizieren. holzi hat heute kein
+(Plugin-Event bzw. `onBackButtonPress`) ist zu verifizieren. haex-vault hat heute kein
 Android-Target; der Hook wird hinter einer Plattformprüfung angelegt und mit
 `ponytail:` markiert, die Logik von `wm.system.back` ist unabhängig davon in
 `check:wm-navigation` geprüft.
@@ -179,7 +179,7 @@ Eingabe, prüft Aufrufer und Leitplanken, löst das Ziel auf und ruft den Handle
 
 **Rationale**:
 
-- In holzi bezeichnet „Command“ Tauri-Commands. Graphify-Abfrage (Graph vom
+- In haex-vault bezeichnet „Command“ Tauri-Commands. Graphify-Abfrage (Graph vom
   2026-09-21) zu `router`, `navigation`, `keybinding`, `shortcut`, `hotkey`,
   `keydown`: keine Frontend-Treffer; `command` trifft nur Tauri-Commands. Spec 015
   spricht bereits von „Shell-Aktionen“.
@@ -280,28 +280,28 @@ sind.
 
 **Decision**: Kein ADR für diese Spec. Die Entscheidungen berühren kein Prinzip
 der Constitution; sie sind in dieser Datei begründet. Die Zugriffsrichtung
-„externer Agent → holzi“ (MCP-Server, Anmeldung, Berechtigungen je Agent)
+„externer Agent → haex-vault“ (MCP-Server, Anmeldung, Berechtigungen je Agent)
 ergänzt ADR-0004 um eine dritte Richtung und bekommt mit Spec 021 ein eigenes
 ADR-0005.
 
 ## R17 — Isolation eingebetteter Dokumente (haextensions)
 
-**Decision**: holzis Navigationszustand lebt ausschließlich im Shell-Store; die
+**Decision**: haex-vaults Navigationszustand lebt ausschließlich im Shell-Store; die
 Browser-Historie wird nie gelesen (R7). Dazu:
 
 - **Tastatur**: Der globale `keydown`-Listener sitzt im obersten Dokument; über
   einem fokussierten iframe erreicht ihn die Taste nicht. Browser-eigene
   Kürzel des Webviews werden abgeschaltet, wo die Plattform das anbietet
   (WebView2: Browser-Accelerator-Keys aus), damit Alt+Pfeil im iframe keine
-  Webview-Navigation auslöst. Weiterleitung aus dem iframe an holzi übernimmt
+  Webview-Navigation auslöst. Weiterleitung aus dem iframe an haex-vault übernimmt
   die SDK-Brücke (Spec 017).
 - **Maus**: Seitentasten über einem iframe gehen an das iframe-Dokument. Ob der
   Webview daraus eigene History-Navigation macht, klärt der Spike aus
   quickstart §3; wenn ja, wird sie abgeschaltet, wo möglich. Andernfalls trifft
-  sie höchstens das iframe (FR-035) — holzi bleibt unberührt, weil es keine
+  sie höchstens das iframe (FR-035) — haex-vault bleibt unberührt, weil es keine
   Webview-Einträge deutet.
 - **Programmatisch**: `pushState`/`history.back()` eines iframes wirken nur auf
-  dessen Dokument; holzi reagiert nicht darauf.
+  dessen Dokument; haex-vault reagiert nicht darauf.
 - **Künftige Extension-Tabs** (017): Der History-Polyfill des SDK
   (`haex-space/vault-sdk` @ `502593e84b8d289b0986a2777754d6bd8f52da5e`,
   `src/polyfills/history.ts`) wird zur Navigations-Brücke: Er meldet Orte über
@@ -316,7 +316,7 @@ manuell nach quickstart M21 geprüft (DevTools: iframe in einen Tab einfügen,
 
 **Umsetzungsstand (T038, 2026-09-25)**: Tauri 2.11.5 (laut `Cargo.lock`) reicht
 WebView2s `browser_accelerator_keys` nicht durch — nur `wry` 0.55 kennt die
-Einstellung, und holzis Fenster entstehen aus `tauri.conf.json`. Eine gezielte
+Einstellung, und haex-vaults Fenster entstehen aus `tauri.conf.json`. Eine gezielte
 Abschaltung der Maus-Navigation von WebKitGTK/WKWebView bietet Tauri ebenfalls
 nicht. Es gibt daher keinen Rust-Anteil. Wirkung trotzdem spezifikationsgemäß:
 Die History des obersten Dokuments bleibt flach, und die Abwehr in

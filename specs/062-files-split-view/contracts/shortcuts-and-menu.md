@@ -14,7 +14,7 @@ Gilt nur mit sichtbarem Split (zwei Panels). Ohne Split bleibt Spec 044 FR-017b 
 | Übrige Kürzel (Spec 044) | unverändert   | Wirken auf das Panel mit dem Fokus.                                         |
 
 `F5`/`F6` laufen durch dieselbe Prüfung wie das Menü (`runKey`): was das Menü sperrt (schreibgeschütztes
-Ziel, eigene Daten von holzi, Verschieben aus einem schreibgeschützten Panel), sperrt auch die Taste und
+Ziel, eigene Daten von haex-vault, Verschieben aus einem schreibgeschützten Panel), sperrt auch die Taste und
 zeigt den Grund als Meldung.
 
 ## Menü (Kontextmenü und Aktionsleiste)
@@ -36,4 +36,4 @@ Zwei neue Befehle zwischen „Ausschneiden/Kopieren“ und „Einfügen“, nur 
 
 `files.error.sameFolder`: „Quelle und Ziel sind derselbe Ordner.“ / „Source and target are the same
 folder.“ (bei F6; F5 geht in die Namenskonflikt-Frage). Verweigertes Ziel nutzt die vorhandenen
-Meldungen (`holziOwned`, `intoItself`, Schreibschutz einer Freigabe).
+Meldungen (`haexOwned`, `intoItself`, Schreibschutz einer Freigabe).

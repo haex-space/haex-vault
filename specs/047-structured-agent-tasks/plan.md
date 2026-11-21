@@ -10,9 +10,9 @@
 
 ## Summary
 
-Holzi erhält eine eng begrenzte, asynchrone Task-Schnittstelle für Erweiterungen.
+HaexVault erhält eine eng begrenzte, asynchrone Task-Schnittstelle für Erweiterungen.
 Eine Erweiterung startet einen benannten Task mit Bilddaten und einem versionierten
-Schema; Holzi löst das Nutzerprofil auf, prüft Modellfähigkeiten, führt die
+Schema; HaexVault löst das Nutzerprofil auf, prüft Modellfähigkeiten, führt die
 Verarbeitung über die vorhandene Provider-/Chat-Abstraktion aus und liefert das
 validierte Ergebnis über ein extension-spezifisches Ereignis zurück. Der Task
 bekommt standardmäßig keine Chat-Werkzeuge, Shell oder beliebigen Dateizugriff.
@@ -28,7 +28,7 @@ Die erste Anwendung ist die Papiernotiz-Erkennung in haex-notes.
 
 **Testing**: Rust Unit-/Integrationstests mit vorhandenen Test-Fixtures; Bridge-Vertragstest; kein Netzwerk und kein echtes Modell in Standardtests
 
-**Target Platform**: Holzi Desktop und mobile Runtime mit Extension-Frames; lokale Task-Ausführung bleibt auch ohne Relay verfügbar
+**Target Platform**: HaexVault Desktop und mobile Runtime mit Extension-Frames; lokale Task-Ausführung bleibt auch ohne Relay verfügbar
 
 **Project Type**: plattformübergreifende Tauri-Desktop-/Mobile-Anwendung mit Extension-Host und lokalem Agent-Runtime
 
@@ -97,7 +97,7 @@ wird ausschließlich an Frames derselben Extension weitergeleitet.
 
 1. **Vertrag und Fixture**: Task-/Status-/Fehlerformen, Capability-Prüfung und ein deterministischer Ergebnis-Runner ohne Modell.
 2. **Host-Lifecycle**: Start, Abschluss, Timeout, Abbruch, Frame-Isolation und Extension-Bridge-Methoden.
-3. **Provider-Ausführung**: strukturierter Prompt, Bildinput, JSON-Validierung und Nutzung des ausgewählten Holzi-Profils ohne freie Werkzeuge.
+3. **Provider-Ausführung**: strukturierter Prompt, Bildinput, JSON-Validierung und Nutzung des ausgewählten haex-vault-Profils ohne freie Werkzeuge.
 4. **haex-notes-Anbindung**: SDK-/Extension-Adapter, Consent-Anzeige, Mapping in den Canvas und manueller Fallback.
 
 ## Complexity Tracking

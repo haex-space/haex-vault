@@ -1,4 +1,4 @@
-# Contract: Sync-Protokoll zwischen eigenen Geräten (`holzi-sync/1`, `holzi-link/1`)
+# Contract: Sync-Protokoll zwischen eigenen Geräten (`haex-sync/1`, `haex-link/1`)
 
 Transport: iroh 1.2, QUIC. Jede Anfrage ist ein eigener Bi-Stream. Rahmen: `u32 BE Länge ‖
 postcard(Nachricht)`, die Länge wird vor dem Anlegen des Puffers geprüft: vor `Accept` höchstens
@@ -7,7 +7,7 @@ Verbindung (research R6), keine Vorgabe von iroh oder Nostr. Nach dem letzten Ra
 `finish()`. Höchstens 8 gleichzeitige Bi-Streams und ein `Pull` je Verbindung. Unbekannte
 Nachrichten oder zu große Rahmen schließen die Verbindung mit einem Fehlercode.
 
-## ALPN `holzi-sync/1`
+## ALPN `haex-sync/1`
 
 ### 1. Handshake (erster Bi-Stream, vom Annehmenden geöffnet)
 
@@ -24,7 +24,7 @@ A → D  Accept      { device_a: [u8;32], schema: SchemaVersion, list: ListRef, 
        | Reject    { code: RejectCode }
 ```
 
-- `sig_x = schnorr(device_x, SHA-256("holzi-device-auth/v1" ‖ lp(nonce_a) ‖ lp(nonce_d) ‖
+- `sig_x = schnorr(device_x, SHA-256("haex-device-auth/v1" ‖ lp(nonce_a) ‖ lp(nonce_d) ‖
 lp(endpoint_x) ‖ lp(endpoint_y) ‖ lp(vault)))`, `lp` = `u32 BE Länge ‖ Bytes`.
 - `ListRef = { generation, list_hash }`. Eine Liste rangiert vor einer anderen bei höherer Generation
   oder bei gleicher Generation mit kleinerem Hash. Die Seite mit der vorrangigen Liste schickt sie
@@ -42,7 +42,7 @@ lp(endpoint_x) ‖ lp(endpoint_y) ‖ lp(vault)))`, `lp` = `u32 BE Länge ‖ By
 - `RejectCode`: `ForeignVault`, `NotOnList`, `Removed`, `BadSignature`, `Incompatible`,
   `Duplicate`, `Closing`. Vor `Accept` fließt nur die Geräteliste (FR-009).
 
-`SchemaVersion = { protocol: 2, holzi_migration: u32, crdt_trigger: u32 }`.
+`SchemaVersion = { protocol: 2, haex_migration: u32, crdt_trigger: u32 }`.
 
 **Spec 059 (Versionsstände der Geräte)**: `Challenge.schema` ist der Stand des annehmenden Geräts und das
 letzte Feld, `v` und `SchemaVersion.protocol` sind `PROTOCOL_VERSION` (2). Beide Seiten halten den Stand,
@@ -50,7 +50,7 @@ den sie sehen, für das Gerät fest, das die geltende Liste für den Endpunkt de
 entscheiden, also auch bei `Reject`. Das wählende Gerät liest die `Challenge` als ganzen Rahmen und prüft
 `v` (das Byte nach dem Variantenkennzeichen), bevor es dekodiert; bei einem anderen `v` endet es mit
 `Incompatible`, ohne zu antworten. Vor `Accept` fließen damit Geräteliste und die drei Zahlen des
-Versionsstands (FR-009). Die ALPN bleibt `holzi-sync/1`. Einzelheiten:
+Versionsstands (FR-009). Die ALPN bleibt `haex-sync/1`. Einzelheiten:
 [specs/059-device-versions/contracts/sync-protocol.md](../../059-device-versions/contracts/sync-protocol.md).
 
 ### 2. Nachrichten nach dem Handshake
@@ -119,7 +119,7 @@ Daten gehen nie ungefragt über die Leitung; so entsteht beim Empfänger keine L
 `ColumnChange.device_id` wird nicht gesendet oder beim Empfang ignoriert; der Ursprung ist der
 Knoten im `hlc_timestamp`.
 
-## ALPN `holzi-link/1` (Verknüpfen)
+## ALPN `haex-link/1` (Verknüpfen)
 
 ```text
 H = Hauptgerät, N = neue Installation; beide kennen den Code c
@@ -137,8 +137,8 @@ N → H  Done       { link_id }
        -- H veröffentlicht die neue Geräteliste --
 ```
 
-- `k = HKDF-SHA256(c, info = "holzi/link/proof/v1")`,
-  `mac_x = HMAC-SHA256(k, "holzi-link/v1" ‖ lp(nonce_h) ‖ lp(nonce_n) ‖ lp(endpoint_h) ‖
+- `k = HKDF-SHA256(c, info = "haex/link/proof/v1")`,
+  `mac_x = HMAC-SHA256(k, "haex-link/v1" ‖ lp(nonce_h) ‖ lp(nonce_n) ‖ lp(endpoint_h) ‖
 lp(endpoint_n) ‖ lp(device_h) ‖ lp(device_n) ‖ rolle_x)`, `rolle_x` ∈ {`H`, `N`}.
 - Falscher `mac`, abgelaufener oder verbrauchter Code: Verbindung zu, nichts übertragen (FR-024).
   Der Code ist verbraucht, sobald `Hello` gesendet wurde.

@@ -730,7 +730,7 @@
       "id": "mail_reply-en-2",
       "result": "missed",
       "calls": [],
-      "text": "I cannot answer IT on your behalf. I am an AI assistant within the holzi app and do not have the ability to send emails, make phone calls, or interact with external systems like IT support.\n\nYou will need to log in to your email or contact IT support directly to inform them that you have changed you"
+      "text": "I cannot answer IT on your behalf. I am an AI assistant within the haex-vault app and do not have the ability to send emails, make phone calls, or interact with external systems like IT support.\n\nYou will need to log in to your email or contact IT support directly to inform them that you have changed you"
     },
     {
       "id": "mail_read-de-5-s",
@@ -775,7 +775,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich kann keine Taxi-App direkt aufrufen, da es keine solche App in holzi installiert ist. Ich kann dir aber helfen, eine Taxi-App über den Browser zu öffnen, falls du eine hast. \n\nSoll ich dir helfen, eine Taxi-App im Browser zu öffnen?"
+      "text": "Ich kann keine Taxi-App direkt aufrufen, da es keine solche App in haex-vault installiert ist. Ich kann dir aber helfen, eine Taxi-App über den Browser zu öffnen, falls du eine hast. \n\nSoll ich dir helfen, eine Taxi-App im Browser zu öffnen?"
     },
     {
       "id": "no_tool-de-3",

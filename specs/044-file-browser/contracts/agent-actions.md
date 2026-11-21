@@ -32,7 +32,7 @@ sonst `files_<code>` aus `FilesErrorCode` in snake_case (`files_blocked`, `files
 ## Regeln
 
 - **Sperre** (FR-033): Jeder Pfad wird nach Auflösen von `..` und Links geprüft; in den eigenen Orten
-  von holzi → Fehler `files_blocked` mit Grund, ohne Inhalt. Listen und Suchtreffer lassen diese
+  von haex-vault → Fehler `files_blocked` mit Grund, ohne Inhalt. Listen und Suchtreffer lassen diese
   Einträge weg.
 - **Gerät** (FR-031): ohne Berechtigung `device` → `files_not_granted`.
 - **Speicher** (FR-031a): ohne Berechtigung → Rückfrage über `files-agent-permission-request`; abgelehnt

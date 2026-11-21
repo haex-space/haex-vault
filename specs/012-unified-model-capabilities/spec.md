@@ -29,7 +29,7 @@ separately per model and per device."
 
 ### User Story 1 - The composer offers exactly what the selected model supports (Priority: P1)
 
-Today holzi decides what to offer in the composer from several separate, hand-curated rules: a
+Today HaexVault decides what to offer in the composer from several separate, hand-curated rules: a
 table of effort levels per Claude model that goes stale whenever a new model ships, a separate rule
 for whether a model reasons at all, another for how a request should be shaped, and another for which
 attachments a provider accepts. The Claude Code delegate always advertises every effort level no
@@ -65,7 +65,7 @@ provider's model list and confirm a changed capability shows up without updating
    **Then** it is declined with a reason.
 6. **Given** a provider releases a new model or changes a model's supported levels, **When** the user
    refreshes that provider's model list, **Then** the composer reflects the new capabilities without
-   any holzi update.
+   any HaexVault update.
 
 ---
 
@@ -108,7 +108,7 @@ from what a model supports and confirm the model falls back to Auto and forgets 
 
 Some models have no capability information yet: a Codex delegate model (Codex does not currently
 expose it), a model from a provider connected before this feature shipped and not yet refreshed, or a
-provider whose response omitted a field. Holzi must never present "we have not found out yet" as "the
+provider whose response omitted a field. HaexVault must never present "we have not found out yet" as "the
 model cannot do this". Built-in local models, which have no provider to ask, keep their existing
 known behavior, and everything already learned stays available without re-fetching.
 
@@ -141,7 +141,7 @@ unchanged and attachments are reported as unsupported.
 
 ### Edge Cases
 
-- A provider's capability data is missing, partial, or contains fields holzi does not recognize:
+- A provider's capability data is missing, partial, or contains fields HaexVault does not recognize:
   affected capabilities become undetermined; the model list refresh still succeeds.
 - A model-list refresh fails partway: previously stored capabilities are kept rather than cleared.
 - A refresh returns a model whose capabilities differ from what is stored: the new answer replaces

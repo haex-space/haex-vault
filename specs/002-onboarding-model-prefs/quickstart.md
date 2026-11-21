@@ -133,7 +133,7 @@ Diese existierenden Flows müssen nach dem Feature unverändert funktionieren:
 - Chat mit lokalem Modell (mistralrs): Streaming, Abbruch, Nachrichten-Persistenz.
 - Chat mit Anthropic-Adapter: SSE-Streaming, ungültige Credentials als Toast, Persistenz.
 - Modell-Download aus Katalog: Fortschritt sichtbar, atomisches Rename am Ende.
-- Vault-Anlegen und -Öffnen: `HolziBootstrap` läuft unverändert für Genesis und Resume.
+- Vault-Anlegen und -Öffnen: `HaexBootstrap` läuft unverändert für Genesis und Resume.
 - Anbieter-Hinzufügen: auto-refresh der Modell-Liste.
 
 Wenn einer dieser Flows kaputt geht: Feature-PR ist nicht mergefähig.

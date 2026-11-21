@@ -8,7 +8,7 @@ description: 'Task list for spec 079, faster local answers with multi-token pred
 and of T026 the shared token writer (`generate::Writer`). Deviations from the text below:
 
 - The MTP tests live in `src-tauri/tests/mtp_eval.rs`, not in `model_tool_eval.rs`, which keeps only
-  `HOLZI_LLAMACPP_DRAFTER` (T015); the file would otherwise pass 500 lines.
+  `HAEX_LLAMACPP_DRAFTER` (T015); the file would otherwise pass 500 lines.
 - `speculative.rs` and the binding's `common` feature exist on desktops only (plan, Primary Dependencies).
 - The drafter check of T012 also compares `embedding_length_out` with the model's embedding width (research R2).
 - `mtp_speed` asserts 1.3× (spec SC-001); E2B measured 1.20×, E4B 1.39× (research R11).
@@ -33,7 +33,7 @@ partly offloaded model) is P2, and US5 (drafter for models installed earlier) is
   `cargo … -j 1`, `env -u CC -u CXX -u AR` and `CMAKE_BUILD_PARALLEL_LEVEL=2`. The CUDA lib-test build needs 12 GB;
   ask the operator before going above 10 GB.
 - **Real files**: the drafters and models of research R2 sit outside the repository; tests read their paths from
-  `HOLZI_TEST_GGUF` and `HOLZI_LLAMACPP_DRAFTER`.
+  `HAEX_TEST_GGUF` and `HAEX_LLAMACPP_DRAFTER`.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -54,8 +54,8 @@ open point of research R6 before any engine code is written.
 - [x] T002 Run `graphify update .` in the worktree root (no `graphify-out/` exists yet), so the later
       `graphify query` calls see the current tree.
 - [x] T003 Spike: add the ignored test `mtp_spike` to `src-tauri/tests/model_tool_eval.rs`. Steps:
-  - Load `HOLZI_TEST_GGUF` (Gemma 4 E2B) through `llama_cpp_2`. Create a target context with flash attention
-    disabled (`with_flash_attention_policy`), the drafter from `HOLZI_LLAMACPP_DRAFTER` with
+  - Load `HAEX_TEST_GGUF` (Gemma 4 E2B) through `llama_cpp_2`. Create a target context with flash attention
+    disabled (`with_flash_attention_policy`), the drafter from `HAEX_LLAMACPP_DRAFTER` with
     `LlamaContextType::Mtp`, and `new_context_with_ctx_other`.
   - Run `MtpSpeculative` for one greedy 200-token answer to the R1 mail-summary prompt, then generate the same
     prompt without the drafter. Assert both answers are non-empty, and log whether the texts are equal and where
@@ -163,7 +163,7 @@ and the same tool calls with greedy decoding.
       `loaded.placement.drafter` and `loaded.drafter` are set and the drafter is not marked failed (T026); otherwise the plain loop, which stays byte-for-byte as it
       is (spec FR-012).
 - [x] T015 [US1] In `src-tauri/tests/model_tool_eval.rs`:
-  - read `HOLZI_LLAMACPP_DRAFTER` into `LoadOptions.drafter`;
+  - read `HAEX_LLAMACPP_DRAFTER` into `LoadOptions.drafter`;
   - add the ignored test `mtp_speed`. It runs the four requests of research R1 (200 tokens, greedy) with and without
     the drafter, prints tokens per second for both, and asserts:
     - a gain of at least 1.4× (SC-001);
@@ -279,7 +279,7 @@ T031 measures it in the app's own placement.
   - if the drafter alone does not fit the device, `drafter: false` and the old placement.
 - [ ] T030 [US4] Implement rule 3 in `src-tauri/src/llm/llamacpp/memory.rs` `plan`.
 - [ ] T031 [US4] In `src-tauri/tests/model_tool_eval.rs`, add the ignored test `mtp_load_12b`: ten loads of
-      `HOLZI_TEST_GGUF` (12B) with its drafter through the app's own placement, each followed by one short answer
+      `HAEX_TEST_GGUF` (12B) with its drafter through the app's own placement, each followed by one short answer
       (SC-006).
   - Run `mtp_speed` for the 12B with the app's placement with the drafter against its placement without.
   - Only if the drafter is faster, set `measured_partly_on_gpu: true` on the 12B drafter in
@@ -331,7 +331,7 @@ next answer uses the drafter.
   - the comparison to research R1.
 - [ ] T037 Extend its everyday report with generated tokens and generation time per request
       (research R9), and run `measure_everyday_voice` for each Gemma 4 model with and without
-      `HOLZI_LLAMACPP_DRAFTER`. Record pass counts, safety errors and the time to the first chunk in `results.md`
+      `HAEX_LLAMACPP_DRAFTER`. Record pass counts, safety errors and the time to the first chunk in `results.md`
       (SC-002, SC-003, SC-007).
 - [ ] T038 [P] Checks:
   - `cargo fmt --check`;

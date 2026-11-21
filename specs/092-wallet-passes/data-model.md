@@ -1,13 +1,13 @@
 # Data Model: Cards and tickets in the password manager (wallet passes)
 
 Migration `0061_passwords_pass` (research R1). All tables are CRDT-tracked by the sync engine automatically (no `_no_sync`),
-have a primary key, no UNIQUE constraint and no `WITHOUT ROWID` (034 FR-037). `HOLZI_TRIGGER_VERSION` 39 becomes 40.
+have a primary key, no UNIQUE constraint and no `WITHOUT ROWID` (034 FR-037). `HAEX_TRIGGER_VERSION` 39 becomes 40.
 
 ## Changed table: `haex_passwords_item_details`
 
-| Column       | Type                            | Note                                                                                                        |
-| ------------ | ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `kind` (new) | `TEXT NOT NULL DEFAULT 'login'` | `login` or `pass`. Fixed at creation (FR-001). An unknown value is shown as "needs a newer holzi" (FR-042). |
+| Column       | Type                            | Note                                                                                                             |
+| ------------ | ------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `kind` (new) | `TEXT NOT NULL DEFAULT 'login'` | `login` or `pass`. Fixed at creation (FR-001). An unknown value is shown as "needs a newer haex-vault" (FR-042). |
 
 All other columns are unchanged. For a pass, `username`, `password`, `otp_*` and `autofill_aliases` are empty (FR-007);
 `title`, `note`, `url`, `icon`, `color` and `expires_at` carry the shared meaning, with `expires_at` as the end (a date).
@@ -113,7 +113,7 @@ item_details (kind: login | pass)
 | Remote delete         | Applied without foreign keys, so the same explicit list as purge covers it.                                              |
 | Parent not synced yet | The pass shows "(not available)" until the entry arrives.                                                                |
 | Loop from two devices | Detected on the client by walking parents with a visited set; every pass on the loop is flagged; "Clear link" repairs.   |
-| Unknown `kind`        | Listed with a "needs a newer holzi" notice, not edited, not written over.                                                |
+| Unknown `kind`        | Listed with a "needs a newer haex-vault" notice, not edited, not written over.                                           |
 
 ## Derived, not stored
 

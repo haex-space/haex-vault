@@ -2,7 +2,7 @@
 
 ## Voraussetzungen
 
-- Holzi mit geöffneter Vault starten, Mikrofon am Gerät verfügbar.
+- HaexVault mit geöffneter Vault starten, Mikrofon am Gerät verfügbar.
 - Für automatisierte Tests: `cargo test` und `pnpm typecheck` ausführen.
 - Für den externen Adapter ausschließlich `wiremock`-Fixtures verwenden; keine echten
   Zugangsdaten nötig.

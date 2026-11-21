@@ -114,7 +114,7 @@ every user story builds on.
       `build_adapter(provider: &Provider, ...)` in `src-tauri/src/providers/mod.rs` and
       `src-tauri/src/chat/model_loading.rs` (data-model.md "Signatur-Änderung").
 - [x] T006 Implement `build_adapter`'s `ProviderKind::CliDelegate` branch (`providers/mod.rs`,
-      currently `Err(HolziError::InvalidInput { reason: "cli_delegate refresh is not yet
+      currently `Err(HaexError::InvalidInput { reason: "cli_delegate refresh is not yet
 implemented" })`): parse `DelegateVendor` from `provider.adapter`, decrypt `provider.credentials`,
       construct `CliDelegateAdapter` with the handles from T005.
 - [x] T007 [P] Create `src-tauri/src/adapters/cli_delegate/mod_tests.rs`: `DelegateVendor::parse`/
@@ -218,7 +218,7 @@ Phases 4 and 5 (US2, US3) are both required.
 
 ## Phase 4: User Story 2 - Connect an existing subscription once, use it anywhere (Priority: P1) 🎯 MVP (part 2 of 3)
 
-**Goal**: A user connects a Claude/Codex subscription from inside holzi once; the resulting encrypted
+**Goal**: A user connects a Claude/Codex subscription from inside haex-vault once; the resulting encrypted
 credential works from any machine holding that vault, with no host-level login state.
 
 **Independent Test**: Complete the connection flow, copy the vault to a machine that has never run
@@ -300,7 +300,7 @@ task numbers after T028 are unchanged.
 - [x] T027 [US2] Built `src/components/settings/ConnectDelegateProvider.vue` (new — first "add/connect
       provider" UI in the app, per plan.md; wired into `pages/settings/[instance].vue`): shows the OAuth
       URL from `delegate-connect-progress` for both vendors, the one-time code for Codex (display-only,
-      entered on the OAuth page — not typed into holzi), a code-entry field for Claude that calls
+      entered on the OAuth page — not typed into haex-vault), a code-entry field for Claude that calls
       `submit_cli_delegate_code`, success/error states, and a "Reconnect" label shown instead of
       "Connect" whenever a `cli_delegate` provider row already exists for that vendor (spec.md FR-014 —
       same command pair either way, no separate reconnect route to gate on).
@@ -319,7 +319,7 @@ enabling this for general use (spec.md's own priority rationale for US3).
 ## Phase 5: User Story 3 - Delegate actions stay under the user's approval control (Priority: P1) 🎯 MVP (part 3 of 3)
 
 **Goal**: Replace Phase 3's safe-but-blunt "deny everything sensitive" default with a live
-per-tool-call round-trip through holzi's existing approval gate, for both backends (research.md §1,
+per-tool-call round-trip through haex-vault's existing approval gate, for both backends (research.md §1,
 §2 — the batch-approval design this feature's spec originally proposed was dropped once live approval
 was confirmed working).
 
@@ -333,10 +333,10 @@ posture-blocked action is denied without ever surfacing a prompt (spec.md Accept
       `claude_approval_round_trips_through_the_real_socket_and_bridge_child` in
       `src-tauri/tests/cli_delegate_approval.rs`: binds a real Unix socket via
       `approval_bridge::bind_socket`/`start_listener` (bumped to `pub` for test reachability) and spawns
-      the **actual compiled `holzi` binary** (`env!("CARGO_BIN_EXE_holzi")`) with
+      the **actual compiled `haex` binary** (`env!("CARGO_BIN_EXE_haex")`) with
       `--internal-cli-delegate-approval-bridge` — the exact real child process `claude.rs` points
       `--mcp-config` at (T034/T035), not a simplified in-process stand-in. The test itself plays the
-      "claude" role (its own MCP client isn't holzi's code to test): sends
+      "claude" role (its own MCP client isn't haex-vault's code to test): sends
       `initialize`/`notifications/initialized`/`tools/call`, asserts a `tool-permission-request` event
       fires with the pending approval registered, resolves it, and asserts the bridge's blocked
       `tools/call` reply only arrives afterward with `{"behavior":"allow",...}` — the exact live
@@ -392,7 +392,7 @@ permission_mcp_server.rs`'s `run_bridge_process(socket_path)`, running in the **
 - [x] T036 [US3] (depends on T008) Replace T014's fail-closed `ServerRequest` stub in `codex.rs` with
       real handling: run `decide()` first (immediate `Allow`/`Deny`, T032), calling
       `approval_bridge::request_approval` only for `Ask` (T030), translating the decision into the
-      matching `CommandExecutionApprovalDecision` response (`accept`/`decline`). No child-process/socket hop needed here — holzi already
+      matching `CommandExecutionApprovalDecision` response (`accept`/`decline`). No child-process/socket hop needed here — haex-vault already
       owns this process's stdio directly (unlike the Claude Code path, T034/T035).
 
 **Checkpoint**: spec.md SC-003 (100% of blocked sensitive actions actually blocked) now holds for
@@ -402,7 +402,7 @@ priority rationale.
 
 ---
 
-## Phase 6: User Story 4 - Delegate sees only what holzi gives it, not the host machine (Priority: P2)
+## Phase 6: User Story 4 - Delegate sees only what haex-vault gives it, not the host machine (Priority: P2)
 
 **Goal**: Prove and harden the isolation T013/T014 already build in by construction — no host
 config/instructions leak in, no residue leaks out (spec.md FR-009/FR-010).
@@ -436,7 +436,7 @@ Acceptance Scenarios 1-3).
 
 ### Implementation for User Story 4
 
-- [x] T039 [US4] Pass holzi-supplied context explicitly via `--append-system-prompt` (`claude.rs`) and
+- [x] T039 [US4] Pass haex-vault-supplied context explicitly via `--append-system-prompt` (`claude.rs`) and
       Codex's equivalent turn-context field (`codex.rs`) rather than any file-based discovery (spec.md
       FR-010) — confirm/implement the Codex-side equivalent as part of this task (research.md §2
       flags Codex's system-prompt-equivalent flag as still unconfirmed).

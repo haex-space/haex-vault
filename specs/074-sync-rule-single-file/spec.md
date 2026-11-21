@@ -39,7 +39,7 @@ ungültig."
   → A: It leaves the changed copy alone and reports a deviation, as a folder rule does (spec 061 FR-010).
 - Q: May editing a rule switch its source between a folder and a file? → A: Yes; the picker offers both, and the
   rule's kind follows the new choice. Its per-file state starts afresh, as when a folder place is changed.
-- Q: Besides the state in the rule list, does holzi tell the user about an invalid source? → A: No. The state, its
+- Q: Besides the state in the rule list, does HaexVault tell the user about an invalid source? → A: No. The state, its
   reason and the run log are the only places, as for the states "waiting" and "error".
 
 ## User Scenarios & Testing _(mandatory)_
@@ -140,7 +140,7 @@ back.
 - The source is a symbolic link: the dialog rejects it, since links are not followed (spec 061 FR-018).
 - The same file is the source of two rules, or lies inside a folder that is a place of another rule, or two
   rules would write the same copy: saving is rejected like overlapping folder rules (spec 061 FR-004).
-- A file in holzi's own data or in a share received from another vault: not allowed as a place (spec 061
+- A file in HaexVault's own data or in a share received from another vault: not allowed as a place (spec 061
   FR-002).
 - The source file is a `.haex-ignore` or its name matches a pattern of an exclusion file: it is synced
   anyway, since the user named the file.
@@ -164,7 +164,7 @@ back.
   move, and MUST NOT look for the file by size, time or content.
 - **FR-006**: When the source is reachable and no file is at the source file's path (nothing there, a folder
   there, or a folder above it missing), the run MUST NOT copy or delete anything, and the rule MUST show the
-  state "Quelle ungültig" with the reason in the rule list and the run log. holzi sends no notification of it.
+  state "Quelle ungültig" with the reason in the rule list and the run log. HaexVault sends no notification of it.
 - **FR-007**: The rule MUST check the source file anew at every run. A file at the path again MUST end the
   invalid state without a step by the user. Editing the rule MUST allow picking another file, or a folder, as the source place; the rule's kind follows the
   choice, and its per-file state starts afresh, as when a folder place is changed.

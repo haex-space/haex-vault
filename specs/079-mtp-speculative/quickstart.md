@@ -19,8 +19,8 @@ The CUDA build follows the recipe of spec 078's quickstart. Put the model and it
 model file and `mtp-gemma-4-E4B-it.gguf` from `unsloth/gemma-4-E4B-it-GGUF` at the revision in the catalog.
 
 ```bash
-HOLZI_TEST_GGUF=<models>/gemma-4-E4B-it-Q4_K_M.gguf \
-HOLZI_LLAMACPP_DRAFTER=<models>/mtp-gemma-4-E4B-it.gguf \
+HAEX_TEST_GGUF=<models>/gemma-4-E4B-it-Q4_K_M.gguf \
+HAEX_LLAMACPP_DRAFTER=<models>/mtp-gemma-4-E4B-it.gguf \
   cargo test --manifest-path src-tauri/Cargo.toml --features llm-llamacpp-cuda \
   --test model_tool_eval -- --ignored --nocapture mtp_speed
 ```
@@ -31,7 +31,7 @@ both and fails if:
 - the gain is below 1.4× (SC-001);
 - a greedy answer names different tool calls (SC-003).
 
-`measure_everyday_voice` of spec 078 with `HOLZI_LLAMACPP_DRAFTER` set records tokens per second in its
+`measure_everyday_voice` of spec 078 with `HAEX_LLAMACPP_DRAFTER` set records tokens per second in its
 report, and the everyday figures can be compared (SC-002).
 
 ## In the app

@@ -22,7 +22,7 @@ nix develop --command pnpm format:check
    < 3 s).
 3. A2: ein Bild nach A1 kopieren, mittendrin abbrechen → auf A1 keine halbe Datei (SC-008).
 4. A2: auf A1 eine Datei löschen → liegt im Papierkorb von A1.
-5. A2: das Datenverzeichnis von holzi auf A1 öffnen → sichtbar, nur lesend (FR-007).
+5. A2: das Datenverzeichnis von HaexVault auf A1 öffnen → sichtbar, nur lesend (FR-007).
 6. A2: `Downloads` von A1 offen lassen, auf A1 eine Datei dort ablegen → erscheint auf A2 ohne
    Aktualisieren (SC-009: < 2 s).
 7. A1: Einstellungen → Föderation → „Geräte-Dateizugriff“ aus. A2 zeigt „Dateizugriff auf diesem Gerät

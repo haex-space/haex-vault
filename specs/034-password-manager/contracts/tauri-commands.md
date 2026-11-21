@@ -175,7 +175,7 @@ delete args: { tagId }           // löscht Verknüpfungen zuerst
 
 ```text
 args:   { itemId }
-result: { features: string[] }          // Namen der holzi-Funktionen, die den Eintrag nutzen
+result: { features: string[] }          // Namen der haex-vault-Funktionen, die den Eintrag nutzen
 ```
 
 Fragt alle angemeldeten `EntryUsage`-Anbieter ([access.md](./access.md)) und dient der Warnung vor dem
@@ -324,7 +324,7 @@ Die Wartezeit der Zwischenablage ist die Vault-Einstellung `passwords.clipboard_
 
 ## Fehlerarten
 
-Neue Varianten in `HolziError` (`src-tauri/src/error.rs`, Feld `kind`), Texte übersetzt das
+Neue Varianten in `HaexError` (`src-tauri/src/error.rs`, Feld `kind`), Texte übersetzt das
 Frontend (`errors.passwords.*`); kein Wert eines Geheimnisses in einem Feld. In den Abschnitten
 oben stehen die Fehler gekürzt (`NotFound`, `Conflict`, `AttachmentTooLarge`, `ImportFailed`); im Feld `kind` tragen sie das Präfix `Passwords` wie in dieser Tabelle,
 `InvalidInput` ist die vorhandene Variante ohne Präfix:

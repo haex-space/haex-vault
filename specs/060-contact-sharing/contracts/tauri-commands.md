@@ -2,7 +2,7 @@
 
 Ändert `specs/051-phone-contacts/contracts/tauri-commands.md` (§ Visitenkarten) und fügt die Aktion
 `contacts.share` hinzu. Alle Befehle sind nur für das eigene Fenster (`Caller::User`); sie prüfen das im
-Dienst (`require_user`). Fehler sind `HolziError` mit den Codes aus `contracts/share-format.md`.
+Dienst (`require_user`). Fehler sind `HaexError` mit den Codes aus `contracts/share-format.md`.
 
 ## Entfällt
 

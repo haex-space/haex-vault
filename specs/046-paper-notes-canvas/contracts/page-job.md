@@ -1,6 +1,6 @@
 # Seitenerkennung: Auftrag der Erweiterung
 
-haex-notes gibt die Erkennung einer Seite als Modellauftrag an holzi (Spec 055, vault-sdk ab 4.7.1,
+haex-notes gibt die Erkennung einer Seite als Modellauftrag an haex-vault (Spec 055, vault-sdk ab 4.7.1,
 `sdk.models.runAsync`). Brücke, Freigaben und Einwilligung stehen in
 [055 bridge.md](../../055-extension-model-access/contracts/bridge.md), Auftrags- und Schemaregeln in
 [055 job-format.md](../../055-extension-model-access/contracts/job-format.md). Dieser Vertrag legt fest, was
@@ -175,12 +175,12 @@ Die `provenance` des Auftrags ergibt die Herkunft der Seite: Name und Ort des Mo
 
 ## Fehler
 
-| Ende                                        | haex-notes                                                                      |
-| ------------------------------------------- | ------------------------------------------------------------------------------- |
-| Start abgelehnt `8001` (`no_capable_model`) | Hinweis: in holzi ein Modell freigeben, das Bilder annimmt; Seite mit Original  |
-| Start abgelehnt `1002` (`consent_denied`)   | Hinweis: Übertragung abgelehnt; Seite mit Original                              |
-| `failed` mit `unusable`                     | Hinweis: nichts Brauchbares erkannt, neues Foto empfohlen; Seite mit Original   |
-| `failed` mit `timeout` oder `unavailable`   | Hinweis: Modell nicht erreichbar oder zu langsam; „Erneut lesen“ bleibt möglich |
-| `cancelled`                                 | keine Meldung; Seite mit Original                                               |
+| Ende                                        | haex-notes                                                                          |
+| ------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Start abgelehnt `8001` (`no_capable_model`) | Hinweis: in haex-vault ein Modell freigeben, das Bilder annimmt; Seite mit Original |
+| Start abgelehnt `1002` (`consent_denied`)   | Hinweis: Übertragung abgelehnt; Seite mit Original                                  |
+| `failed` mit `unusable`                     | Hinweis: nichts Brauchbares erkannt, neues Foto empfohlen; Seite mit Original       |
+| `failed` mit `timeout` oder `unavailable`   | Hinweis: Modell nicht erreichbar oder zu langsam; „Erneut lesen“ bleibt möglich     |
+| `cancelled`                                 | keine Meldung; Seite mit Original                                                   |
 
 In keinem Fall wird das Original verändert, und der Schüler kann manuell weiterarbeiten (FR-016).

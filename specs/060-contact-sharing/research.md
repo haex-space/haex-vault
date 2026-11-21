@@ -7,7 +7,7 @@ Entscheidung, Begründung, verworfene Alternativen. „Geprüft“ heißt: im Co
 
 - **Entscheidung**: Migration `0042_contacts_self` legt in `haex_contacts` eine Zeile mit fester Kennung
   an (`SELF_CONTACT_ID`, eine in `contacts/ids.rs` festgeschriebene UUID). Alle übrigen Spalten sind
-  konstant: `origin_kind = 'holzi'`, `origin_device` = die Vault-Scope-Kennung (nil-UUID),
+  konstant: `origin_kind = 'haex'`, `origin_device` = die Vault-Scope-Kennung (nil-UUID),
   `origin_caller = 'internal:self'`, `created_at = updated_at` = fester Zeitpunkt. Jedes Gerät schreibt
   dadurch dieselbe Zeile, und beim Sync treffen sich gleiche Werte.
 - **Begründung**: Der Nutzer will den Kontakt „zur Build-Zeit“. Geprüft: `haex-crdt` stempelt Zeilen, die
@@ -87,14 +87,14 @@ Telefonverknüpfung und wird dort nie erreicht.
   Vereinigung `received::addresses(vault)`.
 - **Prüfung** (FR-025a): `received::verified(row)` prüft beim Lesen `format::from_bytes` (Format,
   Grenzen, Unterschrift), `hash == sha256(payload)` und `vault_pubkey == card.vault`. Eine Zeile, die
-  das nicht besteht, wird ignoriert und im Log gemeldet. Beim Speichern berechnet holzi den Hash selbst.
+  das nicht besteht, wird ignoriert und im Log gemeldet. Beim Speichern berechnet haex-vault den Hash selbst.
 - **Migration** (`0043_contacts_cards_hash`): `DROP TABLE haex_contacts_cards` und neu anlegen; keine
   Zeilen werden kopiert. Geprüft: SQLite hat keinen SHA-256, die Kennung der alten Zeilen ließe sich
   nur in Rust berechnen, und Migrationen sind SQL. Folge: **vorhandene bestätigte Adressen verschwinden
   beim Update und kommen mit dem erneuten Einlesen der Karte zurück**; die Kontakte selbst bleiben. Das
-  Vorbild ist `0021_own_device_sync` (`DROP TABLE` ohne Löschmarker, `HOLZI_TRIGGER_VERSION` hoch).
-  Operator-Daten sind betroffen; holzi hat sonst keine Nutzer (Spec 054) und das PR nennt es.
-- **`HOLZI_TRIGGER_VERSION` 27 → 28**, weil sich die Spaltenform einer getrackten Tabelle ändert
+  Vorbild ist `0021_own_device_sync` (`DROP TABLE` ohne Löschmarker, `HAEX_TRIGGER_VERSION` hoch).
+  Operator-Daten sind betroffen; haex-vault hat sonst keine Nutzer (Spec 054) und das PR nennt es.
+- **`HAEX_TRIGGER_VERSION` 27 → 28**, weil sich die Spaltenform einer getrackten Tabelle ändert
   (`migrations.rs:57-77`: Trigger werden beim Anlegen fest eingebaut). Der Handshake vergleicht
   `crdtTrigger` zwischen Geräten (`sync/handshake.rs:102`); Geräte mit verschiedenem Stand synchronisieren
   erst, wenn beide aktualisiert sind (bestehendes Verhalten, im PR vermerkt).
@@ -108,7 +108,7 @@ Telefonverknüpfung und wird dort nie erreicht.
 - **Entscheidung**: Zwei Befehle statt Kartenvorschau und Annahme der Spec 051:
   `contacts_share_preview(text, target?)` und `contacts_share_accept(text, target, decisions, preview_revision?)`.
   Die Vorschau rechnet aus Umschlag und gewähltem Ziel eine Liste von **Posten** (Namensteile, Anzeigename,
-  Spitzname, Organisation, Position, Notiz, jede Angabe, die holzi-Adressen), jeder mit Zustand (`new`, `same`,
+  Spitzname, Organisation, Position, Notiz, jede Angabe, die haex-vault-Adressen), jeder mit Zustand (`new`, `same`,
   `conflict`, `invalid`) und den erlaubten Wahlen. Für ein vorhandenes Ziel liefert sie zusätzlich eine
   undurchsichtige Revision des Zielkontakts. `accept` rechnet die Posten aus dem Text **noch einmal** und
   wendet nur Wahlen an, deren Posten-Kennung dazu passt; die Kennung ist `index` im Umschlag, kein Wert aus
@@ -116,7 +116,7 @@ Telefonverknüpfung und wird dort nie erreicht.
   bricht es mit `SharePreviewStale` und einer frischen Vorschau ab; die Prüfung der `value_id`-Mitgliedschaft
   bleibt davon getrennt.
 - **Wahlen** (FR-024b/c, FR-025): Angabe: `add` (Standard), `update(value_id)`, `skip`; einfeldig:
-  `keep` (Standard), `update`; holzi-Adressen: `add` (Standard), `skip`, bei einer alten Karte
+  `keep` (Standard), `update`; haex-vault-Adressen: `add` (Standard), `skip`, bei einer alten Karte
   zusätzlich `replace`. Die Vault-Identität eines vorhandenen Kontakts kommt nie in `update`: Der Posten
   heißt `identity` mit Zustand `mismatch` und erlaubt nur ein neues Ziel.
 - **Ziel** (`target`): `new` oder `contact(id)`. Der Ich-Kontakt ist als Ziel nie erlaubt (FR-024). Hat
@@ -132,11 +132,11 @@ Telefonverknüpfung und wird dort nie erreicht.
 
 - **Entscheidung**: `contacts_share_options(contact_id)` liefert die Zeilen des Dialogs (Kennungen,
   Art, Bezeichnung, Wert, vorgewählt = alles), einschließlich Anzeigename und Spitzname; beim Ich-Kontakt die Geräte und Relays als eigene Zeilen
-  und `can_sign`, beim fremden Kontakt die Zeile „holzi-Adressen (bestätigt)“ nur mit gespeicherter
+  und `can_sign`, beim fremden Kontakt die Zeile „haex-vault-Adressen (bestätigt)“ nur mit gespeicherter
   Karte. `contacts_share_build(contact_id, selection)` baut Text, QR (`Option<String>` SVG, nur
   `len <= 2048`) und die Größe. Ein Befehl für beide Fälle; die Auswahl lebt nur im Dialog (FR-010).
 - **Auswahl**: `ShareSelection { values: Vec<String>, display_name: bool, nickname: bool, organization: bool, job_title: bool, note: bool,
-holzi: HolziSelection }` mit `HolziSelection::{None, Card, Own { devices, relays }}`. Der Dienst
+haex-vault: HaexSelection }` mit `HaexSelection::{None, Card, Own { devices, relays }}`. Der Dienst
   prüft sie gegen den Kontakt (jede Kennung muss ihm gehören), nie gegen den Aufrufer.
 - **Name** (FR-011): `share::name_for(head, vault_for_npub)`; einzige Stelle der Regel.
 
@@ -190,12 +190,12 @@ Brauchbar ist ihr `useDeepLink.ts` (Zwischenspeicher im Modul, Wiederabspiel nac
      Speicher; derselbe Prozess spielt sie nach dem Entsperren ab (Geprüft: Entsperren navigiert im
      Prozess von `/` nach `/workspace/<name>`). Beim Sperren auf dem Desktop startet die App neu; eine
      Verknüpfung, die dabei eintrifft, geht verloren (Randfall, in der Spec beschrieben).
-- **Desktop: mehrere Prozesse**: holzi ist bewusst ein Prozess je Vault-Sitzung
+- **Desktop: mehrere Prozesse**: haex-vault ist bewusst ein Prozess je Vault-Sitzung
   (`instances/presence.rs`, `chat-multi-instance`-E2E). `tauri-plugin-single-instance` würde das
   brechen und könnte den Neustart beim Sperren stören (`close_effects.rs`: Annahme, nicht geprüft).
   **Entscheidung**: ein kleiner Posteingang im Verzeichnis `<AppLocalData>/link-inbox/`:
   1. Ein neu gestarteter Prozess mit URL im Aufruf (Linux, Windows) legt sie als Datei `<uuid>.url`
-     ab, wenn andere holzi-Prozesse laufen (`presence.lock` lässt sich nicht exklusiv sperren), und
+     ab, wenn andere haex-vault-Prozesse laufen (`presence.lock` lässt sich nicht exklusiv sperren), und
      wartet bis 2 s, dass die Datei verschwindet (Rückmeldung „abgeholt“).
   2. Jeder Prozess mit **offener** Vault prüft das Verzeichnis alle 500 ms und holt eine Datei durch
      atomares `rename` in `<uuid>.claimed-<pid>`; wer gewinnt, liest sie ein und löscht die behauptete Datei
@@ -258,7 +258,7 @@ Aufbau: Plugin, Konfiguration und eine Log-Zeile in `setup` (`get_current` und `
   Spec 057 (`extensions/peers/test_support.rs:415`) lesen die gespeicherte Karte. Ob die gespeicherte
   eigene Karte nach dem Ende des Teilens über die Einstellungen noch einen Verbraucher braucht, ist
   offen; entfernen verschiebt sich auf einen eigenen Schritt (kein Umbau von Spec 057 hier).
-- Keine Migration der Einstellungen: holzi hat keine Nutzer (Spec 054).
+- Keine Migration der Einstellungen: haex-vault hat keine Nutzer (Spec 054).
 
 ## R11 Sicherheit
 

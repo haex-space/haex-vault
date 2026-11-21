@@ -77,7 +77,7 @@ because it needs platform-specific code and a new Windows dependency.
 `ClosePolicy::Relaunch` in a debug build (a scratch env-var check in `close_policy()`, removed
 again after the test) and triggering it through the real UI (`xvfb-run` + `tauri-driver`, screen
 captured via `Xvfb -fbdir` and read back as a converted PNG, input via `xdotool`) showed the same
-outcome twice: the relaunched `target/debug/holzi` process appears within milliseconds (a new pid,
+outcome twice: the relaunched `target/debug/haex` process appears within milliseconds (a new pid,
 a fresh GTK/MESA init line), but `cargo run`'s exit then makes the `tauri dev` watcher itself exit
 (`XVFB-RUN-WRAPPER-EXIT-CODE: 0`, i.e. a clean, non-error exit) with no further Vite/Nitro output —
 it does not re-attach to the new process or rebuild. The instance's on-disk data survived intact
@@ -232,7 +232,7 @@ is already true after the process ends.
   `open.rs`, one in `create.rs`, the `SqlCipherKey(String)` inside `DatabaseConfig` (haex-crdt:
   `Clone`, no `Drop`), the SQL text built by `pragma_update`, and Tauri's JSON body.
 
-**Decision (holzi side)**:
+**Decision (haex-vault side)**:
 
 - `passphrase: Zeroizing<String>` in `OpenInstanceArgs` and `CreateInstanceArgs`. `zeroize` 1.9.0 has
   `serde::Deserialize for Zeroizing<Z>` behind its `serde` feature. It is already in `Cargo.lock`
@@ -244,8 +244,8 @@ is already true after the process ends.
 - The validation connection disappears with R6.
 
 **Decision (haex-crdt side, upstream)**: `SqlCipherKey` wraps `Zeroizing<String>` and no longer
-derives `Clone` (or clones into another `Zeroizing`). holzi then pins the new revision by full commit
-SHA (constitution: immutable references). Until it lands, the holzi-side work is complete and the
+derives `Clone` (or clones into another `Zeroizing`). haex-vault then pins the new revision by full commit
+SHA (constitution: immutable references). Until it lands, the haex-vault-side work is complete and the
 remaining exposure is one freed, unwiped `String` per open, bounded by the process ending.
 
 **Residual (documented, not solvable in-process)**: the SQL text inside rusqlite/SQLite for
@@ -266,7 +266,7 @@ because the interface runtime cannot wipe either way and the process ending is t
 ## R8 — Several app processes on one computer
 
 - **Same vault twice**: `DatabaseLock` (`fs2` exclusive lock on `<db>.lock`) already gives
-  `HolziError::VaultAlreadyOpenElsewhere`; the frontend has no branch for it. Add the kind to
+  `HaexError::VaultAlreadyOpenElsewhere`; the frontend has no branch for it. Add the kind to
   `useErrorString` and a localized message (de, en).
 - **Vault still closing in another process**: the lock is released when the old process ends or its
   `Database` drops. `open_instance` retries acquiring for up to the close deadline (3 s) before
@@ -325,7 +325,7 @@ Queries on the repository graph (snapshot of the primary checkout, used as is fo
 | Close and cancel work        | `close_instance`, `ChatState`, `abort_turn`, preload handle, `AppState`                                    | Extend these; no parallel close path                     |
 | Tracked background tasks     | `spawn_cap_watcher`, `spawn_turn` (test fixture), `cli_delegate/process.rs` (`kill_on_drop`)               | None is a tracker; `VaultGate` is new, reuses the tokens |
 | Secret hygiene               | none (only the passphrase refs in the two sheets)                                                          | New: `Zeroizing`, redacted `Debug`                       |
-| Cross-process file locking   | none in holzi (`fs2` only inside haex-crdt)                                                                | New small helper next to the publication lock            |
+| Cross-process file locking   | none in haex-vault (`fs2` only inside haex-crdt)                                                           | New small helper next to the publication lock            |
 | Startup cleanup gate         | `instances/startup.rs` cleans unconditionally                                                              | New `instances/presence.rs`; the cleanup is its callback |
 | Run a future until a token   | none reusable: `chat/tools/cli.rs` selects on its cancellation token inline                                | New `VaultGate::run`                                     |
 | Retry until a lock is free   | `retry_or_bail`, `retry_backoff`, `RetryDecision` in `chat/turn/step.rs` retry provider streams, not locks | New `retry_while_locked` (Stage 5)                       |

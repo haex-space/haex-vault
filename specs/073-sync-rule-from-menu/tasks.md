@@ -56,7 +56,7 @@ folder, see the confirmation and the rule in the list.
 
 - [x] T008 [P] [US1] Write the checks of `syncRuleOffer` in `scripts/check-files-registry.ts` first (the cases of
       research R2 for a folder entry): this device, an own cloud storage and `peer:<id>` offer; `share:<id>` and
-      `device:<id>` do not; an entry that is holzi's own, a symlink or without access does not; a readable encrypted
+      `device:<id>` do not; an entry that is haex-vault's own, a symlink or without access does not; a readable encrypted
       folder does, a not readable one (`otherVault`, `newerFormat`, `damaged`) does not.
 - [x] T009 [US1] In `src/lib/files/registry.ts` add `syncRuleOffer(input)` next to `shareableSource` (research R2,
       data-model.md) using `isOwnStorage` / `isPeerStorage`; run `pnpm check:files` until T008 passes.
@@ -120,17 +120,17 @@ folderEncrypted)`), as `pin` does.
 
 ## Phase 6: User Story 4 - No entry where the entry cannot be a place (Priority: P2)
 
-**Goal**: No entry in holzi's own places, in a received share, in a not readable encrypted folder, or on a selection
+**Goal**: No entry in haex-vault's own places, in a received share, in a not readable encrypted folder, or on a selection
 of several entries.
 
 **Independent Test**: [quickstart.md](quickstart.md) rows US4.1 to US4.3.
 
 - [x] T019 [P] [US4] Cover the remaining cases of `syncRuleOffer` and the menus in `scripts/check-files-registry.ts`
-      and `scripts/check-files-clipboard.ts`: holzi's own place (entry and open folder), a contact's share,
+      and `scripts/check-files-clipboard.ts`: haex-vault's own place (entry and open folder), a contact's share,
       a not readable encrypted open folder, a selection of several entries. Fix the code of T009 to T017 where a case
       fails.
 - [x] T020 [US4] Extend the E2E scenario: select two entries, open the menu, `files-menu-syncRule` is absent; open the
-      menu inside holzi's own place (as `files-protected` does, if such a scenario exists, else the settings place the
+      menu inside haex-vault's own place (as `files-protected` does, if such a scenario exists, else the settings place the
       other scenarios use) and see it absent.
 
 **Checkpoint**: All four stories hold.

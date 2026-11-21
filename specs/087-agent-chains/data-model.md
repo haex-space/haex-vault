@@ -28,10 +28,10 @@ Nothing is stored in the vault. The entities are the measurement's and the turn'
 
 ## Final tool (per tool, derived)
 
-- A tool is final when its declared effect is destructive (extension tools) or its action deletes (holzi's own
+- A tool is final when its declared effect is destructive (extension tools) or its action deletes (haex-vault's own
   actions with risk class Risky and a delete effect).
 - In a routed offer, final tools of a domain follow its reversible change tools (R8.1, if kept).
-- A final tool's description gets holzi's sentence (R8.2, if kept).
+- A final tool's description gets haex-vault's sentence (R8.2, if kept).
 
 ## Step (measurement)
 

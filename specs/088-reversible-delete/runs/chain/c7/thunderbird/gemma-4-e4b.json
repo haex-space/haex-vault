@@ -464,7 +464,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich kann in holzi keine spezifischen Aktionen finden, die direkt mit der \"Sparkasse\" in Verbindung stehen.\n\nMeinten Sie vielleicht etwas Bestimmtes in Bezug auf die Sparkasse, zum Beispiel:\n\n1.  Möchten Sie eine bestimmte **Website** der Sparkasse öffnen?\n2.  Suchen Sie nach **Informationen** über d"
+      "text": "Ich kann in haex-vault keine spezifischen Aktionen finden, die direkt mit der \"Sparkasse\" in Verbindung stehen.\n\nMeinten Sie vielleicht etwas Bestimmtes in Bezug auf die Sparkasse, zum Beispiel:\n\n1.  Möchten Sie eine bestimmte **Website** der Sparkasse öffnen?\n2.  Suchen Sie nach **Informationen** über d"
     },
     {
       "id": "mail_read-en-5",
@@ -502,7 +502,7 @@
       "id": "mail_read-de-5-s",
       "result": "missed",
       "calls": [],
-      "text": "Ich kann dir leider nicht sagen, was die Sparkasse von dir will. Ich habe keinen Zugriff auf persönliche Informationen oder die internen Vorgänge von Banken.\n\nKann ich dir vielleicht bei etwas anderem helfen, zum Beispiel mit deinen E-Mails in holzi?"
+      "text": "Ich kann dir leider nicht sagen, was die Sparkasse von dir will. Ich habe keinen Zugriff auf persönliche Informationen oder die internen Vorgänge von Banken.\n\nKann ich dir vielleicht bei etwas anderem helfen, zum Beispiel mit deinen E-Mails in haex-vault?"
     }
   ],
   "requests": [

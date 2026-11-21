@@ -23,7 +23,7 @@ STEMS = [a for a in sys.argv[6:] if a not in ("names", "names+d", "words", "numb
 PORT = 18097
 MANIFEST_DESCRIPTION = "Mail client for IMAP and SMTP accounts"
 # (label, title): the label the routing prompt shows for the extension. "mail" and "messages" under the title
-# Thunderbird stand for a label holzi gives itself; "mail" is what the tool titles share.
+# Thunderbird stand for a label haex-vault gives itself; "mail" is what the tool titles share.
 NAMINGS = [("mail", "haex-mail"), ("haexmail", "haex-mail"), ("thunderbird", "Thunderbird"),
            ("mail", "Thunderbird"), ("messages", "Thunderbird")]
 STYLES = sys.argv[6].split(",") if len(sys.argv) > 6 and sys.argv[6] in ("names", "names+d", "words", "numbers") \
@@ -53,7 +53,7 @@ def areas(naming, style):
 
 
 def prompt(listed, style):
-    head = "Which area of the app holzi does the user's request need? Areas:\n"
+    head = "Which area of the app haex-vault does the user's request need? Areas:\n"
     if style == "numbers":
         lines = "".join(f"{i}: {label}: {text}\n" for i, (_, label, text, _) in enumerate(listed, 1))
         lines += "0: none: anything else: general knowledge, arithmetic, the time, small talk\n"
@@ -85,7 +85,7 @@ def parse(reply, listed, style):
 
 
 def label_key(label):
-    """The devset labels name holzi's domains by name and the mail extension as `mail`."""
+    """The devset labels name haex-vault's domains by name and the mail extension as `mail`."""
     if label == "mail":
         return "x_mail"
     if label == "none":

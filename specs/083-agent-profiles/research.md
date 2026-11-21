@@ -123,7 +123,7 @@ user-facing texts is a translated label, not the stored name.
   browser only, and the editor says so for built-in members.
 - **A chat that runs on an Abo-Agent**: when the active session's provider is a subscription agent
   (`ProviderKind::CliDelegate`), the subject is that delegate's agent row (`agent:<id>`), not a `model:` entry, because
-  the agent that holzi started is the one acting and it already has its registration (`mcp_server/delegates.rs`).
+  the agent that haex-vault started is the one acting and it already has its registration (`mcp_server/delegates.rs`).
 - **Approval mode** of the local agent stays the vault preference (FR-017).
 
 ## R7 Decision: no migration, the old rights stop counting
@@ -156,7 +156,7 @@ delete, the precedent of `passwords/trash.rs`); the profile stays, it may have o
 
 ## R9 Sync and older builds
 
-`sync/handshake.rs` refuses a peer whose migration count or `HOLZI_TRIGGER_VERSION` differs (`RejectCode::Incompatible`).
+`sync/handshake.rs` refuses a peer whose migration count or `HAEX_TRIGGER_VERSION` differs (`RejectCode::Incompatible`).
 Migration 0054 and the bump to 35 therefore partition the fleet until every device is updated; spec 059 already shows
 the device versions. An older build never reads a profile row, so FR-012's risk is only inside one schema: a profile
 row this build cannot read (unknown group, level or key) counts as no right, as in `grant_rows.rs`; a member row whose
@@ -220,7 +220,7 @@ nothing else), and `operate` keeps only keys of `OPERATE_SCOPES`. Every other ro
   prompts (R10).
 - The agent page keeps mode, log and revoke; its rights editor becomes one `SettingsSelect` "Agentenprofil" plus the
   profile's rights shown read only (the editor components already take `disabled`).
-- Components are holzi's own settings components in `src/components/settings/` (`Group.vue`, `Row.vue`,
+- Components are haex-vault's own settings components in `src/components/settings/` (`Group.vue`, `Row.vue`,
   `OptionRow.vue`, `Select.vue`, `MultiSelect.vue`, used as `SettingsGroup`, `SettingsRow`, ...) and
   `src/components/agents/RightsInset.vue`, not haex-ui. The pages follow the COSMIC/GNOME style of the other KI pages:
   toolbar row, big title, boxed lists. The new pages go to `src/components/settings/agentProfiles/` so no file is
@@ -233,7 +233,7 @@ nothing else), and `operate` keeps only keys of `OPERATE_SCOPES`. Every other ro
   (the chat notices `delegate*`, the registration hint, the settings entries "Autonomie für Delegaten" and
   "Verbotsregeln für Delegaten", the keywords of the AI category), `en.json` likewise, and
   `RegistrationDialog.vue`. Keys keep their names; only the texts change. A text the sweep touches also says
-  "HaexVault" where it says "holzi" today (`chat.delegateUnregistered` does). The provider-connection texts
+  "HaexVault" where it says "haex-vault" today (`chat.delegateUnregistered` does). The provider-connection texts
   (`cliDelegate.*`, "Verbinden") describe a login, not an agent, and stay.
 
 ## R12 Alternatives rejected for the whole design
@@ -268,7 +268,7 @@ The options stay below for the reasoning; the chosen one is marked **Decided**.
 both, and different treatment is two profiles. Rights per model, autonomy and deny rules into the profile.
 
 **Today.** A delegate's models are rows of a `cli_delegate` provider (`<provider id>:<remote id>`), `subjects.rs` skips them,
-`chat::send` exempts them from FR-006b. holzi's tools reach a delegate through the helper process of a pass
+`chat::send` exempts them from FR-006b. haex-vault's tools reach a delegate through the helper process of a pass
 (`delegates::DelegateHub::issue`, `DelegatePass { kind, thread }`), the session is a `SessionAgent` keyed by the delegate row
 (`delegate_id(device, kind)`), whose rights `registry::load_rights(device, id)` resolves as `Subject::Agent(id)`. The delegate
 must be registered through "Rechte festlegen" (`delegates::register`). Autonomy is the device preference
@@ -276,7 +276,7 @@ must be registered through "Rechte festlegen" (`delegates::register`). Autonomy 
 
 **Design.**
 
-1. **The pass names the model.** `HolziAccess::server_for(vendor, thread)` becomes `server_for(vendor, thread, model)`; the
+1. **The pass names the model.** `HaexAccess::server_for(vendor, thread)` becomes `server_for(vendor, thread, model)`; the
    adapter knows the model of the request. `DelegatePass { kind, thread, model }`.
 2. **The session carries its subject.** `SessionAgent` gets `subject: Subject` (`Agent(id)` for an external agent,
    `Model(model)` for a pass). Every place that today loads rights by agent id for a session (`attach::join`,

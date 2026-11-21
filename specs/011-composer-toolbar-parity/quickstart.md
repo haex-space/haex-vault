@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- holzi with an open vault.
+- HaexVault with an open vault.
 - A connected Claude Code delegate (spec 007-cli-delegate) for the delegate-
   specific scenarios (2, and half of 1 and 3).
 - An Anthropic `api_key` provider with at least one effort-capable model

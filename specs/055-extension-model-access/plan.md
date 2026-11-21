@@ -1,4 +1,4 @@
-# Implementation Plan: Erweiterungen nutzen holzis Modelle
+# Implementation Plan: Erweiterungen nutzen haex-vaults Modelle
 
 **Branch**: `055-extension-model-access` | **Date**: 2026-10-17 | **Spec**: [spec.md](./spec.md)
 
@@ -6,8 +6,8 @@
 
 ## Summary
 
-Eine Erweiterung schickt holzi einen Auftrag mit eigener Anweisung, Eingabe (Text, Bilder) und einem
-Ergebnisformat. holzi führt ihn mit Modellen aus, die der Nutzer für diese Erweiterung freigegeben hat, prüft
+Eine Erweiterung schickt haex-vault einen Auftrag mit eigener Anweisung, Eingabe (Text, Bilder) und einem
+Ergebnisformat. haex-vault führt ihn mit Modellen aus, die der Nutzer für diese Erweiterung freigegeben hat, prüft
 die Ausgabe gegen Wächter und Schema und liefert nur ein brauchbares Ergebnis samt Herkunft. Nichts über den
 Auftrag bleibt gespeichert.
 
@@ -62,7 +62,7 @@ für neue reine TS-Module; E2E-Szenario mit der Test-Erweiterung; Versuch zum lo
 Seitenauftrag auf der Zielhardware in der Größenordnung von Sekunden bis wenigen Minuten (Test: 3–130 s je Seite);
 kein Messziel für Modelle (Spec: Modellwahl ist Einstellung).
 
-**Constraints**: Aufträge ohne Werkzeuge von holzi, Abos mit ihrem Zugriff aus holzi (FR-026, FR-032); nichts dauerhaft speichern (FR-028); sitzungsgebundene
+**Constraints**: Aufträge ohne Werkzeuge von haex-vault, Abos mit ihrem Zugriff aus haex-vault (FR-026, FR-032); nichts dauerhaft speichern (FR-028); sitzungsgebundene
 Berechtigungen enden mit der Tresorsitzung (FR-016); kein Byte außerhalb des
 Geräts ohne Einwilligung (FR-015); Obergrenzen (R9); Dateien < 500 Zeilen; Rust-Tests in `*_tests.rs`;
 keine Zugangsdaten in Fehlern, Ereignissen oder Protokollen.
@@ -81,7 +81,7 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 | III. Identität ohne Gerätepfad                         | Nicht berührt.                                                                                                                                             |
 | IV. Fremde Repos nur mit festem Stand                  | Besteht. Das vault-sdk wird mit vollem Commit oder Version gepinnt; haex-notes folgt in `haextension` mit eigenem Pin.                                     |
 | V. Externe Quellen nur aus Allowlist                   | Nicht berührt.                                                                                                                                             |
-| VI. Selbständernde Anweisungen nur per Review          | Besteht. Die Anweisung einer Erweiterung ist Eingabe an ein Modell, keine Änderung von holzis Anweisungen; neue Berechtigungsarten kommen per PR.          |
+| VI. Selbständernde Anweisungen nur per Review          | Besteht. Die Anweisung einer Erweiterung ist Eingabe an ein Modell, keine Änderung von haex-vaults Anweisungen; neue Berechtigungsarten kommen per PR.     |
 | VII. Relais-Ausfall blockiert nie lokale Arbeit        | Besteht. Lokale Aufträge brauchen kein Netz; Freigaben und Einwilligungen liegen lokal.                                                                    |
 | VIII. Keine Verschleierungsanweisung in Agentenausgabe | Besteht. Ergebnisse gehen nur an die Erweiterung; der Wächter verwirft Ausgabe, ändert sie nicht.                                                          |
 

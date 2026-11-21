@@ -1,4 +1,4 @@
-# Contract: Brücke für Modelle (Erweiterung → holzi)
+# Contract: Brücke für Modelle (Erweiterung → haex-vault)
 
 Drei Methoden der Erweiterungs-Brücke (Spec 017, `extensions/bridge/allowlist.rs`) für Aufträge, zwei für den
 Weg zur Freigabe (US9), ein Ereignis. Ersetzt
@@ -28,7 +28,7 @@ result: {
 
 - Es kommen weder Adresse noch Schlüssel noch andere Zugangsdaten vor (FR-021).
 - `effort: "levels"` heißt, `low`/`medium`/`high` wirken; `managed` heißt, das Modell regelt es selbst.
-- Die Liste dient der Anzeige. Das Modell wählt holzi je Schritt: das Standardmodell der Erweiterung, sonst das zuerst freigegebene, das den Schritt kann (FR-007, Änderung 2026-11-13).
+- Die Liste dient der Anzeige. Das Modell wählt haex-vault je Schritt: das Standardmodell der Erweiterung, sonst das zuerst freigegebene, das den Schritt kann (FR-007, Änderung 2026-11-13).
 - Auch ein verbundenes Abo (Claude Code, Codex) steht in der Liste, mit `place: "cloud"`. Es läuft im Auftrag als Agent mit vollem Zugriff (FR-032); die Erweiterung erfährt das nicht und kann es nicht ändern.
 
 ## `extension_model_job_start`
@@ -49,7 +49,7 @@ sind die festen von `ExtensionErrorCode` (das vault-sdk liest sie); der genauere
 | 7000 `LimitExceeded`            | `image_bytes`, `image_count`, `instruction_bytes`, `input_bytes`, `steps`, `active_jobs` | Grenze überschritten; `details.limit` nennt sie                                                                                                   |
 | 8001 `NotAvailable`             | `no_capable_model`                                                                       | Für einen Schritt gibt es kein freigegebenes Modell mit den `needs`                                                                               |
 | 1002 `PermissionDenied`         | `consent_denied`                                                                         | Der Nutzer hat die Freigabe oder die Einwilligung abgelehnt                                                                                       |
-| 1004 `PermissionPromptRequired` |                                                                                          | holzi fragt den Nutzer; die Erweiterung ruft nach `extension:permission-resolved` erneut                                                          |
+| 1004 `PermissionPromptRequired` |                                                                                          | haex-vault fragt den Nutzer; die Erweiterung ruft nach `extension:permission-resolved` erneut                                                     |
 | 1000 `SecurityViolation`        |                                                                                          | `cancel` mit einer fremden Auftragskennung                                                                                                        |
 
 `PermissionPromptRequired` trägt `details`:
@@ -72,7 +72,7 @@ sind die festen von `ExtensionErrorCode` (das vault-sdk liest sie); der genauere
   ```
 
   Sie nennt die übertragenen Datentypen und Größen, aber keine Inhalte. `earlierResult` heißt, dass der Schritt
-  dazu das Ergebnis eines früheren Schritts sendet (`from`), dessen Größe erst dann feststeht. holzis Frage an den
+  dazu das Ergebnis eines früheren Schritts sendet (`from`), dessen Größe erst dann feststeht. haex-vaults Frage an den
   Nutzer nennt außerdem Anbieter, Host und Ort des Ziels (`PermissionRequestEvent.destination`); die Erweiterung
   erfährt sie nicht.
 
@@ -96,10 +96,10 @@ params: {}
 result: {}
 ```
 
-Öffnet in holzi die Einstellungen der aufrufenden Erweiterung bei ihren Modellen (`extensions.detail`) oder holt
+Öffnet in haex-vault die Einstellungen der aufrufenden Erweiterung bei ihren Modellen (`extensions.detail`) oder holt
 sie nach vorn, wenn sie schon offen sind. Rust meldet den Wunsch per Ereignis an das Frontend, das den Tab
 öffnet, wie beim Rahmen für den Agenten (`useExtensionHost.ts`). Die Erweiterung nennt keine Ziel-Erweiterung;
-holzi nimmt immer die aufrufende. Sie erfährt nichts über die Seite und kann dort nichts festlegen.
+haex-vault nimmt immer die aufrufende. Sie erfährt nichts über die Seite und kann dort nichts festlegen.
 
 ## `extension_model_access_request` (US9, FR-035)
 
@@ -136,7 +136,7 @@ data: {
 
 - `provenance` gibt je Schritt alle versuchten Modelle mit Ausgang an (FR-023, FR-027). Ein Modell, an das keine
   Anfrage ging, weil das Standardmodell den Schritt nicht kann oder nicht mehr freigegeben ist, steht als
-  `unavailable` mit Aufwand `none` und einem `reason` darin; holzi hat dann den Nutzer gefragt, bevor eine Anfrage
+  `unavailable` mit Aufwand `none` und einem `reason` darin; haex-vault hat dann den Nutzer gefragt, bevor eine Anfrage
   hinausging, und nimmt nie von selbst ein anderes Modell. `effort` ist der
   tatsächlich verwendete Aufwand nach dem Deckeln (FR-006).
 - Fehlercodes des Ereignisses (snake_case wie `details.reason` und die Ausgänge in `attempts`): `unusable`
@@ -144,10 +144,10 @@ data: {
   `consent_denied` und `no_capable_model` (eine Freigabe wurde während des Auftrags entzogen, oder das
   Standardmodell kann den Schritt nicht und der Nutzer wählte kein anderes Modell). `unusable` ist von
   den anderen unterscheidbar (FR-011). `message` enthält nie Adresse, Schlüssel oder Antwortkörper des
-  Anbieters: holzi ersetzt den Schlüssel und die Adresse des Anbieters, URLs, IP-Adressen, Host mit Port, Namen
+  Anbieters: haex-vault ersetzt den Schlüssel und die Adresse des Anbieters, URLs, IP-Adressen, Host mit Port, Namen
   des eigenen Netzes (`localhost`, `.local`, `.lan`, `.internal`) und schlüsselartige Zeichenketten, und kürzt
   auf 200 Zeichen (`model_jobs/errors.rs::sanitize`).
-- Nach dem Ereignis kennt holzi den Auftrag nicht mehr; die Erweiterung hält Ergebnis und Herkunft selbst.
+- Nach dem Ereignis kennt haex-vault den Auftrag nicht mehr; die Erweiterung hält Ergebnis und Herkunft selbst.
 
 ## Lebenszyklus
 
@@ -158,8 +158,8 @@ data: {
 - Entfernt der Nutzer eine Freigabe, während ein Auftrag läuft, endet der laufende Modellaufruf wie vorgesehen;
   der nächste Schritt fragt den Nutzer, welches andere Modell ihn übernimmt; lehnt er ab oder gibt es keines,
   meldet das Ereignis `no_capable_model` für diesen Schritt (Randfall der Spec).
-- Ein Wechsel des Rahmens oder Neustart von holzi verwirft laufende Aufträge ohne Spur.
-- Vor jedem Schritt außer dem ersten liest holzi Freigaben und Einwilligungen neu; von selbst versucht werden nur
+- Ein Wechsel des Rahmens oder Neustart von haex-vault verwirft laufende Aufträge ohne Spur.
+- Vor jedem Schritt außer dem ersten liest haex-vault Freigaben und Einwilligungen neu; von selbst versucht werden nur
   die beim Start geplanten Modelle, die noch erlaubt sind; ein anderes Modell kommt nur durch die Wahl des Nutzers in der
   Frage nach einem anderen Modell zum Zug. Das Schließen des Tresors bricht alle laufenden Aufträge ab,
   ohne Ereignis (`instances/close.rs::begin_close`), damit kein Auftrag den Tresor offen hält.

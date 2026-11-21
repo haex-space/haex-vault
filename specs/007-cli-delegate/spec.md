@@ -3,7 +3,7 @@
 **Feature Branch**: `007-cli-delegate`
 **Created**: 2026-09-16
 **Status**: Draft
-**Input**: User description: "CLI delegate backend: allow holzi's chat/agent runtime to delegate a
+**Input**: User description: "CLI delegate backend: allow HaexVault's chat/agent runtime to delegate a
 response to an external CLI-based coding assistant (Claude Code via `claude -p`, or OpenAI Codex via
 `codex app-server --stdio`) as a chosen backend, alongside the existing local and api_key providers.
 This was explicitly deferred out of scope from spec 003-agent-tool-loop. Prior design exploration
@@ -26,7 +26,7 @@ exists in `docs/plans/2026-09-11-agent-tool-loop-design.md` §8 (`cli_delegate`)
   pointed at a purpose-built MCP server produced a genuine live, blocking, per-tool-call round-trip —
   the run paused mid-call, the MCP server received the pending `Bash` call's name and input, and the
   action only proceeded once that server responded. → A: Drop the upfront-batch design. Both delegate
-  backends get live per-tool-use approval through holzi's existing permission gate (Codex via its
+  backends get live per-tool-use approval through HaexVault's existing permission gate (Codex via its
   `app-server` session; Claude Code via `--permission-prompt-tool` bridged into the same gate) — the
   approval posture (Manual/Auto/Plan) applies identically across local, api_key, and both delegate
   backends, with no backend-specific exception.
@@ -36,7 +36,7 @@ exists in `docs/plans/2026-09-11-agent-tool-loop-design.md` §8 (`cli_delegate`)
 ### User Story 1 - Use an existing coding-assistant subscription as the chat backend (Priority: P1)
 
 A user who already pays for a Claude Pro/Max/Team or OpenAI Codex/ChatGPT subscription wants to use
-that subscription's own coding assistant, tools included, to answer a request inside holzi — instead
+that subscription's own coding assistant, tools included, to answer a request inside HaexVault — instead
 of being limited to the local model or having to pay again through a separate API key.
 
 **Why this priority**: This is the core value of the feature — reusing a subscription the user
@@ -60,12 +60,12 @@ message, send it, and confirm the answer is grounded in that assistant's own too
 
 ### User Story 2 - Connect an existing subscription once, use it anywhere (Priority: P1)
 
-A user connects their existing Claude or Codex subscription to holzi a single time, and from then on
+A user connects their existing Claude or Codex subscription to HaexVault a single time, and from then on
 can use it as a backend from any copy of their vault — including on a machine that has never logged
 into that provider before — without repeating the login.
 
 **Why this priority**: Without portable, one-time credentials, the feature would require
-re-authenticating on every device, breaking holzi's "carry your vault anywhere" design and making the
+re-authenticating on every device, breaking HaexVault's "carry your vault anywhere" design and making the
 backend impractical to actually use.
 
 **Independent Test**: Complete the one-time connection on one machine, open the same vault on a
@@ -75,7 +75,7 @@ without any further login step.
 **Acceptance Scenarios**:
 
 1. **Given** a user with an active Claude or Codex subscription, **When** they complete the one-time
-   connection flow inside holzi, **Then** the resulting credential is stored encrypted in their vault
+   connection flow inside HaexVault, **Then** the resulting credential is stored encrypted in their vault
    and no separate host-level login file is required afterward.
 2. **Given** a vault with a connected delegate credential, **When** it is opened on a different
    machine that has never logged into that provider, **Then** the delegate backend works immediately,
@@ -117,18 +117,18 @@ need a sensitive action, and confirm the outcome matches the chosen posture.
 
 ---
 
-### User Story 4 - Delegate sees only what holzi gives it, not the host machine (Priority: P2)
+### User Story 4 - Delegate sees only what HaexVault gives it, not the host machine (Priority: P2)
 
-A privacy-conscious user expects that when holzi hands a request to Claude Code or Codex, that
-assistant sees only the conversation and context holzi explicitly provides — not the host computer's
+A privacy-conscious user expects that when HaexVault hands a request to Claude Code or Codex, that
+assistant sees only the conversation and context HaexVault explicitly provides — not the host computer's
 own configuration, other projects' instructions, or global settings that happen to already exist on
 that machine.
 
 **Why this priority**: Matters for trust and portability but doesn't block Story 1 from delivering
-value on a clean machine; becomes important once holzi runs on machines that already have their own
+value on a clean machine; becomes important once HaexVault runs on machines that already have their own
 Claude Code/Codex setups.
 
-**Independent Test**: Run holzi on a machine that already has host-level Claude Code/Codex
+**Independent Test**: Run HaexVault on a machine that already has host-level Claude Code/Codex
 configuration and instruction files, trigger a delegate request, and confirm none of that host-level
 content affected the response.
 
@@ -138,9 +138,9 @@ content affected the response.
    **When** a delegate backend answers a request, **Then** none of that host-level content affects
    the response.
 2. **Given** a delegate request has completed, **When** the user checks the host machine afterward,
-   **Then** no new files or settings were left behind by that request outside holzi's own storage.
-3. **Given** holzi needs to give the delegate background or context for a request, **When** that
-   request is sent, **Then** holzi passes that context explicitly as part of the request — never by
+   **Then** no new files or settings were left behind by that request outside HaexVault's own storage.
+3. **Given** HaexVault needs to give the delegate background or context for a request, **When** that
+   request is sent, **Then** HaexVault passes that context explicitly as part of the request — never by
    relying on the delegate discovering it from files already on disk.
 
 ---
@@ -168,7 +168,7 @@ confirm the underlying process actually terminates rather than just disappearing
 ### Edge Cases
 
 - What happens if the delegate CLI isn't installed on the machine, or an installed version is missing
-  a flag holzi relies on? The backend is reported unavailable with a specific reason; the system does
+  a flag HaexVault relies on? The backend is reported unavailable with a specific reason; the system does
   not silently fall back to a different backend.
 - What happens if the subscription backing a delegate credential lapses or is revoked mid-response?
   That response ends with a delegate-specific error (comparable to any other tool/generation failure)
@@ -179,10 +179,10 @@ confirm the underlying process actually terminates rather than just disappearing
 - What happens when the user switches between backends (local, api_key, a delegate) across messages
   in the same conversation? Each request uses whatever backend is selected for it at send time, the
   same as switching already works between local and api_key today.
-- What happens if a delegate assistant attempts an action holzi has no existing classification for?
+- What happens if a delegate assistant attempts an action HaexVault has no existing classification for?
   It is treated as sensitive by default (fail-safe), consistent with the tool classification rule in
   003-agent-tool-loop.
-- What happens if the process or connection holzi uses to receive a delegate's live approval request
+- What happens if the process or connection HaexVault uses to receive a delegate's live approval request
   (Story 3) itself fails mid-call (e.g. the bridge to Claude Code's `--permission-prompt-tool` MCP
   server crashes)? The pending action is treated as denied (fail-safe) rather than left hanging
   indefinitely or silently defaulting to allowed.
@@ -197,7 +197,7 @@ confirm the underlying process actually terminates rather than just disappearing
   including one that has never authenticated with that provider before, without any further
   host-level login step.
 - **FR-003**: Connecting or using a delegate backend MUST NOT leave behind any host-level login
-  state, configuration file, or credential outside holzi's own encrypted storage.
+  state, configuration file, or credential outside HaexVault's own encrypted storage.
 - **FR-004**: The user MUST be able to select a connected delegate backend (Claude Code or Codex) as
   the backend answering a given request, the same way they select the local model or an api_key
   provider today.
@@ -215,7 +215,7 @@ confirm the underlying process actually terminates rather than just disappearing
   different backend.
 - **FR-009**: A delegate backend's request MUST NOT be influenced by, or expose the assistant to, any
   host-level configuration, instructions, or settings belonging to that provider's own CLI, beyond
-  what holzi explicitly provides for that request.
+  what HaexVault explicitly provides for that request.
 - **FR-010**: Any project or conversation context a delegate backend needs MUST be passed explicitly
   as part of the request; the system MUST NOT rely on the delegate discovering it from files on the
   host machine.
@@ -236,19 +236,19 @@ _Out of scope for this feature_ (see `docs/plans/2026-09-11-agent-tool-loop-desi
   decided open risk at the product level (design doc §8.1); this feature does not block on or
   attempt to resolve it.
 - "Subagent-style" full autonomous delegation — the delegate running an entire task fully on its own
-  with no approval crossing back to holzi. Rejected as this feature's default tool-call path; could
+  with no approval crossing back to HaexVault. Rejected as this feature's default tool-call path; could
   resurface later as its own, separately-labeled feature (design doc §9).
 - Any delegate provider beyond Claude Code and Codex.
 - Remembering or persisting an individual approval decision across future requests — an inherited
   limitation from 003-agent-tool-loop, unchanged here.
-- Using a delegate backend from a mobile (iOS/Android) holzi instance. Spawning `claude`/`codex` as a
+- Using a delegate backend from a mobile (iOS/Android) HaexVault instance. Spawning `claude`/`codex` as a
   subprocess is categorically impossible on mobile OS sandboxing, with no workaround at the
   implementation level — this feature is desktop-only (plan.md Technical Context). Reverse-engineering
   each vendor's private subscription-authenticated HTTP API to bypass the subprocess requirement was
   considered and rejected (2026-09-16, operator decision): it would be a materially larger ToS risk
   than the already-accepted raw-CLI risk (no official software involved at all) against an
   undocumented, unversioned protocol. Mobile access is intended as a later, separate feature: a mobile
-  instance relaying chat and approval prompts to a desktop-hosted delegate session over holzi's
+  instance relaying chat and approval prompts to a desktop-hosted delegate session over HaexVault's
   planned peer-sync layer (iroh) — not addressed by this spec.
 
 ### Key Entities
@@ -291,7 +291,7 @@ _Out of scope for this feature_ (see `docs/plans/2026-09-11-agent-tool-loop-desi
   session. This was verified against codex-cli 0.147.0 on 2026-09-16 using
   `item/commandExecution/requestApproval` and `{"decision":"accept"|"decline"}` responses.
 - Claude Code's `-p` invocation supports a live, blocking, per-tool-call approval round-trip within a
-  single call via `--permission-prompt-tool` (an MCP tool holzi provides) — verified directly against
+  single call via `--permission-prompt-tool` (an MCP tool HaexVault provides) — verified directly against
   an installed CLI (v2.1.241) on 2026-09-16: a pending `Bash` call genuinely paused until the
   MCP-side response arrived. Also verified the same day: an isolated, empty `CLAUDE_CONFIG_DIR`
   blocks both credential lookup ("not logged in" despite a logged-in host) and host-level hook
@@ -317,6 +317,6 @@ _Out of scope for this feature_ (see `docs/plans/2026-09-11-agent-tool-loop-desi
   Claude, `codex login` for Codex), not an API key — this feature is specifically the "bring your
   existing subscription" path, distinct from the existing api_key provider.
 - Backend selection (local / api_key / a connected delegate) is made per request, consistent with how
-  provider choice already works elsewhere in holzi.
+  provider choice already works elsewhere in HaexVault.
 - A delegate process that doesn't gracefully acknowledge a stop request at the protocol level is
   still expected to be killed outright at the OS process level on stop, as a safe upper bound.

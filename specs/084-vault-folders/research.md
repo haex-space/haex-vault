@@ -56,7 +56,7 @@ non-blocking attempt before renaming anything and keeps it until the last rename
 tried again at the next start (FR-006). On Windows a rename of an open file fails anyway; on Unix it would succeed and leave
 the other process writing into a moved file, which is why the probe is required and not optional.
 
-Two holzi processes starting at once would both run the move. A device-wide lock file `<AppLocalData>/vaults.lock` is taken
+Two haex-vault processes starting at once would both run the move. A device-wide lock file `<AppLocalData>/vaults.lock` is taken
 for the whole move; the second process waits, then finds nothing left to do.
 
 The probe uses `haex_crdt::DatabaseLock::try_acquire`, the same call `Database::open` makes (it is public, an `fs2`

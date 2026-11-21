@@ -31,13 +31,13 @@
 
 ## Notes
 
-- Die Textpräfixe `holzi:card:` und `npub` stehen in der Spec, weil sie bestehende, für den Nutzer
+- Die Textpräfixe `haex:card:` und `npub` stehen in der Spec, weil sie bestehende, für den Nutzer
   sichtbare Formate benennen (Spec 051), keine neue Technik.
 - Offen für den Plan, bewusst nicht in der Spec entschieden: die Höchstgröße für Link und Zwischenablage
   (FR-019), die genaue Form der festen Kennung des Ich-Kontakts (FR-001), ob Migrations-Inserts vom CRDT
   erfasst werden und welche Fallbacks das gegebenenfalls braucht (FR-001), das Textpräfix des neuen
   Formats (FR-018).
-- Ebenfalls offen für den Plan: wie die bestätigten holzi-Adressen eines Kontakts gespeichert werden,
+- Ebenfalls offen für den Plan: wie die bestätigten HaexVault-Adressen eines Kontakts gespeichert werden,
   wenn eine Weitergabe neue Geräte oder Relays bringt, ohne bisherige zu entfernen (FR-025; die
   unterschriebene Karte lässt sich nicht verändern), und ob die Aktion zum Teilen für Agenten in Spec
   020 als `destructive` ohne dauerhafte Erlaubnis abgebildet werden kann (FR-029, FR-030).
@@ -54,11 +54,11 @@
   schon, und dieselbe Karte ergibt auf zwei Geräten dieselbe Zeile. `vault_pubkey` bleibt als indizierte
   Spalte daneben, um die Karten einer Vault zu finden. Nicht `issued_at`: Karten, die beim Teilen
   frisch unterschrieben werden, können in derselben Sekunde mit verschiedener Auswahl entstehen.
-- Plan-Vorgabe zu FR-025 und FR-025a (Betreiber, 2026-10-26): Alle Angaben, auch holzi-Adressen, lassen
-  sich beim Einlesen ablehnen. Bei holzi-Adressen gilt die Wahl je Karte, weil die unterschriebene Karte
+- Plan-Vorgabe zu FR-025 und FR-025a (Betreiber, 2026-10-26): Alle Angaben, auch HaexVault-Adressen, lassen
+  sich beim Einlesen ablehnen. Bei HaexVault-Adressen gilt die Wahl je Karte, weil die unterschriebene Karte
   unteilbar ist; eine Ablehnung einzelner Geräte oder Relays bräuchte eine Ausschlussliste und ist nicht
   Teil dieser Spec. Geprüft wird vor dem Speichern und bei jeder Verwendung: `format::from_bytes` prüft
   Format, Grenzen und Unterschrift schon für Text und gespeicherte Bytes; neu sind die Prüfung der
-  Kennung (Hash des unterschriebenen Inhalts, von holzi berechnet, nicht übertragen) und dass
+  Kennung (Hash des unterschriebenen Inhalts, von HaexVault berechnet, nicht übertragen) und dass
   `vault_pubkey` der Zeile der Vault in der verifizierten Karte entspricht, damit eine Karte nie unter
   einer fremden Vault geführt wird.

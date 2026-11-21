@@ -8,16 +8,16 @@ Terms: a **device session** is the key state between two devices (spec.md, Key E
 
 **Rationale**:
 
-- holzi already sends one wrap to each device on the recipients' cards and to the sender's own other devices ([072 research R4](../072-unified-chat/research.md), [ADR 0024](../../docs/adr/0024-chat-over-nostr-and-blossom.md) decision 1). A session per device pair replaces only the long-lived key inside that wrap.
+- haex-vault already sends one wrap to each device on the recipients' cards and to the sender's own other devices ([072 research R4](../072-unified-chat/research.md), [ADR 0024](../../docs/adr/0024-chat-over-nostr-and-blossom.md) decision 1). A session per device pair replaces only the long-lived key inside that wrap.
 - The Double Ratchet gives a fresh key per message (forward secrecy) and new key material with every answer (recovery after a copied key state). Both work with stored events and an offline recipient.
 - Groups need no shared key state. A removed member is no longer addressed, as today, so no agreement on an order of membership changes is needed and ADR 0024 decision 4 (ops with last-writer-wins, no coordinator) stays.
 - Nostr-Relays see what they see today: kind 1059 events to device keys.
 
 **Alternatives considered**:
 
-- **MLS (RFC 9420)**, the first draft of this plan. Rejected: MLS needs every member to apply membership commits in one order. Without a server, clients must pick a winner among concurrent commits; NIP-EE does it by lowest `created_at`, then lowest event id, and keeps old state for a while to repair forks. holzi blurs wrap times by up to 48 hours and decided against a coordinator (ADR 0024 decision 4). MLS also needs one-time key packages that an untrusted relay cannot hand out exactly once, a rule for who may add or remove a device, and a routing identifier per conversation that relays would see. Its gains, one ciphertext for a large group and a member list all members agree on cryptographically, are not needed for groups of at most 32 vaults that already fan out per device. [Spec 072 research R9](../072-unified-chat/research.md) had ruled MLS / NIP-EE out for the same size reason.
+- **MLS (RFC 9420)**, the first draft of this plan. Rejected: MLS needs every member to apply membership commits in one order. Without a server, clients must pick a winner among concurrent commits; NIP-EE does it by lowest `created_at`, then lowest event id, and keeps old state for a while to repair forks. haex-vault blurs wrap times by up to 48 hours and decided against a coordinator (ADR 0024 decision 4). MLS also needs one-time key packages that an untrusted relay cannot hand out exactly once, a rule for who may add or remove a device, and a routing identifier per conversation that relays would see. Its gains, one ciphertext for a large group and a member list all members agree on cryptographically, are not needed for groups of at most 32 vaults that already fan out per device. [Spec 072 research R9](../072-unified-chat/research.md) had ruled MLS / NIP-EE out for the same size reason.
 - **A receiving key per device that changes weekly, without a ratchet**. Rejected: forward secrecy only by the week, and a protocol of our own instead of a reviewed one.
-- **A shared sender key per group (Megolm, Signal sender keys)**. Rejected: saves fan-out holzi already pays and weakens recovery after compromise, because a sender key is replaced only on membership change.
+- **A shared sender key per group (Megolm, Signal sender keys)**. Rejected: saves fan-out haex-vault already pays and weakens recovery after compromise, because a sender key is replaced only on membership change.
 - **Keep the long-lived device keys**. Rejected by the operator: a device key copied once would read all later and all archived traffic to that device.
 
 ## R2: vodozemac's Olm as the ratchet
@@ -30,17 +30,17 @@ Terms: a **device session** is the key state between two devices (spec.md, Key E
 - The crate is pure Rust and had one external audit (Least Authority, 2022).
 - An account keeps two start keys, the current and the previous one (`generate_fallback_key`, `forget_fallback_key`), which is what R3 needs.
 - A review published in February 2026 criticised that Olm accepted a Diffie-Hellman result of all zeroes. Since 0.10.0 `Curve25519SecretKey::diffie_hellman()` returns an `Option`. Release 0.11.2 (2026-11-05) fixes three further advisories (a panic on malformed base64 keys, zeroization in dependencies, zeroization of the root-key ratchet output).
-- A session accepts messages that arrive out of order: up to 40 skipped message keys per receiving chain, five receiving chains, and a message at most 2,000 ahead of the last one. R8 keeps holzi inside these limits.
+- A session accepts messages that arrive out of order: up to 40 skipped message keys per receiving chain, five receiving chains, and a message at most 2,000 ahead of the last one. R8 keeps haex-vault inside these limits.
 
 **Limits to plan around**:
 
-- The default session config (version 1) shortens the message authentication tag to 8 bytes; version 2 with the full tag is behind the crate's `experimental-session-config` feature. Every holzi chat event is additionally signed by the sender's device key in the seal and authenticated by NIP-44 twice, so the short tag is not the only check. Decided: version 1, the default that was audited and is in use; the experimental feature stays off.
+- The default session config (version 1) shortens the message authentication tag to 8 bytes; version 2 with the full tag is behind the crate's `experimental-session-config` feature. Every haex-vault chat event is additionally signed by the sender's device key in the seal and authenticated by NIP-44 twice, so the short tag is not the only check. Decided: version 1, the default that was audited and is in use; the experimental feature stays off.
 - Pickles hold secrets. They are stored in the vault database, which SQLCipher encrypts; vodozemac's own pickle encryption is not needed on top.
 
 **Alternatives considered**:
 
 - **libsignal**: licensed under AGPL-3.0. Rejected for the licence.
-- **A Double Ratchet written for holzi on the secp256k1 keys it already has**. Rejected: a cryptographic protocol of our own.
+- **A Double Ratchet written for haex-vault on the secp256k1 keys it already has**. Rejected: a cryptographic protocol of our own.
 
 ## R3: A device publishes a signed chat key record so others can start a session while it is offline
 
@@ -69,7 +69,7 @@ Terms: a **device session** is the key state between two devices (spec.md, Key E
 - The encrypted content is the spec 072 envelope with `from`, `to` and the sender's card. The receiver runs the checks of the 072 contract unchanged after decrypting, so both vault identities are bound into the first message of every session.
 - If a device's record shows a new ratchet identity key (the device lost its state), senders accept it because the device key signed it, open a new session and drop the old ones with that device.
 
-**Rationale**: holzi's existing chain of trust (vault identity → card → device key) stays the only one. The ratchet identity key is never shown to the user and needs no verification of its own.
+**Rationale**: haex-vault's existing chain of trust (vault identity → card → device key) stays the only one. The ratchet identity key is never shown to the user and needs no verification of its own.
 
 ## R5: Transport and sizes
 
@@ -118,13 +118,13 @@ Terms: a **device session** is the key state between two devices (spec.md, Key E
 
 ## R9: Secret key state is stored per installation and never synchronized
 
-**Decision**: The ratchet account and the sessions live in `_no_sync` tables keyed by `installation_uuid`, like `device_keys_no_sync` ([keys.rs](../../src-tauri/src/sync/keys.rs)). holzi reads and writes only the rows of its own installation.
+**Decision**: The ratchet account and the sessions live in `_no_sync` tables keyed by `installation_uuid`, like `device_keys_no_sync` ([keys.rs](../../src-tauri/src/sync/keys.rs)). haex-vault reads and writes only the rows of its own installation.
 
 - A vault file copied to another device finds no rows for that installation and creates an account of its own; the copied rows are never used (SC-007). They stay in the copy. The operator accepted that on 2026-11-17: whoever can open the copy reads the kept history anyway, and deleting other installations' rows would break using one vault file on two computers in turn.
 - This departs from the naming rule of [ADR 0001](../../docs/adr/0001-device-scoped-data-convention.md), which puts per-device data into synchronized tables. Synchronizing would give every own device the secrets of all others and would keep old keys alive on devices that are offline. [ADR 0026](../../docs/adr/0026-chat-ratchet-per-device-pair.md) records the exception.
 - Every change of a session is written in the same transaction as the message, receipt or outbox row it belongs to. All operations on one session are serialized by a per-session lock from loading the latest pickle through crypto, transaction commit and cache update/invalidation; a caller reloads after taking the lock, so concurrent sends, receives and keep-alives cannot commit advances from the same predecessor state.
 - Erasure uses what spec 022 set up: `secure_delete = ON` overwrites freed pages, and the write-ahead log is truncated when the vault closes ([maintenance.rs](../../src-tauri/src/storage/maintenance.rs)). A key counts as erased once the vault was closed after its deletion. The same holds for a deleted message, so the keys are never easier to recover than the text they protected.
-- holzi has no backup of the vault database of its own. A copy the user makes holds the key state of that moment, protected by the vault password.
+- haex-vault has no backup of the vault database of its own. A copy the user makes holds the key state of that moment, protected by the vault password.
 
 ## R10: New devices, own devices and groups
 
@@ -149,7 +149,7 @@ Source: [`haex-vault-legacy` at `8dce379d94e18fcd42c3b73686a06f984ca3f574`](http
 
 Done on 2026-11-17 with a throwaway crate against `vodozemac` 0.11.2 and `nostr` 0.45, building the same three layers as `sync::gift_wrap`.
 
-- **vodozemac**: its minimum Rust version is 1.89 (holzi: 1.95). It compiles for `aarch64-linux-android` and `armv7-linux-androideabi`, also with `default-features = false`. It uses `curve25519-dalek` 5, `ed25519-dalek` 3 and `sha2` 0.11, the major versions holzi already has. Session config: version 1 (R2).
+- **vodozemac**: its minimum Rust version is 1.89 (haex-vault: 1.95). It compiles for `aarch64-linux-android` and `armv7-linux-androideabi`, also with `default-features = false`. It uses `curve25519-dalek` 5, `ed25519-dalek` 3 and `sha2` 0.11, the major versions haex-vault already has. Session config: version 1 (R2).
 - **Behaviour the plan relies on**, each observed: an opening on the previous start key still decrypts after one renewal and fails after two; a sender keeps sending opening messages until it decrypted an answer; both ends get the same session id; a message's ratchet key and counter can be read without decrypting it; of 60 messages delivered in reverse order only 41 decrypt (40 skipped keys); a message delivered twice fails the second time.
 - **Kind numbers**: 24122, 24123 and 10120 (and spec 072's 24120, 24121) are not in the [NIP kind list](https://github.com/nostr-protocol/nips/blob/master/README.md).
 - **Sizes**: plaintext limit 20 KiB (R5). A keep-alive wrap is 1,729 bytes, a reset wrap 1,561 bytes, a pickled session about 1.8 KiB.

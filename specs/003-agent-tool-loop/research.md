@@ -72,7 +72,7 @@ same way `haex-crdt` is pinned to a specific revision.
 
 **Rationale**: This repo has zero existing MCP code — building a hand-rolled JSON-RPC-over-stdio
 client would duplicate what the official SDK already provides (transport, capability negotiation,
-`tools/list`/`tools/call`), for a protocol holzi does not control the other side of.
+`tools/list`/`tools/call`), for a protocol haex-vault does not control the other side of.
 
 **Alternatives considered**: Hand-written minimal stdio JSON-RPC client. Rejected — MCP's
 capability-negotiation handshake and message framing are enough surface area that reimplementing them

@@ -5,7 +5,7 @@ R16, R20).
 
 Konventionen:
 
-- Kerntabellen ohne Präfix wie die übrigen von holzi (`src-tauri/src/identity/migrations.rs`).
+- Kerntabellen ohne Präfix wie die übrigen von haex-vault (`src-tauri/src/identity/migrations.rs`).
 - Synchronisierte Tabellen haben **keine UNIQUE-Constraints**; Eindeutigkeit über abgeleitete Kennungen
   (UUIDv5, je Tabelle ein eigener Namensraum `NS_*`, Konstanten in `extensions/ids.rs`).
 - Gerätebezogene, dauerhafte Zeilen folgen ADR-0001: Spalte `vault_device_uuid` mit Verweis auf
@@ -13,7 +13,7 @@ Konventionen:
 - `_no_sync`-Tabellen beschreiben den Zustand dieser Datei (Journal, ausgeführtes Aufräumen, Protokolle, geparkte Gruppen,
   Entwicklermodus) und gehen nie in den Sync.
 - Eine Migration `0023_extensions` (nach `0022_passwords` aus 034) in einer eigenen Datei
-  `identity/migrations_extensions.rs`; `HOLZI_TRIGGER_VERSION` 14 → 15.
+  `identity/migrations_extensions.rs`; `HAEX_TRIGGER_VERSION` 14 → 15.
 - Tabellen **einer Erweiterung** (`<publicKey>__<name>__<tabelle>`) entstehen nur über deren Migrationen
   (R8) und sind hier nicht beschrieben.
 
@@ -116,7 +116,7 @@ stehen nicht hier, sondern nur im Speicher.
 | `timeout_ms`         | INTEGER                                  | Standard 5.000                     |
 | `max_response_bytes` | INTEGER                                  | Netz und Ergebnis, Standard 16 MiB |
 
-Fehlt die Zeile, gelten die Standardwerte. Nur die Oberfläche von holzi ändert sie.
+Fehlt die Zeile, gelten die Standardwerte. Nur die Oberfläche von haex-vault ändert sie.
 
 ### `extension_device_status` — Zustand je Gerät (Anzeige)
 

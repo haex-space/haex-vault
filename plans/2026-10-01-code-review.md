@@ -1,4 +1,4 @@
-# Holzi – umfassendes Code-Review vom 2026-10-01
+# HaexVault – umfassendes Code-Review vom 2026-10-01
 
 Stand: `f2ac1befff48feac53e197efcc20f73b3695bc64` (`main`). Alle Fundstellen beziehen sich auf diesen Stand. Quellcode und bestehende Tests wurden nicht geändert. Dieser Bericht ist eine Beratungsgrundlage; nummerierte Specs bleiben normativ.
 
@@ -367,9 +367,9 @@ Die Lifecycle-Harnesses meldeten `useTemplateRef()` ohne aktive Komponenteninsta
 
 `pnpm audit --prod --json` meldete 7 Advisories: 3 hoch, 2 mittel, 2 niedrig; keine kritischen. Die hohen Meldungen betreffen `devalue@5.9.2` (`pnpm-lock.yaml:2687`). Die Primärmeldungen nennen Korrekturen ab 5.9.3: [Speicheroffenlegung bei Serialisierung](https://github.com/sveltejs/devalue/security/advisories/GHSA-j22f-vq7h-c4qm), [quadratische Ausgabe](https://github.com/sveltejs/devalue/security/advisories/GHSA-mcm9-63f2-9j32), [unbehandelte Async-Rejection](https://github.com/sveltejs/devalue/security/advisories/GHSA-x5rw-q4pp-hg5g).
 
-Das sind **keine drei nachgewiesenen Holzi-Sicherheitslücken**: Holzi verwendet `ssr: false` und liefert einen statischen Tauri-Frontend-Build aus. Ein erreichbarer Pfad mit angreiferkontrollierten Daten in den betroffenen Serialisierungsfunktionen wurde hier nicht nachgewiesen. Abhängigkeiten in einem separaten Update aktualisieren und die tatsächliche Laufzeit-/Build-Erreichbarkeit prüfen; keine pauschale SSR-Server-Gefährdung behaupten.
+Das sind **keine drei nachgewiesenen haex-vault-Sicherheitslücken**: HaexVault verwendet `ssr: false` und liefert einen statischen Tauri-Frontend-Build aus. Ein erreichbarer Pfad mit angreiferkontrollierten Daten in den betroffenen Serialisierungsfunktionen wurde hier nicht nachgewiesen. Abhängigkeiten in einem separaten Update aktualisieren und die tatsächliche Laufzeit-/Build-Erreichbarkeit prüfen; keine pauschale SSR-Server-Gefährdung behaupten.
 
-`cargo audit --file src-tauri/Cargo.lock --json` meldete `RUSTSEC-2026-0285` für `rustls 0.23.44`, außerdem fünf Unmaintained- und eine Unsound-Warnung. Die [Rustls-Primärmeldung](https://github.com/rustls/rustls/security/advisories/GHSA-2mjx-qc3c-rqvc) bewertet den Protokollfehler als mittel und nennt 0.23.45 als korrigierte Version. Der Handshake-Transcript bleibt authentifiziert; die Meldung belegt keine beliebige Manipulation oder Übernahme eines Handshakes. Rustls liegt in Holzi im Netzwerkpfad. Das Lockfile-Update getrennt prüfen und anschließend Audit sowie Netzwerk-/Sync-Tests ausführen. Warnungen wurden nicht als zusätzliche bestätigte Holzi-Bugs gezählt.
+`cargo audit --file src-tauri/Cargo.lock --json` meldete `RUSTSEC-2026-0285` für `rustls 0.23.44`, außerdem fünf Unmaintained- und eine Unsound-Warnung. Die [Rustls-Primärmeldung](https://github.com/rustls/rustls/security/advisories/GHSA-2mjx-qc3c-rqvc) bewertet den Protokollfehler als mittel und nennt 0.23.45 als korrigierte Version. Der Handshake-Transcript bleibt authentifiziert; die Meldung belegt keine beliebige Manipulation oder Übernahme eines Handshakes. Rustls liegt in HaexVault im Netzwerkpfad. Das Lockfile-Update getrennt prüfen und anschließend Audit sowie Netzwerk-/Sync-Tests ausführen. Warnungen wurden nicht als zusätzliche bestätigte haex-vault-Bugs gezählt.
 
 ### Nicht vollständig verifiziert
 

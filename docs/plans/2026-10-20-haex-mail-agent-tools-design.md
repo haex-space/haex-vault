@@ -13,7 +13,7 @@ ein Werkzeug beantworten statt eines geratenen `run_command`.
 
 ## Ausgangslage
 
-- holzi-Seite von 018 ist fertig (`src-tauri/src/extensions/agent_tools/`, Manifest-Feld `tools`).
+- haex-vault-Seite von 018 ist fertig (`src-tauri/src/extensions/agent_tools/`, Manifest-Feld `tools`).
 - haex-mail (`haextension/apps/haex-mail`) hat kein `tools`-Feld und keinen MCP-Baustein.
 - Der MCP-Baustein im vault-sdk (`sdk.tools.register`) liegt nur auf dem Branch `feat/agent-tools`, ist
   nicht gemergt und nicht released (neuestes Tag v4.5.0, haex-mail hängt an `^4.1.0`).
@@ -65,7 +65,7 @@ kleine Modelle verlässlicher als viele ähnliche (vgl. 046 R16).
   jede neue INBOX-Mail durch alle passenden Regeln; bei mehreren gewinnt `move` zuletzt.
   `add_rule` hat `applyToExisting`, das die Regel einmal auf den INBOX-Bestand anwendet.
 - **Grenze:** Regeln laufen nur, solange haex-mail läuft. Kein Server-Dienst (Sieve). Mails, die bei
-  ausgeschaltetem holzi ankommen, werden beim nächsten Abruf einsortiert. In die Spec als Einschränkung
+  ausgeschaltetem haex-vault ankommen, werden beim nächsten Abruf einsortiert. In die Spec als Einschränkung
   aufnehmen.
 - **Ziel fehlt:** Zeigt eine Regel auf einen Ordner, der verschwunden ist, wird sie übersprungen und in
   der Liste markiert, statt Mails an einen falschen Ort zu schieben.
@@ -87,14 +87,14 @@ kleine Modelle verlässlicher als viele ähnliche (vgl. 046 R16).
 Drei Etappen, jede mit eigenem PR, in dieser Reihenfolge:
 
 1. **vault-sdk:** `feat/agent-tools` (MCP-Baustein) mergen und releasen.
-2. **Host + SDK:** holzi bekommt `extension_mail_search`, `extension_mail_create_mailbox`,
+2. **Host + SDK:** haex-vault bekommt `extension_mail_search`, `extension_mail_create_mailbox`,
    `extension_mail_delete_messages` (je mit Erlaubnisliste in `bridge/allowlist.rs`, Berechtigung
    `mail/fetch`, Tests in `*_tests.rs` gegen `test_server.rs`); das SDK bekommt die Methoden und
    Konstanten in `commands/mail.ts`. Zweites SDK-Release.
 3. **haex-mail:** SDK anheben; Manifest-Block `tools`; Migration 0003 und `lib/rules.ts`; Werkzeug-
    Handler über `sdk.tools.register`; Regel-Oberfläche; Manifest neu signieren.
 
-Spec 019 in holzi (speckit) deckt Etappe 2 und die Verträge für 3 ab; Etappe 1 und 3 laufen in den
+Spec 019 in haex-vault (speckit) deckt Etappe 2 und die Verträge für 3 ab; Etappe 1 und 3 laufen in den
 jeweiligen Repos.
 
 ## Sicherheit

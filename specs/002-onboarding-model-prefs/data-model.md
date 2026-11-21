@@ -64,7 +64,7 @@ Keine — Preference-Rows sind zustandslos. Ihre Existenz ist der Zustand. Über
 **Semantik-Erweiterung** (kein Schema-Change):
 
 - Eine reservierte Sentinel-Zeile mit `installation_uuid = '00000000-0000-0000-0000-000000000000'`, `vault_device_uuid = '00000000-0000-0000-0000-000000000000'`, `alias = NULL`, `first_seen = 0` repräsentiert "vault-scope" als FK-Ziel für `preferences.vault_device_uuid`.
-- Wird von `HolziBootstrap::bootstrap` per `INSERT OR IGNORE` bei jedem Open geschrieben, VOR dem `installation_uuid`-Lookup für das aktuelle Device.
+- Wird von `HaexBootstrap::bootstrap` per `INSERT OR IGNORE` bei jedem Open geschrieben, VOR dem `installation_uuid`-Lookup für das aktuelle Device.
 - Storage-Wrapper `list_known_devices()` filtert die Sentinel-Zeile per `WHERE vault_device_uuid != '00...'` heraus, damit sie nicht in UI-Anzeigen von "Geräte im Vault" auftaucht.
 
 **Existierende Spalten** (unverändert):

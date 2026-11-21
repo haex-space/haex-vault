@@ -13,7 +13,7 @@ Verlaufseinträge, damit die neue Historien-Spec daran anschließen kann?
 - Checkout-Klassifikation: Feature-Branch `feature/chat-history-handling`; der
   vollständige Graph-Snapshot vom Fork-Punkt wurde verwendet und nicht gegen
   den Feature-Branch aktualisiert.
-- Query: `graphify query "chat history sessions messages conversation sidebar title" --graph /home/haex/Projekte/holzi/graphify-out/graph.json --budget 1400`
+- Query: `graphify query "chat history sessions messages conversation sidebar title" --graph /home/haex/Projekte/haex/graphify-out/graph.json --budget 1400`
 - Relevante gefundene Knoten: `src-tauri/src/storage/chat_threads.rs`,
   `ChatThread`, `list_threads()`, `update_thread()`, `delete_thread()`,
   `src-tauri/src/chat/thread_commands.rs`, `ThreadPayload`, `list_threads`,

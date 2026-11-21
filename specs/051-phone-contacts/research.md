@@ -11,7 +11,7 @@ Android-Plugin, Geräteliste, Nostr und Erweiterungs-Berechtigungen; danach gezi
   `VaultDb`, jede Methode nimmt zuerst den `Caller` und ruft eine reine Prüffunktion in
   `contacts/access.rs`. Schreiben über `VaultDb::write` (ein `CrdtTransaction`, ein HLC).
 - **Begründung**: FR-028 verlangt einen Zugang mit einer Prüfung für alle Aufrufer. Das Muster ist in
-  holzi erprobt (Spec 034, ADR 0007), auch die Ablehnung als `NotFound` (FR-031).
+  haex-vault erprobt (Spec 034, ADR 0007), auch die Ablehnung als `NotFound` (FR-031).
 - **Alternativen**: Kontakte als Daten einer mitgelieferten Erweiterung (verworfen: Kontakte sind
   Kerndaten, Annahme der Spec; Erweiterungen kämen nicht ohne Umweg an Telefon und Visitenkarte);
   direkte SQL-Befehle aus dem Frontend (verworfen: keine Prüfung möglich).
@@ -57,38 +57,38 @@ Android-Plugin, Geräteliste, Nostr und Erweiterungs-Berechtigungen; danach gezi
 
 ## R5 Abgleich mit Android: Kotlin dünn, Logik in Rust
 
-- **Entscheidung**: Das Plugin `holzi-android` bekommt Befehle, die nur Zeilen des Contacts Providers
+- **Entscheidung**: Das Plugin `haex-android` bekommt Befehle, die nur Zeilen des Contacts Providers
   lesen und schreiben ([contracts/android-plugin.md](./contracts/android-plugin.md)). Abgleich,
   Zusammenführen, Konfliktbasis, Massenlösch-Sperre und Zielkonto liegen in
   `src-tauri/src/contacts/phone/` hinter einem Trait `PhoneBook`, getestet auf dem Desktop mit einer
   Fälschung.
 - **Begründung**: ADR 0010: keine zweite Umsetzung einer Regel auf Android; testbar ohne Emulator.
-- **Alternativen**: Android-SyncAdapter mit eigenem Konto (verworfen: holzi soll die Konten des
+- **Alternativen**: Android-SyncAdapter mit eigenem Konto (verworfen: haex-vault soll die Konten des
   Nutzers abgleichen, nicht ein eigenes anlegen; braucht einen Dienst, der im Hintergrund läuft, Spec 043
   FR-018 verbietet das); `ContentObserver` (verworfen: feuert auch für eigene Schreibvorgänge, und
-  holzi läuft ohnehin nur im Vordergrund).
+  haex-vault läuft ohnehin nur im Vordergrund).
 
 ## R6 Änderungen erkennen: `RawContacts.VERSION` je Zuordnung
 
-- **Entscheidung**: Je Telefon und Roh-Kontakt speichert holzi `raw_contact_id`, Konto, `SOURCE_ID`,
+- **Entscheidung**: Je Telefon und Roh-Kontakt speichert haex-vault `raw_contact_id`, Konto, `SOURCE_ID`,
   `VERSION` und die **Basis**: die zuletzt abgeglichene Fassung der abgebildeten Angaben (JSON). Beim
-  Abgleich liest holzi `_ID, VERSION, DELETED, ACCOUNT_*, SOURCE_ID, CONTACT_ID` aller Roh-Kontakte und
+  Abgleich liest haex-vault `_ID, VERSION, DELETED, ACCOUNT_*, SOURCE_ID, CONTACT_ID` aller Roh-Kontakte und
   vergleicht:
   - neue ID → übernehmen oder zusammenführen
-  - höhere `VERSION` → Daten lesen, Drei-Wege-Vergleich Basis/Telefon/holzi je Angabe
+  - höhere `VERSION` → Daten lesen, Drei-Wege-Vergleich Basis/Telefon/haex je Angabe
   - fehlende ID oder `DELETED=1` → Löschung auf dem Telefon
   - nach eigenem Schreiben neue `VERSION` sofort zurücklesen und speichern, damit eigene Änderungen nicht
     als Telefonänderung zurückkommen
-- **Dieselbe Angabe auf beiden Seiten geändert** (seit der Basis im Telefon und in holzi): die spätere
+- **Dieselbe Angabe auf beiden Seiten geändert** (seit der Basis im Telefon und in haex-vault): die spätere
   Änderung gewinnt, wie bei gleichzeitigen Änderungen im Datensync (Spec 024). Verglichen werden
   `Contacts.CONTACT_LAST_UPDATED_TIMESTAMP` des Telefons (über `contactsIndex` geliefert) und die
-  physische Zeit des HLC der holzi-Spalte beziehungsweise -Zeile. Telefon später → der Telefonwert wird
-  als Änderung dieses Geräts übernommen (neuer HLC, setzt sich überall durch); holzi später oder
-  gleich, oder Zeitstempel fehlt → der holzi-Wert wird ins Telefon geschrieben. Verschiedene Angaben
+  physische Zeit des HLC der haex-vault-Spalte beziehungsweise -Zeile. Telefon später → der Telefonwert wird
+  als Änderung dieses Geräts übernommen (neuer HLC, setzt sich überall durch); haex-vault später oder
+  gleich, oder Zeitstempel fehlt → der haex-vault-Wert wird ins Telefon geschrieben. Verschiedene Angaben
   desselben Kontakts werden nie gegeneinander abgewogen, beide bleiben.
 - **Begründung**: `DIRTY` gehört dem Sync-Adapter des Kontos; `CONTACT_LAST_UPDATED_TIMESTAMP` und
   `DeletedContacts` gelten nur für zusammengefasste Kontakte (der Zeitstempel reicht aber für die
-  Konfliktregel oben, weil holzi einen holzi-Kontakt je zusammengefasstem Kontakt führt, R7). `VERSION` steigt bei jeder Änderung des
+  Konfliktregel oben, weil haex-vault einen haex-vault-Kontakt je zusammengefasstem Kontakt führt, R7). `VERSION` steigt bei jeder Änderung des
   Roh-Kontakts oder seiner Daten. Die Basis macht den Vergleich je Angabe möglich (FR-022, FR-023).
 - **Zeitpunkte**: nach dem Öffnen der Vault, bei `RunEvent::Resumed` (`lib.rs:606`, neuer `Wake` in
   `sync/resume.rs`) und nach eingehenden Änderungen an Kontakten (Abonnement auf
@@ -98,15 +98,15 @@ Android-Plugin, Geräteliste, Nostr und Erweiterungs-Berechtigungen; danach gezi
 
 ## R7 Zusammengefasste Kontakte des Telefons
 
-- **Entscheidung**: Ein holzi-Kontakt bildet einen zusammengefassten Android-Kontakt ab
+- **Entscheidung**: Ein haex-vault-Kontakt bildet einen zusammengefassten Android-Kontakt ab
   (`Contacts.LOOKUP_KEY`); jeder beteiligte Roh-Kontakt hat eine eigene Zuordnungszeile mit derselben
   `contact_id`. Beim Lesen werden die Angaben aller Roh-Kontakte vereinigt (gleiche Werte einmal). Eine
-  geänderte Angabe schreibt holzi in den Roh-Kontakt, der sie hält; eine neue Angabe in den Roh-Kontakt
+  geänderte Angabe schreibt haex-vault in den Roh-Kontakt, der sie hält; eine neue Angabe in den Roh-Kontakt
   des Abgleichsziels, sonst in den ersten beschreibbaren. Roh-Kontakte aus nur lesbaren Konten
   (`RAW_CONTACT_IS_READ_ONLY`, Sync-Adapter ohne `supportsUploading`) sind nur Quelle.
-- **Begründung**: Edge Case der Spec („eine Person ist in holzi ein Kontakt“); vermeidet Doppel aus
+- **Begründung**: Edge Case der Spec („eine Person ist in haex-vault ein Kontakt“); vermeidet Doppel aus
   Google- und Messenger-Konten.
-- **Alternativen**: ein holzi-Kontakt je Roh-Kontakt (verworfen: Doppel).
+- **Alternativen**: ein haex-vault-Kontakt je Roh-Kontakt (verworfen: Doppel).
 
 ## R8 Zusammenführen beim ersten Abgleich
 
@@ -136,7 +136,7 @@ Android-Plugin, Geräteliste, Nostr und Erweiterungs-Berechtigungen; danach gezi
 - **Entscheidung**: Fotos liegen inhaltsadressiert in `haex_contacts_binaries` (SHA-256, wie
   `haex_passwords_binaries`), höchstens 512 × 512 Pixel, JPEG, höchstens 200 KiB (FR-005). Verkleinert
   wird mit `image` + `fast_image_resize` wie in `files/thumbnails.rs`. Vom Telefon gelesen wird das
-  große Foto (`DisplayPhoto`); zurückgeschrieben nur, wenn sich das holzi-Foto geändert hat (Vergleich
+  große Foto (`DisplayPhoto`); zurückgeschrieben nur, wenn sich das haex-vault-Foto geändert hat (Vergleich
   über den Hash der Basis, nicht über das Telefonbild, weil der Provider beim Schreiben neu skaliert).
 - **Alternativen**: Tabelle des Passwortmanagers mitnutzen (verworfen: fremder Dienst, eigene
   Aufräumregeln).
@@ -149,16 +149,16 @@ Android-Plugin, Geräteliste, Nostr und Erweiterungs-Berechtigungen; danach gezi
   derselben Normalisierung (eine Funktion in Rust, Frontend nutzt die gleiche Regel aus
   `src/lib/contacts/search.ts` mit geteilten Testfällen).
 - **Begründung**: SC-007 (5.000 Kontakte, < 200 ms) ist mit einem Durchlauf über vorbereitete Texte
-  erreichbar; die Spec verlangt „enthält“, keine unscharfe Suche. Kein FTS5 (holzi nutzt es nirgends).
+  erreichbar; die Spec verlangt „enthält“, keine unscharfe Suche. Kein FTS5 (haex-vault nutzt es nirgends).
 
 ## R12 Visitenkarte
 
 - **Entscheidung**: Struktur `ContactCard` (postcard), unterschrieben mit der Vault-Identität über
-  `signing::sign(Domain::ContactCard, …)` (neuer Tag `holzi-contact-card/v1`). Inhalt: Version,
+  `signing::sign(Domain::ContactCard, …)` (neuer Tag `haex-contact-card/v1`). Inhalt: Version,
   Vault-Identität, `issued_at`, Generation der Geräteliste, Geräte (Geräteschlüssel, iroh-Endpunkt,
   iroh-Relay falls bekannt), Nostr-Relays (`ServerConfig::effective_nostr_relays`), Name, gewählte
-  Angaben. Text-Form `holzi:card:` + base64url(postcard ‖ Signatur), dieselbe Zeichenkette als Link und
-  QR-Code (`qrcode` wie `LinkCode::qr_svg`). Höchstens 2 KiB, sonst lässt holzi beim Erstellen
+  Angaben. Text-Form `haex:card:` + base64url(postcard ‖ Signatur), dieselbe Zeichenkette als Link und
+  QR-Code (`qrcode` wie `LinkCode::qr_svg`). Höchstens 2 KiB, sonst lässt haex-vault beim Erstellen
   Angaben weg und sagt es. Format in [contracts/contact-card.md](./contracts/contact-card.md).
 - **Wer unterschreibt**: nur Hauptgeräte (`keys::vault_secret()` ist dort `Some`). Die zuletzt
   erstellte eigene Karte liegt synchronisiert in `haex_contacts_own_card`, damit verknüpfte Geräte sie
@@ -183,11 +183,11 @@ Android-Plugin, Geräteliste, Nostr und Erweiterungs-Berechtigungen; danach gezi
 - **Entscheidung**: `tauri-plugin-barcode-scanner` (offizielles Tauri-Plugin, Android und iOS; Version
   2.x, beim Einbau auf die neueste veröffentlichte festgelegt), nur in `cfg(mobile)` registriert. Die
   Kamera-Berechtigung fragt das Plugin selbst. Am Desktop: Link einfügen (Zwischenablage).
-- **Begründung**: holzi hat keinen Scanner. Ein Scanner im WebView bräuchte Kamerafreigaben über den
+- **Begründung**: haex-vault hat keinen Scanner. Ein Scanner im WebView bräuchte Kamerafreigaben über den
   `WebChromeClient`, die Spec 043 bewusst nicht öffnet.
 - **Alternativen**: `html5-qrcode`/`jsQR` im WebView (verworfen, siehe oben); eigener Kotlin-Scanner mit
   ML Kit (verworfen: das offizielle Plugin tut genau das).
-- **Abweichung von ADR 0010**: ADR 0010 hält Android-Code in `holzi-android`; das Plugin ist wie
+- **Abweichung von ADR 0010**: ADR 0010 hält Android-Code in `haex-android`; das Plugin ist wie
   `tauri-plugin-notification` ein Upstream-Plugin und kein eigener Android-Code. Kein Widerspruch.
 
 ## R14 Erweiterungen
@@ -222,13 +222,13 @@ Android-Plugin, Geräteliste, Nostr und Erweiterungs-Berechtigungen; danach gezi
   Absenders. `presence::wrap_payload`/`unwrap_rumor` werden dafür um die gespeicherte Art
   erweitert. Jedes Gerät abonniert kind 1059 mit seinem `p`-Tag auf den eigenen Nostr-Relays. Vertrag in
   [contracts/nostr-invite.md](./contracts/nostr-invite.md).
-- **Begründung**: holzi nutzt heute nur flüchtige Ereignisse; Zustellung an Offline-Empfänger braucht
+- **Begründung**: haex-vault nutzt heute nur flüchtige Ereignisse; Zustellung an Offline-Empfänger braucht
   gespeicherte (FR-036). Das Relay sieht nur einen Einmalschlüssel und den `p`-Tag, weder Inhalt noch
   Vault-Identität des Absenders (FR-035). Der Sync-Server (026) ist nicht gebaut.
 - **Zeitpunkt**: Umsetzung erst mit Spec 027 oder 028 (Phasen-Regel); dieser Plan legt nur den Vertrag
   fest. Die Entscheidung D33 des Sync-Entwurfs wird durch ADR 0014 abgelöst.
 - **Alternativen**: NIP-17 (verworfen: NIP-17 ist für Chat-Nachrichten mit Relay-Listen kind 10050;
-  holzi braucht Gerät statt Person als Ziel); Postfach des Sync-Servers (später zusätzlich, FR-035).
+  haex-vault braucht Gerät statt Person als Ziel); Postfach des Sync-Servers (später zusätzlich, FR-035).
 
 ## R17 Einstellungen
 

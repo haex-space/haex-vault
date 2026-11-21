@@ -177,7 +177,7 @@ Es gibt dafür **keine** Tauri-Commands (die Oberfläche legt nichts an und benu
 FR-023); sie werden über Rust-Integrationstests und später durch Spec 017–019/021 und die
 External Bridge aufgerufen. Algorithmen: Anlegen mit ES256 (`p256`, Vorrang) oder EdDSA
 (`ed25519-dalek`), je nach `pubKeyCredParams` des Aufrufers; Bestätigen für beide; **RS256
-bestätigt holzi nicht** (importierte RS256-Passkeys erscheinen, `passkey_confirm` meldet
+bestätigt haex-vault nicht** (importierte RS256-Passkeys erscheinen, `passkey_confirm` meldet
 `UnsupportedAlgorithm`, FR-034): dafür wäre `rsa` als Laufzeit-Abhängigkeit nötig, das
 heute nur `0.10.0-rc` in den Dev-Abhängigkeiten ist. Beglaubigung `none` (`fmt: "none"`,
 leerer `attStmt`). `clientDataJSON` baut der Dienst selbst aus Typ, Aufgabe und Herkunft
@@ -206,7 +206,7 @@ Standard-Features.
 
 **Verworfen**: `coset` (typisierter COSE, zieht `ciborium` ohnehin, bringt für drei
 Schlüsselarten keinen Gewinn); CBOR von Hand (zu fehleranfällig für Beglaubigungsdaten);
-RS256 jetzt (Release-Kandidat-Crate in Produktion, und holzi legt keine RSA-Passkeys an).
+RS256 jetzt (Release-Kandidat-Crate in Produktion, und haex-vault legt keine RSA-Passkeys an).
 
 ## R9 — Herkunftsprüfung (FR-025)
 

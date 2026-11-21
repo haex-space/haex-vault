@@ -189,21 +189,21 @@ All figures were measured on 2026-11-04 on the reference laptop (RTX A2000 8 GB,
 
 ## R9 Measuring in the app's own code
 
-- **Decision**: `tests/model_tool_eval.rs` reads `HOLZI_LLAMACPP_DRAFTER=<path>` and passes it through
+- **Decision**: `tests/model_tool_eval.rs` reads `HAEX_LLAMACPP_DRAFTER=<path>` and passes it through
   `LoadOptions`. Its report gets the generated tokens and the generation time per request, and the tokens per
   second over the run (spec FR-013).
-- **Rationale**: SC-001 to SC-003 must hold for holzi's own loop, not only for `llama-server`.
+- **Rationale**: SC-001 to SC-003 must hold for haex-vault's own loop, not only for `llama-server`.
 - **Dependency**: the everyday measurement is spec 078 (#803, merged on 2026-11-04).
 
 ## R10 Phones
 
 - **Decision**: the same code on Android. The planner's rule 4 (R7) keeps the drafter off where the model runs on
-  the processor only, which is how holzi runs on Android today.
+  the processor only, which is how haex-vault runs on Android today.
 - **Rationale**: a phone gain is unmeasured, and the spec allows the drafter only where it is faster.
 
-## R11 Measured in holzi's own loop, and why the feature is parked
+## R11 Measured in haex-vault's own loop, and why the feature is parked
 
-- **Measured 2026-11-04** with `mtp_speed` (holzi's loader, planner and token loop, the four requests of R1 rendered
+- **Measured 2026-11-04** with `mtp_speed` (haex-vault's loader, planner and token loop, the four requests of R1 rendered
   through the model's chat template with thinking off, greedy, debug build; RTX A2000 8 GB):
 
   | Model | Writing, tok/s      | First token, short prompts | First token after 4153 prompt tokens | Tool call |
@@ -212,9 +212,9 @@ All figures were measured on 2026-11-04 on the reference laptop (RTX A2000 8 GB,
   | E4B   | 45.4 → 63.3 (1.39×) | 98 → 82 ms                 | 2512 → 2810 ms (+12 %)               | same      |
 
 - **Cross-check**: `llama-server` (R1's build) on the same four chat prompts with thinking off gives E4B
-  46.1 → 62.4 tok/s, 1.35×: holzi's loop is as fast as the reference. R1's 1.44× to 1.66× came from answers with
+  46.1 → 62.4 tok/s, 1.35×: haex-vault's loop is as fast as the reference. R1's 1.44× to 1.66× came from answers with
   thinking, which the drafter predicts better; the app's short voice answers gain less.
-- **The prompt**: holzi decodes the whole prompt for every answer and every tool step (one context per generation,
+- **The prompt**: haex-vault decodes the whole prompt for every answer and every tool step (one context per generation,
   spec 070 plan D5). With the drafter, that happens with flash attention off (R8), 12 to 17 % slower. For a chat
   prompt of about 4000 tokens and an answer of 40 tokens, E2B takes 2104 ms with the drafter against 1949 ms
   without, and E4B is even (3411 against 3377 ms). The drafter pays off only from about 110 answer tokens on E2B

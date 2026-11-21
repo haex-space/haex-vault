@@ -18,8 +18,8 @@ vor:
 
 Mindestversion: Chromium 120 (`Browser.getVersion`); ältere gelten als nicht gefunden.
 
-Nichts gefunden: Angebot „Chrome for Testing“ in der Version, die holzi kennt (Größe, Quelle,
-Prüfsumme sichtbar), Ablage im Datenverzeichnis von holzi, für alle Vaults des Geräts geteilt.
+Nichts gefunden: Angebot „Chrome for Testing“ in der Version, die haex-vault kennt (Größe, Quelle,
+Prüfsumme sichtbar), Ablage im Datenverzeichnis von haex-vault, für alle Vaults des Geräts geteilt.
 
 ## Start
 
@@ -33,14 +33,14 @@ Prüfsumme sichtbar), Ablage im Datenverzeichnis von holzi, für alle Vaults des
   about:blank
 ```
 
-- Deskriptor 3: holzi → Browser, Deskriptor 4: Browser → holzi, jede Nachricht JSON mit `\0` am
+- Deskriptor 3: haex-vault → Browser, Deskriptor 4: Browser → haex-vault, jede Nachricht JSON mit `\0` am
   Ende. Windows über die CRT-Vererbung (`lpReserved2`), getestet im Windows-Lauf.
-- holzi wartet höchstens 15 s auf die Antwort von `Browser.getVersion`, sonst
+- haex-vault wartet höchstens 15 s auf die Antwort von `Browser.getVersion`, sonst
   `browser_unavailable`.
 - Nach dem Start: `Target.setAutoAttach { autoAttach: true, waitForDebuggerOnStart: true, flatten: true }`:
-  jedes neue Ziel wartet auf holzi. Ein Tab, den eine Seite oder ein Rahmen eines Agenten-Tabs öffnet
+  jedes neue Ziel wartet auf haex-vault. Ein Tab, den eine Seite oder ein Rahmen eines Agenten-Tabs öffnet
   (`window.open`, Link oder Formular mit `target=_blank`, auch ohne Opener), gehört der Sitzung dieses
-  Agenten-Tabs: holzi hält seine Anfragen an, lässt ihn weiterlaufen und fragt vor seinem ersten
+  Agenten-Tabs: haex-vault hält seine Anfragen an, lässt ihn weiterlaufen und fragt vor seinem ersten
   Dokument (Art `newTab`; Manuell immer, Auto bei nicht erlaubter Website, die Zustimmung erlaubt sie
   einmal; Plan, Ablehnung und mehr als 5 Tabs schließen ihn). Jedes andere neue Ziel läuft sofort
   weiter. `Browser.setPermission` für Kamera,
@@ -50,13 +50,13 @@ Prüfsumme sichtbar), Ablage im Datenverzeichnis von holzi, für alle Vaults des
 ## Je Agenten-Tab
 
 1. `Target.createTarget { url: "about:blank" }`, Anhängen in Flat Mode.
-2. `Page.createIsolatedWorld { worldName: "holzi" }` und
-   `Page.addScriptToEvaluateOnNewDocument { worldName: "holzi", source: <Leseskript + Markierung> }`.
-3. `Runtime.enable` und `Runtime.addBinding { name: "__holzi", executionContextName: "holzi" }`
+2. `Page.createIsolatedWorld { worldName: "haex" }` und
+   `Page.addScriptToEvaluateOnNewDocument { worldName: "haex", source: <Leseskript + Markierung> }`.
+3. `Runtime.enable` und `Runtime.addBinding { name: "__haex", executionContextName: "haex" }`
    für die Knöpfe der Markierung (ohne `Runtime.enable` erreicht die Bindung keine späteren
    Dokumente); nur vertrauenswürdige Ereignisse zählen (R6).
 4. `Target.setAutoAttach` hängt auch verschachtelte frame targets an; auf jedem Target aktiviert
-   holzi `Fetch.enable` für Dokument-Navigationen (Website- und Wirkungsprüfung vor dem Laden, R9)
+   haex-vault `Fetch.enable` für Dokument-Navigationen (Website- und Wirkungsprüfung vor dem Laden, R9)
    sowie für jede ändernde Anfrage (R5). Jede Freigabe ist an ihre CDP-Request-ID gebunden.
 
 ## Eingreifen und Zurückgeben
@@ -65,11 +65,11 @@ Prüfsumme sichtbar), Ablage im Datenverzeichnis von holzi, für alle Vaults des
   (`browser.takeover.request`, Rückfrage `takeover` mit dem Grund als Angabe des Agenten) oder
   durch eine eigene Eingabe im Tab: Die Markierung meldet jeden vertrauenswürdigen `pointerdown`
   und `keydown` außerhalb der Leiste über die Bindung (`input`); eingebettete Frames erhalten den
-  Listener auf ihrem Frame-Target, da ihre Ereignisse nicht zum Hauptframe aufsteigen. holzi
+  Listener auf ihrem Frame-Target, da ihre Ereignisse nicht zum Hauptframe aufsteigen. haex-vault
   ignoriert die Meldung während seiner eigenen `Input.*`-Aufrufe und 500 ms danach (R6).
 - Während der Pause endet der laufende Aufruf innerhalb einer Sekunde mit `paused`, jeder weitere
   bekommt `paused`; nur `browser.takeover.request` wartet bis zum Zurückgeben (`returned: true`).
-  Die Markierung zeigt „Zurückgeben“: im aktuellen Dokument über `Runtime.evaluate` in holzis Welt
+  Die Markierung zeigt „Zurückgeben“: im aktuellen Dokument über `Runtime.evaluate` in haex-vaults Welt
   (höchstens 1 s je Tab, denn eine Seite, die auf ein langsames Dokument wartet, antwortet erst mit
   ihm), in jedem neuen Dokument meldet sich die Markierung über die Bindung (`hello`) und bekommt
   den Zustand der Sitzung. Die gehaltenen Anfragen der Tabs gehen ohne Rückfrage weiter, denn der
@@ -78,22 +78,22 @@ Prüfsumme sichtbar), Ablage im Datenverzeichnis von holzi, für alle Vaults des
 - Zurückgeben prüft die Seite jedes Tabs (Adresse aus `Target.getTargetInfo`, die der Browser auch
   während eines langsamen Dokuments nennt) und die letzte Seite, die er während der Pause zu laden
   begann (sie kann noch unterwegs sein), wie ein neues Dokument (FR-007): außerhalb der Rechte
-  fragt holzi; ohne Zustimmung bleibt der Tab beim Nutzer (wie beim Stoppen). Danach steuert der
+  fragt haex-vault; ohne Zustimmung bleibt der Tab beim Nutzer (wie beim Stoppen). Danach steuert der
   Agent wieder.
 
 ## Profil
 
-- Arbeitsverzeichnis: Linux `$XDG_RUNTIME_DIR/holzi-agent-browser/<instanz>`, macOS
-  `$TMPDIR/holzi-agent-browser/<instanz>`, Windows `%LOCALAPPDATA%\Temp\holzi-agent-browser\<instanz>`;
+- Arbeitsverzeichnis: Linux `$XDG_RUNTIME_DIR/haex-agent-browser/<instanz>`, macOS
+  `$TMPDIR/haex-agent-browser/<instanz>`, Windows `%LOCALAPPDATA%\Temp\haex-agent-browser\<instanz>`;
   Verzeichnis `0700` bzw. nur der Nutzer.
 - Start: alte Reste dieser Instanz löschen, `profile.zip` aus dem verschlüsselten Ordner
   `agent-browser/Profil` (data-model.md) lesen und auspacken.
-- Ende (Browser beendet, 15 Minuten ohne Sitzung, Vault schließt, holzi beendet sich geordnet):
+- Ende (Browser beendet, 15 Minuten ohne Sitzung, Vault schließt, haex-vault beendet sich geordnet):
   Browser beenden (`Browser.close`, nach 20 s Prozess beenden), bleibende Teile packen, als neue
   Version von `profile.zip` in den verschlüsselten Ordner schreiben, Arbeitsverzeichnis löschen.
   Ein Browser, dessen Prozess beendet werden musste oder der mit Fehler endet, speichert nichts:
   das Profil des letzten geordneten Endes bleibt, und das Ende meldet den Grund.
-- In `Default/Preferences` setzt holzi vor jedem Start `credentials_enable_service: false` und
+- In `Default/Preferences` setzt haex-vault vor jedem Start `credentials_enable_service: false` und
   `autofill.profile_enabled: false` (FR-002).
 - Bleibende Teile: `Local State`, `Default/Preferences`, `Default/Network/Cookies` (vor Chromium 96
   `Default/Cookies`), `Default/Local Storage/`, `Default/IndexedDB/`, `Default/Session Storage/`,
@@ -102,11 +102,11 @@ Prüfsumme sichtbar), Ablage im Datenverzeichnis von holzi, für alle Vaults des
 ## Ende
 
 - Stoppen gibt die Tabs der Sitzung zurück: `Page.stopLoading`, Markierung entfernen,
-  `Target.detachFromTarget`; der Tab bleibt offen, ohne Prüfung und Bindung von holzi.
+  `Target.detachFromTarget`; der Tab bleibt offen, ohne Prüfung und Bindung von haex-vault.
 - Vault schließt oder Zugang aus: alle Sitzungen enden (`stopped`), dann Ende wie oben.
-- Nutzer schließt das Fenster: Sitzungen enden; der Prozess endet von selbst, holzi sichert das
+- Nutzer schließt das Fenster: Sitzungen enden; der Prozess endet von selbst, haex-vault sichert das
   Profil.
 - Der Browser stürzt ab: Sitzungen enden mit `browser_unavailable`; das Profil des letzten
   geordneten Endes bleibt gültig, das Arbeitsverzeichnis wird gelöscht.
-- holzi stürzt ab: das Arbeitsverzeichnis bleibt bis zum nächsten Start liegen und wird dann vor
+- haex-vault stürzt ab: das Arbeitsverzeichnis bleibt bis zum nächsten Start liegen und wird dann vor
   allem anderen gelöscht.

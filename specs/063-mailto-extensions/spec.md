@@ -7,9 +7,9 @@
 **Status**: Draft
 
 **Input**: User description: "Tippt der Nutzer im Adressbuch bei einer E-Mail-Adresse auf „Mail
-schreiben“, ruft holzi weiterhin die Funktion des Betriebssystems auf (mailto:). Zusätzlich sollen
-Extensions, die E-Mails schreiben können (zum Beispiel haex-mail), als Option erscheinen: in holzi als
-Auswahl hinter dem Mail-Knopf und im System, indem holzi sich als Programm für mailto: registriert."
+schreiben“, ruft HaexVault weiterhin die Funktion des Betriebssystems auf (mailto:). Zusätzlich sollen
+Extensions, die E-Mails schreiben können (zum Beispiel haex-mail), als Option erscheinen: in HaexVault als
+Auswahl hinter dem Mail-Knopf und im System, indem HaexVault sich als Programm für mailto: registriert."
 
 ## Begriffe
 
@@ -23,7 +23,7 @@ Auswahl hinter dem Mail-Knopf und im System, indem holzi sich als Programm für 
 - **Öffnen-Auswahl**: das kleine Menü, in dem der Nutzer wählt, womit ein E-Mail-Link geöffnet wird: mit
   dem System oder mit einem der Öffner.
 - **System-Öffnen**: das Weiterreichen des E-Mail-Links an das Betriebssystem, das daraufhin das dort
-  eingestellte Mail-Programm startet. Das macht holzi heute schon.
+  eingestellte Mail-Programm startet. Das macht HaexVault heute schon.
 - **Mail-Knopf**: der Knopf neben einer E-Mail-Adresse eines Kontakts (Spec 051 FR-006).
 
 ## Beziehung zu bestehenden Specs
@@ -47,7 +47,7 @@ Auswahl hinter dem Mail-Knopf und im System, indem holzi sich als Programm für 
 
 ### Session 2026-10-28
 
-- Q: Wie vermeidet holzi die Schleife, wenn es selbst das mailto-Programm des Systems ist (FR-018)? → A:
+- Q: Wie vermeidet HaexVault die Schleife, wenn es selbst das mailto-Programm des Systems ist (FR-018)? → A:
   Bei einem Link von außen gibt es „Mit dem System öffnen“ nie; die Auswahl hat nur die Öffner und
   „Link kopieren“. Keine Erkennung des Standard-Programms pro Plattform.
 - Q: Was geschieht, wenn mehrere Links von außen kurz nacheinander kommen? → A: Es wird nur der neueste
@@ -61,7 +61,7 @@ Auswahl hinter dem Mail-Knopf und im System, indem holzi sich als Programm für 
 Ich sehe bei einem Kontakt eine E-Mail-Adresse und tippe auf den Mail-Knopf. Ist keine Extension
 installiert, die E-Mails öffnen kann, passiert dasselbe wie bisher: Das Mail-Programm des Systems geht
 auf. Gibt es mindestens einen Öffner, zeigt der Knopf stattdessen die Öffnen-Auswahl: „Mit dem System
-öffnen“ und je eine Zeile pro Öffner, zum Beispiel „haex-mail“. Wähle ich haex-mail, öffnet holzi das
+öffnen“ und je eine Zeile pro Öffner, zum Beispiel „haex-mail“. Wähle ich haex-mail, öffnet HaexVault das
 Fenster von haex-mail, und dessen Schreib-Dialog steht mit der Adresse als Empfänger offen. Nichts wird
 gesendet, bevor ich es in haex-mail selbst tue.
 
@@ -74,7 +74,7 @@ wie bisher.
 
 **Acceptance Scenarios**:
 
-1. **Given** kein Öffner ist installiert, **When** ich auf den Mail-Knopf tippe, **Then** öffnet holzi
+1. **Given** kein Öffner ist installiert, **When** ich auf den Mail-Knopf tippe, **Then** öffnet HaexVault
    den E-Mail-Link beim System, ohne Auswahl, wie vor dieser Spec.
 2. **Given** haex-mail ist installiert und hat sich als Öffner angemeldet, **When** ich auf den
    Mail-Knopf tippe, **Then** sehe ich die Öffnen-Auswahl mit „Mit dem System öffnen“ und „haex-mail“.
@@ -90,36 +90,36 @@ wie bisher.
 
 ---
 
-### User Story 2 - Ein E-Mail-Link von außen öffnet holzi und ich wähle den Öffner (Priority: P2)
+### User Story 2 - Ein E-Mail-Link von außen öffnet HaexVault und ich wähle den Öffner (Priority: P2)
 
 Ich tippe in einer anderen App, im Browser oder in einem Dokument auf einen E-Mail-Link. Hat der Nutzer
-holzi beim System als Programm für E-Mail-Links eingestellt (oder wählt er es im System-Dialog „Öffnen
-mit“), geht holzi auf und zeigt die Öffnen-Auswahl für genau diesen Link: die Öffner und „Link
-kopieren“, aber nie „Mit dem System öffnen“, weil das holzi erneut öffnen könnte. Meine Wahl öffnet den Link in der Extension. Ist die Vault
+HaexVault beim System als Programm für E-Mail-Links eingestellt (oder wählt er es im System-Dialog „Öffnen
+mit“), geht HaexVault auf und zeigt die Öffnen-Auswahl für genau diesen Link: die Öffner und „Link
+kopieren“, aber nie „Mit dem System öffnen“, weil das HaexVault erneut öffnen könnte. Meine Wahl öffnet den Link in der Extension. Ist die Vault
 gesperrt, kommt die Öffnen-Auswahl nach dem Entsperren.
 
 **Why this priority**: Ergänzt den Kern um den Weg von außen; braucht die Registrierung beim System und
 den Deep-Link-Eingang aus Spec 060, und ist deshalb getrennt prüfbar.
 
-**Independent Test**: holzi als Programm für E-Mail-Links wählen, einen E-Mail-Link außerhalb von holzi
-antippen: holzi geht auf, Öffnen-Auswahl, haex-mail wählen, Schreib-Dialog mit Empfänger, Betreff und
+**Independent Test**: HaexVault als Programm für E-Mail-Links wählen, einen E-Mail-Link außerhalb von HaexVault
+antippen: HaexVault geht auf, Öffnen-Auswahl, haex-mail wählen, Schreib-Dialog mit Empfänger, Betreff und
 Text des Links.
 
 **Acceptance Scenarios**:
 
-1. **Given** holzi ist beim System für E-Mail-Links eingetragen, **When** ich außerhalb von holzi einen
-   E-Mail-Link öffne, **Then** geht holzi auf und zeigt die Öffnen-Auswahl für diesen Link.
+1. **Given** HaexVault ist beim System für E-Mail-Links eingetragen, **When** ich außerhalb von HaexVault einen
+   E-Mail-Link öffne, **Then** geht HaexVault auf und zeigt die Öffnen-Auswahl für diesen Link.
 2. **Given** die Auswahl für einen Link von außen, **When** ich haex-mail wähle, **Then** zeigt dessen
    Schreib-Dialog Empfänger, Kopie-Empfänger, Betreff und Text des Links.
-3. **Given** die Vault ist gesperrt, **When** ein E-Mail-Link von außen kommt, **Then** merkt sich holzi
+3. **Given** die Vault ist gesperrt, **When** ein E-Mail-Link von außen kommt, **Then** merkt sich HaexVault
    den Link, bis ich entsperrt habe, und zeigt dann die Auswahl; der Link bleibt nicht auf Dauer
    gespeichert.
 4. **Given** ein E-Mail-Link kommt von außen, **When** die Auswahl erscheint, **Then** bietet sie
-   „Mit dem System öffnen“ nie an (es würde holzi erneut öffnen, wenn holzi das Programm des Systems
+   „Mit dem System öffnen“ nie an (es würde HaexVault erneut öffnen, wenn HaexVault das Programm des Systems
    ist), sondern die Öffner und „Link kopieren“.
-5. **Given** es gibt keinen Öffner, **When** ein E-Mail-Link von außen kommt, **Then** sagt holzi das
+5. **Given** es gibt keinen Öffner, **When** ein E-Mail-Link von außen kommt, **Then** sagt HaexVault das
    (kein Öffner installiert) und der Link bleibt kopierbar.
-6. **Given** der Link enthält ungültige oder zu große Angaben, **When** er ankommt, **Then** zeigt holzi
+6. **Given** der Link enthält ungültige oder zu große Angaben, **When** er ankommt, **Then** zeigt HaexVault
    die Auswahl nicht und sagt, dass der Link nicht gelesen werden kann.
 
 ---
@@ -127,7 +127,7 @@ Text des Links.
 ### User Story 3 - Eine Extension meldet sich als Öffner an (Priority: P2)
 
 Der Autor einer Extension erklärt im Manifest, dass sie E-Mail-Links öffnen kann. Beim Installieren zeigt
-holzi das wie die anderen Angaben des Manifests. Sobald die Extension installiert und aktiviert ist,
+HaexVault das wie die anderen Angaben des Manifests. Sobald die Extension installiert und aktiviert ist,
 erscheint sie in der Öffnen-Auswahl; wird sie entfernt oder deaktiviert, verschwindet sie daraus.
 haex-mail meldet sich an und öffnet auf einen Link hin seinen Schreib-Dialog.
 
@@ -149,34 +149,34 @@ empfängt den Link. Dieselbe ohne Anmeldung: sie erscheint nicht. Deaktivieren: 
    es installiere, **Then** wird die Extension installiert, die unbekannte Anmeldung wird ignoriert, und
    sie erscheint nirgends.
 5. **Given** eine angemeldete Extension, die gerade nicht läuft, **When** ich sie in der Auswahl wähle,
-   **Then** startet holzi sie und übergibt den Link, sobald sie bereit ist.
+   **Then** startet HaexVault sie und übergibt den Link, sobald sie bereit ist.
 
 ---
 
 ### Edge Cases
 
 - **Mehrere Empfänger und Kopien**: Ein Link mit mehreren Empfängern, Kopie- und Blindkopie-Empfängern
-  wird vollständig an den Öffner übergeben; die Extension zeigt sie in ihrem Dialog, holzi entscheidet
+  wird vollständig an den Öffner übergeben; die Extension zeigt sie in ihrem Dialog, HaexVault entscheidet
   nichts darüber.
 - **Kopfzeilen-Einschleusung**: Ein Link kann in Empfänger, Betreff oder Text Zeilenumbrüche oder
-  weitere Kopfzeilen einschmuggeln wollen. holzi gibt nur die benannten Felder als Text weiter, nie als
+  weitere Kopfzeilen einschmuggeln wollen. HaexVault gibt nur die benannten Felder als Text weiter, nie als
   rohe Kopfzeilen, und lässt Zeilenumbrüche in Empfänger und Betreff nicht zu.
-- **Zu große Angaben**: Mehr als die Grenzen (Anzahl Empfänger, Länge von Betreff und Text) lässt holzi
+- **Zu große Angaben**: Mehr als die Grenzen (Anzahl Empfänger, Länge von Betreff und Text) lässt HaexVault
   den Link ablehnen statt ihn zu kürzen.
 - **Kodierung**: Prozent-kodierte und nicht-ASCII-Zeichen in Empfänger, Betreff und Text kommen
   unverändert dekodiert an.
 - **Link ohne Empfänger**: `mailto:?subject=…` ist gültig; der Schreib-Dialog öffnet ohne Empfänger.
 - **Extension öffnet nicht**: Startet die Extension nicht oder antwortet nicht in angemessener Zeit,
-  sagt holzi das und lässt dem Nutzer die anderen Wahlen offen.
+  sagt HaexVault das und lässt dem Nutzer die anderen Wahlen offen.
 - **Mehrere Fenster oder Vaults**: Ist mehr als eine Vault offen, geht der Link an die, deren Fenster
   den Mail-Knopf hat; ein Link von außen geht an die zuletzt aktive Vault und die Auswahl nennt das
   nicht weiter, der Nutzer kann sie schließen.
-- **Android, Kaltstart**: Öffnet der Link holzi erst, dauert es bis zum Entsperren; danach erscheint die
+- **Android, Kaltstart**: Öffnet der Link HaexVault erst, dauert es bis zum Entsperren; danach erscheint die
   Auswahl wie auf dem Desktop.
 - **Sperrbildschirm und Berechtigung**: Eine Extension bekommt den Link nur nach der Wahl des Nutzers in
   der Auswahl, nie von selbst, auch nicht, wenn sie sich angemeldet hat.
 - **Mehrere Links kurz nacheinander**: Kommt ein Link von außen, bevor der Nutzer für den vorigen
-  gewählt hat, ersetzt der neue den wartenden; holzi zeigt immer nur die Auswahl für den neuesten Link,
+  gewählt hat, ersetzt der neue den wartenden; HaexVault zeigt immer nur die Auswahl für den neuesten Link,
   und ein ersetzter Link ist weg. Kein Link wird ohne Wahl geöffnet.
 
 ## Requirements _(mandatory)_
@@ -189,27 +189,27 @@ empfängt den Link. Dieselbe ohne Anmeldung: sie erscheint nicht. Deaktivieren: 
   ohne zusätzliche Auswahl.
 - **FR-002**: Gibt es mindestens einen Öffner, MUSS der Mail-Knopf statt dessen die Öffnen-Auswahl
   zeigen, mit „Mit dem System öffnen“ und je einer Zeile pro Öffner (Name der Extension).
-- **FR-003**: Wählt der Nutzer „Mit dem System öffnen“, MUSS holzi den E-Mail-Link wie bisher an das
-  System geben. Wählt er einen Öffner, MUSS holzi den Link nur an diese Extension geben und das System
+- **FR-003**: Wählt der Nutzer „Mit dem System öffnen“, MUSS HaexVault den E-Mail-Link wie bisher an das
+  System geben. Wählt er einen Öffner, MUSS HaexVault den Link nur an diese Extension geben und das System
   nicht aufrufen.
-- **FR-004**: Schließt der Nutzer die Auswahl ohne Wahl, DARF holzi nichts öffnen.
-- **FR-005**: holzi DARF einen Link nie ohne Wahl des Nutzers an eine Extension geben, auch nicht an
+- **FR-004**: Schließt der Nutzer die Auswahl ohne Wahl, DARF HaexVault nichts öffnen.
+- **FR-005**: HaexVault DARF einen Link nie ohne Wahl des Nutzers an eine Extension geben, auch nicht an
   eine einzige angemeldete.
 
 **Der Link und die Übergabe**
 
-- **FR-006**: holzi MUSS einen E-Mail-Link nach RFC 6068 lesen: Empfänger (mehrere, getrennt), Kopie-
+- **FR-006**: HaexVault MUSS einen E-Mail-Link nach RFC 6068 lesen: Empfänger (mehrere, getrennt), Kopie-
   und Blindkopie-Empfänger, Betreff und Text, Prozent-Kodierung und nicht-ASCII-Zeichen eingeschlossen.
   Ein Link, der das nicht erfüllt, MUSS abgelehnt werden.
-- **FR-007**: holzi MUSS dem Öffner die gelesenen Felder als Text übergeben (Empfänger, Kopie,
+- **FR-007**: HaexVault MUSS dem Öffner die gelesenen Felder als Text übergeben (Empfänger, Kopie,
   Blindkopie, Betreff, Text), nie den rohen Link und nie rohe Kopfzeilen. Zeilenumbrüche in Empfänger,
   Kopie, Blindkopie und Betreff MÜSSEN abgelehnt werden.
-- **FR-008**: holzi MUSS höchstens 50 Empfänger je Feld, höchstens 998 Zeichen im Betreff und
-  höchstens 16 KiB im Text zulassen. Einen Link über einer dieser Grenzen MUSS holzi ablehnen, nicht
+- **FR-008**: HaexVault MUSS höchstens 50 Empfänger je Feld, höchstens 998 Zeichen im Betreff und
+  höchstens 16 KiB im Text zulassen. Einen Link über einer dieser Grenzen MUSS HaexVault ablehnen, nicht
   kürzen.
 - **FR-009**: Die Übergabe MUSS über die Bridge der Extension laufen und MUSS die Extension starten,
   wenn sie nicht läuft, und den Link zustellen, sobald sie bereit ist. Antwortet sie nicht in
-  angemessener Zeit, MUSS holzi das dem Nutzer sagen.
+  angemessener Zeit, MUSS HaexVault das dem Nutzer sagen.
 - **FR-010**: Die Übergabe MUSS einer Extension nichts über den Kontakt verraten außer dem, was im Link
   steht. Eine Öffner-Anmeldung gibt keinen Zugriff auf Kontakte oder andere Daten.
 
@@ -230,22 +230,22 @@ empfängt den Link. Dieselbe ohne Anmeldung: sie erscheint nicht. Deaktivieren: 
 
 **Registrierung beim System und Links von außen**
 
-- **FR-016**: holzi MUSS sich beim Betriebssystem als Programm für E-Mail-Links eintragen können, auf
-  dem Desktop und auf Android, so dass der Nutzer es im System als Öffner wählen kann. holzi DARF sich
+- **FR-016**: HaexVault MUSS sich beim Betriebssystem als Programm für E-Mail-Links eintragen können, auf
+  dem Desktop und auf Android, so dass der Nutzer es im System als Öffner wählen kann. HaexVault DARF sich
   nicht selbst zum Standard machen oder eine Systemeinstellung ändern; die Wahl bleibt beim Nutzer.
   Ausnahme Windows: Der Installer dort schreibt für ein Schema den Klassenschlüssel des Systems und würde
-  holzi zum Standard machen; darum trägt sich holzi dort nicht für E-Mail-Links ein (research R5).
-- **FR-017**: Kommt ein E-Mail-Link von außen, MUSS holzi die Öffnen-Auswahl für genau diesen Link
-  zeigen (FR-002 bis FR-005). Ist die Vault gesperrt, MUSS holzi den Link bis nach dem Entsperren
-  vormerken und danach die Auswahl zeigen. holzi hält dabei höchstens einen Link: Ein neuer ersetzt den
+  HaexVault zum Standard machen; darum trägt sich HaexVault dort nicht für E-Mail-Links ein (research R5).
+- **FR-017**: Kommt ein E-Mail-Link von außen, MUSS HaexVault die Öffnen-Auswahl für genau diesen Link
+  zeigen (FR-002 bis FR-005). Ist die Vault gesperrt, MUSS HaexVault den Link bis nach dem Entsperren
+  vormerken und danach die Auswahl zeigen. HaexVault hält dabei höchstens einen Link: Ein neuer ersetzt den
   wartenden. Der Link DARF nicht auf Dauer gespeichert werden.
 - **FR-018**: Bei einem Link von außen DARF die Auswahl „Mit dem System öffnen“ nie anbieten, auf keiner
-  Plattform, weil es holzi erneut öffnen könnte, wenn holzi das Programm des Systems für E-Mail-Links
-  ist. holzi erkennt das Standard-Programm nicht. Die Auswahl hat bei einem Link von außen nur die
+  Plattform, weil es HaexVault erneut öffnen könnte, wenn HaexVault das Programm des Systems für E-Mail-Links
+  ist. HaexVault erkennt das Standard-Programm nicht. Die Auswahl hat bei einem Link von außen nur die
   Öffner und „Link kopieren“ (FR-019); „Mit dem System öffnen“ gibt es nur beim Mail-Knopf im
   Adressbuch (FR-002, FR-003).
 - **FR-019**: Die Auswahl bei einem Link von außen MUSS „Link kopieren“ anbieten. Gibt es keinen Öffner,
-  MUSS holzi das sagen und nur das Kopieren lassen.
+  MUSS HaexVault das sagen und nur das Kopieren lassen.
 - **FR-020**: Der Eingang eines Links von außen DARF nie selbst eine Mail öffnen, senden oder eine
   Extension starten; er zeigt nur die Auswahl.
 
@@ -292,13 +292,13 @@ empfängt den Link. Dieselbe ohne Anmeldung: sie erscheint nicht. Deaktivieren: 
 - Der Nutzer wählt bei jedem Öffnen neu. Einen Standard-Öffner zu merken ist offen und nicht im Umfang.
 - Der Deep-Link-Weg aus Spec 060 (Plugin, Eingang auf dem Desktop, Kaltstart auf Android) ist
   vorhanden oder wird vor Geschichte 2 gebaut; Geschichte 1 und 3 brauchen ihn nicht.
-- Auf dem Desktop trägt sich holzi beim System ein; ob und wie das System den Nutzer danach wählen
+- Auf dem Desktop trägt sich HaexVault beim System ein; ob und wie das System den Nutzer danach wählen
   lässt, hängt vom System ab. Wo ein System ein Programm nur über seine Einstellungen als Standard
   zulässt, bleibt das beim Nutzer (FR-016).
 - Die Grenzen sind: höchstens 50 Empfänger je Feld, Betreff bis 998 Zeichen, Text bis 16 KiB. Die Zahlen
   stehen im Vertrag und sind hier Annahmen, die der Plan bestätigt.
 - haex-mail öffnet seinen bestehenden Schreib-Dialog mit den Feldern; dass es das kann, ist Arbeit im
-  Repo `haextension`. Das Manifest-Feld und seine Prüfung sind Arbeit im Repo `vault-sdk`; holzi nimmt
+  Repo `haextension`. Das Manifest-Feld und seine Prüfung sind Arbeit im Repo `vault-sdk`; HaexVault nimmt
   dessen neue Version über die gepinnte Revision auf.
 - Es gibt noch keine Nutzer mit bestehenden Daten; Übergangswege entfallen.
 
@@ -306,7 +306,7 @@ empfängt den Link. Dieselbe ohne Anmeldung: sie erscheint nicht. Deaktivieren: 
 
 - Andere Links als `mailto:` (`tel:`, `sms:`, `geo:`, Webseiten).
 - Einen Standard-Öffner merken, pro Kontakt oder allgemein.
-- Dass holzi selbst Mails sendet oder anzeigt; das tut die Extension.
+- Dass HaexVault selbst Mails sendet oder anzeigt; das tut die Extension.
 - Eine Öffnen-Auswahl für andere Aktionen als den Mail-Knopf im Adressbuch und Links von außen (zum
-  Beispiel E-Mail-Adressen in anderen Apps von holzi).
-- Dass holzi sich selbst zum Standard-Mail-Programm des Systems macht.
+  Beispiel E-Mail-Adressen in anderen Apps von HaexVault).
+- Dass HaexVault sich selbst zum Standard-Mail-Programm des Systems macht.

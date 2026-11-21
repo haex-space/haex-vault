@@ -16,7 +16,7 @@ verschlüsselte Präsenzmeldungen über Nostr, verbinden sich direkt über iroh 
 gleichen die ganze Vault außer gerätelokalen Daten ab, direkt über die
 geprüfte, verschlüsselte Verbindung und in ganzen Transaktionen. Jede Änderung
 behält ihr Ursprungsgerät, der Fortschritt wird je Ursprungsgerät verfolgt.
-Heute erzeugt holzi nur einen Platzhalter anstelle eines echten Schlüsselpaars
+Heute erzeugt HaexVault nur einen Platzhalter anstelle eines echten Schlüsselpaars
 (`src-tauri/src/identity/bootstrap.rs`); eine kopierte Vault-Datei funktioniert
 schon. Der bevorzugte Weg zu einem weiteren Gerät ist das Verknüpfen per Code
 oder QR (P1); die Kopie der Vault-Datei bleibt ein Nebenweg (P2), ebenso P2 ist
@@ -38,7 +38,7 @@ Wiederherstellung kommen mit Spec 026.
   (Präsenzmeldungen, Aufnahmeanfragen, ab Spec 026 Pakete, ab Spec 027
   Änderungen in gemeinsamen Bereichen); an ihn gehen Umschläge. Es verlässt
   das Gerät nie und wird nicht synchronisiert.
-- **Gerät der Vault**: eine Instanz von holzi, die die Vault geöffnet hat, mit
+- **Gerät der Vault**: eine Instanz von HaexVault, die die Vault geöffnet hat, mit
   eigenem Geräteschlüssel. Es gehört zur Vault, solange sein Geräteschlüssel auf
   der aktuellen Geräteliste steht. Gleichbedeutend mit einem Eintrag der
   Unteransicht „Geräte“ (Spec 023).
@@ -262,7 +262,7 @@ Wiederherstellung kommen mit Spec 026.
 - Q: Bekommen Kopien einer Vault, die schon vor dieser Spec auf mehrere Geräte
   kopiert wurden, dieselbe Vault-Identität? → A: Ja. Die Identität wird aus dem
   gemeinsamen Platzhalter abgeleitet; die Kopien bleiben eine Vault (FR-004).
-- Q: Welche Server nutzt holzi für Präsenz, NAT-Durchgang und Einladungen,
+- Q: Welche Server nutzt HaexVault für Präsenz, NAT-Durchgang und Einladungen,
   solange es kein eigenes Relay gibt? → A: Voreingestellte öffentliche Nostr-
   und iroh-Relays, änderbar in den Einstellungen (FR-008).
 - Q: Kann die Admin-Rolle übertragen werden? → A: Nein, in v1 gar nicht, und
@@ -275,7 +275,7 @@ Wiederherstellung kommen mit Spec 026.
   (D27).
 - Q: Wer darf Geräte hinzufügen und entfernen? → A: Nur Hauptgeräte, die den
   privaten Schlüssel der Vault-Identität haben; es kann mehrere geben. Beim
-  Verknüpfen fragt holzi, ob der Schlüssel mit übertragen wird (Standard:
+  Verknüpfen fragt HaexVault, ob der Schlüssel mit übertragen wird (Standard:
   nein). Verknüpfen ist der bevorzugte Weg, Kopieren der Datei bleibt möglich
   (D27).
 - Q: An wen werden Schlüssel von Spaces und Datenfreigaben verschlüsselt? → A:
@@ -491,7 +491,7 @@ Gerät“. Auf beiden Geräten steht dieselbe öffentliche Vault-Identität, nic
    geht, umbenannt, hinzugefügt oder entfernt wird, **Then** aktualisiert sich
    die Liste ohne Zutun.
 4. **Given** ein Gerät, mit dem kein Sync möglich ist (andere, inkompatible
-   Version von holzi), **When** die Liste es zeigt, **Then** steht dort, dass
+   Version von HaexVault), **When** die Liste es zeigt, **Then** steht dort, dass
    eines der Geräte aktualisiert werden muss.
 5. **Given** die Liste, **When** sie ein Gerät zeigt, **Then** steht dabei seine
    Rolle „Hauptgerät“ oder „verknüpftes Gerät“, und dieses Gerät ist als
@@ -499,16 +499,16 @@ Gerät“. Auf beiden Geräten steht dieselbe öffentliche Vault-Identität, nic
 6. **Given** die Unteransicht auf einem beliebigen Gerät der Vault, **When** die
    Nutzerin sie öffnet, **Then** sieht sie den öffentlichen Schlüssel der
    Vault-Identität, kann ihn kopieren, aber nicht ändern; den privaten Schlüssel
-   zeigt holzi nirgends.
+   zeigt HaexVault nirgends.
 7. **Given** ein verknüpftes Gerät, **When** die Nutzerin dort die Unteransicht
-   öffnet, **Then** fehlen „Gerät verknüpfen“ und „Gerät entfernen“, und holzi
+   öffnet, **Then** fehlen „Gerät verknüpfen“ und „Gerät entfernen“, und HaexVault
    sagt, dass das nur auf einem Hauptgerät geht.
 
 ---
 
 ### User Story 5 - Gerät verknüpfen (Priority: P1)
 
-Die Nutzerin installiert holzi auf einem neuen Rechner, auf dem noch keine
+Die Nutzerin installiert HaexVault auf einem neuen Rechner, auf dem noch keine
 Vault liegt. Auf dem Laptop, einem Hauptgerät, wählt sie in „Föderation“,
 Unteransicht „Geräte“, den Knopf „Gerät verknüpfen“; der Laptop zeigt einen
 QR-Code und denselben Code als Text. Auf dem neuen Rechner wählt sie auf der
@@ -570,7 +570,7 @@ verknüpfen.
 
 Das Arbeitsgerät der Nutzerin, ein verknüpftes Gerät, wurde gestohlen. Auf dem
 Laptop, einem Hauptgerät, wählt sie in „Föderation“, Unteransicht „Geräte“,
-beim gestohlenen Gerät „Gerät entfernen“. holzi erklärt, was passiert: Das
+beim gestohlenen Gerät „Gerät entfernen“. HaexVault erklärt, was passiert: Das
 Gerät bekommt keine neuen Daten mehr und kann neue Änderungen nicht mehr
 entschlüsseln; was schon darauf ist, bleibt dort und schützt nur die
 Passphrase; ein Löschen aus der Ferne gibt es nicht. Sie bestätigt. Der Laptop
@@ -596,7 +596,7 @@ anderen (Spec 027), bleibt sie beides.
 **Acceptance Scenarios**:
 
 1. **Given** die Unteransicht „Geräte“ auf einem Hauptgerät, **When** die
-   Nutzerin ein anderes Gerät entfernen will, **Then** erklärt holzi vor der
+   Nutzerin ein anderes Gerät entfernen will, **Then** erklärt HaexVault vor der
    Bestätigung die Folgen und dass das Gerät nur durch ein neues Verknüpfen
    zurückkommt.
 2. **Given** das Entfernen ist bestätigt, **When** es abgeschlossen ist,
@@ -624,12 +624,12 @@ anderen (Spec 027), bleibt sie beides.
    bleiben Vault-Identität, Admin-Rollen und Mitgliedschaften unverändert; der
    Sync-Server und die Geräte der Mitglieder weisen das entfernte Gerät ab, sobald
    sie die neue Geräteliste kennen, und niemand sonst muss etwas tun.
-8. **Given** die Nutzerin will ein Hauptgerät entfernen, **When** holzi die
+8. **Given** die Nutzerin will ein Hauptgerät entfernen, **When** HaexVault die
    Folgen erklärt, **Then** sagt es zusätzlich, dass das nur gegen ein
    ehrliches Gerät hilft: Hat jemand das Hauptgerät und kennt die Passphrase,
    ist die Vault verloren (Totalausfall).
 9. **Given** ein verknüpftes Gerät oder dieses Gerät selbst, **When** die
-   Nutzerin in der Liste nach „Gerät entfernen“ sucht, **Then** bietet holzi es
+   Nutzerin in der Liste nach „Gerät entfernen“ sucht, **Then** bietet HaexVault es
    auf einem verknüpften Gerät gar nicht und für dieses Gerät selbst nirgends
    an.
 
@@ -707,13 +707,13 @@ erhält keine Änderung, bis ein Hauptgerät sie aufnimmt; danach kommen auch di
   Quellgeräts, sondern erzeugt einen eigenen (FR-006). Es löscht nichts aus der
   Datei; die Kopie bleibt ein vollständiges Backup.
 - Zwei Geräte treten mit demselben Geräteschlüssel oder derselben Gerätekennung
-  auf, etwa nach dem Klonen einer ganzen virtuellen Maschine: holzi erkennt
+  auf, etwa nach dem Klonen einer ganzen virtuellen Maschine: HaexVault erkennt
   das, synchronisiert mit keinem der beiden weiter und sagt der Nutzerin, dass
   ein Gerät doppelt vorhanden ist (FR-030).
 - Zwei eigene Geräte sind nie gleichzeitig online und es gibt kein drittes: Sie
   gleichen sich in dieser Spec nicht an; das leistet erst das Postfach beim
   Sync-Server (Spec 026). Die Geräteliste zeigt für beide „zuletzt online“.
-- Ein Gerät läuft mit einer älteren holzi-Version, deren Vault-Schema die
+- Ein Gerät läuft mit einer älteren HaexVault-Version, deren Vault-Schema die
   Änderungen des anderen nicht kennt: Die Geräte synchronisieren nicht
   miteinander, bis beide passend aktualisiert sind; keine Änderung geht
   verloren, beide zeigen den Grund (FR-029).
@@ -764,7 +764,7 @@ erhält keine Änderung, bis ein Hauptgerät sie aufnimmt; danach kommen auch di
   nicht. Nach dem Entfernen nimmt niemand mehr etwas von ihm an.
 - Ein Dieb hat ein Hauptgerät und kennt dessen Passphrase: Er kann eigene Geräte
   aufnehmen und die der Nutzerin entfernen. Das ist der Totalausfall, vor dem
-  holzi beim Verknüpfen warnt (FR-024); Hauptgerät zu sein ist deshalb nicht
+  HaexVault beim Verknüpfen warnt (FR-024); Hauptgerät zu sein ist deshalb nicht
   der Standard.
 - Alle Hauptgeräte sind verloren, verknüpfte Geräte gibt es noch: Die
   verknüpften Geräte synchronisieren weiter, aber niemand kann Geräte
@@ -787,7 +787,7 @@ erhält keine Änderung, bis ein Hauptgerät sie aufnimmt; danach kommen auch di
 
 **Identitäten und Geräteliste**
 
-- **FR-001**: Beim Anlegen einer Vault MUSS holzi eine echte Vault-Identität
+- **FR-001**: Beim Anlegen einer Vault MUSS HaexVault eine echte Vault-Identität
   (secp256k1-Schlüsselpaar aus einer kryptographisch sicheren Zufallsquelle)
   erzeugen und in der verschlüsselten Vault speichern. Diese erste Instanz ist
   ein Hauptgerät und MUSS die erste Geräteliste mit sich selbst als einzigem
@@ -875,7 +875,7 @@ erhält keine Änderung, bis ein Hauptgerät sie aufnimmt; danach kommen auch di
 - **FR-008**: Geräte derselben Vault MÜSSEN sich über die Präsenzmeldungen
   finden und selbständig eine direkte Verbindung aufbauen, im selben Netz wie
   über das Internet, auch hinter üblichen Heimroutern. Die Nutzerin MUSS dafür
-  keine Adresse eingeben. holzi MUSS dafür voreingestellte öffentliche
+  keine Adresse eingeben. HaexVault MUSS dafür voreingestellte öffentliche
   Nostr-Relays und iroh-Relays nutzen, die der Nutzer in den Einstellungen
   ändern oder durch eigene Server ersetzen kann. Dieselben Server tragen auch
   die Antworten auf Einladungen zu Spaces und Datenfreigaben (Spec 027, FR-041).
@@ -1032,7 +1032,7 @@ erhält keine Änderung, bis ein Hauptgerät sie aufnimmt; danach kommen auch di
 
 **Grundlagen für spätere Bereiche**
 
-- **FR-022**: holzi MUSS für Tabellen, die es verlangen, ein unveränderliches
+- **FR-022**: HaexVault MUSS für Tabellen, die es verlangen, ein unveränderliches
   Feld „Ersteller“ unterstützen: Es wird beim Anlegen einer Zeile mit der Vault
   des Autors gefüllt und DARF danach von niemandem geändert werden; ein
   Empfänger MUSS jede Änderung dieses Felds ablehnen. In dieser Spec nutzt es
@@ -1135,7 +1135,7 @@ erhält keine Änderung, bis ein Hauptgerät sie aufnimmt; danach kommen auch di
   die das Gerät nicht mehr als aktuelles Gerät nennt und es mit seiner Grenze
   als entfernt führt (FR-028), und eine neue Generation des Inhaltsschlüssels
   des Bereichs „Vault“ erzeugen, die nur an die verbleibenden Geräte verpackt
-  ist (FR-015). Vor der Bestätigung MUSS holzi die Folgen erklären: keine neuen
+  ist (FR-015). Vor der Bestätigung MUSS HaexVault die Folgen erklären: keine neuen
   Daten mehr für das Gerät, was die Vault danach verschlüsselt, kann es nicht
   entschlüsseln,
   vorhandene Daten bleiben dort und schützt nur die Passphrase, kein Löschen
@@ -1148,7 +1148,7 @@ erhält keine Änderung, bis ein Hauptgerät sie aufnimmt; danach kommen auch di
   Datenfreigabe unterschrieben, deren Admin die Vault ist, MUSS das entfernende
   Hauptgerät diese Listen im selben Vorgang mit höherer Generation neu
   unterschreiben und hochladen (Specs 027, 028). Geheimnisse wie Einträge im
-  Passwortmanager oder S3-Zugangsdaten DARF holzi beim Entfernen NICHT
+  Passwortmanager oder S3-Zugangsdaten DARF HaexVault beim Entfernen NICHT
   automatisch ändern: Ob sie als kompromittiert gelten und ersetzt werden,
   entscheidet die Nutzerin.
 - **FR-027**: Jedes verbleibende Gerät MUSS eine gültige neue Geräteliste und
@@ -1181,7 +1181,7 @@ erhält keine Änderung, bis ein Hauptgerät sie aufnimmt; danach kommen auch di
 
 - **FR-044** („Kopie der Vault-Datei“): Enthält eine Kopie beim ersten Öffnen
   den privaten Schlüssel der Vault-Identität (Kopie eines Hauptgeräts), MUSS sie
-  sich als Hauptgerät in eine neue Geräteliste eintragen, und holzi MUSS der
+  sich als Hauptgerät in eine neue Geräteliste eintragen, und HaexVault MUSS der
   Nutzerin sagen, dass dieses Gerät nun ein Hauptgerät ist. Enthält sie ihn
   nicht (Kopie eines verknüpften Geräts), MUSS sie eine mit ihrem neuen
   Geräteschlüssel signierte Aufnahmeanfrage mit Namen, öffentlichem
@@ -1196,7 +1196,7 @@ erhält keine Änderung, bis ein Hauptgerät sie aufnimmt; danach kommen auch di
   den Knöpfen „Aufnehmen“ und „Ablehnen“ zeigen. „Aufnehmen“ MUSS die Kopie als
   verknüpftes Gerät in eine neue Geräteliste eintragen und alle Generationen des
   Inhaltsschlüssels des Bereichs „Vault“ an ihren Geräteschlüssel verpacken;
-  „Ablehnen“ verwirft die Anfrage. holzi DARF eine Kopie NIE ohne diese
+  „Ablehnen“ verwirft die Anfrage. HaexVault DARF eine Kopie NIE ohne diese
   Handlung der Nutzerin aufnehmen.
 
 **Verträglichkeit und Betrieb**
@@ -1207,7 +1207,7 @@ erhält keine Änderung, bis ein Hauptgerät sie aufnimmt; danach kommen auch di
   dem Aktualisieren synchronisieren sie ohne weiteres Zutun. (Ergänzt durch Spec 059: die Liste zeigt die
   Werte, die verglichen werden, und nennt das zu aktualisierende Gerät.)
 - **FR-030**: Treten zwei Geräte mit demselben Geräteschlüssel oder derselben
-  Gerätekennung auf, MUSS holzi den Sync mit beiden anhalten und der Nutzerin
+  Gerätekennung auf, MUSS HaexVault den Sync mit beiden anhalten und der Nutzerin
   melden, dass ein Gerät doppelt vorhanden ist.
 - **FR-031**: Sperren oder Schließen der Vault MUSS alle Sync-Verbindungen und
   laufenden Übertragungen sofort beenden (innerhalb der Fristen von Spec 013);
@@ -1238,7 +1238,7 @@ erhält keine Änderung, bis ein Hauptgerät sie aufnimmt; danach kommen auch di
   „Gerät verknüpfen“ (FR-023), an jedem anderen Gerät „Gerät entfernen“
   (FR-026) und die offenen Aufnahmeanfragen (FR-045) anbieten. Auf einem
   verknüpften Gerät DÜRFEN diese Knöpfe NICHT erscheinen; stattdessen sagt
-  holzi, dass Geräte nur auf einem Hauptgerät verknüpft, aufgenommen und
+  HaexVault, dass Geräte nur auf einem Hauptgerät verknüpft, aufgenommen und
   entfernt werden. Das Entfernen dieses Geräts selbst DARF NICHT angeboten
   werden.
 - **FR-046** („öffentliche Vault-Identität“): Die Unteransicht „Geräte“ MUSS auf
@@ -1410,13 +1410,13 @@ erhält keine Änderung, bis ein Hauptgerät sie aufnimmt; danach kommen auch di
   einem iroh-Relay nur für den Verbindungsaufbau durch NAT), Schlüssel und
   Präsenz im Nostr-Format (secp256k1), Umschläge nach NIP-44. Die
   Präsenzmeldung ersetzt die übliche Adresssuche von iroh über pkarr/DNS
-  (Entwurf §4). Wie der Sync-Kanal heißt (Arbeitsname `holzi-sync/1`) und wie
+  (Entwurf §4). Wie der Sync-Kanal heißt (Arbeitsname `haex-sync/1`) und wie
   Nachrichten, Gerätelisten und Meldungen kodiert sind, klärt der Plan (Entwurf §15
   Punkt 7).
 - Die Netzwerkkennung eines Geräts ist sein iroh-Schlüssel; die Geräteliste
   bindet ihn an den Geräteschlüssel (Entwurf §4).
 - Zusammenführen, Löschvermerke und die Ausnahme gerätelokaler Daten liefert
-  haex-crdt, wie holzi es einbindet: Repository
+  haex-crdt, wie HaexVault es einbindet: Repository
   `https://github.com/haexmas/haex-crdt`, heute Revision
   `ed230d2c3f58c1b10710b6025ea0ce6c20b8d009`; der Plan nennt eine kleine
   Erweiterung für Schreibvorgänge und die Revision, die danach gilt. Das Ursprungsgerät steht dort in
@@ -1438,7 +1438,7 @@ erhält keine Änderung, bis ein Hauptgerät sie aufnimmt; danach kommen auch di
   nicht jede frühere Fassung; danach läuft der gewöhnliche Sync.
 - Ein Hauptgerät in falschen Händen, dessen Passphrase bekannt ist, bedeutet
   den Totalausfall der Vault: Es kann Geräte aufnehmen und entfernen. Das ist
-  hingenommen; holzi warnt beim Verknüpfen und macht die Rolle Hauptgerät nicht
+  hingenommen; HaexVault warnt beim Verknüpfen und macht die Rolle Hauptgerät nicht
   zum Standard (D27).
 - Eine neue Geräteliste wirkt erst auf Geräten, die sie kennen. Bis sie ein
   Gerät erreicht, kann das entfernte Gerät mit ihm noch synchronisieren; dieses
@@ -1448,7 +1448,7 @@ erhält keine Änderung, bis ein Hauptgerät sie aufnimmt; danach kommen auch di
   Mitglieds-Vault hat (D28, hingenommen).
 - Mobile Geräte sind nur im Vordergrund erreichbar (v1-scope §7); das ist für
   diese Spec kein Fehlerfall, sondern ein Gerät, das gerade offline ist.
-  holzi läuft heute nur auf dem Desktop.
+  HaexVault läuft heute nur auf dem Desktop.
 - Die gerätelokalen Daten eines Quellgeräts liegen nach ADR-0001 physisch in
   einer kopierten Datei, auch sein Geräteschlüssel. FR-006 verlangt, dass das
   Zielgerät sie nicht als eigene Identität verwendet und nichts davon löscht.

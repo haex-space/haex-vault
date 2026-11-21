@@ -7,7 +7,7 @@ contracts/manifest-tools.md, quickstart.md
 
 **Tests**: Test-first per task (write the failing check, then implement). Rust unit tests in sibling
 `*_tests.rs` files (never inline `mod tests { … }`); vault-sdk and haex-mail tests in vitest next to the
-module (`*.test.ts`). No new runtime dependency in holzi, vault-sdk or haex-mail.
+module (`*.test.ts`). No new runtime dependency in haex-vault, vault-sdk or haex-mail.
 
 **Conventions**: Every changed file stays under 500 lines (`imap.rs` is at 460, so the new IMAP code goes into
 `imap_manage.rs`; `test_server.rs` is at 462, so the new test server code goes into `test_server_manage.rs`).
@@ -21,12 +21,12 @@ repositories use the operator's account rules (`gh auth switch --user haex-space
 fall back to `gh api -X POST …/pulls` when `gh pr create` fails with the GraphQL error). Tasks marked
 **operator** need an account, a running app or a decision only the operator can give.
 
-**Repositories** (label in each description): `(holzi)` this repository, `(vault-sdk)` haex-space/vault-sdk,
+**Repositories** (label in each description): `(haex)` this repository, `(vault-sdk)` haex-space/vault-sdk,
 `(haextension)` haex-space/haextension, app `apps/haex-mail`.
 
 **Deliveries** (plan, research R1): E1 = T001–T002; E2a = T005–T012; E2b = T013–T016; E3 = T017–T054, T062 plus T057–T059 as three
 pull requests: 3a tools (Phases 3–5), 3b rules (Phases 6–7), 3c accounts (Phase 8), each followed by Phase 9 items
-that belong to it. Phase 9 outside these: T055 is its own holzi pull request (`test(chat): evaluate the mail
+that belong to it. Phase 9 outside these: T055 is its own haex-vault pull request (`test(chat): evaluate the mail
 tools of haex-mail`), T058 runs per pull request, T060 and T061 close the spec after the last merge.
 
 ## Phase 1: Setup
@@ -34,7 +34,7 @@ tools of haex-mail`), T058 runs per pull request, T060 and T061 close the spec a
 - [x] T001 (vault-sdk) Erledigt ohne Zutun: `feat/agent-tools` ist als Pull Request #64 (Commit `280cebf`) auf `origin/main`; geprüft am 2026-10-20 mit `git ls-tree v4.6.0 src/api/tools/`
 - [x] T002 (vault-sdk) Erledigt: veröffentlicht als Release 4.6.0, Commit `74a8ff96cff606600e134fe4df9f6d14441c1d53` (V1 = 4.6.0)
 - [x] T003 (haextension) Create a worktree for the topic branch `019-haex-mail-agent-tools` from `origin/main`, run `pnpm install --frozen-lockfile`, run `pnpm test` in `apps/haex-mail` once and note the baseline under this task Done 2026-10-20: worktree `.worktrees/019-haex-mail-agent-tools` in haextension from `e2622baefd4c4b1c0e93e6cbe53bc6feff8751f5`; baseline `pnpm test` in `apps/haex-mail`: 9 files, 52 tests green.
-- [x] T004 (holzi) **operator** Check `df -h` and `.worktrees/*/target` sizes, remove merged worktree targets if the disk is tight, then agree to one baseline run of `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --lib mail`; note the baseline under this task Done 2026-10-20: `df -h` 255 GB free, no old targets; no separate baseline run (it would have cost a second full build): the first run after the change shows 36 mail tests green, 0 failing.
+- [x] T004 (haex-vault) **operator** Check `df -h` and `.worktrees/*/target` sizes, remove merged worktree targets if the disk is tight, then agree to one baseline run of `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --lib mail`; note the baseline under this task Done 2026-10-20: `df -h` 255 GB free, no old targets; no separate baseline run (it would have cost a second full build): the first run after the change shows 36 mail tests green, 0 failing.
 
 ---
 
@@ -43,16 +43,16 @@ tools of haex-mail`), T058 runs per pull request, T060 and T061 close the spec a
 **Purpose**: The three host functions (E2a, E2b) and the shared base of haex-mail's tools (E3 base). US1 needs the
 search, US2 needs "create mailbox", US3 needs "delete". Nothing in Phases 3 to 8 starts before T017.
 
-### E2a — holzi: three bridge methods
+### E2a — haex-vault: three bridge methods
 
-- [x] T005 (holzi) Spike for non-ASCII search text (research R2): read `async-imap`'s `uid_search` and literal support in the cargo registry source, write the first test in `src-tauri/src/extensions/mail/mail_manage_tests.rs` that sends a UTF-8 text to the test server, and replace the "Risiko" paragraph in `research.md` R2 and the matching paragraph in `contracts/host-mail-commands.md` by the outcome (literal works, or error 3001 plus local fallback) If the outcome is negative, **stop** and run `/speckit-clarify` for FR-005 and SC-004 before E2a continues, so the implementation does not drift silently from the spec. Done: `async-imap` 0.11.3 has no literal in `uid_search`; non-ASCII goes as quoted UTF-8 under `CHARSET UTF-8`, a refusing server gives 2005 and haex-mail falls back (recorded in `research.md` R2; no stop needed).
-- [x] T006 [P] (holzi) Add `SearchCriteria` and `SearchResult` to `src-tauri/src/extensions/mail/types.rs` and `check_criteria` to `src-tauri/src/extensions/mail/mod.rs` (at least one criterion, no control characters, ≤ 200 characters, valid `YYYY-MM-DD`, error `MailError::Invalid` → 3001); cases in `mod_tests.rs` first
-- [x] T007 [P] (holzi) Add `src-tauri/src/extensions/mail/test_server_manage.rs` (SEARCH with `FROM`/`TO`/`SUBJECT`/`TEXT`/`SINCE`/`BEFORE`/`SEEN`/`UNSEEN`/`FLAGGED`/`UNFLAGGED`, `CREATE` with `ALREADYEXISTS`, `UID STORE … \Deleted` kept per message, `UID EXPUNGE` of the named UIDs only, `UIDPLUS` switchable in `CAPABILITY`) and only the dispatch hook in `test_server.rs`
-- [x] T008 (holzi) Write the failing tests in `src-tauri/src/extensions/mail/mail_manage_tests.rs` per `contracts/host-mail-commands.md`: every criterion alone and combined; more hits than `limit` with the right `total`; missing mailbox → 1001; `create_mailbox` new, existing (`created: false`), invalid name; `delete_messages` removes only the named UIDs and leaves other `\Deleted` mails, refuses without `UIDPLUS` and leaves every flag unchanged; each of the three needs `fetch` for its own host and port (pattern: `each_server_and_port_needs_its_own_permission`)
-- [x] T009 (holzi) Implement `search`, `create_mailbox`, `delete_messages` in `src-tauri/src/extensions/mail/imap_manage.rs` (`with_session!` and `imap_err` made `pub(super)` in `imap.rs`, nothing else changed there); `UIDPLUS` is checked before the first `STORE`; register the module in `mail/mod.rs`
-- [x] T010 (holzi) Add `search`, `create_mailbox`, `delete_messages` bridge functions to `src-tauri/src/extensions/mail/commands.rs` (names `extension_mail_search`, `extension_mail_create_mailbox`, `extension_mail_delete_messages`, check via `imap_server`, `limit` and `uids` bounds per contract) and entries in `src-tauri/src/extensions/bridge/allowlist.rs`; adjust the allowlist test and `bridge/dispatch_tests.rs` where they count or list mail methods
-- [x] T011 [P] (holzi) Add the three names and their rules (criteria object, 1000 bound, `UIDPLUS` refusal, `created` flag) to the mail row of `specs/017-extension-host/contracts/bridge.md`
-- [x] T012 (holzi) **operator** Run `cargo fmt --check`, the repository's Rust lint (both feature sets), `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --lib mail`, Prettier on touched Markdown, `wc -l` over the touched files; commit and open the pull request `feat(extensions): mail search, create mailbox and delete for extensions` (delivery E2a) Status 2026-10-20: `cargo fmt --check` clean, `cargo clippy --no-default-features --all-targets -- -D warnings` clean, `cargo test --no-default-features --lib mail` 36 passed; the default-feature clippy run (mistralrs, candle) is left to CI because it exhausts this machine; the pull request is still to be opened. Done 2026-10-21: merged as haex-space/haex-vault PR #507, merge commit `a1f3ae20b6538cdddb66b2c718ccf0660c04d68e`. The Android end-to-end jobs of that run failed (the emulator disappears during `files-encrypted-*`); the same failure is on the `main` runs before it, so it is not this change.
+- [x] T005 (haex-vault) Spike for non-ASCII search text (research R2): read `async-imap`'s `uid_search` and literal support in the cargo registry source, write the first test in `src-tauri/src/extensions/mail/mail_manage_tests.rs` that sends a UTF-8 text to the test server, and replace the "Risiko" paragraph in `research.md` R2 and the matching paragraph in `contracts/host-mail-commands.md` by the outcome (literal works, or error 3001 plus local fallback) If the outcome is negative, **stop** and run `/speckit-clarify` for FR-005 and SC-004 before E2a continues, so the implementation does not drift silently from the spec. Done: `async-imap` 0.11.3 has no literal in `uid_search`; non-ASCII goes as quoted UTF-8 under `CHARSET UTF-8`, a refusing server gives 2005 and haex-mail falls back (recorded in `research.md` R2; no stop needed).
+- [x] T006 [P] (haex-vault) Add `SearchCriteria` and `SearchResult` to `src-tauri/src/extensions/mail/types.rs` and `check_criteria` to `src-tauri/src/extensions/mail/mod.rs` (at least one criterion, no control characters, ≤ 200 characters, valid `YYYY-MM-DD`, error `MailError::Invalid` → 3001); cases in `mod_tests.rs` first
+- [x] T007 [P] (haex-vault) Add `src-tauri/src/extensions/mail/test_server_manage.rs` (SEARCH with `FROM`/`TO`/`SUBJECT`/`TEXT`/`SINCE`/`BEFORE`/`SEEN`/`UNSEEN`/`FLAGGED`/`UNFLAGGED`, `CREATE` with `ALREADYEXISTS`, `UID STORE … \Deleted` kept per message, `UID EXPUNGE` of the named UIDs only, `UIDPLUS` switchable in `CAPABILITY`) and only the dispatch hook in `test_server.rs`
+- [x] T008 (haex-vault) Write the failing tests in `src-tauri/src/extensions/mail/mail_manage_tests.rs` per `contracts/host-mail-commands.md`: every criterion alone and combined; more hits than `limit` with the right `total`; missing mailbox → 1001; `create_mailbox` new, existing (`created: false`), invalid name; `delete_messages` removes only the named UIDs and leaves other `\Deleted` mails, refuses without `UIDPLUS` and leaves every flag unchanged; each of the three needs `fetch` for its own host and port (pattern: `each_server_and_port_needs_its_own_permission`)
+- [x] T009 (haex-vault) Implement `search`, `create_mailbox`, `delete_messages` in `src-tauri/src/extensions/mail/imap_manage.rs` (`with_session!` and `imap_err` made `pub(super)` in `imap.rs`, nothing else changed there); `UIDPLUS` is checked before the first `STORE`; register the module in `mail/mod.rs`
+- [x] T010 (haex-vault) Add `search`, `create_mailbox`, `delete_messages` bridge functions to `src-tauri/src/extensions/mail/commands.rs` (names `extension_mail_search`, `extension_mail_create_mailbox`, `extension_mail_delete_messages`, check via `imap_server`, `limit` and `uids` bounds per contract) and entries in `src-tauri/src/extensions/bridge/allowlist.rs`; adjust the allowlist test and `bridge/dispatch_tests.rs` where they count or list mail methods
+- [x] T011 [P] (haex-vault) Add the three names and their rules (criteria object, 1000 bound, `UIDPLUS` refusal, `created` flag) to the mail row of `specs/017-extension-host/contracts/bridge.md`
+- [x] T012 (haex-vault) **operator** Run `cargo fmt --check`, the repository's Rust lint (both feature sets), `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --lib mail`, Prettier on touched Markdown, `wc -l` over the touched files; commit and open the pull request `feat(extensions): mail search, create mailbox and delete for extensions` (delivery E2a) Status 2026-10-20: `cargo fmt --check` clean, `cargo clippy --no-default-features --all-targets -- -D warnings` clean, `cargo test --no-default-features --lib mail` 36 passed; the default-feature clippy run (mistralrs, candle) is left to CI because it exhausts this machine; the pull request is still to be opened. Done 2026-10-21: merged as haex-space/haex-vault PR #507, merge commit `a1f3ae20b6538cdddb66b2c718ccf0660c04d68e`. The Android end-to-end jobs of that run failed (the emulator disappears during `files-encrypted-*`); the same failure is on the `main` runs before it, so it is not this change.
 
 ### E2b — vault-sdk: the counterparts
 
@@ -88,7 +88,7 @@ stays data).
 - [x] T025 [US1] Add `find_messages` in `apps/haex-mail/app/tools/messages.ts` with `messages.test.ts`: `searchMessagesAsync` per account and mailbox, envelopes of the requested page through `fetchEnvelopesAsync` with `uidList` (chunks within the 1000 bound), `hasAttachment` filter on the fetched envelopes, all accounts in parallel when `account` is missing, a mailbox name an account lacks skips that account, the non-ASCII behaviour of T005 (local fallback marked in the result when chosen) Done 2026-10-21 (10 cases): window of 200 for `sender`/`subject` and for `hasAttachment`, local fallback marked `fallback: "local"`, accounts that fail named in `errors`.
 - [x] T026 [US1] Add `get_message` in `apps/haex-mail/app/tools/readMessage.ts` with `readMessage.test.ts`: `fetchMessageAsync`, `bodyText` preferred, else `htmlToText(bodyHtml)`, 12 000 characters with `truncated: true`, never sets `\Seen`, empty fields instead of errors for mails without subject or text Done: `app/tools/readMessage.ts`.
 - [x] T027 [US1] Declare `list_accounts`, `list_mailboxes`, `find_messages`, `get_message` in `apps/haex-mail/haextension/manifest.json` (de/en titles, English descriptions, schemas from `contracts/manifest-tools.md`, at least four German and four English example sentences each, distinct from the neighbouring tools) and add their handlers to `app/tools/index.ts`; `manifest.test.ts` passes for them Done 2026-10-21; example sentences of the four tools were tuned with the offline copy of the matcher so that every haex-mail sentence of the set reaches the first offer (T055).
-- [ ] T028 [US1] **operator** Walk through `quickstart.md` steps 1–4 against holzi with E2a (needs the running app and a test account); record skipped steps in the pull request description
+- [ ] T028 [US1] **operator** Walk through `quickstart.md` steps 1–4 against haex-vault with E2a (needs the running app and a test account); record skipped steps in the pull request description
 
 **Checkpoint**: The MVP — Phases 1–3 — answers the unread-mail question and searches whole folders.
 
@@ -167,11 +167,11 @@ stays data).
 
 ## Phase 9: Polish & Cross-Cutting
 
-- [x] T055 [P] (holzi) Add the tools of haex-mail as an entry in `src-tauri/src/chat/eval/extension_tools.json` (same shape as the manifest block) and at least 24 sentences of kind `extension` to `src-tauri/src/chat/eval/eval_set.json` (including „Wie viele ungelesene Mails habe ich?“ and „Schieb alle Newsletter ins Archiv“, none naming the extension except two); adjust `extension_tools_tests.rs` first (FR-035) Done 2026-10-21: the invented extension "mailbox" is replaced by haex-mail (title "haex-mail", 15 tools copied from the manifest), 30 sentences for it replace the two old ones, set version 5. The offline matcher and `cargo test --no-default-features --lib chat::` agree: all 30 reach the first offer, the two known misses stay the only ones. The oracle of `testing.rs` now also fills required booleans and arrays. Sentences that need an id first expect `find_messages`; the two reply sentences expect `create_draft`.
+- [x] T055 [P] (haex-vault) Add the tools of haex-mail as an entry in `src-tauri/src/chat/eval/extension_tools.json` (same shape as the manifest block) and at least 24 sentences of kind `extension` to `src-tauri/src/chat/eval/eval_set.json` (including „Wie viele ungelesene Mails habe ich?“ and „Schieb alle Newsletter ins Archiv“, none naming the extension except two); adjust `extension_tools_tests.rs` first (FR-035) Done 2026-10-21: the invented extension "mailbox" is replaced by haex-mail (title "haex-mail", 15 tools copied from the manifest), 30 sentences for it replace the two old ones, set version 5. The offline matcher and `cargo test --no-default-features --lib chat::` agree: all 30 reach the first offer, the two known misses stay the only ones. The oracle of `testing.rs` now also fills required booleans and arrays. Sentences that need an id first expect `find_messages`; the two reply sentences expect `create_draft`.
 - [ ] T056 **operator** Run the model evaluation with Qwen3-4B (`cargo test --manifest-path src-tauri/Cargo.toml --test model_tool_eval -- --ignored --nocapture`) and measure SC-009 (a read call with haex-mail closed ≤ 3 s slower than open); record SC-001 to SC-003 and SC-009 in `specs/019-haex-mail-agent-tools/eval-results.md`; a miss on two-step tasks is a finding for 018, not a task here (plan, risk 1)
 - [ ] T057 (haextension) Sign the manifest and bump the app version the way the repository's release flow does (`pnpm package`), then run `pnpm test`, lint, type check and `pnpm build` for `apps/haex-mail` Checks done 2026-10-21 (`pnpm test` 183, eslint 0 errors, `vue-tsc` clean, `pnpm build`). Signing and the version bump are the release script of the repository (`pnpm release:haex-mail`, tags and pushes), so they stay with the operator after the merge.
 - [x] T058 [P] (haextension) Check every new or changed file stays under 500 lines (`wc -l` over the plan's structure tree); split by topic where needed Done 2026-10-21: the largest touched file of haex-mail is `stores/mail/sync.ts` with 475 lines; the new files are below 400.
-- [ ] T059 (haextension) **operator** Open the three pull requests of E3 (3a: Phases 3–5 plus T017–T021, T055 stays in holzi; 3b: Phases 6–7; 3c: Phase 8), each with Conventional Commit messages and the walked-through quickstart steps in the description
+- [ ] T059 (haextension) **operator** Open the three pull requests of E3 (3a: Phases 3–5 plus T017–T021, T055 stays in haex-vault; 3b: Phases 6–7; 3c: Phase 8), each with Conventional Commit messages and the walked-through quickstart steps in the description
 - [ ] T060 Add **Mailwerkzeug**, **Regel** and **Aktion (einer Regel)** to `CONTEXT.md`; run `graphify update` in each worktree after its change landed CONTEXT.md done 2026-10-21 (**Mailwerkzeug**, **Regel**, **Aktion (einer Regel)**); `graphify update` per worktree waits for the merges.
 - [ ] T061 Write the merge SHAs of E1, E2a, E2b, E3a, E3b, E3c as `repository + full SHA` references into `specs/019-haex-mail-agent-tools/plan.md` (constitution IV) and run `/speckit-analyze` on the finished spec
 
@@ -218,12 +218,12 @@ and searches whole folders. Stop and run quickstart steps 1–4.
 
 ### Incremental Delivery
 
-1. E1 (vault-sdk release) → 2. E2a (holzi) ∥ E2b (vault-sdk release) → 3. E3a tools (US1–US3, MVP after US1) → 4. E3b rules
+1. E1 (vault-sdk release) → 2. E2a (haex-vault) ∥ E2b (vault-sdk release) → 3. E3a tools (US1–US3, MVP after US1) → 4. E3b rules
    (US4–US5) → 5. E3c accounts (US6) → 6. polish and measurement (Phase 9). Every step is its own pull request and
    can stop after any story.
 
 ### Notes
 
 - Paths for haex-mail are relative to `apps/haex-mail/` of haex-space/haextension; vault-sdk paths relative to its root;
-  holzi paths relative to this repository.
+  haex-vault paths relative to this repository.
 - Quickstart step 12 (model evaluation) is T056, step 13 (host tests) is T012.

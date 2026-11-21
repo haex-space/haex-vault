@@ -1,6 +1,6 @@
 # Contracts: Chat Runtime und Tauri-Schnittstelle
 
-Alle neuen bzw. erweiterten Kommandos liefern `Result<T, HolziError>`. Rust-
+Alle neuen bzw. erweiterten Kommandos liefern `Result<T, HaexError>`. Rust-
 Felder werden wie bisher per `camelCase` serialisiert.
 
 ## Bestehende Kommandos mit geänderter Nutzung

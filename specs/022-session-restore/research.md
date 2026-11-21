@@ -2,7 +2,7 @@
 
 Stand: 2026-09-26. Grundlage: der Code auf `022-session-restore` (aufgesetzt auf
 `020-tab-navigation` nach der Umbenennung Shell → Window Manager, `b4abfb6`) und
-haex-crdt an der von holzi gepinnten Revision
+haex-crdt an der von haex-vault gepinnten Revision
 `ed230d2c3f58c1b10710b6025ea0ce6c20b8d009` (`src-tauri/Cargo.toml`). Zitate mit
 `crdt:` beziehen sich auf haex-crdt an dieser Revision.
 
@@ -20,7 +20,7 @@ haex-crdt an der von holzi gepinnten Revision
   Delete-Log `haex_deleted_rows`, nie in Sync-Paketen; eingehende Änderungen für
   so eine Tabelle werden verworfen (crdt:`src/crdt/apply/engine.rs:206-211`). Ein
   `DELETE` ist dort ein echtes lokales Löschen. Damit ist FR-010 erfüllt.
-- holzi hat das Muster schon einmal genutzt (`device_downloaded_models_no_sync`,
+- haex-vault hat das Muster schon einmal genutzt (`device_downloaded_models_no_sync`,
   Migration 0007, entfernt in 0012).
 - Die Zeile trägt die Gerätekennung, obwohl die Tabelle nicht synchronisiert
   wird: Eine Vault-Datei kann von mehreren Geräten benutzt werden (portabler
@@ -109,7 +109,7 @@ Gerätekennung ermittelt Rust wie bisher selbst (`current_device_uuid` in
 1. `DROP TABLE shell_window_tabs;` `DROP TABLE shell_windows;`
    `DROP TABLE workspaces;` — Kinder zuerst.
 2. `CREATE TABLE wm_sessions_no_sync (…)`.
-3. `CREATE TABLE holzi_maintenance_no_sync (task TEXT PRIMARY KEY)` und
+3. `CREATE TABLE haex_maintenance_no_sync (task TEXT PRIMARY KEY)` und
    `INSERT … VALUES ('vacuum_after_legacy_wm_drop')` für R6.
 
 **Begründung**:
@@ -132,7 +132,7 @@ Gerätekennung ermittelt Rust wie bisher selbst (`current_device_uuid` in
   (Gerätekennung plus zufällige Fenster-, Tab- oder Arbeitsbereichskennung) und
   sind nach FR-011 zulässig. Die neuen Tabellennamen unterscheiden sich von den
   alten, damit alte Vermerke nie neue Zeilen verdecken (crdt:`row.rs:135-143`).
-- Kein Anheben von `HOLZI_TRIGGER_VERSION`: Weder eine `_no_sync`-Tabelle noch
+- Kein Anheben von `HAEX_TRIGGER_VERSION`: Weder eine `_no_sync`-Tabelle noch
   das Löschen einer CRDT-Tabelle braucht Trigger-Neuinstallation
   (crdt:`db/init.rs:66-113`).
 
@@ -146,15 +146,15 @@ jedem Öffnen, was FR-012 (erneuter Versuch) ohne Zusatzlogik erfüllt.
 
 **Entscheidung**:
 
-- Nach jedem Öffnen der Vault setzt holzi auf der einen Verbindung
+- Nach jedem Öffnen der Vault setzt haex-vault auf der einen Verbindung
   (crdt:`src/database/mod.rs:79`, `Mutex<Connection>`) `PRAGMA secure_delete = ON`.
   Gelöschte Sitzungen werden dadurch beim Löschen mit Nullen überschrieben.
-- Steht `vacuum_after_legacy_wm_drop` in `holzi_maintenance_no_sync`, führt holzi
+- Steht `vacuum_after_legacy_wm_drop` in `haex_maintenance_no_sync`, führt haex-vault
   einmal `VACUUM` und `PRAGMA wal_checkpoint(TRUNCATE)` aus und löscht den
   Eintrag danach. Schlägt es fehl, bleibt der Eintrag stehen und der nächste
   Start versucht es erneut (FR-012).
 
-**Begründung**: Weder haex-crdt noch holzi setzen `secure_delete` oder
+**Begründung**: Weder haex-crdt noch haex-vault setzen `secure_delete` oder
 `VACUUM` (crdt:`src/db/core/init.rs:54-104`); gelöschte Inhalte bleiben sonst
 in freien Seiten und im WAL, bis sie überschrieben werden. Die Datei ist mit
 SQLCipher verschlüsselt, mit der Passphrase wären die Reste aber lesbar. SC-003
@@ -184,7 +184,7 @@ greifen kann; deshalb das einmalige `VACUUM`. Bei typischen Vault-Größen
   bei Sitzung `hydrate` und die Historien der Tabs in die Historien-Map des
   Navigations-Stores (`src/stores/wmNavigation.ts`) übernehmen, statt sie wie
   bisher zu leeren; sonst ein leerer Arbeitsbereich. Fehler werden
-  protokolliert, holzi startet leer (FR-012); die Workspace-Seite fängt den Fehler
+  protokolliert, haex-vault startet leer (FR-012); die Workspace-Seite fängt den Fehler
   ab, damit `?open=` trotzdem wirkt (FR-014).
 - Nach `wm_session_restore_set` übernimmt der Store den neuen geltenden Wert;
   wird er wahr, speichert er sofort (FR-005).
@@ -198,7 +198,7 @@ keinen eigenen `sessionRestore`-Ref, sondern delegiert (`restoreSessionAsync`,
 `setSessionRestore`, `getSessionRestore`). Einstellungsänderungen laufen über
 dieselbe Warteschlange wie das Speichern, statt wie geplant über
 `applySessionRestore` nachträglich übernommen zu werden. Eine zu große Sitzung
-meldet Rust als `HolziError::SessionTooLarge`.
+meldet Rust als `HaexError::SessionTooLarge`.
 
 ## R8 Einstellungsansicht und Aktionen
 

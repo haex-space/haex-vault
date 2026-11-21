@@ -175,7 +175,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "holzi has no calendar. How would you like to handle the dentist appointment tomorrow (Thursday, 19 March) at 10:00?",
+            "question": "haex-vault has no calendar. How would you like to handle the dentist appointment tomorrow (Thursday, 19 March) at 10:00?",
             "options": [
               "Write a reminder mail to myself in haex-mail as a draft",
               "Look for a calendar extension to install",
@@ -185,7 +185,7 @@
           "ending": "ran"
         }
       ],
-      "text": "holzi has no calendar. How would you like to handle the dentist appointment tomorrow (Thursday, 19 March) at 10:00?"
+      "text": "haex-vault has no calendar. How would you like to handle the dentist appointment tomorrow (Thursday, 19 March) at 10:00?"
     },
     {
       "id": "no_tool-en-4",
@@ -213,7 +213,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "There's no shopping list in holzi. Where should I note milk instead?",
+            "question": "There's no shopping list in haex-vault. Where should I note milk instead?",
             "options": [
               "In a shopping list file in Dateien",
               "Skip it, I'll install a shopping list extension first",
@@ -223,7 +223,7 @@
           "ending": "ran"
         }
       ],
-      "text": "There's no shopping list in holzi. Where should I note milk instead?"
+      "text": "There's no shopping list in haex-vault. Where should I note milk instead?"
     }
   ],
   "requests": [

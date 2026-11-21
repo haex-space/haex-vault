@@ -63,7 +63,7 @@ code in front of the webcam and sees the same prefilled form.
 **Why this priority**: The operator asked for it explicitly. A new computer is the common case for "I have a new device", and
 every device and OS must work (a gap is a bug).
 
-**Independent Test**: On each desktop OS holzi supports, with a webcam, scan a link QR code shown on another screen and check
+**Independent Test**: On each desktop OS HaexVault supports, with a webcam, scan a link QR code shown on another screen and check
 that the form is filled as in story 1; then with no camera and with the permission denied, check the fallback.
 
 **Acceptance Scenarios**:
@@ -184,7 +184,7 @@ collapsed line; open it and check the list and that a change is kept.
 - **FR-005**: On a phone the sheet MUST offer "QR-Code scannen" using the camera scanner already used for contacts; the
   system's camera permission MUST be asked at the moment of tapping, not at start.
 - **FR-006**: On a desktop the sheet MUST offer "QR-Code scannen" with a live camera preview in the sheet; every desktop OS
-  holzi supports MUST work, and where the webview cannot give camera access on one of them, that OS gets a working path
+  HaexVault supports MUST work, and where the webview cannot give camera access on one of them, that OS gets a working path
   (system picker, helper, or a documented bridge) instead of the button disappearing.
 - **FR-007**: The camera MUST be released when the scan succeeds, the preview or sheet closes, the app or window loses
   focus, or an error occurs; no frame MUST be stored, uploaded or logged. The scan decodes on the device.
@@ -204,7 +204,7 @@ collapsed line; open it and check the list and that a change is kept.
 - **FR-013**: All errors of scanning and reading a link MUST show as a toast; the only inline message is a wrong input shown
   under its field. A success of a scan is visible in the filled form and MUST NOT get an extra message.
 - **FR-014**: User-visible texts MUST say "Nostr-Relay", "iroh-Relay" or "Server", never a bare "Relay", and the product name
-  "HaexVault"; texts exist in every language holzi ships.
+  "HaexVault"; texts exist in every language HaexVault ships.
 - **FR-015**: Reading the link text MUST be one implementation that the form, the paste handler and the scanner share, and
   the main device's producer MUST be the counterpart of that parser in one place (one rule, one implementation).
 - **FR-016**: The camera scan MUST only be reachable while the link sheet is open, and MUST NOT run in any other part of the

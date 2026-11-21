@@ -293,7 +293,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "Ich habe Bernd Keller in deinen Kontakten gefunden, aber in holzi gibt es keine Funktion für Überweisungen. Wie soll ich vorgehen?",
+            "question": "Ich habe Bernd Keller in deinen Kontakten gefunden, aber in haex-vault gibt es keine Funktion für Überweisungen. Wie soll ich vorgehen?",
             "options": [
               "Online-Banking im Browser öffnen (bitte Adresse deiner Bank nennen)",
               "Bernd Kellers Kontaktdaten anzeigen, damit du selbst überweisen kannst",
@@ -303,7 +303,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich habe Bernd Keller in deinen Kontakten gefunden, aber in holzi gibt es keine Funktion für Überweisungen. Wie soll ich vorgehen?"
+      "text": "Ich habe Bernd Keller in deinen Kontakten gefunden, aber in haex-vault gibt es keine Funktion für Überweisungen. Wie soll ich vorgehen?"
     }
   ],
   "requests": [

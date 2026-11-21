@@ -4,11 +4,11 @@ Keine neue Tabelle, keine neue Spalte, keine Migration. Der Trigger-Stand der Ta
 
 ## Vorhandene Daten, neu gedeutet
 
-| Daten                | Ort                                                                               | Änderung                                                                                                                   |
-| -------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Verknüpfung          | `haex_storage_connections.credentials_item_id`                                    | zeigt auf einen Eintrag mit Eigentümer `storage` (von holzi angelegt) **oder** auf einen Eintrag ohne Eigentümer (gewählt) |
-| Zugangsdaten-Eintrag | `haex_passwords_item_details` (+ Felder)                                          | bei gewählten Einträgen unverändert; bei von holzi angelegten kommt das Tag dazu                                           |
-| Cloud-Speicher-Tag   | `haex_passwords_tags` (`name = 'haex-cloud-storage'`), `haex_passwords_item_tags` | gewöhnliches Tag (034: keine reservierten Namen); Verknüpfungs-Kennung abgeleitet aus Eintrag und Tag                      |
+| Daten                | Ort                                                                               | Änderung                                                                                                                        |
+| -------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Verknüpfung          | `haex_storage_connections.credentials_item_id`                                    | zeigt auf einen Eintrag mit Eigentümer `storage` (von haex-vault angelegt) **oder** auf einen Eintrag ohne Eigentümer (gewählt) |
+| Zugangsdaten-Eintrag | `haex_passwords_item_details` (+ Felder)                                          | bei gewählten Einträgen unverändert; bei von haex-vault angelegten kommt das Tag dazu                                           |
+| Cloud-Speicher-Tag   | `haex_passwords_tags` (`name = 'haex-cloud-storage'`), `haex_passwords_item_tags` | gewöhnliches Tag (034: keine reservierten Namen); Verknüpfungs-Kennung abgeleitet aus Eintrag und Tag                           |
 
 ## Zuordnung Eintrag → Zugangsdaten (unverändert, an einer Stelle: `credentials::from_item`)
 
@@ -39,9 +39,9 @@ Ein Eintrag „passt“, wenn `from_item` etwas liefert. Leere Werte zählen als
 ## Übergänge der Verknüpfung
 
 ```text
-neu eingegeben  ──save──▶ Eintrag von holzi angelegt (owner=storage, Tag)       credentials_item_id = neu
+neu eingegeben  ──save──▶ Eintrag von haex-vault angelegt (owner=storage, Tag)       credentials_item_id = neu
 gewählt         ──save──▶ Eintrag unverändert + Tag (als Nutzer)                credentials_item_id = itemId
-tauschen (egal wohin)   ▶ alter Eintrag nur gelöscht, wenn von holzi angelegt und ohne weitere Verbindung
+tauschen (egal wohin)   ▶ alter Eintrag nur gelöscht, wenn von haex-vault angelegt und ohne weitere Verbindung
 Verbindung entfernen    ▶ wie tauschen
 Eintrag gelöscht        ▶ Zustand missing; Nutzer wählt anderen oder gibt neue ein
 ```

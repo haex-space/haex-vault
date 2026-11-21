@@ -11,7 +11,7 @@ löst sie vor dem Test auf (`service_link.rs`): Er liest den Eintrag als `Caller
 
 **Begründung**: `StorageAnswer::Confirm.credentials` (Fenster für Vorschläge von Erweiterungen) und
 `ConnectionInput.credentials` tragen schon dieselbe Eingabeform; mit einer Variante gilt die Wahl an beiden
-Stellen ohne zweiten Pfad (FR-013). `storage_dialog_resolve` ruft nur holzis Fenster auf; eine Erweiterung
+Stellen ohne zweiten Pfad (FR-013). `storage_dialog_resolve` ruft nur haex-vaults Fenster auf; eine Erweiterung
 erreicht ihn nicht (Bridge-Parameter mit `credentials` sind abgelehnt, 038 US3 Szenario 4), also kann sie
 keinen Eintrag wählen (FR-011).
 
@@ -55,7 +55,7 @@ Rundreise je Taste bringt nichts.
 **Entscheidung**: Tagname `haex-cloud-storage` als Konstante `credentials::TAG`.
 
 - **Neu angelegt**: `ItemInput.tags = [TAG]` in `credentials::create`.
-- **Vorhanden, von holzi angelegt**: beim Öffnen der Vault, in derselben Stelle wie
+- **Vorhanden, von haex-vault angelegt**: beim Öffnen der Vault, in derselben Stelle wie
   `passwords::maintenance::start_after_open` (`instances/open.rs`, `instances/import.rs`), trägt
   `credentials::start_after_open` das Tag bei allen Einträgen mit Eigentümer `storage` nach
   (`tags::bulk_set`, abgeleitete Verknüpfungs-Kennungen, daher wiederholbar und syncfest; zwei Geräte
@@ -63,7 +63,7 @@ Rundreise je Taste bringt nichts.
 - **Gewählt**: nach dem Speichern der Verbindung `PasswordsService::set_tags(&Caller::User, [id], [TAG],
 [])`.
 
-**Begründung**: Das Verknüpfen ist eine ausdrückliche Handlung des Nutzers in holzis eigenem Fenster; so
+**Begründung**: Das Verknüpfen ist eine ausdrückliche Handlung des Nutzers in haex-vaults eigenem Fenster; so
 bekommt der interne Aufrufer keine Schreibrechte an Einträgen, die ihm nicht gehören (beantwortet die offene
 Frage der Checkliste). Ein Fehler beim Taggen ist Komfort, nicht Sicherheit: Er wird mit Meldung ohne Wert
 protokolliert, die Verbindung gilt (wie `delete_credentials_if_unused`).
@@ -89,7 +89,7 @@ nur Einträge mit `owner == "storage"`, alles andere ist `PasswordsNotFound` und
 behandelt. Das gilt für `remove_connection`, `delete_credentials_if_unused` und den Rückbau nach einem
 fehlgeschlagenen `put_connection`.
 
-**Entscheidung**: keine Änderung nötig; ein gewählter Eintrag bleibt immer (FR-012), ein von holzi
+**Entscheidung**: keine Änderung nötig; ein gewählter Eintrag bleibt immer (FR-012), ein von haex-vault
 angelegter geht, wenn keine Verbindung ihn mehr nutzt. Der Test `service_link_tests.rs` sichert das, damit
 eine spätere Änderung an `delete_owned_item` es nicht stillschweigend bricht. Der Rückbau nach einem
 Fehler ruft `delete` nur für Einträge, die dieser Aufruf angelegt hat (nicht nach einer Wahl).
@@ -122,8 +122,8 @@ Telefon.
   Entfernen behält den gewählten, zwei Verbindungen eine Kennung, Papierkorb → `Missing`, Wert fehlt →
   `Missing`, Liste ohne Geheimnis in der Serialisierung, Papierkorb und Fremd-Eigentümer fehlen).
 - Vorhanden und weiter grün: `passwords_owner.rs`, `passwords_access.rs` (Z14: Erweiterung mit `*` erreicht
-  einen von holzi angelegten Eintrag nie).
+  einen von haex-vault angelegten Eintrag nie).
 - E2E `storage-credentials-entry`: WebDAV lokal (Docker): Eintrag im Passwortmanager anlegen, im Formular
   wählen, speichern; kein zweiter Eintrag; Passwort im Passwortmanager ändern → Test mit dem neuen Wert;
-  Eintrag löschen → „neue Zugangsdaten nötig“; anderen wählen → läuft; Tag filtert den von holzi angelegten
+  Eintrag löschen → „neue Zugangsdaten nötig“; anderen wählen → läuft; Tag filtert den von haex-vault angelegten
   Eintrag.

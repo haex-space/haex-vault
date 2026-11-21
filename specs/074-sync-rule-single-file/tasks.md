@@ -121,7 +121,7 @@ name; run again, nothing is copied.
       a paused file rule does not run (FR-002).
 - [x] T011 [P] [US1] In `src-tauri/src/file_sync/rules_tests.rs` add: a device file rule validates when the source is
       a regular file; a folder, a missing path and a symbolic link as the source are `InvalidPlace`; a file under one
-      of holzi's own places is `InvalidPlace` (spec 061 FR-002); the stored delete mode of a file rule is `Keep`; the
+      of haex-vault's own places is `InvalidPlace` (spec 061 FR-002); the stored delete mode of a file rule is `Keep`; the
       overlap table of research R6 (same source file twice, file inside another rule's folder place, same copy twice,
       target folder equal to the file's folder, a copy inside another rule's folder place → rejected; two files from
       different folders into one target folder → accepted); folder rules overlap exactly as before.
@@ -157,7 +157,7 @@ name; run again, nothing is copied.
       is the stored rule's kind); `validate` and the store then read `draft.source_kind.unwrap_or_default()`. T011
       and T012 pass.
 - [x] T017 [US1] Folder picker and dialog. In `src/components/files/FolderPicker.vue` add the prop `allowFiles`: the
-      list also shows files (not links, not holzi's own entries; file rows with the icon `lucide:file`, test id
+      list also shows files (not links, not haex-vault's own entries; file rows with the icon `lucide:file`, test id
       `files-picker-<name>-file-<name>`), a file row is taken at once as the choice, and `PickedFolder` gets
       `kind: 'folder' | 'file'` (`choose()` sets `folder`); the `encrypted` of a picked file is the flag of the open
       folder, so the hints of spec 061 FR-030a and FR-031 apply to it. In `src/components/files/SyncRuleDialog.vue`

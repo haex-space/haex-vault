@@ -15,7 +15,7 @@ Kontakt-Freigaben, Hintergrunddienst und eigene Verschlüsselung der Regel aus."
 ## Begriffe
 
 - **Dateibrowser**, **Quelle**, **Transfer**, **Agent**, **Agent-Berechtigung**, **eigene Daten von
-  holzi**: wie in Spec 044. **Speicher**: wie in den Specs 038 und 050. **Verschlüsselter Ordner**: wie
+  HaexVault**: wie in Spec 044. **Speicher**: wie in den Specs 038 und 050. **Verschlüsselter Ordner**: wie
   in Spec 048. **Geräte-Dateizugriff** und **Gerät der Vault**: wie in Spec 056.
 - **Ort**: ein Ordner einer Quelle des Dateibrowsers: ein lokaler Ordner, ein Ordner auf einem anderen
   eigenen Gerät (Spec 056), ein Ordner in einem S3-, WebDAV- oder SFTP-Speicher oder ein entsperrter
@@ -30,7 +30,7 @@ Kontakt-Freigaben, Hintergrunddienst und eigene Verschlüsselung der Regel aus."
   kurz „Quelle“ und „Ziel“.
 - **Abgleich**: ein Durchlauf einer Regel. Er vergleicht beide Orte mit dem **Stand** und bringt sie
   gemäß Richtung in Übereinstimmung.
-- **Stand**: was holzi zu einer Regel vom letzten erfolgreichen Abgleich je Datei weiß (relativer Pfad,
+- **Stand**: was HaexVault zu einer Regel vom letzten erfolgreichen Abgleich je Datei weiß (relativer Pfad,
   Größe und Änderungszeit auf beiden Seiten). Aus dem Vergleich mit dem Stand folgt, was seitdem neu,
   geändert, verschoben oder gelöscht ist. Die Änderungszeit einer Seite wird nur mit dem Stand
   derselben Seite verglichen, nie mit der Uhr einer anderen.
@@ -41,20 +41,20 @@ Kontakt-Freigaben, Hintergrunddienst und eigene Verschlüsselung der Regel aus."
   `Name (Konflikt Gerätename Datum).Endung` daneben abgelegt, auf beiden Seiten.
 - **Löschmodus**: **Spiegeln**, **Behalten** oder **Nachfragen**: was mit einer Datei geschieht, die
   auf einer Seite gelöscht wurde.
-- **Regel-Papierkorb**: der Ordner `.holzi-trash` im Ort, in den eine gespiegelte Löschung wandert,
+- **Regel-Papierkorb**: der Ordner `.haex-trash` im Ort, in den eine gespiegelte Löschung wandert,
   wenn der Ort keinen Papierkorb des Systems hat.
 - **Ausnahmedatei**: die Datei `.haex-ignore` im Wurzelordner eines Orts. Sie nennt je Zeile ein
   **Ausnahmemuster** in der Schreibweise von `.gitignore` (`#` Kommentar, `*`, `**`, `/` am Ende für
   Ordner, `!` hebt auf). Eine Datei oder ein Ordner, auf den ein Muster zutrifft, ist **ausgenommen**
   und wird nicht abgeglichen. Unterordner haben keine eigene Ausnahmedatei.
-- **Feste Ausnahmen**: was eine Regel immer ausnimmt, auch ohne Ausnahmedatei: `.holzi-trash`, die
+- **Feste Ausnahmen**: was eine Regel immer ausnimmt, auch ohne Ausnahmedatei: `.haex-trash`, die
   temporären Kopierdateien der Regel und Systemmüll (`.DS_Store`, `Thumbs.db`, `desktop.ini`).
 - **Lauf-Protokoll**: die Liste der letzten Abgleiche einer Regel. Je Lauf stehen dort Beginn, Dauer,
   Ergebnis, Zähler (kopiert, verschoben, gelöscht, Konflikte, Fehler) und je Datei Pfad, Aktion und Seite.
   Wie viele Läufe je Regel erhalten bleiben, stellt der Nutzer im Bereich „Sync-Regeln“ des
   Dateibrowsers unter „Einstellungen“ ein (**Protokolltiefe**, Vorgabe 10).
 - **Regelstatus**: der Zustand einer Regel: **aktiv**, **läuft**, **wartet** (ein Ort ist nicht
-  erreichbar), **Fehler**, **pausiert** oder **holzi nicht aktiv**.
+  erreichbar), **Fehler**, **pausiert** oder **HaexVault nicht aktiv**.
 
 ## Beziehung zu bestehenden Specs
 
@@ -67,7 +67,7 @@ Kontakt-Freigaben, Hintergrunddienst und eigene Verschlüsselung der Regel aus."
   eigenes Gerät ist dort eine Quelle wie ein Speicher; diese Spec braucht deshalb keinen eigenen
   Transport. Ein Gerät, dessen Schalter „Geräte-Dateizugriff“ aus ist, ist als Ort nicht erreichbar.
 - **Spec 044** (Dateibrowser): liefert Quellen, Ordnerwahl, Transfers, Papierkorb und die Regeln für
-  Agents und die eigenen Daten von holzi. Die Oberfläche der Regeln sitzt im Dateibrowser.
+  Agents und die eigenen Daten von HaexVault. Die Oberfläche der Regeln sitzt im Dateibrowser.
 - **Specs 038 und 050** (Speicher): Speicher als Ort. Zugangsdaten bleiben auf dem Gerät, das die Regel
   ausführt.
 - **Spec 048** (verschlüsselte Ordner): Wer Inhalte verschlüsselt beim Anbieter ablegen will, wählt
@@ -91,12 +91,12 @@ Kontakt-Freigaben, Hintergrunddienst und eigene Verschlüsselung der Regel aus."
   Seite geändert und auf der anderen gelöscht, bleibt die geänderte und wird zurückkopiert.
 - Q: Wie werden Löschungen behandelt? → A: Pro Regel Spiegeln, Behalten oder Nachfragen. Vorgabe:
   Spiegeln bei beidseitig, Behalten bei einseitig.
-- Q: Wann läuft eine Regel? → A: Solange holzi mit entsperrter Vault läuft. Auslöser: Dateiwächter auf
+- Q: Wann läuft eine Regel? → A: Solange HaexVault mit entsperrter Vault läuft. Auslöser: Dateiwächter auf
   lokalen Ordnern, Intervall für entfernte Orte (Vorgabe 15 Minuten), „Jetzt abgleichen“. Der
   Hintergrunddienst ist eine eigene Spec.
 - Q: Wie wird beim Anbieter verschlüsselt? → A: Gar nicht durch die Regel; der Nutzer wählt einen
   verschlüsselten Ordner (048) als Ort.
-- Q: Wie erkennt holzi Änderungen und Verschiebungen? → A: Größe und Änderungszeit gegen den Stand
+- Q: Wie erkennt HaexVault Änderungen und Verschiebungen? → A: Größe und Änderungszeit gegen den Stand
   derselben Seite. Eine verschwundene und eine neue Datei mit gleicher Größe und Änderungszeit sind eine
   Verschiebung. Eine Prüfsumme nur für nicht eindeutige Kandidaten und zur Kontrolle nach dem Kopieren.
 
@@ -144,7 +144,7 @@ Anna möchte, dass ihr Ordner `Fotos` auf dem Laptop laufend in ihren S3-Speiche
 Dateibrowser wählt sie „Sync-Regeln“ und „Neue Regel“, wählt `Fotos` als Quelle und einen Ordner im
 Speicher als Ziel, die Richtung „Quelle → Ziel“ und lässt den Löschmodus auf der Vorgabe „Behalten“. Nach dem
 ersten Abgleich liegen alle Fotos im Speicher. Macht sie danach neue Fotos, erscheinen sie dort ohne
-weiteres Zutun, solange holzi läuft. Löscht sie ein Foto auf dem Laptop, bleibt es im Speicher.
+weiteres Zutun, solange HaexVault läuft. Löscht sie ein Foto auf dem Laptop, bleibt es im Speicher.
 
 **Why this priority**: Das ist der einfachste und häufigste Fall und legt Regelmodell, Stand,
 Abgleichsplan und Übertragung an, auf denen alles Weitere aufbaut.
@@ -163,7 +163,7 @@ und umbenennen; nach jedem Abgleich den Zielort prüfen.
 4. **Given** der Löschmodus „Behalten“, **When** Anna eine Datei im Quellort löscht, **Then** bleibt sie
    im Zielort, und ein späterer Abgleich kopiert sie nicht erneut.
 5. **Given** eine einseitige Regel, **When** jemand eine Datei im Zielort ändert, **Then** überschreibt
-   der Abgleich sie nicht; holzi meldet die Abweichung im Regelstatus.
+   der Abgleich sie nicht; HaexVault meldet die Abweichung im Regelstatus.
 6. **Given** ein Abgleich, der mittendrin abbricht, **When** er neu startet, **Then** setzt er sauber
    fort, und im Zielort liegt keine halbe Datei als fertig.
 7. **Given** ein Zielort in einem verschlüsselten Ordner, **When** die Regel läuft, **Then** liegt der
@@ -204,7 +204,7 @@ umbenennen und löschen, auch dieselbe Datei auf beiden Seiten; nach dem Abgleic
    sie auf der anderen Seite im Papierkorb des Systems, sonst im Regel-Papierkorb, nicht endgültig
    gelöscht.
 7. **Given** beide Orte enthalten schon viele gleichnamige Dateien, von denen die meisten gleichen
-   Inhalt haben, **When** der erste Abgleich läuft, **Then** übernimmt holzi die gleichen ohne Kopieren
+   Inhalt haben, **When** der erste Abgleich läuft, **Then** übernimmt HaexVault die gleichen ohne Kopieren
    und legt nur für die tatsächlich verschiedenen Konfliktkopien an.
 8. **Given** der Laptop führt die Regel aus und das Telefon ist aus, **When** der Abgleich fällig ist,
    **Then** steht die Regel auf „wartet“ ohne Fehler, und der Abgleich läuft nach, sobald das Telefon
@@ -216,7 +216,7 @@ umbenennen und löschen, auch dieselbe Datei auf beiden Seiten; nach dem Abgleic
 
 Anna will nie versehentlich Daten verlieren. Bei einer Regel mit dem Löschmodus „Nachfragen“ erscheinen
 zu löschende Dateien im Regelstatus als Liste; sie bestätigt oder verwirft sie. Ist ein Ort plötzlich
-leer, weil ein Laufwerk fehlt, löscht holzi nichts, sondern meldet „Ort nicht erreichbar“.
+leer, weil ein Laufwerk fehlt, löscht HaexVault nichts, sondern meldet „Ort nicht erreichbar“.
 
 **Why this priority**: Der Schutz vor Massenlöschen entscheidet, ob jemand einer dauerhaften Regel
 traut. Er ist dennoch nachrangig gegenüber dem Abgleich selbst.
@@ -260,16 +260,16 @@ Orte und Stand prüfen.
 2. **Given** ein Zielort in einem Speicher ohne Verschlüsselung, **When** Anna ihn wählt, **Then** weist
    der Dialog darauf hin, dass ein verschlüsselter Ordner den Inhalt vor dem Anbieter schützt.
 3. **Given** zwei Regeln, die sich überlappen (derselbe Ordner oder ein Ordner und sein
-   Unterordner), **When** Anna die zweite speichern will, **Then** lehnt holzi sie mit Begründung ab.
+   Unterordner), **When** Anna die zweite speichern will, **Then** lehnt HaexVault sie mit Begründung ab.
 4. **Given** eine neue Regel, **When** Anna die Vorschau öffnet, **Then** sieht sie den Plan mit allen
    Kopier-, Verschiebe-, Lösch- und Konfliktschritten, bevor etwas geändert wird.
 5. **Given** eine Regel, **When** Anna sie pausiert, **Then** läuft kein Abgleich, bis sie sie wieder
    aktiviert; der Stand bleibt erhalten.
 6. **Given** eine Regel, **When** Anna ihre Orte oder Richtung ändert, **Then** gilt danach ein neuer
-   Stand, und holzi zeigt vorab den Plan.
-7. **Given** holzi läuft nicht oder die Vault ist gesperrt, **When** Anna den Bereich später öffnet,
-   **Then** steht der Status zuvor als „holzi nicht aktiv“, und die Regel holt den Abgleich nach.
-8. **Given** eine Regel, **When** Anna „Ausnahmen“ wählt, **Then** zeigt holzi die Muster der
+   Stand, und HaexVault zeigt vorab den Plan.
+7. **Given** HaexVault läuft nicht oder die Vault ist gesperrt, **When** Anna den Bereich später öffnet,
+   **Then** steht der Status zuvor als „HaexVault nicht aktiv“, und die Regel holt den Abgleich nach.
+8. **Given** eine Regel, **When** Anna „Ausnahmen“ wählt, **Then** zeigt HaexVault die Muster der
    Ausnahmedatei in einem kleinen Editor, dazu die festen Ausnahmen (nicht änderbar) und, wie viele
    Dateien die Muster gerade ausnehmen.
 9. **Given** der Editor, **When** Anna ein Muster `*.tmp` und `node_modules/` einträgt und speichert,
@@ -278,7 +278,7 @@ Orte und Stand prüfen.
 10. **Given** ein Muster, das Dateien trifft, die schon an beiden Orten liegen, **When** der Abgleich
     läuft, **Then** bleiben sie an beiden Orten unberührt und werden nicht gelöscht oder mehr
     kopiert.
-11. **Given** ein Ort, in den holzi nicht schreiben kann, **When** Anna „Ausnahmen“ öffnet, **Then**
+11. **Given** ein Ort, in den HaexVault nicht schreiben kann, **When** Anna „Ausnahmen“ öffnet, **Then**
     zeigt der Editor die Muster nur an und nennt den Grund.
 12. **Given** eine Regel mit mehreren Läufen, **When** Anna ihr Protokoll öffnet, **Then** sieht sie die
     letzten Läufe mit Zählern; ein Lauf lässt sich aufklappen und zeigt je Datei Pfad, Aktion und
@@ -287,8 +287,8 @@ Orte und Stand prüfen.
     führt er zum Regel-Papierkorb, in dem die Datei liegt; beim Papierkorb des Systems nennt er diesen.
 14. **Given** der Bereich „Sync-Regeln“, **When** Anna neben „Neue Regel“ auf „Einstellungen“ klickt,
     **Then** erklärt ein Dialog, was das Protokoll ist und was die Zahl bewirkt, und sie kann die
-    Protokolltiefe ändern; verkleinert sie sie, verwirft holzi die ältesten Läufe sofort, und bei 0
-    führt holzi kein Protokoll.
+    Protokolltiefe ändern; verkleinert sie sie, verwirft HaexVault die ältesten Läufe sofort, und bei 0
+    führt HaexVault kein Protokoll.
 
 ---
 
@@ -306,15 +306,15 @@ löschen.
 **Acceptance Scenarios**:
 
 1. **Given** ein Agent ohne die Berechtigung, **When** er Regeln lesen oder ändern will, **Then** lehnt
-   holzi ab.
+   HaexVault ab.
 2. **Given** ein Agent mit der Berechtigung, **When** er Regeln und Status liest, **Then** bekommt er sie
    ohne Rückfrage.
 3. **Given** ein Agent mit der Berechtigung, **When** er eine Regel anlegt, ändert oder löscht, **Then**
-   zeigt holzi dem Nutzer Orte, Richtung und Löschmodus und führt es erst nach Bestätigung aus.
+   zeigt HaexVault dem Nutzer Orte, Richtung und Löschmodus und führt es erst nach Bestätigung aus.
 4. **Given** eine Regel, die ein Agent angelegt hat, **When** sie läuft, **Then** braucht sie keinen
    Agent und hat nur die Rechte, die der Nutzer bestätigt hat.
-5. **Given** eine Regel mit den eigenen Daten von holzi als Ort, **When** ein Agent sie anlegen will,
-   **Then** lehnt holzi ab (Spec 044).
+5. **Given** eine Regel mit den eigenen Daten von HaexVault als Ort, **When** ein Agent sie anlegen will,
+   **Then** lehnt HaexVault ab (Spec 044).
 
 ---
 
@@ -359,11 +359,11 @@ löschen.
   einem Löschmodus und einem Intervall anlegen, ändern, pausieren, fortsetzen und löschen können.
 - **FR-002**: Als Ort MUSS jeder Ordner einer Quelle des Dateibrowsers zulässig sein: lokal, anderes
   eigenes Gerät (Spec 056), S3, WebDAV, SFTP und entsperrter verschlüsselter Ordner (Spec 048). Orte
-  einer fremden Vault (empfangene Dateifreigaben) und die eigenen Daten von holzi MÜSSEN ausgeschlossen
+  einer fremden Vault (empfangene Dateifreigaben) und die eigenen Daten von HaexVault MÜSSEN ausgeschlossen
   sein.
 - **FR-003**: Eine Regel MUSS dem Gerät gehören, auf dem sie angelegt wurde, und nur dort laufen. Sie
   DARF NICHT auf andere Geräte synchronisiert werden.
-- **FR-004**: holzi MUSS beim Speichern überlappende Regeln desselben Geräts ablehnen (derselbe Ort,
+- **FR-004**: HaexVault MUSS beim Speichern überlappende Regeln desselben Geräts ablehnen (derselbe Ort,
   oder ein Ort innerhalb des anderen), auch Regeln, deren Ort als Zielort für eine andere Regel dient.
   Regeln verschiedener Geräte DÜRFEN denselben Ort nutzen; sie sind unabhängig und stimmen sich nicht
   ab.
@@ -378,10 +378,10 @@ löschen.
 - **FR-008**: Eine Datei MUSS als geändert gelten, wenn sich Größe oder Änderungszeit gegenüber dem Stand
   derselben Seite unterscheiden. Die Änderungszeiten verschiedener Seiten DÜRFEN NICHT zur Erkennung
   von Änderungen verglichen werden.
-- **FR-009**: Eine verschwundene und eine neue Datei mit gleicher Größe und gleicher Änderungszeit DARF holzi
+- **FR-009**: Eine verschwundene und eine neue Datei mit gleicher Größe und gleicher Änderungszeit DARF HaexVault
   nur dann als Verschiebung oder Umbenennung behandeln, wenn eine verlässliche Dateiidentität oder der Inhalt
-  bestätigt wurde. Bei mehreren nicht eindeutig zuordenbaren Kandidaten MUSS holzi eine Prüfsumme zur
-  Disambiguierung bilden. Ohne diese Bestätigung MUSS holzi die Dateien als neue bzw. verschwundene Dateien nach
+  bestätigt wurde. Bei mehreren nicht eindeutig zuordenbaren Kandidaten MUSS HaexVault eine Prüfsumme zur
+  Disambiguierung bilden. Ohne diese Bestätigung MUSS HaexVault die Dateien als neue bzw. verschwundene Dateien nach
   dem gewählten Löschmodus behandeln.
 - **FR-010**: Bei einer einseitigen Regel MUSS ein Abgleich nur Änderungen vom Quellort zum Zielort
   übertragen. Eine Änderung im Zielort DARF er NICHT überschreiben; er MUSS sie im Regelstatus melden.
@@ -390,29 +390,29 @@ löschen.
   Konfliktkopie führen: Die Version mit der neueren Änderungszeit behält den Namen, die ältere wird als
   `Name (Konflikt Gerätename Datum).Endung` daneben abgelegt; beide Seiten bekommen beide Dateien.
 - **FR-012a**: Beim ersten Abgleich einer Regel (und nach dem Ändern ihrer Orte oder Richtung), wenn es
-  noch keinen Stand gibt, MUSS holzi gleichnamige Dateien beider Orte mit gleicher Größe per Prüfsumme
-  vergleichen. Sind sie gleich, MUSS holzi sie ohne Kopieren als abgeglichen in den Stand übernehmen.
+  noch keinen Stand gibt, MUSS HaexVault gleichnamige Dateien beider Orte mit gleicher Größe per Prüfsumme
+  vergleichen. Sind sie gleich, MUSS HaexVault sie ohne Kopieren als abgeglichen in den Stand übernehmen.
   Sind sie verschieden (auch bei verschiedener Größe), MUSS eine Konfliktkopie entstehen (FR-012).
-  Liefert ein Ort die Prüfsumme nicht ohne Lesen der Datei, MUSS holzi die Datei dafür lesen. Die
+  Liefert ein Ort die Prüfsumme nicht ohne Lesen der Datei, MUSS HaexVault die Datei dafür lesen. Die
   Vorschau (FR-007) MUSS zeigen, wie viele Dateien so verglichen werden.
 - **FR-013**: Eine Datei, die auf einer Seite gelöscht und auf der anderen geändert wurde, DARF NICHT
   gelöscht werden; die geänderte Datei MUSS auf die Seite zurückkopiert werden, auf der sie fehlt.
 - **FR-014**: Eine Kopie MUSS zuerst in eine temporäre Datei am Ziel gehen und erst nach vollständiger
   Übertragung ihren Namen bekommen. Eine halbe Datei DARF NIE als vollständig gelten.
-- **FR-015**: holzi MUSS den Stand je Datei erst fortschreiben, nachdem ihr Schritt vollständig
+- **FR-015**: HaexVault MUSS den Stand je Datei erst fortschreiben, nachdem ihr Schritt vollständig
   gelungen ist, sodass ein abgebrochener Abgleich beim nächsten Mal sauber fortsetzt.
-- **FR-016**: Nach einer Kopie MUSS holzi die Änderungszeit des Ziels an die der Quelle angleichen, wo
+- **FR-016**: Nach einer Kopie MUSS HaexVault die Änderungszeit des Ziels an die der Quelle angleichen, wo
   der Ort das erlaubt, und das Ergebnis über Größe und, wo nötig, eine Prüfsumme kontrollieren.
 - **FR-017**: Große Dateien MÜSSEN fortsetzbar übertragen werden; Netzfehler bei einem Speicher MUSS
-  holzi wie in Spec 044 FR-025 wiederholen.
-- **FR-018**: Symbolische Links und Verknüpfungen DÜRFEN NICHT verfolgt werden; holzi MUSS sie
+  HaexVault wie in Spec 044 FR-025 wiederholen.
+- **FR-018**: Symbolische Links und Verknüpfungen DÜRFEN NICHT verfolgt werden; HaexVault MUSS sie
   überspringen und im Regelstatus nennen.
 
 **Löschen**
 
 - **FR-019**: Der Löschmodus „Spiegeln“ MUSS eine auf einer Seite gelöschte Datei auf der anderen Seite
   nicht endgültig löschen, sondern in den Papierkorb des Systems legen, wo der Ort einen hat, sonst in
-  den Regel-Papierkorb `.holzi-trash` des Ortes.
+  den Regel-Papierkorb `.haex-trash` des Ortes.
 - **FR-020**: Der Löschmodus „Behalten“ MUSS die Datei auf der anderen Seite lassen und sich merken, dass
   sie dort bewusst bleibt, damit sie nicht zurückkopiert wird.
 - **FR-021**: Der Löschmodus „Nachfragen“ MUSS die anstehenden Löschungen mit ihrer Zahl im Regelstatus
@@ -424,20 +424,20 @@ löschen.
 
 **Fehler und Status**
 
-- **FR-023**: Eine Datei, die fehlschlägt, DARF den Abgleich nicht stoppen. holzi MUSS sie mit Grund im
+- **FR-023**: Eine Datei, die fehlschlägt, DARF den Abgleich nicht stoppen. HaexVault MUSS sie mit Grund im
   Regelstatus nennen und beim nächsten Abgleich erneut versuchen.
 - **FR-024**: Ist ein Ort nicht erreichbar (anderes Gerät aus oder Geräte-Dateizugriff aus, Netz weg),
   MUSS die Regel auf „wartet“ stehen, ohne Fehlermeldung, und nachholen, sobald er erreichbar ist.
 - **FR-025**: Der Regelstatus MUSS je Regel Zustand, Zeitpunkt des letzten Abgleichs, Fehler,
   Abweichungen, anstehende Löschungen und Konfliktkopien zeigen.
-- **FR-026**: Wird die Vault gesperrt oder holzi beendet, MÜSSEN laufende Abgleiche abbrechen, ohne halbe
-  Datei (wie Spec 044 FR-026); die Regel steht danach auf „holzi nicht aktiv“.
+- **FR-026**: Wird die Vault gesperrt oder HaexVault beendet, MÜSSEN laufende Abgleiche abbrechen, ohne halbe
+  Datei (wie Spec 044 FR-026); die Regel steht danach auf „HaexVault nicht aktiv“.
 
 **Auslöser**
 
-- **FR-027**: Eine Regel MUSS laufen, solange holzi mit entsperrter Vault läuft: durch einen Wächter auf
+- **FR-027**: Eine Regel MUSS laufen, solange HaexVault mit entsperrter Vault läuft: durch einen Wächter auf
   lokalen Orten, durch das Intervall bei entfernten Orten und auf Wunsch von Hand („Jetzt abgleichen“).
-- **FR-028**: Auf dem Desktop MUSS eine Regel auch bei geschlossenem Fenster laufen, solange holzi im
+- **FR-028**: Auf dem Desktop MUSS eine Regel auch bei geschlossenem Fenster laufen, solange HaexVault im
   Tray weiterläuft. Auf Android MUSS sie bei geschlossener App pausieren; ein Hintergrunddienst gehört
   nicht zu dieser Spec.
 - **FR-029**: Die Regel DARF keine Zugangsdaten und Schlüssel an das andere Gerät geben; Zugangsdaten
@@ -451,7 +451,7 @@ löschen.
 - **FR-030a**: Ist der Quellort ein verschlüsselter Ordner und der Zielort nicht, MUSS der Dialog beim Anlegen oder
   Ändern darauf hinweisen, dass die Dateien am Zielort entschlüsselt liegen, und die Zustimmung des Nutzers einholen. Nur mit
   dieser Zustimmung DARF die Regel Dateien aus dem verschlüsselten Ordner entschlüsselt ablegen (Spec 048 FR-019);
-  ohne sie MUSS holzi jede solche Datei mit Grund unter den Fehlern nennen. Ist der Zielort selbst ein verschlüsselter
+  ohne sie MUSS HaexVault jede solche Datei mit Grund unter den Fehlern nennen. Ist der Zielort selbst ein verschlüsselter
   Ordner, braucht es keine Zustimmung.
 - **FR-031**: Beim Wählen eines Speichers ohne Verschlüsselung als Zielort MUSS der Dialog auf den
   verschlüsselten Ordner hinweisen.
@@ -471,7 +471,7 @@ löschen.
   von Regeln und Status MUSS mit ihr ohne Rückfrage gehen; Anlegen, Ändern und Löschen einer Regel MUSS
   der Nutzer jedes Mal in einem Dialog bestätigen, der Orte, Richtung und Löschmodus nennt.
 - **FR-036**: Eine Regel läuft ohne Agent; sie hat nur die Rechte, die der Nutzer beim Anlegen bestätigt
-  hat. Die eigenen Daten von holzi bleiben für Agents gesperrt (Spec 044 FR-033).
+  hat. Die eigenen Daten von HaexVault bleiben für Agents gesperrt (Spec 044 FR-033).
 
 **Ausnahmen**
 
@@ -479,7 +479,7 @@ löschen.
   Muster einer Ausnahmedatei treffen. Die festen Ausnahmen gelten immer.
 - **FR-038**: Die Ausnahmedatei `.haex-ignore` MUSS im Wurzelordner eines Orts liegen, in der
   Schreibweise von `.gitignore` (`#` Kommentar, `*`, `**`, Ordner mit `/` am Ende, `!` hebt auf).
-  Ausnahmedateien in Unterordnern DÜRFEN NICHT ausgewertet werden. Eine Zeile, die holzi nicht
+  Ausnahmedateien in Unterordnern DÜRFEN NICHT ausgewertet werden. Eine Zeile, die HaexVault nicht
   versteht, MUSS es überspringen und im Regelstatus nennen; sie stoppt den Abgleich nicht.
 - **FR-039**: Die Ausnahmedatei MUSS wie jede andere Datei abgeglichen werden (bei einer
   einseitigen Regel vom Quellort zum Zielort, bei einer beidseitigen in beide Richtungen mit
@@ -500,21 +500,21 @@ löschen.
 
 **Protokoll**
 
-- **FR-043**: holzi MUSS zu jeder Regel ein Lauf-Protokoll führen: je Lauf Beginn, Dauer, Ergebnis,
+- **FR-043**: HaexVault MUSS zu jeder Regel ein Lauf-Protokoll führen: je Lauf Beginn, Dauer, Ergebnis,
   Zähler und je Datei Pfad, Aktion (kopiert, verschoben, gelöscht, Konfliktkopie, übersprungen,
   Fehler) und Seite. Auch ein Lauf, der abbricht oder wartet, MUSS mit Grund erscheinen.
 - **FR-044**: Die Zahl der Läufe, die das Protokoll je Regel behält (Protokolltiefe), MUSS der Nutzer
   im Bereich „Sync-Regeln“ des Dateibrowsers über die Schaltfläche „Einstellungen“ neben „Neue Regel“
-  ändern können, nicht in den Einstellungen von holzi. Der Dialog MUSS erklären, was das Protokoll
+  ändern können, nicht in den Einstellungen von HaexVault. Der Dialog MUSS erklären, was das Protokoll
   enthält, was die Zahl bewirkt (ältere Läufe werden gelöscht, bei 0 gibt es kein Protokoll), dass mehr
   Läufe mehr Speicher brauchen und dass die Einstellung für alle Regeln dieses Geräts gilt. Vorgabe ist 10, erlaubt
-  sind 0 bis 100. Bei 0 führt holzi kein Protokoll. Die Einstellung gilt für alle Regeln dieses Geräts
+  sind 0 bis 100. Bei 0 führt HaexVault kein Protokoll. Die Einstellung gilt für alle Regeln dieses Geräts
   und nur für dieses Gerät, und eine Verkleinerung MUSS die ältesten Läufe sofort verwerfen.
 - **FR-045**: Das Protokoll DARF nur auf dem ausführenden Gerät liegen, wird nicht synchronisiert und
   MUSS beim Löschen der Regel mit ihr verschwinden. Es DARF keine Dateiinhalte enthalten.
 - **FR-046**: Zu einer gespiegelten Löschung MUSS der Protokolleintrag nennen, wohin die Datei gegangen
   ist. Liegt sie im Regel-Papierkorb des Orts, MUSS er dorthin führen, solange die Datei dort liegt. Beim
-  Papierkorb des Systems nennt er ihn nur, weil holzi ihn nicht öffnen kann.
+  Papierkorb des Systems nennt er ihn nur, weil HaexVault ihn nicht öffnen kann.
 - **FR-047**: Der Bereich „Sync-Regeln“ (FR-032) MUSS im Panel des Dateibrowsers stehen, nicht in einem
   Dialog, und wie eine Ordneransicht aufgebaut sein: eine Kopfzeile zum Sortieren (Name, Status, letzter
   Abgleich), eine Zeile je Regel mit Orten, Richtung, Status, Fortschritt oder letztem Abgleich und den
@@ -534,7 +534,7 @@ löschen.
   Orten dieses Geräts laufen weiter nach der Ruhezeit.
 - **FR-051**: Ein Lauf gegen einen Objektspeicher (S3) MUSS mit wenigen Anfragen auskommen: den Ort in einer
   flachen Liste lesen (eine Anfrage je Seite von rund 1000 Schlüsseln statt eine je Ordner; mit
-  verschlüsselten Ordnern oder mehr als 200 000 Schlüsseln geht holzi Ordner für Ordner), eine Datei, die
+  verschlüsselten Ordnern oder mehr als 200 000 Schlüsseln geht HaexVault Ordner für Ordner), eine Datei, die
   der Plan am Ziel nicht erwartet, ohne vorherige Namensprüfung senden (eine erwartete wird geprüft) und
   keinen Ordner anlegen, in den eine Datei dieses Laufs kommt, weil ein Ordner dort nur der Präfix seiner
   Objekte ist; leere Ordner bekommen weiter ihre Markierung. Dafür gilt: Eine Datei, die zwischen dem
@@ -587,19 +587,19 @@ löschen.
 - Ein Ort stellt Größe und Änderungszeit je Datei bereit, so wie der Dateibrowser sie zeigt. Geprüft
   am 2026-10-26: Ein verschlüsselter Ordner (Spec 048) führt beides je Datei in seiner verschlüsselten
   Sidecar-Datei und liefert es nach dem Entsperren wie jeder andere Ort; dort liegt zusätzlich die
-  Prüfsumme des Klartexts, die ohne Lesen der Datei verfügbar ist. Schreibt holzi eine Datei in einen
+  Prüfsumme des Klartexts, die ohne Lesen der Datei verfügbar ist. Schreibt HaexVault eine Datei in einen
   verschlüsselten Ordner, setzt es als Änderungszeit die Schreibzeit; ein Wert der Quelle lässt sich
   derzeit nicht mitgeben.
 - Ein Speicher ändert die Änderungszeit einer Datei nach dem Kopieren nicht immer auf den Wert der Quelle
   (zum Beispiel S3). Dann nutzt der Stand die vom Ort gemeldete Zeit nach dem Kopieren, nicht die der
   Quelle; die Erkennung vergleicht nur Werte derselben Seite.
-- Der Regel-Papierkorb `.holzi-trash` liegt im Ort selbst und wird vom Abgleich nicht übertragen; er
+- Der Regel-Papierkorb `.haex-trash` liegt im Ort selbst und wird vom Abgleich nicht übertragen; er
   wird nicht automatisch geleert. Eine Aufräumregel wäre eine spätere Erweiterung.
 - Das Intervall für entfernte Orte beträgt standardmäßig 15 Minuten und ist je Regel einstellbar. Bei
   lokalen Orten erkennt ein Dateiwächter Änderungen sofort.
 - Die Regeln liegen im Datenbestand des ausführenden Geräts (nicht synchronisiert); ein neues Gerät
   startet ohne Regeln.
-- Der Betreiber akzeptiert, dass Regeln nur laufen, solange holzi aktiv ist; auf Android läuft eine
+- Der Betreiber akzeptiert, dass Regeln nur laufen, solange HaexVault aktiv ist; auf Android läuft eine
   Regel bei geschlossener App nicht.
 - Die Spec-Nummer 061 ist frei (Stand 2026-10-26).
 

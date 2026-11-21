@@ -57,7 +57,7 @@ Migration mit der nächsten freien Nummer (bei Planung nach `0046_sync_rules_dec
 ALTER TABLE chat_threads ADD COLUMN origin TEXT;  -- NULL = getippt, 'voice' = Sprachgespräch
 ```
 
-CRDT-Trigger kennen die neue Spalte; `HOLZI_TRIGGER_VERSION` 31 → 32 (bei Planung 29 → 30). `chat_messages` bleibt der
+CRDT-Trigger kennen die neue Spalte; `HAEX_TRIGGER_VERSION` 31 → 32 (bei Planung 29 → 30). `chat_messages` bleibt der
 Verlauf, den das Modell sieht (Fragen und Antworten); das Werkzeug-Ergebnis eines Vorlesens ist dort
 `{"spoken": true}`.
 

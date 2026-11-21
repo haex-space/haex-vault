@@ -49,7 +49,7 @@ Technischer Ansatz ([research.md](./research.md)):
 **Storage**: eine Migration (nächste freie Nummer, nach 066): Spalten an `voice_transcript_entries`,
 Tabellen `haex_meetings`, `haex_meeting_participants`, `haex_meeting_audio_chunks`,
 `haex_meeting_evaluations`, `haex_voice_profile` ([data-model.md](./data-model.md));
-`HOLZI_TRIGGER_VERSION` +1.
+`HAEX_TRIGGER_VERSION` +1.
 
 **Testing**:
 

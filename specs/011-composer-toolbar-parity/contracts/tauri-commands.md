@@ -19,7 +19,7 @@ getEffortLevelsAsync(modelId: string): Promise<string[]>
   model, exactly what that model supports (e.g. `["low","medium","high","max"]`
   for `claude-opus-4-6`, plus `"xhigh"` for `claude-sonnet-5`); for the
   Claude Code delegate, always the full five values (research.md §1 — the
-  CLI self-clamps, so holzi always offers the full set for it).
+  CLI self-clamps, so haex-vault always offers the full set for it).
 - Frontend prepends `"auto"` itself whenever the returned list is non-empty
   (data-model.md) — this command never returns `"auto"`.
 - Pure/synchronous on the backend (no network call) — safe to call on every

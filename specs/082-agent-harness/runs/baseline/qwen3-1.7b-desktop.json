@@ -433,7 +433,7 @@
       "id": "contact-de-3",
       "result": "missed",
       "calls": [],
-      "text": "Es gibt keine Hausverwaltung in der beschriebenen Umgebung. Die Frage ist nicht relevant für Holzi und kann nicht mit den verfügbaren Tools beantwortet werden."
+      "text": "Es gibt keine Hausverwaltung in der beschriebenen Umgebung. Die Frage ist nicht relevant für HaexVault und kann nicht mit den verfügbaren Tools beantwortet werden."
     },
     {
       "id": "password-de-1",
@@ -640,7 +640,7 @@
       "id": "contact-de-1-s",
       "result": "missed",
       "calls": [],
-      "text": "Es kann nicht bestimmt werden, ob die Handynummer von Anna bekannt ist, da dies keine Frage zur Nutzung der App holzi beinhaltet."
+      "text": "Es kann nicht bestimmt werden, ob die Handynummer von Anna bekannt ist, da dies keine Frage zur Nutzung der App haex-vault beinhaltet."
     },
     {
       "id": "contact-de-2-s",
@@ -660,7 +660,7 @@
       "id": "password-de-1-s",
       "result": "missed",
       "calls": [],
-      "text": "es gibt keine Möglichkeit, das Passwort von Netflix zu ändern, da dies nicht über den Holzi-App-Toolset möglich ist."
+      "text": "es gibt keine Möglichkeit, das Passwort von Netflix zu ändern, da dies nicht über den haex-vault-App-Toolset möglich ist."
     },
     {
       "id": "file-de-1-s",

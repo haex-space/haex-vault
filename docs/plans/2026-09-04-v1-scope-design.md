@@ -1,4 +1,4 @@
-# Holzi — v1 Scope and Founding Revisions
+# HaexVault — v1 Scope and Founding Revisions
 
 **Status**: Draft. Written 2026-09-04, same day as `docs/design/founding.md`. Captures scope decisions and revisions made in a scope-sharpening session immediately after the founding capture.
 
@@ -39,7 +39,7 @@ Two of the operator's own devices, paired into one federation. From each device 
 
 - Open a chat with a local or provider model of their choice.
 - Send a routed command to the other device (`@laptop, do X`) and get a result back.
-- Have an IDE / shell / script on either device talk to holzi via its host-local MCP server.
+- Have an IDE / shell / script on either device talk to haex-vault via its host-local MCP server.
 - Confirm a `require-confirmation` write action initiated on one device from the other (signed-release-event round-trip).
 
 No file transfer between devices. No voice/video. No cross-user sharing.
@@ -64,7 +64,7 @@ The 2026-09-04 model was rejected because a paper-seed only reconstructs signing
 
 **Revision.**
 
-- **Vault = SQLite = identity.** Each SQLite database is an independent vault. At Genesis, holzi generates a NIP-01-compatible `secp256k1` keypair (the **vault identity**) and stores it in a singleton `vault_identity` row inside the DB. Every replica of the same vault carries this keypair (it comes along with any `cp`); replicas authenticate a copied vault by proof-of-possession of that keypair. The direct **Öffnen** flow therefore needs no attestation, pairing record, or `peer_instances` entry: the copied vault identity is the ingress credential. Per-device Nostr and iroh endpoint keys are generated per replica (see `known_devices` below) and are independent of the vault identity — they change per install; the vault identity does not. Keys never leave the encrypted database.
+- **Vault = SQLite = identity.** Each SQLite database is an independent vault. At Genesis, haex-vault generates a NIP-01-compatible `secp256k1` keypair (the **vault identity**) and stores it in a singleton `vault_identity` row inside the DB. Every replica of the same vault carries this keypair (it comes along with any `cp`); replicas authenticate a copied vault by proof-of-possession of that keypair. The direct **Öffnen** flow therefore needs no attestation, pairing record, or `peer_instances` entry: the copied vault identity is the ingress credential. Per-device Nostr and iroh endpoint keys are generated per replica (see `known_devices` below) and are independent of the vault identity — they change per install; the vault identity does not. Keys never leave the encrypted database.
 - **No federation-root, no paper-seed.** There is no persistent federation-scope keypair in v1. "The federation" is the mutual-trust graph formed by CRDT-synced peer records; it has no cryptographic root. The only secret the operator handles explicitly is the SQLCipher passphrase per database — the same one they use to unlock the app. Recovery is by a surviving synced instance or by copying the `.db` to a new install. A receiver verifies a copied-vault connection by checking a challenge signature against its current `vault_identity` public key. A vault-wide identity rotation invalidates every copy carrying the old key; replicas must then be re-established from a snapshot with the new identity. This is the revocation mechanism for direct copied-vault ingress; the separate Verbinden flow uses the peer-registry and pairing rules below. All-devices-lost with no backup means data-lost; that is an accepted risk that the paper-seed did not actually mitigate (it would have restored an empty federation identity).
 - **Symmetric pairing.** Any instance whose `peer_instances` record carries the `pairing-authority` capability may pair a new instance. A parent with only `confirmation-authority` cannot pair. Pairing runs by short-lived one-time token (QR code or copy/paste string) issued by the parent instance and scanned by the joiner. The token carries a one-time nonce, an expiry, and a contact hint (Nostr relay URL + parent's `nostr_pubkey`). The joiner opens a Nostr connection to the contact hint and sends a signed canonical pairing transcript naming both parties' `nostr_pubkey`, `iroh_node_id`, requested alias, and the token nonce. The parent verifies the transcript, that the token is unused and unexpired, that its own record still carries `pairing-authority` at the current federation epoch, and that the granted capability subset is a subset of what the parent holds. Both instances then write a mutual `peer_instances` CRDT record naming the other, signed by the writer's own instance keypair, with the capabilities the parent explicitly granted.
 - **CRDT-synced peer registry.** The federation state (peer_instances registry, revocation-epoch table, capability changes, chat/session history) lives in the encrypted CRDT store described in Section 5. Every peer holds a full copy; there is no capability-scoped signing material to distribute separately, because instances only ever sign with their own keypair (already in the database from creation). Alias assignment is unique within a federation: concurrent peer records proposing the same alias are detected by the alias plus the writer identities, and the canonical winner is the lexicographically smallest record ID (with the full ID as the deterministic tie-breaker). The losing record remains recorded, the alias remains unroutable while any conflict exists, and commands addressed to it fail with an explicit alias-conflict result until a subsequent write assigns a free alias.
@@ -81,12 +81,12 @@ The 2026-09-04 model was rejected because a paper-seed only reconstructs signing
 
 `founding.md` §4 items 5 and 8 (encrypted-at-rest choice, multi-device routing) are resolved by consuming an extracted library.
 
-- **`haex-crdt`.** The SQLite + CRDT-sync layer currently living inside `haex-vault 2.x (Legacy)` is extracted into a standalone Rust crate named `haex-crdt`. Both `haex-vault 2.x` and `holzi` consume it as a Rust library dependency. Holzi pins [`haexmas/haex-crdt` at `1c069ef0ea19143af2748f40fc41cba05c94dbe1` (`Cargo.toml`, package 0.4.0)](https://github.com/haexmas/haex-crdt/blob/1c069ef0ea19143af2748f40fc41cba05c94dbe1/Cargo.toml). The crate owns the scanner and apply APIs, while holzi owns the v1 sync transport that wires them together.
-- **At-rest encryption is inherited.** `holzi` does not choose its own at-rest scheme; it uses whatever `haex-crdt` provides (working assumption: SQLCipher, to be confirmed during extraction). If `haex-crdt` changes its scheme, `holzi` moves with it.
+- **`haex-crdt`.** The SQLite + CRDT-sync layer currently living inside `haex-vault 2.x (Legacy)` is extracted into a standalone Rust crate named `haex-crdt`. Both `haex-vault 2.x` and `haex` consume it as a Rust library dependency. HaexVault pins [`haexmas/haex-crdt` at `1c069ef0ea19143af2748f40fc41cba05c94dbe1` (`Cargo.toml`, package 0.4.0)](https://github.com/haexmas/haex-crdt/blob/1c069ef0ea19143af2748f40fc41cba05c94dbe1/Cargo.toml). The crate owns the scanner and apply APIs, while haex-vault owns the v1 sync transport that wires them together.
+- **At-rest encryption is inherited.** `haex` does not choose its own at-rest scheme; it uses whatever `haex-crdt` provides (working assumption: SQLCipher, to be confirmed during extraction). If `haex-crdt` changes its scheme, `haex` moves with it.
 - **What lives in `haex-crdt`-synced state.** Federation-scope encrypted state that must converge across paired replicas of the same vault: the vault identity keypair (`vault_identity`, singleton), the device registry (`known_devices` installation UUID as immutable row identity, device UUID, alias, timestamps, and endpoint metadata), and later — with sync — `peer_instances` / revocation-epoch / capability grants, chat/session history, skills/memory (post-v1 scope but reserved). The installation UUID file remains local to the host, while its value is carried as the `known_devices` row's primary-key identity (`row_pks`) when that row is synchronized.
 - **What does not live in `haex-crdt` at all.** Ephemeral runtime state (open iroh sessions, current relay connections), local-only preferences (local model file paths, active-provider selection), and the installation UUID **file** at `<AppLocalData>/installation-id` (outside every vault; the file itself is never sent over the wire). Its value is stored as the `known_devices` primary-key identity and is carried in that row's CRDT `row_pks`.
 - **Device identity for HLC (`DatabaseBootstrap`).** Decided 2026-09-07, refined 2026-09-08. Two UUIDs, layered:
-  - **Installation UUID** — one random UUID per holzi installation on a host, stored in
+  - **Installation UUID** — one random UUID per haex-vault installation on a host, stored in
     `<AppLocalData>/installation-id`, shared by every vault opened by that installation, never sent
     over the wire. Its sole purpose is the local lookup key for the next UUID.
   - **Vault-device UUID** — one per (vault × installation), stored as a row in `known_devices`
@@ -108,11 +108,11 @@ The 2026-09-04 model was rejected because a paper-seed only reconstructs signing
   clone, `rsync -a` of the entire app data directory) breaks the vault-device-UUID uniqueness
   invariant; detection is the sync layer's responsibility (see the command contract).
 
-- **Three cross-device channels, disjoint by role.** With `haex-crdt` in play, holzi has three cross-device channels rather than the two in `founding.md`:
+- **Three cross-device channels, disjoint by role.** With `haex-crdt` in play, haex-vault has three cross-device channels rather than the two in `founding.md`:
   1. **Nostr** — semantic events: presence, capability advertisement, commands, LLM prompts/responses, DMs, control-plane events, confirmation intents and releases.
   2. **iroh** — bulk bytes: `blob.offer` (post-v1) and `stream.offer` (post-v1). No v1 traffic on this channel except peer keep-alive.
   3. **`haex-crdt` sync** — federation state deltas: `peer_instances` records, revocation-epoch changes, capability changes, chat/session state.
-     These channels do not share ownership. `haex-crdt` is authoritative for chat/session records and their stable message IDs; Nostr events are transport-only envelopes for prompts, responses, and control messages, and are not a second chat history. A received event is applied to the CRDT record keyed by its message ID exactly once; replays and duplicate deliveries are ignored. Nostr never carries CRDT deltas; `haex-crdt` never carries a command intent; iroh never carries state. holzi owns the v1 CRDT sync transport and wires it to `haex-crdt`'s scanner and apply APIs; the crate supplies no transport in this contract. A future consumer may choose a different transport without changing the crate's storage API.
+     These channels do not share ownership. `haex-crdt` is authoritative for chat/session records and their stable message IDs; Nostr events are transport-only envelopes for prompts, responses, and control messages, and are not a second chat history. A received event is applied to the CRDT record keyed by its message ID exactly once; replays and duplicate deliveries are ignored. Nostr never carries CRDT deltas; `haex-crdt` never carries a command intent; iroh never carries state. haex-vault owns the v1 CRDT sync transport and wires it to `haex-crdt`'s scanner and apply APIs; the crate supplies no transport in this contract. A future consumer may choose a different transport without changing the crate's storage API.
 
 ## 6. Provider layer
 
@@ -124,7 +124,7 @@ Native Rust `LlmAdapter` trait with five implementations, hardcoded in v1. No Py
 4. **Ollama-HTTP** — adapter for an externally running Ollama on the host or on another operator device.
 5. **Generic-OpenAI-compatible** — user supplies a base URL and optional API key. Escape hatch for LiteLLM-as-proxy, LM Studio, Azure-OpenAI, custom vLLM/TGI deployments, and Ollama's OpenAI-compat endpoint.
 
-Plus **embedded runner** as a first-class local backend, not an adapter row: on desktop and server holzi ships a runner (candidate stacks: llama.cpp / candle / mistral.rs, chosen at implementation time based on mobile-portability) and a default small model. On mobile the runner ships with a smaller preset (Phi-3-mini-class or Qwen-tiny-class); battery/storage cost is accepted, iOS App Store size restrictions are respected. Model choice at runtime is always explicit; no automatic routing between local and provider adapters.
+Plus **embedded runner** as a first-class local backend, not an adapter row: on desktop and server haex-vault ships a runner (candidate stacks: llama.cpp / candle / mistral.rs, chosen at implementation time based on mobile-portability) and a default small model. On mobile the runner ships with a smaller preset (Phi-3-mini-class or Qwen-tiny-class); battery/storage cost is accepted, iOS App Store size restrictions are respected. Model choice at runtime is always explicit; no automatic routing between local and provider adapters.
 
 ## 7. Mobile as full peer with foreground-only availability
 
@@ -159,13 +159,13 @@ The killer v1 use case: an operator confirms from their phone a `require-confirm
 
 ## 10. Dependency map
 
-Two parallel workstreams gate holzi v1's first implementation slice:
+Two parallel workstreams gate haex-vault v1's first implementation slice:
 
-- **haex-hive schema migration** (in progress, in `~/Projekte/haex-hive/`). Until the migration lands, holzi's declared `com.github.haexmas.atoms.graphify-first-authoring` atom does not take effect. Blocks _tooling_, not code — holzi can proceed on design/spec work without it.
-- ~~**`haex-crdt` extraction from `haex-vault 2.x`**~~ — **cleared**. Holzi consumes the pinned 0.4.0 revision; no local checkout, branch, or future release assumption is part of this dependency.
+- **haex-hive schema migration** (in progress, in `~/Projekte/haex-hive/`). Until the migration lands, haex-vault's declared `com.github.haexmas.atoms.graphify-first-authoring` atom does not take effect. Blocks _tooling_, not code — haex-vault can proceed on design/spec work without it.
+- ~~**`haex-crdt` extraction from `haex-vault 2.x`**~~ — **cleared**. HaexVault consumes the pinned 0.4.0 revision; no local checkout, branch, or future release assumption is part of this dependency.
 
-Both are outside this repository. Neither is a holzi task. The haex-hive migration remains a
-tooling dependency only; it does not delay holzi's implementation timeline now that `haex-crdt`
+Both are outside this repository. Neither is a haex-vault task. The haex-hive migration remains a
+tooling dependency only; it does not delay haex-vault's implementation timeline now that `haex-crdt`
 is cleared.
 
 ## 11. First implementation slice — walking-skeleton sketch
@@ -176,10 +176,10 @@ A concrete first slice that can start while the haex-hive migration is still pen
 
 **Steps in the slice.**
 
-1. Holzi Tauri app boots on device A. First-run wizard creates a fresh SQLite (SQLCipher passphrase set by the operator), runs the unsigned pre-HLC bootstrap to generate the vault identity keypair (a secp256k1 keypair for Proof-of-Possession auth between replicas) and store it in the singleton `vault_identity` row, mints a vault-device UUID for device A and inserts it into `known_devices` keyed by device A's installation UUID, then writes the Genesis self-record into `peer_instances` with both `pairing-authority` and `confirmation-authority` (Genesis default). The installation UUID remains in the local sidecar file; when the row syncs, it is carried as the row's primary-key identity.
+1. HaexVault Tauri app boots on device A. First-run wizard creates a fresh SQLite (SQLCipher passphrase set by the operator), runs the unsigned pre-HLC bootstrap to generate the vault identity keypair (a secp256k1 keypair for Proof-of-Possession auth between replicas) and store it in the singleton `vault_identity` row, mints a vault-device UUID for device A and inserts it into `known_devices` keyed by device A's installation UUID, then writes the Genesis self-record into `peer_instances` with both `pairing-authority` and `confirmation-authority` (Genesis default). The installation UUID remains in the local sidecar file; when the row syncs, it is carried as the row's primary-key identity.
 2. Device A's embedded Nostr relay endpoint comes up bound to the instance's `nostr_pubkey`; its iroh peer comes up bound to the instance's NodeId.
 3. Device A's embedded Nostr relay endpoint comes up, announces a Presence event with `always-on` availability class.
-4. Holzi boots on device B. First-run wizard offers "join existing federation." Device A displays a short-lived pairing QR (containing a one-time token and a Nostr contact hint). Device B scans it.
+4. HaexVault boots on device B. First-run wizard offers "join existing federation." Device A displays a short-lived pairing QR (containing a one-time token and a Nostr contact hint). Device B scans it.
 5. Device B generates its own Nostr/iroh identities and signs the canonical pairing transcript. Device A verifies and signs the same transcript; both write mutually identifying `peer_instances` records, signed by their respective instance keys, and `haex-crdt` synchronizes those peer records between the two devices.
 6. Device B's relay endpoint comes up, publishes its Presence.
 7. From Device A's UI, the operator sends a `ping` command targeting `@device-b`. The relay resolves the alias only through the target's mutually signed `peer_instances` record, checks its federation-epoch binding, and routes the command to Device B; Device B echoes a `pong` result.
@@ -197,7 +197,7 @@ Not decided by this document; still spec-phase work.
 - **Ephemeral Session Mode.** Temporary installs on untrusted hosts (an internet cafe laptop, a shared workstation) need a session-scoped lifecycle. Regardless of whether the eventual implementation uses an attested empty-capability device or an unattested guest peer, the parent issues a short-lived session lease with an explicit expiry bound to the temporary device or guest-session identity. On a normal session end, the parent publishes a revocation targeting that lease or attestation before the temporary device wipes its local haex-crdt store, per-device keypairs, and cached federation state. If the parent cannot reach every peer, the lease expiry is fail-closed; peers stop accepting the session identity when the expiry passes. A crash, forced termination, or power loss skips the clean-end revocation but has the same bounded-expiry outcome, and the operator can issue an explicit revocation from any surviving authority after recovery. Peers validate both revocation and expiry, so a copied device keypair cannot remain accepted beyond the session lease or a subsequent epoch bump. Open sub-questions are the exact lease/heartbeat wire format and whether the guest or empty-capability model ships in v1; the remote cleanup and fail-closed lifetime are requirements for either model.
 - ~~**haex-crdt extraction plan**~~ — resolved. The crate shipped; see [`2026-09-04-haex-crdt-extraction-plan.md`](./2026-09-04-haex-crdt-extraction-plan.md) for the post-hoc status header and what the delivered API actually looks like.
 
-## 13. Next actions for holzi (this repo)
+## 13. Next actions for haex-vault (this repo)
 
 Once this document is committed:
 
@@ -219,6 +219,6 @@ Once this document is committed:
 - **Plane roles sharpened** (2026-09-07): Nostr carries authentication, authorization and
   orchestration; iroh carries data and file transfer. This tightens `founding.md` §2's two-plane
   split. It sits awkwardly with §5's "iroh never carries state" should the `haex-crdt` sync channel
-  later run over iroh — which the v1 contract resolves by making holzi the owner of the sync
-  transport and using `haex-crdt` only through its scanner/apply APIs. The concrete holzi transport
+  later run over iroh — which the v1 contract resolves by making haex-vault the owner of the sync
+  transport and using `haex-crdt` only through its scanner/apply APIs. The concrete haex-vault transport
   remains a sync-channel spec decision.

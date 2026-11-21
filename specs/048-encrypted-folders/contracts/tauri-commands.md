@@ -55,7 +55,7 @@ Ordner trägt `state: 'damaged'` und lässt sich nur löschen.
 ## Auf dem Gerät (User Story 7)
 
 - `files_create_encrypted_folder` und `files_encrypted_refresh` nehmen auch `source: { kind: 'device' }`;
-  Fehler `holziOwned` in holzis eigenen Daten, `inEncrypted` in einem verschlüsselten Ordner.
+  Fehler `haexOwned` in haex-vaults eigenen Daten, `inEncrypted` in einem verschlüsselten Ordner.
 - Alle Commands, die einen Gerätepfad nehmen, behandeln einen Pfad in einem verschlüsselten Ordner wie
   im Speicher (research R17): Das Fenster nennt den Ordner und alles darin bei den entschlüsselten
   Namen; `files_list` eines gewöhnlichen Ordners zeigt `<zufall>.hxef` als verschlüsselten Ordner mit

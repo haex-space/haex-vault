@@ -1,4 +1,4 @@
-# Implementation Plan: Modell bedient holzi über die Aktionen
+# Implementation Plan: Modell bedient haex-vault über die Aktionen
 
 **Branch**: `032-model-operates-holzi` | **Date**: 2026-09-30 | **Spec**: [spec.md](./spec.md)
 
@@ -68,7 +68,7 @@ JSON-Dateien (`eval_set.json`, `tools.json`)
 `offer_tests.rs`, `action_tool_tests.rs`, `scoring_tests.rs`), Integration in
 `src-tauri/tests/` (`action_bridge.rs`, erweitertes
 `chat_tool_loop_permissions.rs`), Messlauf `model_tool_eval.rs`
-(`#[ignore]`, `HOLZI_TEST_GGUF` bzw. `HOLZI_EVAL_*`); Frontend — neues
+(`#[ignore]`, `HAEX_TEST_GGUF` bzw. `HAEX_EVAL_*`); Frontend — neues
 `pnpm check:agent-actions` (Vorbild `check-wm-actions.ts`), Regression
 `check:wm-navigation`, `check:chat-state`, `check:templates`, `typecheck`,
 `typecheck:scripts`, `lint`, `format:check`; manuell nach
@@ -122,7 +122,7 @@ Geprüft gegen `.specify/memory/constitution.md` und die spaex-Constitution
 | Graphify vor neuen benannten Artefakten                                    | ✅     | Aufgabe T001: Abfragen für `ActionBridge`, `core_offer`, `ToolUse`, `agentTools` vor dem ersten neuen Namen                                             |
 | `ponytail:`-Kommentar bei bewusster Vereinfachung                          | ✅     | Geplant an der wortbasierten Suche (R6), Hinweis nach Neustart (R11), Platzhalter-Schwelle des Selbsttests (R9), Selbsttest ohne Abbruch bei Chat-Start |
 | Nicht-triviale Logik hinterlässt einen ausführbaren Check                  | ✅     | `check:agent-actions`, Rust-Tests, `model_tool_eval`                                                                                                    |
-| Keine Selbstreferenzen von Agenten in Artefakten/Commits                   | ✅     | Commits und PR ohne Agent-Zusätze (holzi-Regel)                                                                                                         |
+| Keine Selbstreferenzen von Agenten in Artefakten/Commits                   | ✅     | Commits und PR ohne Agent-Zusätze (haex-vault-Regel)                                                                                                    |
 | Phasen-Disziplin                                                           | ✅     | Baut auf 003 und 020, beide gemerged und im Einsatz; 021 folgt nach 032                                                                                 |
 
 **Ergebnis vor Phase 0**: kein unbegründeter Verstoß; ein ⚠️ dokumentiert.

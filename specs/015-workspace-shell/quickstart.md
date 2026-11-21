@@ -83,6 +83,6 @@ einer User Story der [spec.md](./spec.md).
 ## 3. Vor dem Merge
 
 - `plans/README.md` enthält einen Eintrag für die Shell-Phase (research R17).
-- Migrationsnummer und `HOLZI_TRIGGER_VERSION` gegen `main` und die Worktrees 013/014
+- Migrationsnummer und `HAEX_TRIGGER_VERSION` gegen `main` und die Worktrees 013/014
   abgleichen (research R3): wer zuerst mergt, behält `0019`/`11`.
 - `CONTEXT.md` um Shell, App, Fenster, Tab und Launcher ergänzt.

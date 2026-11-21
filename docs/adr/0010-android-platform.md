@@ -5,7 +5,7 @@ Date: 2026-10-07
 
 ## Decision
 
-holzi on Android (spec 043) is the same Rust core and the same Nuxt interface as on
+haex-vault on Android (spec 043) is the same Rust core and the same Nuxt interface as on
 the desktop. There is no second implementation of any rule for Android.
 
 - **One plugin crate for platform code.** Everything only Android has (screen
@@ -19,14 +19,14 @@ the desktop. There is no second implementation of any rule for Android.
   Tauri template can be regenerated and compared.
 - **Certificates are checked against the system store.** `rustls-platform-verifier`
   is initialised at startup from the Android context (`ndk-context`, `jni`). `lettre`
-  calls an API of that crate that does not exist on Android; holzi uses a patched
+  calls an API of that crate that does not exist on Android; haex-vault uses a patched
   fork pinned by commit until the fix is released upstream. Bundled root lists
   (`webpki-roots`) are not used: they are not the roots the phone trusts.
 - **Closing the vault ends the app.** ADR-0003 (one vault session per app process)
   holds unchanged. Where the desktop release build restarts to show the vault
   picker again, Android ends the activity and the process; the next start shows the
   picker. `tauri::process::restart` is never called on Android.
-- **Local models use the desktop loader.** On Android holzi runs local models with
+- **Local models use the desktop loader.** On Android haex-vault runs local models with
   the same loader as on the desktop (mistralrs, GGUF, CPU) and speech recognition
   with the same Whisper code. This replaces the part of ADR-0002 that planned a
   native MLC backend for mobile; the model family and the phone presets of ADR-0002

@@ -26,20 +26,20 @@ Datenbankdatei auf einem anderen Gerät keine fremden Regeln anwendet (ADR 0001,
 
 Validierung (`rules::validate`): Orte nicht gleich; keine Überlappung mit einer anderen Regel dieses Geräts (der
 Pfad eines Orts liegt nicht in dem eines anderen Orts derselben Quelle, auch nicht über Kreuz Quelle/Ziel); Quelle ist
-keine Freigabe (`share:`) und nicht der Datenbereich von holzi; Intervall im Bereich. `source` ist der Quellort,
+keine Freigabe (`share:`) und nicht der Datenbereich von haex-vault; Intervall im Bereich. `source` ist der Quellort,
 `target` der Zielort, auch bei `both`; eine einseitige Regel (`sourceToTarget`) kopiert immer vom Quellort zum Zielort.
 
 ## `haex_sync_rule_files_no_sync` — Stand
 
-| Spalte                           | Typ          | Hinweis                                                                                                                             |
-| -------------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `rule_id`                        | TEXT         | FK auf Regel, `ON DELETE CASCADE`                                                                                                   |
-| `vault_device_uuid`              | TEXT         | FK                                                                                                                                  |
-| `path`                           | TEXT         | relativ zum Ort, `/` als Trenner, Namen so, wie der Ort sie meldet (keine Unicode-Normalisierung)                                   |
-| `source_size`, `source_mtime_ms` | INTEGER NULL | Stand des Quellorts nach dem letzten Erfolg; NULL = Datei dort nicht vorhanden                                                      |
-| `target_size`, `target_mtime_ms` | INTEGER NULL | dito für den Zielort                                                                                                                |
-| `kept`                           | INTEGER      | 1 = Löschmodus „Behalten“ hat sie bewusst stehen lassen                                                                             |
-| `hash`                           | TEXT NULL    | SHA-256 des Inhalts (hex), sobald holzi ihn kennt (Kontrolle nach dem Kopieren, erster Abgleich); bestätigt Verschiebungen (FR-009) |
+| Spalte                           | Typ          | Hinweis                                                                                                                                  |
+| -------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `rule_id`                        | TEXT         | FK auf Regel, `ON DELETE CASCADE`                                                                                                        |
+| `vault_device_uuid`              | TEXT         | FK                                                                                                                                       |
+| `path`                           | TEXT         | relativ zum Ort, `/` als Trenner, Namen so, wie der Ort sie meldet (keine Unicode-Normalisierung)                                        |
+| `source_size`, `source_mtime_ms` | INTEGER NULL | Stand des Quellorts nach dem letzten Erfolg; NULL = Datei dort nicht vorhanden                                                           |
+| `target_size`, `target_mtime_ms` | INTEGER NULL | dito für den Zielort                                                                                                                     |
+| `kept`                           | INTEGER      | 1 = Löschmodus „Behalten“ hat sie bewusst stehen lassen                                                                                  |
+| `hash`                           | TEXT NULL    | SHA-256 des Inhalts (hex), sobald haex-vault ihn kennt (Kontrolle nach dem Kopieren, erster Abgleich); bestätigt Verschiebungen (FR-009) |
 
 PK `(rule_id, path)`. Ein Wechsel von Orten oder Richtung löscht alle Zeilen der Regel.
 
@@ -93,7 +93,7 @@ der Protokolltiefe ist die Begrenzung für die Datenbankgröße. Das Protokoll e
 - `FileSyncState`: je Regel `Steuerung` (Zeitgeber, optional `FolderWatch`, „fällig“-Vermerk, Abbruch-Token des
   Laufs). Beim Sperren der Vault weg.
 - Statusableitung (research.md R9) aus `last_outcome` und der Steuerung. Der Frontend-Zustand umfasst
-  `active`, `running`, `waiting`, `error`, `paused` und `inactive` (letzteres bedeutet „holzi nicht aktiv").
+  `active`, `running`, `waiting`, `error`, `paused` und `inactive` (letzteres bedeutet „haex-vault nicht aktiv").
 
 ## Einstellung
 
@@ -114,7 +114,7 @@ angelegt ──► aktiv ──► läuft ──► aktiv         (Ergebnis done
               │          ├────► wartet ──► aktiv  (Ort wieder erreichbar)
               │          └────► Fehler  ──► aktiv  (Regel geändert oder behoben)
               ├─► pausiert ◄──► aktiv
-              ├─► holzi nicht aktiv ──► aktiv     (Vault/Anwendung wieder aktiv)
+              ├─► haex-vault nicht aktiv ──► aktiv     (Vault/Anwendung wieder aktiv)
               └─► gelöscht (Zeilen aller Tabellen weg; Dateien beider Orte unberührt)
 ```
 

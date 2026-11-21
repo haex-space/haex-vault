@@ -23,7 +23,7 @@ requirements before code moves.
     `8dce379d94e18fcd42c3b73686a06f984ca3f574`.
   - `haex-sync-server`: repository `https://github.com/haex-space/haex-sync-server`, revision
     `e20abeb26991d187fe1a4a8f1bc69029e5b12177`.
-  - `haex-crdt` as pinned by holzi: repository `https://github.com/haexmas/haex-crdt`, revision
+  - `haex-crdt` as pinned by haex-vault: repository `https://github.com/haexmas/haex-crdt`, revision
     `ed230d2c3f58c1b10710b6025ea0ce6c20b8d009`.
 
 ---
@@ -70,7 +70,7 @@ re-delegation between people.
 | D20 | Own S3 in v1: **RustFS and AWS S3**, verified and tested. MinIO is dropped (no longer open source); R2, B2 and Hetzner follow after verification.                                                                                                                                                     | 2026-09-28 |
 | D21 | Only the **admin** of a scope uploads compaction snapshots; in the vault scope any own device.                                                                                                                                                                                                        | 2026-09-28 |
 | D22 | **Invites also create a new key generation**; key generations and member-list versions stay one counter.                                                                                                                                                                                              | 2026-09-28 |
-| D23 | **No admin hand-over in v1.** (Rotation part superseded by D26.) On rotation holzi closes the scopes the vault administers and leaves the others, signed with the old identity; nothing depends on members' consent.                                                                                  | 2026-09-28 |
+| D23 | **No admin hand-over in v1.** (Rotation part superseded by D26.) On rotation haex-vault closes the scopes the vault administers and leaves the others, signed with the old identity; nothing depends on members' consent.                                                                             | 2026-09-28 |
 | D24 | On storage backend A **the relay transfers the encrypted objects itself**; there are no presigned links.                                                                                                                                                                                              | 2026-09-28 |
 | D25 | S3 providers that fail the setup check **cannot be connected**; no fallback path.                                                                                                                                                                                                                     | 2026-09-28 |
 | D26 | **No identity rotation in v1.** A lost device is no problem while a copy or the relay exists and the passphrase holds. Replaces the rotation parts of D23; the admin role stays non-transferable.                                                                                                     | 2026-09-28 |
@@ -83,11 +83,11 @@ re-delegation between people.
 | D33 | **Invites are links the admin creates and hands over**, never a message to a bare vault identity: one-time secret, expiry, withdrawable; the admin confirms the acceptance. Messages without a valid open secret are dropped silently.                                                                | 2026-10-01 |
 
 D33 is superseded in one point by [ADR-0014](../adr/0014-invitations-from-the-address-book.md)
-(spec 051): an invitation may also be delivered to a contact whose business card holzi has verified.
+(spec 051): an invitation may also be delivered to a contact whose business card haex-vault has verified.
 
 ## 3. What exists today, and what the references teach
 
-### 3.1 holzi
+### 3.1 haex-vault
 
 - No sync transport: no iroh, Nostr, secp256k1 or MLS dependency in `src-tauri/Cargo.toml` or
   `package.json`.
@@ -144,7 +144,7 @@ historical read access
 ### 3.4 haex-sync-server: shape yes, data model no
 
 The **shape** is right: multi-tenant, stores ciphertext, co-hosts an iroh relay. The **data model**
-is not what holzi wants:
+is not what haex-vault wants:
 
 - One row per cell with `table_name`, `row_pks`, `column_name`, `hlc_timestamp`, `device_id`,
   author and epoch in cleartext (`src/db/schema.ts`); only the value is encrypted. The server sees
@@ -179,7 +179,7 @@ is not what holzi wants:
   device list. It replaces per-device attestations.
 - **Linking** is the preferred way to add a device: the new instance joins via code or QR from a main
   device, which adds it to the device list and wraps the vault's content-key generations to its
-  device key. holzi asks whether to also transfer the vault identity private key (making it a main
+  device key. haex-vault asks whether to also transfer the vault identity private key (making it a main
   device); the default is no, with the warning that a compromised main device plus a known
   passphrase is a total loss. The key travels only over the direct link. Copying the SQLite file
   stays possible as a secondary way; the copy gets a new device key and syncs only once a main device
@@ -457,7 +457,7 @@ re-issues the forwarded change as a new change signed by an owner device in the 
 scope; its original author may not be a member there. The original author is kept for display only,
 and the row's `created_by` is unchanged.
 
-## 10. Blind relay ("Holzi Relay")
+## 10. Blind relay ("HaexVault Relay")
 
 ### 10.1 Role
 
@@ -525,7 +525,7 @@ pseudonyms are a post-v1 option.
 
 ### 10.5 Recovery package (D31)
 
-Optional and opt-in. holzi generates a high-entropy **recovery key**, shows it once as code or QR,
+Optional and opt-in. haex-vault generates a high-entropy **recovery key**, shows it once as code or QR,
 and the user keeps it offline. From it the device derives an encryption key for the **recovery
 package** and an authentication keypair. The relay stores only the public authentication key (and a
 lookup id derived from it), the encrypted package and the second-factor setup. It never sees the
@@ -537,7 +537,7 @@ recovery key, the encryption key or the private authentication key.
   authentication key; nothing secret is sent) and a **second factor**: TOTP by default, or a link to
   a stored e-mail address, which the user opts into knowing the relay then holds that address (the
   only exception to D9). Rate limit and lockout after failed attempts.
-- Decryption happens only on the device. holzi then restores the vault from its mailbox (snapshot
+- Decryption happens only on the device. haex-vault then restores the vault from its mailbox (snapshot
   plus batches); the user sets a new passphrase; the restored instance is a main device and
   publishes a new device list.
 - Storing the recovery key encrypted with another person is a later spec and always user-initiated.
@@ -601,7 +601,7 @@ by ciphertext hash from a signed file index. Only the way a device obtains acces
 - Revocation: in one operation the admin device first revokes or rotates the affected token at the
   provider, then publishes the new member list, redistributes the token and rotates the space key.
   If the provider revocation fails, the list is still published, the admin sees a persistent
-  warning, and holzi retries until the provider confirms. The setup check requires the provider to
+  warning, and haex-vault retries until the provider confirms. The setup check requires the provider to
   reject a revoked token within 5 minutes.
 - Members never delete objects themselves; garbage collection runs on an admin device with the
   admin credentials.
@@ -631,15 +631,15 @@ by ciphertext hash from a signed file index. Only the way a device obtains acces
 
 Spec numbers 017–021 are reserved for agent control; the next free numbers start at 024.
 
-| Spec | Scope                                                                                                                                                                                                     | Depends on                                 |
-| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| 024  | Real secp256k1 vault identity and device keys, main and linked devices, device list, linking, iroh endpoint, presence via Nostr, `haex-sync/1` between own devices (plane 1), authorship fix in haex-crdt | —                                          |
-| 025  | Removed; replaced by spec 061 (sync rules). Was: own-device file sync, file index, objects, conflict copies                                                                                               | 024                                        |
-| 026  | Blind relay: mailboxes, sequence cursors, client snapshots, signed member lists, iroh relay, storage backend A                                                                                            | 024                                        |
-| 027  | Spaces: member lists, invites, capabilities, key epochs, revocation, rotation                                                                                                                             | 025, 026                                   |
-| 028  | Data shares: shareable declaration schema, prefix validation, closure computation, sender/receiver guards                                                                                                 | 024, 026, extension table storage in holzi |
-| 029  | Storage backend B: own S3, scoped tokens, versioning                                                                                                                                                      | 027, 030                                   |
-| 034  | Password manager: integral secret store (e.g. S3 credentials), usable by extensions with permission, synced and recoverable like other vault data                                                         | 024                                        |
+| Spec | Scope                                                                                                                                                                                                     | Depends on                                      |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| 024  | Real secp256k1 vault identity and device keys, main and linked devices, device list, linking, iroh endpoint, presence via Nostr, `haex-sync/1` between own devices (plane 1), authorship fix in haex-crdt | —                                               |
+| 025  | Removed; replaced by spec 061 (sync rules). Was: own-device file sync, file index, objects, conflict copies                                                                                               | 024                                             |
+| 026  | Blind relay: mailboxes, sequence cursors, client snapshots, signed member lists, iroh relay, storage backend A                                                                                            | 024                                             |
+| 027  | Spaces: member lists, invites, capabilities, key epochs, revocation, rotation                                                                                                                             | 025, 026                                        |
+| 028  | Data shares: shareable declaration schema, prefix validation, closure computation, sender/receiver guards                                                                                                 | 024, 026, extension table storage in haex-vault |
+| 029  | Storage backend B: own S3, scoped tokens, versioning                                                                                                                                                      | 027, 030                                        |
+| 034  | Password manager: integral secret store (e.g. S3 credentials), usable by extensions with permission, synced and recoverable like other vault data                                                         | 024                                             |
 
 Structural items that belong in 024 even though only the vault-internal scope exists then: the real
 `SignatureProvider` seam, the sealed-batch format with `scope_id`/`key_id`, the allow-list that keeps
@@ -658,8 +658,8 @@ vault secrets on plane 1, and `created_by` support in the core.
 7. **Wire formats and event kinds**: sealed batch, member list, device list, presence, invite DM, recovery package.
 8. **Rotation cost**: O(devices of the member vaults) per membership change — measure before large spaces appear.
 9. **Mobile**: plane 1 while the app is foreground-only (v1-scope availability classes).
-10. **Extension storage in holzi**: data shares (028) need extension-owned, prefixed CRDT tables,
-    which holzi does not have yet.
+10. **Extension storage in haex-vault**: data shares (028) need extension-owned, prefixed CRDT tables,
+    which haex-vault does not have yet.
 11. ~~**Existing vault copies**~~ — decided (D14).
 12. ~~**Presence and NAT servers before the own relay**~~ — decided (D15).
 13. **Additional S3 providers**: RustFS and AWS S3 are the verified v1 providers (D20); whether

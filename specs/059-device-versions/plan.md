@@ -14,11 +14,11 @@ Gerät lokal fest.
 Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](./research.md)):
 
 - **Wire** (R1, R2): `Challenge` bekommt `schema: SchemaVersion` als letztes Feld; `PROTOCOL_VERSION` wird 2,
-  die ALPN bleibt `holzi-sync/1`; das wählende Gerät prüft das Versionsbyte (nach dem Variantenkennzeichen) der `Challenge`, bevor es dekodiert.
+  die ALPN bleibt `haex-sync/1`; das wählende Gerät prüft das Versionsbyte (nach dem Variantenkennzeichen) der `Challenge`, bevor es dekodiert.
 - **Zuordnung** (R3): beide Seiten bestimmen das Gerät über den Endpunkt und die signierte Geräteliste
   (`problems::device_at_endpoint`), nie über Angaben der Gegenseite.
 - **Speicher** (R4): drei Spalten in `device_presence_no_sync` (Migration `0040_device_peer_schema`), gerätelokal,
-  keine CRDT-Tabelle, `HOLZI_TRIGGER_VERSION` bleibt 27.
+  keine CRDT-Tabelle, `HAEX_TRIGGER_VERSION` bleibt 27.
 - **Rückruf und Ereignis** (R5): der Handshake meldet jeden gesehenen Stand an den Knoten, der schreibt und bei
   Änderung `sync-devices-changed` auslöst.
 - **Anzeige** (R6): `VaultDevice.schema`, reiner Vergleich `schemaDiff` in `deviceStatus.ts`, Anzeige in

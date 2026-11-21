@@ -1,6 +1,6 @@
 # Data Model: Passwörter aus haex-vault 2.x (Legacy) übernehmen
 
-Diese Spec ändert **kein** Tabellenschema von holzi und braucht keine Migration. Sie ändert nur
+Diese Spec ändert **kein** Tabellenschema von haex-vault und braucht keine Migration. Sie ändert nur
 das Importmodell im Speicher (`src-tauri/src/passwords/import/mod.rs`) und Werte, die über
 die Tauri-Grenze gehen.
 
@@ -54,9 +54,9 @@ einschließlich `public_key`, `icon`, `color`, `nickname`, `sign_count`, `last_u
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `write_item`           | schreibt `color` und `autofill_aliases` (JSON-Text) statt NULL                                                                                                 |
 | `write_groups`         | schreibt `color`, `sort_order`; nimmt einen vorhandenen Ordner mit gleichem Namen unter demselben aufgelösten Elternordner, statt neu anzulegen (alle Quellen) |
-| neu nach den Einträgen | `tag_colors`: `tags::set_color`, nur wenn das Tag in holzi noch keine Farbe hat                                                                                |
+| neu nach den Einträgen | `tag_colors`: `tags::set_color`, nur wenn das Tag in haex-vault noch keine Farbe hat                                                                           |
 | neu nach den Einträgen | `model.passkeys` über `passkeys::insert` mit `item_id = None`; `Duplicate` → `PasskeyDuplicate`                                                                |
-| neu am Ende            | `model.presets` über `presets::save`; Name vorhanden → übersprungen; `is_default` nur, wenn holzi keine Standard-Voreinstellung hat                            |
+| neu am Ende            | `model.presets` über `presets::save`; Name vorhanden → übersprungen; `is_default` nur, wenn haex-vault keine Standard-Voreinstellung hat                       |
 | `Ledger`               | `+ passkeys: Vec<String>`, `+ presets: Vec<String>`; nur neu angelegte Ordner stehen in `groups`                                                               |
 | `rollback`             | löscht zusätzlich die Passkeys und Voreinstellungen aus dem Ledger                                                                                             |
 

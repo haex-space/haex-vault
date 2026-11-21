@@ -6,7 +6,7 @@ soweit hier nichts anderes steht.
 ## Migration `00NN_storage_protocols`
 
 Nächste freie Nummer bei der Umsetzung (nach `0029_agent_file_permissions`; Spec 048 nimmt eventuell
-vorher eine für ihre `_no_sync`-Tabellen). `HOLZI_TRIGGER_VERSION` steigt um eins, weil eine
+vorher eine für ihre `_no_sync`-Tabellen). `HAEX_TRIGGER_VERSION` steigt um eins, weil eine
 CRDT-Tabelle neue Spalten bekommt (research R13).
 
 ```sql
@@ -38,7 +38,7 @@ Vorhandene Verbindungen sind danach `s3`. Keine UNIQUE-Bedingung (synchronisiert
   anderem Protokoll als gespeichert ist ein Fehler.
 - `provider_kind` muss zum Protokoll passen (Tabelle).
 - WebDAV: `endpoint` ist eine Adresse mit `https` oder (nur `local`) `http`, ohne Benutzer, Abfrage und
-  Fragment; holzi ergänzt `/` am Ende.
+  Fragment; haex-vault ergänzt `/` am Ende.
 - SFTP: `endpoint` ist `sftp://host` oder `sftp://host:port` (Port 1–65535), ohne Pfad. Ohne bestätigten
   `host_key` wird eine SFTP-Verbindung nicht gespeichert (der Test endet vorher mit `hostKeyUnknown`).
 - Region und Adressierung werden bei WebDAV und SFTP ignoriert und als leer bzw. `path` gespeichert.
@@ -100,8 +100,8 @@ hostKeyChanged ──Nutzer nimmt neuen Schlüssel an (Einstellungen)──▶ g
 
 ## Zwischendateien (nicht gespeichert)
 
-`.holzi-part-<UUID>` im Zielordner, während eines Hochladens oder Kopierens über holzi (research R7).
-Ausgeblendet beim Auflisten; älter als 24 Stunden (Änderungszeit beim Server) → gelöscht, wenn holzi sie
+`.haex-part-<UUID>` im Zielordner, während eines Hochladens oder Kopierens über haex-vault (research R7).
+Ausgeblendet beim Auflisten; älter als 24 Stunden (Änderungszeit beim Server) → gelöscht, wenn haex-vault sie
 sieht.
 
 ## Sitzungen (nur im Speicher des Prozesses)

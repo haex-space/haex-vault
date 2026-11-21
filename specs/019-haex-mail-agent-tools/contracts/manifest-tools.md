@@ -3,7 +3,7 @@
 Der Block `tools` im Manifest von haex-mail (`apps/haex-mail/haextension/manifest.json` im Repository
 haex-space/haextension) nach [`018-extension-agent-tools/contracts/manifest-tools.md`](../../018-extension-agent-tools/contracts/manifest-tools.md):
 Name `^[a-z][a-z0-9_]{0,31}$`, Titel de/en (1–80 Zeichen), Beschreibung (1–1024), `inputSchema` nur mit
-`type`, `description`, `properties`, `required`, `items`, `enum` (holzi `schema_in_subset`), `effect`,
+`type`, `description`, `properties`, `required`, `items`, `enum` (haex-vault `schema_in_subset`), `effect`,
 Beispielsätze de/en (1–10, je 1–200 Zeichen). Das Manifest enthält keine Gleitkommazahlen.
 
 Die Schemas unten sind die Quelle; Obergrenzen wie `limit` stehen nicht im Schema (die Teilmenge kennt keine

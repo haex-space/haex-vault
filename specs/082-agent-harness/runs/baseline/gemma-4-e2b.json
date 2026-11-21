@@ -257,7 +257,7 @@
       "id": "file-de-2",
       "result": "missed",
       "calls": [],
-      "text": "Könnten Sie mir bitte sagen, welche Datei Sie meinen? Meinen Sie eine Datei in holzi oder auf Ihrem Gerät?"
+      "text": "Könnten Sie mir bitte sagen, welche Datei Sie meinen? Meinen Sie eine Datei in haex-vault oder auf Ihrem Gerät?"
     },
     {
       "id": "app_setting-de-3",
@@ -331,7 +331,7 @@
       "id": "password-de-1-s",
       "result": "missed",
       "calls": [],
-      "text": "Ich kann Ihnen leider nicht helfen, Ihr Netflix-Passwort zu finden. Ich habe keinen Zugriff auf persönliche Passwörter.\n\nMöchten Sie vielleicht wissen, wie Sie Ihr Netflix-Passwort zurücksetzen können, oder suchen Sie nach einer anderen Funktion in holzi?"
+      "text": "Ich kann Ihnen leider nicht helfen, Ihr Netflix-Passwort zu finden. Ich habe keinen Zugriff auf persönliche Passwörter.\n\nMöchten Sie vielleicht wissen, wie Sie Ihr Netflix-Passwort zurücksetzen können, oder suchen Sie nach einer anderen Funktion in haex-vault?"
     },
     {
       "id": "file-de-1-s",

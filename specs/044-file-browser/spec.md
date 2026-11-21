@@ -6,29 +6,29 @@
 
 **Status**: Implemented (T093 offen)
 
-**Input**: User description: "Dateibrowser und Viewer als fester Bestandteil von holzi (Spec 044).
+**Input**: User description: "Dateibrowser und Viewer als fester Bestandteil von HaexVault (Spec 044).
 Grundlage ist das abgestimmte Design docs/plans/2026-10-07-file-browser-design.md, das alle
 Entscheidungen enthält: ganzes Dateisystem des Geräts plus S3-Speicher aus Spec 038; Dateimanager
 (durchsuchen, ansehen/abspielen, Ordner anlegen, umbenennen, kopieren, verschieben, löschen, Drag &
 Drop ins Fenster); Viewer für Text, PDF (pdf.js), Bild, Video, Audio, sonst "Mit System-App öffnen";
 Live-Suche ohne Index mit Filtern; Agents dürfen alles lesen, Schreiben über Approval-Gate,
-holzi-eigene Daten für Agents gesperrt; Android mit MANAGE_EXTERNAL_STORAGE; Inhalte über lokalen
+HaexVault-eigene Daten für Agents gesperrt; Android mit MANAGE_EXTERNAL_STORAGE; Inhalte über lokalen
 HTTP-Server mit Tokens (aus haex-vault 2.x (Legacy)), nie ganze Datei im RAM."
 
 ## Begriffe
 
-- **Dateibrowser**: die eingebaute App von holzi für Dateien, neben Chat, Passwörtern und
+- **Dateibrowser**: die eingebaute App von HaexVault für Dateien, neben Chat, Passwörtern und
   Einstellungen. Sie öffnet sich in Tabs wie die anderen Apps (Specs 015, 020).
 - **Quelle**: woher der Dateibrowser Dateien zeigt: das **Gerät** (sein ganzes Dateisystem mit
   Laufwerken und bekannten Orten wie Dokumente, Bilder, Downloads) oder ein **Speicher** aus Spec 038
   (ein Bucket auf einer S3-Verbindung). In einem Speicher gelten Schlüsselpräfixe als Ordner.
-- **Viewer**: die Ansicht, in der holzi eine Datei zeigt oder abspielt: Text, PDF, Bild, Video oder
+- **Viewer**: die Ansicht, in der HaexVault eine Datei zeigt oder abspielt: Text, PDF, Bild, Video oder
   Audio. Alles andere zeigt eine **Info-Ansicht** mit Name, Typ, Größe, Änderungszeit und „Mit
   System-App öffnen“.
 - **Vorschaubild**: ein verkleinertes Bild einer Bilddatei in Liste oder Raster.
 - **Transfer**: ein Kopier- oder Verschiebevorgang, der Zeit braucht, besonders zwischen Gerät und
   Speicher (Hoch- und Herunterladen). Transfers zeigen Fortschritt und lassen sich abbrechen.
-- **Freigabe-URL**: die Adresse, über die holzi den Inhalt einer geöffneten Datei an den Viewer gibt.
+- **Freigabe-URL**: die Adresse, über die HaexVault den Inhalt einer geöffneten Datei an den Viewer gibt.
   Sie gilt nur für diese eine Datei und nur, solange Viewer oder Tab offen sind und die Vault
   entsperrt ist.
 - **Agent**: der eingebaute Chat-Agent (Spec 032) und externe Agents über MCP (Spec 021).
@@ -39,7 +39,7 @@ HTTP-Server mit Tokens (aus haex-vault 2.x (Legacy)), nie ganze Datei im RAM."
   **Dateien des Geräts**: eine Berechtigung je Agent; mit ihr liest, listet und durchsucht er das ganze
   Dateisystem, Ändern läuft über die Freigabestufe. **Speicher**: eine Berechtigung je Agent und
   Speicher, „Lesen“ oder „Lesen und Schreiben“.
-- **Eigene Daten von holzi**: das Datenverzeichnis der App, auch im portablen Modus (Spec 014):
+- **Eigene Daten von HaexVault**: das Datenverzeichnis der App, auch im portablen Modus (Spec 014):
   Vault-Dateien, Schlüssel, Konfiguration, Bundles und Daten von Erweiterungen, Zwischenspeicher.
 
 ## Beziehung zu bestehenden Specs
@@ -49,12 +49,12 @@ HTTP-Server mit Tokens (aus haex-vault 2.x (Legacy)), nie ganze Datei im RAM."
   `https://github.com/haex-space/haex-vault-legacy`, Revision `fc4e84b6`). haex-files ist obsolet und kein
   Maßstab.
 - **Spec 038** (Speicherverbindungen): liefert die Speicher, die der Dateibrowser als Quelle zeigt.
-  Zugangsdaten bleiben wie dort in holzi; der Dateibrowser zeigt sie nie. Agents erreichen einen
+  Zugangsdaten bleiben wie dort in HaexVault; der Dateibrowser zeigt sie nie. Agents erreichen einen
   Speicher wie Erweiterungen dort nur mit einer Berechtigung je Speicher (FR-031a). Diese Spec erweitert den
   Zugriff auf einen Speicher um das Lesen von Teilbereichen eines Objekts (für Video und Audio).
 - **Spec 017** (Erweiterungs-Host): Erweiterungen bekommen Dateizugriff weiterhin nur über ihre
   Berechtigungen dort (FR-046 bis FR-049). Diese Spec ändert daran nichts. Die Sperre der eigenen
-  Daten von holzi entspricht FR-049 dort.
+  Daten von HaexVault entspricht FR-049 dort.
 - **Spec 032 und ADR 0006** (Aktionen als Tools des eingebauten Agents): Die Dateiaktionen kommen in
   denselben Katalog. Abweichend von ADR 0006 laufen sie ohne Umweg über das Fenster (FR-034); das
   braucht ein eigenes ADR.
@@ -77,9 +77,9 @@ HTTP-Server mit Tokens (aus haex-vault 2.x (Legacy)), nie ganze Datei im RAM."
 
 ### Session 2026-10-07
 
-- Q: Eingebaute App oder Erweiterung? → A: Eingebaute App von holzi (Betreiber).
+- Q: Eingebaute App oder Erweiterung? → A: Eingebaute App von HaexVault (Betreiber).
 - Q: Wie weit dürfen Agents ins Dateisystem? → A: Lesen, Auflisten und Suchen überall; Ändern über
-  die Freigabestufe. Die eigenen Daten von holzi bleiben für Agents gesperrt. Das Risiko, dass ein
+  die Freigabestufe. Die eigenen Daten von HaexVault bleiben für Agents gesperrt. Das Risiko, dass ein
   Cloud-Modell gelesene Inhalte vom Gerät trägt und eine präparierte Datei den Agent zu heiklen
   Dateien lenkt, ist bewusst in Kauf genommen (Betreiber).
 - Q: Was kann der Nutzer im Dateibrowser selbst tun? → A: Ein Dateimanager: durchsuchen, ansehen,
@@ -89,8 +89,8 @@ HTTP-Server mit Tokens (aus haex-vault 2.x (Legacy)), nie ganze Datei im RAM."
   Geräte kommen später.
 - Q: Wie sucht der Dateibrowser? → A: Live ab dem aktuellen Ordner, ohne Index. Ein Index kommt mit
   der späteren Spec zur Inhaltssuche.
-- Q: Was passiert mit Formaten, die holzi nicht anzeigen kann? → A: Info-Ansicht mit „Mit System-App
-  öffnen“. holzi wandelt keine Formate um.
+- Q: Was passiert mit Formaten, die HaexVault nicht anzeigen kann? → A: Info-Ansicht mit „Mit System-App
+  öffnen“. HaexVault wandelt keine Formate um.
 - Q: Gilt „alles lesen“ für Agents auch für S3-Speicher? → A: Nein. Gerät und Speicher sind zwei
   getrennte Berechtigungen: „Dateien des Geräts“ je Agent (der eingebaute Agent hat sie ab Werk,
   externe Agents erst nach Erteilung) und je Speicher und Agent „Lesen“ oder „Lesen und Schreiben“,
@@ -102,7 +102,7 @@ HTTP-Server mit Tokens (aus haex-vault 2.x (Legacy)), nie ganze Datei im RAM."
   oder mit einer Datei im Viewer öffnen, Wiedergabe eingeschlossen (Betreiber).
 - Q: Wie weit reicht die Suche über Laufwerksgrenzen? → A: Sie überspringt virtuelle Systemordner und
   bleibt auf dem Laufwerk, auf dem sie startet; andere Laufwerke nur, wenn sie dort beginnt.
-- Q: Wie greift holzi auf Android zu? → A: Mit „Zugriff auf alle Dateien“; echte Pfade wie auf dem
+- Q: Wie greift HaexVault auf Android zu? → A: Mit „Zugriff auf alle Dateien“; echte Pfade wie auf dem
   Desktop, kein Weg über einzeln gewählte Ordner.
 
 ### Session 2026-10-11
@@ -127,7 +127,7 @@ HTTP-Server mit Tokens (aus haex-vault 2.x (Legacy)), nie ganze Datei im RAM."
 
 Anna öffnet den Dateibrowser. Links sieht sie bekannte Orte und Laufwerke, rechts den Inhalt ihres
 Home-Ordners als Liste oder Raster mit Vorschaubildern. Sie klickt sich durch Ordner, springt über die
-Pfadleiste zurück und öffnet eine Textdatei, ein PDF und ein Foto direkt in holzi.
+Pfadleiste zurück und öffnet eine Textdatei, ein PDF und ein Foto direkt in HaexVault.
 
 **Why this priority**: Ohne Navigation und Anzeige gibt es keinen Dateibrowser; alles andere baut
 darauf auf.
@@ -138,18 +138,18 @@ das PNG hat ein Vorschaubild.
 
 **Acceptance Scenarios**:
 
-1. **Given** der Dateibrowser ist offen, **When** Anna einen Ordner öffnet, **Then** zeigt holzi seine
+1. **Given** der Dateibrowser ist offen, **When** Anna einen Ordner öffnet, **Then** zeigt HaexVault seine
    Einträge mit Name, Typ, Größe und Änderungszeit, sortierbar nach jeder dieser Angaben.
 2. **Given** ein Ordner mit Bildern, **When** Anna in die Rasteransicht wechselt, **Then** sieht sie
    Vorschaubilder, und es entstehen nur die für sichtbare Einträge.
 3. **Given** eine Textdatei, ein PDF oder ein Bild, **When** Anna die Datei öffnet, **Then** zeigt
-   holzi sie im Viewer; beim PDF kann sie blättern und zoomen, beim Bild zoomen und zur nächsten
+   HaexVault sie im Viewer; beim PDF kann sie blättern und zoomen, beim Bild zoomen und zur nächsten
    Datei im Ordner wechseln.
-4. **Given** eine Datei, die holzi nicht anzeigen kann, **When** Anna sie öffnet, **Then** sieht sie
+4. **Given** eine Datei, die HaexVault nicht anzeigen kann, **When** Anna sie öffnet, **Then** sieht sie
    die Info-Ansicht und kann die Datei mit der passenden App des Systems öffnen.
 5. **Given** ein offener Ordner, **When** eine andere App darin eine Datei anlegt oder löscht,
-   **Then** zeigt holzi das ohne manuelles Neuladen.
-6. **Given** zwei Tabs des Dateibrowsers in verschiedenen Ordnern, **When** Anna holzi neu startet und
+   **Then** zeigt HaexVault das ohne manuelles Neuladen.
+6. **Given** zwei Tabs des Dateibrowsers in verschiedenen Ordnern, **When** Anna HaexVault neu startet und
    die Sitzung wiederherstellt, **Then** stehen beide Tabs wieder in ihren Ordnern.
 
 ---
@@ -163,7 +163,7 @@ sie kann im Video vor- und zurückspringen.
 Linux gescheitert (MP3 lud erst ganz, MP4 startete nicht).
 
 **Independent Test**: Ein großes MP4 und ein MP3 öffnen; beide starten in wenigen Sekunden, das Video
-springt an eine beliebige Stelle, und der Speicherbedarf von holzi steigt dabei nicht mit der
+springt an eine beliebige Stelle, und der Speicherbedarf von HaexVault steigt dabei nicht mit der
 Dateigröße.
 
 **Acceptance Scenarios**:
@@ -174,16 +174,16 @@ Dateigröße.
 2. **Given** eine Audiodatei, **When** Anna sie öffnet, **Then** spielt sie sofort, mit Springen,
    Lautstärke und Anzeige der Dauer.
 3. **Given** ein Video in einem Format, das das System nicht abspielen kann, **When** die Wiedergabe
-   scheitert, **Then** wechselt holzi in die Info-Ansicht mit „Mit System-App öffnen“.
+   scheitert, **Then** wechselt HaexVault in die Info-Ansicht mit „Mit System-App öffnen“.
 4. **Given** eine geöffnete Datei, **When** Anna den Viewer oder den Tab schließt oder die Vault
-   sperrt, **Then** liefert holzi den Inhalt über die bisherige Adresse nicht mehr aus.
+   sperrt, **Then** liefert HaexVault den Inhalt über die bisherige Adresse nicht mehr aus.
 
 ---
 
 ### User Story 3 - Dateien verwalten (Priority: P2)
 
 Anna räumt auf: Sie legt einen Ordner an, benennt Dateien um, kopiert und verschiebt eine Auswahl,
-löscht alte Dateien und zieht Fotos aus dem System-Dateimanager in einen Ordner in holzi.
+löscht alte Dateien und zieht Fotos aus dem System-Dateimanager in einen Ordner in HaexVault.
 
 **Why this priority**: Gewünscht ist ein Dateimanager, nicht nur ein Betrachter. Ansehen und Abspielen
 haben aber Vorrang.
@@ -196,17 +196,17 @@ und Gelöschtes liegt im Papierkorb des Systems.
 
 1. **Given** ein Ordner, **When** Anna einen neuen Ordner anlegt oder einen Eintrag umbenennt,
    **Then** erscheint die Änderung sofort, und ein schon vorhandener Name wird mit Grund abgelehnt.
-2. **Given** eine Auswahl, **When** Anna kopiert oder verschiebt (über Menü, Zwischenablage von holzi
-   oder Ziehen innerhalb von holzi), **Then** zeigt die Transferleiste den Fortschritt, und Anna kann
+2. **Given** eine Auswahl, **When** Anna kopiert oder verschiebt (über Menü, Zwischenablage von HaexVault
+   oder Ziehen innerhalb von HaexVault), **Then** zeigt die Transferleiste den Fortschritt, und Anna kann
    abbrechen.
 3. **Given** am Ziel gibt es einen Namen schon, **When** ein Transfer ihn erreicht, **Then** fragt
-   holzi: ersetzen, beide behalten oder überspringen, mit „für alle übernehmen“.
+   HaexVault: ersetzen, beide behalten oder überspringen, mit „für alle übernehmen“.
 4. **Given** ein Transfer wird abgebrochen oder scheitert, **When** Anna das Ziel ansieht, **Then**
    liegt dort keine halbe Datei.
 5. **Given** eine Auswahl auf dem Desktop, **When** Anna löscht, **Then** landet sie im Papierkorb des
-   Systems; auf Android und in einem Speicher fragt holzi vorher, weil dort endgültig gelöscht wird.
+   Systems; auf Android und in einem Speicher fragt HaexVault vorher, weil dort endgültig gelöscht wird.
 6. **Given** Dateien im System-Dateimanager, **When** Anna sie in einen Ordner im Dateibrowser zieht,
-   **Then** kopiert holzi sie dorthin.
+   **Then** kopiert HaexVault sie dorthin.
 
 ---
 
@@ -230,7 +230,7 @@ suchen, auf Typ und Zeitraum filtern, die Suche durch neue Eingabe ersetzen.
 2. **Given** eine laufende Suche, **When** Anna den Begriff ändert, **Then** endet die alte Suche, und
    nur Treffer der neuen erscheinen.
 3. **Given** Treffer oder ein offener Ordner, **When** Anna nach Typ (Bild, Video, Audio, Dokument,
-   Text), Größe oder Zeitraum filtert, **Then** zeigt holzi nur passende Einträge.
+   Text), Größe oder Zeitraum filtert, **Then** zeigt HaexVault nur passende Einträge.
 4. **Given** ein Ordner mit einem symbolischen Link auf einen übergeordneten Ordner, **When** Anna
    sucht, **Then** endet die Suche, ohne im Kreis zu laufen.
 
@@ -250,13 +250,13 @@ wechseln, ein Video abspielen und springen, Dateien hoch- und herunterladen, ein
 **Acceptance Scenarios**:
 
 1. **Given** ein Speicher aus Spec 038, **When** Anna ihn in der Seitenleiste wählt, **Then** zeigt
-   holzi seine Objekte als Ordner und Dateien.
+   HaexVault seine Objekte als Ordner und Dateien.
 2. **Given** ein Video im Speicher, **When** Anna es öffnet, **Then** beginnt die Wiedergabe, ohne dass
-   holzi es ganz herunterlädt, und Springen funktioniert.
+   HaexVault es ganz herunterlädt, und Springen funktioniert.
 3. **Given** Dateien auf dem Gerät, **When** Anna sie in einen Ordner des Speichers kopiert, **Then**
-   lädt holzi sie mit Fortschritt hoch; ein Abbruch hinterlässt im Speicher kein halbes Objekt.
+   lädt HaexVault sie mit Fortschritt hoch; ein Abbruch hinterlässt im Speicher kein halbes Objekt.
 4. **Given** der Speicher ist nicht erreichbar oder die Zugangsdaten sind abgelaufen, **When** Anna
-   ihn öffnet, **Then** nennt holzi den Grund und verweist auf die Einstellungen des Speichers.
+   ihn öffnet, **Then** nennt HaexVault den Grund und verweist auf die Einstellungen des Speichers.
 
 ---
 
@@ -266,7 +266,7 @@ Anna fragt im Chat: „Finde meine Steuerunterlagen von 2025 und fasse das Schre
 zusammen.“ Der Agent sucht im Dateisystem, liest das PDF und antwortet. Danach fragt sie, was auf
 einem Foto im selben Ordner zu sehen ist, und der Agent sieht es sich an. Auf „zeig es mir“ öffnet er
 das Foto im Viewer. Als sie ihn bittet, die
-Datei in einen anderen Ordner zu verschieben, fragt holzi nach ihrer Freigabestufe vorher.
+Datei in einen anderen Ordner zu verschieben, fragt HaexVault nach ihrer Freigabestufe vorher.
 
 **Why this priority**: Ausdrücklich gewünscht; setzt den Dateizugriff von Story 1 und 4 voraus.
 
@@ -287,23 +287,23 @@ lassen (abgelehnt).
    Bilder an, bekommt der Agent stattdessen Angaben zum Bild und den Hinweis, dass er es nicht sehen
    kann.
 4. **Given** ein gescanntes PDF ohne Textschicht oder ein anderes Format, **When** der Agent es
-   liest, **Then** bekommt er die Angaben zur Datei und den Hinweis, dass holzi keinen Text daraus
+   liest, **Then** bekommt er die Angaben zur Datei und den Hinweis, dass HaexVault keinen Text daraus
    gewinnen kann.
 5. **Given** der Agent will einen Ordner anlegen, kopieren oder umbenennen, **When** er die Aktion
    aufruft, **Then** gilt die Stufe Change; beim Verschieben oder Löschen gilt die Stufe Risky.
-6. **Given** eine Datei unter den eigenen Daten von holzi, **When** ein Agent sie lesen, auflisten,
-   ändern oder in Suchtreffern sehen würde, **Then** lehnt holzi mit einem Grund ab und gibt keinen
+6. **Given** eine Datei unter den eigenen Daten von HaexVault, **When** ein Agent sie lesen, auflisten,
+   ändern oder in Suchtreffern sehen würde, **Then** lehnt HaexVault mit einem Grund ab und gibt keinen
    Inhalt heraus; Suchtreffer enthalten sie nicht.
 7. **Given** eine Suche des Agents, die viele Treffer liefert oder lange läuft, **When** die Grenze
    erreicht ist, **Then** bekommt er das Teilergebnis mit dem Hinweis, dass es unvollständig ist.
 8. **Given** ein Speicher, für den der Agent keine Berechtigung hat, **When** er ihn auflisten, lesen
-   oder hineinkopieren will, **Then** fragt holzi den Nutzer (Lesen erlauben, Lesen und Schreiben
+   oder hineinkopieren will, **Then** fragt HaexVault den Nutzer (Lesen erlauben, Lesen und Schreiben
    erlauben, Ablehnen); ohne Erlaubnis bekommt der Agent eine Ablehnung mit Grund, und die Liste der
    Quellen des Agents nennt nur Speicher, die er erreichen darf.
 9. **Given** der Agent darf einen Speicher nur lesen, **When** er dorthin kopieren, verschieben,
-   umbenennen oder dort löschen will, **Then** lehnt holzi ab, unabhängig von der Freigabestufe.
+   umbenennen oder dort löschen will, **Then** lehnt HaexVault ab, unabhängig von der Freigabestufe.
 10. **Given** eine Datei, die der Agent erreichen darf, **When** er sie dem Nutzer zeigen will,
-    **Then** öffnet holzi den Dateibrowser mit der Datei im Viewer (Video und Audio spielen); bei
+    **Then** öffnet HaexVault den Dateibrowser mit der Datei im Viewer (Video und Audio spielen); bei
     einem Ordner öffnet er den Dateibrowser in diesem Ordner. Das gilt als Stufe Change, wie andere
     Aktionen, die Fenster öffnen.
 
@@ -311,11 +311,11 @@ lassen (abgelehnt).
 
 ### User Story 7 - Alle Dateien auf Android (Priority: P3)
 
-Ben nutzt holzi auf seinem Android-Telefon. Beim ersten Öffnen des Dateibrowsers erklärt holzi, dass
+Ben nutzt HaexVault auf seinem Android-Telefon. Beim ersten Öffnen des Dateibrowsers erklärt HaexVault, dass
 es „Zugriff auf alle Dateien“ braucht, und führt ihn in die Systemeinstellungen. Danach sieht er den
 internen Speicher und die SD-Karte wie auf dem Desktop.
 
-**Why this priority**: Android ist eine Plattform von holzi (043), aber Desktop zuerst.
+**Why this priority**: Android ist eine Plattform von HaexVault (043), aber Desktop zuerst.
 
 **Independent Test**: Auf einem Android-Gerät ohne die Berechtigung den Dateibrowser öffnen
 (Erklärung), Berechtigung erteilen, zurückkehren (Liste erscheint), Berechtigung entziehen
@@ -325,10 +325,10 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
 
 1. **Given** die Berechtigung fehlt, **When** Ben den Dateibrowser öffnet, **Then** sieht er eine
    Erklärung und einen Knopf in die Systemeinstellungen statt einer leeren Liste.
-2. **Given** Ben erteilt die Berechtigung, **When** er zu holzi zurückkehrt, **Then** zeigt der
+2. **Given** Ben erteilt die Berechtigung, **When** er zu HaexVault zurückkehrt, **Then** zeigt der
    Dateibrowser den Speicher des Geräts ohne Neustart.
 3. **Given** die Berechtigung ist erteilt, **When** Ben Fotos ansieht, Videos abspielt oder Dateien
-   verwaltet, **Then** verhält sich holzi wie auf dem Desktop, außer dass Löschen endgültig ist und
+   verwaltet, **Then** verhält sich HaexVault wie auf dem Desktop, außer dass Löschen endgültig ist und
    vorher fragt.
 
 ---
@@ -337,28 +337,28 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
 
 - **Kein Zugriff durch das System** (Ordner eines anderen Nutzers): Der Eintrag erscheint mit
   Schloss-Symbol; Öffnen zeigt „Kein Zugriff“. Die Suche überspringt ihn ohne Fehlermeldungsflut.
-- **Der offene Ordner verschwindet**: holzi springt zum nächsten vorhandenen übergeordneten Ordner und
+- **Der offene Ordner verschwindet**: HaexVault springt zum nächsten vorhandenen übergeordneten Ordner und
   zeigt einen Hinweis. Umgesetzt mit Spec 064 (research R10).
 - **Ein Laufwerk wird entfernt**: Es verschwindet aus der Seitenleiste; Transfers dorthin brechen mit
   Grund ab.
 - **Symbolische Links**: Sie sind markiert; Öffnen folgt ihnen, die Suche nicht. Zeigt ein Link in die
-  eigenen Daten von holzi, gilt für Agents die Sperre.
+  eigenen Daten von HaexVault, gilt für Agents die Sperre.
 - **Suche ab der Wurzel des Systems**: Sie bleibt auf dem Systemlaufwerk; eingehängte USB-, Zusatz-
   und Netzlaufwerke durchsucht sie nicht, virtuelle Systemordner auch nicht.
-- **Ein Ordner wird in sich selbst kopiert oder verschoben**: holzi lehnt vor dem Start ab.
-- **Zu wenig Platz am Ziel**: Ist der freie Platz bekannt (Gerät), prüft holzi vor dem Start;
+- **Ein Ordner wird in sich selbst kopiert oder verschoben**: HaexVault lehnt vor dem Start ab.
+- **Zu wenig Platz am Ziel**: Ist der freie Platz bekannt (Gerät), prüft HaexVault vor dem Start;
   sonst scheitert der Transfer mit Grund und ohne halbe Datei.
-- **Netzfehler bei einem Speicher**: holzi versucht es bis zu dreimal mit wachsender Wartezeit erneut; danach
+- **Netzfehler bei einem Speicher**: HaexVault versucht es bis zu dreimal mit wachsender Wartezeit erneut; danach
   bietet die Transferleiste „Erneut versuchen“.
 - **Sehr große Textdatei** (über 5 MB): Der Viewer zeigt die ersten 5 MB mit Hinweis. Binärdateien
   mit Textendung zeigen die Info-Ansicht.
-- **Beschädigtes Bild**: Statt Vorschaubild ein Symbol; holzi versucht es erst wieder, wenn sich die
+- **Beschädigtes Bild**: Statt Vorschaubild ein Symbol; HaexVault versucht es erst wieder, wenn sich die
   Datei ändert.
 - **Sehr großes Bild in einem Speicher** (über 50 MB): Kein Vorschaubild, nur Symbol; Öffnen lädt es.
 - **Ordner mit sehr vielen Einträgen** (50 000): Die Ansicht bleibt bedienbar.
 - **Die Vault wird gesperrt, während ein Transfer läuft**: Der Transfer bricht ab, ohne halbe Datei,
   und alle Freigabe-URLs verfallen.
-- **Eigene Daten von holzi im Dateibrowser**: Der Nutzer sieht sie, kann sie aber nicht ändern,
+- **Eigene Daten von HaexVault im Dateibrowser**: Der Nutzer sieht sie, kann sie aber nicht ändern,
   verschieben oder löschen.
 
 ## Requirements _(mandatory)_
@@ -367,13 +367,13 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
 
 **Navigation und Anzeige**
 
-- **FR-001**: holzi MUSS einen eingebauten Dateibrowser haben, der wie die anderen eingebauten Apps
+- **FR-001**: HaexVault MUSS einen eingebauten Dateibrowser haben, der wie die anderen eingebauten Apps
   in Tabs geöffnet wird.
 - **FR-002**: Der Dateibrowser MUSS als Quellen das ganze Dateisystem des Geräts (Laufwerke und
   bekannte Orte) und jeden Speicher aus Spec 038 anbieten.
   Erweitert durch Spec 064: Laufwerke mit Zustand (eingehängt, nicht eingehängt, gesperrt),
   Einhängen, Entsperren, Auswerfen.
-- **FR-003**: Für jeden Eintrag MUSS holzi Name, Typ, Größe und Änderungszeit zeigen, in Liste oder
+- **FR-003**: Für jeden Eintrag MUSS HaexVault Name, Typ, Größe und Änderungszeit zeigen, in Liste oder
   Raster, sortierbar nach jeder Angabe. Versteckte Dateien MÜSSEN sich ein- und ausblenden lassen
   (Vorgabe: aus). Ansicht, Sortierung und diese Wahl MÜSSEN je Gerät gespeichert werden.
 - **FR-004**: Eine Pfadleiste MUSS jeden übergeordneten Ordner direkt erreichbar machen; vor und
@@ -383,7 +383,7 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
   sich die Datei, entsteht ein neues.
 - **FR-006**: Ein offener Ordner auf dem Gerät MUSS Änderungen durch andere Programme ohne manuelles
   Neuladen zeigen, auf dem Desktop und auf Android. Ein Ordner in einem Speicher MUSS sich manuell und
-  beim Zurückkehren in den Tab neu laden; auf dem Gerät MUSS holzi beim Zurückkehren ebenfalls neu
+  beim Zurückkehren in den Tab neu laden; auf dem Gerät MUSS HaexVault beim Zurückkehren ebenfalls neu
   laden, falls die Beobachtung ein Ereignis verpasst hat.
 - **FR-007**: Jeder Tab des Dateibrowsers MUSS seine eigene Quelle und seinen eigenen Ordner haben, und
   die Sitzung (Spec 022) MUSS beide wiederherstellen.
@@ -394,7 +394,7 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
 
 **Viewer**
 
-- **FR-009**: holzi MUSS Textdateien, PDFs, Bilder, Videos und Audiodateien im Viewer zeigen bzw.
+- **FR-009**: HaexVault MUSS Textdateien, PDFs, Bilder, Videos und Audiodateien im Viewer zeigen bzw.
   abspielen, soweit das System das Format darstellen kann.
 - **FR-010**: Der PDF-Viewer MUSS blättern und zoomen können, und zwar auf allen Plattformen,
   unabhängig davon, ob die Webview PDFs selbst darstellt.
@@ -402,13 +402,13 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
   können.
 - **FR-012**: Video- und Audiowiedergabe MÜSSEN beginnen, bevor die Datei ganz gelesen ist, und
   Springen an jede Stelle MUSS möglich sein, für Dateien auf dem Gerät wie in einem Speicher.
-- **FR-013**: holzi DARF eine Datei zum Anzeigen oder Abspielen nie vollständig in den Arbeitsspeicher
+- **FR-013**: HaexVault DARF eine Datei zum Anzeigen oder Abspielen nie vollständig in den Arbeitsspeicher
   laden; der Speicherbedarf beim Abspielen DARF nicht mit der Dateigröße wachsen.
-- **FR-014**: Kann holzi eine Datei nicht anzeigen oder scheitert die Wiedergabe, MUSS die
-  Info-Ansicht erscheinen, mit „Mit System-App öffnen“. holzi DARF dafür keine Formate umwandeln.
+- **FR-014**: Kann HaexVault eine Datei nicht anzeigen oder scheitert die Wiedergabe, MUSS die
+  Info-Ansicht erscheinen, mit „Mit System-App öffnen“. HaexVault DARF dafür keine Formate umwandeln.
 - **FR-015**: Textdateien über 5 MB MUSS der Viewer bis 5 MB zeigen und den Rest mit Hinweis
   weglassen; Binärdateien MÜSSEN die Info-Ansicht zeigen.
-- **FR-016**: Den Inhalt einer geöffneten Datei DARF holzi nur über eine Freigabe-URL ausliefern, die
+- **FR-016**: Den Inhalt einer geöffneten Datei DARF HaexVault nur über eine Freigabe-URL ausliefern, die
   genau diese Datei nennt, nicht erratbar ist und verfällt, wenn Viewer oder Tab schließen, und
   spätestens, wenn die Vault gesperrt wird. Andere Programme auf dem Gerät DÜRFEN ohne diese Adresse
   nichts erhalten.
@@ -424,12 +424,12 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
   Klärung 2026-10-16, auf macOS Cmd statt Strg, Löschen dort auch mit ⌫). Die Kürzel DÜRFEN nicht in
   einem Textfeld, einem Dialog, dem Viewer oder auf markiertem Text wirken und nicht die Kürzel des
   Window Managers belegen (Alt+← und Alt+→ bleiben Zurück und Vor). Was auf Einträge wirkt, verlangt
-  den Fokus in der Liste; was das Menü sperrt (ein eigener Ort von holzi, Umbenennen mehrerer),
+  den Fokus in der Liste; was das Menü sperrt (ein eigener Ort von HaexVault, Umbenennen mehrerer),
   sperrt auch die Tastatur. Nach dem Öffnen eines Ordners hat die Liste den Fokus.
   _Geändert durch Spec 062: In der Split-Ansicht ist F5 „Kopieren ins andere Panel“ (F6 verschiebt, Tab
   wechselt das Panel) und Neuladen nur noch Strg+R._
 - **FR-018**: Der Nutzer MUSS eine Auswahl kopieren und verschieben können, über Menü, eine
-  Zwischenablage innerhalb von holzi und Ziehen innerhalb von holzi, auch zwischen Gerät und
+  Zwischenablage innerhalb von HaexVault und Ziehen innerhalb von HaexVault, auch zwischen Gerät und
   Speicher. Mit dem Start des Einfügens (Kopieren wie Verschieben) ist die Zwischenablage leer; ein
   abgelehntes Einfügen lässt sie unverändert.
 - **FR-019**: Transfers MÜSSEN Fortschritt zeigen, abbrechbar sein und in einer Transferleiste stehen,
@@ -439,16 +439,16 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
   Wiederholung der Netzfehler fort (eine Datei in einem Stück beginnt von vorn).
 - **FR-020**: Ein abgebrochener oder gescheiterter Transfer DARF am Ziel keine halbe Datei und kein
   halbes Objekt hinterlassen.
-- **FR-021**: Bei einem Namenskonflikt am Ziel MUSS holzi fragen: ersetzen, beide behalten (mit neuem
+- **FR-021**: Bei einem Namenskonflikt am Ziel MUSS HaexVault fragen: ersetzen, beide behalten (mit neuem
   Namen) oder überspringen, mit „für alle übernehmen“.
 - **FR-022**: Einen Ordner in sich selbst oder einen seiner Unterordner zu kopieren oder zu
-  verschieben MUSS holzi vor dem Start ablehnen.
+  verschieben MUSS HaexVault vor dem Start ablehnen.
 - **FR-023**: Auf dem Desktop MUSS Löschen in den Papierkorb des Systems gehen. Auf Android und in
-  einem Speicher MUSS holzi vor dem endgültigen Löschen fragen und die Zahl der betroffenen Einträge
+  einem Speicher MUSS HaexVault vor dem endgültigen Löschen fragen und die Zahl der betroffenen Einträge
   nennen.
 - **FR-024**: Dateien und Ordner, die der Nutzer aus dem System in einen Ordner des Dateibrowsers
-  zieht, MUSS holzi dorthin kopieren.
-- **FR-025**: Netzfehler bei einem Speicher MUSS holzi bis zu dreimal mit wachsender Wartezeit
+  zieht, MUSS HaexVault dorthin kopieren.
+- **FR-025**: Netzfehler bei einem Speicher MUSS HaexVault bis zu dreimal mit wachsender Wartezeit
   wiederholen; danach MUSS der Transfer als gescheitert mit „Erneut versuchen“ erscheinen.
 - **FR-026**: Wird die Vault gesperrt, MÜSSEN laufende Transfers abbrechen, ohne halbe Datei; für
   Freigabe-URLs gilt FR-016.
@@ -467,7 +467,7 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
 
 **Agents**
 
-- **FR-031**: holzi MUSS Agents Aktionen zum Auflisten, Abfragen von Angaben, Suchen und Lesen von
+- **FR-031**: HaexVault MUSS Agents Aktionen zum Auflisten, Abfragen von Angaben, Suchen und Lesen von
   Inhalten (FR-035a) anbieten, mit der Stufe Safe. Auf dem Gerät MÜSSEN sie das ganze Dateisystem
   erreichen, sofern der Agent die Berechtigung „Dateien des Geräts“ hat. Der eingebaute Agent MUSS sie ab Werk
   haben; externe Agents (Spec 021) MÜSSEN sie erst erteilt bekommen. _Geändert durch Spec 083 FR-033: Die
@@ -475,34 +475,34 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
   aus, auch für den eingebauten; die Dateien des Geräts sind immer die des eigenen Geräts._
 - **FR-031a**: Einen Speicher DARF ein Agent nur mit einer eigenen Berechtigung für genau diesen
   Speicher erreichen: „Lesen“ oder „Lesen und Schreiben“, ab Werk für keinen Agent. Fehlt sie, MUSS
-  holzi den Nutzer fragen (Lesen erlauben, Lesen und Schreiben erlauben, Ablehnen) und die Antwort
+  HaexVault den Nutzer fragen (Lesen erlauben, Lesen und Schreiben erlauben, Ablehnen) und die Antwort
   merken. Schreiben, Löschen und Kopieren in einen Speicher MÜSSEN „Lesen und Schreiben“ verlangen,
   zusätzlich zur Freigabestufe. Speicher ohne Berechtigung DÜRFEN in keiner Antwort an den Agent
   auftauchen.
 - **FR-031b**: Der Nutzer MUSS die Datei-Berechtigungen jedes Agents sehen und widerrufen können, für
   das Gerät und je Speicher. _Geändert durch Spec 083 FR-033: im Agentenprofil, nicht je Agent._
-- **FR-032**: holzi MUSS Agents Aktionen zum Anlegen von Ordnern, Kopieren und Umbenennen (Stufe
+- **FR-032**: HaexVault MUSS Agents Aktionen zum Anlegen von Ordnern, Kopieren und Umbenennen (Stufe
   Change) und zum Verschieben und Löschen (Stufe Risky) anbieten, im Rahmen ihrer Berechtigungen
   (FR-031, FR-031a).
 - **FR-032a**: Ein Agent MUSS den Dateibrowser in einem Ordner oder mit einer Datei im Viewer öffnen
   können, Wiedergabe eingeschlossen, mit der Stufe Change wie die übrigen Aktionen, die Fenster
   öffnen. Er DARF dabei nur Dateien und Ordner nennen, die er nach FR-031, FR-031a und FR-033
   erreichen darf.
-- **FR-033**: Die eigenen Daten von holzi MÜSSEN für Agents vollständig gesperrt sein: kein Lesen,
+- **FR-033**: Die eigenen Daten von HaexVault MÜSSEN für Agents vollständig gesperrt sein: kein Lesen,
   kein Auflisten, keine Angaben, kein Ändern, keine Suchtreffer. Geprüft MUSS immer das tatsächliche
   Ziel werden, nach Auflösen von `..` und symbolischen Links. Eine Ablehnung MUSS den Grund nennen und
   DARF keinen Inhalt enthalten.
-- **FR-034**: Die Dateiaktionen für Agents MÜSSEN auch funktionieren, wenn kein Fenster von holzi
+- **FR-034**: Die Dateiaktionen für Agents MÜSSEN auch funktionieren, wenn kein Fenster von HaexVault
   offen ist; ausgenommen ist das Öffnen im Dateibrowser (FR-032a), das ein Fenster braucht.
 - **FR-035**: Das Lesen durch einen Agent MUSS eine Größengrenze haben und ein Abschneiden
   kennzeichnen. Die Suche eines Agents MUSS eine Grenze für Laufzeit und Trefferzahl haben und ein
   Teilergebnis als unvollständig kennzeichnen.
 - **FR-035a**: Lesen durch einen Agent MUSS liefern: den Text von Textdateien, den eingebetteten Text
   von PDFs, den Text von Office-Dokumenten (docx, odt, xlsx, ods; Tabellen mit Blattnamen) und Bilder.
-  Bilder MUSS holzi nur an Modelle geben, die laut Spec 012 Bilder annehmen, und vorher auf eine
+  Bilder MUSS HaexVault nur an Modelle geben, die laut Spec 012 Bilder annehmen, und vorher auf eine
   Größengrenze verkleinern; sonst MUSS der Agent Angaben zum Bild und einen Hinweis bekommen. Für
   andere Formate und PDFs ohne Textschicht MUSS er Angaben zur Datei und einen Hinweis bekommen.
-  holzi DARF dafür keine Texterkennung ausführen.
+  HaexVault DARF dafür keine Texterkennung ausführen.
 - **FR-036**: Externe Agents (Spec 021) MÜSSEN dieselben Aktionen bekommen, mit ihren Grants dort und
   den Berechtigungen aus FR-031 und FR-031a.
   Wer eine Aktion aufruft, MUSS sich aus dem Eingang ergeben, nie aus einer Angabe des Aufrufers
@@ -510,11 +510,11 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
 
 **Schutz der eigenen Daten und Android**
 
-- **FR-037**: Die eigenen Daten von holzi MUSS der Nutzer im Dateibrowser sehen können, aber nicht
+- **FR-037**: Die eigenen Daten von HaexVault MUSS der Nutzer im Dateibrowser sehen können, aber nicht
   ändern, verschieben oder löschen.
 - **FR-038**: Zugangsdaten eines Speichers DÜRFEN weder im Dateibrowser noch in Fehlermeldungen,
   Freigabe-URLs oder Antworten an Agents erscheinen.
-- **FR-039**: Auf Android MUSS holzi „Zugriff auf alle Dateien“ verwenden. Fehlt die Berechtigung,
+- **FR-039**: Auf Android MUSS HaexVault „Zugriff auf alle Dateien“ verwenden. Fehlt die Berechtigung,
   MUSS der Dateibrowser erklären, wozu er sie braucht, in die Systemeinstellungen führen und nach der
   Rückkehr ohne Neustart neu prüfen.
 
@@ -543,12 +543,12 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
 - **SC-002**: Ein 4-GB-Video auf dem Gerät beginnt in unter 2 Sekunden zu spielen, und ein Sprung an
   eine beliebige Stelle ist in unter 2 Sekunden sichtbar. In einem Speicher mit guter Verbindung
   beginnt es in unter 5 Sekunden.
-- **SC-003**: Beim Abspielen eines 4-GB-Videos wächst der Speicherbedarf von holzi um weniger als
+- **SC-003**: Beim Abspielen eines 4-GB-Videos wächst der Speicherbedarf von HaexVault um weniger als
   100 MB.
 - **SC-004**: Die ersten Suchtreffer erscheinen in unter 1 Sekunde, wenn sie im aktuellen Ordner
   liegen; eine Suche über 10 000 Dateien ist in unter 10 Sekunden fertig.
 - **SC-005**: In 100 % der Fälle eines Prüfkatalogs (direkte Pfade, `..`, symbolische Links, Groß-
-  und Kleinschreibung, Suchtreffer) erreicht ein Agent nichts aus den eigenen Daten von holzi, und
+  und Kleinschreibung, Suchtreffer) erreicht ein Agent nichts aus den eigenen Daten von HaexVault, und
   ohne Berechtigung für einen Speicher erfährt er nicht einmal, dass es ihn gibt.
 - **SC-006**: In 100 % der geprüften Abbrüche und Fehler (Abbruch durch den Nutzer, Netzfehler,
   fehlender Platz, Sperren der Vault) bleibt am Ziel keine halbe Datei zurück.
@@ -560,7 +560,7 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
 ## Assumptions
 
 - Abgespielt wird, was die Webview des jeweiligen Systems kann. Unter Linux hängt das von den
-  installierten Codecs ab; holzi liefert keine mit.
+  installierten Codecs ab; HaexVault liefert keine mit.
 - Vorschaubilder gibt es nur für Bilder; Videos bekommen ein Symbol.
 - Ein Speicher hat keine Benachrichtigung über Änderungen; deshalb wird dort manuell und beim
   Zurückkehren neu geladen.
@@ -569,8 +569,8 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
   legt der Plan fest.
 - Externe Agents nutzen die Aktionen erst, wenn Spec 021 gebaut ist; bis dahin gilt diese Spec nur
   für den eingebauten Agent.
-- Freigabe-URLs sind nur für holzi selbst gedacht; sie sind keine Freigabe an andere Personen.
-- holzi hat noch keine Nutzer; es gibt nichts zu übernehmen oder zu migrieren.
+- Freigabe-URLs sind nur für HaexVault selbst gedacht; sie sind keine Freigabe an andere Personen.
+- HaexVault hat noch keine Nutzer; es gibt nichts zu übernehmen oder zu migrieren.
 
 ## Nicht im Umfang
 
@@ -578,8 +578,8 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
 - Inhaltssuche (etwa „Fotos vom Strand“), ein Suchindex und Embeddings; dafür kommt eine eigene Spec.
 - Umwandeln von Formaten (Video, Audio, HEIC) und Vorschaubilder für Videos.
 - Texterkennung (OCR) in gescannten PDFs und Bildern; Video und Audio für Agents.
-- Bearbeiten von Dateien in holzi, auch von Text.
-- Ziehen aus holzi heraus in andere Programme.
+- Bearbeiten von Dateien in HaexVault, auch von Text.
+- Ziehen aus HaexVault heraus in andere Programme.
 - Sync-Regeln und Dateifreigaben an andere Personen (Spec 056); der Dateibrowser zeigt dazu in dieser
   Spec nichts.
 - Zugriff über einzeln gewählte Ordner auf Android (Storage Access Framework).

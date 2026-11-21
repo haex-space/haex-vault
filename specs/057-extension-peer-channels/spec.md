@@ -27,10 +27,10 @@ anderer, Übertragung von Dateien."
 
 ## Begriffe
 
-- **Erweiterung**, **Erweiterungsrahmen**, **Berechtigung**, **Prüfstelle**, **Meldung** (holzi →
+- **Erweiterung**, **Erweiterungsrahmen**, **Berechtigung**, **Prüfstelle**, **Meldung** (HaexVault →
   Erweiterung): wie in Spec 017. Eine Erweiterung ist eindeutig durch Herausgeberschlüssel und Name.
 - **Vault-Identität**, **Geräteschlüssel**, **Geräteliste**: wie in Spec 024.
-- **Kontakt**, **Visitenkarte**, **bestätigte holzi-Adressen**, **blockierte Vault**: wie in Spec 051.
+- **Kontakt**, **Visitenkarte**, **bestätigte HaexVault-Adressen**, **blockierte Vault**: wie in Spec 051.
 - **Anklopfen**: wie in Spec 056.
 - **Kanal**: eine Ende-zu-Ende-verschlüsselte Verbindung zwischen genau zwei Geräten, auf beiden
   Seiten an dieselbe Erweiterung gebunden. Ein Kanal trägt Nachrichten in beide Richtungen und
@@ -44,8 +44,8 @@ anderer, Übertragung von Dateien."
   nur im Arbeitsspeicher und läuft ab.
 - **Einladende Seite**, **eingeladene Seite**: das Gerät, dessen Erweiterung einlädt, und die Geräte
   des Kontakts, die die Einladung erhalten.
-- **Einladungsabfrage**: die Abfrage von holzi selbst „[Kontakt] lädt dich zu [Erweiterung] ein –
-  Annehmen / Ablehnen“, im Fenster von holzi oder als Benachrichtigung von holzi. Nur hier nimmt der
+- **Einladungsabfrage**: die Abfrage von HaexVault selbst „[Kontakt] lädt dich zu [Erweiterung] ein –
+  Annehmen / Ablehnen“, im Fenster von HaexVault oder als Benachrichtigung von HaexVault. Nur hier nimmt der
   Nutzer eine Einladung an oder lehnt sie ab.
 - **Lobby**: eine offene Runde, die eine Erweiterung auf ihrem Gerät anmeldet, damit andere mit einem
   Beitrittscode beitreten können. Sie hat eine **Sichtbarkeit**, „nur Kontakte“ (Standard) oder
@@ -56,7 +56,7 @@ anderer, Übertragung von Dateien."
   und enthält ein zufälliges Geheimnis, das nur für diese eine Lobby gilt. Für die Erweiterung ist er
   undurchsichtig.
 - **Bestätigt**: Die Gegenseite hat ihren Geräteschlüssel nachgewiesen und gehört zu einer Vault,
-  deren Vault-Identität ein Kontakt mit bestätigten holzi-Adressen trägt oder die die eigene Vault ist.
+  deren Vault-Identität ein Kontakt mit bestätigten HaexVault-Adressen trägt oder die die eigene Vault ist.
   Sonst ist sie **nicht bestätigt**; ihr Anzeigename ist dann selbst gewählt und ungeprüft.
 - **Entfernen**: Der Gastgeber schließt den Kanal eines Beitretenden und sperrt ihn für diese Lobby.
 
@@ -72,7 +72,7 @@ Vault-Daten oder Dateien.
   Host-Funktion steht in `haex-space/haextension` bei Commit
   `a076b69321d0cfd63baa23d9b628620e1866e4f3` unter `specs/020-haex-doom/` (`spec.md` US3, FR-027 bis
   FR-035, FR-040 bis FR-045; `contracts/peers-api.md`; `data-model.md`; `research.md` R-10 bis
-  R-13). Diese Spec legt die Seite von holzi fest; wo der Entwurf von holzis Stand abweicht, gilt diese
+  R-13). Diese Spec legt die Seite von HaexVault fest; wo der Entwurf von HaexVaults Stand abweicht, gilt diese
   Spec, und der Plan von haex-doom wird angepasst.
 - **Spec 017** (Erweiterungs-Host): Die neue Berechtigungsart `peers` folgt dem bestehenden
   Berechtigungsmodell (Zustände, Abfrage zur Laufzeit, vault-weit). Angenommene Einladungen,
@@ -82,7 +82,7 @@ Vault-Daten oder Dateien.
 - **Spec 024** (Sync der eigenen Geräte): liefert den Netzwerkendpunkt der Vault-Sitzung, die
   konfigurierten Relays und Geräteschlüssel. Kanäle gibt es nur, solange die Vault geöffnet ist. Sie
   laufen nie über die Sync-Verbindung und tauschen nie Vault-Daten aus.
-- **Spec 051** (Adressbuch): liefert Kontakte mit bestätigten holzi-Adressen und blockierte Vaults.
+- **Spec 051** (Adressbuch): liefert Kontakte mit bestätigten HaexVault-Adressen und blockierte Vaults.
   Welche Kontakte eine Erweiterung einladen darf, bestimmt ihre Berechtigung `contacts` (051 FR-029);
   wie dort erfährt eine Erweiterung nie, ob ein Kontakt außerhalb ihrer Berechtigung existiert
   (051 FR-031).
@@ -93,7 +93,7 @@ Vault-Daten oder Dateien.
   seiner Visitenkarte und nutzen Anklopfen, sobald es mit Spec 056 da ist (Clarifications 2026-10-22).
   Sie geht über ADR-0015 hinaus: Für öffentliche Lobbys nimmt ein Gerät auch Geräte fremder Vaults an,
   die kein Kontakt sind. Das hält ein eigener ADR bei der Planung fest.
-- **Spec 043** (Mobil): Wo das System keine Benachrichtigungen zeigt, zeigt holzi sie im eigenen
+- **Spec 043** (Mobil): Wo das System keine Benachrichtigungen zeigt, zeigt HaexVault sie im eigenen
   Fenster (043 FR-023); das gilt auch für die Einladungsabfrage.
 - **vault-sdk**: Die Schnittstelle `client.peers` für Erweiterungen ist eine eigene Änderung in
   `haex-space/vault-sdk`.
@@ -118,9 +118,9 @@ hat der Betreiber für diese Spec getroffen.
   verlangen und verraten, wer online ist.
 - Q: Was erfährt ein Mitspieler in einer öffentlichen Lobby? → A: Bei direkter Verbindung die
   Netzwerkadresse des Gastgebers; das wird in Kauf genommen und dem Nutzer gesagt.
-- Q: Wo nimmt der Nutzer eine Einladung an? → A: Immer in einer Abfrage von holzi selbst („[Kontakt]
+- Q: Wo nimmt der Nutzer eine Einladung an? → A: Immer in einer Abfrage von HaexVault selbst („[Kontakt]
   lädt dich zu [Erweiterung] ein – Annehmen / Ablehnen“): im Fenster, wenn ein Rahmen der
-  Erweiterung offen ist, sonst als Benachrichtigung von holzi. Die Erweiterung erfährt von der
+  Erweiterung offen ist, sonst als Benachrichtigung von HaexVault. Die Erweiterung erfährt von der
   Einladung erst nach der Annahme und erhält dann den Kanal; eine Ablehnung erfährt die einladende
   Seite als „abgelehnt“. Erweiterungen brauchen keinen eigenen Einladungsdialog, und es gibt für sie
   keine Funktion zum Annehmen oder Ablehnen (Option B).
@@ -134,10 +134,10 @@ hat der Betreiber für diese Spec getroffen.
 
 ### User Story 1 - Einen Kontakt einladen und verbunden werden (Priority: P1)
 
-Anna öffnet DOOM, eröffnet ein Spiel und lädt ihren Kontakt Ben ein. Ben hat holzi auf Laptop und
-Telefon offen, DOOM ist dort installiert. Auf dem Telefon läuft DOOM gerade; dort fragt holzi im
+Anna öffnet DOOM, eröffnet ein Spiel und lädt ihren Kontakt Ben ein. Ben hat HaexVault auf Laptop und
+Telefon offen, DOOM ist dort installiert. Auf dem Telefon läuft DOOM gerade; dort fragt HaexVault im
 Fenster: „Anna lädt dich zu DOOM ein – Annehmen / Ablehnen“. Auf dem Laptop ist DOOM nicht geöffnet;
-dort zeigt holzi dieselbe Frage als Benachrichtigung. Ben nimmt auf dem Laptop an; holzi öffnet DOOM,
+dort zeigt HaexVault dieselbe Frage als Benachrichtigung. Ben nimmt auf dem Laptop an; HaexVault öffnet DOOM,
 und DOOM erhält den Kanal zu Anna mit dem Inhalt der Einladung. Auf dem Telefon verschwindet die
 Frage, DOOM dort hat von der Einladung nie erfahren. Anna sieht „angenommen“.
 
@@ -147,7 +147,7 @@ Erweiterung und die Zustimmung des Nutzers fest, auf denen alles Weitere aufbaut
 
 **Independent Test**: Zwei Vaults, die sich gegenseitig als Kontakt mit Visitenkarte führen, die
 eingeladene mit zwei Geräten, eines mit offenem Rahmen der Testerweiterung, eines ohne. Eine
-Testerweiterung mit der Berechtigung lädt ein; auf beiden Geräten erscheint holzis Einladungsabfrage,
+Testerweiterung mit der Berechtigung lädt ein; auf beiden Geräten erscheint HaexVaults Einladungsabfrage,
 die Rahmen der eingeladenen Seite erhalten nichts. Nach der Annahme auf einem Gerät erhält die
 Erweiterung dort den Kanal, auf dem anderen verschwindet die Abfrage, und die einladende Seite erhält
 genau einen Status.
@@ -155,14 +155,14 @@ genau einen Status.
 **Acceptance Scenarios**:
 
 1. **Given** Anna und Ben sind gegenseitig Kontakte, Bens Vault ist offen und dieselbe Erweiterung
-   installiert und aktiviert, **When** Annas Erweiterung Ben einlädt, **Then** zeigt holzi auf jedem
+   installiert und aktiviert, **When** Annas Erweiterung Ben einlädt, **Then** zeigt HaexVault auf jedem
    erreichbaren Gerät Bens die Einladungsabfrage mit Annas Namen, wie Bens Adressbuch ihn führt, und
    dem Namen der Erweiterung, und kein Rahmen der Erweiterung erfährt davon.
 2. **Given** auf einem Gerät Bens ist ein Rahmen der Erweiterung offen, **When** die Einladung
-   ankommt, **Then** zeigt holzi die Einladungsabfrage im eigenen Fenster; ist keiner offen, zeigt
-   holzi sie als Benachrichtigung.
-3. **Given** Ben nimmt in holzis Einladungsabfrage an und auf dem Gerät ist kein Rahmen der
-   Erweiterung offen, **When** die Annahme gilt, **Then** öffnet holzi die Erweiterung, und sie
+   ankommt, **Then** zeigt HaexVault die Einladungsabfrage im eigenen Fenster; ist keiner offen, zeigt
+   HaexVault sie als Benachrichtigung.
+3. **Given** Ben nimmt in HaexVaults Einladungsabfrage an und auf dem Gerät ist kein Rahmen der
+   Erweiterung offen, **When** die Annahme gilt, **Then** öffnet HaexVault die Erweiterung, und sie
    erhält den Kanal mit Annas Kontakt und dem Inhalt der Einladung, sobald ihr Rahmen bereit ist.
 4. **Given** die Einladungsabfrage liegt auf Bens Laptop und Telefon, **When** Ben auf dem Laptop
    annimmt, **Then** entsteht genau ein Kanal zwischen Annas Gerät und dem Laptop, auf dem Telefon
@@ -226,7 +226,7 @@ später fragen lassen oder verweigern. Eine andere Erweiterung, etwa ein Notizbu
 DOOMs Kanälen und kann über sie nichts senden oder empfangen.
 
 **Why this priority**: Kanäle öffnen das Gerät nach außen. Ohne Berechtigung und strikte Trennung
-wären sie ein Weg, an holzi oder an anderen Erweiterungen vorbei Daten auszutauschen.
+wären sie ein Weg, an HaexVault oder an anderen Erweiterungen vorbei Daten auszutauschen.
 
 **Independent Test**: Zwei Testerweiterungen A und B, nur A mit Berechtigung. A öffnet einen Kanal
 zu einem Kontakt; B versucht, mit den Kennungen von A zu senden, zu schließen oder Meldungen zu
@@ -238,15 +238,15 @@ erhalten, und scheitert; B ohne Berechtigung kann nichts einladen und keine Lobb
    einlädt, eine Lobby öffnet oder beitritt, **Then** geschieht nichts außerhalb des Geräts, und sie
    erhält einen Berechtigungsfehler.
 2. **Given** der Zustand „fragen“, **When** die Erweiterung das erste Mal einlädt, eine Lobby öffnet
-   oder beitritt, **Then** fragt holzi den Nutzer wie bei anderen Berechtigungen, bevor etwas
+   oder beitritt, **Then** fragt HaexVault den Nutzer wie bei anderen Berechtigungen, bevor etwas
    geschieht.
 3. **Given** Erweiterung A hat einen Kanal, **When** Erweiterung B dessen Kennung benutzt, **Then**
    scheitert B wie bei einer unbekannten Kennung, und Nachrichten des Kanals erreichen nie Rahmen von B
-   oder die Oberfläche von holzi.
+   oder die Oberfläche von HaexVault.
 4. **Given** ein Kanal zwischen Annas und Bens DOOM, **When** Annas Seite Nachrichten sendet, **Then**
    erreichen sie auf Bens Gerät nur Rahmen derselben Erweiterung (Herausgeberschlüssel und Name).
 5. **Given** der Nutzer entzieht die Berechtigung, **When** Kanäle, Lobbys oder Einladungen dieser
-   Erweiterung offen sind, **Then** schließt holzi sie sofort, und die Gegenseiten erfahren es.
+   Erweiterung offen sind, **Then** schließt HaexVault sie sofort, und die Gegenseiten erfahren es.
 
 ---
 
@@ -307,10 +307,10 @@ wird nach 5 Sekunden getrennt.
    **Then** entsteht ein Kanal, und die Erweiterung des Gastgebers erfährt den selbst gewählten Namen
    und „nicht bestätigt“.
 2. **Given** auf dem Gerät ist keine öffentliche Lobby offen, **When** ein Gerät einer Vault, die kein
-   Kontakt ist, sich verbindet, **Then** trennt holzi gleich nach dem Ausweisen, ohne zu verraten, ob
+   Kontakt ist, sich verbindet, **Then** trennt HaexVault gleich nach dem Ausweisen, ohne zu verraten, ob
    es Lobbys gibt.
 3. **Given** eine offene öffentliche Lobby, **When** ein fremdes Gerät sich verbindet und binnen
-   5 Sekunden keinen Beitritt vorlegt, **Then** trennt holzi die Verbindung.
+   5 Sekunden keinen Beitritt vorlegt, **Then** trennt HaexVault die Verbindung.
 4. **Given** eine offene öffentliche Lobby, **When** ein Gerät einer blockierten Vault mit gültigem
    Code beitritt, **Then** wird es abgewiesen wie mit einem falschen Code.
 5. **Given** ein Kontakt tritt einer öffentlichen Lobby bei, **When** die Erweiterung des Gastgebers
@@ -325,13 +325,13 @@ wird nach 5 Sekunden getrennt.
 - Ein Gerät des Kontakts hat seit dem Austausch der Visitenkarte sein Relay gewechselt. In der ersten
   Fassung ist es über die Visitenkarte nicht erreichbar, bis der Kontakt eine aktuelle Visitenkarte
   teilt; die einladende Seite erhält „nicht erreichbar“ mit dem entsprechenden Hinweis. Sobald es
-  Anklopfen gibt, findet holzi die aktuelle Adresse darüber. Beitrittscodes betrifft das nicht.
+  Anklopfen gibt, findet HaexVault die aktuelle Adresse darüber. Beitrittscodes betrifft das nicht.
 - Ein Gerät steht noch auf einer alten Visitenkarte, ist aber aus seiner Vault entfernt worden. Kennt
   die andere Seite eine neuere Geräteliste dieser Vault, wird es abgewiesen (wie 056 FR-003).
 - Ein Kontakt lehnt auf einem Gerät ab und nimmt auf einem anderen an. Die Annahme gewinnt; der Status
   an die einladende Seite ist „angenommen“.
 - Zwei Geräte des Kontakts nehmen fast gleichzeitig an. Genau eine Annahme gewinnt; auf dem anderen
-  Gerät meldet holzis Einladungsabfrage „Einladung nicht mehr offen“, und die Erweiterung dort erfährt
+  Gerät meldet HaexVaults Einladungsabfrage „Einladung nicht mehr offen“, und die Erweiterung dort erfährt
   nichts.
 - Die einladende Erweiterung zieht die Einladung zurück, oder ihre Vault schließt, während die
   Einladung offen ist. Auf allen Geräten des Kontakts verschwindet die Einladungsabfrage; eine spätere
@@ -341,15 +341,15 @@ wird nach 5 Sekunden getrennt.
   die einladende Seite erhält „nicht installiert“.
 - Anna und Ben laden sich gleichzeitig gegenseitig ein. Es sind zwei unabhängige Einladungen; nimmt
   jeder an, entstehen zwei Kanäle.
-- Der letzte Rahmen der Erweiterung auf einem Gerät schließt. holzi schließt ihre Kanäle und Lobbys
+- Der letzte Rahmen der Erweiterung auf einem Gerät schließt. HaexVault schließt ihre Kanäle und Lobbys
   auf diesem Gerät und zieht ihre offenen Einladungen zurück, wie bei der Shell (Spec 017). Lädt ein
   Rahmen nur neu, bleiben sie bestehen; Meldungen bis zur Bereitschaft werden gepuffert (017 FR-042).
-- Ein Rahmen nimmt Meldungen lange nicht ab. Läuft der Puffer über, verwirft holzi zuerst die ältesten
-  schnellen Nachrichten; müsste eine gesicherte Nachricht verworfen werden, schließt holzi stattdessen
-  den Kanal. Andere Rahmen und holzis Oberfläche stocken dabei nicht.
+- Ein Rahmen nimmt Meldungen lange nicht ab. Läuft der Puffer über, verwirft HaexVault zuerst die ältesten
+  schnellen Nachrichten; müsste eine gesicherte Nachricht verworfen werden, schließt HaexVault stattdessen
+  den Kanal. Andere Rahmen und HaexVaults Oberfläche stocken dabei nicht.
 - Mehrere Rahmen derselben Erweiterung sind auf einem Gerät offen. Jeder erhält die Meldungen; welcher
   sie verarbeitet, entscheidet die Erweiterung.
-- Ein Beitrittscode wird öffentlich verbreitet, und viele versuchen beizutreten. holzi begrenzt Versuche
+- Ein Beitrittscode wird öffentlich verbreitet, und viele versuchen beizutreten. HaexVault begrenzt Versuche
   und gleichzeitige Verbindungen; über der Grenze lautet die Antwort wie bei einem geschlossenen Code.
   Wie viele Mitspieler eine Lobby aufnimmt, entscheidet die Erweiterung, indem sie Beitretende
   entfernt oder die Lobby schließt.
@@ -360,10 +360,10 @@ wird nach 5 Sekunden getrennt.
   sein, und Beitretende erhalten „nicht erreichbar“.
 - Der Nutzer hat alle Relays in den Einstellungen abgeschaltet. Kanäle entstehen nur auf direktem Weg;
   sonst gilt die Gegenseite als nicht erreichbar.
-- Ein mobiles Gerät geht in den Hintergrund oder sperrt. Verliert holzi dort die Verbindung, schließt
+- Ein mobiles Gerät geht in den Hintergrund oder sperrt. Verliert HaexVault dort die Verbindung, schließt
   der Kanal mit „verloren“ oder „Zeitüberschreitung“; ein neuer Kanal braucht eine neue Einladung oder
   einen neuen Beitritt.
-- Ein Kontakt hat dieselbe Erweiterung in einer anderen Fassung. holzi stellt trotzdem zu; ob die
+- Ein Kontakt hat dieselbe Erweiterung in einer anderen Fassung. HaexVault stellt trotzdem zu; ob die
   Fassungen zusammenpassen, prüft die Erweiterung anhand ihres Inhalts.
 - Ein Gerät der eigenen Vault tritt mit dem Code einer Lobby „nur Kontakte“ bei. Es ist bestätigt und
   wird zugelassen.
@@ -374,7 +374,7 @@ wird nach 5 Sekunden getrennt.
 
 **Berechtigung und Trennung**
 
-- **FR-001**: holzi MUSS eine Berechtigungsart `peers` mit der Aktion `connect` und dem Ziel `*`
+- **FR-001**: HaexVault MUSS eine Berechtigungsart `peers` mit der Aktion `connect` und dem Ziel `*`
   kennen. Sie folgt dem bestehenden Berechtigungsmodell (Spec 017): Zustände „erteilt“, „verweigert“
   und „fragen“, Abfrage zur Laufzeit, Erklärung im Manifest, Geltung vault-weit.
 - **FR-002**: Ohne erteilte Berechtigung `peers` MUSS jede Funktion dieser Spec abgelehnt werden,
@@ -383,15 +383,15 @@ wird nach 5 Sekunden getrennt.
   Verbindungen zu Geräten anderer Vaults öffnen kann und dass Gegenseiten bei direkter Verbindung die
   Netzwerkadresse des Geräts erfahren.
 - **FR-004**: Jeder Kanal, jede Einladung und jede Lobby MUSS an genau eine Erweiterung gebunden sein,
-  die holzi aus ihrem Rahmen kennt, nie aus der Anfrage. Auf beiden Seiten MUSS es dieselbe Erweiterung
+  die HaexVault aus ihrem Rahmen kennt, nie aus der Anfrage. Auf beiden Seiten MUSS es dieselbe Erweiterung
   sein (Herausgeberschlüssel und Name).
-- **FR-005**: holzi MUSS angenommene Einladungen, Beitritte, Nachrichten und das Ende eines Kanals
+- **FR-005**: HaexVault MUSS angenommene Einladungen, Beitritte, Nachrichten und das Ende eines Kanals
   nur an Rahmen der gebundenen Erweiterung auf dem Gerät zustellen, als Meldungen nach Spec 017.
-  Andere Erweiterungen und holzis Oberfläche DÜRFEN keine Inhalte erhalten.
+  Andere Erweiterungen und HaexVaults Oberfläche DÜRFEN keine Inhalte erhalten.
 - **FR-006**: Eine Erweiterung DARF nur ihre eigenen Kanäle, Einladungen und Lobbys bedienen; eine
   fremde und eine unbekannte Kennung MÜSSEN dieselbe Antwort ergeben.
 - **FR-007**: Ein Kanal DARF nur die Nachrichten der Erweiterung tragen. Er DARF keinen Zugang zu
-  Vault-Daten, Dateien, Geräten oder anderen Funktionen von holzi geben.
+  Vault-Daten, Dateien, Geräten oder anderen Funktionen von HaexVault geben.
 - **FR-008**: Verweigern oder Entziehen der Berechtigung, Deaktivieren oder Entfernen der Erweiterung,
   das Schließen ihres letzten Rahmens auf dem Gerät und das Schließen der Vault MÜSSEN alle Kanäle und
   Lobbys der Erweiterung auf diesem Gerät schließen und ihre offenen Einladungen zurückziehen; die
@@ -400,40 +400,40 @@ wird nach 5 Sekunden getrennt.
 **Einladungen**
 
 - **FR-009**: Eine Erweiterung MUSS einen Kontakt einladen können, den ihre Berechtigung `contacts`
-  umfasst und der bestätigte holzi-Adressen hat. Für jeden anderen Kontakt, auch einen, der nicht
+  umfasst und der bestätigte HaexVault-Adressen hat. Für jeden anderen Kontakt, auch einen, der nicht
   existiert, MUSS die Antwort dieselbe sein (051 FR-031).
 - **FR-010**: Eine Einladung MUSS die Erweiterung (Herausgeberschlüssel und Name), die Vault-Identität
   der einladenden Seite und einen Inhalt der Erweiterung von höchstens 4 KiB tragen. Ein größerer Inhalt
   MUSS mit „zu groß“ abgelehnt werden.
-- **FR-011**: holzi MUSS die Einladung an alle Geräte des Kontakts zugleich senden, die über die
+- **FR-011**: HaexVault MUSS die Einladung an alle Geräte des Kontakts zugleich senden, die über die
   Adressen aus seiner gespeicherten Visitenkarte (Netzwerkkennung und Relay je Gerät) erreichbar sind.
   Geräteadressen DÜRFEN nicht öffentlich verzeichnet oder erfragt werden (056 FR-010). Sobald es
-  Anklopfen gibt (056 FR-008), MUSS holzi Geräte, die über die Visitenkarte nicht erreichbar sind,
+  Anklopfen gibt (056 FR-008), MUSS HaexVault Geräte, die über die Visitenkarte nicht erreichbar sind,
   darüber suchen.
 - **FR-012**: Sobald es Anklopfen gibt, DARF ein Gerät darauf für diese Funktion nur Geräten der
   eigenen Vault und von Vaults antworten, deren Vault-Identität es als Kontakt mit bestätigten
-  holzi-Adressen führt und nicht blockiert hat.
+  HaexVault-Adressen führt und nicht blockiert hat.
 - **FR-013**: Die eingeladene Seite MUSS eine Einladung dem Nutzer nur vorlegen, wenn die einladende
   Seite bestätigt und ihre Vault nicht blockiert ist und wenn dieselbe Erweiterung installiert und
   aktiviert ist und ihre Berechtigung `peers` nicht „verweigert“ ist. Ist die einladende Seite nicht bestätigt
   oder blockiert, MUSS die Einladung ohne Anzeige verworfen werden. Fehlt die Erweiterung, ist sie
   deaktiviert oder die Berechtigung verweigert, MUSS die Antwort „nicht installiert“ lauten.
-- **FR-014**: holzi MUSS jede Einladung auf der eingeladenen Seite in seiner eigenen
+- **FR-014**: HaexVault MUSS jede Einladung auf der eingeladenen Seite in seiner eigenen
   Einladungsabfrage vorlegen: „[Kontakt] lädt dich zu [Erweiterung] ein – Annehmen / Ablehnen“, mit
   dem Kontakt, wie das Adressbuch der eingeladenen Seite ihn führt. Die Abfrage MUSS unabhängig von
   der Berechtigung `notifications` der Erweiterung erscheinen.
-- **FR-015**: Ist auf dem Gerät ein Rahmen der Erweiterung offen, MUSS holzi die Einladungsabfrage im
+- **FR-015**: Ist auf dem Gerät ein Rahmen der Erweiterung offen, MUSS HaexVault die Einladungsabfrage im
   eigenen Fenster zeigen, sonst als eigene Benachrichtigung mit Annehmen und Ablehnen. Kann das System
-  keine Knöpfe zeigen, MUSS das Antippen der Benachrichtigung die Abfrage in holzis Fenster öffnen;
-  zeigt das System gar keine Benachrichtigung, MUSS holzi sie im eigenen Fenster zeigen (043 FR-023).
+  keine Knöpfe zeigen, MUSS das Antippen der Benachrichtigung die Abfrage in HaexVaults Fenster öffnen;
+  zeigt das System gar keine Benachrichtigung, MUSS HaexVault sie im eigenen Fenster zeigen (043 FR-023).
   Verschwindet die Einladung, MUSS auch die Abfrage verschwinden.
-- **FR-016**: Ein Kanal DARF aus einer Einladung erst entstehen, nachdem der Nutzer in holzis
+- **FR-016**: Ein Kanal DARF aus einer Einladung erst entstehen, nachdem der Nutzer in HaexVaults
   Einladungsabfrage angenommen hat. Erweiterungen DÜRFEN keine Funktion zum Annehmen oder Ablehnen
   haben, und vor der Annahme DARF keine Erweiterung der eingeladenen Seite von der Einladung erfahren.
   Nach der Annahme MUSS die Erweiterung den Kanal mit dem einladenden Kontakt und dem Inhalt der
-  Einladung erhalten; ist kein Rahmen offen, MUSS holzi die Erweiterung öffnen und ihr den Kanal
+  Einladung erhalten; ist kein Rahmen offen, MUSS HaexVault die Erweiterung öffnen und ihr den Kanal
   melden, sobald der Rahmen bereit ist.
-- **FR-017**: Die erste Annahme MUSS gewinnen. holzi MUSS die Einladungsabfrage danach auf allen
+- **FR-017**: Die erste Annahme MUSS gewinnen. HaexVault MUSS die Einladungsabfrage danach auf allen
   anderen Geräten des Kontakts zurückziehen; eine spätere Annahme dort MUSS mit „Einladung nicht mehr
   offen“ scheitern.
 - **FR-018**: Die einladende Erweiterung MUSS je Einladung genau einen Endstatus erhalten:
@@ -474,7 +474,7 @@ wird nach 5 Sekunden getrennt.
 - **FR-027**: Der Gastgeber MUSS einen Beitretenden entfernen können. Sein Kanal MUSS schließen, und
   weitere Beitritte desselben Geräts und, wenn er bestätigt ist, derselben Vault zu dieser Lobby MÜSSEN
   abgewiesen werden, bis die Lobby schließt.
-- **FR-028**: holzi DARF offene Lobbys niemandem auflisten oder ankündigen, auch nicht im lokalen Netz;
+- **FR-028**: HaexVault DARF offene Lobbys niemandem auflisten oder ankündigen, auch nicht im lokalen Netz;
   eine Lobby ist nur über ihren Code erreichbar.
 
 **Annahme von Verbindungen**
@@ -485,7 +485,7 @@ wird nach 5 Sekunden getrennt.
 - **FR-030**: Beide Seiten MÜSSEN ihren Geräteschlüssel nachweisen und die unterschriebene Geräteliste
   ihrer Vault vorlegen. Eine Seite gilt nur als bestätigt, wenn sie die Prüfungen von 056 FR-002 und
   FR-003 besteht und ihre Vault-Identität die eigene ist oder einem Kontakt mit bestätigten
-  holzi-Adressen gehört.
+  HaexVault-Adressen gehört.
 - **FR-031**: Ein Gerät DARF Verbindungen nicht bestätigter Gegenseiten nur annehmen, solange auf ihm
   mindestens eine öffentliche Lobby offen ist. Sonst MUSS es sie gleich nach dem Ausweisen trennen,
   ohne zu verraten, ob es Lobbys gibt. Ist nur eine Lobby „nur Kontakte“ offen, darf ein nicht
@@ -493,8 +493,8 @@ wird nach 5 Sekunden getrennt.
   Gastgeber antwortet `NotAdmitted` und trennt danach. Ohne gültigen Beweis bleibt es bei der frühen
   Trennung. So bleibt die Existenz der Lobby verborgen und der in FR-025 geforderte Fehler erreichbar.
 - **FR-032**: Legt eine Gegenseite binnen 5 Sekunden nach dem Ausweisen weder einen Beitritt noch eine
-  Einladung oder eine Antwort auf eine Einladung vor, MUSS holzi die Verbindung trennen.
-- **FR-033**: holzi MUSS Verbindungsversuche und Beitrittsversuche je Gegenseite und insgesamt
+  Einladung oder eine Antwort auf eine Einladung vor, MUSS HaexVault die Verbindung trennen.
+- **FR-033**: HaexVault MUSS Verbindungsversuche und Beitrittsversuche je Gegenseite und insgesamt
   begrenzen, sodass das Durchprobieren von Codes und das Überlasten des Geräts scheitern, ohne dass
   gültige Beitritte von Kontakten ausgesperrt werden.
 - **FR-034**: Blockierte Vaults (Spec 051) MÜSSEN immer abgewiesen werden, auch in öffentlichen Lobbys.
@@ -512,10 +512,10 @@ wird nach 5 Sekunden getrennt.
   (Spec 024); ein Relay DARF nur verschlüsselte Daten sehen. Ein Wechsel des Wegs DARF den Kanal nicht
   schließen.
 - **FR-038**: Senden DARF nicht auf die Gegenseite warten. Ein langsamer oder nicht bereiter Rahmen
-  DARF weder holzis Oberfläche noch andere Kanäle aufhalten; muss holzi Meldungen verwerfen, dann nur
+  DARF weder HaexVaults Oberfläche noch andere Kanäle aufhalten; muss HaexVault Meldungen verwerfen, dann nur
   schnelle Nachrichten, sonst schließt es den Kanal.
 - **FR-039**: Ein Kanal MUSS schließen, wenn eine Seite ihn schließt, die Verbindung abbricht oder
-  30 Sekunden lang nichts ankommt. Solange beide Seiten offen sind, MUSS holzi den Kanal ohne Zutun der
+  30 Sekunden lang nichts ankommt. Solange beide Seiten offen sind, MUSS HaexVault den Kanal ohne Zutun der
   Erweiterung am Leben halten.
 - **FR-040**: Beide Erweiterungen MÜSSEN das Ende eines Kanals genau einmal mit dem Grund
   „geschlossen“, „verloren“ oder „Zeitüberschreitung“ erfahren. Senden oder Schließen auf einem
@@ -523,17 +523,17 @@ wird nach 5 Sekunden getrennt.
 
 **Grenzen, Speicher und Fehler**
 
-- **FR-041**: holzi MUSS die Zahl gleichzeitiger Kanäle, Lobbys und offener Einladungen je
+- **FR-041**: HaexVault MUSS die Zahl gleichzeitiger Kanäle, Lobbys und offener Einladungen je
   Erweiterung begrenzen. Eine Erweiterung MUSS mindestens 8 Kanäle, 2 Lobbys und 8 offene Einladungen
   zugleich haben können.
-- **FR-042**: holzi DARF über Kanäle, Einladungen, Lobbys und Nachrichten nichts dauerhaft speichern,
+- **FR-042**: HaexVault DARF über Kanäle, Einladungen, Lobbys und Nachrichten nichts dauerhaft speichern,
   weder Inhalte noch Metadaten; nichts davon DARF synchronisiert oder in Protokolle geschrieben werden.
   Gespeichert bleibt nur die Berechtigung.
 - **FR-043**: Fehler MÜSSEN unterscheidbar sein in: Berechtigung fehlt oder Abfrage nötig (wie
   Spec 017), Kontakt unbekannt, Einladung nicht mehr offen, Kanal geschlossen, zu groß, Lobby nicht mehr
   offen, nicht zugelassen und Grenze erreicht. Sie DÜRFEN keine Adressen, Schlüssel oder Daten anderer
   Erweiterungen enthalten.
-- **FR-044**: Die Funktion MUSS auf allen Plattformen von holzi (Linux, Windows, macOS, Android, iOS)
+- **FR-044**: Die Funktion MUSS auf allen Plattformen von HaexVault (Linux, Windows, macOS, Android, iOS)
   verfügbar sein, solange die Vault geöffnet ist. Ist der Netzwerkendpunkt der Vault nicht verfügbar,
   MÜSSEN Einladen, Öffnen einer Lobby und Beitreten mit einem eindeutigen Fehler scheitern, und die
   übrige Vault MUSS nutzbar bleiben.
@@ -559,21 +559,21 @@ wird nach 5 Sekunden getrennt.
 
 ### Measurable Outcomes
 
-- **SC-001**: holzis Einladungsabfrage erscheint auf jedem Gerät eines Kontakts mit geöffneter Vault,
+- **SC-001**: HaexVaults Einladungsabfrage erscheint auf jedem Gerät eines Kontakts mit geöffneter Vault,
   dessen Adresse aus der Visitenkarte stimmt, in 95 % der Versuche innerhalb von 5 Sekunden. Ist kein
   Gerät erreichbar, erhält die einladende Seite in 100 % der Versuche innerhalb von 15 Sekunden „nicht
   erreichbar“ mit dem Hinweis auf eine aktuelle Visitenkarte.
-- **SC-002**: Nach der Annahme in holzis Einladungsabfrage oder dem Absenden eines Beitritts ist der
+- **SC-002**: Nach der Annahme in HaexVaults Einladungsabfrage oder dem Absenden eines Beitritts ist der
   Kanal auf beiden Seiten in 95 % der Versuche innerhalb von 3 Sekunden bereit.
 - **SC-003**: Ein Gastgeber mit 3 Mitspielern auf getrennten Kanälen tauscht zehn Minuten lang je Kanal
   und Richtung 35 schnelle Nachrichten pro Sekunde zu 1.000 Byte aus; auf einer stabilen Verbindung
-  kommen mindestens 99 % an, und holzis Oberfläche reagiert dabei in höchstens 100 ms auf Eingaben.
+  kommen mindestens 99 % an, und HaexVaults Oberfläche reagiert dabei in höchstens 100 ms auf Eingaben.
 - **SC-004**: Die Zeit vom Senden einer schnellen Nachricht in einem Rahmen bis zu ihrer Meldung im
   Rahmen der Gegenseite übersteigt die einfache Laufzeit der Verbindung im Median um höchstens 5 ms und
   im 95. Perzentil um höchstens 15 ms.
 - **SC-005**: Ohne direkten Weg zwischen den Geräten entsteht der Kanal über ein Relay in 100 % der
   Testfälle, und bei einer Umlaufzeit bis 150 ms gilt SC-003 weiter.
-- **SC-006**: In einer Testsammlung entsteht kein Kanal ohne eine in holzis Einladungsabfrage
+- **SC-006**: In einer Testsammlung entsteht kein Kanal ohne eine in HaexVaults Einladungsabfrage
   angenommene Einladung oder einen gültigen Code einer offenen Lobby: 0 Fälle. Keine Erweiterung der
   eingeladenen Seite erfährt vor der Annahme von einer Einladung: 0 Fälle. Ohne offene öffentliche Lobby werden 100 % der Verbindungen nicht
   bestätigter Geräte abgewiesen, und 100 % der Verbindungen ohne Beitritt sind nach höchstens
@@ -583,14 +583,14 @@ wird nach 5 Sekunden getrennt.
   sich die Mediane der Antwortzeit um weniger als 1 ms. Ein unlesbarer Code wird beim Beitretenden
   mit demselben Fehler abgewiesen, ist aber nicht Teil dieses hostseitigen Zeitvergleichs.
 - **SC-008**: In einer Testsammlung erreicht keine Nachricht, Einladung oder Meldung eines Kanals einen
-  Rahmen einer anderen Erweiterung oder holzis Oberfläche: 0 Fälle.
+  Rahmen einer anderen Erweiterung oder HaexVaults Oberfläche: 0 Fälle.
 - **SC-009**: Bei einem Kontakt mit zwei Geräten verschwindet die Einladungsabfrage nach der Annahme
   auf dem einen auf dem anderen innerhalb von 2 Sekunden; eine Annahme dort scheitert in 100 % der Versuche.
 - **SC-010**: Schließt eine Seite den Kanal, ihre Vault oder die Erweiterung, erfährt die Gegenseite
   das Ende innerhalb von 2 Sekunden, wenn die Verbindung besteht, und sonst innerhalb von 30 Sekunden.
 - **SC-011**: Ein entfernter Beitretender kommt in 100 % der Versuche nicht in dieselbe Lobby zurück.
 - **SC-012**: Nach einer Sitzung mit Einladungen, Lobbys und Kanälen findet sich in den gespeicherten
-  Daten und Protokollen von holzi keine Spur von Inhalt oder Metadaten dieser Funktion; nur die
+  Daten und Protokollen von HaexVault keine Spur von Inhalt oder Metadaten dieser Funktion; nur die
   Berechtigung bleibt.
 
 ## Assumptions
@@ -604,7 +604,7 @@ wird nach 5 Sekunden getrennt.
   eingehende oder zurückgezogene Einladungen; die Erweiterung der eingeladenen Seite erhält nach der
   Annahme nur den Kanal mit Kontakt und Inhalt. Die Statusmeldung an die einladende Seite bleibt. Der
   Plan legt Methoden, Meldungen und Fehlercodes im Bridge-Vertrag von Spec 017 fest, mit den
-  Zahlencodes von holzi.
+  Zahlencodes von HaexVault.
 - Kanäle nutzen den Netzwerkendpunkt und die Relays, die jede geöffnete Vault für den Sync ihrer Geräte
   ohnehin betreibt (Spec 024). Ist die Vault geschlossen, gibt es keine Kanäle; ein Hintergrunddienst
   kommt mit einer eigenen Spec.
@@ -618,7 +618,7 @@ wird nach 5 Sekunden getrennt.
 - Die Berechtigung `peers` wird wie andere Arten aus dem Manifest bei der Installation bestätigt oder
   bei der ersten Nutzung erfragt; sie ist nicht gerätebezogen.
 - Ob die Mitspieler dieselbe Fassung der Erweiterung und dieselben Spieldaten haben, prüft die
-  Erweiterung über ihren Inhalt; holzi prüft nur Herausgeberschlüssel und Name.
+  Erweiterung über ihren Inhalt; HaexVault prüft nur Herausgeberschlüssel und Name.
 - Der Hinweis auf die sichtbare Netzwerkadresse steht in der Abfrage der Berechtigung (FR-003); die
   Erweiterung darf ihn in ihrer öffentlichen Lobby wiederholen.
 - Dass Geräte fremder Vaults, die kein Kontakt sind, sich für öffentliche Lobbys verbinden dürfen, geht
@@ -630,12 +630,12 @@ wird nach 5 Sekunden getrennt.
 
 - Erkennung von Geräten oder Lobbys im lokalen Netz (mDNS) und jede Liste offener Lobbys von Kontakten
   oder Fremden.
-- Übertragung von Dateien: holzi bietet über Kanäle keine Dateiübertragung, und die Größengrenzen der
+- Übertragung von Dateien: HaexVault bietet über Kanäle keine Dateiübertragung, und die Größengrenzen der
   Nachrichten bleiben bestehen. Dateien zwischen Vaults regelt Spec 056.
 - Einladungen an Nicht-Kontakte und Einladungen, die zugestellt werden, wenn der Empfänger später
   online kommt.
 - Kanäle zu mehr als einem Gerät (Gruppen, Vermaschung) und Weiterleitung über ein drittes Gerät; eine
   Erweiterung baut eine Runde aus mehreren Kanälen selbst.
-- Kanäle zwischen verschiedenen Erweiterungen oder zwischen einer Erweiterung und holzi selbst.
-- Audio- oder Videoströme und eine Anzeige von Kanälen in holzis Oberfläche.
+- Kanäle zwischen verschiedenen Erweiterungen oder zwischen einer Erweiterung und HaexVault selbst.
+- Audio- oder Videoströme und eine Anzeige von Kanälen in HaexVaults Oberfläche.
 - Betrieb eigener Relays für diese Funktion; es gelten die Relays aus den Einstellungen der Vault.

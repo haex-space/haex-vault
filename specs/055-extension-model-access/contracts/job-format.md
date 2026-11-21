@@ -1,6 +1,6 @@
 # Contract: Auftrag, Ergebnisformat, Aufwand, Prüfung
 
-Was die Erweiterung in `extension_model_job_start` schickt und was holzi prüft. Die Brückenmethoden stehen in
+Was die Erweiterung in `extension_model_job_start` schickt und was haex-vault prüft. Die Brückenmethoden stehen in
 `bridge.md`.
 
 ## Auftrag
@@ -34,7 +34,7 @@ Image { mimeType: "image/jpeg" | "image/png" | "image/webp", data: string /* Bas
 ```
 
 - `from` darf nur auf einen **früheren** Schritt zeigen; der Teil unter `pointer` wird dem Modell als Text
-  (JSON) angehängt. Beim Start prüft holzi, dass `step` früher im Auftrag steht und dass `pointer` nach dem
+  (JSON) angehängt. Beim Start prüft haex-vault, dass `step` früher im Auftrag steht und dass `pointer` nach dem
   Schema des referenzierten früheren Schritts vorkommen kann; sonst `InvalidInput`. Fehlt der Teil zur Laufzeit im tatsächlichen
   Ergebnis, endet der Schritt mit `unusable` (Grund „from missing“) und der Ausweichweg greift nicht, weil das
   Ergebnis des früheren Schritts feststeht.
@@ -42,8 +42,8 @@ Image { mimeType: "image/jpeg" | "image/png" | "image/webp", data: string /* Bas
   verlangt, würde ein Bildmodell ohne Grund binden. Ein Schritt hat mindestens Text, Bilder oder `from`.
 - Unbekannte Felder werden abgelehnt.
 - Der Text für das Modell besteht aus `instruction` (Systemanweisung), dem Eingabetext und dem Schema als
-  Hinweis auf das erwartete JSON. holzi fügt einen festen Satz hinzu, der verlangt, nur gültiges JSON nach dem
-  Schema auszugeben. Mehr stellt holzi nicht voran; die Anweisung bleibt die der Erweiterung.
+  Hinweis auf das erwartete JSON. haex-vault fügt einen festen Satz hinzu, der verlangt, nur gültiges JSON nach dem
+  Schema auszugeben. Mehr stellt haex-vault nicht voran; die Anweisung bleibt die der Erweiterung.
 
 ## Schema-Teilmenge
 
@@ -66,12 +66,12 @@ Modul `S/model_jobs/schema.rs` (nicht der Aktionsprüfer von Spec 018: dessen Te
 ## Aufwand
 
 - Die Erweiterung nennt keinen Aufwand; ein Feld `effort` im Schritt ist falsch geformt (3001). Den Aufwand legt
-  der Nutzer je Modell fest (Freigabe, `ExtensionModelEntry.ceiling`); holzi ordnet ihn dem Modell zu.
+  der Nutzer je Modell fest (Freigabe, `ExtensionModelEntry.ceiling`); haex-vault ordnet ihn dem Modell zu.
 - Die Stufen sind die gängigen Namen der Anbieter, aufsteigend: `none`, `low`, `medium`, `high`, `xhigh`, `max`
   (`minimal` zählt als `low`). Der Nutzer wählt aus den Stufen, die das Modell selbst hat
   (`ExtensionModelEntry.efforts`); ein Modell ohne Wahl des Aufwands hat nur „erlaubt“ (`none`).
 - Die Stufen eines Modells kommen in der vom Anbieter gemeldeten Reihenfolge, die nicht als aufsteigend zugesichert
-  ist. Sind alle Namen bekannt (`none`/`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`), ordnet holzi sie
+  ist. Sind alle Namen bekannt (`none`/`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`), ordnet haex-vault sie
   nach Rang; sonst gilt die gemeldete Reihenfolge.
 - Zuordnung auf das Modell nach seiner Auskunft (`ModelCapabilities.reasoning`):
   - `Unavailable`: Aufwand wirkt nicht; Herkunft: `none`.
@@ -111,8 +111,8 @@ Reihenfolge je Versuch; der erste Verstoß beendet den Versuch mit `unusable` un
    Codezauns, auch mit einem Satz davor oder danach (` ```json `-Kennung wird abgezogen).
 5. **Schema**: Der Wert verletzt `format.schema`.
 
-Nach `unusable` oder `unavailable` versucht holzi nicht still ein weiteres Modell (Änderung 2026-11-13, FR-027):
-Der Auftrag hält an, und holzi fragt den Nutzer, welches andere Modell den Schritt übernehmen soll, höchstens einmal
+Nach `unusable` oder `unavailable` versucht haex-vault nicht still ein weiteres Modell (Änderung 2026-11-13, FR-027):
+Der Auftrag hält an, und haex-vault fragt den Nutzer, welches andere Modell den Schritt übernehmen soll, höchstens einmal
 je Modell; die Wahl eines Ziels außerhalb des Geräts gilt als Einwilligung dafür. Lehnt der Nutzer ab, antwortet
 kein Fenster oder ist kein Modell übrig, endet der Schritt und damit der Auftrag mit `unusable` (oder `unavailable`
 je nach Grund des ersten Modells). Eine Zeitüberschreitung (`timeout`) beendet den Schritt sofort; die Wartezeit auf

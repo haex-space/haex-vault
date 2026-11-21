@@ -911,7 +911,7 @@
         {
           "tool": "browser_open",
           "args": {
-            "url": "https://mail.holzi.app/"
+            "url": "https://mail.haex.app/"
           },
           "ending": "ran"
         },
@@ -1558,7 +1558,7 @@
         {
           "tool": "browser_search",
           "args": {
-            "query": "holzi photo img 0412"
+            "query": "haex-vault photo img 0412"
           },
           "ending": "ran"
         },

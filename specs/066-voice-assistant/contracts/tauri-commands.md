@@ -1,6 +1,6 @@
 # Contract: Tauri-Commands und Ereignisse
 
-Alle Commands laufen über `VaultGate` und liefern Fehler als `HolziError` mit `kind`. Ohne Feature
+Alle Commands laufen über `VaultGate` und liefern Fehler als `HaexError` mit `kind`. Ohne Feature
 `voice` gibt es Stubs, die `VoiceDisabled` liefern (Muster aus `voice.rs`). Der Aufrufer ist immer
 der Nutzer im Fenster; kein Command nimmt eine Identität aus dem Frontend.
 
@@ -175,7 +175,7 @@ Die vorhandenen Chat-Ereignisse (`chat-token`, `chat-tool-call`, `tool-permissio
 `chat-choice-request`, `chat-turn-complete` …) gehen bei Sprachgesprächen unverändert an die
 Oberfläche. `assistant-transcript` trägt nie ein Geheimnis.
 
-## Android-Plugin (`holzi-android`)
+## Android-Plugin (`haex-android`)
 
 | Methode                                  | Wirkung                                                         |
 | ---------------------------------------- | --------------------------------------------------------------- |

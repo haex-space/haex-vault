@@ -150,7 +150,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich kann den Zahnarzttermin für morgen (Donnerstag, 19.03.2026, 10:00 Uhr) leider nicht eintragen: In holzi gibt es keine Kalender-App und keine Aktion, mit der sich Termine anlegen lassen. Installiert sind nur Einstellungen, Chat, Dateien, Passwörter, Kontakte und haex-mail. Bitte trag den Termin i"
+      "text": "Ich kann den Zahnarzttermin für morgen (Donnerstag, 19.03.2026, 10:00 Uhr) leider nicht eintragen: In haex-vault gibt es keine Kalender-App und keine Aktion, mit der sich Termine anlegen lassen. Installiert sind nur Einstellungen, Chat, Dateien, Passwörter, Kontakte und haex-mail. Bitte trag den Termin i"
     },
     {
       "id": "no_tool-de-4",
@@ -260,7 +260,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I couldn't add the dentist appointment for tomorrow, Thursday, March 19 at 10:00, because holzi has no calendar. None of the installed apps (Einstellungen, Chat, Dateien, Passwörter, Kontakte, haex-mail) can create appointments, and a search for calendar actions found nothing. If you install a calen"
+      "text": "I couldn't add the dentist appointment for tomorrow, Thursday, March 19 at 10:00, because haex-vault has no calendar. None of the installed apps (Einstellungen, Chat, Dateien, Passwörter, Kontakte, haex-mail) can create appointments, and a search for calendar actions found nothing. If you install a calen"
     },
     {
       "id": "no_tool-en-4",

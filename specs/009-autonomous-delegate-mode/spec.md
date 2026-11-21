@@ -4,7 +4,7 @@
 **Created**: 2026-09-17
 **Status**: Draft
 **Input**: User description: "Autonomous delegate mode: let a connected CLI delegate backend (Claude
-Code or Codex, from 007-cli-delegate) run with its own native tool autonomy instead of holzi's live
+Code or Codex, from 007-cli-delegate) run with its own native tool autonomy instead of HaexVault's live
 per-tool-call approval gate, chosen explicitly per request rather than as a new global
 default. Two variants: an ungated mode that spawns the delegate with its own native full-autonomy
 flag and only captures final output, and a gated-but-permissive mode that reuses 007's existing
@@ -51,7 +51,7 @@ mode is selected_ changed.
   already uses today to decide what needs a human's approval) — unchanged. The operator's deny rules
   are an optional, additional filter layered on top of that existing classification, for the rare
   case the operator wants to lock something down regardless of what the delegate itself considers
-  safe — not a replacement classification system holzi builds and maintains itself.
+  safe — not a replacement classification system HaexVault builds and maintains itself.
 - Q: Where does a configured deny rule live, and how long does it apply? → A: Persisted as a
   device-wide setting, the same way the existing approval posture is — applied automatically to
   every gated-but-permissive run until the operator changes it. This is deliberately different from
@@ -83,7 +83,7 @@ tool calls to complete, send it, and confirm it finishes without any individual 
 **Acceptance Scenarios**:
 
 1. **Given** the ungated autonomous mode is selected for a request, **When** the delegate needs to
-   use any of its own tools, **Then** it proceeds without any approval prompt from holzi.
+   use any of its own tools, **Then** it proceeds without any approval prompt from HaexVault.
 2. **Given** the gated-but-permissive autonomous mode is selected, **When** the delegate uses a tool
    that does not match a configured deny rule, **Then** it proceeds without pausing for a decision.
 3. **Given** no autonomous mode is selected, **When** a delegate needs to use a tool, **Then** the
@@ -238,7 +238,7 @@ it, and confirm the underlying process actually terminates.
   becomes unavailable mid-call, the pending action MUST be treated as denied rather than left
   pending indefinitely or defaulted to allowed.
 - **FR-011**: Neither autonomy mode MUST weaken the existing guarantee that a delegate backend sees
-  only holzi's own provided instance content and never host-level configuration belonging to that
+  only HaexVault's own provided instance content and never host-level configuration belonging to that
   provider's own CLI.
 - **FR-012**: Autonomous delegate modes MUST remain unavailable on mobile, consistent with delegate
   backends being desktop-only.
@@ -288,7 +288,7 @@ it, and confirm the underlying process actually terminates.
 - Builds directly on the delegate backend, delegate credential, and delegate invocation concepts
   already shipped in 007-cli-delegate; this feature adds two new ways to handle a delegate's tool
   calls during a request, not a new backend or credential model.
-- Host isolation (a delegate sees only holzi's own provided content, never the host's own
+- Host isolation (a delegate sees only HaexVault's own provided content, never the host's own
   configuration for that provider's CLI), vault-portable credentials, and the mobile exclusion from
   007-cli-delegate all carry over unchanged and were directly re-verified under both autonomous
   modes rather than assumed to still hold.

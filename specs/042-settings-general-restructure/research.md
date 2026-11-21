@@ -32,7 +32,7 @@ Die Semantik von `detectBrowserLanguage` ohne Cookie und ohne Präfix ist nicht 
 die Probe vor dem Festlegen (Memory „verify framework behavior empirically“).
 
 **Result T001 (2026-10-07)**: Probe positiv. `pnpm dev`, Chromium mit gestubbter Tauri-API: Locale `de-DE`
-→ „Willkommen bei Holzi“, `fr-FR` und `en-US` → „Welcome to Holzi“; weder Cookie noch localStorage-Eintrag.
+→ „Willkommen bei HaexVault“, `fr-FR` und `en-US` → „Welcome to HaexVault“; weder Cookie noch localStorage-Eintrag.
 Kein Plugin, keine `systemLocale`-Funktion nötig. Nicht geprüft: dass WebKitGTK/WebView2 `navigator.language`
 aus der Systemsprache (`LANG`) ableiten — quickstart Schritt 2 deckt das in der App ab.
 
@@ -77,7 +77,7 @@ ts-rs-Bindings.
      `journal_mode=WAL`.
 
 **Rationale**: Ablauf aus haex-vault 2.x (Legacy) `src-tauri/src/database/maintenance.rs:134` übernommen (dort belegt:
-Rekey funktioniert im WAL-Modus nicht). holzi hält das Passwort nicht im Speicher (`SqlCipherKey::as_str`
+Rekey funktioniert im WAL-Modus nicht). haex-vault hält das Passwort nicht im Speicher (`SqlCipherKey::as_str`
 ist `pub(crate)` in haex-crdt), daher Prüfung über die Datei. Gleiche Cipher-Einstellungen wie beim Öffnen:
 haex-crdt setzt nur `PRAGMA key`, keine KDF-/Kompatibilitäts-Pragmas. Im DELETE-Modus ist der Rekey durch
 das Rollback-Journal atomar: Ein Absturz hinterlässt die Datei mit genau einem der beiden Passwörter

@@ -7,7 +7,7 @@
 ## Summary
 
 In einem Speicher aus 038 kann der Nutzer im Dateibrowser aus 044 verschlüsselte Ordner anlegen. Alles
-darin legt holzi je Datei verschlüsselt ab: zufällige Objektnamen, verschlüsselte Begleitdateien mit
+darin legt haex-vault je Datei verschlüsselt ab: zufällige Objektnamen, verschlüsselte Begleitdateien mit
 Namen und Struktur, Inhalt in Blöcken, die sich einzeln lesen lassen. Alle Geräte der Vault lesen ohne
 Passwort. Agents und Erweiterungen erreichen einen solchen Ordner nur nach einer Frage an den Nutzer.
 

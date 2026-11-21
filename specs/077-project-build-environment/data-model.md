@@ -8,4 +8,4 @@ The build boundary has three transient inputs:
 - **Host environment**: installed WebKit/GTK metadata, native library directories, libc version, and display preferences.
 - **Application runtime selection**: the chosen libc/interpreter pair and ordered runtime library directories, emitted only for the application build.
 
-The ordinary shell owns none of Holzi's build settings. Host subprocesses must not inherit the Nix runtime library path. Personal cleanup follows successful replacement verification.
+The ordinary shell owns none of HaexVault's build settings. Host subprocesses must not inherit the Nix runtime library path. Personal cleanup follows successful replacement verification.

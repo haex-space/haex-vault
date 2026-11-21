@@ -14,7 +14,7 @@ description as a Tauri event `extension-header-set {frame, header}`; the frame c
 refused (FR-021's "the developer console says why" comes free, plus the SDK promise rejects), the allowlist keeps one
 list of what an extension may ask, and the validated type can be exported to TypeScript for the system apps.
 
-**Rejected**: the frame shim (`holzi:frame:init` port). The shim runs in the extension's realm and is an observer of web
+**Rejected**: the frame shim (`haex:frame:init` port). The shim runs in the extension's realm and is an observer of web
 standards (hash, `document.title`, `beforeunload`); a header has no web equivalent, which is what `ponytail:` in
 `protocol/shim.rs` already says for attention. It would also put extension-facing API outside the SDK.
 
@@ -61,7 +61,7 @@ room several times over and stay far below anything that could crowd a 40 px bar
 
 ## R4 — Events back to the extension
 
-**Decision**: holzi posts `{type: "haextension:header:event", data: {id, kind, value?}, timestamp}` on the frame's SDK
+**Decision**: haex-vault posts `{type: "haextension:header:event", data: {id, kind, value?}, timestamp}` on the frame's SDK
 port with a direct `postMessage`, not through `FrameEventQueue`. The SDK exposes it as `client.header.onEvent(handler)`
 (`client.on(HAEXTENSION_EVENTS.HEADER_EVENT, …)`).
 
@@ -155,11 +155,11 @@ fight it), the Tab key walks start → middle → end (FR-006).
   for a development version (no stored bundle), a `data:` URL. Rust reads the file with `read_verified_file` (the
   signature of that file is checked), accepts PNG, JPEG, WebP, GIF and SVG, and enforces **256 KiB per file** and
   no limit on how many icons or how much in total (the files are in the signed bundle, so nothing dangerous is
-  loaded and all files are already there; larger menus are allowed). A name from holzi's set (`lucide:…`), a URL
+  loaded and all files are already there; larger menus are allowed). A name from haex-vault's set (`lucide:…`), a URL
   (`://`), a path outside the bundle or a file of another type is refused (the existing rule of `notifications.rs`,
   which is the precedent: `MAX_ICON_BYTES = 256 * 1024`, `data:` URL or bundle file).
 - **System app**: unchanged, an Iconify name (`lucide:panel-left`), bundled at build time by the scan in
-  `nuxt.config.ts`. System apps are holzi's own code.
+  `nuxt.config.ts`. System apps are haex-vault's own code.
 - **The emitted description** carries the pictures: Rust adds `icons: { "<path>": "data:<mime>;base64,…" }` to the
   description it emits (the extension cannot send this field; it is ignored if it does), and a control keeps
   `icon: "<path>"`. Because there is no total limit and an extension may set its header often, Rust keeps a cache of the
@@ -184,7 +184,7 @@ fight it), the Tab key walks start → middle → end (FR-006).
 **Why**: it follows the operator's rule and the existing precedent, needs no list to maintain in two languages, and
 keeps the app offline (no iconify fetch for an unknown name, no external URL ever loaded).
 
-**Rejected**: a closed list of holzi icons for extensions (first plan; extensions would look like holzi, the list had
+**Rejected**: a closed list of haex-vault icons for extensions (first plan; extensions would look like haex-vault, the list had
 to be kept in two repositories); any `lucide:` name from an extension (would need to be in the build scan, otherwise it
 is fetched from the network); inline SVG markup (script and style injection).
 
@@ -257,10 +257,10 @@ controls (`files-sidebar-toggle`, `files-reload`, …) where the control survive
 
 **Decision**: the SDK gets a `HeaderAPI` (`client.header.set`, `client.header.onEvent`) and the types, in
 `haex-space/vault-sdk` as its own PR. In haex-vault 2.x `extension_header_set` is an unknown method (it replies with a plain
-`Error("Unknown method: <method>")`, `src/composables/extensionMessageHandler.ts`; holzi replies with code 8000). The
+`Error("Unknown method: <method>")`, `src/composables/extensionMessageHandler.ts`; haex-vault replies with code 8000). The
 SDK's `header.set` therefore **resolves with `false`** instead of rejecting when the host answers unknown method (code
 8000, or the 2.x message prefix `Unknown method`), and with `true` when applied; every other error still rejects. An
-extension keeps running and can read the result to decide not to try again. holzi does
+extension keeps running and can read the result to decide not to try again. haex-vault does
 **not** wait for the SDK release: the E2E `probe` fixture calls `probe.request('extension_header_set', …)` directly
 (as `extension-dialog` does for `extension_dialog_confirm`).
 

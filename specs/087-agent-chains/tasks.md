@@ -15,7 +15,7 @@ each measured on its own (spec Decision 3).
 **Rules for every task**:
 
 - Run `graphify query "<what the function does>"` before writing a new function, and reuse what exists.
-- Build in the 10 GB scope with `-j 1`; run the lib tests with `--config 'profile.dev.package.holzi.debug=0'`; build
+- Build in the 10 GB scope with `-j 1`; run the lib tests with `--config 'profile.dev.package.haex.debug=0'`; build
   the CUDA eval binary per spec 082's quickstart.
 - Keep each file under 500 lines; tests in `*_tests.rs` next to the module.
 - Tune wording only on `specs/087-agent-chains/analysis/chainset.json` (and the routing development set of spec 082),
@@ -145,18 +145,18 @@ for Qwen3.5 4B.
 **Goal**: the measurement tells a model the truth in every area (R12), the chain set tunes for every area (R13), and
 every later step is compared with a baseline on that world.
 
-**Independent Test**: no reading tool of holzi's areas is answered with a bare `{"ok": true}`; the chain set's
+**Independent Test**: no reading tool of haex-vault's areas is answered with a bare `{"ok": true}`; the chain set's
 expected chains pass in a scripted run; `runs/baseline-world/` holds a report per model.
 
 - [x] T048 [P] [US1] Add tests in `chat/eval/everyday/world_app_tests.rs`: every reading tool of `chat/eval/tools.json`
       gets an answer other than `{"ok": true}`; the conversations list holds no person's conversation; a
       conversation's messages carry no text; an unknown conversation id, file path or sync rule is an error; a known
       file's details match `files_search`; changing tools still answer a plain success.
-- [x] T049 [US1] Answer holzi's other reading tools in a new `chat/eval/everyday/world_app.rs` (registered in `mod.rs`),
+- [x] T049 [US1] Answer haex-vault's other reading tools in a new `chat/eval/everyday/world_app.rs` (registered in `mod.rs`),
       called from `FixtureWorld::answer` before the plain success; add `conversations` and `models` to
       `chat/eval/everyday/world.json` (R12).
 - [x] T050 [US1] Extend `specs/087-agent-chains/analysis/chainset.json` across areas (R13): contacts, files, passwords,
-      settings and holzi's conversations, and requests that name only a person or a thing; at least a third not mail;
+      settings and haex-vault's conversations, and requests that name only a person or a thing; at least a third not mail;
       nothing the everyday set asks; `chainset_tests.rs` passes.
 - [x] T054 [US1] Score invented ids in every area (research R12): `chat/eval/everyday/ids.rs` reads a tool's id
       arguments from its schema as the guard does, tests first in `ids_tests.rs`; `scoring.rs` and `consent.rs` use
@@ -184,14 +184,14 @@ the trash; the same under the extension name `thunderbird`.
 ### Tests for User Story 5
 
 - [x] T021 [P] [US5] Add tests in `chat/tools/offer_tests.rs` (or the new module's `*_tests.rs`): a final tool's
-      description in an offer ends with holzi's sentence; a reversible tool's does not; holzi's own deleting actions
+      description in an offer ends with haex-vault's sentence; a reversible tool's does not; haex-vault's own deleting actions
       are final too.
 - [x] T022 [P] [US5] Add tests in `chat/tools/routed_offer_tests.rs`: for a message with "lösch"/"delete", a domain's
       final tools come after its reversible change tools; the reading tools still come first.
 
 ### Implementation for User Story 5
 
-- [x] T023 [US5] Add holzi's sentence to the description of every final tool when it is offered (R8.2), in
+- [x] T023 [US5] Add haex-vault's sentence to the description of every final tool when it is offered (R8.2), in
       `chat/tools/offer.rs` or a new `chat/tools/final_tools.rs` if `offer.rs` passes 450 lines; the effect comes from
       the tool (`RiskClass`, the extension's declared effect), never from its name. Tune the sentence on the chain set
       (delete requests of T010) into `runs/chain/delete-sentence/<candidate>/`.
@@ -201,8 +201,8 @@ the trash; the same under the extension name `thunderbird`.
       reversible move tool as what may have been meant (R8.3), in `chat/turn/guard.rs` (`next_step`) and the
       everyday runner's played decline; tests first in `chat/turn/guard_tests.rs`.
 - [x] T026 [US5] (Not run: no lever was kept, results.md "Step: deleting into the trash".) Measure the kept delete step on the everyday set (target, phone and hosted models) into
-      `runs/steps/delete/`, and the target models also under `HOLZI_EVAL_MAIL_NAME=thunderbird` with
-      `HOLZI_EVAL_MAIL_TITLE=Thunderbird` into `runs/steps/delete-thunderbird/` (FR-011); note it in `results.md`.
+      `runs/steps/delete/`, and the target models also under `HAEX_EVAL_MAIL_NAME=thunderbird` with
+      `HAEX_EVAL_MAIL_TITLE=Thunderbird` into `runs/steps/delete-thunderbird/` (FR-011); note it in `results.md`.
 
 **Checkpoint**: SC-007 can be read off the step's reports.
 
@@ -244,13 +244,13 @@ E4B's failures of the first lever (research R1) go down.
 
 ### A person or a thing, not an area (US2, research R11; operator 2026-11-09)
 
-- [x] T044 [US2] Rebuild llama-server from the llama.cpp revision holzi pins (CUDA, `CUDAARCHS=86`) for the offline
+- [x] T044 [US2] Rebuild llama-server from the llama.cpp revision haex-vault pins (CUDA, `CUDAARCHS=86`) for the offline
       routing measurement, and run spec 082's `analysis/router_eval.py` on its `analysis/devset.json` for Qwen3.5 4B
       and Gemma 4 E4B as the routing baseline, into `specs/087-agent-chains/runs/route/baseline.txt`.
 - [x] T045 [US2] Write `specs/087-agent-chains/analysis/routeset.json` (never the everyday set): requests from every
       area that name only a person or a thing ("Antworte Anna", "Was hat Tom geschickt?", "Wo ist der Mietvertrag?"),
       each with every area that may hold it; a routing is right when all of them are among the routed areas.
-- [x] T046 [US2] Tune the routing prompt (`chat/tools/route.rs`, R11.1) and holzi's domain descriptions
+- [x] T046 [US2] Tune the routing prompt (`chat/tools/route.rs`, R11.1) and haex-vault's domain descriptions
       (`src/lib/actions/agentTools.ts` `AGENT_DOMAINS` and the export, R11.3) on the development sets of T044/T045,
       candidate by candidate into `runs/route/<candidate>.txt`; no wording names a particular area or extension
       (FR-019), an extension's line stays built from its tools (spec 082 #847); tests first in `route_tests.rs`.
@@ -300,8 +300,8 @@ E4B's failures of the first lever (research R1) go down.
 criterion.
 
 - [x] T039 [US6] Run the everyday set on the final state for every model of the baseline into
-      `specs/087-agent-chains/runs/final/`, and the target models under `HOLZI_EVAL_MAIL_NAME=thunderbird` with
-      `HOLZI_EVAL_MAIL_TITLE=Thunderbird` into `runs/final/thunderbird/` (FR-015).
+      `specs/087-agent-chains/runs/final/`, and the target models under `HAEX_EVAL_MAIL_NAME=thunderbird` with
+      `HAEX_EVAL_MAIL_TITLE=Thunderbird` into `runs/final/thunderbird/` (FR-015).
 - [x] T040 [US6] Write `results.md` "Final": a table per model (baseline, each kept step, final), categories, the
       failure causes, and SC-001 to SC-008 each with met / not met and the numbers.
 

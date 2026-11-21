@@ -240,7 +240,7 @@
           "ending": "stopped"
         }
       ],
-      "text": "I can't search your device for \"Projektplan Q2\" because the file search was declined. Tell me another way to go on: for example, I can look in holzi's apps for a file or document with that name, or you can give me the folder where it is kept."
+      "text": "I can't search your device for \"Projektplan Q2\" because the file search was declined. Tell me another way to go on: for example, I can look in haex-vault's apps for a file or document with that name, or you can give me the folder where it is kept."
     },
     {
       "id": "mail_read-en-2-s",
@@ -328,7 +328,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "holzi has no action that searches for a file by name, so I can't find img 0412 directly. Where is it stored?",
+            "question": "haex-vault has no action that searches for a file by name, so I can't find img 0412 directly. Where is it stored?",
             "options": [
               "On this device, in a folder I can name",
               "In a storage, in a folder I can name",
@@ -338,7 +338,7 @@
           "ending": "ran"
         }
       ],
-      "text": "holzi has no action that searches for a file by name, so I can't find img 0412 directly. Where is it stored?"
+      "text": "haex-vault has no action that searches for a file by name, so I can't find img 0412 directly. Where is it stored?"
     }
   ],
   "requests": [

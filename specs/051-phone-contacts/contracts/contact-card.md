@@ -23,10 +23,10 @@ Ausstellers selbst und bei einer Vault mit nur einem Gerät.
 ## Unterschrift und Text
 
 - `sig = signing::sign(Domain::ContactCard, canonical(card), vault_secret)`, BIP-340 Schnorr über
-  `SHA-256("holzi-contact-card/v1" ‖ bytes)`.
-- Text: `holzi:card:` + base64url ohne Auffüllung von `len(u16 BE) ‖ postcard ‖ sig(64)`.
+  `SHA-256("haex-contact-card/v1" ‖ bytes)`.
+- Text: `haex:card:` + base64url ohne Auffüllung von `len(u16 BE) ‖ postcard ‖ sig(64)`.
 - QR-Code: derselbe Text, Fehlerkorrektur M.
-- Höchstens 2.048 Bytes Text. Passt die Karte nicht, lässt holzi Angaben von hinten weg und meldet sie
+- Höchstens 2.048 Bytes Text. Passt die Karte nicht, lässt haex-vault Angaben von hinten weg und meldet sie
   in `omitted`; Geräte und Nostr-Relays werden nie weggelassen (bei mehr als 2.048 Bytes nur mit
   Angaben ist die Karte nicht erstellbar, Fehler `CardTooLarge`).
 

@@ -32,7 +32,7 @@ Als Nutzer finde ich unter „Allgemein“ zwei Unterpunkte, „Grundeinstellung
 
 ### User Story 2 - Sprache wählen (Priority: P1)
 
-Als Nutzer sehe ich holzi von Anfang an in meiner Systemsprache, kann sie schon auf dem Startbildschirm ändern und lege sie in der Vault fest, sodass sie auf allen meinen Geräten gilt.
+Als Nutzer sehe ich HaexVault von Anfang an in meiner Systemsprache, kann sie schon auf dem Startbildschirm ändern und lege sie in der Vault fest, sodass sie auf allen meinen Geräten gilt.
 
 **Why this priority**: Die Sprachwahl betrifft jeden Bildschirm und fehlt heute ganz.
 
@@ -138,8 +138,8 @@ Als Nutzer lege ich ein Bild als Hintergrund für meine Workspaces fest oder ent
 
 - The vault name from the original request is out of scope: no screen would show it (operator decision 2026-10-07). It can be added later as one more vault setting.
 - Supported languages stay German and English.
-- The password change follows the proven haex-vault 2.x (Legacy) sequence for re-encrypting a vault; holzi does not keep the password in memory, so the current one is verified against the vault file.
+- The password change follows the proven haex-vault 2.x (Legacy) sequence for re-encrypting a vault; HaexVault does not keep the password in memory, so the current one is verified against the vault file.
 - The password plays no part in synchronization, so a change needs no step on sync servers.
 - A background of a few hundred kilobytes fits the existing synchronized preference/page budget; T037
   covers that boundary with a two-device regression check.
-- No backward compatibility: holzi has no users yet.
+- No backward compatibility: HaexVault has no users yet.

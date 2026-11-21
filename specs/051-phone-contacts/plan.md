@@ -1,4 +1,4 @@
-# Implementation Plan: Adressbuch in holzi mit Abgleich zum Telefon-Adressbuch (Android)
+# Implementation Plan: Adressbuch in haex-vault mit Abgleich zum Telefon-Adressbuch (Android)
 
 **Branch**: `051-phone-contacts` | **Date**: 2026-10-14 | **Spec**: [spec.md](./spec.md)
 
@@ -6,10 +6,10 @@
 
 ## Summary
 
-holzi bekommt ein eigenes Adressbuch als Kerndaten der Vault, eine eingebaute App „Kontakte“ und eine
+haex-vault bekommt ein eigenes Adressbuch als Kerndaten der Vault, eine eingebaute App „Kontakte“ und eine
 Kategorie „Kontakte“ in den Einstellungen. Auf Android gleicht es sich in beide Richtungen mit dem
-Telefon-Adressbuch ab, aber nur für Kontakte, die das Telefon als Abgleichsziel haben; in holzi
-angelegte Kontakte bleiben standardmäßig in holzi. Visitenkarten bringen bestätigte holzi-Adressen,
+Telefon-Adressbuch ab, aber nur für Kontakte, die das Telefon als Abgleichsziel haben; in haex-vault
+angelegte Kontakte bleiben standardmäßig in haex-vault. Visitenkarten bringen bestätigte haex-vault-Adressen,
 Erweiterungen lesen mit Berechtigung, Agenten mit Freigabe. Einladungen aus dem Adressbuch (US7)
 werden hier nur festgelegt und mit 027/028 gebaut.
 
@@ -20,7 +20,7 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 - **Daten** (R3, R4, data-model.md): Kopf-Zeile plus eine Zeile je Angabe mit offener `kind`;
   Herkunft unveränderlich; Abgleichsziele, Zuordnungen und Issues als synchronisierte Tabellen mit
   `vault_device_uuid` (ADR 0001). Migration `0033_contacts`.
-- **Android** (R5–R9, contracts/android-plugin.md): dünne Kotlin-Befehle im Plugin `holzi-android`
+- **Android** (R5–R9, contracts/android-plugin.md): dünne Kotlin-Befehle im Plugin `haex-android`
   über den Contacts Provider; Abgleich in Rust hinter `PhoneBook`: Index über `RawContacts.VERSION`,
   Drei-Wege-Vergleich mit gespeicherter Basis, zusammengefasste Kontakte über `LOOKUP_KEY`,
   Zusammenführen nach R8, Massenlösch-Sperre. Läuft nach Vault-Öffnen, bei `Resumed` und nach
@@ -28,7 +28,7 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 - **Fotos** (R10): ≤ 512 × 512 JPEG, ≤ 200 KiB, mit `image`/`fast_image_resize` wie die Vorschaubilder
   im Dateibrowser.
 - **Visitenkarte** (R12, R13, contracts/contact-card.md): postcard, Schnorr-Unterschrift der
-  Vault-Identität mit neuem Domain-Tag, Text `holzi:card:…` als Link und QR-Code;
+  Vault-Identität mit neuem Domain-Tag, Text `haex:card:…` als Link und QR-Code;
   Scannen mit `tauri-plugin-barcode-scanner` auf Mobilgeräten.
 - **Erweiterungen** (R14, contracts/bridge.md): `PermissionKind::Contacts` (nur `read`, Ziel `*` oder
   Gruppe), Brückenmethoden wie bei Passwörtern, neue API im vault-sdk.
@@ -40,12 +40,12 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 ## Technical Context
 
 **Language/Version**: Rust (Tauri 2.12, Edition wie `src-tauri/Cargo.toml`); Kotlin im Plugin
-`holzi-android` (Android minSdk 26, wie Spec 043); TypeScript 6 (strict), Vue 3.5, Nuxt 4.5 (SPA)
+`haex-android` (Android minSdk 26, wie Spec 043); TypeScript 6 (strict), Vue 3.5, Nuxt 4.5 (SPA)
 
 **Primary Dependencies**: neu `tauri-plugin-barcode-scanner` 2.x (nur `cfg(mobile)`, R13) und
 `@tauri-apps/plugin-barcode-scanner`; vorhanden `haex-crdt`, `nostr` 0.45 (`nip44`, `nip59`),
 `nostr-sdk` 0.45, `qrcode` 0.14, `image` 0.25, `fast_image_resize` 6.1, `unicode-normalization`,
-`postcard`, `uuid` (v5), `ts-rs`; Frontend haex-ui und holzis `Settings{Group,Row,OptionRow}`
+`postcard`, `uuid` (v5), `ts-rs`; Frontend haex-ui und haex-vaults `Settings{Group,Row,OptionRow}`
 
 **Storage**: Vault-Datenbank über haex-crdt, zwölf neue Tabellen ([data-model.md](./data-model.md));
 Geräteeinstellungen in `preferences`; nichts außerhalb der Vault
@@ -64,7 +64,7 @@ Abgleich mit dem Telefon-Adressbuch: Android (Fähigkeit `phoneContacts`); QR-Sc
 (SC-007)
 
 **Constraints**: kein Hintergrundlauf (Spec 043 FR-018); keine Angabe verlieren (FR-022, FR-023);
-keine Massenlöschung ohne Bestätigung (FR-016, FR-026); holzi-Adressen und eigene Angaben nie ins
+keine Massenlöschung ohne Bestätigung (FR-016, FR-026); haex-vault-Adressen und eigene Angaben nie ins
 Telefon (FR-014); kein Zugriff ohne Prüfung (FR-028); kein UNIQUE in synchronisierten Tabellen;
 Antworten des Plugins ≤ 1 MiB je Aufruf
 
@@ -125,7 +125,7 @@ src-tauri/
 │   ├── error.rs                                # ContactsDenied, PhoneContactsUnavailable, Card*
 │   ├── lib.rs                                  # Commands, Barcode-Plugin, Resumed → contacts wake
 │   ├── identity/
-│   │   ├── migrations.rs                       # 0033 registrieren, HOLZI_TRIGGER_VERSION +1
+│   │   ├── migrations.rs                       # 0033 registrieren, HAEX_TRIGGER_VERSION +1
 │   │   └── migrations_contacts.rs              # zwölf Tabellen (data-model.md)
 │   ├── platform/mod.rs (+ mod_tests)           # phone_contacts
 │   ├── sync/
@@ -150,7 +150,7 @@ src-tauri/
 │   │   │   └── own_card.rs (+ _tests)          # erstellen, refresh, gewählte Angaben
 │   │   ├── phone/
 │   │   │   ├── mod.rs                          # PhoneBook-Trait, Lauf, Zustände
-│   │   │   ├── android.rs                      # PhoneBook über holzi-android
+│   │   │   ├── android.rs                      # PhoneBook über haex-android
 │   │   │   ├── index.rs (+ _tests)             # VERSION-Vergleich, neue/geänderte/gelöschte
 │   │   │   ├── mapping.rs (+ _tests)           # Provider-Felder ↔ Angaben, Zusammenfassung (R7)
 │   │   │   ├── merge.rs (+ _tests)             # erstes Zusammenführen (R8)
@@ -165,12 +165,12 @@ src-tauri/
 │   │   ├── bridge/dispatch.rs                  # extension_contacts_*
 │   │   └── contacts.rs (+ _tests)              # Prüfung und Abbildung (contracts/bridge.md)
 │   └── files/agent/prompt.rs, files/permissions.rs # Art `contacts` für Agent-Freigaben (R15)
-└── plugins/holzi-android/
+└── plugins/haex-android/
     ├── src/{lib.rs, android.rs, other.rs}      # Permission::Contacts, Befehle
     └── android/src/main/
         ├── AndroidManifest.xml                 # READ/WRITE_CONTACTS
-        └── java/space/haex/holzi/android/
-            ├── HolziAndroidPlugin.kt           # @Command-Einstiege
+        └── java/space/haex/vault/android/
+            ├── HaexAndroidPlugin.kt           # @Command-Einstiege
             └── ContactsProvider.kt             # Lesen, applyBatch, Fotos (contracts/android-plugin.md)
 src/
 ├── components/apps/ContactsApp.vue
@@ -191,7 +191,7 @@ scripts/e2e/
 ```
 
 **Structure Decision**: Ein neues Modul `contacts/` neben `passwords/` mit derselben Schichtung
-(Dienst, Prüfung, Commands). Alles Android-Spezifische liegt im Plugin `holzi-android` und in
+(Dienst, Prüfung, Commands). Alles Android-Spezifische liegt im Plugin `haex-android` und in
 `contacts/phone/android.rs`; der Rest des Abgleichs ist plattformunabhängig und auf dem Desktop
 testbar.
 

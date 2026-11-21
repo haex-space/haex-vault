@@ -35,7 +35,7 @@ A developer removes the personal Android and CUDA build configuration without lo
 **Acceptance Scenarios**:
 
 1. **Given** the successful project-environment startup check, **When** the obsolete personal build exports and temporary CUDA layout are removed, **Then** the same startup command still works inside the project environment.
-2. **Given** an ordinary shell outside the project, **When** it is started after cleanup, **Then** it does not select an Android compiler or a Holzi-specific CUDA path globally.
+2. **Given** an ordinary shell outside the project, **When** it is started after cleanup, **Then** it does not select an Android compiler or a HaexVault-specific CUDA path globally.
 3. **Given** the existing Android workflow, **When** its project environment is entered, **Then** its SDK, NDK, and Java remain available without the removed personal exports.
 
 ### Edge Cases
@@ -64,11 +64,11 @@ A developer removes the personal Android and CUDA build configuration without lo
 
 - **SC-001**: The existing CUDA development command completes compilation and starts the application process from the project environment with zero personal build exports required.
 - **SC-002**: Host-library discovery checks pass for both supported directory layouts and reject genuinely missing libraries.
-- **SC-003**: A fresh ordinary shell contains none of the removed Android compiler or Holzi CUDA exports, while the project environment still exposes its documented Android and CUDA prerequisites.
+- **SC-003**: A fresh ordinary shell contains none of the removed Android compiler or HaexVault CUDA exports, while the project environment still exposes its documented Android and CUDA prerequisites.
 
 ## Assumptions
 
-- The developer uses the existing project development environment for Holzi builds.
+- The developer uses the existing project development environment for HaexVault builds.
 - Host graphics drivers and the documented host WebKit libraries are installed.
 - This work repairs the build environment; the separately observed Vue rendering error is outside its scope.
 - The personal shell cleanup applies only to the build settings identified in this session and does not change unrelated tools or credentials.

@@ -1,7 +1,7 @@
 # Results: Small local models finish what they start
 
-Machine: RTX A2000 8 GB laptop. Local models through holzi's llama.cpp engine (CUDA build), the context the memory
-plan picks (no `HOLZI_LLAMACPP_CONTEXT`); hosted models through the subscription, without routing. haex-mail under
+Machine: RTX A2000 8 GB laptop. Local models through haex-vault's llama.cpp engine (CUDA build), the context the memory
+plan picks (no `HAEX_LLAMACPP_CONTEXT`); hosted models through the subscription, without routing. haex-mail under
 the app's names (`x_haexmail_<tool>`).
 
 ## Baseline
@@ -67,7 +67,7 @@ By first cause (`specs/082-agent-harness/analysis/failures.py`), with where each
 
 ## Step: values as meant (US4)
 
-Measured at 084921d6 (rebased since onto the review commit and the merge of `main`): holzi turns `"true"`/`"false"` into a yes/no and a number written as text into a number when the tool's
+Measured at 084921d6 (rebased since onto the review commit and the merge of `main`): haex-vault turns `"true"`/`"false"` into a yes/no and a number written as text into a number when the tool's
 schema declares that type (`chat/turn/arg_forms.rs`), before the guard, the dialog, the tool and the stored call
 (`runs/steps/value-forms/`).
 
@@ -89,12 +89,12 @@ schema declares that type (`chat/turn/arg_forms.rs`), before the guard, the dial
 - **Kept**, although Haiku 5.5 ends one below its baseline: the rule "no hosted model below its baseline" cannot tell
   a step's effect from a non-deterministic model's variance; for hosted models, the requests the step touched decide.
 - **Seen on the way**: Haiku 5.5's `find_actions` search for "Steuererklärung" returned only mail tools, so it said
-  holzi can only move mails. The tool search's ranking is a general lever outside the mail extension.
+  haex-vault can only move mails. The tool search's ranking is a general lever outside the mail extension.
 
 ## Baseline on the truthful world (T052)
 
 Measured at 57b52762 (`runs/baseline-world/`, `runs/chain/baseline-world/`), after the operator asked for general
-levers (spec Decision 7): the world answers every reading tool of holzi's areas (research R12), opens only apps that
+levers (spec Decision 7): the world answers every reading tool of haex-vault's areas (research R12), opens only apps that
 exist and finds files by every word, invented ids are scored by one rule for every area (`ids.rs`), and the chain set
 covers every area (R13, 63 requests). Every later step is compared with this baseline.
 
@@ -313,7 +313,7 @@ tool declares (an action's `destructive`, an extension tool's declared effect), 
   requests, but in three it said the mail "has been deleted" although nothing ran. Before, it asked whether to delete
   after all. A wrong "done" is worse than a question.
 - **SC-007 is not reached**: "Delete the mail from Bernd" still fails for both target models. A lever that goes
-  further changes what a decline means (holzi moves the mail after the user declined deleting it for good) or what
+  further changes what a decline means (haex-vault moves the mail after the user declined deleting it for good) or what
   the dialog offers (a "move to the trash instead" choice the extension would have to declare); both are the
   operator's to decide. The attempt's code is not kept; its numbers are here.
 - **Replaced by spec 088 SC-001**: spec 088 checks a final call for a reversible tool before the dialog. With

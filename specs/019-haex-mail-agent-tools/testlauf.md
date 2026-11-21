@@ -5,7 +5,7 @@ sucht. Pfade sind relativ zu `apps/haex-mail` im Repository haextension, wenn ni
 
 ## Vorbereitung
 
-1. `main` beider Repositories holen (holzi und haextension), holzi starten (`pnpm tauri:dev` oder
+1. `main` beider Repositories holen (haex-vault und haextension), haex-vault starten (`pnpm tauri:dev` oder
    `tauri:dev:cuda`), in `apps/haex-mail` `pnpm ext:dev`.
 2. Der Dialog des Entwicklungsmodus muss die Werkzeuge bestätigen; ohne das erscheinen sie nicht. Es
    müssen 15 sein, davon drei als „zerstörend“ gekennzeichnet (`add_rule`, `send_mail`,

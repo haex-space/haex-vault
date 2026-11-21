@@ -5,7 +5,7 @@
 **Input**: Feature specification from `/specs/046-paper-notes-canvas/spec.md`
 
 **Implementation target**: `haex-space/haextension` at revision `6dfb015198c99018236f5a8e958a916942ab971c`, path
-`apps/haex-notes/`. This holzi repository contains the design artifacts; implementation must be proposed in the target
+`apps/haex-notes/`. This haex-vault repository contains the design artifacts; implementation must be proposed in the target
 repository's own worktree.
 
 ## Summary
@@ -16,9 +16,9 @@ werden zu bearbeitbarem Text in einer wählbaren Handschrift, Tabellen zu Zeilen
 verschiebbaren Bildausschnitten. Es gibt keinen Prüfteil: Ein Korrekturschritt setzt Rechtschreibung und eindeutige
 Lesefehler direkt ein.
 
-Die Erkennung ist ein Modellauftrag an holzi (Spec 055, vault-sdk `models.runAsync`). haex-notes beschreibt zwei
+Die Erkennung ist ein Modellauftrag an haex-vault (Spec 055, vault-sdk `models.runAsync`). haex-notes beschreibt zwei
 Schritte, Lesen und Korrigieren, mit eigener Anweisung und eigenem Format
-([contracts/page-job.md](./contracts/page-job.md)). holzi wählt das freigegebene Modell, fragt vor dem Versand
+([contracts/page-job.md](./contracts/page-job.md)). haex-vault wählt das freigegebene Modell, fragt vor dem Versand
 außerhalb des Geräts und verwirft kaputte Ausgabe. haex-notes übernimmt Import, Arbeitskopie (Zuschnitt,
 Perspektive, Drehung), Abbildung auf den Canvas, Neuaufbau der Seite und PDF-Export.
 
@@ -27,18 +27,18 @@ Perspektive, Drehung), Abbildung auf den Canvas, Neuaufbau der Seite und PDF-Exp
 **Language/Version**: TypeScript strict, Vue 3.5, Nuxt 4.2 SPA, haex-notes 0.1.7
 
 **Primary Dependencies**: `@haex-space/vault-sdk` ab 4.7.1 (heute `^4.1.0`; `models.runAsync` kam mit 4.6.0, die
-Wiederholung nach der Antwort des Nutzers auf eine Frage von holzi mit 4.7.1), Drizzle ORM, VueUse, perfect-freehand;
+Wiederholung nach der Antwort des Nutzers auf eine Frage von haex-vault mit 4.7.1), Drizzle ORM, VueUse, perfect-freehand;
 neu `pdf-lib` für den PDF-Export. Kein Anbieter- oder OCR-SDK.
 
 **Storage**: Seitentabelle mit neuer JSON-Spalte `paper_import` (Migration `0005`); `TableElement.cells` im
 vorhandenen `layers`-JSON. Original, Arbeitskopie und Bildausschnitte im Asset-Store; keine Data-URLs für Fotos.
 
 **Testing**: Vitest im Paket, Tests in eigenen `*.test.ts`-Dateien. Die SDK-Schicht steckt hinter `runPageJob(job)`
-und wird im Test durch eine Attrappe ersetzt. Ein Handtest gegen holzi mit Ollama folgt
+und wird im Test durch eine Attrappe ersetzt. Ein Handtest gegen haex-vault mit Ollama folgt
 [quickstart.md](./quickstart.md).
 
-**Target Platform**: Alle Plattformen, auf denen holzi haex-notes ausführt. Import über die Dateiauswahl, die Kamera
-zusätzlich, wo vorhanden. Das Handy nimmt nur das Foto auf; gelesen wird dort, wo der Nutzer in holzi ein Modell
+**Target Platform**: Alle Plattformen, auf denen haex-vault haex-notes ausführt. Import über die Dateiauswahl, die Kamera
+zusätzlich, wo vorhanden. Das Handy nimmt nur das Foto auf; gelesen wird dort, wo der Nutzer in haex-vault ein Modell
 freigegeben hat.
 
 **Project Type**: Nuxt/Vue-Erweiterung mit Canvas-Editor, Datenbank und Datei-Assets.
@@ -62,14 +62,14 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
 | Regel                                                 | Stand                                                                                                                                       |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| I. Keine Geheimnisse in Git                           | ✅ haex-notes kennt weder Anbieter noch Schlüssel; holzi hält sie (Spec 055).                                                               |
+| I. Keine Geheimnisse in Git                           | ✅ haex-notes kennt weder Anbieter noch Schlüssel; haex-vault hält sie (Spec 055).                                                          |
 | II. Keine lokalen absoluten Pfade in Versioned Config | ✅ Nur Repository-Pfade und Laufzeitbegriffe.                                                                                               |
 | III. Geräteunabhängige Projektidentität               | ✅ Zielrepository über URL und vollständige Revision.                                                                                       |
 | IV. Fremde Inhalte mit unveränderlicher Revision      | ✅ haex-space/haextension mit Revision `6dfb015198c99018236f5a8e958a916942ab971c`; vault-sdk mit fester Version und Integrität im Lockfile. |
-| V. Externe Quellen nur per Allowlist                  | ✅ Keine neue Quelle; Modelle und Ziele kommen über holzis Freigaben.                                                                       |
+| V. Externe Quellen nur per Allowlist                  | ✅ Keine neue Quelle; Modelle und Ziele kommen über haex-vaults Freigaben.                                                                  |
 | VI. Selbständernde Anweisungen reviewen               | ✅ Keine Constitution-, Skill- oder Berechtigungsdatei wird geändert.                                                                       |
 | VII. Relay blockiert lokale Arbeit nie                | ✅ Import, Speichern und manuelle Bearbeitung gehen ohne Modell.                                                                            |
-| VIII. Keine Verschleierung                            | ✅ holzi fragt vor dem Versand außerhalb des Geräts; haex-notes zeigt Modell und Ort der Erkennung.                                         |
+| VIII. Keine Verschleierung                            | ✅ haex-vault fragt vor dem Versand außerhalb des Geräts; haex-notes zeigt Modell und Ort der Erkennung.                                    |
 | Worktree und PR-Workflow                              | ✅ Umsetzung im Zielrepository in eigenem Worktree über dessen Review.                                                                      |
 | Tests getrennt von Produktion                         | ✅ Eigene Vitest-Dateien.                                                                                                                   |
 
@@ -137,14 +137,14 @@ nutzt Notebook-Store, Undo-Commands und Asset-Store.
    manueller Weg bei jedem Fehler.
 3. **Erkennung**: vault-sdk auf 4.7.1, `runPageJob`, Auftrag mit zwei Schritten, Abbildung mit Layout, Drehhinweis
    und einmaliges Nachlesen, Herkunft, Fehlerhinweise, Abbruch.
-4. **Export und Durchlauf**: PDF mit Voreinstellungen, Speichern und Wiederöffnen, Fixtures, Handtest gegen holzi
+4. **Export und Durchlauf**: PDF mit Voreinstellungen, Speichern und Wiederöffnen, Fixtures, Handtest gegen haex-vault
    mit Ollama.
 
 ### Post-design Constitution Check
 
 **Gate-Ergebnis nach Phase 1**: PASS. haex-notes speichert keine Zugangsdaten und keine Adresse eines Modells,
 verweist auf das Zielrepository unveränderlich, trennt Tests von Produktion, bewahrt das Original und überlässt
-Modellwahl und Einwilligung holzi.
+Modellwahl und Einwilligung haex-vault.
 
 ## Complexity Tracking
 

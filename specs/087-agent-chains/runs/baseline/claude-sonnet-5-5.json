@@ -160,7 +160,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "Ich finde in holzi keinen Kalender, um den Zahnarzttermin morgen (19.03.2026) um 10:00 Uhr einzutragen. Wie soll ich weiter vorgehen?",
+            "question": "Ich finde in haex-vault keinen Kalender, um den Zahnarzttermin morgen (19.03.2026) um 10:00 Uhr einzutragen. Wie soll ich weiter vorgehen?",
             "options": [
               "Nichts eintragen",
               "Per haex-mail eine Mail mit dem Termin als Erinnerung vorbereiten",
@@ -171,7 +171,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich finde in holzi keinen Kalender, um den Zahnarzttermin morgen (19.03.2026) um 10:00 Uhr einzutragen. Wie soll ich weiter vorgehen?"
+      "text": "Ich finde in haex-vault keinen Kalender, um den Zahnarzttermin morgen (19.03.2026) um 10:00 Uhr einzutragen. Wie soll ich weiter vorgehen?"
     },
     {
       "id": "no_tool-de-4",
@@ -269,7 +269,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I can't add the dentist appointment, because holzi has no calendar app or calendar action. The installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail, and none of them manages calendar events. If you install a calendar extension, I can add it then."
+      "text": "I can't add the dentist appointment, because haex-vault has no calendar app or calendar action. The installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail, and none of them manages calendar events. If you install a calendar extension, I can add it then."
     },
     {
       "id": "no_tool-en-4",
@@ -297,7 +297,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "I couldn't find a shopping list in holzi. Where should I put \"milk\"?",
+            "question": "I couldn't find a shopping list in haex-vault. Where should I put \"milk\"?",
             "options": [
               "Open Chat and send it as a note",
               "Look for a shopping list file in Dateien",
@@ -308,7 +308,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I couldn't find a shopping list in holzi. Where should I put \"milk\"?"
+      "text": "I couldn't find a shopping list in haex-vault. Where should I put \"milk\"?"
     }
   ],
   "requests": [

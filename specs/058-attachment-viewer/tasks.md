@@ -62,7 +62,7 @@ No behaviour visible to the user yet.
 
 ---
 
-## Phase 3: User Story 1 - Einen Textanhang in holzi lesen (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 - Einen Textanhang in haex-vault lesen (Priority: P1) 🎯 MVP
 
 **Goal**: A tap on a text attachment opens the attachment view with its text (spec US1, FR-001–FR-003,
 FR-005–FR-008 for text, FR-013–FR-015).
@@ -77,7 +77,7 @@ file; nothing is written to the device (quickstart M1–M5, M8, M14, M15).
 
 ### Implementation for User Story 1
 
-- [x] T011 [US1] In `src-tauri/src/passwords/attachment_view.rs` add `pub fn text_of(file_name: &str, bytes: Vec<u8>) -> Result<TextContent>`: refuse unless `crate::files::kind::viewer_kind(file_name) == ViewerKind::Text` with `HolziError::InvalidInput { reason: "not_text" }`; else `crate::files::local::text::text_from(bytes, TEXT_LIMIT)` and map `FilesErrorCode::Binary` to `InvalidInput { reason: "binary" }` (any other `FilesError` to `InvalidInput { reason: "unreadable" }`), never with the content in the message (research R2, contract)
+- [x] T011 [US1] In `src-tauri/src/passwords/attachment_view.rs` add `pub fn text_of(file_name: &str, bytes: Vec<u8>) -> Result<TextContent>`: refuse unless `crate::files::kind::viewer_kind(file_name) == ViewerKind::Text` with `HaexError::InvalidInput { reason: "not_text" }`; else `crate::files::local::text::text_from(bytes, TEXT_LIMIT)` and map `FilesErrorCode::Binary` to `InvalidInput { reason: "binary" }` (any other `FilesError` to `InvalidInput { reason: "unreadable" }`), never with the content in the message (research R2, contract)
 - [x] T012 [US1] In `src-tauri/src/passwords/service/attachments.rs` add `pub async fn attachment_text(&self, caller: &Caller, attachment_id: String) -> Result<TextContent>`: `require_user(caller)?`, read with `binaries::attachment_data` in `self.db().read`, then `attachment_view::text_of` inside `tauri::async_runtime::spawn_blocking` (up to 25 MiB, async must not block)
 - [x] T013 [US1] In `src-tauri/src/passwords/commands/attachments.rs` add `#[tauri::command] passwords_attachment_text(state, args: AttachmentIdArgs) -> Result<TextContent>` and register it in `src-tauri/src/lib.rs` next to `passwords_attachment_preview` (import list line ~125, handler list line ~640) **Note**: no new binding for PR A; `TextContent` and `AttachmentIdArgs` exist.
 - [x] T014 [US1] In `src/composables/usePasswords.ts` add `attachmentTextAsync(attachmentId)` → `invoke<TextContent>('passwords_attachment_text', { args: { attachmentId } })` and return it
@@ -94,7 +94,7 @@ e2e `passwords-attachments` green. Commit, open PR A.
 
 ---
 
-## Phase 4: User Story 2 - Ein PDF in holzi ansehen (Priority: P2)
+## Phase 4: User Story 2 - Ein PDF in haex-vault ansehen (Priority: P2)
 
 **Goal**: A tap on a PDF attachment shows it page by page with the PDF viewer of the files app (spec
 US2, FR-004, FR-006).
@@ -124,11 +124,11 @@ US2, FR-004, FR-006).
 ## Phase 5: User Story 3 - Einen Anhang mit der System-App öffnen (Priority: P3)
 
 **Goal**: On desktop every attachment opens with the system's app after the notice of 048; the copy
-lives in holzi's folder for decrypted copies and goes on lock, close, failure and next start (spec
+lives in haex-vault's folder for decrypted copies and goes on lock, close, failure and next start (spec
 US3, FR-009–FR-012).
 
 **Independent Test**: On a desktop system open an attachment with "Mit System-App öffnen": the notice
-appears, after confirming the system app opens it; after locking the vault holzi's copy is gone
+appears, after confirming the system app opens it; after locking the vault haex-vault's copy is gone
 (quickstart M9–M13, M16).
 
 ### Tests for User Story 3
@@ -203,7 +203,7 @@ Task: "T010 service tests for attachment_text in src-tauri/tests/passwords_attac
 1. Phase 1 + Phase 2
 2. Phase 3 (US1)
 3. **Stop and validate**: quickstart M1–M5, M8, M14, M15; PR A
-4. Ship: text attachments are readable in holzi
+4. Ship: text attachments are readable in haex-vault
 
 ### Incremental Delivery
 

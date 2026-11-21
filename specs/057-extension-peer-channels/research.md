@@ -22,7 +22,7 @@ Sperren und Schließen der Vault die Kanäle beenden.
 iroh setzt die ALPNs aus allen Handlern am Router (`iroh-1.3.0/src/protocol.rs`); nach `spawn` kommt
 keiner mehr dazu, daher die Liste bei `bind`. Eine Verbindung je Kanal macht das Ende eines Kanals
 gleich dem Ende der Verbindung (Grund aus `close_reason()`), und Datagramme brauchen keine
-Kanalkennung. Die Sync-Verbindung bleibt unberührt (FR-029); `holzi-sync/1` lehnt fremde Vaults
+Kanalkennung. Die Sync-Verbindung bleibt unberührt (FR-029); `haex-sync/1` lehnt fremde Vaults
 weiter ab.
 
 Spec 056 plant dieselbe Erweiterung von `bind` (056 research R5). Wer zuerst landet, baut die Liste der
@@ -45,12 +45,12 @@ umbenennen. Die ALPN steht als Konstante neben den anderen in `sync/wire.rs`.
 **Decision**: Schnelle Nachrichten gehen mit `Connection::send_datagram` (`iroh-1.3.0/src/endpoint/
 connection.rs:995`) ungerahmt: die Bytes der Erweiterung sind das Datagramm. Empfangen über
 `read_datagram` (`:918`) in einer Aufgabe je Kanal. Die Obergrenze ist fest **1.024 Byte**; beim
-Öffnen prüft holzi `max_datagram_size()` (`:1038`) und lehnt einen Kanal ab, der weniger kann (in der
+Öffnen prüft haex-vault `max_datagram_size()` (`:1038`) und lehnt einen Kanal ab, der weniger kann (in der
 Praxis nicht: QUIC garantiert „a little over a kilobyte“). Senden wartet nie: `send_datagram`
 verwirft bei vollem Puffer die ältesten Datagramme (FR-036, FR-038).
 
 **Transport**: Datagramme sind in der Grundeinstellung an: `noq-proto-1.3.0/src/config/transport.rs:581`
-setzt `datagram_receive_buffer_size: Some(STREAM_RWND)` und einen Sendepuffer von 1 MiB. holzi setzt
+setzt `datagram_receive_buffer_size: Some(STREAM_RWND)` und einen Sendepuffer von 1 MiB. haex-vault setzt
 heute keine eigene `QuicTransportConfig` (keine Treffer in `src-tauri/src`). Ein Test in PR 1 hält fest,
 dass `max_datagram_size()` auf direktem Weg und über das Relay des Testaufbaus ≥ 1.024 ist; ändert
 eine iroh-Version die Grundeinstellung, schlägt er an. Keine eigene Transport-Konfiguration, damit die
@@ -79,7 +79,7 @@ gesicherte Nachricht mit Kopf. Nachrichten in
 [contracts/wire-protocol.md](./contracts/wire-protocol.md): `Reliable { data }`, `Close { reason }`
 und die Zulassungsnachrichten.
 
-**Rationale**: postcard mit Längenkopf ist schon der Draht von holzi (024, 056 R6). Ein Stream reicht:
+**Rationale**: postcard mit Längenkopf ist schon der Draht von haex-vault (024, 056 R6). Ein Stream reicht:
 gesicherte Nachrichten sind selten (Lobby, Start), Reihenfolge ist gewollt. Grenzen gegen
 Speicherangriffe vor der Zulassung.
 
@@ -93,7 +93,7 @@ anzuhäufen, die nicht liest. PR 4 trägt den Fall in die Fehlertabelle der Brü
 ## R4 Ausweisen: gegenseitige Herausforderung und unterschriebene Geräteliste
 
 **Decision**: Ein gemeinsamer Baustein `sync/foreign_auth.rs` (mit `_tests.rs`) für „ein Gerät einer
-anderen Vault weist sich aus“, den 056 (`holzi-files/1`) und diese Spec nutzen:
+anderen Vault weist sich aus“, den 056 (`haex-files/1`) und diese Spec nutzen:
 
 1. Wählender → `Hello { v, vault, device_pubkey, list_payload, list_sig, nonce }`.
 2. Annehmender → `Hello { … }` mit eigenen Werten.
@@ -119,7 +119,7 @@ Prüfung je Seite:
 **Rationale**: Die Karte allein enthält die Geräteliste nicht und veraltet; ein neues Gerät des Kontakts
 käme nicht hinein, ein entferntes nicht hinaus (056 R4). Die Unterschrift über beide Endpoint-IDs bindet
 den Geräteschlüssel an die QUIC-Gegenstelle. Die ALPN im Transkript verhindert, dass ein Beweis für
-`holzi-files/1` für Kanäle gilt. Die Untergrenze aus der Karte ist dauerhaft vorhanden, ohne dass diese
+`haex-files/1` für Kanäle gilt. Die Untergrenze aus der Karte ist dauerhaft vorhanden, ohne dass diese
 Spec etwas speichert (FR-042).
 
 `ponytail:` Die in der Sitzung gesehene Generation lebt nur im Arbeitsspeicher; nach einem Neustart gilt
@@ -136,11 +136,11 @@ höchstens 1.024 Vaults werden gemerkt. Einzelheiten in tasks.md, Notes from imp
 
 ## R5 Adressen: Visitenkarte jetzt, Anklopfen später
 
-**Decision**: Für eine Einladung baut holzi je Gerät der gespeicherten Karte des Kontakts eine
+**Decision**: Für eine Einladung baut haex-vault je Gerät der gespeicherten Karte des Kontakts eine
 `EndpointAddr` aus `endpoint_id` und `iroh_relay` (`contacts/card/format.rs:43`) und wählt alle
 zugleich (R10). Scheitert jedes Wählen innerhalb von 10 s, gilt „nicht erreichbar“ mit
 `hint: "share_current_card"` (Clarifications 2026-10-22). Sobald 056 das Anklopfen baut
-(056 research R9, Arten 24103/24104), sucht holzi Geräte, die über die Karte nicht erreichbar waren,
+(056 research R9, Arten 24103/24104), sucht haex-vault Geräte, die über die Karte nicht erreichbar waren,
 darüber; die Antwortregel dafür steht in FR-012 (nur eigene Vault und nicht blockierte Kontakte).
 Beitrittscodes tragen die aktuelle Adresse des Gastgebers (R6) und brauchen beides nicht.
 
@@ -164,7 +164,7 @@ Vault mit seinem Heim-Relay auf der Karte, das eigene eingeschlossen, gleich fü
 - Code: `haex-vault:join:` + Base32 ohne Auffüllung (`data_encoding::BASE32_NOPAD`, schon verwendet in
   `files/agent/folders.rs:12`) von `postcard(JoinCode { v: 1, endpoint_id: [u8;32],
 relay: Option<String>, lobby: [u8;16], secret: [u8;16] })`. `lobby` ist eine zufällige Kennung von
-  holzi, nicht die `lobbyId` der Erweiterung; die Zuordnung bleibt beim Gastgeber. Das Präfix folgt
+  haex-vault, nicht die `lobbyId` der Erweiterung; die Zuordnung bleibt beim Gastgeber. Das Präfix folgt
   schon dem Schema von Spec 054.
 - Das Geheimnis (128 Bit, `sync::keys::random_bytes`) verlässt den Beitretenden nie im Klartext:
   `Join` trägt `proof = HMAC-SHA256(secret, lp(nonce_dial) ‖ lp(nonce_accept) ‖ lp(lobby))` aus dem
@@ -232,8 +232,8 @@ Puffer vor der Bereitschaft: `FrameEventQueue` (`src/lib/extensions/bridge.ts:95
 256 Meldungen und verwirft heute zuerst `shell:output`. Erweiterung: Als verwerfbar gelten
 `shell:output` **und** `peers:message` mit `reliable: false`. Müsste die Warteschlange eine
 `peers:message` mit `reliable: true` verwerfen, ruft das Fenster den neuen Befehl
-`extension_peers_frame_overflow { frame, channelId }`; holzi schließt den Kanal mit Grund `lost` und
-meldet das beiden Seiten (FR-038). Nach der Bereitschaft gibt es keinen Puffer in holzi; der Port
+`extension_peers_frame_overflow { frame, channelId }`; haex-vault schließt den Kanal mit Grund `lost` und
+meldet das beiden Seiten (FR-038). Nach der Bereitschaft gibt es keinen Puffer in haex-vault; der Port
 liefert sofort.
 
 Senden: ein Brückenaufruf je Nachricht (`extension_bridge_call` → blockierender Thread →
@@ -246,34 +246,34 @@ und Bündeln eingehender Datagramme je 5 ms, falls SC-004 nicht erreicht wird.
 **Rationale**: Ein Weg für alle Meldungen (017 FR-042, FR-005 dieser Spec); die bestehende Regel
 „verwerfbare Meldungen zuerst“ passt zu schnellen Nachrichten.
 
-## R9 Einladungsabfrage von holzi
+## R9 Einladungsabfrage von haex-vault
 
 **Decision**:
 
 - **Rahmen der Erweiterung offen** (`host.frames.of_extension(id)` nicht leer): Rust sendet
-  `extension-peer-invitation { inviteId, contactName, extensionName, extensionIcon? }` an holzis
+  `extension-peer-invitation { inviteId, contactName, extensionName, extensionIcon? }` an haex-vaults
   Fenster. Neue Komponente `src/components/extensions/PeerInvitationDialog.vue` (Vorbild
   `PermissionRequestDialog.vue`) zeigt „[Kontakt] lädt dich zu [Erweiterung] ein – Annehmen /
   Ablehnen“; die Antwort geht über den neuen Befehl `extension_peer_invitation_answer { inviteId,
-accept }`. Der Name des Kontakts kommt aus holzis Adressbuch (`ContactsService` mit
+accept }`. Der Name des Kontakts kommt aus haex-vaults Adressbuch (`ContactsService` mit
   `Caller::Internal { feature: "extensionPeers" }`), nie an die Erweiterung.
-- **Kein Rahmen offen**: holzi zeigt eine eigene Systembenachrichtigung über
+- **Kein Rahmen offen**: haex-vault zeigt eine eigene Systembenachrichtigung über
   `Desktop::show_notification` (`extensions/host.rs:42`, Umsetzung `extensions/desktop.rs:161`) mit
   zwei Knöpfen `accept`/`decline`. Antwort `Button(accept|decline)` → wie oben; `Body` (Antippen ohne
-  Knopf, oder ein System ohne Knöpfe) → holzis Fenster kommt nach vorn und zeigt den Dialog;
+  Knopf, oder ein System ohne Knöpfe) → haex-vaults Fenster kommt nach vorn und zeigt den Dialog;
   `Closed` → nichts, die Einladung bleibt bis zum Ablauf. Erlaubt das System keine Benachrichtigungen
-  (`notifications_allowed()` falsch, Android, 043 FR-023), zeigt holzi den Dialog im Fenster.
-- Verschwindet die Einladung (Rückzug, Ablauf, anderes Gerät gewann), schließt holzi die
+  (`notifications_allowed()` falsch, Android, 043 FR-023), zeigt haex-vault den Dialog im Fenster.
+- Verschwindet die Einladung (Rückzug, Ablauf, anderes Gerät gewann), schließt haex-vault die
   Benachrichtigung (`ShownNotification::close`) und sendet `extension-peer-invitation-gone`.
 - **Nach der Annahme**: Ist kein Rahmen offen, sendet Rust `extension-notification-click
-{ extensionId }`; holzis Fenster öffnet die Erweiterung über `windowManager.showExtension`
+{ extensionId }`; haex-vaults Fenster öffnet die Erweiterung über `windowManager.showExtension`
   (`src/stores/windowManager.ts:321`). Die Meldung `peers:channel-opened` wartet in
   `PeerState.pending_open` (mit den Nachrichten, die inzwischen eintreffen) und geht hinaus, sobald ein
   Rahmen dieser Erweiterung seine erste Anmeldung meldet (`extension_frame_reloaded`,
-  `extensions/commands/frames.rs`): `extension_frame_open` ist zu früh, denn holzis Fenster kennt die
+  `extensions/commands/frames.rs`): `extension_frame_open` ist zu früh, denn haex-vaults Fenster kennt die
   Kennung des Rahmens erst mit dem Ergebnis des Aufrufs und verwirft Meldungen dafür. Die
   `FrameEventQueue` hält sie bis zur Bereitschaft des Ports. Wartet sie 60 s ohne Rahmen, schließt
-  holzi den Kanal mit `closed`.
+  haex-vault den Kanal mit `closed`.
 
 Die Benachrichtigung braucht keine Berechtigung `notifications` der Erweiterung: Sie läuft nicht über
 `extension_notifications_show`, sondern direkt über den `Desktop` (FR-014).
@@ -299,7 +299,7 @@ Annahme mit `InviteConfirm`; alle anderen Verbindungen bekommen `Withdraw` und w
 nach `InviteConfirm` meldet die eingeladene Seite `peers:channel-opened`; kommt stattdessen `Withdraw`,
 zeigt ihre Abfrage „Einladung nicht mehr offen“. Endstatus bei der einladenden Seite nach FR-018:
 `declined`/`not-installed` erst, wenn alle erreichten Geräte so geantwortet haben; `unreachable`, wenn
-keines erreicht wurde; `expired` nach 5 min; `withdrawn` meldet holzi nicht als Status (die
+keines erreicht wurde; `expired` nach 5 min; `withdrawn` meldet haex-vault nicht als Status (die
 Erweiterung hat ihn selbst ausgelöst).
 
 Grenzen gegen Spam: höchstens 4 offene eingehende Einladungen je fremder Vault und 16 insgesamt; mehr
@@ -381,8 +381,8 @@ Die Spec verlangt mindestens 8 Kanäle, 2 Lobbys, 8 Einladungen (FR-041); die We
 Vault offen ist; im Hintergrund kann Android das Netz anhalten, Kanäle enden dann mit `timeout` oder
 `lost` (Spec Edge Cases). Nach der Rückkehr meldet `resume` den Netzwechsel (`sync/resume.rs`,
 `network_change`). Benachrichtigungen mit Knöpfen über das Notification-Plugin (Aktionstypen,
-`extensions/desktop.rs:178-190`); verweigert der Nutzer `POST_NOTIFICATIONS`, zeigt holzi den Dialog im
-Fenster. iOS hat in holzi noch keinen Build (Spec 043 „iOS (eigene Spec)“); der Code enthält nichts,
+`extensions/desktop.rs:178-190`); verweigert der Nutzer `POST_NOTIFICATIONS`, zeigt haex-vault den Dialog im
+Fenster. iOS hat in haex-vault noch keinen Build (Spec 043 „iOS (eigene Spec)“); der Code enthält nichts,
 was dort anders wäre.
 
 ## R16 Testansatz

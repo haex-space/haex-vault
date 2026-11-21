@@ -6,7 +6,7 @@
 
 ## Summary
 
-holzi bekommt einen Loopback-WebSocket-Dienst, mit dem `haex-pass-browser` aus haextension ohne
+haex-vault bekommt einen Loopback-WebSocket-Dienst, mit dem `haex-pass-browser` aus haextension ohne
 Änderung am Protokoll ausfüllt, TOTP-Codes holt, Zugangsdaten speichert und Passkeys benutzt. Alles
 geht durch den Passwortdienst aus 034 und 036, mit einem eigenen Aufrufer je Client und dessen
 Freigabe. Den Umfang bestimmen die Spec und die Clarification vom 2026-10-21:
@@ -21,13 +21,13 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 - **Transport und Herkunft** (R1, R2): `tokio-tungstenite` 0.28 (steht schon im Lockfile) auf
   `127.0.0.1` und `[::1]`, Port 19455.
   - Der Header `Origin` muss `chrome-extension://…` oder `moz-extension://…` sein, sonst antwortet
-    holzi vor dem Upgrade mit HTTP 403.
+    haex-vault vor dem Upgrade mit HTTP 403.
   - Grenzen: 64 KiB je Nachricht, 16 Verbindungen, 10 s bis zum Handshake.
 - **Umschläge** (R3):
   - X25519 über `curve25519-dalek` 5 (`mul_clamped`, steht im Baum) und AES-256-GCM über
     `aes-gcm` 0.11 (steht im Lockfile).
   - Rohes gemeinsames Geheimnis als Schlüssel, wie Client und Vorlage.
-  - Die Kennung prüft holzi gegen `SHA-256(publicKey)`.
+  - Die Kennung prüft haex-vault gegen `SHA-256(publicKey)`.
 - **Verbindung** (R4): Zustandsautomat je Verbindung, wiederholte Handshakes ohne zweiten Dialog,
   bis zu 4 Anfragen parallel, `requestId` je Verbindung, Widerruf mit `authorizationUpdate` und
   Schließen.
@@ -70,7 +70,7 @@ Node 22.19 für Prüfskripte und das Fixture-Skript.
 **Storage**:
 
 - Migration mit der nächsten freien Nummer (bei Planung `0038_browser_clients`): eine
-  CRDT-Tabelle `haex_browser_clients`; `HOLZI_TRIGGER_VERSION` 25 → 26.
+  CRDT-Tabelle `haex_browser_clients`; `HAEX_TRIGGER_VERSION` 25 → 26.
 - Zwei Einstellungen des Geräts.
 - Keine Änderung vorhandener Tabellen.
 - Details in [data-model.md](./data-model.md).
@@ -278,7 +278,7 @@ plans/README.md                                # Zeile 049                      
 | Vier direkte Rust-Abhängigkeiten (alle im Lockfile)          | WebSocket-Server mit Zugriff auf den Upgrade-Header, X25519, AES-GCM und konstante Vergleiche für den Besitznachweis, wie es der unveränderte Client verlangt (R1, R3) |
 | Eine neue Aufrufer-Variante                                  | Eigener Eingang mit eigenen Freigaben (ADR-0007, R5)                                                                                                                   |
 | Änderung am Passkey-Dienst (`UserPresence`, `PasskeyTarget`) | FR-031, FR-033, FR-034; ADR-0015                                                                                                                                       |
-| Begleit-PR in einem anderen Repository                       | Ohne ihn erreicht keine Passkey-Anmeldung holzi (R19)                                                                                                                  |
+| Begleit-PR in einem anderen Repository                       | Ohne ihn erreicht keine Passkey-Anmeldung haex-vault (R19)                                                                                                             |
 
 ## Bewusste Grenzen (aus research.md)
 

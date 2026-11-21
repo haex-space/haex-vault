@@ -94,7 +94,7 @@ test and a minimal E2E extension (`window-header`). Then one pull request per ap
 ## R9. Extension side
 
 **Decision**: the SDK type gets `active?: boolean` on the menu control. It goes into vault-sdk#112 if that is still open
-when step 0 lands, else a follow-up pull request there. The protocol stays additive: an older holzi ignores a field it
+when step 0 lands, else a follow-up pull request there. The protocol stays additive: an older haex-vault ignores a field it
 does not know (serde does not deny unknown fields), and an older SDK never sends it.
 
 **Rationale**: constitution IV (pinned cross-repo references): when merged, cite the SDK as

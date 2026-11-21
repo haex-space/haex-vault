@@ -19,7 +19,7 @@ is the user's decision once per kind of access, not once per agent.)
   (spec 021, renamed "Agenten und Modelle" by PR M2, gone since 2026-11-10: FR-035): per topic nothing, reading or changing; the password manager with the entries it reaches; the browser
   with the level for all websites, exceptions and a block list (spec 065); commands; the extensions whose tools it
   sees. The local agent has no such page: its browser and password rights are device settings under KI → Browser.
-  An agent that holzi starts itself in the chat on the user's own subscription (spec 032, called "Delegate" in the
+  An agent that HaexVault starts itself in the chat on the user's own subscription (spec 032, called "Delegate" in the
   texts today) is registered like an external agent. Files and contacts are granted per agent in their own rows
   (specs 021 US5 and 051); the chat's models all shared the one agent "builtin", so there they could not differ by model (PR K).
 - **What that costs the user.** Three agents with the same trust need the same ten settings three times. A new agent
@@ -47,13 +47,13 @@ is the user's decision once per kind of access, not once per agent.)
   rights of "Standard". The active profile is one value of the vault, synced to every device. At any time exactly one set
   of rights applies to an agent, so the user never has to resolve a conflict between profiles.
 - **"Agent" is the umbrella word**, with a label for the kind:
-  - **Lokaler Agent**: the agent of holzi's own chat, which runs inside holzi on this device (the code calls it the
+  - **Lokaler Agent**: the agent of HaexVault's own chat, which runs inside HaexVault on this device (the code calls it the
     built-in agent, `Caller::BuiltinAgent`). It is assigned **per model**, and its model may be one that runs on the
     device or one of a provider (a local model and a cloud model of the local agent can be in different profiles; the
     privacy case: passwords only for local models).
-  - **Externer Agent**: a program that connects to holzi over MCP (spec 021). holzi cannot see which model runs
+  - **Externer Agent**: a program that connects to HaexVault over MCP (spec 021). HaexVault cannot see which model runs
     behind it; the registered identity is what counts, never the name it claims.
-  - **Abo-Agent**: an agent program that holzi starts itself in the chat, on the user's own subscription (for
+  - **Abo-Agent**: an agent program that HaexVault starts itself in the chat, on the user's own subscription (for
     example Claude Code). It replaces the word "Delegate" / "Delegat" in the user-facing texts of this feature.
 - **The name is "Agentenprofil"**, never just "Profil": "Profil" already means the cookies and logins of the agent
   browser.
@@ -69,7 +69,7 @@ is the user's decision once per kind of access, not once per agent.)
   registration and no separate row per vendor and device for rights; if the user wants Abo-Agents treated differently from
   local models, they make two profiles ("Lokal", "Abo") and put the models into them. The autonomy mode and the deny rules
   of Abo-Agents (specs 009, 032) become rights of a profile, and the device-wide setting today is the starting value of
-  "Standard". External agents (programs that connect to holzi) stay agents of their own, registered per identity.
+  "Standard". External agents (programs that connect to HaexVault) stay agents of their own, registered per identity.
 - **Guardrails stay out of reach** of every profile and every agent (spec 021 FR-016).
 - **Enforcement stays in one place**: what an agent may do is looked up from its profile on every call and every
   list of tools, exactly as it is looked up from its own rights today for external agents and Abo-Agents.
@@ -185,7 +185,7 @@ ask for a password entry.
 
 ### User Story 4 - A new agent registers into "Standard" (Priority: P2)
 
-An external agent connects for the first time. holzi asks as today, and the question shows what the agent would get:
+An external agent connects for the first time. HaexVault asks as today, and the question shows what the agent would get:
 the rights of "Standard", kind of access by kind of access, and the field "Agentenprofil" to choose another before
 registering.
 
@@ -201,7 +201,7 @@ profiles; register with another profile and check the rights.
    profile it would be in, and registering with a changed choice puts it in that profile.
 2. **Given** the user declines, **When** the agent connects again, **Then** it behaves as a declined agent does
    today (spec 021).
-3. **Given** an Abo-Agent that holzi starts, **When** it is registered, **Then** the same applies, and the text never
+3. **Given** an Abo-Agent that HaexVault starts, **When** it is registered, **Then** the same applies, and the text never
    says "Delegate".
 
 ---
@@ -370,8 +370,8 @@ converted; the user sets profiles anew. Who is registered stays.
   gets a right can obviously do more, and the switch is the decision (decided 2026-11-07, which widens the decision of
   2026-11-06 for extensions and commands to every right). The change applies at once.
 - **FR-017** (revised 2026-11-10): An external agent MUST NOT have an approval mode the user can set: it always runs in
-  Auto, so reading and changing run without a question, and holzi asks before a destroying call and before a secret
-  (spec 021 FR-021). holzi is an MCP server like any other: the profile decides what an agent may do, and how the
+  Auto, so reading and changing run without a question, and HaexVault asks before a destroying call and before a secret
+  (spec 021 FR-021). HaexVault is an MCP server like any other: the profile decides what an agent may do, and how the
   agent's own client asks is the client's business. The mode is neither part of a profile nor of the registration
   question. The approval mode of the chat, which a model of an Abo-Agent follows, is unchanged (FR-030).
 
@@ -418,13 +418,13 @@ converted; the user sets profiles anew. Who is registered stays.
 - **FR-027**: An Abo-Agent's model MUST be a subject of the kind "model" (`model:<provider id>:<remote id>`): the pages list
   it under "Lokaler Agent" with the others, it is a member of profiles and of "Standard", and the chat offers it by FR-006b.
   The rows of an Abo-Agent per vendor and device (`ClaudeCodeDelegate`, `CodexDelegate`) MUST NOT carry rights any more.
-- **FR-028**: When an Abo-Agent calls holzi (over MCP, through the pass of its start) the rights MUST be those of the model
+- **FR-028**: When an Abo-Agent calls HaexVault (over MCP, through the pass of its start) the rights MUST be those of the model
   the start runs with, resolved on every call and every list of tools like for any model, so the same profile limits the
   same tools whichever kind of model answers. The pass names the model; a call of a pass whose model is not offered by the
   active profile is refused.
-- **FR-029**: Holzi's tools MUST be offered to an Abo-Agent without a registration question: what its model may do is the
+- **FR-029**: HaexVault's tools MUST be offered to an Abo-Agent without a registration question: what its model may do is the
   profile. "Rechte festlegen" and the registration dialog for Abo-Agents MUST be removed, as MUST the status "not
-  registered" and "expired" of an Abo-Agent in the chat; what remains is "MCP access is off" (no Abo-Agent gets holzi's
+  registered" and "expired" of an Abo-Agent in the chat; what remains is "MCP access is off" (no Abo-Agent gets HaexVault's
   tools) and the rights of the profile (a model with no rights gets no tool).
 - **FR-030**: The autonomy mode (ungated, gated) and the deny rules of Abo-Agents MUST be rights of a profile, shown in its
   editor and resolved for the model of the start like every other right; a profile that grants none of them behaves like
@@ -489,7 +489,7 @@ converted; the user sets profiles anew. Who is registered stays.
 
 - **Agentenprofil**: a named set of rights over every kind of access (the topics, passwords with their entries,
   browser with its websites and rules, commands, extensions), the same in the whole vault, with the agents and models it applies to (its members). "Standard" always exists.
-- **Agent**: whoever acts on holzi: a model of the local agent, an external agent or an Abo-Agent, with a kind, a
+- **Agent**: whoever acts on HaexVault: a model of the local agent, an external agent or an Abo-Agent, with a kind, a
   name and, for a registered agent, the device it is registered on.
 - **Zugehörigkeit**: the fact that an agent is a member of a profile. Any number per agent, one row each.
 - **Aktives Agentenprofil**: the one profile that applies to the vault right now; "Standard" until the user sets another.

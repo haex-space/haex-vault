@@ -56,7 +56,7 @@ auf dem Gerät (`DeviceRoot`) wird zum Speicher `device:<Wurzel>` mit Fensterpfa
 - `Side` ist `Device` oder `Storage(Arc<StorageFiles>)`; damit sind alle Paarungen abgedeckt, auch verschlüsselte
   Ordner und Peers.
 - Eingebaut sind Wiederholungen (1, 2, 4 s), Fortschritt (100 ms), Abbruch über `CancellationToken`, Teildatei
-  `.<name>.holzi-part-<uuid>` beim Gerät, Mehrteil-Upload (8 MiB) bei S3; der Peer schreibt nur, wenn die
+  `.<name>.haex-part-<uuid>` beim Gerät, Mehrteil-Upload (8 MiB) bei S3; der Peer schreibt nur, wenn die
   Version noch passt (`Expected::Version/Absent`).
 - Konfliktfragen laufen über `Hooks::ask` mit `Replace | KeepBoth | Skip`; „Replace“ schiebt den alten Eintrag
   zuerst beiseite.
@@ -72,10 +72,10 @@ Stand).
 **Geklärt (T001, 2026-10-26).** Kein eigener Ersetzungsmodus nötig; das Verhalten ist durch vorhandene Tests
 festgehalten (`files/transfer/local_replace_tests.rs`, `remote_conflict_tests.rs`):
 
-- Gerät: Replace schiebt das Ziel als `.<Name>.holzi-old-<uuid>` im selben Ordner beiseite, schreibt die neue
-  Datei als `.<Name>.holzi-part-<uuid>` und benennt sie um; erst danach geht das Alte endgültig. Ein Fehler oder
+- Gerät: Replace schiebt das Ziel als `.<Name>.haex-old-<uuid>` im selben Ordner beiseite, schreibt die neue
+  Datei als `.<Name>.haex-part-<uuid>` und benennt sie um; erst danach geht das Alte endgültig. Ein Fehler oder
   Abbruch legt das Alte zurück. Reste bleiben nur bei einem Absturz mitten darin; deshalb gehören
-  `.*.holzi-old-*` zu den festen Ausnahmen. Die Änderungszeit der Quelle bleibt erhalten (`set_modified`).
+  `.*.haex-old-*` zu den festen Ausnahmen. Die Änderungszeit der Quelle bleibt erhalten (`set_modified`).
 - Speicher: Herunterladen in eine Teildatei mit Umbenennen; Hochladen bei S3 als ein `put` oder Mehrteil-Upload,
   bei SFTP als Teildatei mit `rename_over`, bei WebDAV als `PUT` einer temporären Datei mit `MOVE`. Unter dem
   Namen liegt nie eine halbe Datei. Entfernte Ziele setzen die Zeit selbst.
@@ -159,7 +159,7 @@ wünscht die gewohnte Schreibweise. Verworfen.
 - Vorhandene Beispiele: `haex_file_device_access_no_sync`, `sync_progress_no_sync`, `device_presence_no_sync`.
 - Nächste freie Migrationsnummer im Stand: `0042`; die Specs 060 (`0042_contacts_self`, `0043_contacts_cards_hash`)
   haben `0042` und `0043` reserviert, auch wenn ihre Umsetzung noch nicht gelandet ist.
-  `HOLZI_TRIGGER_VERSION` bleibt unverändert, weil keine nachverfolgte Tabelle entsteht.
+  `HAEX_TRIGGER_VERSION` bleibt unverändert, weil keine nachverfolgte Tabelle entsteht.
 
 **Entscheidung.** Migration `0044_sync_rules` mit Tabellen `haex_sync_rules_no_sync`,
 `haex_sync_rule_files_no_sync`, `haex_sync_rule_pending_no_sync`, `haex_sync_runs_no_sync`,
@@ -209,7 +209,7 @@ kann später ohne Änderung des Modells nachgerüstet werden.
 
 **Entscheidung.** Statusableitung in `status.rs` aus dem letzten Lauf und dem Zustand der Steuerung: aktiv, läuft,
 wartet (Ort nicht erreichbar: `StorageError::Network|Unreachable`, Gerät offline, Schalter aus), Fehler
-(Zugangsdaten, Ort nicht mehr vorhanden, Stand beschädigt), pausiert, holzi nicht aktiv (Anzeigewert des
+(Zugangsdaten, Ort nicht mehr vorhanden, Stand beschädigt), pausiert, haex-vault nicht aktiv (Anzeigewert des
 Frontends, wenn die Steuerung nicht läuft). Änderungen gehen als Tauri-Ereignis `sync-rules-changed` mit Regel-ID
 an das Frontend; das Frontend hält einen Pinia-Speicher wie `syncDevices.ts` (Hören, Erzeugungszähler gegen
 Rennen, zusammenfassendes Laden). Fehlermodell: Ortsfehler als `FilesError` (bestehende Codes), Regelfehler als
@@ -224,10 +224,10 @@ Speichern ist Löschen endgültig.
 
 - `DevicePlace` auf dem Desktop: `trash::delete` (Papierkorb des Systems); Protokoll nennt „Papierkorb des
   Systems“.
-- sonst: `Place::move_within` nach `<Ort>/.holzi-trash/<Lauf>/<Pfad>`; Protokoll nennt den Regel-Papierkorb mit
+- sonst: `Place::move_within` nach `<Ort>/.haex-trash/<Lauf>/<Pfad>`; Protokoll nennt den Regel-Papierkorb mit
   dem Pfad, die Oberfläche führt dorthin.
 
-`.holzi-trash` ist fest ausgenommen und wird nie abgeglichen, nie geleert. In einem Speicher ohne Rename (S3)
+`.haex-trash` ist fest ausgenommen und wird nie abgeglichen, nie geleert. In einem Speicher ohne Rename (S3)
 ist es kopieren und löschen; die Datei bleibt bis dahin vollständig.
 
 ## R11 — Agent
@@ -239,7 +239,7 @@ einen `NativeExecutor` (`chat/tools/native_action.rs`); Vorbild `files/agent/sha
 
 **Entscheidung.** `AgentFileKind::SyncRules` (Ziel leer, nur durch den Nutzer gesetzt), `AgentGrants.sync_rules:
 bool`. Aktionen: `syncRules.list` und `syncRules.status` (Lesen), `syncRules.create`, `syncRules.update`,
-`syncRules.delete` (zerstörerisch, eigene Abfrage mit Orten, Richtung und Löschmodus). Eigene Daten von holzi sind
+`syncRules.delete` (zerstörerisch, eigene Abfrage mit Orten, Richtung und Löschmodus). Eigene Daten von haex-vault sind
 als Ort schon wegen FR-002 ausgeschlossen. `check-agent-actions` und `check-files-agent-permissions` werden
 erweitert.
 

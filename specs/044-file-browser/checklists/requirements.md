@@ -31,7 +31,7 @@
 
 ## Notes
 
-- Bewusst stehen gelassene technische Begriffe, wie in den übrigen holzi-Specs: „Webview“ (erklärt,
+- Bewusst stehen gelassene technische Begriffe, wie in den übrigen HaexVault-Specs: „Webview“ (erklärt,
   warum manche Formate nicht abspielen), „`..` und symbolische Links“ (Prüfkatalog der Sperre),
   „Zugriff auf alle Dateien“ (Name der Android-Berechtigung) und die Freigabe-URL als
   Sicherheitsgrenze. Lösungen wie lokaler HTTP-Server, Range-Anfragen, pdf.js und Rust-Module stehen

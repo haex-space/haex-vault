@@ -1,4 +1,4 @@
-# Data Model: holzi als MCP-Server für externe Agenten
+# Data Model: haex-vault als MCP-Server für externe Agenten
 
 **Feature**: [spec.md](./spec.md) | **Research**: [research.md](./research.md) (R8–R10)
 
@@ -63,7 +63,7 @@ Regeln:
 - Ein fehlender Eintrag heißt „keine“/„aus“.
 - Neue Gruppen späterer Specs (Browser) bekommen einen neuen `grant_group`-Wert; fehlende Zeilen = aus
   (FR-008).
-- Ab Werk beim Registrieren: `operate`/`read` für alle Bereiche der Gruppe „holzi bedienen“
+- Ab Werk beim Registrieren: `operate`/`read` für alle Bereiche der Gruppe „haex-vault bedienen“
   (research R3), sonst nichts (FR-009).
 
 Dateien und Kontakte: unverändert `agent_file_permissions` (`migrations_agent_files.rs`) mit
@@ -89,10 +89,10 @@ Lesen. Kein Ergebnis, kein Dateiinhalt, kein Geheimnis (FR-028).
 
 ## Einstellungen (Geräteeinstellungen)
 
-| Schlüssel       | Wert           | Ab Werk                                                                                                                        |
-| --------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `mcp.enabled`   | bool           | `false`                                                                                                                        |
-| `mcp.http_port` | Port, zufällig | beim ersten Einschalten des HTTP-Wegs gewählt; belegt ein anderes Programm ihn, wählt holzi einen freien und merkt sich diesen |
+| Schlüssel       | Wert           | Ab Werk                                                                                                                             |
+| --------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `mcp.enabled`   | bool           | `false`                                                                                                                             |
+| `mcp.http_port` | Port, zufällig | beim ersten Einschalten des HTTP-Wegs gewählt; belegt ein anderes Programm ihn, wählt haex-vault einen freien und merkt sich diesen |
 
 Beide sind Leitplanken (für Agenten gesperrt, FR-001).
 

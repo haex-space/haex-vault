@@ -1,7 +1,7 @@
 # Agent Tool Loop — Turn/Step, Tools, Retries, Cancellation
 
 **Status**: §§1-7 (turn/step loop, tool registry, permission gate) implemented in
-[PR #32](https://github.com/haexmas/holzi/pull/32), covering tasks.md Phases 1-4 (T001-T029).
+[PR #32](https://github.com/haex-space/haex-vault/pull/32), covering tasks.md Phases 1-4 (T001-T029).
 Cancellation (§ retry/cancellation split, tasks.md Phase 5), retry (Phase 6), and polish (Phase 7)
 remain design-only. Written 2026-09-11 from a brainstorming session triggered
 by evaluating [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) as a
@@ -29,7 +29,7 @@ Resolver` — this document extends that vocabulary with `Turn`, `Step`, `Tool`,
 concept of a request spanning more than one model call. The user needs all three. deepseek-harness's
 architecture doc names a useful shape for this — a **turn** is zero or more **steps**, a step is one
 model request plus the tools it calls, and "model-visible means logged": anything that reaches a
-model request must be reconstructable from the append-only session log. holzi already has an
+model request must be reconstructable from the append-only session log. haex-vault already has an
 append-only-ish `chat_messages` table with a `parent_id` chain; this design extends that chain
 instead of introducing a new storage layer, and does not adopt Cordis (Node/TS plugin DI — wrong
 language, wrong scale for a single-user local agent).
@@ -106,7 +106,7 @@ approval request still takes effect immediately.
 ## 6. Retry policy
 
 Scope: **LLM request only** (network timeout, 5xx, rate limit) — with backoff. Tool execution
-failures are not retried by holzi; they become a `ToolResult { is_error: true }` and the model
+failures are not retried by haex-vault; they become a `ToolResult { is_error: true }` and the model
 decides whether to try again, same as any other tool-calling harness. No separate tool-retry policy.
 
 ## 7. Cancellation
@@ -141,7 +141,7 @@ for the Claude Code side**: verified verbatim at
 > login or rate limits for their products, including agents built on the Claude Agent SDK. Please
 > use the API key authentication methods described in this document instead.
 
-holzi is exactly the "third party developer's product" this names, and holzi has no such approval.
+haex-vault is exactly the "third party developer's product" this names, and haex-vault has no such approval.
 `claude-code-acp` is Agent-SDK-based, so it is out. Whether this clause also covers _this project's_
 specific way of driving the raw `claude` CLI directly (not the SDK) is genuinely unclear from the
 docs and was not resolved here — **operator decision (2026-09-11): proceed anyway, accepting this as
@@ -170,7 +170,7 @@ support a live per-tool-call approval round-trip, verified against a real instal
 §8.2's original claim above — that Claude Code's `-p` mode has no live mid-run round-trip and can
 only get a pre-call tool whitelist — was tested directly against an installed `claude` CLI (v2.1.241)
 and found **wrong**. `claude -p` supports `--permission-prompt-tool <mcp-tool-name>`: an MCP tool
-holzi provides and registers via `--mcp-config`, which Claude Code calls live, and blocks on, for
+haex-vault provides and registers via `--mcp-config`, which Claude Code calls live, and blocks on, for
 each individual pending tool-use approval — the CLI-only equivalent of the Agent SDK's `canUseTool`
 callback. Verified end-to-end with a purpose-built stdio MCP server: a `-p` run with
 `--permission-mode default` requesting a `Bash` call genuinely paused mid-run, the MCP server
@@ -220,7 +220,7 @@ authentifiziert selbst" / host-native login); that line needs updating alongside
 
 - One-time setup: `claude setup-token` (mints a long-lived OAuth token against the Pro/Max/Team
   subscription, printed once, never stored by the CLI) or `codex login` (produces `auth.json`).
-  holzi captures the result and stores it encrypted in the vault.
+  haex-vault captures the result and stores it encrypted in the vault.
 - Per invocation: a fresh temp directory. Claude gets `CLAUDE_CODE_OAUTH_TOKEN` (env var) and
   `CLAUDE_CONFIG_DIR=<tmp>`; Codex gets `CODEX_HOME=<tmp>` pre-populated with `auth.json`. The
   process's `cwd` is also the temp directory — a live Claude Code bug
@@ -229,9 +229,9 @@ authentifiziert selbst" / host-native login); that line needs updating alongside
   disposable too. Delete the temp directory after the process exits.
 - Do not pass `--bare` to Claude Code — it ignores `CLAUDE_CODE_OAUTH_TOKEN`.
 
-### 8.4 Host isolation (holzi as the only source of truth)
+### 8.4 Host isolation (haex-vault as the only source of truth)
 
-Operator requirement (2026-09-11): Claude/Codex must see _only_ what holzi gives them — no host
+Operator requirement (2026-09-11): Claude/Codex must see _only_ what haex-vault gives them — no host
 `CLAUDE.md`/`AGENTS.md`, no host user-global settings, no host project configuration. The mechanisms
 in §8.3 mostly already provide this as a side effect:
 
@@ -243,7 +243,7 @@ in §8.3 mostly already provide this as a side effect:
   `settingSources`) as empty, so Claude Code does not even consult user/project/local setting
   sources, rather than relying solely on "the directory happens to be empty." Exact flag name/CLI
   support **not yet verified**.
-- Any project/system context holzi wants the delegate to have is passed explicitly (e.g.
+- Any project/system context haex-vault wants the delegate to have is passed explicitly (e.g.
   `--append-system-prompt` for Claude; Codex's equivalent) — never left to file discovery. The
   delegate is treated like any other model backend: a model with native tools, not an agent with its
   own project memory.

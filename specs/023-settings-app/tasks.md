@@ -132,7 +132,7 @@ description: 'Task list for spec 023-settings-app'
 - [x] T031 [US3] Audit the callers of `openApp({ appId: 'system.settings' })` and `wm.app.open` for the settings (`src/components/apps/ChatApp.vue`, chat banners and dialogs): contextual hints (for example "no model installed") pass `at` with the matching location (`/models/download`, `/models/default`, `/agents/providers`); generic settings buttons stay at `/`
   - Done 2026-09-26: only two callers exist, the generic settings buttons in the chat header and thread sidebar; they stay at `/`. The chat's hints that mention the settings (`chat.empty.noModelsDescription`, `chat.model.delegateNotConnected`, `chat.effort.unknown`) are plain text or disabled select entries, so there is no contextual caller to point elsewhere yet.
 - [x] T032 [US3] Operator: run quickstart S8 and S10
-  - 2026-09-27: open — retry the deep links with `location.search = '?open=system.settings&at=…'`. Changing settings through a chat agent is not part of this spec: the actions are agent-callable, but holzi as an MCP server is spec 021.
+  - 2026-09-27: open — retry the deep links with `location.search = '?open=system.settings&at=…'`. Changing settings through a chat agent is not part of this spec: the actions are agent-callable, but haex-vault as an MCP server is spec 021.
   - 2026-09-27: `location.search` only reloaded the dev app; the log shows Vite failing to load its modules after the reload ("Importing a module script failed"), not the deep link. The workspace page now also consumes `?open=` that arrives while it is mounted (T071).
   - Done 2026-09-27: S8 (on load and with the settings open) and S10 run as `settings-deep-links` (T070).
 
@@ -196,7 +196,7 @@ description: 'Task list for spec 023-settings-app'
 - [x] T052 [US5] Operator: run quickstart S13, S13a and S14
   - 2026-09-27: S13 confirmed (no federation app in the launcher); S13a waits for T042–T048, S14 is optional.
   - 2026-09-27: S13a without a second installation runs as `settings-federation`; the part with a copied vault on a second installation and S14 stay open for the operator.
-  - Done 2026-09-27 (operator decision): the copied-vault part of S13a is dropped — holzi has no federation yet, and a copy only shows the `known_devices` rows the Rust tests already cover; a real multi-device check comes with the sync spec. S14 is dropped as a manual check: it needs a build from before this spec, and `check-wm-geometry.ts` covers dropping a tab whose app no longer exists.
+  - Done 2026-09-27 (operator decision): the copied-vault part of S13a is dropped — haex-vault has no federation yet, and a copy only shows the `known_devices` rows the Rust tests already cover; a real multi-device check comes with the sync spec. S14 is dropped as a manual check: it needs a build from before this spec, and `check-wm-geometry.ts` covers dropping a tab whose app no longer exists.
 
 ---
 

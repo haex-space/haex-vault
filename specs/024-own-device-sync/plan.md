@@ -6,7 +6,7 @@
 
 ## Summary
 
-holzi bekommt echte Schlüssel, eine signierte Geräteliste und den direkten Datensync zwischen den
+haex-vault bekommt echte Schlüssel, eine signierte Geräteliste und den direkten Datensync zwischen den
 Geräten einer Vault. Die erste Instanz einer Vault ist ein Hauptgerät; weitere Geräte kommen
 bevorzugt über Verknüpfen per Code dazu, als verknüpftes Gerät ohne den privaten Schlüssel der
 Vault-Identität. Geräte finden sich über verschlüsselte Präsenzmeldungen auf Nostr-Relays, verbinden
@@ -36,7 +36,7 @@ Technischer Ansatz (Begründungen in [research.md](./research.md)):
 - **Prüfen beim Empfang** (R5): vor `apply` je Transaktionsgruppe gegen die Grenzen entfernter
   Geräte; `apply` von haex-crdt wie heute, Fortschritt nach dem Commit.
 - **Transport** (R6): ein iroh-Endpunkt je Vault-Session ohne n0-Adresssuche, ALPN
-  `holzi-sync/1` und `holzi-link/1`, gegenseitiger Handshake mit Geräteschlüsseln, postcard-Rahmen.
+  `haex-sync/1` und `haex-link/1`, gegenseitiger Handshake mit Geräteschlüsseln, postcard-Rahmen.
 - **Präsenz** (R7): flüchtige Nostr-Ereignisse im NIP-59-Aufbau an einen täglich wechselnden
   Postfach-Schlüssel aus dem Inhaltsschlüssel.
 - **Geräteliste** (R8) als unveränderliche, signierte Zeilen; höchste Generation, dann kleinster
@@ -125,7 +125,7 @@ für abgeschnittene Abfragen.
 
 **Ergebnis nach Phase 1**: unverändert. Nach dem Review mit dem Betreiber entfallen Paketprotokoll
 und Laufnummern; die einzige Änderung an haex-crdt ist der Schreibweg (E1, E2), allgemein und dort
-geprüft, bevor holzi ihn pinnt.
+geprüft, bevor haex-vault ihn pinnt.
 
 ## Project Structure
 
@@ -138,7 +138,7 @@ specs/024-own-device-sync/
 ├── data-model.md              # Phase 1: Tabellen, Werte, Zustände
 ├── quickstart.md              # Phase 1: automatische (A1–A9) und manuelle (M1–M9) Validierung
 ├── contracts/
-│   ├── sync-protocol.md       # holzi-sync/1, holzi-link/1: Handshake, Nachrichten, Seiten
+│   ├── sync-protocol.md       # haex-sync/1, haex-link/1: Handshake, Nachrichten, Seiten
 │   ├── nostr-events.md        # Präsenz, Aufnahmeanfrage, Treffpunkt
 │   ├── tauri-commands.md      # Befehle, Ereignisse, Aktionen, Orte
 │   └── haex-crdt-upstream.md  # E1 mehrteilige CRDT-Schreibung, E2 einstellbare Grenze
@@ -149,7 +149,7 @@ specs/024-own-device-sync/
 ### Source Code (repository root)
 
 ```text
-haex-crdt (eigenes Repository, PR vor holzi)
+haex-crdt (eigenes Repository, PR vor haex-vault)
 ├── src/database/mod.rs, src/db/core/execute/  # E1 Database::write, CrdtTransaction; E2 Grenze
 └── Tests zu E1/E2
 
@@ -227,7 +227,7 @@ Reine Anzeige-Logik unter `src/lib/sync/` (unter Node testbar wie `src/lib/setti
 
 Jeder Schritt ist ein eigener PR und für sich prüfbar.
 
-0. **haex-crdt E1/E2** im Repository haex-crdt, danach neue Revision in holzi pinnen.
+0. **haex-crdt E1/E2** im Repository haex-crdt, danach neue Revision in haex-vault pinnen.
 1. **Schreiben über den CRDT-Weg** (R19): zuerst jede heutige Anweisung durch den
    Transformer testen, dann `storage/vault_db.rs`, alle Zugriffe umstellen, mehrteilige
    Schreibungen in eine Transaktion, von Hand gesetzte HLCs entfernen, `clippy.toml`, Aufräumen der

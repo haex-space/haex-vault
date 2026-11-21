@@ -24,7 +24,7 @@ catalog entries.
 
 Measured on 2026-10-30 with Q4_K_M on an RTX A2000 8 GB (all layers on the GPU), deterministic settings, the
 83-sentence set (version 5) and the application's own tool offer, through `LlamaCppAdapter` and the
-`model_tool_eval` harness (`HOLZI_EVAL_ENGINE=llamacpp`).
+`model_tool_eval` harness (`HAEX_EVAL_ENGINE=llamacpp`).
 
 - 60 of 83 sentences reached the expected result (72%), against 55 of 83 (66%) for Qwen3-4B on the same set
   and engine.

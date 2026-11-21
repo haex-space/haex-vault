@@ -40,7 +40,7 @@ with a dot. A column with a default keeps every existing rule a folder rule with
 **Old readers**: An older build that reads a vault of this version ignores the new column (its `SELECT` lists the
 columns by name) and treats a file rule as a folder rule at the file's path. That would list "a folder" that is a
 file, find the root unreadable and wait; it never copies or deletes. A vault is not opened by older builds in the
-normal flow, and holzi has no users yet, so this is noted and not engineered around.
+normal flow, and haex-vault has no users yet, so this is noted and not engineered around.
 
 **Why `Option` and not a serde default**: An agent's `update` replaces all settings of a rule. With a default of `folder`,
 an update of a file rule that leaves `sourceKind` out would silently make it a folder rule whose source path is a file;
@@ -158,7 +158,7 @@ Watching the parent and filtering by path catches both. The filter takes the pat
 ## R8 - The picker and the dialog
 
 **Decision**: `FolderPicker.vue` gets a prop `allowFiles` (true for the source picker only). With it, the list shows
-files as well as folders (not links, not holzi's own entries); a folder row is entered as today, a file row is
+files as well as folders (not links, not haex-vault's own entries); a folder row is entered as today, a file row is
 taken at once as the choice. The picked value `PickedFolder` gets `kind: 'folder' | 'file'`; `choose()` ("Choose
 this folder") sets `folder`. The dialog stores the kind with the draft, shows the file icon for a file choice,
 hides the delete mode while the source is a file, and keeps the name suggestion from the file's name. The target

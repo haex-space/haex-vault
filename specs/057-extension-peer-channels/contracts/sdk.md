@@ -57,7 +57,7 @@ haex-doom. Fehler ohne bekannten `reason` (zum Beispiel ein Zeitablauf im SDK) b
 
 ## Unterschiede zum Entwurf von haex-doom (`contracts/peers-api.md` @ `a076b693`)
 
-1. `acceptAsync` und `declineAsync` entfallen; angenommen wird nur in holzis Abfrage.
+1. `acceptAsync` und `declineAsync` entfallen; angenommen wird nur in haex-vaults Abfrage.
 2. `peers:invitation` und `peers:invite-withdrawn` entfallen; neu ist `peers:channel-opened` nach der
    Annahme (mit `inviteId`, `from`, `payload`).
 3. `from` bzw. `joined` tragen `contactId` nur, wenn die Berechtigung `contacts` den Kontakt umfasst;

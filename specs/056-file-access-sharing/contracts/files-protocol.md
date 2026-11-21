@@ -68,7 +68,7 @@ Regeln:
 - `Watch` nur für Ordner auf dem Gerät des Bedienenden; in Speichern antwortet es mit `Unsupported`. Das
   bedienende Gerät prüft mit jedem Stapel und alle 10 s erneut; ein Entzug, der Schalter oder das
   Sperren schließt den Stream (research R16).
-- Aufrufer: Jede Anfrage trägt `caller: User | Agent`. Eigene Daten von holzi: bei `OwnDevice` für
+- Aufrufer: Jede Anfrage trägt `caller: User | Agent`. Eigene Daten von haex-vault: bei `OwnDevice` für
   `User` nur lesend, für `Agent` gesperrt; bei `Contact` immer gesperrt (FR-007).
 - Upload-Sitzungen gehören der Verbindung; schließt sie, räumt das bedienende Gerät ihre
   Zwischendateien auf.

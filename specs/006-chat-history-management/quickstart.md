@@ -2,7 +2,7 @@
 
 ## Voraussetzungen
 
-- Holzi mit einer geöffneten Vault starten.
+- HaexVault mit einer geöffneten Vault starten.
 - Mindestens vier persistierte Threads mit bekannten unterschiedlichen
   Eröffnungszeitpunkten bereitstellen: unter einer Minute, mindestens eine
   Minute, mindestens zwei Stunden und mindestens fünf Tage.

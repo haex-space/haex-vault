@@ -1,4 +1,4 @@
-# Research: holzi als MCP-Server für externe Agenten
+# Research: haex-vault als MCP-Server für externe Agenten
 
 **Feature**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md) | **Date**: 2026-10-26
 
@@ -9,29 +9,29 @@ repo-relativ.
 
 **Entscheidung**: Zwei Wege zu demselben Server im App-Prozess.
 
-1. **Programm-Weg (Desktop)**: Der Agent startet `holzi --mcp-agent <slug> [--vault <id>]` (dieselbe
+1. **Programm-Weg (Desktop)**: Der Agent startet `haex --mcp-agent <slug> [--vault <id>]` (dieselbe
    ausführbare Datei, wie heute `--internal-cli-delegate-approval-bridge`). Dieses Hilfsprogramm
    reicht Bytes zwischen stdin/stdout und einem lokalen IPC-Endpunkt der laufenden App durch und
    spricht selbst kein MCP. Vor dem ersten MCP-Byte schickt es eine Begrüßung (Slug,
    Zugangsnachweis falls vorhanden, Protokollversion des Hilfsprogramms) und bekommt eine Antwort
    (angenommen, wartet auf Registrierung, Nachweis neu ausgegeben, abgewiesen mit Grund).
    - Linux/macOS: Unix-Socket in einem Verzeichnis mit Rechten `0700` (Linux
-     `$XDG_RUNTIME_DIR/holzi/`, sonst das Temp-Verzeichnis des Benutzers; Pfadlänge ≤ 104 Byte
+     `$XDG_RUNTIME_DIR/haex/`, sonst das Temp-Verzeichnis des Benutzers; Pfadlänge ≤ 104 Byte
      wegen macOS), Name `mcp-<vault-id>.sock`. Zusätzlich prüft die App die UID der Gegenseite
      (`SO_PEERCRED` / `getpeereid`).
-   - Windows: Named Pipe `\\.\pipe\holzi-mcp-<vault-id>` mit `first_pipe_instance(true)` gegen
+   - Windows: Named Pipe `\\.\pipe\haex-mcp-<vault-id>` mit `first_pipe_instance(true)` gegen
      Hijacking und der Standard-DACL des Benutzers.
    - Der Server im App-Prozess ist `rmcp` mit Feature `server` und `transport-async-rw` auf dem
      IPC-Strom.
 2. **HTTP-Weg (alle Plattformen, Pflicht auf Android/iOS)**: Streamable HTTP auf `127.0.0.1`/`[::1]`
    mit `rmcp` `transport-streamable-http-server`, Anmeldung nach der MCP-Autorisierung (OAuth 2.1,
-   holzi ist Autorisierungs- und Ressourcenserver, dynamische Client-Registrierung). Der Schritt
-   „Autorisieren“ ist der Registrierungsdialog im holzi-Fenster; die Autorisierungsseite im
-   Browser sagt nur „In holzi bestätigen“ und leitet nach der Entscheidung zurück.
+   haex-vault ist Autorisierungs- und Ressourcenserver, dynamische Client-Registrierung). Der Schritt
+   „Autorisieren“ ist der Registrierungsdialog im haex-vault-Fenster; die Autorisierungsseite im
+   Browser sagt nur „In haex-vault bestätigen“ und leitet nach der Entscheidung zurück.
 
 **Begründung**: Claude Code und Codex starten MCP-Server als Programm, ohne Anmeldung; ein
 Unix-Socket oder eine Named Pipe ist für Webseiten unerreichbar, damit entfällt die ganze Klasse
-der Angriffe aus US8 auf diesem Weg. Auf Android und iOS kann kein anderes Programm die holzi-Datei
+der Angriffe aus US8 auf diesem Weg. Auf Android und iOS kann kein anderes Programm die haex-vault-Datei
 starten; dort geht nur Loopback-HTTP, und dafür sieht MCP OAuth vor (Spec FR-003). Ein Server im
 App-Prozess hält eine Implementierung der Rechte (ADR-0005).
 
@@ -49,11 +49,11 @@ App-Prozess hält eine Implementierung der Rechte (ADR-0005).
 **Entscheidung**:
 
 - Zugangsnachweis: 32 Zufallsbytes, Base64url; die App speichert nur `SHA-256`. Programm-Weg: Das
-  Hilfsprogramm legt den Nachweis in `<Konfigurationsverzeichnis von holzi>/mcp-agents/<vault-id>/<slug>.token`
+  Hilfsprogramm legt den Nachweis in `<Konfigurationsverzeichnis von haex-vault>/mcp-agents/<vault-id>/<slug>.token`
   (Rechte `0600`, unter Windows im Benutzerprofil). HTTP-Weg: OAuth-Access-Token (1 h) und
   Refresh-Token; der Refresh-Token ist der Zugangsnachweis im Sinn der Spec.
 - Unbekannter Agent: Die App beendet `initialize` sofort mit leerer Werkzeugliste und einem
-  `instructions`-Text „Warte auf Registrierung in holzi“; nach der Zustimmung schickt sie
+  `instructions`-Text „Warte auf Registrierung in haex-vault“; nach der Zustimmung schickt sie
   `notifications/tools/list_changed` (Spec US1 Szenario 1–2). Der Registrierungsdialog läuft nach
   5 Minuten mit Ablehnung ab.
 - Angegebener Name: `clientInfo.name` aus `initialize`, gekürzt auf 64 Zeichen, nie geprüft;
@@ -74,14 +74,14 @@ in der Agent-Konfiguration (der Agent kann sie nicht selbst schreiben).
 entscheidet aus den Rechten, welche Werkzeuge ein Agent sieht, und dieselbe Funktion prüft jeden
 Aufruf (FR-014).
 
-| Rechtegruppe      | Bereiche des Katalogs (`src/lib/actions/scopes.ts`)                                                    | Zusätzliche Prüfung im Dienst                                                          |
-| ----------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| holzi bedienen    | `wm.*`, `chat.*`, `settings.read`, `settings.device`, `settings.models`; je Bereich keine/lesen/ändern | –                                                                                      |
-| Dateien           | `files.read`, `files.write`, `files.shares`, `contacts.read`, `contacts.write`                         | `agent_file_permissions` (044/051/056) mit der Kennung des Agenten                     |
-| Passwörter        | `passwords.read`, neu `passwords.secret`                                                               | `passwords::access` mit der `Grant` des Agenten (034 FR-028–FR-030)                    |
-| haextensions      | Werkzeuge `x_<slug>_<tool>` je freigegebener Erweiterung                                               | Einstellung des Werkzeugs in der Erweiterung (018 `confirmation()`), strengere gewinnt |
-| Befehle ausführen | `run_command` (Spec 003)                                                                               | `PlatformCapabilities.command_tool`; immer `RiskClass::Risky`                          |
-| `guardrails`      | nie                                                                                                    | –                                                                                      |
+| Rechtegruppe        | Bereiche des Katalogs (`src/lib/actions/scopes.ts`)                                                    | Zusätzliche Prüfung im Dienst                                                          |
+| ------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| haex-vault bedienen | `wm.*`, `chat.*`, `settings.read`, `settings.device`, `settings.models`; je Bereich keine/lesen/ändern | –                                                                                      |
+| Dateien             | `files.read`, `files.write`, `files.shares`, `contacts.read`, `contacts.write`                         | `agent_file_permissions` (044/051/056) mit der Kennung des Agenten                     |
+| Passwörter          | `passwords.read`, neu `passwords.secret`                                                               | `passwords::access` mit der `Grant` des Agenten (034 FR-028–FR-030)                    |
+| haextensions        | Werkzeuge `x_<slug>_<tool>` je freigegebener Erweiterung                                               | Einstellung des Werkzeugs in der Erweiterung (018 `confirmation()`), strengere gewinnt |
+| Befehle ausführen   | `run_command` (Spec 003)                                                                               | `PlatformCapabilities.command_tool`; immer `RiskClass::Risky`                          |
+| `guardrails`        | nie                                                                                                    | –                                                                                      |
 
 Die Werkzeuge einer Datengruppe erscheinen, sobald der Agent in ihr irgendeine Berechtigung hat;
 die Reichweite prüft der Dienst wie bisher. Eine spätere Rechtegruppe (Browser) kommt als neuer
@@ -143,19 +143,19 @@ abfragen (braucht für `tools/list` eine laufende Webview ohne Not).
 
 **Entscheidung**:
 
-- Claude: `mcp-config.json` im temporären `CLAUDE_CONFIG_DIR` bekommt neben `holzi-approve` den
-  Server `holzi` mit `--mcp-agent claude-code-delegate --delegate-token <nachweis>`; auch im Modus
+- Claude: `mcp-config.json` im temporären `CLAUDE_CONFIG_DIR` bekommt neben `haex-approve` den
+  Server `haex` mit `--mcp-agent claude-code-delegate --delegate-token <nachweis>`; auch im Modus
   „Ungated“ wird die Konfiguration übergeben (heute dort ausgelassen). `bypassPermissions` betrifft
-  nur Claudes eigene Freigabe; holzi prüft seine Werkzeuge selbst.
-- Codex: `config.toml` im temporären `CODEX_HOME` mit `[mcp_servers.holzi]` (command, args).
+  nur Claudes eigene Freigabe; haex-vault prüft seine Werkzeuge selbst.
+- Codex: `config.toml` im temporären `CODEX_HOME` mit `[mcp_servers.haex]` (command, args).
 - Der Nachweis eines Delegates bleibt in der App (kein Token-File) und wird je Start als Argument
-  übergeben; die Gegenstelle ist das von holzi gestartete Kind. Umsetzung (PR F): Jeder Start bekommt
+  übergeben; die Gegenstelle ist das von haex-vault gestartete Kind. Umsetzung (PR F): Jeder Start bekommt
   einen eigenen Nachweis, der nur im Speicher des Prozesses liegt, Art und Chat-Thread nennt und mit
   dem Start endet (`mcp_server/delegates.rs`). Die Zeile des Delegates hat keinen `token_hash`.
-- Claude fragt bei holzi-Werkzeugen nicht selbst nach (`--allowedTools mcp__holzi`), sonst gäbe es
-  zwei Rückfragen; holzi fragt nach der Freigabestufe des Delegates.
+- Claude fragt bei haex-vault-Werkzeugen nicht selbst nach (`--allowedTools mcp__haex`), sonst gäbe es
+  zwei Rückfragen; haex-vault fragt nach der Freigabestufe des Delegates.
 
-**Begründung**: holzi startet die Delegates selbst und kennt sie; der Nutzer richtet nichts ein
+**Begründung**: haex-vault startet die Delegates selbst und kennt sie; der Nutzer richtet nichts ein
 (SC-006).
 
 ## R8 Speicherung
@@ -164,7 +164,7 @@ abfragen (braucht für `tools/list` eine laufende Webview ohne Not).
 `known_devices(vault_device_uuid)`, wie `haex_browser_clients`: `haex_mcp_agents`,
 `haex_mcp_agent_grants`. Das Protokoll in `haex_mcp_agent_log_no_sync` (wie `extension_logs_no_sync`,
 mit `vault_device_uuid`). Dateirechte externer Agenten bleiben in `agent_file_permissions` (dort
-schon mit `agent_id`). Migration mit der nächsten freien Nummer; `HOLZI_TRIGGER_VERSION` 28 → 29.
+schon mit `agent_id`). Migration mit der nächsten freien Nummer; `HAEX_TRIGGER_VERSION` 28 → 29.
 Einstellung `mcp.enabled` als Geräteeinstellung.
 
 **Begründung**: ADR-0001 erklärt, warum geräteeigene Daten nicht `_no_sync` sein sollen (Kopie der
@@ -178,10 +178,10 @@ Datei); für das Protokoll ist „wandert nicht zu anderen Geräten“ gewollt u
 ## R10 Protokoll ohne Geheimnisse
 
 **Entscheidung**: Ziel und Eingaben werden aus dem Eingabeschema geschrieben; Felder mit
-`"x-holzi-secret": true` im Schema werden durch `•••` ersetzt, Werte über 200 Zeichen gekürzt.
+`"x-haex-secret": true` im Schema werden durch `•••` ersetzt, Werte über 200 Zeichen gekürzt.
 Zusätzlich werden credential-tragende Werte in rohen Befehlen und Argumentlisten von `run_command`
 vor dem Persistieren und vor einer Rückfrage redigiert, auch wenn das Schemafeld selbst kein
-`x-holzi-secret` trägt; ein kurzer Wert wie `--token=abc` darf nie im Protokoll erscheinen.
+`x-haex-secret` trägt; ein kurzer Wert wie `--token=abc` darf nie im Protokoll erscheinen.
 `check-agent-actions.ts` prüft schon, dass kein Schema ein Geheimnis benennt; neu prüft es, dass
 `passwords.secret.get` keine geheimen Eingaben hat. Ergebnisse werden nie geschrieben. Höchstens
 10 000 Einträge je Agent und Gerät; ältere als 30 Tage werden beim Schreiben und beim Lesen
@@ -224,8 +224,8 @@ Muster folgt 049.
 
 **Entscheidung**: Start beim Öffnen der Vault, wenn `mcp.enabled`; Stopp über das Token des
 `VaultGate` beim Schließen oder Sperren oder beim Ausschalten. Laufende Aufrufe enden mit
-`unavailable`, Rückfragen über `PromptPark::cancel_all`. Läuft holzi nicht, findet das Hilfsprogramm
-keinen Endpunkt und schreibt eine MCP-Fehlerantwort „holzi ist nicht offen“ auf `initialize`,
+`unavailable`, Rückfragen über `PromptPark::cancel_all`. Läuft haex-vault nicht, findet das Hilfsprogramm
+keinen Endpunkt und schreibt eine MCP-Fehlerantwort „haex-vault ist nicht offen“ auf `initialize`,
 dann endet es (Klärung FR-002).
 
 ## R16 Oberfläche

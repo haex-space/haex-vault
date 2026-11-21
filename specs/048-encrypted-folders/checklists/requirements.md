@@ -37,7 +37,7 @@
   (FR-015 asks for block-wise encryption with ranged reads, not for a cipher).
 - Decisions from the operator (2026-10-10) are recorded under Clarifications; no open markers.
 - Extensions reach an encrypted folder only through `remoteStorage` and a per-folder grant the user
-  gives in holzi's own prompt, never through the manifest (FR-035 to FR-039, operator 2026-10-10);
+  gives in HaexVault's own prompt, never through the manifest (FR-035 to FR-039, operator 2026-10-10);
   otherwise they keep seeing only their own area (038 FR-010).
 - Assumed without asking: copying out of an encrypted folder into a plain folder of a storage asks
   first, onto the device it does not; orphaned content objects are removed after 24 hours.

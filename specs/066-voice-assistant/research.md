@@ -470,7 +470,7 @@ dieser Spec. Die Spec wurde entsprechend angepasst (FR-011).
 
 ## R15 — Android: Vordergrund-Dienst
 
-**Entscheidung**: Ein Kotlin-Dienst `AssistantService` im Plugin `holzi-android` mit
+**Entscheidung**: Ein Kotlin-Dienst `AssistantService` im Plugin `haex-android` mit
 `foregroundServiceType="microphone"`, Berechtigungen `FOREGROUND_SERVICE`,
 `FOREGROUND_SERVICE_MICROPHONE`, `POST_NOTIFICATIONS`. Er startet nur aus der sichtbaren App: beim
 Einschalten des Modus und bei jeder Rückkehr in die App, wenn der Modus an ist (Android 14+ verbietet
@@ -519,7 +519,7 @@ Fortsetzungszeit hält der Assistent nur im Speicher; nach einem Neustart beginn
 
 **Entscheidung**: `audio::Source` und `audio::Sink` als Traits. Für Tests: eine Quelle aus
 WAV-Dateien mit Pausen dazwischen und eine Senke, die Ausgabe mitschreibt. Im e2e-Build schaltet
-`HOLZI_TEST_AUDIO_SCRIPT=<json>` (nur mit Feature `e2e-audio`) die Quelle um. Testaufnahmen liegen in
+`HAEX_TEST_AUDIO_SCRIPT=<json>` (nur mit Feature `e2e-audio`) die Quelle um. Testaufnahmen liegen in
 `src-tauri/src/assistant/fixtures/` (selbst erzeugt, CC0). Gesprächsabläufe testet ein
 Integrationstest mit festem Modell-Skript, falscher Erkennung und falscher Sprachausgabe.
 

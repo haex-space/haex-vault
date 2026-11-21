@@ -136,7 +136,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "Ich habe in holzi keine Einkaufsliste und keine passende Listen- oder Notiz-App gefunden, und es sind gerade auch keine Speicherorte für Dateien erreichbar. Wie soll ich weitermachen?",
+            "question": "Ich habe in haex-vault keine Einkaufsliste und keine passende Listen- oder Notiz-App gefunden, und es sind gerade auch keine Speicherorte für Dateien erreichbar. Wie soll ich weitermachen?",
             "options": [
               "Sag mir, in welcher App deine Einkaufsliste liegt",
               "Lege eine neue Einkaufsliste als Textdatei an, sobald ein Speicherort verfügbar ist",
@@ -146,7 +146,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich habe in holzi keine Einkaufsliste und keine passende Listen- oder Notiz-App gefunden, und es sind gerade auch keine Speicherorte für Dateien erreichbar. Wie soll ich weitermachen?"
+      "text": "Ich habe in haex-vault keine Einkaufsliste und keine passende Listen- oder Notiz-App gefunden, und es sind gerade auch keine Speicherorte für Dateien erreichbar. Wie soll ich weitermachen?"
     },
     {
       "id": "file-en-1",
@@ -209,7 +209,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "holzi has no calendar app. How should I handle the dentist appointment tomorrow (Thursday, 19 March 2026) at 10:00?",
+            "question": "haex-vault has no calendar app. How should I handle the dentist appointment tomorrow (Thursday, 19 March 2026) at 10:00?",
             "options": [
               "Save a reminder mail to myself as a draft in haex-mail",
               "I'll install a calendar extension first",
@@ -219,7 +219,7 @@
           "ending": "ran"
         }
       ],
-      "text": "holzi has no calendar app. How should I handle the dentist appointment tomorrow (Thursday, 19 March 2026) at 10:00?"
+      "text": "haex-vault has no calendar app. How should I handle the dentist appointment tomorrow (Thursday, 19 March 2026) at 10:00?"
     },
     {
       "id": "no_tool-en-4",

@@ -10,7 +10,7 @@
 > in diesem Dokument sind der Stand bei der Umsetzung. „Darstellung“ gehört
 > seit Spec 042 zu „Allgemein“.
 
-**Input**: Die Einstellungen von holzi bekommen den Aufbau aus haex-vault 2.x (Legacy): links
+**Input**: Die Einstellungen von HaexVault bekommen den Aufbau aus haex-vault 2.x (Legacy): links
 eine Seitenleiste mit Kategorien, rechts der Inhalt der gewählten Kategorie mit
 Titel und Beschreibung, Übersichten mit Unteransichten. Föderation wird eine
 Kategorie der Einstellungen statt einer eigenen App, Darstellung kommt als
@@ -52,7 +52,7 @@ entfällt; die Kategorie „Föderation“ zeigt die Geräte der Vault.) Referen
 
 ### Session 2026-09-26
 
-- Q: Was zeigt die Kategorie „Föderation“, solange holzi keine
+- Q: Was zeigt die Kategorie „Föderation“, solange HaexVault keine
   Föderationsfunktionen hat? → A: Die ursprüngliche Antwort, die Kategorie
   aufzuschieben und alte Wege nach „Allgemein“ zu führen, wurde beim
   Plan-Review durch die folgende Entscheidung ersetzt.
@@ -69,7 +69,7 @@ entfällt; die Kategorie „Föderation“ zeigt die Geräte der Vault.) Referen
 - Q: (Plan-Review) Welches Datum zeigt die Geräteliste, und aktualisiert sie
   sich live? → A: Nicht das Datum des Hinzufügens, sondern wann ein Gerät
   zuletzt online war, und die Liste soll sich über den CRDT-Sync live
-  aktualisieren. Beides braucht den iroh-Sync, den holzi noch nicht hat; es
+  aktualisieren. Beides braucht den iroh-Sync, den HaexVault noch nicht hat; es
   kommt mit der Sync-Spec. Bis dahin zeigt die Liste Namen ohne Datum.
 - Q: (Analyse) Wie heißt der Tab beim Navigieren in den Einstellungen? → A:
   Immer „Einstellungen“; die Verlaufsliste an Vor/Zurück zeigt die Orte.
@@ -206,7 +206,7 @@ jeweils eine Ebene zurück. Vor im Tab führt wieder hinein.
 
 ### User Story 3 - Direkt an eine Stelle springen (Priority: P2)
 
-Ein Hinweis in holzi, ein anderer Teil der App oder ein Agent will den Nutzer zu
+Ein Hinweis in HaexVault, ein anderer Teil der App oder ein Agent will den Nutzer zu
 einer bestimmten Einstellung schicken, zum Beispiel zum Spracherkennungsmodell.
 Die Einstellungen öffnen sich genau dort. Sind sie schon offen, springt der
 vorhandene Tab dorthin.
@@ -215,36 +215,36 @@ vorhandene Tab dorthin.
 Modelle herunterladen“) werden erst nützlich, wenn sie an die richtige Stelle
 führen.
 
-**Independent Test**: holzi über eine Adresse mit Kategorie und Unteransicht
+**Independent Test**: HaexVault über eine Adresse mit Kategorie und Unteransicht
 öffnen: Die Einstellungen zeigen genau diese Unteransicht. Dasselbe bei schon
 offenen Einstellungen: kein zweiter Tab, der vorhandene springt dorthin.
 
 **Acceptance Scenarios**:
 
-1. **Given** die Einstellungen sind geschlossen, **When** eine Stelle in holzi
+1. **Given** die Einstellungen sind geschlossen, **When** eine Stelle in HaexVault
    sie an einer Kategorie oder Unteransicht öffnet, **Then** erscheinen sie
    genau dort.
 2. **Given** die Einstellungen sind offen, **When** sie an einer anderen Stelle
    geöffnet werden, **Then** springt der vorhandene Tab dorthin, und Zurück
    führt zur vorherigen Stelle (Spec 020 FR-013).
 3. **Given** eine Adresse mit einer unbekannten Kategorie oder Unteransicht,
-   **When** sie geöffnet wird, **Then** zeigt holzi die erste Kategorie und einen
+   **When** sie geöffnet wird, **Then** zeigt HaexVault die erste Kategorie und einen
    Hinweis, statt eines Fehlers.
 
 ---
 
 ### User Story 4 - Farbschema wählen (Priority: P2)
 
-Ein Nutzer arbeitet abends und möchte holzi dunkel. In „Darstellung“ wählt er
+Ein Nutzer arbeitet abends und möchte HaexVault dunkel. In „Darstellung“ wählt er
 „Dunkel“. Die ganze App wechselt sofort. Ein anderer Nutzer lässt „System“
-eingestellt, und holzi folgt dem Farbschema des Betriebssystems.
+eingestellt, und HaexVault folgt dem Farbschema des Betriebssystems.
 
 **Why this priority**: Die Oberflächenbibliothek bringt ein dunkles Schema
-schon mit, holzi bietet es nur nicht an. Es ist die naheliegende erste
+schon mit, HaexVault bietet es nur nicht an. Es ist die naheliegende erste
 Einstellung für „Darstellung“.
 
 **Independent Test**: Farbschema auf „Dunkel“, dann „Hell“, dann „System“
-stellen und dabei das Farbschema des Betriebssystems umschalten: holzi folgt
+stellen und dabei das Farbschema des Betriebssystems umschalten: HaexVault folgt
 jeweils sofort, ohne Neustart.
 
 **Acceptance Scenarios**:
@@ -253,7 +253,7 @@ jeweils sofort, ohne Neustart.
    oder „System“ wählt, **Then** übernimmt die ganze App das Schema sofort, in
    allen offenen Fenstern.
 2. **Given** „System“ ist gewählt, **When** das Betriebssystem sein Farbschema
-   wechselt, **Then** folgt holzi ohne Zutun.
+   wechselt, **Then** folgt HaexVault ohne Zutun.
 3. **Given** ein gewähltes Farbschema, **When** der Nutzer die Vault erneut
    öffnet, **Then** gilt dasselbe Schema wieder.
 4. **Given** die Wahl des Farbschemas, **When** der Nutzer sie trifft, **Then**
@@ -283,7 +283,7 @@ Kategorie „Föderation“ und listen die Geräte der Vault.
 
 1. **Given** der Launcher, **When** der Nutzer ihn öffnet, **Then** gibt es keine
    App „Föderation“ mehr.
-2. **Given** die frühere Adresse der Föderation, **When** holzi sie öffnet,
+2. **Given** die frühere Adresse der Föderation, **When** HaexVault sie öffnet,
    **Then** erscheinen die Einstellungen in der Kategorie „Föderation“.
 3. **Given** die Kategorie „Föderation“, **When** der Nutzer sie öffnet,
    **Then** sieht er jedes bekannte Gerät der Vault einmal mit seinem Namen;
@@ -295,7 +295,7 @@ Kategorie „Föderation“ und listen die Geräte der Vault.
 
 ### User Story 6 - Schmale Fenster (Priority: P2)
 
-Ein Nutzer verkleinert das Einstellungsfenster oder nutzt holzi im Kompaktmodus
+Ein Nutzer verkleinert das Einstellungsfenster oder nutzt HaexVault im Kompaktmodus
 (Spec 015). Die Seitenleiste verschwindet, der Inhalt bekommt den ganzen Platz.
 Ein Symbol in der Werkzeugleiste öffnet die Seitenleiste über den Inhalt; die Wahl
 einer Kategorie schließt sie wieder (wie in den GNOME-Einstellungen).
@@ -341,7 +341,7 @@ einer bestimmten Breite verschwindet die Seitenleiste, das Symbol in der Werkzeu
   Modell, ein getrennter Anbieter): Sie zeigt einen Hinweis und den Weg zurück
   zur Übersicht, keinen Fehlerbildschirm.
 - Das Farbschema lässt sich nicht lesen oder die Vault ist noch gesperrt
-  (Entsperr- und Einrichtungsseiten): holzi folgt dem Farbschema des
+  (Entsperr- und Einrichtungsseiten): HaexVault folgt dem Farbschema des
   Betriebssystems.
 - Eine Kategorie hat nur einen Bereich: Sie zeigt den Inhalt direkt, ohne
   Übersicht mit einer einzigen Zeile.
@@ -396,7 +396,7 @@ einer bestimmten Breite verschwindet die Seitenleiste, das Symbol in der Werkzeu
   | Föderation  | Geräte der Vault (US5)                                                                                                                                                           |
 
 - **FR-006**: Es DÜRFEN nur Kategorien erscheinen, die Inhalt haben. Kategorien
-  aus haex-vault 2.x ohne Gegenstück in holzi (Erweiterungen, Kontakte, Identitäten,
+  aus haex-vault 2.x ohne Gegenstück in HaexVault (Erweiterungen, Kontakte, Identitäten,
   Speicher, Sicherheit, Protokolle, Entwickler und ähnliche) entfallen, bis eine
   eigene Spec sie füllt.
 - **FR-007**: Jede Einstellung, die es vor dieser Spec gab, MUSS mit
@@ -428,13 +428,13 @@ einer bestimmten Breite verschwindet die Seitenleiste, das Symbol in der Werkzeu
 
 **Darstellung**
 
-- **FR-013**: holzi MUSS ein Farbschema mit den Werten „Hell“, „Dunkel“ und
+- **FR-013**: HaexVault MUSS ein Farbschema mit den Werten „Hell“, „Dunkel“ und
   „System“ anbieten; Standard ist „System“. Die Wahl MUSS sofort in der ganzen
   App gelten und bei „System“ dem Betriebssystem folgen. Alle Bedienelemente
   MÜSSEN in beiden Schemata lesbar sein.
 - **FR-014**: Das Farbschema gilt für die Vault (FR-024). Das Setzen MUSS eine
   Aktion im Katalog von Spec 020 sein. Vor dem Entsperren einer Vault folgt
-  holzi dem Betriebssystem.
+  HaexVault dem Betriebssystem.
 - **FR-015**: „Darstellung“ MUSS in dieser Spec nur das Farbschema enthalten.
   Ein Hintergrund des Arbeitsbereichs (Bild oder Farbverlauf) gehört zur Spec
   Desktop-Symbole und Raster.
@@ -508,7 +508,7 @@ einer bestimmten Breite verschwindet die Seitenleiste, das Symbol in der Werkzeu
   HuggingFace-Suche → Ergebnis → Dateiauswahl).
 - **Farbschema**: Einstellung mit den Werten Hell, Dunkel, System; gilt für die
   Vault (FR-024), Standard System.
-- **Gerät der Vault**: eine Installation von holzi, die die Vault geöffnet hat;
+- **Gerät der Vault**: eine Installation von HaexVault, die die Vault geöffnet hat;
   Name, ob es dieses Gerät ist.
 
 ## Success Criteria _(mandatory)_
@@ -526,7 +526,7 @@ einer bestimmten Breite verschwindet die Seitenleiste, das Symbol in der Werkzeu
   und alle Einstellungen ohne waagerechtes Scrollen bedienbar.
 - **SC-005**: Ein Wechsel des Farbschemas ist in allen offenen Fenstern in
   weniger als einer Sekunde sichtbar.
-- **SC-006**: Kein Weg in holzi öffnet mehr eine eigene Föderations-App.
+- **SC-006**: Kein Weg in HaexVault öffnet mehr eine eigene Föderations-App.
 - **SC-007**: Jedes Quickstart-Szenario, das weder Netz noch ein zweites Gerät
   noch eine Zeitmessung braucht, läuft als End-to-End-Test gegen die gebaute
   App und besteht.
@@ -542,7 +542,7 @@ einer bestimmten Breite verschwindet die Seitenleiste, das Symbol in der Werkzeu
   die Vault (FR-024); die ursprüngliche Annahme „Gerät vor Vault“ hat der
   Betreiber am 2026-09-26 verworfen.
 - Eine Akzentfarbe, die Schriftgröße und eine Sprachwahl sind nicht Teil dieser
-  Spec; haex-vault 2.x hat die ersten beiden auch nicht. holzi zeigt die Oberfläche
+  Spec; haex-vault 2.x hat die ersten beiden auch nicht. HaexVault zeigt die Oberfläche
   heute immer auf Deutsch; die englischen Texte (FR-020) liegen trotzdem vor.
 - Die zu große Komponente der HuggingFace-Modellverwaltung (Complexity Tracking
   aus Spec 020) wird bei der Aufteilung in Bereiche zerlegt; das ist eine Folge
@@ -558,7 +558,7 @@ einer bestimmten Breite verschwindet die Seitenleiste, das Symbol in der Werkzeu
 - Geräte umbenennen (außer diesem), entfernen, sperren oder ihren
   Synchronisationsstand zeigen; die Geräteliste ist nur eine Anzeige (FR-022).
 - „Zuletzt online“ je Gerät und die Live-Aktualisierung der Geräteliste; beides
-  kommt mit der Sync-Spec (iroh), weil holzi heute keinen Sync-Transport hat.
+  kommt mit der Sync-Spec (iroh), weil HaexVault heute keinen Sync-Transport hat.
 - Ein Hintergrund des Arbeitsbereichs (FR-015).
 - Neue Einstellungen außer dem Farbschema.
 - Tastenkürzel für einzelne Kategorien (kommt mit der Tastenkürzel-Spec).

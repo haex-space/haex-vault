@@ -30,9 +30,9 @@ federation established.
 ## 1. The question this answers
 
 `haex-vault 2.x` implements shared spaces with MLS (group key agreement) and UCAN (capability
-delegation chains). Can holzi have cross-user sharing without adopting either stack?
+delegation chains). Can haex-vault have cross-user sharing without adopting either stack?
 
-**Yes.** What MLS and UCAN provide is replaceable with primitives holzi already needs for other
+**Yes.** What MLS and UCAN provide is replaceable with primitives haex-vault already needs for other
 reasons. What is _not_ replaceable is the concepts: there is still a capability system and there is
 still group key management, just in a smaller, purpose-built form.
 
@@ -155,7 +155,7 @@ its current capabilities. `on_before_apply` rejects an identity mismatch, stale/
 attestation or wrong-space context, and the all-or-nothing apply then writes nothing. This binding
 prevents a relay that authenticated one instance from accepting a valid signature from another.
 
-holzi uses `NoopSignatureProvider` inside the closed federation, where an authenticated iroh
+haex-vault uses `NoopSignatureProvider` inside the closed federation, where an authenticated iroh
 transport carries the trust; it remains valid there because the provider's documented no-op
 precondition is that the transport is already authenticated. `NoopSignatureProvider` is not used
 for shared-space ingress. This satisfies ADR 0002's requirement that authorization be verifiable
@@ -216,8 +216,8 @@ For the object-storage path, `haex-vault 2.x`'s content-addressable IAM design p
   LIST on the content prefix. Without a sidecar, an object cannot even be enumerated.
 - The KEK/DEK split makes multi-space grants free: one physical object, N sidecars.
 
-**The only change holzi needs** is the KEK source. `haex-vault 2.x` resolves it from the MLS group
-state (`FileKeySource::SpaceEpoch`); holzi resolves it from the NIP-44-wrapped space epoch key of
+**The only change haex-vault needs** is the KEK source. `haex-vault 2.x` resolves it from the MLS group
+state (`FileKeySource::SpaceEpoch`); haex-vault resolves it from the NIP-44-wrapped space epoch key of
 §2. Everything else — envelope format, sidecars, opaque object keys, IAM policy shape — is
 transport- and identity-agnostic.
 
@@ -324,20 +324,20 @@ files. That decision belongs in the v1 scope document, not here.
 
 ## 10. Addendum (2026-09-17): concrete drivers from a follow-up session
 
-Written from a session that started by comparing holzi to OpenClaw 2.0 and to
+Written from a session that started by comparing haex-vault to OpenClaw 2.0 and to
 [`haex-space/haex-sync-server`](https://github.com/haex-space/haex-sync-server). No architectural
 decision here changes; this section adds concrete use cases and sharpens one open question already
 listed in §8.
 
-**Buffer relay, concretely — "Holzi Relay".** The operator's stated target: a multi-tenant,
+**Buffer relay, concretely — "HaexVault Relay".** The operator's stated target: a multi-tenant,
 self-hosted sync server where multiple unrelated users' vaults sync through one deployment, with
 none able to read another's data, including the operator of that deployment. This is exactly the
 buffer relay of §3. Useful sibling reference: `haex-sync-server` provides a concrete implementation
 of the general client-encrypted relay shape for HaexHub on a different stack (Supabase/Postgres
-policies and authenticated API routes rather than holzi's NIP-42 plus signed membership
+policies and authenticated API routes rather than haex-vault's NIP-42 plus signed membership
 projections). The server stores ciphertext and encrypted key material, but does not hold the
 decryption key. This is evidence that the general relay shape is implementable, not validation of
-holzi's different Nostr authorization model. The Nostr-based mechanism in §3-§4 is holzi's own
+haex-vault's different Nostr authorization model. The Nostr-based mechanism in §3-§4 is haex-vault's own
 design, not a port of that implementation.
 
 **The metadata caveat needs to be stated plainly, not just listed as open.** §8 item 2 already flags
@@ -360,11 +360,11 @@ rights remain capabilities on the space member record, not per-row ACLs. No desi
 proposed here, just confirmation that the granularity can match the use case. Two things worth
 flagging against this specific driver:
 
-- **Sequencing dependency, not a design gap.** holzi has no calendar, todo, or shopping-list
+- **Sequencing dependency, not a design gap.** haex-vault has no calendar, todo, or shopping-list
   application yet. The current application scope covers chat/models/providers and the surrounding
   Tauri, relay, iroh, MCP, and device-lifecycle surfaces, but none of those modules provides rows
   for these use cases. The sharing mechanism is table-agnostic — a future app module would need to
-  add its tables to Holzi's eventual equivalent of `SPACE_SCOPED_CRDT_TABLES`, implement the
+  add its tables to HaexVault's eventual equivalent of `SPACE_SCOPED_CRDT_TABLES`, implement the
   sender-side filtering, and build a row-registration UI. There is nothing to register until those
   app modules exist. Not a blocker to this design; a build-order note.
 - **Re-delegation (§8 item 4) is the open question this driver makes concrete.** A shared family

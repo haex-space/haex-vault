@@ -7,7 +7,7 @@
 ## Summary
 
 Eine Erweiterung mit der Berechtigung `peers` öffnet Kanäle zu derselben Erweiterung auf Geräten
-anderer Vaults: per Einladung an einen Kontakt, die der Nutzer in holzis eigener Abfrage annimmt, oder
+anderer Vaults: per Einladung an einen Kontakt, die der Nutzer in haex-vaults eigener Abfrage annimmt, oder
 per Beitrittscode einer Lobby („nur Kontakte“ oder „öffentlich“). Über einen Kanal laufen schnelle,
 verlusttolerante und gesicherte Nachrichten, Ende-zu-Ende-verschlüsselt, direkt oder über ein Relay.
 Erster Nutzer ist der Mehrspielermodus von haex-doom.
@@ -26,9 +26,9 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 - **Lobbys** (R6, R7): Beitrittscode `haex-vault:join:` mit Endpoint, Relay, zufälliger Lobby-Kennung und
   128-Bit-Geheimnis; Beweis per HMAC über die Handshake-Nonces, zeitkonstant geprüft, eine Antwort für
   alle Fehlschläge; neue Drosselung der Zulassung.
-- **Einladungen** (R9, R10): holzis Abfrage im Fenster oder als eigene Benachrichtigung mit Knöpfen;
+- **Einladungen** (R9, R10): haex-vaults Abfrage im Fenster oder als eigene Benachrichtigung mit Knöpfen;
   erste Annahme gewinnt über `InviteConfirm`/`Withdraw`; die Erweiterung erfährt erst nach der Annahme
-  davon (`peers:channel-opened`), notfalls nachdem holzi sie geöffnet hat.
+  davon (`peers:channel-opened`), notfalls nachdem haex-vault sie geöffnet hat.
 - **Zustellung** (R8): `bridge::events::emit_to_frames`; der Puffer vor der Bereitschaft verwirft
   schnelle Nachrichten zuerst, ein Überlauf gesicherter schließt den Kanal.
 - **Lebenszyklus** (R11, R12): `PeerState::end_all` an den Stellen von `shells.end_all`, Abonnent auf
@@ -54,7 +54,7 @@ Loopback-Endpoints und lokalem Relay, `sync/test_support.rs`; Uhr injiziert), Ve
 `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm lint:rust`; E2E nach Spec 033 mit zweiter
 Vault (`scripts/e2e/scenarios/extension-peers.test.ts`); Handprüfung [quickstart.md](./quickstart.md)
 
-**Target Platform**: Linux, macOS, Windows, Android (nichts `cfg(desktop)`); iOS hat in holzi noch
+**Target Platform**: Linux, macOS, Windows, Android (nichts `cfg(desktop)`); iOS hat in haex-vault noch
 keinen Build (Spec 043, „iOS (eigene Spec)“)
 
 **Project Type**: Desktop- und Mobil-App (Tauri) mit Erweiterungs-Host
@@ -112,7 +112,7 @@ specs/057-extension-peer-channels/
 ├── data-model.md
 ├── quickstart.md
 ├── contracts/
-│   ├── bridge.md            # Methoden, Meldungen, Fehler, Befehle für holzis Fenster
+│   ├── bridge.md            # Methoden, Meldungen, Fehler, Befehle für haex-vaults Fenster
 │   ├── wire-protocol.md     # haex-ext-peer/1: Handshake, Zulassung, Kanal, Beitrittscode
 │   └── sdk.md               # client.peers im vault-sdk und Unterschiede zum Entwurf von haex-doom
 ├── checklists/requirements.md
@@ -211,7 +211,7 @@ Jede Lieferung ist für sich prüfbar und wird vor der nächsten gemergt. Das SD
   Schema von 054 (`haex-vault-…`); 054 muss sie nicht mehr anfassen.
 - **Reihenfolge mit 056**: Wer `sync/foreign_auth.rs` und die Handler-Liste zuerst baut, legt die Form
   fest; der zweite passt sich an. 056 research R4 und R5 beschreiben dieselben Bausteine noch als
-  eigene Teile von `holzi-files/1`; das wird beim Umsetzen der zweiten Spec angeglichen.
+  eigene Teile von `haex-files/1`; das wird beim Umsetzen der zweiten Spec angeglichen.
 - **Brückendurchsatz**: ein Aufruf je Datagramm (R8); wird SC-004 verfehlt, kommt das Bündeln.
 
 ## Complexity Tracking

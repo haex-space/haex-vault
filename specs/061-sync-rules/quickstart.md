@@ -35,7 +35,7 @@ Rust-Zweige mit `cfg` zusätzlich für `aarch64-linux-android` linten.
 3. Dieselbe Datei auf beiden Seiten ändern: neuere behält den Namen, ältere liegt daneben (FR-012).
 4. Datei links löschen, rechts ändern: die geänderte bleibt und kommt zurück (FR-013).
 5. Datei links löschen, rechts unverändert: sie liegt rechts im Papierkorb des Systems (Desktop) oder in
-   `.holzi-trash` (Android, Speicher) (FR-019).
+   `.haex-trash` (Android, Speicher) (FR-019).
 6. Zweites Gerät: Regel `Laptop/Arbeit` ↔ `Telefon/Arbeit`; Telefon ausschalten → Regel „wartet“ ohne Fehler;
    einschalten → holt nach (FR-024).
 
@@ -52,11 +52,11 @@ Rust-Zweige mit `cfg` zusätzlich für `aarch64-linux-android` linten.
 2. Eine `.tmp`-Datei in einem Ordner anlegen: sie wird nicht kopiert; liegt sie schon an beiden Orten,
    bleibt sie unberührt (SC-009).
 3. Regel → Protokoll: letzte Läufe mit Zählern; einen Lauf aufklappen: Pfad, Aktion, Seite. Einen
-   gespiegelten Löscheintrag öffnen: führt in `.holzi-trash` oder nennt den Papierkorb des Systems.
+   gespiegelten Löscheintrag öffnen: führt in `.haex-trash` oder nennt den Papierkorb des Systems.
 4. Dateibrowser → Sync-Regeln → „Einstellungen“ (neben „Neue Regel“): Tiefe auf 2 setzen → ältere Läufe sind sofort weg; auf 0 → kein neues Protokoll.
 
 ## 5. Agent (Story 5)
 
 1. Einstellungen → Agents → Dateien: „Sync-Regeln verwalten“ einschalten.
 2. Agent bitten, eine Regel anzulegen: die Abfrage zeigt Orte, Richtung, Löschmodus; erst nach „Erlauben“
-   entsteht sie. Ohne Berechtigung lehnt holzi ab.
+   entsteht sie. Ohne Berechtigung lehnt HaexVault ab.

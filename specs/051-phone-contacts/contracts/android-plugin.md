@@ -1,6 +1,6 @@
 # Android-Plugin: Befehle für das Telefon-Adressbuch
 
-Im Plugin `src-tauri/plugins/holzi-android` (ADR 0010). Kotlin bildet nur Zeilen des Contacts
+Im Plugin `src-tauri/plugins/haex-android` (ADR 0010). Kotlin bildet nur Zeilen des Contacts
 Providers auf JSON ab; jede Regel liegt in Rust (`contacts/phone/`). Rust ruft über
 `run_mobile_plugin`; `other.rs` liefert auf dem Desktop `PhoneContactsUnavailable`.
 
@@ -10,7 +10,7 @@ Providers auf JSON ab; jede Regel liegt in Rust (`contacts/phone/`). Rust ruft �
   API 22 nötig, mit `maxSdkVersion="22"`).
 - Kotlin: in `@TauriPlugin(permissions = …)` ein Eintrag mit `READ_CONTACTS` und `WRITE_CONTACTS`,
   Alias `contacts`; Rust `Permission::Contacts`. Anfrage wie `voice.rs::ensure_microphone` in
-  `spawn_blocking`; alles außer `Granted` → `HolziError::ContactsDenied`.
+  `spawn_blocking`; alles außer `Granted` → `HaexError::ContactsDenied`.
 
 ## Befehle
 
@@ -39,7 +39,7 @@ ein Roh-Kontakt in einem Konto, dessen Sync-Adapter nicht hochlädt.
 `Event` (startDate, type, label), `Relation` (name, type, label), `GroupMembership` (groupId; beim
 Lesen zusätzlich `title` und `readOnly` der Gruppe, damit Rust Mitgliedschaften über den Titel
 abgleicht und die Gruppen des Systems wie „My Contacts“ nie anfasst).
-Andere Mimetypes liefert `contactsRead` nicht; holzi schreibt sie nie (FR-022). Eine Ausnahme, nur
+Andere Mimetypes liefert `contactsRead` nicht; haex-vault schreibt sie nie (FR-022). Eine Ausnahme, nur
 lesend: das Profil-Feld von Telegram (`vnd.android.cursor.item/vnd.org.telegram.messenger.android.profile`)
 kommt als Zeile mit dem Mimetype `TelegramProfile`, `isReadOnly: true` und dem Feld `text` (`DATA3`,
 zum Beispiel „Nachricht in Telegram +4915203426563“). Telegram legt die Nummer eines Kontakts nur dort

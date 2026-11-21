@@ -5,7 +5,7 @@
 Neu ist **eine** CRDT-Tabelle für gemerkte Zulassungen und Sperren und **zwei** Einstellungen des
 Geräts. Vorläufige Zustände und alles, was zu einer Verbindung gehört, leben nur im Speicher der
 Bridge (R13). Vorhandene Tabellen ändern sich nicht. Die Migration bekommt die nächste freie Nummer;
-bei der Planung ist das `0038_browser_clients`. `HOLZI_TRIGGER_VERSION` steigt von 25 auf 26.
+bei der Planung ist das `0038_browser_clients`. `HAEX_TRIGGER_VERSION` steigt von 25 auf 26.
 
 ## Tabelle `haex_browser_clients` (CRDT, geräteeigen)
 
@@ -44,7 +44,7 @@ Keine UNIQUE-Constraint: Ein Konflikt hielte die Synchronisation an (wie in
   ([contracts/tauri-commands.md](./contracts/tauri-commands.md)), nie durch einen Client oder
   Agenten (FR-013).
 - **Abgleich beim Handshake**: Eine Zeile gilt nur, wenn `client_id`, `public_key`, `origin` und
-  `declaration` zum Handshake passen. Weicht `origin` oder `declaration` ab, fragt holzi neu. Bis
+  `declaration` zum Handshake passen. Weicht `origin` oder `declaration` ab, fragt haex-vault neu. Bis
   zur Antwort führt es keine Anfrage aus (FR-012). Die neue Antwort ersetzt die Zeile.
 - **Tag-Namen** statt Tag-Kennungen: wie die Freigaben aus 034 und 017 (`Scope::tags(names)`).
   Benennt der Nutzer ein Tag um, fällt der Bereich enger aus, nie weiter.

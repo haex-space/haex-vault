@@ -418,7 +418,7 @@
       "id": "file-de-1",
       "result": "missed",
       "calls": [],
-      "text": "Es ist nicht möglich, die Position der Steuererklärung in holzi zu finden. Bitte geben Sie mir weitere Informationen, um die Suche zu assistieren."
+      "text": "Es ist nicht möglich, die Position der Steuererklärung in haex-vault zu finden. Bitte geben Sie mir weitere Informationen, um die Suche zu assistieren."
     },
     {
       "id": "file-de-2",
@@ -634,7 +634,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Der Eintrag für \"Netflix\" wurde gefunden. Der Titel ist \"Netflix\", die Tags sind \"Streaming\", und der Ordner ist \"Privat\". Der Eintrag hat keinen One-Time-Code. Um den Eintrag zu öffnen, können Sie die Anwendung \"Holzi\" öffnen und den Ordner \"Privat\" aufrufen, um den Eintrag zu sehen."
+      "text": "Der Eintrag für \"Netflix\" wurde gefunden. Der Titel ist \"Netflix\", die Tags sind \"Streaming\", und der Ordner ist \"Privat\". Der Eintrag hat keinen One-Time-Code. Um den Eintrag zu öffnen, können Sie die Anwendung \"HaexVault\" öffnen und den Ordner \"Privat\" aufrufen, um den Eintrag zu sehen."
     },
     {
       "id": "file-de-1-s",
@@ -698,7 +698,7 @@
           "ending": "ran"
         }
       ],
-      "text": "The action \"What did Tom write?\" does not match any available actions in holzi. Try different keywords, such as in English, to find the appropriate action. If no match is found, let the user know that there is no action available for this query."
+      "text": "The action \"What did Tom write?\" does not match any available actions in haex-vault. Try different keywords, such as in English, to find the appropriate action. If no match is found, let the user know that there is no action available for this query."
     },
     {
       "id": "mail_read-en-3",

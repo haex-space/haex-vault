@@ -10,7 +10,7 @@ Apps lassen sich direkt an einem Ort öffnen. Jede Aktion der Shell und der
 ausgelieferten Apps wird als beschriebene, aufrufbare Aktion geführt — für
 Oberfläche, Tastenkürzel und später für Agenten (eingebaut und extern über MCP);
 Leitplanken-Einstellungen bleiben Agenten verschlossen. Inhalte in Tabs,
-insbesondere haextensions, können die Navigation von holzi nicht verändern. Das
+insbesondere haextensions, können die Navigation von HaexVault nicht verändern. Das
 haex-vault-2.x-Modell (`useDrillDownNavigation`, Navigation-Store) wird bewusst
 nicht 1:1 übernommen.
 
@@ -42,7 +42,7 @@ nicht 1:1 übernommen.
 - Die geplante Folge-Spec **Befehle und Tastenkürzel** baut auf der
   Aktions-Registry dieser Spec auf und macht die Belegung durch den Nutzer
   änderbar.
-- Die geplante Spec **021 (holzi als MCP-Server, Agenten-Berechtigungen)**
+- Die geplante Spec **021 (HaexVault als MCP-Server, Agenten-Berechtigungen)**
   macht die Aktionen dieser Spec für angemeldete externe Agenten und den
   eingebauten Agenten aufrufbar, mit Anmeldung, Freigabe und Berechtigungen je
   Agent (welche Bereiche, welche haextensions, Passwörter, Shell, Dateien …).
@@ -52,7 +52,7 @@ nicht 1:1 übernommen.
 - Die Specs **017/018** (haextension-Host, Extension-Tools, ADR-0004) binden
   Extension-Tabs an das Ort- und Historienmodell dieser Spec an (Navigation der
   Extension über das SDK statt über die Webview-Historie). Diese Spec stellt
-  sicher, dass Inhalte in Tabs die Navigation von holzi nicht verändern können
+  sicher, dass Inhalte in Tabs die Navigation von HaexVault nicht verändern können
   (FR-034, FR-035).
 - Die geplanten Folge-Specs **Tabs per Drag & Drop** und **Native Fenster**
   setzen voraus, dass die Historie mit dem Tab mitwandert (FR-010).
@@ -270,7 +270,7 @@ aus dem Verlauf öffnen, Zurück: die zuvor aktive Unterhaltung ist wieder offen
 
 ### User Story 7 - Jede Aktion ist beschrieben und aufrufbar (Priority: P2)
 
-Ein Agent — später der eingebaute oder ein angemeldeter externer — soll holzi
+Ein Agent — später der eingebaute oder ein angemeldeter externer — soll HaexVault
 vollständig bedienen können: eine App öffnen, dorthin navigieren, eine
 Einstellung ändern, eine Unterhaltung beginnen. Dafür ist jede Aktion, die ein
 Nutzer per Klick oder Taste auslösen kann, auch als beschriebene Aktion mit
@@ -323,12 +323,12 @@ ausgeführt.
 
 Ein Nutzer hat eine haextension oder eine andere eingebettete Seite in einem Tab
 offen. Was diese Seite mit ihrer eigenen Browser-Historie macht, hat keinen
-Einfluss auf holzi: keine Tab-Historie ändert sich, kein anderer Tab wird aktiv,
-und Zurück in holzi führt immer dorthin, wo der Nutzer es erwartet.
+Einfluss auf HaexVault: keine Tab-Historie ändert sich, kein anderer Tab wird aktiv,
+und Zurück in HaexVault führt immer dorthin, wo der Nutzer es erwartet.
 
 **Why this priority**: Vorgabe des Betreibers. In einem Webview teilen sich alle
 eingebetteten Dokumente eine gemeinsame Browser-Historie; ohne Schutz könnte eine
-Extension holzis Zurück-Verhalten kapern oder stören.
+Extension HaexVaults Zurück-Verhalten kapern oder stören.
 
 **Independent Test**: In einen Tab ein eingebettetes Dokument laden, das
 mehrfach Einträge in seine Browser-Historie schreibt und Zurück auslöst.
@@ -343,13 +343,13 @@ ausschließlich nach den Regeln dieser Spec.
    Historie noch der Ort irgendeines Tabs, noch der aktive Tab oder das
    fokussierte Fenster.
 2. **Given** ein eingebettetes Dokument löst selbst Zurück aus, **When** das
-   geschieht, **Then** betrifft es höchstens dieses Dokument; holzi navigiert
+   geschieht, **Then** betrifft es höchstens dieses Dokument; HaexVault navigiert
    keinen Tab und verlässt die Vault nicht.
 3. **Given** der Zeiger steht über einem eingebetteten Dokument, **When** der
    Nutzer die Maustaste Zurück drückt oder das Kürzel verwendet, **Then** wirkt
    die Eingabe nach FR-017/FR-018 auf den Tab, soweit die Plattform die Eingabe
-   an holzi weiterreicht; andernfalls betrifft sie höchstens das eingebettete
-   Dokument, nie holzis Navigation.
+   an HaexVault weiterreicht; andernfalls betrifft sie höchstens das eingebettete
+   Dokument, nie HaexVaults Navigation.
 
 ### Edge Cases
 
@@ -543,13 +543,13 @@ Spec noch keinen Zugang)
 
 - **FR-034**: Inhalte in Tabs — insbesondere eingebettete Dokumente wie
   haextensions — DÜRFEN weder Ort noch Historie eines Tabs, den aktiven Tab,
-  das fokussierte Fenster noch sonst die Navigation von holzi verändern.
+  das fokussierte Fenster noch sonst die Navigation von HaexVault verändern.
   Änderungen, die ein eingebettetes Dokument an der Browser-Historie vornimmt,
   MÜSSEN auf dieses Dokument beschränkt bleiben. Der Ort eines Tabs ändert sich
   nur über die Tab-Schnittstelle der App oder über eine Aktion.
 - **FR-035**: Die Browser-Historie des Webviews DARF NIE Quelle eines
-  Navigationszustands von holzi sein. Zurück-Eingaben (Maustasten,
-  Tastenkürzel, System-Zurück) MÜSSEN von holzi selbst verarbeitet werden,
+  Navigationszustands von HaexVault sein. Zurück-Eingaben (Maustasten,
+  Tastenkürzel, System-Zurück) MÜSSEN von HaexVault selbst verarbeitet werden,
   bevor der Webview sie als eigene History-Navigation ausführt, soweit die
   Plattform das erlaubt; wo eine Plattform eine Eingabe nur einem eingebetteten
   Dokument zustellt, DARF sie höchstens dieses Dokument betreffen.

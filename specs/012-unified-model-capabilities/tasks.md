@@ -78,7 +78,7 @@ split. No user-visible behavior changes yet.
       (delete the original there in T022 so nothing is duplicated).
 - [x] T006 In `src-tauri/src/identity/migrations.rs` add migration
       `0018_models_add_capabilities` = `ALTER TABLE models ADD COLUMN capabilities_json TEXT;` (nullable,
-      no default, with a comment stating `NULL` means not determined), bump `HOLZI_TRIGGER_VERSION`
+      no default, with a comment stating `NULL` means not determined), bump `HAEX_TRIGGER_VERSION`
       from 9 to 10, and add the `- 10:` line to the version list in the constant's doc comment
       (mandatory because `models` is CRDT-tracked, see the file's own rule).
 - [x] T007 [P] Extend `src-tauri/tests/vault_upgrade.rs` following its existing pattern: a vault

@@ -1,6 +1,6 @@
 # Quickstart: Werkzeuge von Erweiterungen prüfen
 
-Voraussetzung: holzi aus diesem Branch (`pnpm tauri:dev:cuda` oder `tauri:dev`), lokales Modell Qwen3-4B,
+Voraussetzung: HaexVault aus diesem Branch (`pnpm tauri:dev:cuda` oder `tauri:dev`), lokales Modell Qwen3-4B,
 Test-Erweiterung `src-tauri/tests/fixtures/extension_e2e/agent-tools.xt`.
 
 1. **Installieren (US2)**: Test-Erweiterung installieren → der Dialog listet unter den Berechtigungen die

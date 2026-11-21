@@ -6,9 +6,9 @@
 
 **Status**: Draft
 
-**Input**: User description: „ich möchte holzi gerne zu einem vollwertigen ki assistent ausbauen, der
-vollständig durch sprache gesteuert werden kann. durch einen button im app launcher soll holzi auf
-audio assistant geschaltet werden können. dadurch soll holzi immer per wake word aktiviert werden
+**Input**: User description: „ich möchte HaexVault gerne zu einem vollwertigen ki assistent ausbauen, der
+vollständig durch sprache gesteuert werden kann. durch einen button im app launcher soll HaexVault auf
+audio assistant geschaltet werden können. dadurch soll HaexVault immer per wake word aktiviert werden
 (der agent). ab da soll der nutzer einfach mit dem agent ganz normal sprechen können, wie mit einem
 menschen. der agent nimmt die fragen/anweisungen entgegen und versucht sie zu beantworten bzw zu
 bearbeiten und gibt dem nutzer dann ebenfalls per audio rückmeldung dazu. so sollen komplette

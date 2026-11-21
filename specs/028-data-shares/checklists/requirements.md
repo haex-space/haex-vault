@@ -58,7 +58,7 @@
 - FR-002 (d) and (e) (declared columns exist, FK points to the parent table,
   unique names, no cycles) add structural validity checks to the three D5
   rejection rules.
-- Dependency: holzi has no extension-owned, prefixed, synced tables yet (design
+- Dependency: HaexVault has no extension-owned, prefixed, synced tables yet (design
   §15 item 10) and no extension host (planned spec 017). Stated in Assumptions;
   implementation waits for them and for specs 024 and 026 under the phasing
   rule.

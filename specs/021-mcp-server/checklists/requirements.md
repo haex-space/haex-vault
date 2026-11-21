@@ -1,4 +1,4 @@
-# Specification Quality Checklist: holzi als MCP-Server für externe Agenten
+# Specification Quality Checklist: HaexVault als MCP-Server für externe Agenten
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-10-26

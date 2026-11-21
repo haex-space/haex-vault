@@ -38,7 +38,7 @@ Technischer Ansatz (Begründungen in [research.md](./research.md)):
 rusqlite mit SQLCipher, serde_json, ts-rs, Pinia, haex-ui-Layer
 
 **Storage**: SQLCipher-Vault über haex-crdt; neu `wm_sessions_no_sync` und
-`holzi_maintenance_no_sync` (beide nicht synchronisiert), Präferenz in
+`haex_maintenance_no_sync` (beide nicht synchronisiert), Präferenz in
 `preferences`; entfernt `workspaces`, `shell_windows`, `shell_window_tabs`
 
 **Testing**: `cargo test` (neue Befehls- und Migrationstests), `check:wm-state`
@@ -117,7 +117,7 @@ Stand nach der Umsetzung (2026-09-26).
 
 ```text
 src-tauri/src/
-├── error.rs                       # NEU: HolziError::SessionTooLarge { bytes }
+├── error.rs                       # NEU: HaexError::SessionTooLarge { bytes }
 ├── identity/
 │   ├── migrations.rs              # NEU: 0020_wm_session_no_sync (DROP ×3, CREATE ×2, Wartungseintrag)
 │   └── migrations_tests.rs        # NEU: 0020 frisch + aktualisiert; 0019-Kaskadentests entfallen

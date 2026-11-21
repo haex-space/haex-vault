@@ -19,7 +19,7 @@ VS Code als Vorbild) und ein Adwaita-Set; weitere gute Vorschläge sind willkomm
 
 - Q: Wie fallen die Zustände eines Eintrags auf (verschlüsselter Ordner, gesperrt, ohne Zugriff,
   beschädigt)? → A: Die mitgelieferten Pakete Material und Phosphor tragen dafür eigene, farbige
-  Bilder von holzi, in beiden gleich: Grün mit großem Schloss für einen lesbaren verschlüsselten
+  Bilder von HaexVault, in beiden gleich: Grün mit großem Schloss für einen lesbaren verschlüsselten
   Ordner, Rot für gesperrt, Grau mit Verbotszeichen für „kein Zugriff“. Lucide behält seine
   Symbole (Betreiber, 2026-10-15).
 - Q: Wie bekommen die Standardordner des Home-Verzeichnisses ihre Icons? → A: Das Material-Paket
@@ -42,7 +42,7 @@ VS Code als Vorbild) und ein Adwaita-Set; weitere gute Vorschläge sind willkomm
   (`icon-theme.json`: Bilddefinitionen, Dateiendungen, Dateinamen, Ordnernamen, Ordner,
   Hell/Dunkel). So lassen sich vorhandene Themes aus dem VS-Code-Umfeld direkt importieren, und die
   mitgelieferten Sets nutzen dasselbe Format.
-- Q: Wie kommt ein eigenes Set in holzi? → A: Nur über eine lokale Datei oder einen lokalen Ordner.
+- Q: Wie kommt ein eigenes Set in HaexVault? → A: Nur über eine lokale Datei oder einen lokalen Ordner.
   Ein Herunterladen per Link ist nicht Teil dieser Spec.
 - Q: Wie wird bei einem importierten Set festgelegt, ob es einfarbig (in der Textfarbe) oder bunt
   ist? → A: Gar nicht: Importierte Sets sind immer bunt, wie bei VS Code. Dort gibt es keine
@@ -60,7 +60,7 @@ VS Code als Vorbild) und ein Adwaita-Set; weitere gute Vorschläge sind willkomm
   wir eingehen“); eine erste Fassung mit einem logofreien Auszug ist damit abgelöst (FR-017).
 - Q (Planung, 2026-10-14): Was ändert die Planung an der Spec? → A: Auf Android gibt es heute keine
   Ordnerauswahl (Spec 043 FR-016), also dort nur das Archiv (FR-009, US3). Die Lizenzprüfung ist in der
-  Planung gemacht (research R1); offen ist die fehlende LICENSE-Datei von holzi (Betreiber).
+  Planung gemacht (research R1); offen ist die fehlende LICENSE-Datei von HaexVault (Betreiber).
 - Q: Welche Sets werden mitgeliefert, und nach welcher Regel? → A: „Lucide“ (bisheriges Aussehen,
   bleibt Standard), „Phosphor“ (viele Dateitypen) und „Material“ (das Material Icon Theme,
   vollständig). Mitgeliefert wird nur, was unter einer permissiven Lizenz steht (MIT, ISC, Apache-2.0,
@@ -84,7 +84,7 @@ VS Code als Vorbild) und ein Adwaita-Set; weitere gute Vorschläge sind willkomm
 - **Standard-Set**: „Material“, das Set, das eine Vault ohne eigene Wahl hat (Betreiber, 2026-10-15).
 - **Rückfall-Set**: „Lucide“, das bisherige Aussehen. Es füllt jede Rolle, die ein anderes Set nicht
   belegt, und antwortet für jedes Set, das nicht verfügbar ist.
-- **Einfarbiges Set**: das mitgelieferte Set „Lucide“ aus einfarbigen Symbolen, die holzi in der
+- **Einfarbiges Set**: das mitgelieferte Set „Lucide“ aus einfarbigen Symbolen, die HaexVault in der
   Textfarbe der Oberfläche zeichnet, hell und dunkel passend. Alle anderen Sets, auch „Phosphor“ (in
   einer hellen und einer dunklen Fassung gefärbt) und jedes importierte, sind **bunt**: ihre Bilder erscheinen, wie sie sind, wie bei VS Code.
 
@@ -106,7 +106,7 @@ VS Code als Vorbild) und ein Adwaita-Set; weitere gute Vorschläge sind willkomm
 ### User Story 1 - Ein anderes Icon-Set wählen (Priority: P1)
 
 Anna öffnet die Einstellungen und sieht in der Gestaltung eine Auswahl „Icon-Set für Dateien“ mit den
-mitgelieferten Sets. Zu jedem Set zeigt holzi eine Vorschau: einen Beispielordner mit den typischen
+mitgelieferten Sets. Zu jedem Set zeigt HaexVault eine Vorschau: einen Beispielordner mit den typischen
 Dateien (Ordner, Bild, Video, Musik, PDF, Text, Programmcode, Archiv). Sie klickt auf „Phosphor“, und
 sofort zeigen alle Dateilisten, im Raster wie in der Liste, und die Suchergebnisse das neue Aussehen. Es
 gibt nichts zu bestätigen. Beim nächsten Start ist die Wahl noch da.
@@ -138,7 +138,7 @@ Wahl bleibt.
 
 Der Nutzen eines Sets mit „vielen Dateitypen“ liegt darin, dass `foto.png`, `main.rs`, `bericht.pdf` und `daten.csv` verschieden aussehen; ein
 importiertes Theme kann das bis zu einzelnen Dateinamen wie `Dockerfile` und Ordnernamen wie `src`
-treiben. holzi sucht das Bild eines Eintrags deshalb der Reihe nach:
+treiben. HaexVault sucht das Bild eines Eintrags deshalb der Reihe nach:
 zuerst nach dem genauen Dateinamen, dann nach der Endung, dann nach der Rolle (Bild, Video, Audio,
 Dokument, PDF, sonst Datei). Bei Ordnern zuerst nach dem Ordnernamen, dann nach der Rolle „Ordner“. Was ein Set nicht kennt, übernimmt das Standard-Set. Dadurch ist auch ein unvollständiges
 Set sofort brauchbar.
@@ -161,11 +161,11 @@ zeigt sein Bild, alle anderen das Standard-Set.
 4. **Given** ein Ordner `node_modules` und ein Set mit Bild dafür, **When** die Liste ihn zeigt, **Then**
    hat er dieses Bild; ein Ordner ohne Zuordnung zeigt das Ordner-Bild des Sets.
 5. **Given** ein Set ohne Bild für die Rolle „nicht lesbare Datei“, **When** eine solche Datei vorkommt,
-   **Then** zeigt holzi das Standard-Bild für diesen Zustand, nie ein leeres Feld.
+   **Then** zeigt HaexVault das Standard-Bild für diesen Zustand, nie ein leeres Feld.
 6. **Given** ein Set mit Varianten für hell und dunkel, **When** die Oberfläche das Farbschema wechselt,
    **Then** wechseln die Bilder mit; ohne Varianten gilt das eine Bild in beiden Schemata (bei einem
    einfarbigen Set in der Textfarbe des jeweiligen Schemas).
-7. **Given** ein Eintrag, den das Set nicht kennt, **When** das Bild gesucht wird, **Then** zeigt holzi
+7. **Given** ein Eintrag, den das Set nicht kennt, **When** das Bild gesucht wird, **Then** zeigt HaexVault
    das Standard-Bild der Rolle; es erscheint nie ein „kaputtes Bild“.
 
 ---
@@ -174,10 +174,10 @@ zeigt sein Bild, alle anderen das Standard-Set.
 
 Anna hat ein Icon-Theme aus dem VS-Code-Umfeld heruntergeladen, entpackt in einem Ordner. In den
 Einstellungen wählt sie „Eigenes Icon-Set hinzufügen“, zeigt auf den Ordner (auf dem Telefon: auf die Archivdatei), und
-holzi prüft ihn. Hat er ein lesbares Manifest und brauchbare Bilder, erscheint das Set mit Vorschau in
-der Liste und lässt sich wählen. Sind einzelne Bilder unbrauchbar oder zu groß, nennt holzi sie und
+HaexVault prüft ihn. Hat er ein lesbares Manifest und brauchbare Bilder, erscheint das Set mit Vorschau in
+der Liste und lässt sich wählen. Sind einzelne Bilder unbrauchbar oder zu groß, nennt HaexVault sie und
 übernimmt den Rest; ist der ganze Ordner kein Set, sagt es, warum, und legt nichts an. Skripte in
-SVG-Bildern entfernt holzi, bevor es das Bild speichert.
+SVG-Bildern entfernt HaexVault, bevor es das Bild speichert.
 
 **Why this priority**: Der zweite Teil des Wunsches („eigene Iconsets“). Mit den mitgelieferten Sets
 allein (US1) ist die Funktion schon nützlich, deshalb nicht P1.
@@ -195,17 +195,17 @@ enthält; einen Ordner ohne Manifest importieren und die Fehlermeldung prüfen.
    Ergebnis.
 3. **Given** ein SVG-Bild mit einem Skript, einem Ereignis-Attribut (zum Beispiel `onload`), einem
    eingebetteten fremden Dokument oder einem Verweis auf eine externe Adresse, **When** das Set
-   importiert wird, **Then** speichert holzi das Bild ohne diese Teile (FR-011); das Bild bleibt
+   importiert wird, **Then** speichert HaexVault das Bild ohne diese Teile (FR-011); das Bild bleibt
    sichtbar, soweit es ohne sie darstellbar ist.
 4. **Given** ein Bild, das sich nicht als SVG, PNG oder WebP lesen lässt oder ein Limit überschreitet
-   (FR-013), **When** Anna importiert, **Then** übernimmt holzi das Set ohne dieses Bild und nennt es
+   (FR-013), **When** Anna importiert, **Then** übernimmt HaexVault das Set ohne dieses Bild und nennt es
    mit Dateiname und Grund; die Rollen darauf fallen auf das Standard-Set zurück.
 5. **Given** ein Ordner ohne lesbares Manifest oder ohne ein einziges brauchbares Bild, **When** Anna
-   importiert, **Then** legt holzi nichts an und sagt in einem Satz, was fehlt.
+   importiert, **Then** legt HaexVault nichts an und sagt in einem Satz, was fehlt.
 6. **Given** ein Set mit demselben Namen wie ein vorhandenes eigenes Set, **When** Anna importiert,
-   **Then** fragt holzi, ob das vorhandene ersetzt werden soll; ohne Bestätigung bleibt es unberührt.
+   **Then** fragt HaexVault, ob das vorhandene ersetzt werden soll; ohne Bestätigung bleibt es unberührt.
 7. **Given** ein Manifest, das auf Bilder außerhalb des Ordners zeigt (zum Beispiel `../../x.svg` oder
-   einen absoluten Pfad), **When** importiert wird, **Then** liest holzi nur Bilder innerhalb des
+   einen absoluten Pfad), **When** importiert wird, **Then** liest HaexVault nur Bilder innerhalb des
    gewählten Ordners oder Archivs und meldet die anderen als nicht übernommen.
 8. **Given** ein importiertes Set, **When** Anna im Dateibrowser ein Verzeichnis ansieht, **Then**
    erscheinen die Bilder des Sets nur als Bilder, nie als ausführbarer Teil der Seite (FR-010).
@@ -233,7 +233,7 @@ wählen und auf dem ersten prüfen.
 2. **Given** dieselben Geräte, **When** auf einem ein Set gewählt wird, **Then** gilt es nach dem Sync
    auf dem anderen.
 3. **Given** ein eigenes Set, das auf diesem Gerät erst teilweise angekommen ist, **When** es gewählt
-   ist, **Then** zeigt holzi das Standard-Set und in den Einstellungen „wird synchronisiert“; ein halbes
+   ist, **Then** zeigt HaexVault das Standard-Set und in den Einstellungen „wird synchronisiert“; ein halbes
    Set erscheint nie.
 4. **Given** ein eigenes Set, das auf einem Gerät entfernt wird, **When** der Sync die Änderung bringt,
    **Then** verschwindet es überall; war es gewählt, gilt überall wieder das Standard-Set.
@@ -248,7 +248,7 @@ wählen und auf dem ersten prüfen.
 ### User Story 5 - Eigene Sets entfernen und Herkunft einsehen (Priority: P3)
 
 Ein eigenes Set, das Anna nicht mehr will, entfernt sie in der Liste; mitgelieferte Sets lassen sich
-nicht entfernen. Zu jedem Set zeigt holzi Name, Urheber und Lizenz, damit Anna weiß, woher die Bilder
+nicht entfernen. Zu jedem Set zeigt HaexVault Name, Urheber und Lizenz, damit Anna weiß, woher die Bilder
 kommen. Für die mitgelieferten Sets steht dieselbe Angabe auf einer Seite „Lizenzen“ der App.
 
 **Why this priority**: Aufräumen und Herkunft sind wichtig (Lizenzpflicht bei den mitgelieferten Sets),
@@ -263,7 +263,7 @@ Lizenzseite öffnen und die Angaben zu jedem mitgelieferten Set finden.
    aus der Liste und von allen Geräten; war es gewählt, gilt das Standard-Set.
 2. **Given** ein mitgeliefertes Set, **When** Anna die Liste ansieht, **Then** bietet es kein
    „Entfernen“ an.
-3. **Given** ein Set, **When** Anna seine Details öffnet, **Then** zeigt holzi Name, Urheber, Lizenz
+3. **Given** ein Set, **When** Anna seine Details öffnet, **Then** zeigt HaexVault Name, Urheber, Lizenz
    und Quelle, soweit das Set sie nennt.
 4. **Given** die Seite „Lizenzen“, **When** Anna sie öffnet, **Then** steht für jedes mitgelieferte Set
    Urheber, Lizenz und der verlangte Hinweis.
@@ -275,9 +275,9 @@ Lizenzseite öffnen und die Angaben zu jedem mitgelieferten Set finden.
 - **Set ohne Zuordnung für Ordner**: Ordner zeigen das Standard-Bild für Ordner (FR-003).
 - **Manifest mit Bildverweisen, die nicht existieren**: diese Einträge werden übersprungen und beim
   Import genannt (US3 Szenario 4); das Set bleibt brauchbar.
-- **Sehr großes Set** (über dem Limit): holzi lehnt es ab und nennt das Limit (FR-013), statt die
+- **Sehr großes Set** (über dem Limit): HaexVault lehnt es ab und nennt das Limit (FR-013), statt die
   Synchronisierung zu belasten.
-- **Zu viele eigene Sets**: ab dem Limit (FR-013) bietet holzi erst nach dem Entfernen eines Sets den
+- **Zu viele eigene Sets**: ab dem Limit (FR-013) bietet HaexVault erst nach dem Entfernen eines Sets den
   Import an.
 - **Gewähltes Set fehlt** (entfernt, noch nicht angekommen, Set einer neueren App-Version): das
   Standard-Set gilt, nie ein leerer Dateibrowser; die Einstellungen sagen, warum.
@@ -290,7 +290,7 @@ Lizenzseite öffnen und die Angaben zu jedem mitgelieferten Set finden.
 - **SVG mit Animation oder mit Verweis auf Schriften**: Animationen und externe Verweise werden beim
   Import entfernt; das Bild erscheint statisch.
 - **Archiv, das sich beim Entpacken über sein Ziel hinaus ausbreitet** (sehr viele oder sehr große
-  Dateien, Pfade mit `..`): holzi bricht ab, bevor etwas gespeichert wird (FR-013).
+  Dateien, Pfade mit `..`): HaexVault bricht ab, bevor etwas gespeichert wird (FR-013).
 - **Set mit nur einem Teil der Rollen** (zum Beispiel nur Ordner): erlaubt; der Rest kommt vom
   Standard-Set (US2).
 - **Erweiterungen**: Eine Erweiterung kann das Set weder lesen noch ändern; sie erhält nur das, was sie
@@ -306,7 +306,7 @@ Lizenzseite öffnen und die Angaben zu jedem mitgelieferten Set finden.
 - **FR-002**: Die Wahl MUSS überall gelten, wo der Dateibrowser das Bild eines Eintrags zeigt (Liste,
   Raster, Suchergebnisse) und sofort wirken, ohne die Ansicht neu zu laden. Vorschaubilder von Bildern
   im Raster (044 FR-005) bleiben, wie sie sind.
-- **FR-003**: holzi MUSS das Bild eines Eintrags in dieser Reihenfolge bestimmen: (1) Ordner: Name des
+- **FR-003**: HaexVault MUSS das Bild eines Eintrags in dieser Reihenfolge bestimmen: (1) Ordner: Name des
   Ordners; Datei: genauer Dateiname, (2) Endung (ohne Rücksicht auf Groß- und Kleinschreibung),
   (3) Rolle, (4) Standard-Set. Fehlt ein Bild auf einer Stufe, MUSS die nächste gelten; es DARF nie
   ein leeres oder kaputtes Bild erscheinen.
@@ -316,10 +316,10 @@ Lizenzseite öffnen und die Angaben zu jedem mitgelieferten Set finden.
   beschädigt) und „Ordner ohne Zugriff“ MÜSSEN Rollen sein, die ein Dateityp-Bild nie verdeckt.
 - **FR-006**: Ein Set MUSS Bilder für Hell und Dunkel unterstützen; die Bilder MÜSSEN mit dem
   Farbschema der Oberfläche wechseln. Das einfarbige mitgelieferte Set (Lucide) MUSS in der
-  Textfarbe der Oberfläche erscheinen. Ein importiertes Set ist immer bunt: holzi färbt seine Bilder
+  Textfarbe der Oberfläche erscheinen. Ein importiertes Set ist immer bunt: HaexVault färbt seine Bilder
   nie ein und rät nicht, ob sie einfarbig sind; sein Aussehen im hellen und dunklen Schema bestimmt
   allein das Set durch seine Hell-/Dunkel-Bilder, wie bei VS Code.
-- **FR-007**: holzi MUSS diese Sets mitliefern: „Lucide“ (Rückfall, bisheriges Aussehen), „Phosphor“
+- **FR-007**: HaexVault MUSS diese Sets mitliefern: „Lucide“ (Rückfall, bisheriges Aussehen), „Phosphor“
   (viele Dateitypen: Dokumente, Tabellen, Bilder, Audio, Video, Archive und die häufigen
   Programmiersprachen als Buchstaben-Symbole, dazu Ordner und Schloss) und „Material“ (das Material
   Icon Theme mit Ordnern nach Namen und Bildern für die gängigen Dateitypen und Werkzeuge, wie bei VS
@@ -337,14 +337,14 @@ Lizenzseite öffnen und die Angaben zu jedem mitgelieferten Set finden.
 - **FR-010**: Bilder eines Sets MÜSSEN ausschließlich als Bilder angezeigt werden. Ein Bild DARF nie
   als ausführbarer Teil der Seite eingebettet werden; kein Bild DARF Code ausführen, die Oberfläche
   verändern oder Daten nach außen senden.
-- **FR-011**: Beim Import MUSS holzi SVG-Bilder bereinigen und nur die bereinigte Fassung speichern:
+- **FR-011**: Beim Import MUSS HaexVault SVG-Bilder bereinigen und nur die bereinigte Fassung speichern:
   Skripte, Ereignis-Attribute, eingebettete fremde Dokumente, Animationen und Verweise auf externe
   Adressen oder Dateien MÜSSEN entfernt werden. Diese Bereinigung MUSS es genau einmal geben, nicht
   einmal in jeder Schicht der App; die Anzeige verlässt sich auf sie und ist zusätzlich nach FR-010
   gesichert.
-- **FR-012**: Beim Import MUSS holzi PNG- und WebP-Bilder als solche prüfen (lesbar, Format passt zur
+- **FR-012**: Beim Import MUSS HaexVault PNG- und WebP-Bilder als solche prüfen (lesbar, Format passt zur
   Endung); Bilder, die sich nicht als SVG, PNG oder WebP lesen lassen, MÜSSEN abgelehnt werden.
-- **FR-013**: holzi MUSS Grenzen setzen und beim Überschreiten den Import ablehnen oder das Bild
+- **FR-013**: HaexVault MUSS Grenzen setzen und beim Überschreiten den Import ablehnen oder das Bild
   auslassen, mit Nennung des Grundes: Gesamtgröße eines Sets, Größe und Pixelmaße eines Bildes, Anzahl
   Bilder und Anzahl eigener Sets, Archive mit überlangem Inhalt oder Pfaden außerhalb des Ziels.
   Ein Archiv DARF nie außerhalb des Ziels schreiben.
@@ -371,7 +371,7 @@ Lizenzseite öffnen und die Angaben zu jedem mitgelieferten Set finden.
 - **FR-019**: Ein eigenes Set MUSS der Nutzer entfernen können (mit Bestätigung); war es gewählt, MUSS
   überall das Standard-Set gelten. Mitgelieferte Sets DÜRFEN nicht entfernbar sein.
 - **FR-020**: Ist das gewählte Set nicht verfügbar (entfernt, noch nicht synchronisiert, aus einer
-  neueren App-Version), MUSS holzi das Standard-Set zeigen und in den Einstellungen den Grund nennen.
+  neueren App-Version), MUSS HaexVault das Standard-Set zeigen und in den Einstellungen den Grund nennen.
 - **FR-021**: Ein Set MUSS in den Einstellungen mit Vorschau stehen (Beispielordner mit typischen
   Dateien), in der gewählten Hell-/Dunkel-Darstellung; zu jedem Set MÜSSEN Name, Urheber, Lizenz und
   Quelle einsehbar sein, soweit das Set sie nennt.

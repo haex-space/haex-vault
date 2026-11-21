@@ -2,7 +2,7 @@
 description: 'Task list for spec 032-model-operates-holzi'
 ---
 
-# Tasks: Modell bedient holzi über die Aktionen
+# Tasks: Modell bedient haex-vault über die Aktionen
 
 **Input**: Design documents from `/specs/032-model-operates-holzi/`
 
@@ -51,7 +51,7 @@ description: 'Task list for spec 032-model-operates-holzi'
 
 ---
 
-## Phase 3: User Story 1 - Holzi per Chat bedienen: lesen und navigieren (P1) 🎯 MVP
+## Phase 3: User Story 1 - HaexVault per Chat bedienen: lesen und navigieren (P1) 🎯 MVP
 
 **Goal**: A model (API key or local) calls actions like `wm_state_get` and `wm_app_open` through the existing tool loop; the action runs in the frontend with caller `builtinAgent`, the result returns to the model, and every call is a tool row in the transcript.
 
@@ -77,7 +77,7 @@ description: 'Task list for spec 032-model-operates-holzi'
   - Done 2026-10-01: `wm.state.get` already returns the three ids; its description now names them (its result schema is an open object), and a check asserts that.
 - [ ] T022 [US1] Checkpoint: run `cargo test` (both legs), `pnpm check:agent-actions`, `pnpm check:wm-navigation`, `pnpm typecheck`, `pnpm typecheck:scripts`, `pnpm lint`; then [quickstart.md](./quickstart.md) §4 steps 1–2 by hand with Claude (API key) and with the local Qwen3-4B
 
-**Checkpoint**: A model can read and navigate holzi. Mode "Manual" asks for every call through the existing dialog.
+**Checkpoint**: A model can read and navigate haex-vault. Mode "Manual" asks for every call through the existing dialog.
 
 ---
 
@@ -102,7 +102,7 @@ description: 'Task list for spec 032-model-operates-holzi'
   - Done 2026-10-01: the approval event carries `toolSource` so the dialog knows an action; target labels come from the window-manager store as the tab bar names them, workspaces as "Arbeitsbereich N".
 - [ ] T027 [US2] Checkpoint: [quickstart.md](./quickstart.md) §2 and §4 steps 3–5 by hand (Manual, Auto, Plan; guardrail request); confirm Auto runs a color-scheme change without asking and asks before closing a tab
 
-**Checkpoint**: P1 complete — the model reads, navigates and changes holzi under the existing modes.
+**Checkpoint**: P1 complete — the model reads, navigates and changes haex-vault under the existing modes.
 
 ---
 
@@ -140,7 +140,7 @@ description: 'Task list for spec 032-model-operates-holzi'
 
 ### Tests for User Story 4
 
-- [x] T032 [P] [US4] Tests first: `src-tauri/src/model_capabilities_tests.rs` (serde round trip of `toolUse`, a record without the field reads as `None`, `is_undetermined()` unchanged); `src-tauri/tests/model_capabilities_storage.rs` (`set_tool_use` replaces only that field, keeps reasoning and attachments; precedence Provider/Curated over Template over SelfTest and never downward; re-importing the same model resets the field); `src-tauri/src/llm/local/probe_tests.rs` (probe decision logic with an injected renderer: identical output with and without the dummy tool → `Unsupported`/`Template`, tool-aware output → inconclusive, "does not handle tool usage" error → `Unsupported`); an `#[ignore]` probe test with `HOLZI_TEST_GGUF` in `src-tauri/tests/local_inference.rs`
+- [x] T032 [P] [US4] Tests first: `src-tauri/src/model_capabilities_tests.rs` (serde round trip of `toolUse`, a record without the field reads as `None`, `is_undetermined()` unchanged); `src-tauri/tests/model_capabilities_storage.rs` (`set_tool_use` replaces only that field, keeps reasoning and attachments; precedence Provider/Curated over Template over SelfTest and never downward; re-importing the same model resets the field); `src-tauri/src/llm/local/probe_tests.rs` (probe decision logic with an injected renderer: identical output with and without the dummy tool → `Unsupported`/`Template`, tool-aware output → inconclusive, "does not handle tool usage" error → `Unsupported`); an `#[ignore]` probe test with `HAEX_TEST_GGUF` in `src-tauri/tests/local_inference.rs`
   - Done 2026-10-01: the probe decision tests are in `llm/local/probe_tests.rs`; the `#[ignore]` probe test in `tests/local_inference.rs` ran against the local Qwen3-4B and reads its template as taking tools.
   - Done 2026-10-01: serde, precedence and storage tests (`model_capabilities_tests.rs`, `model_capabilities_storage.rs`, `availability_tests.rs`).
 
@@ -154,7 +154,7 @@ description: 'Task list for spec 032-model-operates-holzi'
   - Done 2026-10-01: `ProviderAdapter::probe_tool_template` (default `Inconclusive`, `LocalAdapter` asks the model); `llm/local/probe.rs` compares the rendering with and without a dummy tool. The `either` crate became a direct, feature-gated dependency because `Model::tokenize` takes an `Either`. The result is written by the check of T045, not at load time.
 - [x] T036 [US4] Availability in `send_message` (`src-tauri/src/chat/commands.rs`, small; logic in a new `src-tauri/src/chat/tools/availability.rs` with its own `_tests.rs`): derive `ToolAvailability` from `(provider_kind, capabilities.tool_use)` per [data-model.md](./data-model.md) §6, pass no tools for `Delegate` and `Unsupported`, emit `chat-tool-availability { threadId, state }` once per turn (constants in `src-tauri/src/chat/events.rs`), leave `adapters/cli_delegate/` untouched
   - Done 2026-10-01: `chat/tools/availability.rs` (`ToolAvailability::of`, `offers_tools`, `ToolAvailabilityEvent`); `send_message` hands no tools to `Unsupported` and `Delegate` and emits `chat-tool-availability` once per turn; the constant sits in `events.rs`.
-- [x] T037 [US4] Frontend notice and refresh: handle `chat-tool-availability` in `src/composables/useChatTranscript.ts` and show a dismissible banner in `src/components/chat/StatusBanners.vue` for `offeredUnverified`, `unsupported` and `delegate`, once per thread and state per app session (in-memory set, `ponytail:` comment about the restart); handle `model-tool-use-updated` by reloading the model lists in `src/composables/useModels.ts`; add `chat.toolNotice.unverified|unsupported|delegate` to `de.json` and `en.json` (the `unsupported` text also says which kind of model can operate holzi); add `scripts/check-chat-tool-notice.ts` (harness test: one notice per thread and state, none for `offered`) and append it to the `check:chat-state` script in `package.json`
+- [x] T037 [US4] Frontend notice and refresh: handle `chat-tool-availability` in `src/composables/useChatTranscript.ts` and show a dismissible banner in `src/components/chat/StatusBanners.vue` for `offeredUnverified`, `unsupported` and `delegate`, once per thread and state per app session (in-memory set, `ponytail:` comment about the restart); handle `model-tool-use-updated` by reloading the model lists in `src/composables/useModels.ts`; add `chat.toolNotice.unverified|unsupported|delegate` to `de.json` and `en.json` (the `unsupported` text also says which kind of model can operate haex-vault); add `scripts/check-chat-tool-notice.ts` (harness test: one notice per thread and state, none for `offered`) and append it to the `check:chat-state` script in `package.json`
   - Done 2026-10-01: `chat-tool-availability` handling (`useToolNotice`, `lib/chat/toolNotice.ts`), the banner, the keys, `model-tool-use-updated` model-list refresh and `check-chat-tool-notice.ts` in `check:chat-state`. The producer is supplied by T035/T045; the listener is ready before those probes land.
 - [ ] T038 [US4] Checkpoint: [quickstart.md](./quickstart.md) §4 steps 6 and 8 by hand (model without tool template, Claude Code or Codex delegate); `pnpm check:chat-state` green
 
@@ -183,8 +183,8 @@ description: 'Task list for spec 032-model-operates-holzi'
   - Done 2026-10-01: `pnpm export:eval-tools` writes `tools.json`; `check:agent-actions` compares the snapshot with the catalog, checks every expected tool, runtime ids in args, and the composition (>= 6 smalltalk, >= 8 outside the core, five or six self-test sentences in both languages).
 - [x] T043 [US5] Add deterministic sampling to the request: a `sampling` field on `ChatRequest` in `src-tauri/src/adapters/types.rs` (default `Default`, variant `Deterministic`), honored by `src-tauri/src/llm/local/stream.rs:build_request` via `set_deterministic_sampler` (feature-gated), ignored by other adapters; fix the struct-literal sites with `..Default::default()`. Then create `src-tauri/src/chat/eval/runner.rs`: `run_eval(adapter, set, tools, sentences) -> EvalReport` — per sentence up to two `stream_chat` steps with the core offer: if the model calls `find_actions` the runner executes the pure search over `tools.json`, extends the offer with `extend_offer` and scores the complete action-call batch in the second step; for direct cases it scores the complete first-step batch or text; missing, duplicate and unexpected calls are failures; no action is ever executed (FR-021); the report carries `reachRate` and `extraSteps`, `deterministic` recorded in the report
   - Done 2026-10-01: `ChatRequest.sampling` (`Default` or `Deterministic`), honored by the local adapter. `run_eval` takes the adapter, model id, flag, set, tools, `Which` (`All` or `SelfTest`) and a cancellation token. A test model that does what each sentence expects passes all 30, so the set, the snapshot and the search agree.
-- [x] T044 [US5] Create `src-tauri/tests/model_tool_eval.rs` (`#[ignore]`, `#![cfg(feature = "llm-cpu")]` for the local path): reads `HOLZI_TEST_GGUF` (and optional `HOLZI_TEST_GGUF_TOKENIZER`) or `HOLZI_EVAL_PROVIDER` + `HOLZI_EVAL_MODEL` + the provider key from the environment (never from files), runs the full set, writes `target/eval/<model>.json`; needs no vault (FR-022)
-  - Done 2026-10-01: `tests/model_tool_eval.rs` (local via `HOLZI_TEST_GGUF`, Anthropic via `HOLZI_EVAL_PROVIDER=anthropic`, `HOLZI_EVAL_MODEL` and `ANTHROPIC_API_KEY`); not run yet, see T046.
+- [x] T044 [US5] Create `src-tauri/tests/model_tool_eval.rs` (`#[ignore]`, `#![cfg(feature = "llm-cpu")]` for the local path): reads `HAEX_TEST_GGUF` (and optional `HAEX_TEST_GGUF_TOKENIZER`) or `HAEX_EVAL_PROVIDER` + `HAEX_EVAL_MODEL` + the provider key from the environment (never from files), runs the full set, writes `target/eval/<model>.json`; needs no vault (FR-022)
+  - Done 2026-10-01: `tests/model_tool_eval.rs` (local via `HAEX_TEST_GGUF`, Anthropic via `HAEX_EVAL_PROVIDER=anthropic`, `HAEX_EVAL_MODEL` and `ANTHROPIC_API_KEY`); not run yet, see T046.
 - [x] T045 [US4] Create `src-tauri/src/chat/tools/selftest.rs` (+ `selftest_tests.rs` with a scripted stub adapter): a background `tokio::spawn` that runs the `selfTest` subset through `run_eval` after an inconclusive probe for a local model with `tool_use == None`, aborts when the session switches the model, writes `Supported|Unsupported` with basis `SelfTest` through `set_tool_use` and emits `model-tool-use-updated`; pass threshold as the constant `SELF_TEST_PASS = 0.6` with a `ponytail:` comment pointing to T046; trigger it from `src-tauri/src/chat/model_loading.rs` after T035's probe; the chat is never blocked (scenario 7, FR-018b, SC-002a)
   - Done 2026-10-01: `chat/tools/selftest.rs` (`find_tool_use`, `spawn_tool_use_check` as gate work, `SELF_TEST_PASS`), triggered after a local model is ready. `ChatState::begin_tool_check` ends the previous check; a message sent, a model change, an unload and the vault close end the running one, so a person who chats right after loading may leave the model unchecked until its next load.
 - [ ] T046 [US5] First full measurement (manual): run T044 twice against the local Qwen3-4B (and Qwen3-1.7B/0.6B) and against one Claude model with an API key; save the reports' summary to `specs/032-model-operates-holzi/eval-results.md` (no keys, no paths); check SC-001, SC-002, SC-005 and SC-008 (two runs ≤ 10 percentage points apart); run the self-test of T045 on each measured model, time it (SC-002a, ≤ 2 minutes, CPU only, Qwen3-4B) and compare its verdict with the full run (≥ 90 % agreement); derive `SELF_TEST_PASS`, confirm or change the composition of the core offer (`CORE_AGENT_TOOLS`), check `reachRate` against SC-005 (≥ 95 % within two steps) and the extra-step cost for the local model, optionally run the control with all 51 tools offered for cloud models (runner switch) to see whether the search step pays off, and set the `tool_use` entries for `model_catalog.json`; apply them in `selftest.rs`, `offer.rs` and the catalog; decide whether constrained decoding (research R10) is needed and, if so, record it as a follow-up spec idea in `eval-results.md`
@@ -226,7 +226,7 @@ description: 'Task list for spec 032-model-operates-holzi'
 
 ## Implementation Strategy
 
-1. **MVP = Phases 1–3 (US1)**: a model can read and navigate holzi in Manual mode. Stop and run the quickstart.
+1. **MVP = Phases 1–3 (US1)**: a model can read and navigate haex-vault in Manual mode. Stop and run the quickstart.
 2. **Add US2**: modes and plain-language approvals make it safe to use by default. P1 is now shippable as a slice of the PR.
 3. **Add US3 and US4**: quality for small local models and honest notices.
 4. **Add US5**: measure, set the real thresholds (T046), then finish with Phase 8.

@@ -74,7 +74,7 @@ inference stop time once (research R5, **Open**) and record it in the task notes
 1. Start the app twice. Unlock vault A in the first and vault B in the second.
 2. Start a reply in B. Close A. Expect B unaffected and its reply completing.
 3. In the second process, try to unlock A (if still open) or, before closing, in a third start: expect
-   the "open in another Holzi instance" message and no data change.
+   the "open in another HaexVault instance" message and no data change.
 4. Create a vault in one process, focus the other: the list shows it without a restart.
 5. Install the same model in both at the same time: exactly one valid installation results.
 6. While one process downloads a model and another creates a vault, start a further process (or

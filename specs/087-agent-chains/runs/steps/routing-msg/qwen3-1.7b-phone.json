@@ -422,7 +422,7 @@
       "id": "app_setting-de-3",
       "result": "missed",
       "calls": [],
-      "text": "Die Sprache kann nicht geändert werden, da es sich um eine Anfrage zur Sprachänderung handelt, die nicht mit den verfügbaren Funktionen der App holzi übereinstimmt."
+      "text": "Die Sprache kann nicht geändert werden, da es sich um eine Anfrage zur Sprachänderung handelt, die nicht mit den verfügbaren Funktionen der App haex-vault übereinstimmt."
     },
     {
       "id": "app_setting-de-4",
@@ -449,7 +449,7 @@
       "id": "app_setting-de-5",
       "result": "missed",
       "calls": [],
-      "text": "Ich kann keine Anweisung geben, die nicht mit dem Holzi-App-Set zusammenhängt. Wenn du es dunkler möchtest, kannst du die App öffnen und die Beleuchtung anstellen."
+      "text": "Ich kann keine Anweisung geben, die nicht mit dem haex-vault-App-Set zusammenhängt. Wenn du es dunkler möchtest, kannst du die App öffnen und die Beleuchtung anstellen."
     },
     {
       "id": "clarify-de-2",
@@ -668,7 +668,7 @@
       "id": "file-de-1-s",
       "result": "missed",
       "calls": [],
-      "text": "Die Frage ist nicht direkt mit den verfügbaren Tools verbunden. Es handelt sich um eine Frage zur Steuererklärung, die nicht mit den Funktionen für den Einsatz von holzi oder den Mail-Tools verknüpft ist. Für solche Fragen können Sie direkt in die entsprechende Abteilung oder über das Support-System"
+      "text": "Die Frage ist nicht direkt mit den verfügbaren Tools verbunden. Es handelt sich um eine Frage zur Steuererklärung, die nicht mit den Funktionen für den Einsatz von haex-vault oder den Mail-Tools verknüpft ist. Für solche Fragen können Sie direkt in die entsprechende Abteilung oder über das Support-System"
     },
     {
       "id": "app_setting-de-1-s",
@@ -688,7 +688,7 @@
       "id": "app_setting-de-2-s",
       "result": "missed",
       "calls": [],
-      "text": "Es kann nicht geändert werden, da es sich um ein Problem der Farbschema-Optionen handelt, die nicht in den verfügbaren Tools des holzi-Apps sind."
+      "text": "Es kann nicht geändert werden, da es sich um ein Problem der Farbschema-Optionen handelt, die nicht in den verfügbaren Tools des haex-vault-Apps sind."
     },
     {
       "id": "app_setting-de-5-s",
@@ -1003,7 +1003,7 @@
       "id": "contact-en-2-s",
       "result": "missed",
       "calls": [],
-      "text": "I cannot provide the address of Doctor Huber as it is not related to the tools available in holzi. Please provide more context or clarify your request."
+      "text": "I cannot provide the address of Doctor Huber as it is not related to the tools available in haex-vault. Please provide more context or clarify your request."
     },
     {
       "id": "password-en-1-s",

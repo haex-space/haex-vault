@@ -26,7 +26,7 @@ Ordneransichten (kein eigener Verzeichnisbaum pro Panel)."
 
 - **Spec 044** (Dateibrowser und Viewer): Diese Spec erweitert den Dateibrowser, ändert aber weder
   Quellen noch Transfers, Namenskonflikte (FR-021), den Schutz vor Kopieren in sich selbst (FR-022),
-  Löschen (FR-023) oder den Schutz der eigenen Daten von holzi (FR-037). Kopieren und Verschieben
+  Löschen (FR-023) oder den Schutz der eigenen Daten von HaexVault (FR-037). Kopieren und Verschieben
   zwischen den Panels sind dieselben Transfers wie bisher (FR-018 bis FR-020, FR-025, FR-026).
   FR-007 (jeder Tab hat seinen Ort) gilt weiter: Der Split gehört zum Tab, nicht zum Fenster.
   FR-017b belegt F5 mit „Neuladen“; in der Split-Ansicht übernimmt F5 das Kopieren (FR-008), Neuladen
@@ -79,9 +79,9 @@ beide Panels zeigen ihn danach.
 2. **Given** zwei Panels in verschiedenen Ordnern, **When** Anna in einem Panel navigiert, sortiert
    oder Einträge auswählt, **Then** ändert sich nur dieses Panel; das andere behält Ordner und
    Auswahl.
-3. **Given** das aktive Panel hat eine Auswahl, **When** Anna F5 drückt, **Then** kopiert holzi sie in
+3. **Given** das aktive Panel hat eine Auswahl, **When** Anna F5 drückt, **Then** kopiert HaexVault sie in
    den Ordner des Gegenpanels, mit Transferleiste, Abbruch und Namenskonflikt-Frage wie bisher.
-4. **Given** das aktive Panel hat eine Auswahl, **When** Anna F6 drückt, **Then** verschiebt holzi
+4. **Given** das aktive Panel hat eine Auswahl, **When** Anna F6 drückt, **Then** verschiebt HaexVault
    sie in den Ordner des Gegenpanels; die Einträge verschwinden aus dem Quellpanel und erscheinen im
    Gegenpanel.
 5. **Given** ein Panel hat Fokus in der Liste, **When** Anna Tab drückt, **Then** wird das andere Panel
@@ -100,7 +100,7 @@ Ben bevorzugt die Maus. Er zieht Dateien aus dem linken Panel auf einen Ordner i
 dessen freie Fläche.
 
 **Why this priority**: Ziehen ist neben den Tasten der zweite natürliche Weg und existiert in
-holzi schon innerhalb eines Panels (Spec 044 FR-018).
+HaexVault schon innerhalb eines Panels (Spec 044 FR-018).
 
 **Independent Test**: In zwei Panels mit Testordnern eine Auswahl auf einen Ordner im Gegenpanel
 ziehen, dann auf dessen freie Fläche, jeweils mit und ohne Strg (auf macOS Alt).
@@ -108,15 +108,15 @@ ziehen, dann auf dessen freie Fläche, jeweils mit und ohne Strg (auf macOS Alt)
 **Acceptance Scenarios**:
 
 1. **Given** zwei Panels derselben Quelle, **When** Ben eine Auswahl auf einen Ordner im Gegenpanel
-   zieht, **Then** verschiebt holzi sie in diesen Ordner; mit gehaltener Strg-Taste (macOS: Alt)
-   kopiert sie. Zeigen die Panels verschiedene Quellen, kopiert holzi immer, wie bisher (Spec 044).
+   zieht, **Then** verschiebt HaexVault sie in diesen Ordner; mit gehaltener Strg-Taste (macOS: Alt)
+   kopiert sie. Zeigen die Panels verschiedene Quellen, kopiert HaexVault immer, wie bisher (Spec 044).
 2. **Given** zwei Panels, **When** Ben eine Auswahl auf die freie Fläche des Gegenpanels zieht,
    **Then** landet sie im geöffneten Ordner des Gegenpanels, mit derselben Regel für Verschieben und
    Kopieren.
 3. **Given** ein Drag über einem Panel, **When** das Ziel nicht schreibbar ist (etwa eine
-   schreibgeschützte Freigabe), **Then** nimmt holzi den Drop nicht an und zeigt das am Ziel an.
+   schreibgeschützte Freigabe), **Then** nimmt HaexVault den Drop nicht an und zeigt das am Ziel an.
 4. **Given** Dateien aus dem System-Dateimanager, **When** Ben sie auf eines der beiden Panels zieht,
-   **Then** kopiert holzi sie in den Ordner dieses Panels (Spec 044 FR-024).
+   **Then** kopiert HaexVault sie in den Ordner dieses Panels (Spec 044 FR-024).
 
 ---
 
@@ -138,7 +138,7 @@ herunterkopieren; danach rechts eine andere Quelle wählen.
 2. **Given** links das Gerät und rechts ein Speicher, **When** Clara F5 drückt, **Then** läuft ein
    Transfer wie bisher (Hochladen mit Fortschritt, Abbruch ohne halbes Objekt).
 3. **Given** das Gegenpanel zeigt eine schreibgeschützte Quelle (eine Freigabe ohne Schreibrecht,
-   eine Quelle ohne Zugang), **When** Clara F5 oder F6 drückt oder dorthin zieht, **Then** lehnt holzi
+   eine Quelle ohne Zugang), **When** Clara F5 oder F6 drückt oder dorthin zieht, **Then** lehnt HaexVault
    ab und nennt den Grund; verschoben wird nichts.
 4. **Given** die Quelle eines Panels ist nicht erreichbar, **When** das Panel sie öffnet, **Then**
    zeigt nur dieses Panel den Grund (wie Spec 044 US5 Szenario 4); das andere Panel bleibt
@@ -165,7 +165,7 @@ einschalten; neu starten (Sitzung wiederherstellen) und prüfen.
    **Then** zeigt das zweite Panel den gemerkten Ort; ist die Quelle nicht erreichbar, zeigt es
    den Grund, und Dora wählt dort einen anderen Ort. Gibt es keinen gemerkten Ort, zeigt es den Ort
    des ersten Panels.
-3. **Given** ein Tab in der Split-Ansicht, **When** Dora holzi neu startet und die Sitzung
+3. **Given** ein Tab in der Split-Ansicht, **When** Dora HaexVault neu startet und die Sitzung
    wiederherstellt (Spec 022), **Then** steht der Tab wieder in der Split-Ansicht mit beiden Orten
    und dem aktiven Panel.
 4. **Given** zwei Tabs des Dateibrowsers, **When** Dora in einem den Split einschaltet, **Then**
@@ -199,7 +199,7 @@ prüfen.
    bleibt stehen. Die Zurück- und Vor-Schaltflächen und ihre Verlaufsliste zeigen jeweils den
    Verlauf des aktiven Panels.
 5. **Given** ein Fenster schmaler als das Minimum für zwei Panels, **When** Anna es verkleinert,
-   **Then** zeigt holzi nur das aktive Panel; der Split-Zustand bleibt erhalten und zwei Panels
+   **Then** zeigt HaexVault nur das aktive Panel; der Split-Zustand bleibt erhalten und zwei Panels
    erscheinen wieder, sobald es breit genug ist. Der Split-Schalter ist in dieser Breite deaktiviert
    und nennt den Grund.
 6. **Given** ein Handy (Android, iOS), **When** Anna den Dateibrowser öffnet, **Then** gibt es keinen
@@ -213,10 +213,10 @@ prüfen.
 - **Beide Panels im selben Ordner**: F5 kopiert in sich selbst und führt zur Namenskonflikt-Frage
   (Spec 044 FR-021, „beide behalten“); F6 tut nichts und nennt den Grund.
 - **Ein Panel zeigt einen Unterordner des Ordners des anderen**: Verschieben eines Ordners in sich
-  selbst oder in einen Unterordner lehnt holzi vor dem Start ab (FR-022 aus 044).
+  selbst oder in einen Unterordner lehnt HaexVault vor dem Start ab (FR-022 aus 044).
 - **Der Ordner eines Panels verschwindet** (gelöscht, Laufwerk entfernt): Nur dieses Panel springt
   zum nächsten vorhandenen übergeordneten Ordner und zeigt den Hinweis (Spec 044).
-- **Das Gegenpanel zeigt einen Ort von holzi selbst** (eigene Daten): Als Ziel nicht schreibbar, wie in
+- **Das Gegenpanel zeigt einen Ort von HaexVault selbst** (eigene Daten): Als Ziel nicht schreibbar, wie in
   Spec 044 FR-037.
 - **Verschieben über Quellen hinweg**: wirkt wie Kopieren und Löschen am Ursprung nach vollständigem
   Kopieren; scheitert der Transfer, bleibt der Ursprung unverändert (Spec 044 FR-020).
@@ -270,10 +270,10 @@ prüfen.
   Quellen MUSS immer kopiert werden. Das ist die Regel aus Spec 044, unverändert.
 - **FR-010**: Kopieren, Verschieben und Ziehen zwischen den Panels MÜSSEN dieselben Transfers sein wie
   in Spec 044, mit Transferleiste, Fortschritt, Abbruch, Namenskonflikt-Frage, Abbruch ohne halbe
-  Datei und den Regeln für verschlüsselte Ordner, Freigaben und eigene Daten von holzi. Neue
+  Datei und den Regeln für verschlüsselte Ordner, Freigaben und eigene Daten von HaexVault. Neue
   Ausnahmen DARF die Split-Ansicht nicht einführen.
-- **FR-011**: Ist das Ziel nicht schreibbar (Freigabe ohne Schreibrecht, eigene Daten von holzi,
-  Quelle ohne Zugang), MUSS holzi F5, F6 und Ziehen mit einem Grund ablehnen und nichts ändern; ein
+- **FR-011**: Ist das Ziel nicht schreibbar (Freigabe ohne Schreibrecht, eigene Daten von HaexVault,
+  Quelle ohne Zugang), MUSS HaexVault F5, F6 und Ziehen mit einem Grund ablehnen und nichts ändern; ein
   Drag MUSS dem Nutzer schon beim Überfahren anzeigen, dass dort nicht abgelegt wird.
 - **FR-012**: Strg+C, Strg+X, Strg+V, Entf, F2 und die anderen Kürzel aus Spec 044 FR-017b MÜSSEN auf
   das aktive Panel wirken. Strg+V MUSS in den Ordner des aktiven Panels einfügen.
@@ -362,7 +362,7 @@ prüfen.
 - **Ein Split je Tab**: Der Split gehört zum Tab, nicht zum Gerät; ein neuer Tab beginnt ohne Split.
 - **Geteilte Ansichtswahl**: Ansicht, Sortierung und versteckte Dateien gelten für beide Panels
   gemeinsam, weil Spec 044 sie je Gerät speichert; getrennte Wahl je Panel kann später folgen.
-- **Keine Bestätigung vor F5/F6**: Anders als bei Total Commander fragt holzi nicht nach dem Ziel,
+- **Keine Bestätigung vor F5/F6**: Anders als bei Total Commander fragt HaexVault nicht nach dem Ziel,
   weil es sichtbar ist und der Transfer abbrechbar bleibt; Namenskonflikte und Löschen fragen wie in
   Spec 044. Verschieben ist keine Zerstörung, bei Fehlern bleibt der Ursprung vollständig.
 - **Mindestbreite**: Der Plan legt den Wert fest; er liegt so, dass zwei Panels mit Pfadleiste und der

@@ -3,7 +3,7 @@
 Alle Commands in `src-tauri/src/contacts/commands/*.rs`, Typen über `ts-rs` nach
 `src/types/bindings/`. Der Aufrufer ist immer `Caller::User` (eigene Oberfläche, FR-028); Commands für
 den eingebauten Agenten setzen `Caller::BuiltinAgent` im Rumpf, nie als Argument. Fehler als
-`HolziError` mit `kind`.
+`HaexError` mit `kind`.
 
 ## Kontakte
 
@@ -94,7 +94,7 @@ Status `read`, `readWrite`, `denied`). Deckt keine Zeile den Aufruf, parkt der C
 Rückfrage (Ereignis `files-agent-permission-request` mit `kind: "contacts"` und `wants`, Antwort über
 `files_agent_permission_answer`, R15): „Einmal erlauben“ (`remember: false`) gilt für diesen Aufruf,
 „Immer erlauben“ (`remember: true`) und „Ablehnen“ werden für `*` gemerkt; eine abgelehnte
-Schreib-Frage lässt eine Lese-Freigabe stehen. Unter einem abgelehnten `*` fragt holzi nicht mehr.
+Schreib-Frage lässt eine Lese-Freigabe stehen. Unter einem abgelehnten `*` fragt haex-vault nicht mehr.
 Keine Antwort in 60 s oder kein Fenster → abgelehnt, nichts gemerkt. Ablehnung → `NotFound`-gleicher
 Fehler (FR-031). Die Einstellungen (KI › Agenten-Zugriff) setzen und widerrufen die Zeilen über
 `settings.agents.files.set` und `settings.agents.files.remove` mit `kind: "contacts"`.

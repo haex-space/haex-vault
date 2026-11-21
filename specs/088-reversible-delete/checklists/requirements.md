@@ -31,7 +31,7 @@
 
 ## Notes
 
-- Product terms (Auto/Plan mode, routed turn, area, permission dialog) are user-facing or spec-082 concepts of holzi,
+- Product terms (Auto/Plan mode, routed turn, area, permission dialog) are user-facing or spec-082 concepts of HaexVault,
   not implementation details.
 - SC-001 replaces spec 087 SC-007 by operator decision (2026-11-11).
 - Model names in SC-001/SC-002/SC-004 are the measured subjects carried over from spec 087, not technology choices.

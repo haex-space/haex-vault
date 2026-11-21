@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: User description: "Brainstorm and specify stronger chat security for Holzi; forward secrecy is important. Consider that relay operators or other readers could copy stored encrypted messages and decrypt them if a key is compromised later, and that relays can withhold or remove messages."
+**Input**: User description: "Brainstorm and specify stronger chat security for HaexVault; forward secrecy is important. Consider that relay operators or other readers could copy stored encrypted messages and decrypt them if a key is compromised later, and that relays can withhold or remove messages."
 
 ## User Scenarios & Testing
 
@@ -42,7 +42,7 @@ Anna notices that one of her devices may have been compromised. She removes that
 
 ### User Story 3 - Relay interference does not silently erase the only copy (Priority: P1)
 
-Anna sends a message to Ben. One relay accepts it and later disappears or withholds it. Anna can tell which relays accepted the message, and Holzi retries delivery through other configured relays. A relay's deletion or refusal never silently changes the conversation history on either device.
+Anna sends a message to Ben. One relay accepts it and later disappears or withholds it. Anna can tell which relays accepted the message, and HaexVault retries delivery through other configured relays. A relay's deletion or refusal never silently changes the conversation history on either device.
 
 **Why this priority**: Relays control availability. The current delivery indicator only establishes that at least one relay accepted an event; it cannot prove the relay retained or delivered it.
 
@@ -50,10 +50,10 @@ Anna sends a message to Ben. One relay accepts it and later disappears or withho
 
 **Acceptance Scenarios**:
 
-1. **Given** one relay accepts a message and then withholds or removes it, **When** another configured relay remains available, **Then** Holzi delivers the same authenticated message from that relay without showing duplicates.
+1. **Given** one relay accepts a message and then withholds or removes it, **When** another configured relay remains available, **Then** HaexVault delivers the same authenticated message from that relay without showing duplicates.
 2. **Given** every configured relay refuses or fails to retain a message, **When** the sender views delivery state, **Then** it is not shown as delivered and remains retryable with a clear failure state.
-3. **Given** a relay returns an event that was modified or forged, **When** Holzi processes it, **Then** it rejects the event and preserves the conversation state.
-4. **Given** relays disagree about which events they hold, **When** Holzi reconciles delivery, **Then** valid events are deduplicated by stable message identity and missing messages remain discoverable for retry.
+3. **Given** a relay returns an event that was modified or forged, **When** HaexVault processes it, **Then** it rejects the event and preserves the conversation state.
+4. **Given** relays disagree about which events they hold, **When** HaexVault reconciles delivery, **Then** valid events are deduplicated by stable message identity and missing messages remain discoverable for retry.
 
 ### User Story 4 - Users understand the remaining privacy and delivery limits (Priority: P2)
 
@@ -65,9 +65,9 @@ Anna reviews a contact conversation and can understand whether it uses refreshed
 
 **Acceptance Scenarios**:
 
-1. **Given** a conversation has not completed secure key recovery after a device compromise, **When** the user views its security state, **Then** Holzi explains that future messages may remain exposed until recovery completes.
-2. **Given** a relay can observe routing metadata, **When** Holzi explains the chat's privacy, **Then** it does not claim that encryption hides recipient routing, timing, event size, or network address.
-3. **Given** a message was accepted by a relay but not acknowledged by a recipient device, **When** the sender views its status, **Then** Holzi distinguishes relay acceptance from recipient delivery.
+1. **Given** a conversation has not completed secure key recovery after a device compromise, **When** the user views its security state, **Then** HaexVault explains that future messages may remain exposed until recovery completes.
+2. **Given** a relay can observe routing metadata, **When** HaexVault explains the chat's privacy, **Then** it does not claim that encryption hides recipient routing, timing, event size, or network address.
+3. **Given** a message was accepted by a relay but not acknowledged by a recipient device, **When** the sender views its status, **Then** HaexVault distinguishes relay acceptance from recipient delivery.
 
 ### Edge Cases
 
@@ -105,7 +105,7 @@ Anna reviews a contact conversation and can understand whether it uses refreshed
 - **FR-013**: System MUST make security-state degradation visible when required key updates, acknowledgements, or recovery exchanges have not completed.
 - **FR-014**: System MUST explain that relays can observe routing and traffic metadata and can refuse, withhold, or delete their own copies of events.
 - **FR-015**: System MUST define the fate of messages queued before a device removal, group membership change or key-state loss, and of events in a format the receiver does not accept.
-- **FR-016**: There is no migration (holzi has no users yet): once this feature ships, devices MUST neither send nor accept contact-chat events in the earlier long-lived-key format. Messages already stored MUST stay readable in the local history.
+- **FR-016**: There is no migration (HaexVault has no users yet): once this feature ships, devices MUST neither send nor accept contact-chat events in the earlier long-lived-key format. Messages already stored MUST stay readable in the local history.
 - **FR-017**: System MUST preserve local access to conversation history when relays are unavailable, consistent with the project's relay-unavailability principle.
 - **FR-018**: A device's secret key state MUST be kept only on that device: it MUST NOT be synchronized to other devices, and a copy of the vault file opened on another device MUST start with keys of its own instead of using the copied ones.
 - **FR-019**: System MUST include direct and group conversations in the first release, including membership changes and protection against removed members reading messages created after the change takes effect.
@@ -147,7 +147,7 @@ Anna reviews a contact conversation and can understand whether it uses refreshed
 - Relay operators are not trusted to retain, deliver, or delete events correctly.
 - Message contents need confidentiality and authenticity; metadata privacy is a separate, limited goal because routing requires recipient discovery.
 - Chat remains asynchronous and continues to use relays as store-and-forward transport; always-online peer connections are not assumed.
-- The Nostr event format changes without migration: holzi has no users yet, and development vaults are updated together.
+- The Nostr event format changes without migration: HaexVault has no users yet, and development vaults are updated together.
 - The current chat's NIP-44/NIP-59 wrapping is not forward-secret; an outer one-time gift-wrap key does not remove the long-term device key's ability to decrypt archived inner ciphertext.
 - Direct and group conversations receive the new security guarantees in the first release.
 - Every pair of devices keeps its own key state; a message is protected once per receiving device, as spec 072 already sends one copy per device. Group membership stays as spec 072 defines it, without a coordinator.

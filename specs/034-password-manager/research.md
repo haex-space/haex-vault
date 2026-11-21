@@ -15,14 +15,14 @@ benötigten Funktionen in beiden Konfigurationen bauen; das klärt Aufgabe T003 
 **Befund**: Die letzte Migration ist `0021_own_device_sync`; die nächste freie Nummer
 ist `0022` (`src-tauri/src/identity/migrations.rs`). Die Datei hat bereits 577 Zeilen,
 über der 500-Zeilen-Grenze der Constitution. Neue CRDT-Tabellen bekommen auf bestehenden
-Vaults nur dann Trigger, wenn `HOLZI_TRIGGER_VERSION` (heute 13) steigt; jede Migration
+Vaults nur dann Trigger, wenn `HAEX_TRIGGER_VERSION` (heute 13) steigt; jede Migration
 mit neuen CRDT-Tabellen hat sie bisher erhöht (0011, 0019, 0021). Der Handshake schickt
 Migrationszahl und Triggerversion; Geräte mit ungleichem Stand synchronisieren nicht
 (`sync/handshake.rs:88-93`).
 
 **Entscheidung**: Eine Migration `0022_passwords` legt alle zwölf Tabellen und ihre Indizes
 an. Das SQL liegt in einer neuen Datei `identity/migrations_passwords.rs` (Konstante),
-`migrations.rs` registriert sie mit einer Zeile. `HOLZI_TRIGGER_VERSION` wird auf 14
+`migrations.rs` registriert sie mit einer Zeile. `HAEX_TRIGGER_VERSION` wird auf 14
 erhöht, mit einer Zeile im Doc-Kommentar der Konstante. Die Tabellen heißen wie in
 haex-vault 2.x `haex_passwords_*`; haex-crdt behandelt das Präfix nicht besonders (nur
 `haex_crdt_*` und `haex_app_migrations_*` sind von den Änderungsereignissen
@@ -84,7 +84,7 @@ doppelte Zeile, die sich selbst heilt. Abgeleitete Kennungen machen den häufige
 **Verworfen**:
 
 - _UNIQUE behalten_: stoppt den Sync (Befund oben).
-- _Eigene `ApplyPolicy` in holzi, die Konflikte auflöst_: Änderung am Sync-Kern (Spec 024),
+- _Eigene `ApplyPolicy` in haex-vault, die Konflikte auflöst_: Änderung am Sync-Kern (Spec 024),
   nicht Ziel dieser Spec; wäre die richtigere Dauerlösung (siehe Bewusste Grenzen).
 - _Zufällige Kennungen plus nachträgliches Zusammenführen für alles_: macht den
   Normalfall zum Sonderfall.
@@ -145,7 +145,7 @@ unabhängig von einer ungeprüften Annahme über die Kaskade.
 **Befund**:
 
 - Die Obergrenze für eine Schreibtransaktion ist `MAX_CRDT_TRANSACTION_BYTES = 100 MiB`
-  (Summe der Parametergrößen); holzi übergibt sie unverändert (`instances/vault_config.rs:36`).
+  (Summe der Parametergrößen); haex-vault übergibt sie unverändert (`instances/vault_config.rs:36`).
 - Eine Zelle von 25 MiB ist synchronisierbar: haex-crdt kodiert BLOBs als
   `{"$blob_hex": …}` (zweifache Größe, rund 50 MiB), `Change::split` zerlegt sie in
   Teile je 4 MiB (`sync/change.rs`, `PAGE_BUDGET`), der Empfänger puffert bis
@@ -260,7 +260,7 @@ Oberfläche (FR-024). Wichtig:
 - Der Aufrufer ergibt sich aus dem **Eingang**, nie aus einem Parameter des Frontends: Die
   Commands der Oberfläche rufen den Dienst mit `Caller::User`; der Command für den
   eingebauten Agenten (`passwords_agent_search`) ruft ihn fest mit `Caller::BuiltinAgent`;
-  holzi-Funktionen rufen ihn aus Rust mit `Caller::Internal{…}` und fest einkompilierter
+  haex-vault-Funktionen rufen ihn aus Rust mit `Caller::Internal{…}` und fest einkompilierter
   Freigabe. Erweiterungen und externe Agenten bekommen mit 017–019 und 021 eigene Eingänge.
 - Rechte: `User` darf alles ohne Freigabe (FR-031). `BuiltinAgent` bekommt nie Geheimnisse
   und nie eine Freigabe (FR-027): nur `list_headers` mit dem Ergebnis `AgentHeader` ist erlaubt. Alle anderen
@@ -270,7 +270,7 @@ Oberfläche (FR-024). Wichtig:
   sind Einträge im Papierkorb für jeden Aufrufer außer `User` nicht vorhanden und ist das Ergebnis
   `NotFound`. Grund: `trash` auf ein Ziel, das schon im Papierkorb liegt, ist `delete_permanently`
   (R3, für `User`); ohne diese Regel könnte ein zweites „Löschen“ durch eine Erweiterung, einen
-  Agenten oder eine holzi-Funktion einen Eintrag endgültig entfernen und FR-015 verletzen.
+  Agenten oder eine haex-vault-Funktion einen Eintrag endgültig entfernen und FR-015 verletzen.
   `delete_item` der Aufrufer ruft deshalb nur `trash` für Einträge außerhalb des Papierkorbs.
 - Fehler: eine fehlende **Art** (Lesen gegeben, Schreiben verlangt) ist `Forbidden`; ein
   Eintrag **außerhalb des Bereichs** ist `NotFound` wie ein nicht vorhandener (FR-029).
@@ -284,7 +284,7 @@ Oberfläche (FR-024). Wichtig:
   still. Es gibt **keine** automatische Standard-Tag-Ergänzung wie in haex-vault 2.x.
 - **Löschen** durch andere Aufrufer als `User` verschiebt in den Papierkorb (FR-015); endgültiges
   Löschen, Wiederherstellen und Papierkorb leeren sind `User` vorbehalten (Z8, Z11).
-- **Nutzungsmeldung statt reservierter Tags** (Klärung): eine holzi-Funktion meldet über das Trait
+- **Nutzungsmeldung statt reservierter Tags** (Klärung): eine haex-vault-Funktion meldet über das Trait
   `EntryUsage`, welche Einträge sie nutzt; der Passwortmanager erkennt das nicht an Tags oder Namen.
 - Passkeys ohne Eintrag (`item_id` leer) liegen außerhalb jedes Tag-Bereichs.
 - **Alles läuft über den Dienst**, auch die Oberfläche (Betreiber-Entscheidung zur Analyse):
@@ -335,7 +335,7 @@ alle Passwörter aller Einträge in den Speicher).
 
 ## R8 — TOTP in Rust, ohne neue Bibliothek außer SHA-1
 
-**Befund**: `otpauth` im Frontend (haex-vault 2.x) rechnet im Webview. In holzi gibt es weder
+**Befund**: `otpauth` im Frontend (haex-vault 2.x) rechnet im Webview. In haex-vault gibt es weder
 `totp-rs` noch `base32`; `hmac` 0.13 und `sha2` 0.11 sind direkte Abhängigkeiten, `sha1` nur
 transitiv.
 
@@ -377,7 +377,7 @@ Zwischenablage.
 **Verworfen**: _`navigator.clipboard` im Webview_ (Wert im Webview, Lesen ungeklärt),
 _`arboard` direkt_ (Plugin bringt Mobil-Unterstützung und Capability-Modell).
 
-**ponytail**: Beendet sich holzi ohne Vault-Schließen (Absturz), bleibt der Wert liegen.
+**ponytail**: Beendet sich haex-vault ohne Vault-Schließen (Absturz), bleibt der Wert liegen.
 
 ## R10 — Generator im Frontend, mit gleichmäßiger Auswahl und Klassengarantie
 
@@ -452,7 +452,7 @@ mit einem Argon2-Shim aus `hash-wasm`; Schlüsseldateien werden nicht unterstüt
 fehlen `kdbxweb`, Argon2 und ein CSV-Parser; in Rust fehlen `keepass`, `argon2` und (ohne
 `llm-cpu`) `csv`.
 
-**Betreiber-Entscheidung (2026-10-02)**: Der Import übernimmt **alles**. Was holzi nicht als
+**Betreiber-Entscheidung (2026-10-02)**: Der Import übernimmt **alles**. Was haex-vault nicht als
 eigenes Feld kennt, kommt als eigenes Feld (`haex_passwords_item_key_values`) oder Tag mit. Was
 nicht ankommen kann, steht im Bericht, damit der Nutzer von Hand nacharbeiten kann. Die
 Zuordnungen je Format stehen in [contracts/import-mapping.md](./contracts/import-mapping.md).
@@ -490,7 +490,7 @@ Zuordnungen je Format stehen in [contracts/import-mapping.md](./contracts/import
    KeePass-Verlauf und Bitwarden-`passwordHistory` werden Verlaufsstände mit den Zeitpunkten
    der Quelle.
 7. **Symbole**: KeePass-Standardsymbole (0–68) werden über eine Tabelle zu Symbolnamen von
-   holzi (Literal in `src/lib/passwords/icons.ts`, die Tabelle liegt in `import/icons.rs`
+   haex-vault (Literal in `src/lib/passwords/icons.ts`, die Tabelle liegt in `import/icons.rs`
    mit einem Test, dass jeder Zielname in der Liste der Oberfläche steht), eigene Symbole werden
    Binärzeilen vom Typ `icon` mit `icon = 'binary:<hash>'` (wie in haex-vault 2.x); die Oberfläche
    zeigt sie über `passwords_icon_preview`. Symbole sind der niedrigste Rang: schlägt eine
@@ -562,7 +562,7 @@ Zuordnungen je Format stehen in [contracts/import-mapping.md](./contracts/import
   `credential_id` ist Standard-Base64 (nicht Base64url) von 32 zufälligen Bytes; `private_key` ist
   Standard-Base64 des PKCS8-DER (WebCrypto `exportKey('pkcs8')`), `public_key` Standard-Base64 des
   SPKI-DER; `algorithm` ist -7 (ES256); `user_handle` wird als Text so gespeichert, wie die Anfrage ihn
-  lieferte. holzi schreibt dieselbe Kodierung (Standard-Base64) und nimmt beim Import Base64 und
+  lieferte. haex-vault schreibt dieselbe Kodierung (Standard-Base64) und nimmt beim Import Base64 und
   Base64url an.
 - **Quellformate, nur aus dem Wissen eingetragen, nicht an echten Exporten geprüft**: Bitwarden
   `fido2Credentials[]` mit `credentialId` (UUID-Text; wird zu den 16 Bytes der UUID und dann
@@ -771,7 +771,7 @@ Die folgenden Punkte stehen jetzt in der Spec (eigener Commit, mit Begründung h
 15. **FR-011**: Tagnamen sind ohne Rücksicht auf Groß-/Kleinschreibung und Umlautform eindeutig.
 16. **FR-028**: Ein Aufrufer sieht alle Tags, ändert aber keine außerhalb seines Bereichs und
     fügt keine hinzu.
-17. **FR-033/034**: keine reservierten Tags; holzi-Funktionen melden ihre genutzten Einträge
+17. **FR-033/034**: keine reservierten Tags; haex-vault-Funktionen melden ihre genutzten Einträge
     (`EntryUsage`).
 18. **FR-001**: Der Titel darf leer sein; die Oberfläche zeigt „(ohne Titel)“.
 19. **FR-015**, **FR-028**, **US6 Szenario 9** (zweite Analyse): Einträge im Papierkorb sind für

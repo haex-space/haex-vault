@@ -5,7 +5,7 @@
 0.4.0)](https://github.com/haexmas/haex-crdt/blob/1c069ef0ea19143af2748f40fc41cba05c94dbe1/Cargo.toml).
 The pinned revision removes the crate's device-ID arbitration and exposes the
 [`DatabaseBootstrap` hook](https://github.com/haexmas/haex-crdt/blob/1c069ef0ea19143af2748f40fc41cba05c94dbe1/src/device_id.rs)
-holzi runs its per-installation known-devices lookup in. Field names and shapes
+haex-vault runs its per-installation known-devices lookup in. Field names and shapes
 are stable enough to implement against; the error-mapping table below reflects
 the pinned crate surface. Any change to the pin's migration IDs,
 `DatabaseBootstrap` signature, bootstrap ordering, or `Database::open` shape
@@ -20,14 +20,14 @@ reuses the row matching this installation's UUID when present, or adds a
 new row with a fresh vault-scoped device UUID when the copy came from
 another installation.
 
-**Convention**: All commands are async, return `Result<T, HolziError>` on the Rust side, and are exposed to the frontend via `@tauri-apps/api/core::invoke<T>(name, args)`. Argument keys are `camelCase` from the frontend, mapped to `snake_case` Rust field names by serde.
+**Convention**: All commands are async, return `Result<T, HaexError>` on the Rust side, and are exposed to the frontend via `@tauri-apps/api/core::invoke<T>(name, args)`. Argument keys are `camelCase` from the frontend, mapped to `snake_case` Rust field names by serde.
 
 ## Data layer and providers
 
 `haex-crdt` exposes a `Database` handle and requires three provider
-implementations from holzi plus a `trigger_version` configuration value. These
-providers, the holzi-owned migrations, and the error-mapping layer are the
-seams between holzi and the crate. This section documents them normatively;
+implementations from haex-vault plus a `trigger_version` configuration value. These
+providers, the haex-vault-owned migrations, and the error-mapping layer are the
+seams between haex-vault and the crate. This section documents them normatively;
 command sections reference these seams without re-explaining them.
 
 ### Vault identity and device model
@@ -41,10 +41,10 @@ command sections reference these seams without re-explaining them.
   vault via proof-of-possession on connection setup: the initiator signs a
   per-connection challenge, the receiver verifies against the vault public
   key it also holds. No shared secret over the wire, no persisted attestation.
-- **Installation UUID** — one random UUID per holzi installation on a host,
+- **Installation UUID** — one random UUID per haex-vault installation on a host,
   stored in a single file **outside** any vault, at `<AppLocalData>/installation-id`.
   Shared by every vault opened by that installation. The file itself never
-  leaves the device — it is not a payload holzi ships anywhere, and no
+  leaves the device — it is not a payload haex-vault ships anywhere, and no
   network path reads it. The value is written into every vault the
   installation opens (as the `installation_uuid` column of a row in
   `known_devices`) so that a copied `.db` reopened by the same installation
@@ -77,13 +77,13 @@ eventually surfaces on other replicas of the same vault.
 
 ### Provider implementations
 
-Three consumer seams implemented by holzi in a dedicated `src-tauri/identity/`
+Three consumer seams implemented by haex-vault in a dedicated `src-tauri/identity/`
 module. Extraction into a standalone `haex-identity` crate is deferred until
 the surface has stabilized against a working slice.
 
 - **`DatabaseBootstrap`** — the bootstrap hook `haex-crdt` 0.4.0 calls after
   migrations and before HLC init, inside an unsigned transaction the crate
-  commits on `Ok` or rolls back on `Err`. Holzi's implementation:
+  commits on `Ok` or rolls back on `Err`. HaexVault's implementation:
 
   1. Reads the installation UUID from `<AppLocalData>/installation-id`,
      minting and fsyncing the file if it does not yet exist.
@@ -108,22 +108,22 @@ the surface has stabilized against a working slice.
 
 - **`SignatureProvider`** — signs the canonical column preimage supplied to
   `sign_column`, using the vault identity keypair. Verification is a later
-  sync concern; holzi ships the signatures now so the deferred sync layer
+  sync concern; haex-vault ships the signatures now so the deferred sync layer
   needs no migration over populated tables.
 
-- **`MigrationSource`** — enumerates the holzi-owned migrations below.
+- **`MigrationSource`** — enumerates the haex-vault-owned migrations below.
   haex-crdt's own bookkeeping migrations (`_no_sync`-suffixed tables and the
   three `_no_sync`-suffixed metadata columns the CRDT transformer adds to
   every synced table) are separate and shipped by the crate.
 
-Holzi also passes **`trigger_version: i32`** in `DatabaseConfig`. This is
-haex-crdt's own trigger-schema version; holzi passes
+HaexVault also passes **`trigger_version: i32`** in `DatabaseConfig`. This is
+haex-crdt's own trigger-schema version; haex-vault passes
 `haex_crdt::DEFAULT_TRIGGER_VERSION` verbatim and bumps it only in lockstep
 with a crate-required upgrade.
 
-### holzi-owned data layer
+### haex-vault-owned data layer
 
-Tables holzi ships via its `MigrationSource`. Installed as CRDT-tracked
+Tables haex-vault ships via its `MigrationSource`. Installed as CRDT-tracked
 tables via `install_crdt(table, opts)` unless marked `_no_sync`. The MVP
 ships only the first two; the rest are named here so the deferred sync layer
 lands on already-CRDT-tracked tables.
@@ -161,7 +161,7 @@ duplicated: VM clone, `rsync -a` of the entire app data directory,
 full-system backup restore. Both replicas then look up the same
 `known_devices` row and get the same vault-device UUID.
 
-Holzi cannot detect this at open time on a single-install host. Once the
+HaexVault cannot detect this at open time on a single-install host. Once the
 sync layer is in place, the invariant MUST be enforced by the sync layer:
 on the first exchange with any peer, if the peer's advertised vault-device
 UUID matches the local one, both sides raise a hard error and refuse to
@@ -177,11 +177,11 @@ known sync folder.
 
 ### Error mapping
 
-The direct `haex-crdt::Error` variants map to `HolziError` as follows. Errors
+The direct `haex-crdt::Error` variants map to `HaexError` as follows. Errors
 returned through haex-crdt's internal `DatabaseError` conversion are surfaced
 as `CrdtInit { reason }` until the crate exposes a typed top-level variant.
 
-| haex-crdt variant                                     | HolziError variant                                        | Notes                                                                                                                                                      |
+| haex-crdt variant                                     | HaexError variant                                         | Notes                                                                                                                                                      |
 | ----------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Sqlite(error)`                                       | `CrdtSqlite { reason: error.to_string() }`                | SQL/SQLCipher failure                                                                                                                                      |
 | `Io(error)`                                           | `CrdtIo { reason: error.to_string() }`                    | I/O failure                                                                                                                                                |
@@ -192,13 +192,13 @@ as `CrdtInit { reason }` until the crate exposes a typed top-level variant.
 | `MigrationMissingFromSource { journal, name }`        | `MigrationMissingFromSource { journal, name }`            | catastrophic; source and journal are retained                                                                                                              |
 | `MigrationContentDrift { name, expected, found }`     | `MigrationContentDrift { name, expected, found }`         | catastrophic; abort                                                                                                                                        |
 | `MigrationCompatibility { reason }`                   | `MigrationCompatibility { reason }`                       | incompatible legacy schema                                                                                                                                 |
-| `CrdtAlreadyInstalled { table }`                      | `CrdtAlreadyInstalled { table }`                          | logic error in holzi's bootstrap                                                                                                                           |
+| `CrdtAlreadyInstalled { table }`                      | `CrdtAlreadyInstalled { table }`                          | logic error in haex-vault's bootstrap                                                                                                                      |
 | `Message(reason)`                                     | `CrdtInit { reason }`                                     | catch-all for the pinned crate's database-layer conversion                                                                                                 |
 
 At the pinned revision, filesystem-level lock collisions are converted inside
-haex-crdt to `Error::Message`, so Holzi MUST NOT claim a typed
+haex-crdt to `Error::Message`, so HaexVault MUST NOT claim a typed
 `VaultAlreadyOpenElsewhere` mapping from the crate yet. Once haex-crdt exposes
-that condition as a typed top-level error, Holzi may map it to the distinct
+that condition as a typed top-level error, HaexVault may map it to the distinct
 `VaultAlreadyOpenElsewhere` variant. It remains distinct from
 `InstanceAlreadyActive` (a process-internal `AppState.active_instance ==
 Some(_)`).
@@ -213,7 +213,7 @@ Scans `<AppLocalData>/instances/` for `.db` files (excluding the `.trash/` subdi
 #[tauri::command]
 pub async fn list_instances(
     app: AppHandle,
-) -> Result<Vec<InstanceInfo>, HolziError>;
+) -> Result<Vec<InstanceInfo>, HaexError>;
 ```
 
 **Frontend call**:
@@ -226,14 +226,14 @@ const list = await invoke<InstanceInfo[]>('list_instances')
 
 **Failure modes**:
 
-- `HolziError::PathResolution` — `AppLocalData` cannot be resolved (rare, catastrophic).
-- `HolziError::Io` — directory read failed (permissions).
+- `HaexError::PathResolution` — `AppLocalData` cannot be resolved (rare, catastrophic).
+- `HaexError::Io` — directory read failed (permissions).
 
 ---
 
 ### `create_instance`
 
-Creates a new vault under `<AppLocalData>/instances/`: opens a fresh SQLCipher DB, runs holzi's migrations, and generates the vault identity keypair. No pairing, no join — the MVP has one command for creating a vault.
+Creates a new vault under `<AppLocalData>/instances/`: opens a fresh SQLCipher DB, runs haex-vault's migrations, and generates the vault identity keypair. No pairing, no join — the MVP has one command for creating a vault.
 
 ```rust
 #[tauri::command]
@@ -241,7 +241,7 @@ pub async fn create_instance(
     app: AppHandle,
     state: State<'_, AppState>,
     args: CreateInstanceArgs,
-) -> Result<CreateInstanceResult, HolziError>;
+) -> Result<CreateInstanceResult, HaexError>;
 
 pub struct CreateInstanceArgs {
     pub name: String,
@@ -257,10 +257,10 @@ pub struct CreateInstanceResult {
 
 **Internal choreography**:
 
-1. Validate `name` and passphrase policy in-process (haex-crdt accepts opaque strings; policy is holzi's job).
-2. Ensure `<AppLocalData>/installation-id` exists — read it if present, otherwise mint a fresh v4 UUID and write it (fsync). This file is one-time-per-installation, not per-vault; it may already exist from earlier holzi use on this host.
+1. Validate `name` and passphrase policy in-process (haex-crdt accepts opaque strings; policy is haex-vault's job).
+2. Ensure `<AppLocalData>/installation-id` exists — read it if present, otherwise mint a fresh v4 UUID and write it (fsync). This file is one-time-per-installation, not per-vault; it may already exist from earlier haex-vault use on this host.
 3. Write `<name>.db.pending` as an empty marker, then create `<name>.db` as the candidate path in `<AppLocalData>/instances/`. Marker presence controls publication.
-4. Call `Database::open` with `create_if_missing: true` and a `HolziBootstrap` implementation of [`DatabaseBootstrap`](#provider-implementations). Inside the transaction the crate opens for the hook, holzi generates the vault identity keypair, inserts the singleton `vault_identity` row, mints the vault-device UUID, and inserts the self-`known_devices` row. Those bootstrap rows and the returned UUID commit together or roll back together. Only after that commit does the crate initialize HLC and install triggers; a later failure does not roll the bootstrap transaction back, so this command's failure cleanup removes the candidate database and pending marker.
+4. Call `Database::open` with `create_if_missing: true` and a `HaexBootstrap` implementation of [`DatabaseBootstrap`](#provider-implementations). Inside the transaction the crate opens for the hook, haex-vault generates the vault identity keypair, inserts the singleton `vault_identity` row, mints the vault-device UUID, and inserts the self-`known_devices` row. Those bootstrap rows and the returned UUID commit together or roll back together. Only after that commit does the crate initialize HLC and install triggers; a later failure does not roll the bootstrap transaction back, so this command's failure cleanup removes the candidate database and pending marker.
 5. Bind `AppState.active_instance = Some(info)`.
 6. Flush the DB and directory, remove `<name>.db.pending`, flush the directory again. Marker removal is the durable commit point.
 7. Emit `instance-list-changed`.
@@ -271,11 +271,11 @@ pub struct CreateInstanceResult {
 
 **Failure modes**:
 
-- `HolziError::NameConflict { name }` — a `.db` with that name already exists.
-- `HolziError::InvalidName { reason }` — regex mismatch.
-- `HolziError::WeakPassphrase { reason }` — policy failure.
-- `HolziError::InstanceAlreadyActive` — another instance is currently active in `AppState`.
-- `HolziError::MigrationMissingFromSource { .. }` / `HolziError::MigrationContentDrift { .. }` / `HolziError::MigrationCompatibility { reason }` / `HolziError::CrdtSqlite { reason }` / `HolziError::CrdtIo { reason }` / `HolziError::CrdtHlc { reason }` / `HolziError::CrdtAlreadyInstalled { table }` / `HolziError::CrdtInit { reason }` — see [Error mapping](#error-mapping). All are catastrophic during `create_instance`; the backend rolls back per postconditions above.
+- `HaexError::NameConflict { name }` — a `.db` with that name already exists.
+- `HaexError::InvalidName { reason }` — regex mismatch.
+- `HaexError::WeakPassphrase { reason }` — policy failure.
+- `HaexError::InstanceAlreadyActive` — another instance is currently active in `AppState`.
+- `HaexError::MigrationMissingFromSource { .. }` / `HaexError::MigrationContentDrift { .. }` / `HaexError::MigrationCompatibility { reason }` / `HaexError::CrdtSqlite { reason }` / `HaexError::CrdtIo { reason }` / `HaexError::CrdtHlc { reason }` / `HaexError::CrdtAlreadyInstalled { table }` / `HaexError::CrdtInit { reason }` — see [Error mapping](#error-mapping). All are catastrophic during `create_instance`; the backend rolls back per postconditions above.
 
 ---
 
@@ -291,7 +291,7 @@ pub async fn open_instance(
     app: AppHandle,
     state: State<'_, AppState>,
     args: OpenInstanceArgs,
-) -> Result<InstanceInfo, HolziError>;
+) -> Result<InstanceInfo, HaexError>;
 
 pub struct OpenInstanceArgs {
     pub name: String,
@@ -304,20 +304,20 @@ pub struct OpenInstanceArgs {
 **Internal choreography**:
 
 1. Ensure `<AppLocalData>/installation-id` exists (mint and fsync if absent).
-2. Call `Database::open` with `create_if_missing: false` and a `HolziBootstrap` implementation. Inside the crate-owned transaction, holzi's hook reads the installation UUID, looks it up in the `known_devices.installation_uuid` column, and either reuses the found `vault_device_uuid` or mints a fresh one and inserts the complete row. The returned UUID becomes the HLC node id for this open.
+2. Call `Database::open` with `create_if_missing: false` and a `HaexBootstrap` implementation. Inside the crate-owned transaction, haex-vault's hook reads the installation UUID, looks it up in the `known_devices.installation_uuid` column, and either reuses the found `vault_device_uuid` or mints a fresh one and inserts the complete row. The returned UUID becomes the HLC node id for this open.
 3. If another instance was active, stop its runtime; then bind `AppState.active_instance = Some(info)` and refresh the DB mtime as `lastAccess`.
 4. Emit `instance-list-changed`.
 
 **Postconditions on success**: SQLCipher unlocked; `AppState.active_instance = Some(...)`; DB mtime refreshed; `known_devices` contains a row matching the local installation UUID. If another instance was active, it is fully closed before the new one becomes visible.
 
-**Atomic switch and rollback**: the state lock is held throughout. Validate the requested file and SQLCipher credentials while the previous runtime remains active; on validation failure, no close or state transition occurs. Only after the new candidate opens successfully does the previous runtime stop. On candidate startup failure, drop every candidate handle and keep the previous runtime; the copy remains on disk for retry. A `known_devices` row inserted during a failed candidate open remains in the DB — it is harmless (an unused entry for this installation) and will be picked up on the next successful open. A failed unlock retains the file; deletion requires an explicit discard action or conclusive validation that the file is not a holzi instance.
+**Atomic switch and rollback**: the state lock is held throughout. Validate the requested file and SQLCipher credentials while the previous runtime remains active; on validation failure, no close or state transition occurs. Only after the new candidate opens successfully does the previous runtime stop. On candidate startup failure, drop every candidate handle and keep the previous runtime; the copy remains on disk for retry. A `known_devices` row inserted during a failed candidate open remains in the DB — it is harmless (an unused entry for this installation) and will be picked up on the next successful open. A failed unlock retains the file; deletion requires an explicit discard action or conclusive validation that the file is not a haex-vault instance.
 
 **Failure modes**:
 
-- `HolziError::NotFound { name }` — no such file.
-- `HolziError::WrongPassphrase` — SQLCipher rejected; the frontend renders the localized wrong-passphrase message.
-- `HolziError::NotAValidInstance { reason }` — the database or SQLCipher format is invalid.
-- `HolziError::Io` — read error.
+- `HaexError::NotFound { name }` — no such file.
+- `HaexError::WrongPassphrase` — SQLCipher rejected; the frontend renders the localized wrong-passphrase message.
+- `HaexError::NotAValidInstance { reason }` — the database or SQLCipher format is invalid.
+- `HaexError::Io` — read error.
 - Any haex-crdt-mapped variant listed in [Error mapping](#error-mapping) if migrations or CRDT installation fail.
 
 ---
@@ -333,16 +333,16 @@ Closes the currently-active instance: shuts down Nostr relay, disconnects iroh p
 pub async fn close_instance(
     app: AppHandle,
     state: State<'_, AppState>,
-) -> Result<(), HolziError>;
+) -> Result<(), HaexError>;
 ```
 
-**Postcondition on success**: no `Arc<Database>` clone survives inside `AppState` or any subsystem holzi owns. If a subsystem is still holding a clone at drop time, `close_instance` MUST error with `CloseFailed` rather than returning `Ok`; a returned `Ok` implies the file lock is released and a subsequent `open_instance` of the same file will succeed on this host.
+**Postcondition on success**: no `Arc<Database>` clone survives inside `AppState` or any subsystem haex-vault owns. If a subsystem is still holding a clone at drop time, `close_instance` MUST error with `CloseFailed` rather than returning `Ok`; a returned `Ok` implies the file lock is released and a subsequent `open_instance` of the same file will succeed on this host.
 
 After a successful close of an active instance, emit `instance-list-changed { reason: 'closed', affectedName: name }`. The event requires the `AppHandle` dependency; an idempotent close with no active instance emits no mutation event.
 
 **Failure modes**:
 
-- `HolziError::CloseFailed { reason }` — a subsystem shutdown returned an error. State is left as clean as possible; caller may retry.
+- `HaexError::CloseFailed { reason }` — a subsystem shutdown returned an error. State is left as clean as possible; caller may retry.
 
 ---
 
@@ -356,7 +356,7 @@ pub async fn import_instance_file(
     app: AppHandle,
     state: State<'_, AppState>,
     args: ImportInstanceArgs,
-) -> Result<ImportInstanceResult, HolziError>;
+) -> Result<ImportInstanceResult, HaexError>;
 
 pub struct ImportInstanceArgs {
     pub source_path: String,        // External path returned by plugin-dialog; never a managed path
@@ -386,10 +386,10 @@ pub struct ImportInstanceResult {
 
 **Failure modes**:
 
-- `HolziError::NotAValidInstance { reason }` — the source is not a regular `.db` file or fails structural validation before copying.
-- `HolziError::NameConflict { name }` — only when `on_conflict = Abort`.
-- `HolziError::InstanceActive { name }` — `Overwrite` targets the active instance.
-- `HolziError::Io` — copy failed.
+- `HaexError::NotAValidInstance { reason }` — the source is not a regular `.db` file or fails structural validation before copying.
+- `HaexError::NameConflict { name }` — only when `on_conflict = Abort`.
+- `HaexError::InstanceActive { name }` — `Overwrite` targets the active instance.
+- `HaexError::Io` — copy failed.
 
 ---
 
@@ -403,7 +403,7 @@ pub async fn move_instance_to_trash(
     app: AppHandle,
     state: State<'_, AppState>,
     args: TrashInstanceArgs,
-) -> Result<(), HolziError>;
+) -> Result<(), HaexError>;
 
 pub struct TrashInstanceArgs {
     pub name: String,
@@ -414,9 +414,9 @@ pub struct TrashInstanceArgs {
 
 **Failure modes**:
 
-- `HolziError::NotFound { name }`.
-- `HolziError::InstanceActive { name }` — refuses to trash the running instance.
-- `HolziError::Io`.
+- `HaexError::NotFound { name }`.
+- `HaexError::InstanceActive { name }` — refuses to trash the running instance.
+- `HaexError::Io`.
 
 ---
 
@@ -430,7 +430,7 @@ Not exposed in v1. Because the list is a directory scan, removing an item while 
 #[derive(thiserror::Error, Debug, serde::Serialize, ts_rs::TS)]
 #[ts(export)]
 #[serde(tag = "kind")]
-pub enum HolziError {
+pub enum HaexError {
     #[error("Instance '{name}' already exists")]
     NameConflict { name: String },
 
@@ -455,7 +455,7 @@ pub enum HolziError {
     #[error("Instance '{name}' is active; close it before this operation")]
     InstanceActive { name: String },
 
-    #[error("File is not a valid holzi instance: {reason}")]
+    #[error("File is not a valid haex-vault instance: {reason}")]
     NotAValidInstance { reason: String },
 
     #[error("Failed to close active instance: {reason}")]

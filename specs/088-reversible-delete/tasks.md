@@ -3,7 +3,7 @@
 **Input**: Design documents from `specs/088-reversible-delete/` (plan.md, spec.md, research.md, data-model.md,
 contracts/, quickstart.md)
 
-**Tests**: included; holzi keeps unit tests in `*_tests.rs` next to each module.
+**Tests**: included; haex-vault keeps unit tests in `*_tests.rs` next to each module.
 
 **Build rule**: every cargo build/test inside the 10 GB scope with `-j 1` (quickstart.md); never rebuild the eval
 binary while a measurement runs. `graphify query` before each new function.
@@ -58,7 +58,7 @@ model_id)` present, not yet checked this turn and with candidates, run `reversib
 - [x] T009 [US1] Test in src-tauri/tests/chat_tool_loop_reversible.rs (`plan_calls` needs a vault and a chat state,
       which the tool-loop fixture has): a fake adapter answering a candidate turns the call away with the candidate's
       name in the answer; the same tool proposed again in the turn goes to the dialog without a second check (FR-006);
-      the candidate tool is never executed by holzi, only the turn-away answer comes back (FR-007); a conversation
+      the candidate tool is never executed by haex-vault, only the turn-away answer comes back (FR-007); a conversation
       whose assistant asked "delete for good?" and whose user answered "yes" passes the question with both messages
       (FR-002)
 - [x] T010 [US1] Log one line per check (verdict, ms, no user text) in src-tauri/src/chat/tools/reversible.rs, like

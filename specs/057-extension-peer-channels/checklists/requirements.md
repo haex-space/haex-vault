@@ -32,7 +32,7 @@
 ## Notes
 
 - The two operator decisions of 2026-10-22 are recorded under Clarifications and applied: invitations
-  are accepted only in holzi's own invitation prompt (FR-014 to FR-016, US1, SC-006), and the first
+  are accepted only in HaexVault's own invitation prompt (FR-014 to FR-016, US1, SC-006), and the first
   version reaches a contact's devices through the addresses on the stored business card, reporting
   "unreachable" with a hint to share a current card, and switches to knocking once spec 056 has it
   (FR-011, FR-012, FR-018, SC-001, Assumptions). No marker remains.

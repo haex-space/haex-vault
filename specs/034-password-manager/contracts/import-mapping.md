@@ -2,7 +2,7 @@
 
 **Spec**: [../spec.md](../spec.md) (FR-023, US7) | **Research**: [../research.md](../research.md) R12 | **Commands**: [tauri-commands.md](./tauri-commands.md)
 
-Grundsatz: **Es geht nichts still verloren.** Was ein Feld von holzi hat, kommt dorthin. Was kein
+Grundsatz: **Es geht nichts still verloren.** Was ein Feld von haex-vault hat, kommt dorthin. Was kein
 Gegenstück hat, wird ein eigenes Feld (`haex_passwords_item_key_values`, Name wie unten) oder ein
 Tag. Was nicht ankommen kann, steht im Bericht (`needsAttention`, ohne Werte von Geheimnissen).
 Die Feldnamen der Quellen sind nach dem bekannten Aufbau der Formate eingetragen; die Tests
@@ -12,7 +12,7 @@ stehen auf Deutsch, damit sie in der Oberfläche lesbar sind.
 
 ## Gemeinsam für alle Formate
 
-| Quelle                                         | Ziel in holzi                                                                                                                                                                     |
+| Quelle                                         | Ziel in haex-vault                                                                                                                                                                |
 | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Titel, Benutzername, Passwort, Adresse         | `title`, `username`, `password`, `url`                                                                                                                                            |
 | Notiz                                          | `note`                                                                                                                                                                            |
@@ -23,7 +23,7 @@ stehen auf Deutsch, damit sie in der Oberfläche lesbar sind.
 | TOTP (jede Form)                               | `otp_secret` und, wo angegeben, Ziffern, Periode, Algorithmus; **ungültig bleibt wie es ist**                                                                                     |
 | Passkey                                        | `haex_passwords_passkeys`, jeder Algorithmus (research R12, Punkt 8); schon vorhandene Credential-ID: nicht doppelt, Bericht `passkey_duplicate`                                  |
 | Anhang                                         | Anhang; über 25 MiB abgelehnt und im Bericht genannt (Dateiname, Größe, Eintrag, Ordnerpfad)                                                                                      |
-| Symbol                                         | Standardsymbol als Symbolname von holzi, eigenes Symbol als Binärzeile `icon` und `binary:<hash>`                                                                                 |
+| Symbol                                         | Standardsymbol als Symbolname von haex-vault, eigenes Symbol als Binärzeile `icon` und `binary:<hash>`                                                                            |
 | Tag, Favorit                                   | Tag (Favorit: Tag „Favorit“)                                                                                                                                                      |
 | Doppelter Eintrag (`title`, `username`, `url`) | wie vom Nutzer gewählt: überspringen oder trotzdem anlegen (FR-023)                                                                                                               |
 
@@ -45,7 +45,7 @@ stehen auf Deutsch, damit sie in der Oberfläche lesbar sind.
 | Benutzerdefinierte Daten (`CustomData`)                                                          | eigene Felder „KeePass: Zusatzdaten <Schlüssel>“                                     |
 | Anhänge (`Binaries`)                                                                             | Anhänge                                                                              |
 | `History`                                                                                        | Verlaufsstände mit eigenen Anhängen                                                  |
-| Symbol: Standard (0–68) / eigenes                                                                | Symbolname von holzi (Tabelle) / Binärzeile `icon`                                   |
+| Symbol: Standard (0–68) / eigenes                                                                | Symbolname von haex-vault (Tabelle) / Binärzeile `icon`                              |
 | Einstellungen der Anwendung (Suche und Auto-Type je Gruppe aktiv, aufgeklappt, Qualitätsprüfung) | **eine** Zeile im Bericht „Einstellungen der Quelle, nicht übernommen“               |
 
 ## Bitwarden (JSON, unverschlüsselt)

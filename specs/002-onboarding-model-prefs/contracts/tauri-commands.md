@@ -1,6 +1,6 @@
 # Contracts: Tauri Commands (Onboarding + Preferences)
 
-Alle Kommandos sind async, laufen im Tauri-`invoke_handler` und geben `Result<T, HolziError>` zurück. Rust-`snake_case` wird beim JSON-Payload zu `camelCase` per `#[serde(rename_all = "camelCase")]`.
+Alle Kommandos sind async, laufen im Tauri-`invoke_handler` und geben `Result<T, HaexError>` zurück. Rust-`snake_case` wird beim JSON-Payload zu `camelCase` per `#[serde(rename_all = "camelCase")]`.
 
 ## Neue Commands
 
@@ -16,7 +16,7 @@ Liest genau einen Preference-Wert für den angegebenen Scope+Key.
 
 **Returns**: `string | null` (Frontend), `Option<String>` (Rust). `null` bedeutet "row nicht vorhanden ODER value ist NULL" — der Wrapper faltet beide zusammen.
 
-**Fehler**: `HolziError::InvalidInput` wenn `key` leer oder ohne `.`-Namespace.
+**Fehler**: `HaexError::InvalidInput` wenn `key` leer oder ohne `.`-Namespace.
 
 **Beispiel**:
 
@@ -43,13 +43,13 @@ Setzt oder aktualisiert einen Preference-Eintrag.
 
 **Fehler**:
 
-- `HolziError::InvalidInput` wenn Key-Format ungültig.
-- `HolziError::CrdtInit` wenn DB-Zugriff scheitert.
+- `HaexError::InvalidInput` wenn Key-Format ungültig.
+- `HaexError::CrdtInit` wenn DB-Zugriff scheitert.
 
 **Verhalten**:
 
 - Sync-tracked via `haex_hlc_no_sync = current_hlc()`.
-- FK-Prüfung: wenn `scope.kind === 'device'` und diese UUID nicht in `known_devices` existiert → SQLite-FK-Fehler → propagiert als `HolziError::CrdtInit` (theoretisch nie erreichbar, weil Bootstrap den Sentinel + eigenes Device sichergestellt hat).
+- FK-Prüfung: wenn `scope.kind === 'device'` und diese UUID nicht in `known_devices` existiert → SQLite-FK-Fehler → propagiert als `HaexError::CrdtInit` (theoretisch nie erreichbar, weil Bootstrap den Sentinel + eigenes Device sichergestellt hat).
 
 ### `clear_pref(scope, key) -> ()`
 
@@ -74,7 +74,7 @@ Führt die Session-Resolver-Kette (FR-014) aus und gibt zurück, welches Modell 
 }
 ```
 
-**Fehler**: `HolziError::CrdtInit` bei DB-Zugriffsfehlern.
+**Fehler**: `HaexError::CrdtInit` bei DB-Zugriffsfehlern.
 
 **Verhalten**:
 
@@ -98,7 +98,7 @@ Liefert Metadaten über das aktuelle Gerät im Kontext des aktiven Vaults.
 }
 ```
 
-**Fehler**: `HolziError::CrdtInit` wenn kein aktiver Vault geöffnet oder Bootstrap noch nicht gelaufen.
+**Fehler**: `HaexError::CrdtInit` wenn kein aktiver Vault geöffnet oder Bootstrap noch nicht gelaufen.
 
 **Verwendung**:
 
@@ -116,7 +116,7 @@ Setzt oder ändert den Alias des aktuellen Geräts.
 
 **Returns**: `void`.
 
-**Fehler**: `HolziError::InvalidInput` wenn `alias` leer oder nur Whitespace.
+**Fehler**: `HaexError::InvalidInput` wenn `alias` leer oder nur Whitespace.
 
 **Verhalten**: Ruft intern `storage::known_devices::update_alias`, das bereits existiert und `haex_hlc_no_sync` korrekt injiziert.
 
@@ -136,7 +136,7 @@ Liefert drei Hardware-passende Modell-Vorschläge (Easy/Sweet/Max) für den Onbo
 ]
 ```
 
-**Fehler**: `HolziError::CatalogEntryNotFound` nur bei einem leeren oder anderweitig ungültigen Katalog, aus dem keine gültige Empfehlung erzeugt werden kann. Ein nicht-leerer gültiger Katalog ist immer erfolgreich und liefert genau drei Empfehlungen; bei weniger als drei Einträgen werden fehlende Tiers nach dem Algorithmus mit dem besten verfügbaren Kandidaten wiederverwendet (bei zwei Einträgen z. B. Max = Sweet-Fallback, bei einem Eintrag wird dieser für alle Tiers verwendet). Das Frontend behandelt nur diesen echten Fehler als "Katalog leer" und rendert gültige wiederverwendete Empfehlungen normal.
+**Fehler**: `HaexError::CatalogEntryNotFound` nur bei einem leeren oder anderweitig ungültigen Katalog, aus dem keine gültige Empfehlung erzeugt werden kann. Ein nicht-leerer gültiger Katalog ist immer erfolgreich und liefert genau drei Empfehlungen; bei weniger als drei Einträgen werden fehlende Tiers nach dem Algorithmus mit dem besten verfügbaren Kandidaten wiederverwendet (bei zwei Einträgen z. B. Max = Sweet-Fallback, bei einem Eintrag wird dieser für alle Tiers verwendet). Das Frontend behandelt nur diesen echten Fehler als "Katalog leer" und rendert gültige wiederverwendete Empfehlungen normal.
 
 **Algorithmus**:
 
@@ -168,7 +168,7 @@ Liefert drei Hardware-passende Modell-Vorschläge (Easy/Sweet/Max) für den Onbo
 }[]
 ```
 
-**Fehler**: Wenn `AppLocalData/models/` noch nicht existiert, wird `[]` zurückgegeben (`tokio::fs::read_dir` liefert `NotFound` auf einer frischen Installation). Andere Fehler beim Lesen des Verzeichnisses werden als `HolziError::Io` weitergegeben.
+**Fehler**: Wenn `AppLocalData/models/` noch nicht existiert, wird `[]` zurückgegeben (`tokio::fs::read_dir` liefert `NotFound` auf einer frischen Installation). Andere Fehler beim Lesen des Verzeichnisses werden als `HaexError::Io` weitergegeben.
 
 > **Amended 2026-11-02** (spec 006 FR-021, FR-022): `chat.last_active_model_id` is written only by
 > the new `select_model {modelId}` (a pick in the model menu: load, then remember), no longer by
@@ -198,7 +198,7 @@ Der Client erzeugt pro Nutzer-Sendevorgang einen neuen, opaken `idempotencyKey` 
 
 - **Kein Treffer**: normaler Ablauf — User-Message (inkl. `idempotencyKey`) und Thread werden mit den abgeleiteten IDs angelegt, danach `stream_chat` gestartet; scheitert der Adapter-Start, werden Message und ggf. neu angelegter Thread zurückgerollt (unverändert). Erst nach erfolgreichem Stream-Start wird `preferences[('<my_device_uuid>', 'chat.last_active_model_id')] = <current_model_id>` geschrieben (FR-009, unverändert).
 - **Treffer mit identischem Thread (oder `threadId: null`) und identischem Inhalt**: kein zweiter Insert, kein zweiter `stream_chat`-Aufruf, kein Preference-Write — es wird direkt dasselbe `SendMessageResult` wie beim ersten Mal zurückgegeben.
-- **Treffer mit abweichendem Thread oder Inhalt**: `HolziError::InvalidInput`.
+- **Treffer mit abweichendem Thread oder Inhalt**: `HaexError::InvalidInput`.
 
 **Kein Return-Change**.
 

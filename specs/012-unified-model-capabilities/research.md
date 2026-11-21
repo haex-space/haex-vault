@@ -153,7 +153,7 @@ change.
 ## R6. Storage and migration
 
 - Migration `0018_models_add_capabilities`: `ALTER TABLE models ADD COLUMN capabilities_json TEXT;`
-  Bump `HOLZI_TRIGGER_VERSION` 9 → 10 and add its line to the version list in
+  Bump `HAEX_TRIGGER_VERSION` 9 → 10 and add its line to the version list in
   `identity/migrations.rs` (verified: current value 9, last migration `0017`; the file documents
   the bump as mandatory for CRDT-tracked tables).
 - `upsert_model` overwrites the column unconditionally (like `context_window`), never `COALESCE`.

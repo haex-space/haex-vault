@@ -1,6 +1,6 @@
 # Research: Dateibrowser und Viewer (044)
 
-Stand 2026-10-07. Quellen: Code von holzi auf `origin/main` (`0486fb9d` und folgende), haex-vault 2.x (Legacy)
+Stand 2026-10-07. Quellen: Code von haex-vault auf `origin/main` (`0486fb9d` und folgende), haex-vault 2.x (Legacy)
 (Repository `https://github.com/haex-space/haex-vault-legacy`, Revision
 `fc4e84b61a050576ba42e0dc832d04064a8605a3`), crates.io/npm am 2026-10-07, developer.android.com.
 „Probe“ heißt: `cargo check` für `aarch64-linux-android` und `x86_64-pc-windows-gnu`; das beweist
@@ -49,7 +49,7 @@ Kompilieren, nicht Verhalten zur Laufzeit.
 ## R3 Gemeinsamer Kern für Dateien des Geräts
 
 - **Befund**: `extensions/fs/` hat Pfadauflösung (`resolve.rs`, lehnt kaputte Links und `..` ab), die
-  Sperrliste der eigenen Orte von holzi (`FsEnvironment.denied`, `mod.rs:81-91`: kanonische
+  Sperrliste der eigenen Orte von haex-vault (`FsEnvironment.denied`, `mod.rs:81-91`: kanonische
   `app_config_dir`, `app_data_dir`, `app_local_data_dir`, `app_cache_dir`, `app_log_dir`), bekannte Orte
   (`mod.rs:93-107`) und eine Beobachtung mit `notify-debouncer-full` (`watch.rs`, nur Desktop). Die
   Operationen in `ops.rs` hängen an `CallContext` und `BridgeError`.
@@ -108,7 +108,7 @@ Kompilieren, nicht Verhalten zur Laufzeit.
 - **Rationale**: rusty-s3 0.10 signiert die nötigen Aktionen (HeadObject, GetObject,
   ListObjectsV2 mit Delimiter, Create/UploadPart/Complete/AbortMultipartUpload, CopyObject) [Likely,
   beim Bau gegen RustFS zu bestätigen]. DNS-Pinning und „keine Weiterleitungen“ aus 038 bleiben.
-- **Zugriff**: holzi-intern wie Spec 038: `StorageService::access_of(storage_id)`, Zugangsdaten als
+- **Zugriff**: haex-vault-intern wie Spec 038: `StorageService::access_of(storage_id)`, Zugangsdaten als
   `Caller::Internal { feature: "storage" }`; der Dateibrowser sieht sie nie (FR-038).
 
 ## R6 Suche (FR-027 bis FR-030)
@@ -137,7 +137,7 @@ Kompilieren, nicht Verhalten zur Laufzeit.
   `passwords_attachment_preview`), im Fenster als Object-URL; die Warteschlange aus
   `src/lib/passwords/thumbnails.ts` (LRU, zwei gleichzeitig) wird geteilt.
 - **Rationale**: Ordner mit tausenden Fotos würden im Fenster jedes Mal neu dekodiert (036 macht
-  Vorschaubilder im Fenster und nur im Speicher). Der Cache liegt im Cache-Verzeichnis von holzi und ist
+  Vorschaubilder im Fenster und nur im Speicher). Der Cache liegt im Cache-Verzeichnis von haex-vault und ist
   damit für Agents gesperrt und nie synchronisiert (ADR 0001).
 - **Probe**: `image` und `fast_image_resize` kompilieren für Android und Windows.
 
@@ -152,7 +152,7 @@ Kompilieren, nicht Verhalten zur Laufzeit.
 - **Probe**: `pdf-extract`, `calamine`, `zip` 8, `quick-xml` 0.41 kompilieren für Android und Windows,
   kein ring/aws-lc-rs im Baum.
 - **Befund bei der Umsetzung**: pdf-extract 0.12 kennt die Textoperatoren `'` und `"` nicht (nur `Tj`,
-  `TJ`, `T*`); Ghostscript schreibt damit jede Zeile nach der ersten. holzi schreibt sie vor dem Lesen
+  `TJ`, `T*`); Ghostscript schreibt damit jede Zeile nach der ersten. haex-vault schreibt sie vor dem Lesen
   mit lopdf in `T*` + `Tj` um.
 - **Alternatives**: `lopdf` direkt (schlechtere Wortabstände), `oxidize-pdf` (viele Abhängigkeiten,
   jung), `mupdf` (C, AGPL), `dotext` (seit 2017 tot), `docx-rust` (mehr Abhängigkeiten).
@@ -169,7 +169,7 @@ Kompilieren, nicht Verhalten zur Laufzeit.
 
 - **Decision**: Ein `TransferManager` in `files/transfer/` mit Id, Zustand und Fortschritt je Transfer
   (Events über einen `Channel`), gestartet mit `gate.spawn`, abbrechbar über einen eigenen
-  `CancellationToken`, der am `gate.token()` hängt. Lokal: Schreiben in `.<Name>.holzi-part-<uuid>`
+  `CancellationToken`, der am `gate.token()` hängt. Lokal: Schreiben in `.<Name>.haex-part-<uuid>`
   daneben, am Ende `rename`; S3: Multipart, bei Abbruch `abort`. Wiederholung bei S3-Netzfehlern bis
   dreimal mit 1 s, 2 s, 4 s. Freier Platz lokal vor dem Start über eine kleine eigene Funktion
   (`statvfs` unter Unix, `GetDiskFreeSpaceExW` unter Windows), keine neue Abhängigkeit.
@@ -178,7 +178,7 @@ Kompilieren, nicht Verhalten zur Laufzeit.
 
 ## R11 Android: Zugriff auf alle Dateien (FR-039)
 
-- **Befund**: Das Plugin `plugins/holzi-android` ist leer (`COMMANDS: &[]`); das Manifest hat nur
+- **Befund**: Das Plugin `plugins/haex-android` ist leer (`COMMANDS: &[]`); das Manifest hat nur
   `INTERNET`. `minSdk = 26`, `targetSdk = 37`.
 - **Decision**: Manifest `MANAGE_EXTERNAL_STORAGE`; für API 26–29 zusätzlich
   `READ_EXTERNAL_STORAGE`/`WRITE_EXTERNAL_STORAGE` (`maxSdkVersion="29"`) als Laufzeitberechtigung.
@@ -191,7 +191,7 @@ Kompilieren, nicht Verhalten zur Laufzeit.
   `isExternalStorageManager()`, `ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION`, Ausnahme `Android/data`,
   Play-Prüfung) [Certain]; die app-spezifische Action mit `package:`-URI [Likely].
 - **Beobachtung auf Android**: `notify` 8 unterstützt Android über inotify (`Cargo.toml` von notify
-  8.2: `inotify` für `target_os = "android"`) [Certain]. holzi hat `notify` bisher nur für den Desktop
+  8.2: `inotify` für `target_os = "android"`) [Certain]. haex-vault hat `notify` bisher nur für den Desktop
   eingebunden, weil Erweiterungen auf Mobilgeräten nach 017 nur Dialog-Pfade bekommen; das ist eine
   Produktentscheidung für Erweiterungen, keine Grenze der Plattform. Der Dateibrowser bindet `notify`
   deshalb auch für Android ein (nicht iOS) und beobachtet nur den offenen Ordner, nicht rekursiv; die
@@ -231,7 +231,7 @@ Kompilieren, nicht Verhalten zur Laufzeit.
   (keine Zeile = erteilt); Widerruf ist eine Zeile `denied`. Speicher ab Werk ohne Zugriff. Beim Entfernen
   eines Speichers löscht `remove_storage` auch diese Zeilen (wie `store.rs:232` für Erweiterungen).
   Die Rückfrage bei fehlender Speicher-Berechtigung läuft über eine Brücke Rust → Fenster mit Antwort
-  (Muster `action_bridge`); ohne Fenster lehnt holzi ab.
+  (Muster `action_bridge`); ohne Fenster lehnt haex-vault ab.
 - **Rationale**: Die Typen `Permission`/`evaluate` aus den Erweiterungen sind auf Pfad-Ziele und
   Fremdschlüssel zugeschnitten; eine kleine eigene Tabelle ist klarer als ein Umbau.
 

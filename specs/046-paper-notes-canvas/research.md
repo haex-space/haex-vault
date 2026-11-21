@@ -8,10 +8,10 @@
 
 ## R1 — Implementierungsgrenze und vorhandene Abstraktionen
 
-- **Decision**: Spezifikation und Planung liegen in holzi; die Umsetzung gehört in `haextension/apps/haex-notes/`
+- **Decision**: Spezifikation und Planung liegen in haex-vault; die Umsetzung gehört in `haextension/apps/haex-notes/`
   bei der oben genannten Revision. Vorhandene Dokument-, Command-, Asset- und Renderer-Abstraktionen werden
   erweitert.
-- **Rationale**: haex-notes lebt in einem eigenen Repository. Ein paralleles Modell in holzi würde die Erweiterung
+- **Rationale**: haex-notes lebt in einem eigenen Repository. Ein paralleles Modell in haex-vault würde die Erweiterung
   nicht verändern.
 - **Befund an der Revision**:
   - `PageDoc` mit `PageLayer[]` und `PageElement[]` (`app/types/document.ts`) kennt `text`, `image`, `stroke`,
@@ -22,7 +22,7 @@
   - Die Seitentabelle (`app/database/schemas/index.ts`) speichert `layers` und `background` als JSON.
   - Der Asset-Store ist `app/composables/useAssetStore.ts`, die Freigabe von Seiten sammelt Bilder in
     `app/lib/collectAssets.ts`.
-- **Alternatives considered**: Umsetzung in holzi (verworfen: keine haex-notes-Quelle); eigenes Importmodell neben
+- **Alternatives considered**: Umsetzung in haex-vault (verworfen: keine haex-notes-Quelle); eigenes Importmodell neben
   `PageDoc` (verworfen: doppelte Persistenz, Undo und Teilen).
 
 ## R2 — Originalfoto als gesperrte Ebene statt Hintergrund-Overlay
@@ -54,7 +54,7 @@
   Anweisungen und Formate stehen in [contracts/page-job.md](./contracts/page-job.md). Sie entsprechen der
   Test-Erweiterung von Spec 055 (`src-tauri/tests/fixtures/extension_e2e/model-jobs/`).
 
-- **Rationale**: holzi wählt das freigegebene Modell und den Ort, fragt vor dem ersten Versand außerhalb des Geräts,
+- **Rationale**: haex-vault wählt das freigegebene Modell und den Ort, fragt vor dem ersten Versand außerhalb des Geräts,
   deckelt den Aufwand und verwirft kaputte Ausgabe. haex-notes braucht dafür weder Anbieter noch Schlüssel. Zwei
   Schritte erlauben ein Bildmodell zum Lesen und ein Textmodell zum Korrigieren.
 - **Ergebnis**: Ein Auftrag endet `completed` (beide Ergebnisse) oder `failed` oder `cancelled` mit einem Fehlercode.
@@ -95,10 +95,10 @@
 
 - **Decision**: Reine Logik (Auftrag bauen, Ergebnis abbilden, Tabellen, Drehung, Layout, Serialisierung, Render)
   wird mit Vitest getestet. Die SDK-Schicht wird über eine kleine Schnittstelle `runPageJob(job)` angesprochen, die im
-  Test durch eine Attrappe mit festen Ergebnissen ersetzt wird. Ein Handtest gegen holzi mit Ollama folgt
+  Test durch eine Attrappe mit festen Ergebnissen ersetzt wird. Ein Handtest gegen haex-vault mit Ollama folgt
   [quickstart.md](./quickstart.md).
 - **Rationale**: Das Paket nutzt bereits Vitest für Modell, Commands, Assets und Renderer. Echte Modelle sind nicht
-  reproduzierbar; holzis Prüfung der Ausgabe ist dort getestet (Spec 055).
+  reproduzierbar; haex-vaults Prüfung der Ausgabe ist dort getestet (Spec 055).
 - **Alternatives considered**: nur Handtests (verworfen); echte Modelle in jedem Testlauf (verworfen).
 
 ## R9 — Tabellen mit Zelltext
@@ -120,7 +120,7 @@
   einmal neu. Eine zweite Meldung wird nicht befolgt. Im Importdialog kann der Schüler das Foto vor dem Lesen in
   90°-Schritten drehen. Das Original bleibt, wie es aufgenommen wurde; die Originalebene zeigt es aufrecht gedreht
   (`ImageElement.rotation`).
-- **Rationale**: Messenger entfernen die EXIF-Drehung. holzi dreht nichts (Spec 055 T066), also muss die
+- **Rationale**: Messenger entfernen die EXIF-Drehung. haex-vault dreht nichts (Spec 055 T066), also muss die
   Erweiterung es tun. Nur einmal nachzulesen verhindert eine Schleife.
 - **Befund 2026-10-23**: `qwen3-vl:4b-instruct` ist als Quelle des Hinweises unbrauchbar. Allein danach gefragt,
   antwortet es auf jedes Foto fast immer „90“ und nennt jede Seite „horizontal“. Im ganzen Auftrag meldete es für die
@@ -173,11 +173,11 @@
 - **Alternatives considered**: das ganze Blatt erneut fotografieren und alte und neue Regionen zuordnen (verworfen:
   Lage und Zuschnitt eines neuen Fotos stimmen nicht mit dem alten überein); dasselbe Original erneut lesen und nur
   unveränderte Elemente über einen Fingerabdruck ersetzen (verworfen: hilft nicht bei einem schlechten Foto, und ein
-  anderes Modell wählt man in holzi); immer vor dem Ersetzen fragen (verworfen: Undo genügt).
+  anderes Modell wählt man in haex-vault); immer vor dem Ersetzen fragen (verworfen: Undo genügt).
 
 ## Resolved unknowns
 
-- Erkennung: Modellauftrag über holzi in zwei Schritten (R4), kein Agent-Task, kein Profil.
+- Erkennung: Modellauftrag über haex-vault in zwei Schritten (R4), kein Agent-Task, kein Profil.
 - Tabellen: eigenes Zellfeld im `TableElement` (R9).
 - Gedrehte Fotos: Drehhinweis des Modells oder Drehen durch den Schüler, einmal nachlesen (R10).
 - Anordnung: Lage auf dem Foto mit Kanten- und Überlappungsregeln (R11).

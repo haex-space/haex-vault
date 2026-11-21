@@ -38,7 +38,7 @@ produces no event either.
 `input` events of a `search` are merged: the latest text is sent at most every ~100 ms; `submit`, blur and a change
 of description flush immediately (FR-012).
 
-## SDK (`haex-space/vault-sdk`, separate PR; holzi does not wait for it)
+## SDK (`haex-space/vault-sdk`, separate PR; haex-vault does not wait for it)
 
 ```ts
 client.header.set(description: HeaderDescription): Promise<boolean>   // extension_header_set; false = host has no header
@@ -52,15 +52,15 @@ every other error, such as `3001` for a refused description, still rejects.
 
 ## What an extension must not be able to do (tests)
 
-| Attempt                                                                                                                                                                                          | Result                                                                 |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| a text with `<img onerror=…>` as a label                                                                                                                                                         | shown as that text                                                     |
-| 33 controls, a 65-entry menu, a 33 KiB description                                                                                                                                               | refused with `3001`, previous header stays                             |
-| a button without `label`; duplicate `id`                                                                                                                                                         | refused                                                                |
-| an unknown control type among valid ones                                                                                                                                                         | the valid ones show                                                    |
-| an `event` or a description naming another frame/tab                                                                                                                                             | impossible: the frame id comes from holzi's session, not from `params` |
-| an icon that is a `lucide:` name, a URL, a path outside the bundle, a non-picture file, or over 256 KiB (a file or a decoded inline picture); an inline `data:` icon from an installed extension | refused with `3001`, previous header stays                             |
-| a `testId` field, or a control character or bidi-format character in a text                                                                                                                      | refused with `3001`, previous header stays                             |
-| an SVG with a script or an external reference                                                                                                                                                    | drawn as an image: the script does not run, nothing loads              |
-| an `icons` table sent in `params`                                                                                                                                                                | ignored; Rust builds the table from the bundle                         |
-| the window buttons                                                                                                                                                                               | no field can reach, cover or move them                                 |
+| Attempt                                                                                                                                                                                          | Result                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| a text with `<img onerror=…>` as a label                                                                                                                                                         | shown as that text                                                          |
+| 33 controls, a 65-entry menu, a 33 KiB description                                                                                                                                               | refused with `3001`, previous header stays                                  |
+| a button without `label`; duplicate `id`                                                                                                                                                         | refused                                                                     |
+| an unknown control type among valid ones                                                                                                                                                         | the valid ones show                                                         |
+| an `event` or a description naming another frame/tab                                                                                                                                             | impossible: the frame id comes from haex-vault's session, not from `params` |
+| an icon that is a `lucide:` name, a URL, a path outside the bundle, a non-picture file, or over 256 KiB (a file or a decoded inline picture); an inline `data:` icon from an installed extension | refused with `3001`, previous header stays                                  |
+| a `testId` field, or a control character or bidi-format character in a text                                                                                                                      | refused with `3001`, previous header stays                                  |
+| an SVG with a script or an external reference                                                                                                                                                    | drawn as an image: the script does not run, nothing loads                   |
+| an `icons` table sent in `params`                                                                                                                                                                | ignored; Rust builds the table from the bundle                              |
+| the window buttons                                                                                                                                                                               | no field can reach, cover or move them                                      |

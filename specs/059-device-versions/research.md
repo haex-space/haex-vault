@@ -1,7 +1,7 @@
 # Research: Versionsstände der Geräte in der Föderationsübersicht
 
 Spec: [spec.md](spec.md). Ausgangslage im Code (Stand `origin/main` 5ae5009a): `handshake::local_schema()`
-liefert `SchemaVersion { protocol, holzi_migration, crdt_trigger }`; `accept_with` vergleicht es mit dem
+liefert `SchemaVersion { protocol, haex_migration, crdt_trigger }`; `accept_with` vergleicht es mit dem
 `schema` aus `Response` (`handshake.rs`, Prüfung `v != PROTOCOL_VERSION || schema != local.schema`), `dial_with`
 mit dem `schema` aus `Accept`. `Accept` kommt nur bei Gleichheit, bei Abweichung kommt `Reject { Incompatible }`
 ohne Werte. `endpoint_devices::note_failure` setzt dann `problem = incompatible_version`.
@@ -26,7 +26,7 @@ dem Handshake und erreichen nicht jedes Gerät).
 
 ## R2 Protokollversion, ALPN und ältere Stände
 
-**Entscheidung**: `PROTOCOL_VERSION` wird 2. Die ALPN bleibt `holzi-sync/1`. `v` bleibt das erste Feld und damit
+**Entscheidung**: `PROTOCOL_VERSION` wird 2. Die ALPN bleibt `haex-sync/1`. `v` bleibt das erste Feld und damit
 das Byte direkt nach dem Variantenkennzeichen jeder Handshake-Nachricht (u8, postcard schreibt es als ein Byte; `Challenge` ist Variante 0). Das wählende Gerät liest die
 `Challenge` als Rahmen, prüft dieses Byte gegen `PROTOCOL_VERSION` und dekodiert erst dann; bei Abweichung
 endet es mit `Refused(Incompatible)` und nennt das Gerät über den Endpunkt (R3), ohne Werte. Das annehmende Gerät
@@ -42,7 +42,7 @@ alte `Challenge` sonst als Dekodierfehler endet statt als Versionsmeldung. Spec 
 steckt im ALPN“) wird dahin geändert: Die ALPN ändert sich nur bei einem Bruch, der den Handshake selbst
 unlesbar macht; die Protokollversion `v` direkt nach dem Variantenkennzeichen ist die Versionsprüfung.
 
-**Verworfen**: ALPN `holzi-sync/2` (zwei alte Stände sind dann füreinander unsichtbar, siehe oben);
+**Verworfen**: ALPN `haex-sync/2` (zwei alte Stände sind dann füreinander unsichtbar, siehe oben);
 `PROTOCOL_VERSION` bei 1 lassen (der Wert „Sync-Protokoll“ in der Anzeige wäre gleich, obwohl das Format
 bricht; ein älteres Gerät würde die Nachricht lesen und sie stillschweigend falsch deuten, wenn sich ein
 Feld verschiebt).
@@ -67,7 +67,7 @@ Seiten ist eine Umsetzung der Regel (Spec-Leitsatz „eine Umsetzung je Regel“
 **Entscheidung**: Drei Spalten in `device_presence_no_sync`: `peer_protocol`, `peer_migration`, `peer_trigger`
 (`INTEGER`, alle `NULL` = unbekannt), angelegt in der Migration `0040_device_peer_schema`. Ein Schreiben ersetzt
 alle drei in einem Statement; `problems::set` und `seen::touch` lassen sie unberührt. `removal.rs` löscht die
-Zeile eines entfernten Geräts wie bisher. Die Migration berührt keine CRDT-Tabelle, `HOLZI_TRIGGER_VERSION`
+Zeile eines entfernten Geräts wie bisher. Die Migration berührt keine CRDT-Tabelle, `HAEX_TRIGGER_VERSION`
 bleibt 27; die Zahl der Migrationen steigt auf 40.
 
 **Begründung**: Die Tabelle ist gerätelokal (`_no_sync`), hat genau einen Schreiber-Pfad je Zugriff
@@ -89,7 +89,7 @@ löst kein Ereignis aus (wie `problems::set`).
 
 ## R6 Anzeige
 
-**Entscheidung**: `VaultDevice` bekommt `schema: DeviceSchema | null` mit `{ protocol, holziMigration,
+**Entscheidung**: `VaultDevice` bekommt `schema: DeviceSchema | null` mit `{ protocol, haexMigration,
 crdtTrigger }` (`null` = unbekannt) und `ownSchema` wird nicht je Zeile wiederholt: die Zeile mit `isCurrent`
 trägt den eigenen Stand (aus `local_schema()` gelesen, nicht gespeichert), die Oberfläche vergleicht jede andere
 Zeile damit. Die Logik des Vergleichs liegt rein in `src/lib/sync/deviceStatus.ts` (`schemaDiff`): je Wert
@@ -113,7 +113,7 @@ sonst synchronisieren sie nicht.“, wenn alle abweichenden Werte des anderen Ge
 `incompatible_version` („Eines der Geräte …“). Ohne Stand des anderen Geräts oder bei gegenläufigen Werten der
 bisherige Text. In den Meldungen steht `{name}` als Platzhalter (vue-i18n lehnt `<…>` ab); ein Gerät ohne Namen
 bekommt `settings.federation.unnamed`. `settings.devices.list` (`settingsActionHandlers.ts`) liefert `schema`
-(`protocol`, `holziMigration`, `crdtTrigger`) je Gerät, bei unbekanntem Stand ohne das Feld, wie bei `lastSeen`; die
+(`protocol`, `haexMigration`, `crdtTrigger`) je Gerät, bei unbekanntem Stand ohne das Feld, wie bei `lastSeen`; die
 Beschreibung in `settingsActions.ts` nennt es. Eine Aktion für Erweiterungen kommt nicht dazu.
 
 **Begründung**: FR-011, FR-012. Dieselbe Funktion bedient Anzeige und Tests; der Agent liest dieselben Zahlen wie

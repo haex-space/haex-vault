@@ -1,7 +1,7 @@
 # Vertrag: Aktionen und Eingaben
 
 Die Aktionen der Spec (FR-024–FR-033) heißen im Code **Aktionen**, weil „Command“
-in holzi Tauri-Commands bezeichnet (research R8). Datenformen:
+in haex-vault Tauri-Commands bezeichnet (research R8). Datenformen:
 [data-model.md](../data-model.md#shellactiondefinition-aktion).
 
 ## 1. Katalog

@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: User description: "Spec 019: haex-mail Werkzeuge für den Agenten, Regeln und Regel-Oberfläche. haex-mail erklärt Werkzeuge im Manifest und stellt sie über den MCP-Baustein des vault-sdk bereit: Mailkonten anlegen (ohne Passwort durchs Modell), Mails lesen, filtern, suchen, sortieren, in Ordner einsortieren, Entwürfe erstellen und senden (Senden als zerstörend). Dazu dauerhafte Regeln, die auch der Nutzer in haex-mail von Hand anlegen, ändern und löschen kann. Der holzi-Host bekommt dafür drei neue Mail-Befehle (Suche, Ordner anlegen, endgültig löschen). Beispiel: „Wie viele ungelesene Mails habe ich?“ beantwortet der Agent über ein Werkzeug von haex-mail statt run_command zu raten."
+**Input**: User description: "Spec 019: haex-mail Werkzeuge für den Agenten, Regeln und Regel-Oberfläche. haex-mail erklärt Werkzeuge im Manifest und stellt sie über den MCP-Baustein des vault-sdk bereit: Mailkonten anlegen (ohne Passwort durchs Modell), Mails lesen, filtern, suchen, sortieren, in Ordner einsortieren, Entwürfe erstellen und senden (Senden als zerstörend). Dazu dauerhafte Regeln, die auch der Nutzer in haex-mail von Hand anlegen, ändern und löschen kann. Der HaexVault-Host bekommt dafür drei neue Mail-Befehle (Suche, Ordner anlegen, endgültig löschen). Beispiel: „Wie viele ungelesene Mails habe ich?“ beantwortet der Agent über ein Werkzeug von haex-mail statt run_command zu raten."
 
 Entwurf und Begründungen: [docs/plans/2026-10-20-haex-mail-agent-tools-design.md](../../docs/plans/2026-10-20-haex-mail-agent-tools-design.md).
 
@@ -43,7 +43,7 @@ Entwurf und Begründungen: [docs/plans/2026-10-20-haex-mail-agent-tools-design.m
 - **Rolle**: die Aufgabe eines Ordners (Posteingang, Gesendet, Entwürfe, Papierkorb, Spam, Archiv),
   unabhängig vom Namen des Ordners auf dem Server.
 - **Entwurf**: eine verfasste, noch nicht gesendete Mail im Ordner „Entwürfe“ des Kontos.
-- **Hostseitig neu**: die drei Mail-Funktionen, die holzi heute einer Erweiterung nicht bietet: Suche in
+- **Hostseitig neu**: die drei Mail-Funktionen, die HaexVault heute einer Erweiterung nicht bietet: Suche in
   einem ganzen Ordner auf dem Server, Ordner anlegen, Mails endgültig löschen.
 
 ## Clarifications
@@ -51,8 +51,8 @@ Entwurf und Begründungen: [docs/plans/2026-10-20-haex-mail-agent-tools-design.m
 ### Session 2026-10-20
 
 - Q: Welche Wirkungsart hat „Regel anlegen“? → A: „zerstörend“. Eine Regel wirkt dauerhaft auf alle
-  künftigen Mails; deshalb fragt holzi auch im Modus „Auto“ je Aufruf. „Regel entfernen“ bleibt „ändernd“.
-- Q: Sollen Regeln auch laufen, wenn haex-mail nie geöffnet wird (Autostart beim holzi-Start)? → A: Nein.
+  künftigen Mails; deshalb fragt HaexVault auch im Modus „Auto“ je Aufruf. „Regel entfernen“ bleibt „ändernd“.
+- Q: Sollen Regeln auch laufen, wenn haex-mail nie geöffnet wird (Autostart beim HaexVault-Start)? → A: Nein.
   Regeln laufen nur, solange haex-mail geladen ist; ein Autostart ohne Fenster ist eine spätere Spec.
 
 ## User Scenarios & Testing _(mandatory)_
@@ -224,7 +224,7 @@ auf.
 
 ### Edge Cases
 
-- **haex-mail ist nicht geöffnet**: holzi startet es für den Aufruf, ohne ein Fenster in den Vordergrund
+- **haex-mail ist nicht geöffnet**: HaexVault startet es für den Aufruf, ohne ein Fenster in den Vordergrund
   zu holen (018 FR-012). Regeln laufen nur, solange haex-mail läuft (siehe Annahmen).
 - **Anmeldung am Mailserver scheitert** (falsches Passwort, Server nicht erreichbar): Das Werkzeug meldet
   den Grund ohne Zugangsdaten; der Agent kann dem Nutzer die Einstellungen von haex-mail nennen.
@@ -240,7 +240,7 @@ auf.
 - **Regeln, die sich widersprechen** (eine verschiebt, eine markiert): Alle passenden Regeln greifen; ein
   Verschieben wird zuletzt ausgeführt. Eine verschobene Mail durchläuft die Regeln nicht erneut.
 - **Regel greift auf eine Mail, die schon im Zielordner liegt**: Es passiert nichts.
-- **Mail kommt bei ausgeschaltetem holzi an**: Sie wird beim nächsten Abruf einsortiert, nicht früher.
+- **Mail kommt bei ausgeschaltetem HaexVault an**: Sie wird beim nächsten Abruf einsortiert, nicht früher.
 - **Senden scheitert** (Server lehnt ab, Empfänger ungültig): Der Entwurf bleibt erhalten, der Grund wird
   gemeldet.
 - **Agentenzugang für haex-mail abgeschaltet** (018 FR-016): Es werden keine Mailwerkzeuge angeboten; die
@@ -416,8 +416,8 @@ auf.
 - Der MCP-Baustein im vault-sdk ist die Grundlage der dritten Etappe und seit vault-sdk 4.6.0 (Commit `74a8ff96cff606600e134fe4df9f6d14441c1d53`, der Baustein kam mit Pull Request #64, Commit `280cebf`) veröffentlicht
   (Stand 2026-10-20, zuvor als offen geplant). haex-mail hängt aktuell an `^4.1.0` und hebt auf die Version
   an, die auch die drei neuen Mail-Methoden enthält.
-- Regeln laufen nur, solange haex-mail läuft, also als Erweiterung in holzi geladen ist. Es gibt keinen
-  Dienst auf dem Mailserver (Sieve). Mails, die bei ausgeschaltetem holzi eintreffen, werden beim nächsten
+- Regeln laufen nur, solange haex-mail läuft, also als Erweiterung in HaexVault geladen ist. Es gibt keinen
+  Dienst auf dem Mailserver (Sieve). Mails, die bei ausgeschaltetem HaexVault eintreffen, werden beim nächsten
   Abruf einsortiert. Bis eine Benachrichtigung greift, kann es bis zu 90 Sekunden dauern, weil die
   Überwachung den Posteingang in diesem Abstand abfragt.
 - Die Überwachung neuer Mails gilt nur für den Posteingang; Regeln wirken nur auf neue Mails dort und auf
@@ -438,7 +438,7 @@ auf.
 
 - Eine Weiterleitungs-Aktion in Regeln und beliebige ODER-Verknüpfungen oder reguläre Ausdrücke.
 - Ein Regeldienst auf dem Mailserver (Sieve) oder Regeln für andere Ordner als den Posteingang.
-- Ein Autostart von haex-mail beim Start von holzi, damit Regeln ohne geöffnete App laufen (spätere Spec).
+- Ein Autostart von haex-mail beim Start von HaexVault, damit Regeln ohne geöffnete App laufen (spätere Spec).
 - Werkzeuge in haex-notes und haex-files (eigene Spezifikationen).
 - Werkzeuge von haex-mail für externe Agenten: Spec 021.
 - Das Anhängen von Dateien an Entwürfe und das Herunterladen von Anhängen durch den Agenten.

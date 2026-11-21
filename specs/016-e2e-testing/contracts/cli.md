@@ -65,7 +65,7 @@ expected and are not shown as failures.
 
 A message names the problem and the remedy, in one place:
 
-- Missing tool: the tool's name, that the dev shell provides it once holzi's atoms pin is at or after the
+- Missing tool: the tool's name, that the dev shell provides it once haex-vault's atoms pin is at or after the
   revision that delivers it, and the distribution package for a machine without Nix.
 - Version mismatch: both versions and the fix (enter the shell again after updating the pin, or install
   the matching driver package).

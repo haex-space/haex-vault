@@ -6,7 +6,7 @@
 
 ## Summary
 
-When a local model proposes a final action (declared effect `destructive`, risk class `Risky`), holzi asks the model
+When a local model proposes a final action (declared effect `destructive`, risk class `Risky`), haex-vault asks the model
 one short question before the permission dialog: did the user ask for exactly this, and which offered changing tool
 of the same area does it reversibly. If the user did not ask for it and a tool is named, the call is turned away with
 an answer naming that tool; otherwise the dialog asks as today. The everyday measurement runs the same check and
@@ -23,7 +23,7 @@ models (CUDA build per spec 078/082 quickstart)
 
 **Storage**: none; runs under `specs/088-reversible-delete/runs/`
 
-**Testing**: lib tests in `*_tests.rs` (`--config 'profile.dev.package.holzi.debug=0'`, `-j 1`); a fake adapter
+**Testing**: lib tests in `*_tests.rs` (`--config 'profile.dev.package.haex.debug=0'`, `-j 1`); a fake adapter
 answers the check in unit tests; the chain set and the everyday set as model measurements
 
 **Target Platform**: desktop (Linux reference laptop, RTX A2000 8 GB) and the phone profile in the measurement

@@ -1,4 +1,4 @@
-# Implementation Plan: holzi als MCP-Server für externe Agenten
+# Implementation Plan: haex-vault als MCP-Server für externe Agenten
 
 **Branch**: `021-mcp-server` | **Date**: 2026-10-26 | **Spec**: [spec.md](./spec.md)
 
@@ -6,15 +6,15 @@
 
 ## Summary
 
-holzi bekommt einen MCP-Server im App-Prozess, über den registrierte externe Agenten (Claude Code,
-Codex, andere MCP-Clients, die Delegates aus 007/009) holzi bedienen: Aktionen aus dem Katalog,
+haex-vault bekommt einen MCP-Server im App-Prozess, über den registrierte externe Agenten (Claude Code,
+Codex, andere MCP-Clients, die Delegates aus 007/009) haex-vault bedienen: Aktionen aus dem Katalog,
 Werkzeuge von haextensions, Dateien, Kontakte, Passwörter und Befehle, jeweils nur mit den Rechten,
 die der Nutzer dem Agenten bei der Registrierung gibt, und mit einer eigenen Freigabestufe je
 Agent. Den Umfang bestimmen die Spec und die Klärungen vom 2026-10-26:
 
 - Der Agent darf den Registrierungsdialog selbst auslösen.
 - Geheimnisse aus dem Passwortmanager nur nach Rückfrage bei jedem Abruf, auch in Auto.
-- Läuft holzi nicht, bekommt der Agent nur eine Meldung; nichts startet holzi.
+- Läuft haex-vault nicht, bekommt der Agent nur eine Meldung; nichts startet haex-vault.
 - Protokoll mit Ziel und Eingaben, ohne Geheimnisse.
 - Ablauf einer Registrierung nach 90 Tagen ohne Verbindung.
 - „Befehle ausführen“ als eigene Rechtegruppe, ab Werk aus, jeder Befehl zerstörend.
@@ -25,7 +25,7 @@ Entscheidung über Weg und Identität in
 
 - **Server** (R1): `rmcp` 3.5 mit `server`, `transport-async-rw` und später
   `transport-streamable-http-server` im App-Prozess; Modul `src-tauri/src/mcp_server/`.
-- **Programm-Weg** (R1, R2): `holzi --mcp-agent <slug>` reicht stdio an einen Unix-Socket
+- **Programm-Weg** (R1, R2): `haex --mcp-agent <slug>` reicht stdio an einen Unix-Socket
   (Verzeichnis `0700`, UID-Prüfung) oder eine Named Pipe durch; Begrüßung mit Zugangsnachweis,
   Steuerzeilen für Nachweis und Schließen ([contracts/agent-helper.md](./contracts/agent-helper.md)).
 - **HTTP-Weg** (R1, R14): Streamable HTTP auf Loopback mit OAuth 2.1, Pflicht für Android/iOS
@@ -38,7 +38,7 @@ Entscheidung über Weg und Identität in
   `caller` in `action-call-request`.
 - **Rückfragen** (R6): `permission::decide` mit der Freigabestufe des Agenten; Parken auf
   `prompt_park.rs`; Dialog im Fenster, für Delegates im Chat.
-- **Delegates** (R7): holzi trägt sich in die temporäre Konfiguration von Claude Code und Codex
+- **Delegates** (R7): haex-vault trägt sich in die temporäre Konfiguration von Claude Code und Codex
   ein, auch im Modus „Ungated“.
 - **Speicher** (R8–R10): drei Tabellen, zwei geräteeigen nach ADR-0001, das Protokoll `_no_sync`
   ([data-model.md](./data-model.md)).
@@ -63,7 +63,7 @@ für Prüfskripte.
 
 **Storage**: Migration mit der nächsten freien Nummer (bei Planung `0042_mcp_agents`): CRDT-Tabellen
 `haex_mcp_agents`, `haex_mcp_agent_grants`; Tabelle `haex_mcp_agent_log_no_sync`;
-`HOLZI_TRIGGER_VERSION` 28 → 29; zwei Geräteeinstellungen. `agent_file_permissions` unverändert.
+`HAEX_TRIGGER_VERSION` 28 → 29; zwei Geräteeinstellungen. `agent_file_permissions` unverändert.
 
 **Testing**:
 
@@ -96,7 +96,7 @@ höchstens 0,5 s langsamer als im eingebauten Agenten (SC-005); Widerruf < 1 s (
 - **Async**: Dateizugriffe des Hilfsprogramms und Dienstaufrufe über `spawn_blocking` bzw.
   `VaultGate`; kein blockierender Aufruf auf dem Executor.
 - **Code-Regeln**: Dateien ≤ 500 Zeilen. `claude.rs` (653) und `codex.rs` (585) bekommen die
-  holzi-Konfiguration in einer neuen Datei `cli_delegate/holzi_mcp.rs`; `lib.rs` (753) bekommt nur
+  haex-vault-Konfiguration in einer neuen Datei `cli_delegate/haex_mcp.rs`; `lib.rs` (753) bekommt nur
   den Zweig für `--mcp-agent`, der Rest liegt in `mcp_server/helper.rs`.
 - **Testcode**: in eigenen Dateien.
 
@@ -190,7 +190,7 @@ src-tauri/src/
 │   ├── http.rs           # PR G: Streamable HTTP, Host/Origin
 │   └── oauth.rs          # PR G: Autorisierung, Token
 ├── identity/migrations_mcp_agents.rs
-├── adapters/cli_delegate/holzi_mcp.rs
+├── adapters/cli_delegate/haex_mcp.rs
 └── chat/tools/action_bridge.rs, chat/action_commands.rs   # caller, volle Aktionsliste
 
 src-tauri/tests/mcp_server.rs, mcp_server_contract.rs
@@ -210,17 +210,17 @@ vorhandenen Ordnern für Einstellungen und Aktionen.
 
 ## Lieferung (jede ein PR, jede auslieferbar)
 
-| PR  | Inhalt                                                                                                                                                                                                                                                                | Stories              | Berührt                                                                                           |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------- |
-| A   | Spec, Klärungen, Plan, Research, Datenmodell, Verträge, Quickstart, ADR-0005 (proposed), Tasks                                                                                                                                                                        | –                    | `specs/021-mcp-server/`, `docs/adr/`, `plans/README.md`                                           |
-| B   | Migration, `registry`, `endpoint`, `hello`, `helper`, `server` mit Aktionen „holzi bedienen“, Registrierungsdialog, Ein/Aus, Anleitungen, `caller` in der ActionBridge, volle Aktionsliste (R4), Rechteprüfung `operate`, Vertragstest-Grundgerüst; ADR-0005 accepted | US1, US2, US8        | Rust `mcp_server/`, `identity/`, `chat/`; Frontend Store, Dialog, Einstellungsseite (Grundgerüst) |
-| C   | Freigabestufe je Agent, Rückfrage-Dialog, Systembenachrichtigung, Grenzen (R11), Protokoll mit Schwärzung                                                                                                                                                             | US3, US7 (Protokoll) | `mcp_server/{prompts,log}.rs`, Frontend Dialog und Protokollansicht                               |
-| D   | Verwaltung: Detailseite, Rechte und Stufe ändern, Widerruf, Sperre aufheben, Ablauf nach 90 Tagen, `list_changed` bei Änderungen                                                                                                                                      | US7, US2             | `registry.rs`, Katalogaktionen, Einstellungsseite                                                 |
-| E   | Erweiterungen, Dateien/Kontakte, Passwörter inkl. `passwords.secret.get` (always_ask), Befehle ausführen                                                                                                                                                              | US4, US5             | `grants.rs`, `dispatch.rs`, `passwordsActions.ts`, Passwortdienst, `scripts/check-mcp-actions.ts` |
-| F   | Delegates: Konfiguration für Claude Code (auch Ungated) und Codex, Rückfragen im Chat, „Rechte festlegen“, Ersatz des Hinweises aus 032 FR-023                                                                                                                        | US6                  | `cli_delegate/holzi_mcp.rs`, Chat-Frontend                                                        |
-| G   | HTTP-Weg mit OAuth 2.1, Abwehr (R14), Android/iOS, Android-e2e                                                                                                                                                                                                        | US1, US8 (mobil)     | `mcp_server/{http,oauth}.rs`, Plattform, e2e                                                      |
+| PR  | Inhalt                                                                                                                                                                                                                                                                     | Stories              | Berührt                                                                                           |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------- |
+| A   | Spec, Klärungen, Plan, Research, Datenmodell, Verträge, Quickstart, ADR-0005 (proposed), Tasks                                                                                                                                                                             | –                    | `specs/021-mcp-server/`, `docs/adr/`, `plans/README.md`                                           |
+| B   | Migration, `registry`, `endpoint`, `hello`, `helper`, `server` mit Aktionen „haex-vault bedienen“, Registrierungsdialog, Ein/Aus, Anleitungen, `caller` in der ActionBridge, volle Aktionsliste (R4), Rechteprüfung `operate`, Vertragstest-Grundgerüst; ADR-0005 accepted | US1, US2, US8        | Rust `mcp_server/`, `identity/`, `chat/`; Frontend Store, Dialog, Einstellungsseite (Grundgerüst) |
+| C   | Freigabestufe je Agent, Rückfrage-Dialog, Systembenachrichtigung, Grenzen (R11), Protokoll mit Schwärzung                                                                                                                                                                  | US3, US7 (Protokoll) | `mcp_server/{prompts,log}.rs`, Frontend Dialog und Protokollansicht                               |
+| D   | Verwaltung: Detailseite, Rechte und Stufe ändern, Widerruf, Sperre aufheben, Ablauf nach 90 Tagen, `list_changed` bei Änderungen                                                                                                                                           | US7, US2             | `registry.rs`, Katalogaktionen, Einstellungsseite                                                 |
+| E   | Erweiterungen, Dateien/Kontakte, Passwörter inkl. `passwords.secret.get` (always_ask), Befehle ausführen                                                                                                                                                                   | US4, US5             | `grants.rs`, `dispatch.rs`, `passwordsActions.ts`, Passwortdienst, `scripts/check-mcp-actions.ts` |
+| F   | Delegates: Konfiguration für Claude Code (auch Ungated) und Codex, Rückfragen im Chat, „Rechte festlegen“, Ersatz des Hinweises aus 032 FR-023                                                                                                                             | US6                  | `cli_delegate/haex_mcp.rs`, Chat-Frontend                                                         |
+| G   | HTTP-Weg mit OAuth 2.1, Abwehr (R14), Android/iOS, Android-e2e                                                                                                                                                                                                             | US1, US8 (mobil)     | `mcp_server/{http,oauth}.rs`, Plattform, e2e                                                      |
 
-PR B bis D liefern zusammen den nutzbaren Kern (Claude Code und Codex bedienen holzi mit Rechten);
+PR B bis D liefern zusammen den nutzbaren Kern (Claude Code und Codex bedienen haex-vault mit Rechten);
 E bis G bauen darauf auf und sind untereinander unabhängig.
 
 ## Complexity Tracking

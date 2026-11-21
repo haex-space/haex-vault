@@ -1,6 +1,6 @@
 # Quickstart: Frontend Onboarding
 
-**Goal (post-implementation)**: after the frontend scaffold, `haex-crdt` extraction, and the implementation tasks are complete, reach a running Tauri window from a fresh clone of `holzi` that renders the landing page with the three primary CTAs (Anlegen, Öffnen, Verbinden) and the "Zuletzt verwendet" list, in under 5 minutes on a warm machine.
+**Goal (post-implementation)**: after the frontend scaffold, `haex-crdt` extraction, and the implementation tasks are complete, reach a running Tauri window from a fresh clone of `haex` that renders the landing page with the three primary CTAs (Anlegen, Öffnen, Verbinden) and the "Zuletzt verwendet" list, in under 5 minutes on a warm machine.
 
 **V1 contract note**: Genesis creates a fresh vault identity without a
 paper-seed display or confirmation step. Imported databases open directly:
@@ -20,8 +20,8 @@ attestation, no restore-pairing handshake.
 1. **Clone and install dependencies**.
 
    ```bash
-   git clone git@github.com:haexmas/holzi.git
-   cd holzi
+   git clone git@github.com:haex-space/haex-vault.git
+   cd haex
    pnpm install
    ```
 
@@ -58,7 +58,7 @@ attestation, no restore-pairing handshake.
    Verify on disk:
 
    ```bash
-   ls -la ~/.local/share/holzi/instances/    # Linux path — adjust per OS
+   ls -la ~/.local/share/haex/instances/    # Linux path — adjust per OS
    # Expect: test-01.db
    ```
 
@@ -70,7 +70,7 @@ attestation, no restore-pairing handshake.
 
 6. **Import an external `.db` (Öffnen)**.
 
-   - Close `test-01` cleanly before taking the copy, so committed data is not left in an active WAL. Copy `~/.local/share/holzi/instances/test-01.db` to `/tmp/other.db`.
+   - Close `test-01` cleanly before taking the copy, so committed data is not left in an active WAL. Copy `~/.local/share/haex/instances/test-01.db` to `/tmp/other.db`.
    - In the app, click **Öffnen**.
    - File picker opens; select `/tmp/other.db`.
    - Import succeeds; `other.db` appears in the list. The source at `/tmp/other.db` is untouched.

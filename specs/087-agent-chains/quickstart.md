@@ -6,13 +6,13 @@
 cd src-tauri
 env -u CC -u CXX -u AR CARGO_PROFILE_DEV_DEBUG=line-tables-only CARGO_INCREMENTAL=0 \
   systemd-run --user --scope -q -p MemoryMax=10G -p MemorySwapMax=0 \
-  cargo test -j 1 --features everyday-eval --config 'profile.dev.package.holzi.debug=0' --lib -- \
+  cargo test -j 1 --features everyday-eval --config 'profile.dev.package.haex.debug=0' --lib -- \
   chat::turn chat::tools chat::eval::everyday
 ```
 
 ## The everyday set and the chain set
 
-As in spec 082's quickstart (CUDA build, `HOLZI_EVAL_ENGINE=llamacpp`, `HOLZI_TEST_GGUF`, `HOLZI_EVAL_PROFILE`).
+As in spec 082's quickstart (CUDA build, `HAEX_EVAL_ENGINE=llamacpp`, `HAEX_TEST_GGUF`, `HAEX_EVAL_PROFILE`).
 For the chain set add:
 
 ```bash
@@ -24,7 +24,7 @@ export HAEX_EVAL_SET=../specs/087-agent-chains/analysis/chainset.json
 changed requests, say), copy `src-tauri/src/chat/eval/everyday/set.json` with only those requests and point the
 variable at the copy.
 
-Under another extension name: `HOLZI_EVAL_MAIL_NAME=thunderbird HOLZI_EVAL_MAIL_TITLE=Thunderbird`.
+Under another extension name: `HAEX_EVAL_MAIL_NAME=thunderbird HAEX_EVAL_MAIL_TITLE=Thunderbird`.
 
 Sort the failures by cause with spec 082's script, run from the repository root:
 

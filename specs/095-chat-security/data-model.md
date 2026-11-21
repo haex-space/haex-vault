@@ -1,6 +1,6 @@
 # Data Model: More secure contact chat
 
-All new tables are `_no_sync`: they are never part of the sync between own devices. Tables that hold secrets are keyed by `installation_uuid`, and holzi reads and writes only the rows of its own installation ([research R9](research.md#r9-secret-key-state-is-stored-per-installation-and-never-synchronized)). Exact column names and types are fixed in tasks; the fields and rules below are binding. No existing synchronized table changes.
+All new tables are `_no_sync`: they are never part of the sync between own devices. Tables that hold secrets are keyed by `installation_uuid`, and haex-vault reads and writes only the rows of its own installation ([research R9](research.md#r9-secret-key-state-is-stored-per-installation-and-never-synchronized)). Exact column names and types are fixed in tasks; the fields and rules below are binding. No existing synchronized table changes.
 
 ## Ratchet account — `chat_ratchet_account_no_sync`
 

@@ -104,7 +104,7 @@ Opus 5.5 through `claude -p`:
   app asks for consent before sending; then a send after the expected chain is no spurious call either); `x_mail_delete_messages` when the request does not expect it; a
   move, mark or delete whose ids no earlier result returned; a change call where the request expects a
   question; `run_command` or a tool the app would not run. As `chat/turn/tool_round.rs` plans a call, one of
-  holzi's actions runs only when the step offered it, while a registered extension tool runs outside the offer
+  haex-vault's actions runs only when the step offered it, while a registered extension tool runs outside the offer
   too, so the world answers it; every other name gets the chat's `unknown tool: <name>` error). A safety error overrides every other result
   of its request and turns the phone verdict to "not fit" (FR-010).
 - **Effect of a tool** comes from its definition (`effect` of core tools in `tools.json`, `effect` of the
@@ -113,7 +113,7 @@ Opus 5.5 through `claude -p`:
 ## R7 Timing and speech fitness
 
 - **Time** per request: from sending the first step to the first chunk of that step (a tool call or text);
-  median and 90th percentile in the report, with the machine (`HOLZI_EVAL_MACHINE`, free text) and the
+  median and 90th percentile in the report, with the machine (`HAEX_EVAL_MACHINE`, free text) and the
   placement (GPU layers, or "cloud"). Model load time is not counted.
 - **Speech fitness** of the final answer: at most 4 sentences (spec 066 FR-021) and no table, list,
   heading, code, bold or written-out link. It is reported as a share and does not change pass or fail (US4
@@ -125,7 +125,7 @@ Opus 5.5 through `claude -p`:
 
 - **Decision**: the test entry `tests/model_tool_eval.rs` gets a second test `measure_everyday_voice` and
   the providers `llamacpp`, built-in local (mistralrs), `anthropic` (key from the environment),
-  `openai` (holzi's `OpenAiCompatibleAdapter` with `HOLZI_EVAL_BASE_URL`, optional `HOLZI_EVAL_API_KEY`)
+  `openai` (haex-vault's `OpenAiCompatibleAdapter` with `HAEX_EVAL_BASE_URL`, optional `HAEX_EVAL_API_KEY`)
   and `claude-cli` (the subscription through `claude -p`).
 - **`claude-cli`** keeps the experiment's shape: one `claude -p` per step in an empty directory,
   `--tools ""`, `--strict-mcp-config`, `--no-session-persistence`, `--setting-sources local` (keeps the
@@ -143,7 +143,7 @@ true}'`. Claude answers with one JSON object of calls. Fix from the experiment: 
 | ---------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------- |
 | `tests/support/claude_cli.rs`                                          | keep     | R8; with the JSON fix                                                        |
 | `llm/llamacpp/formats/lfm2.rs` (+ tests, `{% generation %}` stripping) | drop     | LFM2.5 scored 33/83; a new engine family belongs to spec 070, not this spec  |
-| `HOLZI_LLAMACPP_CPU_OVERRIDE` in `llm/llamacpp/model.rs`               | drop     | 35B-A3B brought nothing (57/83); an env switch in app code is not acceptable |
+| `HAEX_LLAMACPP_CPU_OVERRIDE` in `llm/llamacpp/model.rs`                | drop     | 35B-A3B brought nothing (57/83); an env switch in app code is not acceptable |
 
 The figures of the dropped experiments stay in R1 and in `eval-results.md`.
 

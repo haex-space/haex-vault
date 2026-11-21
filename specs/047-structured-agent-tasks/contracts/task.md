@@ -51,9 +51,9 @@ error?:
 ```
 
 When `status` is `consent_required`, no image bytes are sent to a provider.
-Holzi creates an opaque, short-lived `consentRequestId` and shows the
+HaexVault creates an opaque, short-lived `consentRequestId` and shows the
 processing mode and destination in its own user interface. The extension
-cannot approve its own request. Holzi's own window resolves the request using
+cannot approve its own request. HaexVault's own window resolves the request using
 the host-only command:
 
 ```text

@@ -59,6 +59,6 @@ start request
 - A task run cannot outlive its originating frame or active vault.
 - A local profile cannot emit a remote destination or invoke a remote fallback.
 - A result is emitted only after the task-specific schema validator succeeds.
-- Image bytes and raw model output are not persisted by Holzi after completion.
+- Image bytes and raw model output are not persisted by HaexVault after completion.
 - Extension-visible errors never include provider credentials, full local paths,
   or unbounded raw model output.

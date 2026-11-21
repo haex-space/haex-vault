@@ -36,7 +36,7 @@ encrypted and authenticated with device keys, and revoking means the serving dev
 | 8   | Contacts                         | A foreign vault sees only the roots shared with its vault identity, with the granted right.                                                                                                                                                                                                                                                                        |
 | 9   | Protocol                         | Own iroh protocol for file operations, no iroh-blobs (hashing before every read, a full download for remote sources) and no WebDAV tunnel (a WebDAV server to build, rights mapped onto HTTP auth).                                                                                                                                                                |
 | 10  | Finding the serving device       | Knock over Nostr: a short-lived gift wrap (as presence in spec 024) to the owner's device keys on the relays from the business card. The owner's device answers with its current address only if it shares something with that vault identity. No public iroh address discovery. _Changed 2026-10-23: dialed from the card like spec 057, see ADR 0015 amendment._ |
-| 11  | Agents                           | As for remote storages (specs 038, 050): permission per storage on the requesting device. Rules of spec 044 apply (read yes, write through the approval gate, holzi's own data blocked).                                                                                                                                                                           |
+| 11  | Agents                           | As for remote storages (specs 038, 050): permission per storage on the requesting device. Rules of spec 044 apply (read yes, write through the approval gate, haex-vault's own data blocked).                                                                                                                                                                      |
 
 Accepted risk (decision 7): a lost or compromised linked device can read and write the whole file
 system of every other own device while that device runs with the vault open. The per-device switch
@@ -85,7 +85,7 @@ grant aborts running streams of that contact.
 
 Owner:
 
-- "Share …" in the context menu of a folder or file: pick contacts (only those with confirmed holzi
+- "Share …" in the context menu of a folder or file: pick contacts (only those with confirmed haex-vault
   addresses from a valid business card), right per contact; existing grants are shown and can be
   changed or revoked in the same dialog.
 - Overview "My shares" in the file browser: source, serving device, contacts with rights, status
@@ -122,7 +122,7 @@ Recipient, file browser sidebar:
 ## Out of scope
 
 Expiry dates, contact groups, offline copies (mirroring), notification of a new share, share links
-for people without holzi. Mirroring and cloud backup belong to the sync rules (spec 061).
+for people without haex-vault. Mirroring and cloud backup belong to the sync rules (spec 061).
 
 ## Follow-ups with spec 056
 

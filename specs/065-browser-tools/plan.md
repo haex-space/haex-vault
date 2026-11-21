@@ -6,8 +6,8 @@
 
 ## Summary
 
-Agenten bedienen einen Webbrowser: holzis eingebauter Agent, externe Agenten über den MCP-Zugang
-aus 021 und später die Delegates. Stufe 1 ist ein Agenten-Browser, den holzi selbst startet und
+Agenten bedienen einen Webbrowser: haex-vaults eingebauter Agent, externe Agenten über den MCP-Zugang
+aus 021 und später die Delegates. Stufe 1 ist ein Agenten-Browser, den haex-vault selbst startet und
 steuert; Stufe 2 sind Tabs, die der Nutzer im eigenen Browser über die Erweiterung aus 049
 übergibt. Den Umfang bestimmen die Spec und die Klärungen vom 2026-10-28:
 
@@ -16,7 +16,7 @@ steuert; Stufe 2 sind Tabs, die der Nutzer im eigenen Browser über die Erweiter
 - Anmeldedaten eintragen fragt einmal je Agent und Website, mit „Für diese Website merken“.
 - Im Browser des Nutzers nur übergebene Tabs; ein von einer Seite geöffneter Tab nach Rückfrage.
 
-Nachtrag 2026-11-01: Stufe 2 ist zurückgestellt. Dafür trägt holzi neben Anmeldedaten auch andere
+Nachtrag 2026-11-01: Stufe 2 ist zurückgestellt. Dafür trägt haex-vault neben Anmeldedaten auch andere
 Daten aus dem Passwortmanager ein (Bank- und Kartendaten, FR-037, FR-038, R7a), mit der
 Zuordnungsregel der Erweiterung als gemeinsamer Crate `haex-autofill` im vault-sdk.
 
@@ -99,7 +99,7 @@ Geprüft gegen `.specify/memory/constitution.md` und die spaex-Constitution
 | V Externe Quellen nur per Opt-in                  | ✅     | Download von „Chrome for Testing“ nur nach Zustimmung, mit Prüfsumme                       |
 | VI Selbstverändernde Anweisungen review-pflichtig | ✅     | Seiten können keine Rechte ändern (R10); Leitplanken-Aktionen nicht für Agenten            |
 | VII Relay-Ausfall blockiert lokale Arbeit nicht   | ✅     | Alles lokal                                                                                |
-| VIII Keine Verheimlichung                         | ✅     | Markierung, Anzeige in holzi, Protokoll jedes Aufrufs                                      |
+| VIII Keine Verheimlichung                         | ✅     | Markierung, Anzeige in haex-vault, Protokoll jedes Aufrufs                                 |
 | Phasendisziplin                                   | ✅     | 021 B–D gemergt; Lieferung B übernimmt die nötigen Teile aus 021 PR E                      |
 | Workflow: speckit, PR, Conventional Commits       | ✅     | specify → Klärung (2026-10-28) → plan → tasks; Worktree je PR                              |
 | ADR bei prinzipienrelevanter Entscheidung         | ✅     | ADR-0019 (Steuerung, Isolation, Profil) als „proposed“, „accepted“ mit Lieferung C         |

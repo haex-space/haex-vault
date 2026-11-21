@@ -7,7 +7,7 @@
 **Status**: Draft
 
 **Input**: User description: "A user wants to use their vault on a computer they do not own, for
-example in an internet cafe, without leaving readable or usable data behind. Holzi gets a portable
+example in an internet cafe, without leaving readable or usable data behind. HaexVault gets a portable
 mode with two ways to use it. The first is started from removable storage such as a USB stick: it
 keeps everything it stores on that storage and nothing on the computer. The second is a single
 file that the user runs on the computer without installing anything system-wide and without
@@ -46,9 +46,9 @@ drivers on the computer and must be honest about what it cannot protect against.
 
 ## User Scenarios & Testing _(mandatory)_
 
-### User Story 1 - Use Holzi from a stick and leave nothing on the computer (Priority: P1)
+### User Story 1 - Use HaexVault from a stick and leave nothing on the computer (Priority: P1)
 
-A user plugs a USB stick into a computer they do not own and starts Holzi from it in portable
+A user plugs a USB stick into a computer they do not own and starts HaexVault from it in portable
 mode. They unlock their vault, chat, install or import a model, close the vault and remove the
 stick. Everything the app stored during that time, meaning the vault, models, settings, temporary
 files and the interface's stored state, lives on the stick. Nothing of it remains on the computer.
@@ -115,7 +115,7 @@ Testable on its own once the portable location exists.
 ### User Story 3 - Run a single file on the computer without installing anything (Priority: P2)
 
 A user is on a computer they do not own and has no stick. They download or copy one file, run it,
-and can use Holzi at once. They install nothing system-wide, are not asked for administrator
+and can use HaexVault at once. They install nothing system-wide, are not asked for administrator
 rights, and change no setting of the computer. On the first start they choose where a protected
 container is created, or accept a default in their own user area. From then on everything the app
 stores goes into that container and nowhere else. When the session ends, the container is
@@ -143,7 +143,7 @@ protection exists.
    **Then** the only things of the app they find are the single file and the container, and the
    container's content, including vault names, is unreadable.
 4. **Given** the container's name, **When** someone sees it in a file list, **Then** it does not
-   reveal that it belongs to Holzi or what it holds, unless the user chose such a name.
+   reveal that it belongs to HaexVault or what it holds, unless the user chose such a name.
 5. **Given** the user ends the session, **When** the app offers to delete the container and the
    user accepts, **Then** the container is removed and no data of the user remains in the app's
    own locations.
@@ -215,7 +215,7 @@ own.
 
 ### User Story 6 - Normal installations do not change (Priority: P3)
 
-A user who installs Holzi normally on their own computer notices no difference: same data
+A user who installs HaexVault normally on their own computer notices no difference: same data
 location, no additional encryption, same speed.
 
 **Why this priority**: Portable mode must not cost the majority of users anything.

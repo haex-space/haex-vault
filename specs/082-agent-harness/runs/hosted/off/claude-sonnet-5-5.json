@@ -127,7 +127,7 @@
             "question": "Wie soll ich bei der Suche nach der Datei Mietvertrag weitermachen?",
             "options": [
               "Suche mit einem anderen Befehl oder in einem bestimmten Ordner erlauben",
-              "In einer holzi-App nach Mietvertrag suchen",
+              "In einer haex-vault-App nach Mietvertrag suchen",
               "Im Web nach Mietvertrag suchen",
               "Nicht weitersuchen"
             ]
@@ -162,7 +162,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "Einen Kalender finde ich in holzi nicht. Wie möchtest du den Zahnarzttermin morgen (Donnerstag, 19.03.2026) um 10:00 Uhr festhalten?",
+            "question": "Einen Kalender finde ich in haex-vault nicht. Wie möchtest du den Zahnarzttermin morgen (Donnerstag, 19.03.2026) um 10:00 Uhr festhalten?",
             "options": [
               "Nochmal gezielt nach einer Kalender-Funktion suchen",
               "Den Termin als Notiz im Chat festhalten",
@@ -173,7 +173,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Einen Kalender finde ich in holzi nicht. Wie möchtest du den Zahnarzttermin morgen (Donnerstag, 19.03.2026) um 10:00 Uhr festhalten?"
+      "text": "Einen Kalender finde ich in haex-vault nicht. Wie möchtest du den Zahnarzttermin morgen (Donnerstag, 19.03.2026) um 10:00 Uhr festhalten?"
     },
     {
       "id": "no_tool-de-4",
@@ -194,7 +194,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "Ich finde in holzi keine App für Einkaufslisten. Wo soll ich „Milch“ festhalten?",
+            "question": "Ich finde in haex-vault keine App für Einkaufslisten. Wo soll ich „Milch“ festhalten?",
             "options": [
               "In einer Datei in „Dateien“ (z. B. Einkaufsliste)",
               "Im Chat als Notiz",
@@ -205,7 +205,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich finde in holzi keine App für Einkaufslisten. Wo soll ich „Milch“ festhalten?"
+      "text": "Ich finde in haex-vault keine App für Einkaufslisten. Wo soll ich „Milch“ festhalten?"
     },
     {
       "id": "password-en-1",
@@ -237,7 +237,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I can't set an alarm because holzi has no alarm, timer or reminder feature, and none of its installed apps offers one. You could use your device's clock app for a 15-minute alarm (it would go off around 09:56)."
+      "text": "I can't set an alarm because haex-vault has no alarm, timer or reminder feature, and none of its installed apps offers one. You could use your device's clock app for a 15-minute alarm (it would go off around 09:56)."
     },
     {
       "id": "no_tool-en-3",
@@ -263,7 +263,7 @@
           "ending": "ran"
         }
       ],
-      "text": "holzi has no calendar app or action to add an appointment. The only installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail, so I can't add the dentist appointment for tomorrow (Thursday, 2026-03-19) at 10:00 to a calendar."
+      "text": "haex-vault has no calendar app or action to add an appointment. The only installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail, so I can't add the dentist appointment for tomorrow (Thursday, 2026-03-19) at 10:00 to a calendar."
     },
     {
       "id": "no_tool-en-4",
@@ -291,7 +291,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "holzi has no shopping list app. How should I add milk?",
+            "question": "haex-vault has no shopping list app. How should I add milk?",
             "options": [
               "Open haex-mail to write yourself a note about milk",
               "Open Files to create a shopping list file",
@@ -302,7 +302,7 @@
           "ending": "ran"
         }
       ],
-      "text": "holzi has no shopping list app. How should I add milk?"
+      "text": "haex-vault has no shopping list app. How should I add milk?"
     }
   ]
 }

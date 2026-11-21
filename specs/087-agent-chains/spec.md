@@ -12,7 +12,7 @@ Decisions below.
 
 ## Background
 
-- **Where spec 082 left off**: holzi routes a request to the right area of the app before the model's first step, and
+- **Where spec 082 left off**: HaexVault routes a request to the right area of the app before the model's first step, and
   since #847 it does so whatever an extension is called. Under the tool names the app really uses, neither target
   model reaches the goal of spec 082 (75 % of the everyday set, 106 requests):
 
@@ -40,7 +40,7 @@ Decisions below.
 - **By category** (failed of tried, both models): reply to a mail 9/12, clean up mail 14/24, read mail 16/32,
   passwords 4/12. Contacts, new mail, files, settings and the time mostly work.
 
-- **What the measurement cannot see** (found after the baseline, 2026-11-09): the fixture world answers 24 of holzi's
+- **What the measurement cannot see** (found after the baseline, 2026-11-09): the fixture world answers 24 of HaexVault's
   reading tools, among them the conversations, a file's content, the open windows and the sync rules, with a bare
   `{"ok": true}`. A model that looks for "Anna" in the conversations is told nothing, neither that there is nothing
   nor what there is. The everyday set is 40 of 106 mail requests, the first chain set 29 of 35.
@@ -57,7 +57,7 @@ The operator decided on 2026-11-06 (and before, for spec 082, where still in for
 3. **No quick shots**: every change is measured on its own against the baseline. Wording that the model reads
    (descriptions, instructions) is tuned on the development set only, never on the everyday set.
 4. **Hosted models do not route** (spec 082), and their results must not get worse.
-5. **No backward compatibility**: holzi has no users yet; names, wording and the order of tools can change freely.
+5. **No backward compatibility**: HaexVault has no users yet; names, wording and the order of tools can change freely.
 6. **The directions are open**: looking up before asking, the tool search beside offered tools, accepting arguments
    as the tool means them, deleting into the trash, and showing what was found are to be judged by measurement, not
    decided up front.
@@ -90,14 +90,14 @@ current state; each report is kept and named as the baseline.
 
 ### User Story 2 - The model looks it up instead of asking (Priority: P1)
 
-A user asks "What does the property management write?", "Answer Anna" or "Where is the lease?". holzi has offered
+A user asks "What does the property management write?", "Answer Anna" or "Where is the lease?". HaexVault has offered
 the tools of the areas the request may be about. The model searches them itself, with what the user said (a person,
 a subject, a day), instead of asking the user which item is meant or searching for other tools first. When the request
-names only a person or a thing, holzi offers every area that may hold it, and when one area finds nothing, the model
+names only a person or a thing, HaexVault offers every area that may hold it, and when one area finds nothing, the model
 looks in the next offered one before it says nothing was found.
 
 **Why this priority**: asking back and searching for tools are the largest causes after the chain stopping early (18
-of the target models' failures), and the user experiences both as "holzi cannot do it".
+of the target models' failures), and the user experiences both as "HaexVault cannot do it".
 
 **Independent Test**: on the development set, requests that name a sender, subject or day lead to a search with the
 offered search tool as the first or second call; on the everyday set, the number of failed requests without the
@@ -111,7 +111,7 @@ right first call goes down.
    searching for tools first.
 3. **Given** a search that finds nothing, **When** the model answers, **Then** it says so or asks the user for more,
    and does not invent a mail.
-4. **Given** a request that names only a person ("Answer Anna"), **When** holzi routes it, **Then** it offers every
+4. **Given** a request that names only a person ("Answer Anna"), **When** HaexVault routes it, **Then** it offers every
    area that may hold something from that person, not one area picked by a word.
 5. **Given** two areas offered and the first one's search finds nothing, **When** the model goes on, **Then** it
    searches the other area before it says nothing was found.
@@ -146,7 +146,7 @@ pass more often, and fewer failures end with a question after a successful searc
 ### User Story 4 - An argument counts as the tool means it (Priority: P2)
 
 The model writes a value in a form the tool does not expect, but its meaning is clear: `"True"` for yes, `"5"` for
-the number 5. holzi takes the value as the tool means it instead of letting the call fail. A value whose meaning is
+the number 5. HaexVault takes the value as the tool means it instead of letting the call fail. A value whose meaning is
 not clear still fails with a message that says what was expected.
 
 **Why this priority**: wrong arguments are the largest cause for Qwen3.5 4B (7 of its failures); part of them are
@@ -185,13 +185,13 @@ leads to the move into the trash.
 2. **Given** "Delete the mail from Bernd for good", **When** the model acts, **Then** it proposes deleting for good
    and the permission dialog asks.
 3. **Given** a mail extension other than haex-mail with a move and a delete tool, **When** the user asks to delete a
-   mail, **Then** the same holds without holzi knowing that extension.
+   mail, **Then** the same holds without HaexVault knowing that extension.
 
 ---
 
 ### User Story 6 - Hosted models and phone models are measured with every step (Priority: P2)
 
-Every step that changes what a model reads or what holzi does with a call is measured for the hosted models and the
+Every step that changes what a model reads or what HaexVault does with a call is measured for the hosted models and the
 phone models too. A step that makes a hosted model worse is not kept as it is.
 
 **Why this priority**: the goal is for the target models, but the app runs the same harness for every model.
@@ -237,15 +237,15 @@ phone models too. A step that makes a hosted model worse is not kept as it is.
   to do so instead of asking whether it should.
 - **FR-006**: A request that names nothing the model could search for, or whose search finds several equally fitting
   results, MUST still allow, and count as right, a question back to the user.
-- **FR-007**: holzi MUST accept an argument whose form differs from what the tool expects when its meaning is clear
+- **FR-007**: HaexVault MUST accept an argument whose form differs from what the tool expects when its meaning is clear
   (yes/no written as text, a number written as text), and MUST run the call with the meant value.
-- **FR-008**: holzi MUST keep turning away an argument whose meaning is not clear, with a message that says what was
+- **FR-008**: HaexVault MUST keep turning away an argument whose meaning is not clear, with a message that says what was
   expected.
 - **FR-009**: For a risky call, the permission dialog MUST show the values that will be used, after any value was
   taken as meant.
 - **FR-010**: A request to delete a mail that does not ask for a final delete MUST lead to moving the mail to the
   trash where the mail extension offers that; deleting for good MUST only be proposed when asked for.
-- **FR-011**: FR-010 MUST hold for any mail extension that offers a move and a delete, without holzi naming a
+- **FR-011**: FR-010 MUST hold for any mail extension that offers a move and a delete, without HaexVault naming a
   particular extension.
 - **FR-012**: Wording the model reads (tool descriptions, instructions) MUST be tuned on the development set only and
   then measured once on the everyday set.
@@ -253,10 +253,10 @@ phone models too. A step that makes a hosted model worse is not kept as it is.
 - **FR-014**: Every step's results MUST list the hosted models and the phone models beside the target models.
 - **FR-015**: The final results MUST report the target models under the app's names and under one other extension
   name.
-- **FR-016**: The measuring world MUST answer every reading tool of holzi's areas from its data, with an empty result
+- **FR-016**: The measuring world MUST answer every reading tool of HaexVault's areas from its data, with an empty result
   where it holds nothing and an error for an unknown id, never with a bare success.
 - **FR-017**: A request that names a person or a thing but not the area MUST be routed to every area that may hold
-  it, within the routing's limit of areas, for holzi's areas and extensions alike.
+  it, within the routing's limit of areas, for HaexVault's areas and extensions alike.
 - **FR-018**: When a search in one offered area finds nothing, the model MUST be led to search the other offered areas
   before it answers that nothing was found.
 - **FR-019**: No step may name a particular area or extension in wording the model reads, unless that wording comes
@@ -299,13 +299,13 @@ phone models too. A step that makes a hosted model worse is not kept as it is.
 - **The development set** of spec 082 is the place to tune wording; requests for the new directions (looking up,
   finishing a chain, deleting into the trash, a request naming only a person or a thing) may be added to it, never to
   the everyday set. Its requests come from every area.
-- **Conversations with people are closed to agents for now**: holzi holds conversations with contacts (spec 072), but
+- **Conversations with people are closed to agents for now**: HaexVault holds conversations with contacts (spec 072), but
   an agent reaches them only with spec 072's grant (US7, FR-070), and without it they look to the agent as if they
   did not exist. Until then "Answer Anna" can only be met by mail, and the measuring world's conversations are the
-  user's own with holzi; the routing and the wording must already work when Anna's chat becomes reachable.
+  user's own with HaexVault; the routing and the wording must already work when Anna's chat becomes reachable.
 - **Measuring cost**: one run takes 10 to 20 minutes per target model on the reference laptop and longer for the
   hosted models; each step needs at least the two target models, the full set of models for kept steps.
 - **haex-mail stays pinned** as in spec 078, under the app's names (spec 082 follow-up). Its tool names and
-  descriptions are holzi's measuring fixture, not something this feature changes.
+  descriptions are HaexVault's measuring fixture, not something this feature changes.
 - **Speed is not this feature**: routing cost and prompt length belong to spec 080.
 - **Answer drafts are not sent**: answering a mail ends with a draft as in spec 078; sending stays a risky call.

@@ -1,7 +1,7 @@
-Which area of the app holzi does the user's request need? Areas:
+Which area of the app haex-vault does the user's request need? Areas:
 apps: open, close or switch apps, windows and tabs
 web: search the internet or open a website
-chat: the user's own earlier conversations with holzi
+chat: the user's own earlier conversations with haex-vault
 contacts: people's phone numbers, addresses, birthdays and e-mail addresses, not what they wrote
 files: find and open documents, photos and other files
 passwords: saved logins, passwords and PINs

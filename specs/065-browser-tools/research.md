@@ -16,16 +16,16 @@ in einem Modul je Domäne.
 **Begründung**: Die Verbindung läuft über eine Pipe (R2), nicht über einen Port. `chromiumoxide`
 und `headless_chrome` setzen einen WebSocket auf einem Port voraus und bringen den ganzen,
 generierten Protokollumfang mit (lange Bauzeit, große Angriffsfläche, Pflege fremder Typen für
-Methoden, die holzi nie ruft). Das Protokoll selbst ist einfach; der Aufwand steckt in den Regeln
-(R4–R9), die holzi ohnehin selbst schreibt.
+Methoden, die haex-vault nie ruft). Das Protokoll selbst ist einfach; der Aufwand steckt in den Regeln
+(R4–R9), die haex-vault ohnehin selbst schreibt.
 
 **Verworfen**: `chromiumoxide` (Port statt Pipe, schwerer Baum); `headless_chrome` (synchron,
 Port); WebDriver BiDi (in Chromium noch nicht vollständig, kein Isolated World); Playwright als
-Node-Prozess (zweite Laufzeit neben holzi, nicht in einer Binärdatei).
+Node-Prozess (zweite Laufzeit neben haex-vault, nicht in einer Binärdatei).
 
 ## R2 Prozess und Verbindung
 
-**Entscheidung**: holzi startet den Browser selbst mit `--remote-debugging-pipe`: Befehle auf
+**Entscheidung**: haex-vault startet den Browser selbst mit `--remote-debugging-pipe`: Befehle auf
 Dateideskriptor 3, Antworten auf 4, Nachrichten durch NUL getrennt. Unter Linux und macOS werden
 die Deskriptoren im Kind vor `exec` gesetzt; unter Windows über die CRT-Vererbung
 (`STARTUPINFO.lpReserved2`, wie Puppeteer es tut). Kein `--remote-debugging-port`.
@@ -43,12 +43,12 @@ Liste). Gewählter Browser und Version stehen in „KI → Browser“.
 
 **Begründung**: Eine Pipe erreicht nur der Elternprozess; ein Port auf Loopback wäre für jedes
 Programm des Nutzers offen (FR-004). Die Windows-Variante ist dieselbe Technik, die Puppeteer seit
-Jahren nutzt; sie bekommt einen eigenen Test im Windows-Lauf der CI (holzi gilt auf jedem
+Jahren nutzt; sie bekommt einen eigenen Test im Windows-Lauf der CI (haex-vault gilt auf jedem
 Betriebssystem gleich).
 
 **Verworfen**: Port mit zufälliger Nummer und Token (Chromium kennt kein Token für den Port);
 Firefox (CDP-Unterstützung entfernt, BiDi unvollständig); eingebauter Webview von Tauri (Spec
-schließt ihn aus; keine Trennung vom Fenster von holzi).
+schließt ihn aus; keine Trennung vom Fenster von haex-vault).
 
 **Nochmals geprüft am 2026-11-01** (Frage: Tauri-Webview statt Chromium, damit es auf jeder
 Plattform gleich läuft): verworfen. Tauri bringt keinen eigenen Browser mit, sondern nutzt die
@@ -57,7 +57,7 @@ Web-Engine des Systems, und die trägt die Schutzregeln nicht überall:
 | Fähigkeit                                              | WebView2 (Windows) | WebKitGTK (Linux)            | WKWebView (macOS)          | Android WebView |
 | ------------------------------------------------------ | ------------------ | ---------------------------- | -------------------------- | --------------- |
 | Ändernde Anfragen vor dem Server anhalten (R5 Stufe 2) | ja                 | nur mit Modul im Web-Prozess | nein                       | ja              |
-| holzis Code in einer eigenen Welt (R4, R6)             | ja                 | ja                           | ja                         | nein            |
+| haex-vaults Code in einer eigenen Welt (R4, R6)        | ja                 | ja                           | ja                         | nein            |
 | Echte Eingabe-Ereignisse (R4)                          | ja                 | nur über eigene Ereignisse   | nur über eigene Ereignisse | ja              |
 
 Dazu verweigern Google und manche Banken die Anmeldung in eingebetteten Webviews. Jede Engine
@@ -67,12 +67,12 @@ dem Passwortmanager) ohne diese Lücken; Android bleibt ohne Agenten-Browser (R1
 
 ## R3 Browser-Profil verschlüsselt auf dem Gerät
 
-**Entscheidung** (Betreiber, 2026-10-29): Was holzi verschlüsselt auf der Platte ablegt, liegt in
+**Entscheidung** (Betreiber, 2026-10-29): Was haex-vault verschlüsselt auf der Platte ablegt, liegt in
 einem **verschlüsselten Ordner aus Spec 048**; der Agenten-Browser bringt kein eigenes
 Archivformat und keinen eigenen Schlüssel mit.
 
 - **Zwischen zwei Läufen**: Beim Ende des Agenten-Browsers (spätestens beim Schließen der Vault)
-  packt holzi die bleibenden Teile des Profils (Cookies, Local Storage, IndexedDB, Session
+  packt haex-vault die bleibenden Teile des Profils (Cookies, Local Storage, IndexedDB, Session
   Storage, `Preferences`, `Local State`) als ZIP und schreibt es als Datei `profile.zip` in den
   verschlüsselten Ordner „Profil“ unter `<AppLocalData>/agent-browser/<Instanz>/` (ein
   Geräteordner, 048 US7). Caches (`Cache`, `Code Cache`, `GPUCache`,
@@ -80,7 +80,7 @@ Archivformat und keinen eigenen Schlüssel mit.
   Installation; die Datei wandert nicht mit der Vault.
 - **Während des Laufs**: Chromium braucht ein normales Verzeichnis. Es liegt unter
   `$XDG_RUNTIME_DIR` (Linux, im Arbeitsspeicher), `$TMPDIR` (macOS) bzw. `%LOCALAPPDATA%\Temp`
-  (Windows), nur für den Nutzer lesbar. holzi löscht es am Ende jedes Laufs und vor jedem Start,
+  (Windows), nur für den Nutzer lesbar. haex-vault löscht es am Ende jedes Laufs und vor jedem Start,
   also auch die Reste eines abgestürzten Laufs.
 - **Anmeldedaten** liegen nie im Profil als gespeicherte Passwörter: das Speichern und
   automatische Ausfüllen von Chromium ist aus (FR-002); Anmeldedaten kommen aus dem
@@ -105,7 +105,7 @@ Vault-Datenbank (zu groß, Chromium braucht Dateien).
 
 ## R4 Seite lesen und Elemente ansprechen
 
-**Entscheidung**: holzi legt je Agenten-Tab eine **eigene Welt** (`Page.createIsolatedWorld`) an
+**Entscheidung**: haex-vault legt je Agenten-Tab eine **eigene Welt** (`Page.createIsolatedWorld`) an
 und führt dort ein Leseskript aus. Es liefert:
 
 - Titel, Adresse, lesbaren Text (Hauptinhalt zuerst, gekürzt nach FR-032, Kürzung angegeben),
@@ -113,7 +113,7 @@ und führt dort ein Leseskript aus. Es liefert:
   Kästchen …), zugänglicher Name, Wert (bei Passwortfeldern und gefüllten Feldern nie, R7),
   Zustand (aktiv, ausgewählt, Pflichtfeld), Lage im sichtbaren Bereich ja/nein.
 
-Die Nummern gelten bis zur nächsten Änderung des Dokuments; holzi merkt sich zu jeder Nummer das
+Die Nummern gelten bis zur nächsten Änderung des Dokuments; haex-vault merkt sich zu jeder Nummer das
 DOM-Objekt (`backendNodeId`). Klicks gehen als echte Mauseingaben (`Input.dispatchMouseEvent`) auf
 die Mitte des Elements, Tippen über `Input.insertText` bzw. `Input.dispatchKeyEvent`.
 
@@ -136,7 +136,7 @@ Namen); Klick über `element.click()` (umgeht Prüfungen, kein echtes Nutzererei
    absenden, abschicken, löschen, entfernen, veröffentlichen, posten, buchen, bestätigen,
    kündigen, überweisen; buy, order, pay, checkout, send, submit, delete, remove, publish, post,
    book, confirm, cancel subscription, transfer), Enter in einem Formularfeld. Treffer = Absenden.
-2. **Für jede Seitenanfrage** hält holzi über `Fetch.enable` `POST`, `PUT`, `PATCH`, `DELETE` und
+2. **Für jede Seitenanfrage** hält haex-vault über `Fetch.enable` `POST`, `PUT`, `PATCH`, `DELETE` und
    Formular-Navigationen mit Body an und fragt sie als Absenden nach (Website des Ziels, Art der
    Anfrage, Felder aus dem Formular, wenn bekannt). Die Freigabe ist an die einzelne CDP-Anfrage
    gebunden; es gibt kein zeitbasiertes Fenster, das eine verspätete Anfrage durchlassen könnte.
@@ -164,49 +164,49 @@ vieler Seiten).
 Welt in jedes Dokument eines Agenten-Tabs einsetzt (`Page.addScriptToEvaluateOnNewDocument` mit
 `worldName`). Die Knöpfe melden sich über eine **Bindung nur in der eigenen Welt**
 (`Runtime.addBinding` mit `executionContextName`); Ereignisse mit `isTrusted == false` werden
-verworfen. Zusätzlich setzt holzi den Fenstertitel des Tabs mit einem Präfix („Agent: …“) und
+verworfen. Zusätzlich setzt haex-vault den Fenstertitel des Tabs mit einem Präfix („Agent: …“) und
 zeigt jede Sitzung in seiner eigenen Oberfläche (FR-015), dort ist „Stoppen“ verbindlich.
 
-Eine echte Eingabe des Nutzers erkennt holzi an vertrauenswürdigen Maus- und Tastenereignissen in
-der eigenen Welt, die nicht von einer Agenten-Handlung stammen (holzi kennt die Zeitfenster seiner
+Eine echte Eingabe des Nutzers erkennt haex-vault an vertrauenswürdigen Maus- und Tastenereignissen in
+der eigenen Welt, die nicht von einer Agenten-Handlung stammen (haex-vault kennt die Zeitfenster seiner
 eigenen `Input.*`-Aufrufe), und pausiert die Sitzung (FR-017).
 
 **Begründung**: Die Seite kann die Bindung der eigenen Welt nicht aufrufen und keine
 vertrauenswürdigen Ereignisse erzeugen; sie kann die Markierung höchstens verdecken. Darum ist die
-Anzeige in holzi die verbindliche, die Markierung im Tab die bequeme.
+Anzeige in haex-vault die verbindliche, die Markierung im Tab die bequeme.
 
 **Verworfen**: Markierung in der Welt der Seite (fälschbar); Browser-Erweiterung im
-Agenten-Browser (FR-002: ohne Erweiterungen); eigenes Fenster von holzi über dem Browser
+Agenten-Browser (FR-002: ohne Erweiterungen); eigenes Fenster von haex-vault über dem Browser
 (Fenster-Stapel ist je Betriebssystem anders, verdeckt Inhalte).
 
 ## R7 Anmeldedaten eintragen
 
 **Entscheidung**: Das Werkzeug `browser.credentials.fill` bekommt nur die Nummer des Formulars oder
-nichts. holzi sucht die passenden Einträge über einen Dienst im Passwortmanager
+nichts. haex-vault sucht die passenden Einträge über einen Dienst im Passwortmanager
 (`PasswordsService::headers_for_page`), der den heutigen Filter aus
 `browser_bridge/methods/items.rs` übernimmt (eine Regel, zwei Nutzer; der ponytail-Vermerk dort
-nennt genau diesen Schritt). Die Werte schreibt holzi in der eigenen Welt direkt in die Felder
+nennt genau diesen Schritt). Die Werte schreibt haex-vault in der eigenen Welt direkt in die Felder
 (Wertzuweisung plus `input`/`change`-Ereignisse) und merkt sich die Felder als „gefüllt“.
 
 Schutz vor Rückfluss (FR-019, FR-022):
 
 - Das Leseskript liefert für Passwortfelder und gefüllte Felder nie einen Wert.
-- holzi entfernt aus jedem Seitentext, jedem Elementnamen und jeder Eingabe-Rückmeldung
+- haex-vault entfernt aus jedem Seitentext, jedem Elementnamen und jeder Eingabe-Rückmeldung
   vorkommende eingetragene Werte (genau und als URL-, Base64- und HTML-Entity-Kodierung).
-- Sobald Zugangsdaten in eine Sitzung eingetragen wurden, verweigert holzi Bildschirmfotos für den
+- Sobald Zugangsdaten in eine Sitzung eingetragen wurden, verweigert haex-vault Bildschirmfotos für den
   Rest dieser Sitzung. Ein neues Dokument reicht nicht aus, um eine Seite zu beweisen, dass keine
   Zugangsdaten übernommen wurden; ein neues, sauberes Browsersitzungsprofil hebt die Sperre auf.
 - Nur über `https` und nur, wenn die Website des Tabs zum Eintrag passt (FR-020); in einem
   eingebetteten Rahmen nur, wenn dessen Website passt.
 
 Neue Anmeldedaten (FR-036): Das Werkzeug `browser.credentials.create` bekommt die Nummer des
-neuen Passwortfelds und den Benutzernamen. holzi erzeugt das Passwort, trägt es in dieses Feld
+neuen Passwortfelds und den Benutzernamen. haex-vault erzeugt das Passwort, trägt es in dieses Feld
 (und ein Wiederholungsfeld desselben Formulars) ein, merkt die Felder als „gefüllt“ und legt nach
 der Rückfrage einen Eintrag mit Benutzername, Passwort und der Website des Tabs im
-Passwortmanager an. Lehnt der Nutzer ab, leert holzi die Felder wieder.
+Passwortmanager an. Lehnt der Nutzer ab, leert haex-vault die Felder wieder.
 
 **Begründung**: Das Modell braucht das Passwort nicht, nur das Ergebnis. Das Verweigern von
-Bildschirmfotos ist grob, aber sicher, weil holzi nicht erkennen kann, ob eine Seite das Passwort
+Bildschirmfotos ist grob, aber sicher, weil haex-vault nicht erkennen kann, ob eine Seite das Passwort
 sichtbar macht; nach der Anmeldung wechselt die Seite fast immer.
 
 **Verworfen**: Passwort tippen lassen (das Modell sähe es); Schwärzen von Feldern im Bild
@@ -215,7 +215,7 @@ sichtbar macht; nach der Anmeldung wechselt die Seite fast immer.
 ## R7a Andere Daten aus einem Eintrag eintragen (FR-037, FR-038)
 
 **Entscheidung**: Ein eigenes Werkzeug `browser.entry.fill` mit `tab`, `form?` und `purpose`.
-Bank- und Kartendaten gehören zu keiner Website, daher sucht holzi nicht nach der Website wie in
+Bank- und Kartendaten gehören zu keiner Website, daher sucht haex-vault nicht nach der Website wie in
 R7, sondern lässt den Nutzer in der Rückfrage (Art `entryFill`) einen Eintrag wählen, aus denen,
 die die Rechtegruppe Passwörter des Agenten erreicht (`Grant` wie in R7, Prüfungen aus 034). Die
 Rückfrage kommt jedes Mal und zeigt die Zuordnung „Feld der Seite ← Feld des Eintrags“ mit
@@ -226,14 +226,14 @@ FR-001a), Standardaliase, Art des Felds, dazu `autocomplete`-Werte `cc-name`, `c
 `cc-exp`, `cc-exp-month`, `cc-exp-year`, `cc-csc`. Diese Regel steht heute nur in der Erweiterung
 (`apps/haex-pass-browser/src/contentScripts/autofill.ts`, `DEFAULT_ALIASES` und `fillAllFields`).
 Damit sie nur einmal existiert, wandert sie in eine Rust-Crate `haex-autofill` im vault-sdk (wie
-`haex-bundle`): holzi nutzt sie direkt (auch für `browser.credentials.fill`), die Erweiterung
+`haex-bundle`): haex-vault nutzt sie direkt (auch für `browser.credentials.fill`), die Erweiterung
 ihren WebAssembly-Build. Eingabe sind die Fakten der Felder, die das Leseskript ohnehin liefert
 (Name, `id`, `autocomplete`, Art, Formular, Rahmen), und die Schlüssel des Eintrags; Ausgabe ist
 die Zuordnung. Werte gehen nie durch die Regel.
 
-Eintragen und Schutz vor Rückfluss wie in R7: Schreiben aus holzis Welt, Felder als „gefüllt“
+Eintragen und Schutz vor Rückfluss wie in R7: Schreiben aus haex-vaults Welt, Felder als „gefüllt“
 gemerkt, Werte aus Text, Namen und Rückmeldungen entfernt, Bildschirmfotos für den Rest der
-Sitzung gesperrt. In einen Rahmen trägt holzi nur ein, wenn der Agent dessen Website bedienen
+Sitzung gesperrt. In einen Rahmen trägt haex-vault nur ein, wenn der Agent dessen Website bedienen
 darf (Zahlungsanbieter betten ihre Felder oft so ein). Die Rückfrage vor dem Absenden (R5) zeigt
 die Werte als `•••`, weil die Felder als „gefüllt“ gelten.
 
@@ -243,7 +243,7 @@ Eine Regel für Erweiterung und Agenten-Browser verhindert, dass beide unterschi
 
 **Verworfen**: `credentials.fill` um eine Art erweitern (dort wird nach Website zugeordnet und
 gemerkt, beides passt nicht zu Zahlungsdaten); den Agenten Feldnamen des Eintrags wählen lassen
-(er sähe den Aufbau der Einträge); die Regel in holzi nachbauen (zwei Regeln, die
+(er sähe den Aufbau der Einträge); die Regel in haex-vault nachbauen (zwei Regeln, die
 auseinanderlaufen).
 
 ## R8 Rechte, Aufrufer und Rückfragen
@@ -280,7 +280,7 @@ Regel für eingebauten und externen Agenten; keine doppelten Rückfragen.
 **Entscheidung**: Website = Ursprung (Schema, Host, Port); in der Oberfläche als Host gezeigt, ohne
 Standardport. Jede Navigation eines Agenten-Tabs (auch Weiterleitung, Rahmen der obersten Ebene,
 `window.open`) und jede Navigation in einem eingebetteten Rahmen laufen vor dem Laden durch
-`Fetch.requestPaused`: holzi prüft die Website gegen die Rechte und fragt nach FR-007 oder bricht
+`Fetch.requestPaused`: haex-vault prüft die Website gegen die Rechte und fragt nach FR-007 oder bricht
 ab. Nicht erlaubte Rahmen werden nicht geladen. Immer gesperrt: `file:`, `javascript:`, `data:` als Dokument,
 `chrome:`/`edge:`/`brave:`/`devtools:`, Adressen mit Zugangsdaten, und `http:` für Websites mit
 „bedienen“ (nur lesen über unverschlüsselte Verbindungen).
@@ -301,12 +301,12 @@ brechen; Bedienen bleibt trotzdem an die Rechte gebunden.
 - Für den eingebauten Agenten setzt der Chat den Inhalt zusätzlich in die Abgrenzung, die er für
   Werkzeugergebnisse ohnehin hat (Spec 003).
 - Keine Seite kann eine Rückfrage überspringen, eine Website zulassen, ein Recht ändern oder eine
-  Bindung von holzi aufrufen (R4, R6, R8).
+  Bindung von haex-vault aufrufen (R4, R6, R8).
 - SC-002 wird mit einer festen Sammlung von 20 Testseiten mit eingeschleusten Anweisungen geprüft
   (Testkorpus in `src-tauri/tests/fixtures/agent_browser/injection/`), gegen die Regeln, nicht
   gegen das Verhalten eines Modells.
 
-**Begründung**: Ob ein Modell einer eingeschleusten Anweisung folgt, kann holzi nicht verhindern;
+**Begründung**: Ob ein Modell einer eingeschleusten Anweisung folgt, kann haex-vault nicht verhindern;
 was es dann tun kann, schon. Die Tests prüfen genau das.
 
 ## R11 Downloads und Hochladen
@@ -314,10 +314,10 @@ was es dann tun kann, schon. Die Tests prüfen genau das.
 **Entscheidung**: `Browser.setDownloadBehavior` mit `allowAndName` in ein Arbeitsverzeichnis;
 `browser.download` klickt das Element (Rückfragen wie ein Klick) und folgt dem Download, der in
 einem Rahmen dieses Tabs beginnt (`Browser.downloadWillBegin`, `Browser.downloadProgress`). Fertige
-Dateien verschiebt holzi unter einem sicheren, eindeutigen Namen in den Ordner
+Dateien verschiebt haex-vault unter einem sicheren, eindeutigen Namen in den Ordner
 `HaexVault/<Vault>` im Download-Ordner des Systems. Über 100 MB (aus `Content-Length` bzw.
-beim Überschreiten) fragt holzi; der Browser kann einen Download nicht anhalten, er läuft also
-weiter, bleibt aber im Arbeitsverzeichnis, bis der Nutzer zustimmt. Lehnt er ab, bricht holzi ab
+beim Überschreiten) fragt haex-vault; der Browser kann einen Download nicht anhalten, er läuft also
+weiter, bleibt aber im Arbeitsverzeichnis, bis der Nutzer zustimmt. Lehnt er ab, bricht haex-vault ab
 (`Browser.cancelDownload`) und löscht, was angekommen ist. Ein Aufruf, der vorher endet, bricht
 seinen Download ebenso ab. Hochladen setzt die Datei über `DOM.setFileInputFiles`, nur aus
 Pfaden, die die Dateirechte des Agenten (044) erreichen, und sagt für eine fehlende Datei
@@ -327,7 +327,7 @@ Element darf das Dateifeld selbst sein oder ein Element, zu dem es gehört (Besc
 selben Formular), weil Seiten das Feld oft verstecken.
 
 **Nachtrag 2026-11-01**: Der Ordner lag zuerst im eigenen Speicher der Vault-Instanz. Die
-Dateirechte aus 044 sperren holzis eigene Ordner aber für jeden Agenten, der Agent hätte seine
+Dateirechte aus 044 sperren haex-vaults eigene Ordner aber für jeden Agenten, der Agent hätte seine
 Downloads nicht lesen können. Der Download-Ordner des Systems erreicht das Recht „Dateien des
 Geräts“ ohne Ausnahme in der Regel, und der Nutzer findet die Dateien dort, wo ein Browser sie
 ablegt.
@@ -359,11 +359,11 @@ als Entwurf.
 `.navigate`, `.screenshot`, `.fill` und das Ereignis `agentTab.request` für ändernde Anfragen.
 Die Erweiterung nutzt `chrome.debugger` nur für den übergebenen Tab (zeigt dabei Chromes eigene
 Leiste „wird von einer Erweiterung gesteuert“) und ein Inhaltsskript in einer eigenen Welt für
-Lesen und Markierung. Die Regeln (R5–R10) laufen in holzi; die Erweiterung führt nur aus und
+Lesen und Markierung. Die Regeln (R5–R10) laufen in haex-vault; die Erweiterung führt nur aus und
 meldet. Firefox: ohne `chrome.debugger` nur Lesen und Klicks über das Inhaltsskript; fehlende
 Fähigkeiten fehlen dort (FR-035).
 
-**Begründung**: Eine Regel an einer Stelle (holzi), die Erweiterung als dünner Ausführer. Die
+**Begründung**: Eine Regel an einer Stelle (haex-vault), die Erweiterung als dünner Ausführer. Die
 Leiste von Chrome macht die Steuerung zusätzlich sichtbar.
 
 ## R16 Blocking trackers (revision 2026-11-03)
@@ -386,7 +386,7 @@ or a refresh gets the new lists. A `$redirect` rule only stops its request, sinc
 resource is loaded. A page a list blocks fails the tool with the code `blocked_by_filter`.
 
 **Rationale**: One engine with the syntax the lists are written in, instead of a domain list
-that blocks less. Downloading keeps the lists current without a holzi update and keeps their
+that blocks less. Downloading keeps the lists current without a haex-vault update and keeps their
 licences (EasyList: GPLv3 / CC BY-SA 3.0) with their publishers instead of in our binary.
 
 **Rejected**: A snapshot built into the app (stale with every release, licence text to carry); a
@@ -396,7 +396,7 @@ plain host list (misses path rules and exceptions).
 
 **Decision**: The profile view reads and writes cookies through the running agent browser:
 `Network.getAllCookies`, `Network.setCookie` and `Network.deleteCookies` in a session of a page
-target (the `Network` domain does not exist on the browser's own target; holzi opens a blank tab
+target (the `Network` domain does not exist on the browser's own target; haex-vault opens a blank tab
 for each call and closes it after), so the values come as the browser holds them and no database file is parsed. "KI →
 Browser" starts the browser for it when it is not running (the profile is unlocked then, R3) and
 ends it again after 15 minutes without use like any other run (FR-003). The window shows names
@@ -413,11 +413,11 @@ reading them through the protocol works on every device and needs no second impl
 
 ## R18 DNS over HTTPS (revision 2026-11-05)
 
-**Decision**: holzi uses Chromium's own secure DNS and sets it through the profile: after the
+**Decision**: haex-vault uses Chromium's own secure DNS and sets it through the profile: after the
 saved profile is unpacked and before the browser starts, it writes `dns_over_https` into the
 `Local State` file of the working directory (`mode`: `off`, `automatic` or `secure`; `templates`:
 the provider's URI template), keeping every other key, as it already sets the password-saving
-preferences for FR-002. The same file is read by every Chromium-based browser holzi may find
+preferences for FR-002. The same file is read by every Chromium-based browser haex-vault may find
 (Chromium, Chrome, Edge, Brave). "Off" is written explicitly, because without the key the browser
 upgrades to a provider by itself when the system's resolver is one it knows. The providers are
 presets in the code (Quad9 `https://dns.quad9.net/dns-query`, Cloudflare
@@ -433,13 +433,13 @@ provider it loads through the system's resolver; with Quad9 it loads in both mod
 takes effect and the modes behave as FR-048 says. Other browsers use the same keys; a manual check
 with each is part of M15.
 
-**Rationale**: No second resolver in holzi, no local port, and the user's own browser stays as it
+**Rationale**: No second resolver in haex-vault, no local port, and the user's own browser stays as it
 is. The setting is the one the browser's own settings page writes, so it behaves as users expect.
 
-**Rejected**: A DNS proxy in holzi (a second resolver stack, a local port other programs could
+**Rejected**: A DNS proxy in haex-vault (a second resolver stack, a local port other programs could
 use); an operating-system policy (system-wide, needs privileges, would change the user's own
 browser); command-line switches (none is documented that sets mode and template, and the
-field-trial switches are not supported). Not covered: holzi's own requests (the filter lists)
+field-trial switches are not supported). Not covered: haex-vault's own requests (the filter lists)
 and a policy of the operating system that sets DNS over HTTPS, which wins over the file.
 
 ## R19 Keys, hover, wheel and fullscreen (revision 2026-11-12; FR-049 to FR-052, FR-055, FR-062)
@@ -467,7 +467,7 @@ wrapper, so the marker (R6) does not take them for the user's input.
   script measures the scroll position of the document and of the nearest scrollable ancestor of the
   point before and after, and the result says `moved`. `page` is 0.8 of the view's height (as the
   current scroll step).
-- **Fullscreen**: `fullscreenchange` fires in holzi's world too, so the marker script (R6) leaves
+- **Fullscreen**: `fullscreenchange` fires in haex-vault's world too, so the marker script (R6) leaves
   fullscreen with `document.exitFullscreen()` and reports `fullscreen` through the binding (not while
   the user has the tab; when the agent steers again, the marker's update leaves it too); a new
   signal `Signal::Fullscreen` tells the session, which gives the next result the note
@@ -493,7 +493,7 @@ wrapper, so the marker (R6) does not take them for the user's input.
   keys that act on the browser are exactly the ones a short blocklist would forget. macOS and
   Windows are not measured; T107's test stays and runs there (a visible window, so not in CI).
 - **S2**: a page's `requestFullscreen()` after a trusted click succeeded; an exit handler that
-  runs in holzi's isolated world on `fullscreenchange` left fullscreen again at once. The window
+  runs in haex-vault's isolated world on `fullscreenchange` left fullscreen again at once. The window
   state stayed `normal`. Not measured for a video's own fullscreen button, macOS and Windows.
 
 **Alternatives rejected**: sending `Alt`/function keys with a blocklist of the dangerous ones (a
@@ -524,7 +524,7 @@ listen to `keydown` never see it, which is the reason for `mode: keys`).
   operate is not listed.
 - **Canvas and media**: kinds `canvas` and `media` with `box` (`x`, `y`, `w`, `h` in the view) and
   for media `paused`, `time`, `duration`, `muted`.
-- **`browser.media`** calls `play()`, `pause()`, sets `currentTime` and `muted` in holzi's world. The
+- **`browser.media`** calls `play()`, `pause()`, sets `currentTime` and `muted` in haex-vault's world. The
   autoplay policy would refuse `play()` without a user gesture, so the agent browser starts with
   `--autoplay-policy=no-user-gesture-required`. The sound stays on (2026-11-12, the user watches and
   listens with the agent; a first version also muted it, which the user rejected); the agent can
@@ -532,7 +532,7 @@ listen to `keydown` never see it, which is the reason for `mode: keys`).
 
 ## R21 Screenshots with marks, regions and a view (revision 2026-11-12; FR-056 to FR-058)
 
-**Decision**: holzi captures once as PNG, draws the marks itself and encodes one JPEG.
+**Decision**: haex-vault captures once as PNG, draws the marks itself and encodes one JPEG.
 
 - **View**: `Page.getLayoutMetrics` gives the scroll position, the size and the zoom of the visible
   area; `Page.getFrameTree` gives the `loaderId` of the main frame, which changes with every
@@ -544,7 +544,7 @@ listen to `keydown` never see it, which is the reason for `mode: keys`).
   what `Input.dispatchMouseEvent` takes.
 - **Marks**: the page script returns, for the elements in view, number, kind, name and rectangle
   (`{ marks: true }`, at most 80 in the page's order; the result says when there are more);
-  holzi draws a box and a number tag with a built-in 5×7 digit font, so no font file and no new
+  haex-vault draws a box and a number tag with a built-in 5×7 digit font, so no font file and no new
   dependency. The `image` crate is already a dependency (JPEG, PNG). Drawing in Rust instead of
   an overlay in the page keeps the page from seeing or changing it and is testable with a fixed
   image.
@@ -559,7 +559,7 @@ listen to `keydown` never see it, which is the reason for `mode: keys`).
 **Decision**: A position is turned into an element first, and the element's rules apply.
 
 - **What is under the point**: `DOM.getNodeForLocation` gives the node and its frame (it pierces
-  shadow roots and out-of-process frames); `DOM.resolveNode` with holzi's world of that frame gives
+  shadow roots and out-of-process frames); `DOM.resolveNode` with haex-vault's world of that frame gives
   an object, and a function call runs the facts collection of `{ target }` on its nearest operable
   ancestor. No operable ancestor means no element: a change, step 2 as backstop, the label of the
   question is "Position (x, y)".
@@ -568,7 +568,7 @@ listen to `keydown` never see it, which is the reason for `mode: keys`).
 - **Drag**: `mouseMoved`, `mousePressed`, at least eight interpolated `mouseMoved` with
   `buttons: 1`, `mouseReleased`, inside 3 seconds, in one function that always sends the release,
   also on error or stop. A draggable element would start the operating system's drag; with
-  `Input.setInterceptDrags(true)` Chromium reports `Input.dragIntercepted` instead and holzi
+  `Input.setInterceptDrags(true)` Chromium reports `Input.dragIntercepted` instead and haex-vault
   answers with `Input.dispatchDragEvent` (`dragEnter`, `dragOver`, `drop`), then turns
   interception off. Both ends are resolved as above; the stricter classification wins, so dragging
   onto a "Löschen" zone asks.
@@ -589,16 +589,16 @@ listen to `keydown` never see it, which is the reason for `mode: keys`).
   window is not measured, since the tests run headless (manual check M17).
 - **Measured, the point**: `DOM.getNodeForLocation` takes the point in coordinates of the page, not
   of the view (with the page scrolled, a point of the view is found only after adding the scroll
-  position), and finds nodes only in the part that is in view; holzi adds the scroll position. In
+  position), and finds nodes only in the part that is in view; haex-vault adds the scroll position. In
   the same process it looks into frames; the element that owns a frame of another process is what
-  it finds, and holzi enters that frame through the slice of the last reading (the frame's
+  it finds, and haex-vault enters that frame through the slice of the last reading (the frame's
   elements are listed with numbers there), at the point minus the frame's place. A frame with no
   listed element is a point with no element; its website is still the one the rights are checked
   against.
 
 ## R23 Declining cookie banners (revision 2026-11-12 b; FR-065, FR-066)
 
-**Decision**: A script of holzi's own world (`consent.js`) runs in every document of an agent's tab,
+**Decision**: A script of haex-vault's own world (`consent.js`) runs in every document of an agent's tab,
 frames included, from the start of the document, and presses the button that rejects.
 
 - **Why a script and not a rule list of a project**: the lists of "I don't care about cookies" and
@@ -629,7 +629,7 @@ frames included, from the start of the document, and presses the button that rej
   "Zustimmen", and the save button has the attribute `disabled` until it is agreed to (or the user
   subscribes). That is a pay-or-agree wall: nothing declines it. The script declines what it can,
   sees the save button stay unavailable for 1.5 s, and reports `consent: "wall"` without pressing
-  anything else. Whether holzi should ever agree to the required purposes of a wall is the user's
+  anything else. Whether haex-vault should ever agree to the required purposes of a wall is the user's
   decision, not a default (open question).
 - **When**: from the start of the document, looking every 300 ms for three seconds and then every
   second up to 15 seconds, so a banner that shows late is found. The reading of a page waits while
@@ -651,7 +651,7 @@ frames included, from the start of the document, and presses the button that rej
 
 ## R24 Naming a check (revision 2026-11-12 b; FR-067)
 
-**Decision**: holzi names a check and nothing more; the agent ticks the checkbox like any element.
+**Decision**: haex-vault names a check and nothing more; the agent ticks the checkbox like any element.
 
 - **Recognised**: a frame of a provider by its address (challenges.cloudflare.com and
   `/cdn-cgi/challenge-platform` as `cloudflare`; hcaptcha.com as `hcaptcha`; `/recaptcha/api2/`,
@@ -663,8 +663,8 @@ frames included, from the start of the document, and presses the button that rej
   frame its website is named in `frames_not_operable`, so the agent can say what to allow.
 - **The click**: the checkbox of a check is an element of a frame (FR-053, R20) and is ticked with
   `browser.click`, a real click at its place. Whether the provider accepts it is the provider's
-  decision; holzi changes nothing about how the browser looks to a website.
-- **What holzi does not do**: solve images or puzzles, use a service that does, hide that the
+  decision; haex-vault changes nothing about how the browser looks to a website.
+- **What haex-vault does not do**: solve images or puzzles, use a service that does, hide that the
   browser is steered, or repeat a click that did not pass. A check that wants more, or does not
   accept the click, ends with `browser.takeover.request`; the descriptions of `browser.page.read`
   and of the takeover tool say so to the agent.
@@ -676,27 +676,27 @@ frames included, from the start of the document, and presses the button that rej
 
 **Entscheidung**: Wie 021 in PRs aus eigenen Worktrees:
 
-| PR  | Inhalt                                                                                                                                                           |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A   | Spec, Plan, ADR-0019 (proposed), Aufgaben (dieser PR)                                                                                                            |
-| B   | Grundlage: `NativeCall` mit Aufrufer und Stufe, native Aktionen über MCP, `confirmsItself` im MCP-Zugang, Rechtegruppe `browser`, Passwort-Zuordnung als Dienst  |
-| C   | Agenten-Browser: Finden, Start über Pipe, CDP-Client, Profil verschlüsselt, Lesen, Navigieren mit Website-Prüfung (US1)                                          |
-| D   | Bedienen, Absenden-Erkennung, Rückfragen, Markierung, Eingreifen, Stoppen, Sitzungsanzeige (US2, US3)                                                            |
-| E0  | vault-sdk: Crate `haex-autofill` mit der Zuordnungsregel der Erweiterung (R7a), eigener PR dort, in holzi gepinnt                                                |
-| E1  | Anmeldedaten und andere Daten aus dem Passwortmanager eintragen (US4, R7, R7a)                                                                                   |
-| E2  | Downloads und Hochladen (US5)                                                                                                                                    |
-| –   | haextension: Erweiterung nutzt den WebAssembly-Build von `haex-autofill` statt ihrer eigenen Regel                                                               |
-| F   | zurückgestellt (2026-11-01): Tabs im Browser des Nutzers (US6)                                                                                                   |
-| G   | Revision 2026-11-03: dialogs close only through their own buttons (haex-ui `dismissible`, then used in holzi), the send dialog shows what is sent (T095, FR-012) |
-| H   | all websites level (FR-043)                                                                                                                                      |
-| I   | page request dialog with remembered rules (FR-044)                                                                                                               |
-| J   | tracker filters with default and own lists (FR-045, R16)                                                                                                         |
-| K   | profile view and editing (FR-046, R17)                                                                                                                           |
-| L   | DNS over HTTPS: settings and effect (FR-048, R18)                                                                                                                |
-| M   | DNS over HTTPS: settings page                                                                                                                                    |
-| N0  | Revision 2026-11-12: spec, research, contract, tasks (this PR)                                                                                                   |
-| N1  | Stage A: keys, hover, wheel, fullscreen, spikes S1, S2 (US7, R19)                                                                                                |
-| N2  | Stage A: shadow roots, widgets, canvas and media, `browser.media` (US7, R20)                                                                                     |
-| N2b | Stage A: elements of frames, routed by number (US7, R20)                                                                                                         |
-| N3  | Stage B: view, marks, regions (US8, R21)                                                                                                                         |
-| N4  | Stage B: click by position, drag, model gating, spikes S3, S4 (US8, R22)                                                                                         |
+| PR  | Inhalt                                                                                                                                                                |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A   | Spec, Plan, ADR-0019 (proposed), Aufgaben (dieser PR)                                                                                                                 |
+| B   | Grundlage: `NativeCall` mit Aufrufer und Stufe, native Aktionen über MCP, `confirmsItself` im MCP-Zugang, Rechtegruppe `browser`, Passwort-Zuordnung als Dienst       |
+| C   | Agenten-Browser: Finden, Start über Pipe, CDP-Client, Profil verschlüsselt, Lesen, Navigieren mit Website-Prüfung (US1)                                               |
+| D   | Bedienen, Absenden-Erkennung, Rückfragen, Markierung, Eingreifen, Stoppen, Sitzungsanzeige (US2, US3)                                                                 |
+| E0  | vault-sdk: Crate `haex-autofill` mit der Zuordnungsregel der Erweiterung (R7a), eigener PR dort, in haex-vault gepinnt                                                |
+| E1  | Anmeldedaten und andere Daten aus dem Passwortmanager eintragen (US4, R7, R7a)                                                                                        |
+| E2  | Downloads und Hochladen (US5)                                                                                                                                         |
+| –   | haextension: Erweiterung nutzt den WebAssembly-Build von `haex-autofill` statt ihrer eigenen Regel                                                                    |
+| F   | zurückgestellt (2026-11-01): Tabs im Browser des Nutzers (US6)                                                                                                        |
+| G   | Revision 2026-11-03: dialogs close only through their own buttons (haex-ui `dismissible`, then used in haex-vault), the send dialog shows what is sent (T095, FR-012) |
+| H   | all websites level (FR-043)                                                                                                                                           |
+| I   | page request dialog with remembered rules (FR-044)                                                                                                                    |
+| J   | tracker filters with default and own lists (FR-045, R16)                                                                                                              |
+| K   | profile view and editing (FR-046, R17)                                                                                                                                |
+| L   | DNS over HTTPS: settings and effect (FR-048, R18)                                                                                                                     |
+| M   | DNS over HTTPS: settings page                                                                                                                                         |
+| N0  | Revision 2026-11-12: spec, research, contract, tasks (this PR)                                                                                                        |
+| N1  | Stage A: keys, hover, wheel, fullscreen, spikes S1, S2 (US7, R19)                                                                                                     |
+| N2  | Stage A: shadow roots, widgets, canvas and media, `browser.media` (US7, R20)                                                                                          |
+| N2b | Stage A: elements of frames, routed by number (US7, R20)                                                                                                              |
+| N3  | Stage B: view, marks, regions (US8, R21)                                                                                                                              |
+| N4  | Stage B: click by position, drag, model gating, spikes S3, S4 (US8, R22)                                                                                              |

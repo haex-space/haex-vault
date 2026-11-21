@@ -29,14 +29,14 @@ nix develop --command pnpm format:check
 1. A1: Testerweiterung installieren. Der Installationsdialog nennt „Verbindungen zu Geräten anderer
    Vaults“ und den Hinweis auf die Netzwerkadresse (FR-003).
 2. A1: Berechtigung `peers` auf „verweigert“ → Einladen, Lobby öffnen und Beitreten liefern 1002, im
-   Netzmitschnitt verlässt nichts das Gerät. Auf „fragen“ → beim ersten Aufruf fragt holzi.
+   Netzmitschnitt verlässt nichts das Gerät. Auf „fragen“ → beim ersten Aufruf fragt HaexVault.
 
 ## 2. Einladung (US1)
 
 1. B1: Testerweiterung offen. B2: Testerweiterung geschlossen.
-2. A1: Ben einladen. B1 zeigt holzis Dialog „Anna lädt dich zu ‹Erweiterung› ein“, B2 eine
+2. A1: Ben einladen. B1 zeigt HaexVaults Dialog „Anna lädt dich zu ‹Erweiterung› ein“, B2 eine
    Systembenachrichtigung mit „Annehmen“/„Ablehnen“ (SC-001: < 5 s). Die Rahmen auf B1 erhalten nichts.
-3. B2: „Annehmen“ in der Benachrichtigung → holzi öffnet die Erweiterung, sie meldet
+3. B2: „Annehmen“ in der Benachrichtigung → HaexVault öffnet die Erweiterung, sie meldet
    `peers:channel-opened`. B1: Dialog verschwindet (SC-009: < 2 s). A1: `accepted` mit `channelId`.
 4. Wiederholen, B1 und B2 lehnen ab → A1: einmal `declined`.
 5. Wiederholen, niemand antwortet → nach 5 min `expired`, Abfragen verschwinden.
@@ -67,7 +67,7 @@ nix develop --command pnpm format:check
 
 ## 5. Relay
 
-Beide Geräte mit `HOLZI_E2E_SYNC_LOOPBACK=1` (Debug-Build, nur Loopback, `sync/endpoint.rs:56`) und
+Beide Geräte mit `HAEX_E2E_SYNC_LOOPBACK=1` (Debug-Build, nur Loopback, `sync/endpoint.rs:56`) und
 dem Relay des E2E-Aufbaus nach Spec 043 starten → Kanal entsteht über das Relay (SC-005); Schritte 3.1
 und 3.2 wiederholen.
 

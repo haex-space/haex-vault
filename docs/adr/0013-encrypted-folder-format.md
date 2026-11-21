@@ -8,7 +8,7 @@ Date: 2026-10-10
 Spec 048 lets users keep single folders of an S3 storage (spec 038) encrypted, with the provider seeing
 no names, no structure and no content. Two later features need the same thing: sync rules ("cloud,
 encrypted", spec 061, successor of 025) and the rework of spaces 027/029, where a folder is shared with other
-users. If each built its own encryption, holzi would have three formats, three key schemes and three
+users. If each built its own encryption, haex-vault would have three formats, three key schemes and three
 sets of checks for one rule.
 
 haex-vault 2.x (Legacy) has a per-file scheme in `file_sync/crypto` (repository
@@ -18,7 +18,7 @@ another file's content and replay an old version under the current key (spec 048
 
 ## Decision
 
-**holzi has one format for encrypted folders, `HXEF`, versioned, specified in
+**haex-vault has one format for encrypted folders, `HXEF`, versioned, specified in
 [`docs/formats/encrypted-folder-v1.md`](../formats/encrypted-folder-v1.md) with test vectors.**
 Spec 048 defines version 1.
 
@@ -30,7 +30,7 @@ Spec 048 defines version 1.
   recipient to the head and never hands out the vault-derived key.
 - The format code is pure (no I/O) and lives in one module, `files/encrypted/format`. The file browser,
   agents, extensions, sync rules and spaces all use it; none carries a second implementation.
-- It is not compatible with haex-vault 2.x's `HXFE`. There is no reader for `HXFE` in holzi.
+- It is not compatible with haex-vault 2.x's `HXFE`. There is no reader for `HXFE` in haex-vault.
 
 ## Consequences
 
@@ -39,4 +39,4 @@ Spec 048 defines version 1.
 - A change to the format needs a new version number, new test vectors and an update of this ADR's
   format document; readers reject unknown versions instead of guessing.
 - Data that haex-vault 2.x encrypted with `HXFE` has to be downloaded with haex-vault 2.x and stored again
-  through holzi.
+  through haex-vault.

@@ -320,7 +320,7 @@
               "Pictures folder on this device",
               "Downloads folder on this device",
               "Entire device",
-              "A storage in holzi"
+              "A storage in haex-vault"
             ]
           },
           "ending": "ran"
@@ -361,7 +361,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "There is no shopping list app in holzi. Where should I put milk?",
+            "question": "There is no shopping list app in haex-vault. Where should I put milk?",
             "options": [
               "Add it to a text file in Files",
               "Send it as a message in Chat",
@@ -372,7 +372,7 @@
           "ending": "ran"
         }
       ],
-      "text": "There is no shopping list app in holzi. Where should I put milk?"
+      "text": "There is no shopping list app in haex-vault. Where should I put milk?"
     },
     {
       "id": "mail_reply-en-1-s",

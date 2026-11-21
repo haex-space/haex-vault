@@ -1,16 +1,16 @@
-# Contract: Plugin-Crate `holzi-android`
+# Contract: Plugin-Crate `haex-android`
 
 **Anforderungen**: FR-006, FR-011, FR-011a, FR-012, FR-019, FR-023, FR-029, FR-017 (Gerätename)
 | **Research**: R1, R4–R7, R10, R12
 
-Lage: `src-tauri/plugins/holzi-android/` (Crate `tauri-plugin-holzi-android`, Pfad-Abhängigkeit
-von `src-tauri`). Kotlin unter `android/src/main/java/space/haex/holzi/android/`. Am Desktop
+Lage: `src-tauri/plugins/haex-android/` (Crate `tauri-plugin-haex-android`, Pfad-Abhängigkeit
+von `src-tauri`). Kotlin unter `android/src/main/java/space/haex/vault/android/`. Am Desktop
 übersetzt die Crate und meldet sich an, jede Funktion ist dort ein No-op bzw. liefert `None`.
 
 ## Rust-Schnittstelle (vom Kern benutzt, keine Commands für die Oberfläche)
 
 ```text
-HolziAndroidExt::holzi_android(&self) -> &HolziAndroid
+HaexAndroidExt::haex_android(&self) -> &HaexAndroid
   set_secure(enabled: bool) -> Result<()>            // FLAG_SECURE + setRecentsScreenshotEnabled(!enabled) auf API 33+
   device_name() -> Result<Option<String>>            // Settings.Global.DEVICE_NAME, sonst Build.MODEL
   request_permission(p: Permission) -> Result<PermissionState>   // Permission::Microphone
@@ -60,7 +60,7 @@ nicht doppelt.
   Manifest und in `@TauriPlugin(permissions = …)` unter dem Alias `microphone`. Die Anfrage
   blockiert, bis die Person antwortet; der Kern ruft sie vor jeder Aufnahme
   (`voice::ensure_microphone`), nach einer Entscheidung antwortet Android sofort. Am Desktop gilt
-  die Berechtigung als erteilt. Eine Ablehnung ist `HolziError::MicrophoneDenied` (vorher das nie
+  die Berechtigung als erteilt. Eine Ablehnung ist `HaexError::MicrophoneDenied` (vorher das nie
   erzeugte `PermissionDenied`), und das Eingabefeld erklärt, wo man sie später erteilt.
 
 ## Seite (Kotlin → WebView)
@@ -68,15 +68,15 @@ nicht doppelt.
 In `load(webView)` setzt die Crate einen `OnApplyWindowInsetsListener` und schreibt bei jeder
 Änderung per `evaluateJavascript` auf `document.documentElement`:
 
-| CSS-Variable             | Inhalt                                                 |
-| ------------------------ | ------------------------------------------------------ |
-| `--holzi-inset-top`      | Statusleiste und Aussparung oben, in CSS-Pixeln (`px`) |
-| `--holzi-inset-right`    | Systemleisten/Aussparung rechts                        |
-| `--holzi-inset-bottom`   | Navigationsleiste unten (ohne Tastatur)                |
-| `--holzi-inset-left`     | Systemleisten/Aussparung links                         |
-| `--holzi-inset-keyboard` | Höhe der Bildschirmtastatur, `0px` wenn geschlossen    |
+| CSS-Variable            | Inhalt                                                 |
+| ----------------------- | ------------------------------------------------------ |
+| `--haex-inset-top`      | Statusleiste und Aussparung oben, in CSS-Pixeln (`px`) |
+| `--haex-inset-right`    | Systemleisten/Aussparung rechts                        |
+| `--haex-inset-bottom`   | Navigationsleiste unten (ohne Tastatur)                |
+| `--haex-inset-left`     | Systemleisten/Aussparung links                         |
+| `--haex-inset-keyboard` | Höhe der Bildschirmtastatur, `0px` wenn geschlossen    |
 
-Die Seite benutzt `var(--holzi-inset-*, 0px)`; am Desktop fehlen die Variablen.
+Die Seite benutzt `var(--haex-inset-*, 0px)`; am Desktop fehlen die Variablen.
 
 ## Lebenszyklus
 

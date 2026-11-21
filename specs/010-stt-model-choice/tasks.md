@@ -103,7 +103,7 @@ end-to-end until this phase is done.
 - [x] T010 ~~Regenerate ts-rs bindings~~ — verified this doesn't apply: neither
       `catalog::CatalogEntry`/`TierRecommendation` (the LLM catalog this feature mirrors) nor the
       new `SttCatalogEntry`/`SttTierRecommendation` derive `ts_rs::TS` (`ts-rs` is only used for
-      `HolziError` and `instances::`); the frontend hand-writes matching TS interfaces in
+      `HaexError` and `instances::`); the frontend hand-writes matching TS interfaces in
       `useCatalog.ts`/`useSttCatalog.ts` instead (T011), consistent with the existing pattern. Ran
       `cargo test --features llm-cpu export_bindings` to confirm: only the known unrelated
       trailing-whitespace diff in `src/types/bindings/InstanceInfo.ts` appeared, no new binding

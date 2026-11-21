@@ -34,7 +34,7 @@ das Gewicht. Ein Wortverfahren überbrückt keine Synonyme. Mögliche Wege (Ents
 Satz Version 4 (55 Sätze), mit `run_command` im Angebot:
 
 ```bash
-HOLZI_TEST_GGUF=<pfad>/Qwen_Qwen3-4B-Q4_K_M.gguf HOLZI_TEST_GGUF_TOKENIZER=Qwen/Qwen3-4B \
+HAEX_TEST_GGUF=<pfad>/Qwen_Qwen3-4B-Q4_K_M.gguf HAEX_TEST_GGUF_TOKENIZER=Qwen/Qwen3-4B \
   cargo test --manifest-path src-tauri/Cargo.toml --features llm-cuda --test model_tool_eval -- --ignored --nocapture
 ```
 

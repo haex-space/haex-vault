@@ -34,7 +34,7 @@ Kontextmenü löschen, nicht aber die bereits vorhandenen". So every entry of "F
 ## Relationship to existing specs
 
 - **Spec 044** (file browser): extends the sidebar (FR-002) and the context menus (FR-017 to FR-023). No
-  change to sources, transfers or the protection of holzi's own data (FR-037).
+  change to sources, transfers or the protection of HaexVault's own data (FR-037).
 - **Spec 056** (file sharing): FR-020 (overview of the vault's own shares) is satisfied by a list in the
   panel instead of a drawer. Everything the overview did stays (state, serving device, contacts with
   level, revoke at once FR-024, waiting state FR-026, edit in the share dialog).
@@ -47,7 +47,7 @@ Kontextmenü löschen, nicht aber die bereits vorhandenen". So every entry of "F
 
 ### User Story 1 - Pin a folder and open it from the sidebar (Priority: P1)
 
-Anna works in `~/Projekte/holzi/docs` every day. She right-clicks the folder in the file browser and
+Anna works in `~/Projekte/haex/docs` every day. She right-clicks the folder in the file browser and
 chooses "Zu Favoriten hinzufügen". The folder shows in the sidebar under "Favoriten", below Bilder, Downloads and
 the other known places; a click opens it. She can add any folder of any source: this device, her cloud
 storages, her other devices, a share a contact gave her.
@@ -168,7 +168,7 @@ revoke the contact in the list; edit the share from its row; restart: the tab sh
   files, several entries, or the internal `device:` storages of encrypted folders. A folder that already is one of the
   known places (Orte) is neither pinned nor offered.
 - **FR-004**: The context menu of an added entry in "Favoriten" MUST offer "Aus Favoriten entfernen".
-- **FR-005**: Dropping a folder drag of holzi's entries on the "Favoriten" section MUST pin every folder
+- **FR-005**: Dropping a folder drag of HaexVault's entries on the "Favoriten" section MUST pin every folder
   of the drag (not files), without duplicates; it MUST NOT move or copy anything.
 - **FR-006**: A pinned entry MUST be draggable; while one is dragged a removal strip MUST show, and
   dropping the entry there MUST remove the pin. Any other drop or Esc MUST leave it.

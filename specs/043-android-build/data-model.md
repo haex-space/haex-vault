@@ -1,4 +1,4 @@
-# Data Model: holzi für Android
+# Data Model: haex-vault für Android
 
 **Spec**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md)
 

@@ -3,7 +3,7 @@
 **Feature Branch**: `035-ui-foundation`
 **Created**: 2026-10-02
 **Status**: Draft
-**Input**: holzi bekommt überall dieselben Eingabefelder im Stil von haex-vault 2.x (Legacy) (schwebendes
+**Input**: HaexVault bekommt überall dieselben Eingabefelder im Stil von haex-vault 2.x (Legacy) (schwebendes
 Label, Ring in der Primärfarbe, Fehlertext, Löschen und Kopieren) und eine Darstellung, die
 der Nutzer zur Laufzeit wie in GNOME und COSMIC einstellt: Akzentfarbe aus Farbfeldern oder
 eigener Farbe, Fenster- und Container-Hintergrund, Hell, Dunkel oder automatisch, Zurücksetzen
@@ -36,14 +36,14 @@ Oberflächenschicht haex-ui (Pull Request haex-space/haextension#65, gepinnt auf
 
 ### User Story 1 - Eingabefelder sehen überall gleich aus (Priority: P1)
 
-Wer in holzi etwas eintippt, sieht überall dasselbe Feld: Das Label liegt in der Ruhe im
+Wer in HaexVault etwas eintippt, sieht überall dasselbe Feld: Das Label liegt in der Ruhe im
 Feld, schwebt bei Fokus oder Inhalt über den Rand, der Fokusring ist in der Primärfarbe, ein
 Fehler steht als Text unter dem Feld, und wo es sinnvoll ist, gibt es Löschen und Kopieren.
 Das gilt für Passwortmanager, Einstellungen, Chat, Modelle und Einrichtung, für einzeilige
 Felder, Passwortfelder, mehrzeilige Felder und Auswahllisten.
 
 **Why this priority**: Das ist der Anlass der Spec und der Teil, den der Nutzer in jeder App
-von holzi sofort sieht. Ohne ihn ist die Darstellung (Story 2) nur Farbe auf alten Feldern.
+von HaexVault sofort sieht. Ohne ihn ist die Darstellung (Story 2) nur Farbe auf alten Feldern.
 
 **Independent Test**: In jedem Bereich ein Feld anklicken, tippen, leeren, Fehler auslösen und
 die Auswahlliste öffnen. Delivers value allein, weil die Felder auch mit der festen
@@ -110,7 +110,7 @@ prüfen, dass sie bleibt.
 
 ### User Story 3 - Hell, Dunkel oder automatisch (Priority: P1)
 
-Der Nutzer wählt Hell, Dunkel oder „Automatisch“. Bei „Automatisch“ folgt holzi dem System
+Der Nutzer wählt Hell, Dunkel oder „Automatisch“. Bei „Automatisch“ folgt HaexVault dem System
 und wechselt mit ihm, auch während die App läuft. Akzent- und Hintergrundwahl gelten in
 beiden Schemata.
 
@@ -123,9 +123,9 @@ zusammenspielen und bleibt Teil derselben Gruppe.
 **Acceptance Scenarios**:
 
 1. **Given** „Automatisch“, **When** das System von Hell auf Dunkel wechselt, **Then**
-   wechselt holzi ohne Neustart.
+   wechselt HaexVault ohne Neustart.
 2. **Given** „Hell“ oder „Dunkel“, **When** das System das Schema wechselt, **Then** bleibt
-   holzi bei der Wahl.
+   HaexVault bei der Wahl.
 3. **Given** eine gewählte Akzentfarbe, **When** das Schema wechselt, **Then** bleibt die
    Akzentfarbe, wird aber, wo es der Kontrast verlangt, in der Helligkeit angepasst
    (FR-016).
@@ -135,7 +135,7 @@ zusammenspielen und bleibt Teil derselben Gruppe.
 ### User Story 4 - Lesbar bleiben und zurücksetzen (Priority: P2)
 
 Der Nutzer kann eine Farbe wählen, bei der Text oder Bedienelemente schwer lesbar würden.
-holzi verhindert das: Beschriftung auf Knöpfen und Auswahlleisten wechselt automatisch
+HaexVault verhindert das: Beschriftung auf Knöpfen und Auswahlleisten wechselt automatisch
 zwischen hell und dunkel, und eine Wahl, die die Mindestkontraste nicht einhalten kann,
 wird auf den nächsten erlaubten Wert angepasst und der Nutzer erfährt das. „Auf Standard zurücksetzen“ bringt
 Akzent und Hintergründe zurück.
@@ -187,7 +187,7 @@ Darstellung wiederfinden; eine kaputte Datei importieren und eine verständliche
 - Vor dem Öffnen der Vault gibt es noch keine gespeicherte Darstellung: Es gelten
   Standardfarben und das System-Schema; nach dem Öffnen wird die gespeicherte Darstellung
   ohne sichtbares Aufblitzen der Standardfarben angewandt, soweit das möglich ist.
-- Beim Wechsel der Vault zeigt holzi nie die Darstellung der vorherigen Vault.
+- Beim Wechsel der Vault zeigt HaexVault nie die Darstellung der vorherigen Vault.
 - Ein gespeicherter Wert, der kein gültiger Farbwert ist (nach einem Sync-Fehler oder per
   Hand verändert), zählt als nicht gesetzt und der Standard gilt.
 - Zwei Geräte ändern die Darstellung gleichzeitig: Es gewinnt wie bei allen
@@ -211,7 +211,7 @@ Darstellung wiederfinden; eine kaputte Datei importieren und eine verständliche
 
 **Eingabefelder**
 
-- **FR-001**: Alle Eingabefelder in holzi MÜSSEN dieselbe Feldart zeigen: einzeilige Felder,
+- **FR-001**: Alle Eingabefelder in HaexVault MÜSSEN dieselbe Feldart zeigen: einzeilige Felder,
   Passwortfelder, mehrzeilige Felder und Auswahllisten in Passwortmanager, Einstellungen,
   Chat, Modellverwaltung, Einrichtung und Verknüpfung von Geräten. Kein Bereich darf eine
   eigene, abweichende Feldart behalten, außer ein Feld hat einen dokumentierten Grund
@@ -237,7 +237,7 @@ Darstellung wiederfinden; eine kaputte Datei importieren und eine verständliche
 - **FR-008**: Eine Auswahlliste MUSS Label, Wert, Fehler und Sperrzustand wie die anderen
   Felder zeigen; das Label MUSS schweben, sobald die Liste offen ist oder einen Wert hat.
 - **FR-009**: Die Beschriftungen der Hilfsknöpfe (Löschen, Kopieren, Anzeigen, Verbergen)
-  MÜSSEN aus den Sprachdateien von holzi kommen, auf Deutsch und Englisch.
+  MÜSSEN aus den Sprachdateien von HaexVault kommen, auf Deutsch und Englisch.
 - **FR-010**: Eine Prüfung im Projekt MUSS verhindern, dass neue Eingabefelder wieder in
   der alten Feldart entstehen (zum Beispiel eine statische Suche, die jede Verwendung der
   alten Feldarten außerhalb eines Positivlisten-Eintrags meldet).
@@ -264,11 +264,11 @@ Darstellung wiederfinden; eine kaputte Datei importieren und eine verständliche
   dadurch hell und Dunkel dunkel.
 - **FR-014**: Eine Änderung der Darstellung MUSS sofort in der ganzen App wirken, in allen
   offenen Fenstern und Tabs, ohne neu zu laden.
-- **FR-015**: Die Primärfarbe MUSS dort wirken, wo holzi heute die Primärfarbe zeigt:
+- **FR-015**: Die Primärfarbe MUSS dort wirken, wo HaexVault heute die Primärfarbe zeigt:
   Fokusringe, Schalter, Primärknöpfe, Auswahlmarkierungen, Links, aktive Einträge in
   Seitenleisten und Hinweise auf den aktiven Zustand; die Standardfarbe bleibt das heutige
   Blaugrün.
-- **FR-016**: holzi MUSS Schrift auf der Akzentfarbe automatisch hell oder dunkel wählen
+- **FR-016**: HaexVault MUSS Schrift auf der Akzentfarbe automatisch hell oder dunkel wählen
   und die Akzentfarbe in Hell und Dunkel so anpassen, dass Text auf Flächen mit der Farbe
   mindestens 4,5:1 und Bedienelemente (Fokusring, Schalterspur, Hinweisumrandung des aktiven
   Fensters) gegen ihren Untergrund mindestens 3:1 erreichen. Reine Zierränder von Flächen
@@ -320,7 +320,7 @@ Darstellung wiederfinden; eine kaputte Datei importieren und eine verständliche
 
 ### Measurable Outcomes
 
-- **SC-001**: In allen Bereichen von holzi (Passwortmanager, Einstellungen, Chat, Modelle,
+- **SC-001**: In allen Bereichen von HaexVault (Passwortmanager, Einstellungen, Chat, Modelle,
   Einrichtung, Geräteverknüpfung) zeigt jedes Eingabefeld Label, Fokusring und Fehlerzustand
   gleich; eine Durchsicht aller Bereiche findet kein Feld in der alten Feldart, außer den
   dokumentierten Ausnahmen.
@@ -344,7 +344,7 @@ Darstellung wiederfinden; eine kaputte Datei importieren und eine verständliche
   (FR-019). Das weicht vom ersten Vorschlag „pro Gerät“ ab, weil 023 das Farbschema schon
   als eine Vault-Einstellung führt und zwei Orte für „Darstellung“ verwirren würden;
   Geräte mit anderen Bildschirmen stellen weiter per „Automatisch“ das System-Schema ein.
-- Die Feldarten kommen aus der Oberflächenschicht haex-ui im Stand `2dcb8bc`; holzi ändert
+- Die Feldarten kommen aus der Oberflächenschicht haex-ui im Stand `2dcb8bc`; HaexVault ändert
   diese Schicht nicht, sondern wünscht Änderungen im Repo haex-space/haextension.
 - Akzente und Töne sind je eine kleine feste Reihe (acht bis zwölf Akzente, fünf bis sieben
   Töne je Regler) plus eigene Farbe; die genaue Liste legt der Plan fest.
@@ -356,7 +356,7 @@ Darstellung wiederfinden; eine kaputte Datei importieren und eine verständliche
   verzögern.
 - Der Chat darf sein mehrzeiliges Eingabefeld mit eigenem Verhalten behalten, wenn die
   gemeinsame Feldart es nicht abbilden kann (Begründung im Pull Request, FR-001).
-- Die Darstellung wirkt auf holzi selbst. Erweiterungen im Window Manager (wm) mit eigener
+- Die Darstellung wirkt auf HaexVault selbst. Erweiterungen im Window Manager (wm) mit eigener
   Oberfläche folgen der Farbe nur, soweit sie die Farben der Oberflächenschicht benutzen.
 - Der Nutzer legt eigene Farben als Teil der Darstellung an; es gibt keine Bibliothek
   geteilter Designs.

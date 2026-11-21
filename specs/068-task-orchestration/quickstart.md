@@ -25,7 +25,7 @@ nix develop --command node --test scripts/check-orchestration-*.ts
 Stufenwahl (SC-002, SC-003), nur Release:
 
 ```sh
-HOLZI_TEST_GGUF=<qwen3-4b.gguf> nix develop --command scripts/with-nix-host-bridge.sh \
+HAEX_TEST_GGUF=<qwen3-4b.gguf> nix develop --command scripts/with-nix-host-bridge.sh \
   cargo test --release -j 4 --manifest-path src-tauri/Cargo.toml --test orchestrator_routing_eval \
   -- --ignored --nocapture
 ```

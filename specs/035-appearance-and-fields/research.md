@@ -1,7 +1,7 @@
 # Research: Darstellung und Eingabefelder
 
 Alle Punkte sind entschieden; „NEEDS CLARIFICATION“ bleibt nicht offen. Stand der Quellen:
-holzi `main` @ `ef4998c` plus Branch `035-ui-foundation`, haex-ui @ `2dcb8bc`.
+haex-vault `main` @ `ef4998c` plus Branch `035-ui-foundation`, haex-ui @ `2dcb8bc`.
 
 ## R1 – Wohin gehört die Darstellung?
 

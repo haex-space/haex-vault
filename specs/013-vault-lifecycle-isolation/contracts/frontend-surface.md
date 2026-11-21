@@ -30,11 +30,11 @@ hides the spinner. It lives at `public/closing.html` in the repository root and 
 
 ## Errors (`useErrorString`)
 
-| Kind                        | German                                                     | English                                         |
-| --------------------------- | ---------------------------------------------------------- | ----------------------------------------------- |
-| `VaultAlreadyOpenElsewhere` | "Diese Vault ist in einer anderen Holzi-Instanz geöffnet." | "This vault is open in another Holzi instance." |
-| `VaultAlreadyActive`        | "In diesem Fenster ist bereits eine Vault geöffnet."       | "A vault is already open in this window."       |
-| `VaultClosed`               | "Die Vault wurde geschlossen."                             | "The vault was closed."                         |
+| Kind                        | German                                                          | English                                             |
+| --------------------------- | --------------------------------------------------------------- | --------------------------------------------------- |
+| `VaultAlreadyOpenElsewhere` | "Diese Vault ist in einer anderen haex-vault-Instanz geöffnet." | "This vault is open in another HaexVault instance." |
+| `VaultAlreadyActive`        | "In diesem Fenster ist bereits eine Vault geöffnet."            | "A vault is already open in this window."           |
+| `VaultClosed`               | "Die Vault wurde geschlossen."                                  | "The vault was closed."                             |
 
 Keys live under `errors.*` in `src/i18n/locales/de.json` and `en.json`. The unlock flow shows
 `VaultAlreadyOpenElsewhere`, `WrongPassphrase`, `NotFound`, storage, and compatibility failures

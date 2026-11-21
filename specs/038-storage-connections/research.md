@@ -10,8 +10,8 @@ Jede Entscheidung mit Begründung und verworfenen Alternativen. Pfade sind relat
 Signieren (AWS Signature V4 als vorsignierte Adressen) und das Lesen der XML-Antworten; die Übertragung
 macht das vorhandene `reqwest` 0.13 mit rustls und ring.
 
-**Begründung**: holzi hat keinen S3-Client. `rusty-s3` ist Sans-IO: Es erzeugt nur signierte Anfragen
-und liest Antworten, wählt also weder TLS noch Laufzeit. So bleibt es bei einer HTTP-Schicht in holzi
+**Begründung**: haex-vault hat keinen S3-Client. `rusty-s3` ist Sans-IO: Es erzeugt nur signierte Anfragen
+und liest Antworten, wählt also weder TLS noch Laufzeit. So bleibt es bei einer HTTP-Schicht in haex-vault
 (reqwest, rustls mit ring, wie in `extensions/web.rs` und den Adaptern), und Grenzen für Laufzeit und
 Größe lassen sich genauso streamend durchsetzen wie in `web.rs`. Die Kryptografie kommt aus `hmac` und
 `sha2` (RustCrypto, schon im Lock), die Zeit aus `jiff`, XML aus `instant-xml`. Es läuft auf Android
@@ -19,7 +19,7 @@ und iOS, weil nichts davon an eine Plattform gebunden ist.
 
 **Verworfen**:
 
-- `aws-sdk-s3`: eigene HTTP- und TLS-Schicht, standardmäßig aws-lc-rs (holzi lehnt aws-lc-rs ab),
+- `aws-sdk-s3`: eigene HTTP- und TLS-Schicht, standardmäßig aws-lc-rs (haex-vault lehnt aws-lc-rs ab),
   groß, eigene Laufzeitannahmen.
 - `rust-s3` (haex-vault 2.x (Legacy), 0.37): bringt eine eigene HTTP-Schicht mit; zwei HTTP-Stacks im Build.
 - `object_store`: viel Umfang (mehrere Clouds, Multipart, Retry-Logik), der hier nicht gebraucht wird.
@@ -44,7 +44,7 @@ verlangen, dass keine Erweiterung je Zugangsdaten erreicht. Der Eigentümer sitz
 läuft durch denselben Pfad wie der Papierkorb (`ItemState`, `visible`, `headers_in_scope`,
 `agent_headers`, Verweise über `references_db::visible`), also eine Regel an einer Stelle. Der Nutzer
 sieht die Einträge weiter im Passwortmanager (Z1); ändert er dort die Zugangsdaten, gilt das für die
-Verbindung. `Caller::Internal` gibt es schon für genau solche holzi-Funktionen (interne Speicherfunktionen), es
+Verbindung. `Caller::Internal` gibt es schon für genau solche haex-vault-Funktionen (interne Speicherfunktionen), es
 wird hier zum ersten Mal benutzt. Auf anderen Geräten hält Z14, weil der Sync nur zwischen Geräten mit
 gleichem Schema läuft (Migrationszahl und Trigger-Version, Spec 024 FR-029, `sync/handshake.rs`): Ein
 Gerät ohne die Regel bekommt die Einträge nicht.
@@ -64,7 +64,7 @@ Gerät ohne die Regel bekommt die Einträge nicht.
 **Entscheidung**: Zwei Migrationen, damit Z14 (PR B) für sich prüfbar bleibt: `0027_passwords_owner`
 (Spalte `owner` in `haex_passwords_item_details`) und `0028_storage_connections` mit zwei
 synchronisierten Tabellen (`haex_storage_connections`, `haex_storages`) und einer geräteeigenen
-(`storage_tests_no_sync` für das letzte Testergebnis je Speicher); `HOLZI_TRIGGER_VERSION` wird jeweils
+(`storage_tests_no_sync` für das letzte Testergebnis je Speicher); `HAEX_TRIGGER_VERSION` wird jeweils
 erhöht. Kennungen als UUID, keine UNIQUE-Constraints in synchronisierten
 Tabellen (wie `migrations_extensions.rs`). SQL in einer eigenen Datei
 `src-tauri/src/identity/migrations_storage.rs`, registriert in `migrations.rs`.
@@ -77,11 +77,11 @@ einer Verbindung an, die Verbindung muss ohne Bucket bestehen können (Spec Anna
 
 ## R4 — Bereich einer Erweiterung im Bucket
 
-**Entscheidung** (Review 2026-10-06): Präfix `holzi-ext/<vault_id>/<extension_id>/`, mit
+**Entscheidung** (Review 2026-10-06): Präfix `haex-ext/<vault_id>/<extension_id>/`, mit
 `extension_id = UUIDv5(NS_EXT, "<publicKey>:<name>")` (`extensions/ids.rs::extension_id`) und
 `vault_id = UUIDv5(NS_VAULT, hex(vault_identity.pubkey))` (Vault-Identität aus Spec 024, nicht der
 Schlüssel selbst; `NS_VAULT` neu in `extensions/ids.rs`). Eine Entwicklerversion bekommt ein eigenes Präfix
-`holzi-ext-dev/<vault_id>/<dev_extension_id>/` aus ihrer geräteeigenen `dev_extension_id`, nie das der
+`haex-ext-dev/<vault_id>/<dev_extension_id>/` aus ihrer geräteeigenen `dev_extension_id`, nie das der
 installierten Fassung. Schlüssel der Erweiterung sind relativ zum Präfix.
 
 **Begründung**: Die Kennung der Erweiterung hängt nur an Herausgeberschlüssel und Name, die der Vault an
@@ -89,7 +89,7 @@ ihrer Identität, die alle Geräte einer Vault teilen und die bei der Genesis en
 allen Geräten und über Neuinstallationen gleich (FR-010), und das Präfix ist mit höchstens 88 Bytes kurz genug
 für die 1024-Byte-Grenze von S3. Mit der Vault im Präfix teilen sich zwei Vaults auf demselben Bucket keinen
 Bereich. Das Manifest einer Entwicklerversion ist nicht signiert; es könnte Herausgeberschlüssel und Namen
-einer installierten Erweiterung nennen und so deren Objekte erreichen. Deshalb trennt holzi sie wie ihre
+einer installierten Erweiterung nennen und so deren Objekte erreichen. Deshalb trennt haex-vault sie wie ihre
 Tabellen (Spec 017, `extensions/dev.rs::conflict`). Eine Entwicklerversion sieht die Objekte der
 installierten Fassung nicht, und ihre eigenen nur auf dem Gerät, auf dem sie geladen ist.
 
@@ -114,7 +114,7 @@ verworfen (zweite Absicherung).
 **Begründung**: FR-011, SC-003. S3 kennt keine Pfade, aber Anbieter und Werkzeuge deuten `/` und `..`
 unterschiedlich; ein strenger Satz Regeln vor dem Aufruf hält die Bereiche sicher getrennt.
 
-## R6 — Dialog von holzi für Erweiterungen
+## R6 — Dialog von haex-vault für Erweiterungen
 
 **Entscheidung**: Wie `extension_dialog_confirm` (`bridge/methods.rs`, `host.open_dialog`): Der
 Bridge-Aufruf meldet `extension-storage-request {requestId, frame, kind, proposal}` und wartet
@@ -123,14 +123,14 @@ Bridge-Aufruf meldet `extension-storage-request {requestId, frame, kind, proposa
 1. Ein Vue-Dialog über dem Tab (`StorageDialog.vue`, im Rahmen wie `FrameDialog.vue`) zeigt Erweiterung,
    Vorschlag und die Wahl einer vorhandenen Verbindung und fragt nur nach Bestätigung. Er enthält **nie**
    Felder für Zugangsdaten.
-2. Braucht die Bestätigung neue Zugangsdaten (neue Verbindung oder „neue Zugangsdaten“), öffnet holzi
+2. Braucht die Bestätigung neue Zugangsdaten (neue Verbindung oder „neue Zugangsdaten“), öffnet haex-vault
    danach ein eigenes Fenster für die ganze App (`StorageCredentialsModal.vue`, an der Wurzel der App
-   eingehängt, nicht in `ExtensionFrame.vue`). Es liegt über Tableiste und Werkzeugleiste von holzi, also
+   eingehängt, nicht in `ExtensionFrame.vue`). Es liegt über Tableiste und Werkzeugleiste von haex-vault, also
    über Flächen, die der Rahmen einer Erweiterung nie erreicht, und enthält als einzige Stelle neben
    Einstellungen → Speicher (FR-001) Felder für Zugangsdaten.
 
 Beide antworten über den Command `storage_dialog_resolve(requestId, answer)`. Die Antwort mit
-Zugangsdaten geht nur vom Fenster von holzi an Rust, nie an die Erweiterung; Rust legt an, testet und
+Zugangsdaten geht nur vom Fenster von haex-vault an Rust, nie an die Erweiterung; Rust legt an, testet und
 gibt der Erweiterung nur Kennung oder Fehler. Schließen des Rahmens oder Ablauf zählt als Abbruch
 (`drop_dialogs_of`), auch wenn das Fenster für die Zugangsdaten schon offen ist; es schließt dann.
 
@@ -162,7 +162,7 @@ falsch.
 - Herunterladen: streamend gelesen, abgebrochen bei `max_response_bytes / 4 * 3` (Base64-Aufschlag, wie
   `web.rs::max_body`), sonst 7000.
 - Eine Frist (`timeout_ms`) für den ganzen Aufruf, auch beim Auflisten über mehrere Seiten.
-- Auflisten folgt den Seiten des Anbieters bis `max_rows` Objekte; gibt es mehr, antwortet holzi 7000 mit
+- Auflisten folgt den Seiten des Anbieters bis `max_rows` Objekte; gibt es mehr, antwortet haex-vault 7000 mit
   dem Hinweis, ein engeres Präfix zu nutzen (das SDK hat keine Fortsetzung).
 - Fehler beim Anbieter: fehlender Schlüssel oder Bucket 1001; Zugangsdaten abgelehnt (403, 401,
   `InvalidAccessKeyId`, `SignatureDoesNotMatch`, `ExpiredToken`) 2002 mit `details.kind =
@@ -176,10 +176,10 @@ Grenzwert.
 
 **Entscheidung** (Review 2026-10-06, Betreiber 2026-10-06): Jede Verbindung merkt sich beim Festlegen
 ihres Endpunkts dessen Adressbereich (`endpoint_scope`): `local`, wenn der Host auf Loopback oder private
-Adressen auflöst, sonst `public`. `local` ist erlaubt für einen Endpunkt, den der Nutzer in holzi
+Adressen auflöst, sonst `public`. `local` ist erlaubt für einen Endpunkt, den der Nutzer in haex-vault
 eingibt, und für den Vorschlag einer Erweiterung mit der Berechtigung `remoteStorage`/`add` für diesen
-Host (FR-009b); ohne diese Berechtigung fragt holzi (1004) oder lehnt ab (1002), bevor der Dialog
-erscheint. Vor jedem Aufruf, auch vor dem Verbindungstest, löst holzi den Host des Endpunkts selbst auf und
+Host (FR-009b); ohne diese Berechtigung fragt haex-vault (1004) oder lehnt ab (1002), bevor der Dialog
+erscheint. Vor jedem Aufruf, auch vor dem Verbindungstest, löst haex-vault den Host des Endpunkts selbst auf und
 prüft **jede** aufgelöste Adresse:
 
 - Immer abgelehnt: Link-Local (`169.254.0.0/16` samt `169.254.169.254` für Metadaten der Cloud,
@@ -198,13 +198,13 @@ für TLS (SNI, Zertifikat) und die Signatur (`Host`).
 `https` immer; `http` nur bei `endpoint_scope = local` und nie zu Link-Local; der Dialog und die
 Einstellungen kennzeichnen ihn als unverschlüsselt und lokal. Ein Vorschlag einer Erweiterung mit `http`
 auf einen Host, der nicht lokal auflöst, wird beim Aufruf abgelehnt (3001, vor dem Dialog). Ändert der
-Nutzer den Endpunkt in den Einstellungen, legt holzi `endpoint_scope` neu fest. Keine Weiterleitungen folgen
+Nutzer den Endpunkt in den Einstellungen, legt haex-vault `endpoint_scope` neu fest. Keine Weiterleitungen folgen
 (S3 antwortet mit Fehler statt Umleitung; eine Umleitung wäre ein Fehler 2002).
 
 **Begründung**: FR-017, FR-009b. Selbst betriebenes RustFS im Heimnetz ohne Zertifikat ist ein Kernfall,
 auch eingerichtet von einer Erweiterung (Betreiber 2026-10-06). Die Berechtigung `add` nennt den Host in
 der Rückfrage, der Dialog zeigt den Endpunkt als lokal; ohne beides könnte eine Erweiterung signierte
-Anfragen von holzi an Dienste im lokalen Netz schicken (SSRF). Den Metadatendienst einer Cloud-Maschine
+Anfragen von haex-vault an Dienste im lokalen Netz schicken (SSRF). Den Metadatendienst einer Cloud-Maschine
 erreicht sie nie. `extensions/web.rs` prüft aufgelöste Adressen nicht, darum die eigene Prüfung hier.
 
 **Verworfen**: Prüfung nur des eingegebenen Namens oder nur beim Speichern (bis Review 2026-10-06):
@@ -214,9 +214,9 @@ der Betreiber will, dass eine Erweiterung mit Berechtigung einen lokalen Speiche
 ## R9 — Der Verbindungstest
 
 **Entscheidung**: Schreiben, Lesen, Auflisten und Löschen eines Testobjekts
-`holzi-test/<UUID>` im Bucket; Löschen auch, wenn ein Zwischenschritt scheitert. Scheitert das Löschen
+`haex-test/<UUID>` im Bucket; Löschen auch, wenn ein Zwischenschritt scheitert. Scheitert das Löschen
 selbst (Recht fehlt, Anbieter nicht erreichbar), nennt das Ergebnis den Schlüssel des Objekts, mehr kann
-holzi nicht tun (SC-004). Ergebnis
+haex-vault nicht tun (SC-004). Ergebnis
 „bestanden“ oder ein Grund aus R7 (Zugangsdaten falsch, Endpunkt nicht erreichbar, Bucket fehlt, Recht
 fehlt). In den Einstellungen nur nach Bestätigung gespeichert; das Ergebnis landet in
 `storage_tests_no_sync`.
@@ -246,7 +246,7 @@ sameProviderAs?: backendId }`, ohne Zugangsdaten. Mit `sameProviderAs` kommen En
 - `StorageBackendInfo`: `{ id, type, name, providerName, bucket }`.
 - `S3Config` mit Zugangsdaten als veraltet markiert und entfernt im nächsten Major.
 
-holzi lehnt einen Aufruf mit `accessKeyId`, `secretAccessKey` oder `sessionToken` ab (3001), bevor ein
+haex-vault lehnt einen Aufruf mit `accessKeyId`, `secretAccessKey` oder `sessionToken` ab (3001), bevor ein
 Dialog erscheint (FR-013a), egal mit welcher SDK-Fassung.
 
-**Begründung**: Clarifications 2026-10-05 (Zugangsdaten nur in holzi; die Liste nur mit Namen).
+**Begründung**: Clarifications 2026-10-05 (Zugangsdaten nur in haex-vault; die Liste nur mit Namen).

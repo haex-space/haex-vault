@@ -1,4 +1,4 @@
-# Data Model: Erweiterungen nutzen holzis Modelle
+# Data Model: Erweiterungen nutzen haex-vaults Modelle
 
 Nur der kleinste gespeicherte Teil ist neu: Berechtigungen, eine Rangfolge und ein Grenzwert. Aufträge selbst
 werden nie gespeichert (FR-028).
@@ -35,7 +35,7 @@ werden nie gespeichert (FR-028).
 - Primärschlüssel `id`, keine UNIQUE-Bedingung (wie jede synchronisierte Tabelle: ein Konflikt hielte den Sync
   an); `id = extension_id` hält eine Zeile je Erweiterung, zwei Geräte, die das Standardmodell setzen,
   schreiben dieselbe Zeile. Die Zeile fällt weg, wenn das Modell widerrufen oder verweigert wird. Entwicklungsversionen
-  haben kein Standardmodell (wie keine Grenzwerte): es geht das zuerst freigegebene Modell, das den Schritt kann (nichts ist gewählt, worauf zurückgefallen würde); fällt es aus, fragt holzi. Die Rangfolge
+  haben kein Standardmodell (wie keine Grenzwerte): es geht das zuerst freigegebene Modell, das den Schritt kann (nichts ist gewählt, worauf zurückgefallen würde); fällt es aus, fragt haex-vault. Die Rangfolge
   (`extension_model_order`, Migration `0037`) wird nicht übernommen: `DROP TABLE` ohne Löschmarken, jedes Gerät
   löscht seine Kopie.
 
@@ -82,7 +82,7 @@ Versuch T057 (research R8): Lokale Bildmodelle sind Modelle eines OpenAI-kompati
 ### Auftrag, Schritt, Herkunft (nur in der Anfrage und im Ergebnis)
 
 Aufbau und Beispiele stehen in `contracts/job-format.md`. Sie liegen in der Anfrage der Erweiterung und im
-Ergebnis an sie; holzi hält sie nur für die Dauer des Laufs.
+Ergebnis an sie; haex-vault hält sie nur für die Dauer des Laufs.
 
 ## Zuordnung zu den Anforderungen der Spec
 

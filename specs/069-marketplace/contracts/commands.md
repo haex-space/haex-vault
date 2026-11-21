@@ -1,7 +1,7 @@
 # Contract: Tauri commands and types
 
 All commands live only in the main window's handler (R13). Types reach the frontend through `ts-rs` in
-`src/types/bindings/` (`camelCase`). Errors are `HolziError` with stable kinds (see below); the
+`src/types/bindings/` (`camelCase`). Errors are `HaexError` with stable kinds (see below); the
 UI translates them.
 
 ## List and management (settings, FR-020 to FR-029)
@@ -72,7 +72,7 @@ ends with the vault, spec 013); the pending bundle also expires 10 minutes after
   `haex_marketplaces` and to the extensions (`onVaultTablesChanged`, spec 028 live data).
 - No new event.
 
-## Error kinds (`HolziError::Marketplace { reason }`)
+## Error kinds (`HaexError::Marketplace { reason }`)
 
 The field is called `reason` because `kind` is the tag of the error enum (`{ kind: "Marketplace", reason }`).
 

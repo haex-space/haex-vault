@@ -101,7 +101,7 @@ Nach Probe oder Selbsttest. Das Frontend lädt die Modelllisten neu
 
 ```text
 name:        find_actions
-description: Search the actions holzi offers by keywords (English works best),
+description: Search the actions haex-vault offers by keywords (English works best),
              or enumerate the complete catalog page by page when query is absent.
              Matches become callable tools in the next step.
 input:       { query?: string, cursor?: string, limit?: integer }

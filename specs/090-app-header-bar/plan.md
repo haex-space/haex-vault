@@ -7,8 +7,8 @@
 ## Summary
 
 The title row of a window becomes one header bar the app fills. An app (a system app through `useWmHeader`, an
-extension through the new bridge method `extension_header_set`) hands holzi a plain description of three areas of
-controls from a small catalog; holzi draws it, sends events back, and collapses controls as the window narrows by the
+extension through the new bridge method `extension_header_set`) hands haex-vault a plain description of three areas of
+controls from a small catalog; haex-vault draws it, sends events back, and collapses controls as the window narrows by the
 order and form each control names. The tab strip and the tab-list menu leave the header, the tab model stays.
 Settings and the file browser move their first row into the header as the pilots.
 
@@ -131,7 +131,7 @@ src/components/wm/
 ├── Window.vue             # title row block → <WmHeader>; no tab strip, no tab-list menu
 ├── TabPanel.vue           # provides setHeader / registerHeaderHandler
 ├── TabBar.vue, TabListMenu.vue, NewTabMenu.vue   # DELETED if unused (R11)
-└── WindowControls.vue     # unchanged (belongs to holzi, FR-002)
+└── WindowControls.vue     # unchanged (belongs to haex-vault, FR-002)
 
 src/components/apps/SettingsApp.vue     # useWmHeader; first row removed
 src/components/settings/Toolbar.vue     # DELETED
@@ -140,7 +140,7 @@ src/components/files/Toolbar.vue        # DELETED
 src/components/files/PathBar.vue        # max-md swap removed from the one-panel use (kept for PanelBar's two-panel use)
 src/lib/files/header.ts                 # NEW  one-panel description builder
 
-src/i18n/locales/{de,en}.json           # header strings that holzi adds (overflow button, fallback labels)
+src/i18n/locales/{de,en}.json           # header strings that haex-vault adds (overflow button, fallback labels)
 
 scripts/
 ├── check-wm-header.ts, check-files-header.ts, check-extensions-header.ts   # NEW
@@ -215,7 +215,7 @@ knip run; delete the unused tab components (R11); notes in specs 015/020/040; th
 ## Complexity Tracking
 
 No constitution violations; nothing to justify. Two recorded ceilings (`ponytail:` in the code): the file browser's
-controls exist as description and as `PanelBar` (R13), and an extension's header cannot use holzi's own icons (R9, by the operator's rule).
+controls exist as description and as `PanelBar` (R13), and an extension's header cannot use haex-vault's own icons (R9, by the operator's rule).
 
 ## Post-design re-check
 

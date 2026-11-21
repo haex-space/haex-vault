@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: User description: „ich habe auf zwei geräten holzi im main checkout und laufen, aber die
+**Input**: User description: „ich habe auf zwei geräten HaexVault im main checkout und laufen, aber die
 vaults syncen nicht, weil sie angeblich nicht die gleiche version hätten“ und „ich möchte diese werte
 gerne in der föderationsübersicht sehen, damit das besser erkennbar wird, welche vault hinterher hinkt“
 (Betreiber, 2026-10-24/25). Entscheidungen des Betreibers: Jedes Gerät merkt sich die Werte, die es im
@@ -34,9 +34,9 @@ markiert.
 - **Versionsstand**: die drei Werte, die zwei Geräte beim Verbinden vergleichen und die alle
   übereinstimmen müssen, damit sie synchronisieren (Spec 024 FR-029):
   1. **Sync-Protokoll**: die Version der Sprache, in der die Geräte miteinander reden.
-  2. **Vault-Schema**: wie viele Datenbank-Migrationen von holzi dieses Gerät kennt, also wie die
+  2. **Vault-Schema**: wie viele Datenbank-Migrationen von HaexVault dieses Gerät kennt, also wie die
      Tabellen der Vault aufgebaut sind.
-  3. **Änderungsverfolgung**: die Version der Regeln, nach denen holzi Änderungen für den Sync
+  3. **Änderungsverfolgung**: die Version der Regeln, nach denen HaexVault Änderungen für den Sync
      festhält.
 - **Hinterher hinkendes Gerät**: das Gerät, dessen Wert kleiner ist als der des anderen. Es muss
   aktualisiert werden.
@@ -52,13 +52,13 @@ markiert.
 - **Spec 023** (Einstellungen): Die Anzeige sitzt in der Kategorie „Föderation“, Unteransicht
   „Geräte“, im Block „Geräte der Vault“.
 - **Spec 017** (Erweiterungs-Host): Die Versionsstände der Erweiterungen (T125, „Daten kommen teils
-  erst nach seinem Update an“) bleiben, wie sie sind; hier geht es um den Stand von holzi selbst.
+  erst nach seinem Update an“) bleiben, wie sie sind; hier geht es um den Stand von HaexVault selbst.
 
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Sehen, welches Gerät hinterherhinkt (Priority: P1)
 
-Mara hat holzi auf zwei Rechnern. Beide laufen, die Vaults synchronisieren nicht, und beim zweiten
+Mara hat HaexVault auf zwei Rechnern. Beide laufen, die Vaults synchronisieren nicht, und beim zweiten
 Rechner steht rot „Eines der Geräte muss aktualisiert werden, sonst synchronisieren sie nicht.“ Mara
 weiß nicht, welcher der beiden zu alt ist. Sie öffnet Einstellungen → Föderation → Geräte. Bei jedem
 Gerät stehen jetzt Sync-Protokoll, Vault-Schema und Änderungsverfolgung. Beim zweiten Rechner ist das
@@ -106,7 +106,7 @@ nur einem Gerät.
 
 1. **Given** eine Vault mit nur diesem Gerät, **When** die Geräteliste offen ist, **Then** stehen bei
    „Dieses Gerät“ die drei Werte, und es gibt keine Markierung.
-2. **Given** holzi wurde aktualisiert und neu gestartet, **When** die Liste geöffnet wird, **Then**
+2. **Given** HaexVault wurde aktualisiert und neu gestartet, **When** die Liste geöffnet wird, **Then**
    zeigt „Dieses Gerät“ den neuen Stand.
 
 ---
@@ -160,7 +160,7 @@ ohne Werte und mit einem Hinweis, dass der Stand noch nicht bekannt ist.
 - **FR-001**: Die Geräteliste (Spec 024 FR-033) MUSS bei jedem Gerät den Versionsstand zeigen:
   Sync-Protokoll, Vault-Schema und Änderungsverfolgung, jeweils als Zahl, jeweils mit einer Beschriftung,
   die ohne Vorwissen verständlich ist.
-- **FR-002**: Bei „Dieses Gerät“ MUSS die Liste den Stand des laufenden holzi zeigen, auch wenn die
+- **FR-002**: Bei „Dieses Gerät“ MUSS die Liste den Stand des laufenden HaexVault zeigen, auch wenn die
   Vault kein weiteres Gerät hat.
 - **FR-003**: Jeder Wert eines anderen Geräts, der vom Wert dieses Geräts abweicht, MUSS markiert sein
   und als größer oder kleiner als der eigene erkennbar sein. Die Markierung darf nicht allein von der
@@ -228,12 +228,12 @@ ohne Werte und mit einem Hinweis, dass der Stand noch nicht bekannt ist.
   Vaults, die auf einem älteren Stand weiterlaufen müssen; Entwicklungsgeräte werden gemeinsam
   aktualisiert.
 - Die Anzeige liest, was der Handshake liefert; den Wert „Sync-Protokoll“ bringt dieselbe Nachricht mit.
-  Ob die ALPN (`holzi-sync/1`) mit dem Protokoll mitzählt, entscheidet der Plan (Spec 024 research R14);
+  Ob die ALPN (`haex-sync/1`) mit dem Protokoll mitzählt, entscheidet der Plan (Spec 024 research R14);
   dort ist abzuwägen, dass ein Gerät mit anderer ALPN gar keinen Handshake erreicht und damit auch nicht
   zeigen kann, welche Werte abweichen.
 - Es gibt keine Beschriftung „aktuell“ oder „veraltet“ pro Gerät, nur pro Wert größer oder kleiner,
   weil die drei Werte unabhängig sind (siehe Randfall mit gegenläufiger Richtung).
-- Die Zahlen sind die, die holzi heute vergleicht; sie ändern sich nur durch Updates von holzi.
+- Die Zahlen sind die, die HaexVault heute vergleicht; sie ändern sich nur durch Updates von HaexVault.
 - Wie die Werte gespeichert und gelesen werden (neue Spalte, Befehl `list_vault_devices`) gehört in
   den Plan; der Vertrag `VaultDevice` in `contracts/tauri-commands.md` von Spec 024 wird dabei erweitert.
 - Eine Warnung beim Verknüpfen eines Geräts mit abweichendem Stand ist nicht Teil dieser Spec.

@@ -48,10 +48,10 @@ braucht nur Clients), `spake2` für das Verknüpfen (R11: der Code hat 128 Bit Z
   HLC-Zeitstempel und sind nie gesynct worden).
 - **Geräteschlüssel** (secp256k1) und **iroh-Schlüssel** (ed25519): in
   `device_keys_no_sync(installation_uuid PK, device_secret, device_pubkey, endpoint_secret,
-endpoint_id, created_at)`. Beim Öffnen sucht holzi die Zeile zur eigenen Installations-UUID; gibt
+endpoint_id, created_at)`. Beim Öffnen sucht haex-vault die Zeile zur eigenen Installations-UUID; gibt
   es keine, erzeugt es neue Schlüssel (FR-003, FR-006). Zeilen anderer Installationen bleiben
   unberührt: Eine Kopie ist ein vollständiges Backup (FR-006), und der Schlüssel des Quellgeräts
-  wird nie verwendet, weil holzi nur die Zeile der eigenen Installation liest.
+  wird nie verwendet, weil haex-vault nur die Zeile der eigenen Installation liest.
 - **Inhaltsschlüssel des Bereichs „Vault“**: nur als Umschläge in der synchronisierten Tabelle
   `vault_key_envelopes`; jedes Gerät entpackt seinen Umschlag selbst und hält den entpackten
   Schlüssel in `vault_content_keys_no_sync`. Eine neue Generation erreicht so nie ein entferntes
@@ -74,8 +74,8 @@ neue Generation mit dem Sync an Geräte tragen, die sie nicht bekommen sollen).
 
 ## R3 Vault-Identität aus dem Platzhalter (FR-004)
 
-**Entscheidung**: Trägt eine Vault nur den Platzhalter, berechnet holzi beim ersten Öffnen
-`sk = HKDF-SHA256(ikm = platzhalter_privkey, salt = "holzi", info = "holzi/vault-identity/v1" ||
+**Entscheidung**: Trägt eine Vault nur den Platzhalter, berechnet haex-vault beim ersten Öffnen
+`sk = HKDF-SHA256(ikm = platzhalter_privkey, salt = "haex", info = "haex/vault-identity/v1" ||
 zähler)` und erhöht `zähler`, bis `sk` ein gültiger secp256k1-Skalar ist. Jede Kopie rechnet
 dasselbe und kommt zur selben Vault-Identität. Die Migration schreibt die synchronisierte
 `vault_identity`-Zeile erst nach der HLC-Initialisierung in einer idempotenten
@@ -95,11 +95,11 @@ behalten will, Clarification FR-004).
 Es gibt keine gespeicherten Pakete und keine Laufnummern.
 
 - **Ursprungsgerät**: Jede Zelle trägt in ihrem Spalten-HLC die Knoten-ID des schreibenden Geräts;
-  die Knoten-ID ist die `vault_device_uuid` der Installation (geprüft: `HolziBootstrap` liefert
+  die Knoten-ID ist die `vault_device_uuid` der Installation (geprüft: `HaexBootstrap` liefert
   sie, `Database::open` initialisiert damit den HLC; `hlc_node_id_suffix`, `hlc_is_from_node` in
   `src/crdt/hlc.rs`). `apply` übernimmt den HLC der fremden Zelle unverändert und schaltet die
   Trigger dabei ab (geprüft, `engine.rs`), der Ursprung bleibt also über jede Weiterleitung
-  erhalten. Das Feld `ColumnChange.device_id` füllt der Scanner mit dem scannenden Gerät; holzi
+  erhalten. Das Feld `ColumnChange.device_id` füllt der Scanner mit dem scannenden Gerät; haex-vault
   verwendet es nicht und liest den Ursprung aus `hlc_timestamp`.
 - **Fortschrittsstand**: `sync_progress_no_sync(origin, max_hlc)`, je Ursprungsgerät der höchste HLC,
   bis zu dem dieses Gerät alle Änderungen des Ursprungs angewendet oder nach R5 abgelehnt hat. Für
@@ -160,7 +160,7 @@ haex-crdt) verlöre die Zellen dauerhaft, da der Fortschritt weiterliefe.
 
 ## R5 Prüfen beim Empfang (FR-013, FR-014, FR-021, FR-028)
 
-**Entscheidung**: holzi prüft vor `apply`, gruppiert nach Transaktions-HLC
+**Entscheidung**: haex-vault prüft vor `apply`, gruppiert nach Transaktions-HLC
 (`group_by_hlc_key`, geprüft). Eine Gruppe hat genau einen Ursprung. Abgelehnt wird eine ganze
 Gruppe, wenn ihr Ursprung in einer bekannten gültigen Geräteliste als entfernt steht und ihr HLC
 jenseits seiner Grenze liegt. Berührt sie eine Tabelle, die dieses Gerät nicht als CRDT-Tabelle
@@ -171,13 +171,13 @@ geprüft `database/mod.rs`). Ein Ursprung, der auf keiner Geräteliste steht, wi
 ein geprüftes eigenes Gerät ihn liefert: Das betrifft Daten aus der Zeit vor dieser Spec und Kopien
 in der Wartezeit (FR-044).
 
-Momentaufnahmen beim Verknüpfen prüft holzi auf dieselbe Weise.
+Momentaufnahmen beim Verknüpfen prüft haex-vault auf dieselbe Weise.
 
 **Begründung**: Im Bereich „Vault“ bürgt das liefernde Gerät (FR-021); die Prüfung richtet sich nur
 gegen entfernte Geräte. Die Ablehnung folgt eindeutig aus Geräteliste und HLC: Dieselbe Gruppe wird
 bei jedem Empfang wieder abgelehnt, deshalb darf der Fortschritt über sie hinausgehen, ohne dass
-holzi sich abgelehnte Gruppen merkt. Weil die Prüfung vor `apply` stattfindet und der Fortschritt
-nach dem Commit geschrieben wird, braucht holzi keine eigene `ApplyPolicy` und keinen neuen
+haex-vault sich abgelehnte Gruppen merkt. Weil die Prüfung vor `apply` stattfindet und der Fortschritt
+nach dem Commit geschrieben wird, braucht haex-vault keine eigene `ApplyPolicy` und keinen neuen
 Einstieg für `apply` in haex-crdt.
 
 **Verworfen**: eine eigene `ApplyPolicy` über einen neuen Einstieg `apply_remote_changes_with_policy`
@@ -192,14 +192,14 @@ gespeicherte Bereiche wüchsen ohne Grenze).
 
 - Ein Endpunkt je Vault-Session, erst nach dem Entsperren gebaut, mit dem gespeicherten
   iroh-Schlüssel: `Endpoint::builder(presets::Minimal)` (keine n0-DNS/pkarr-Adresssuche),
-  `.secret_key(..)`, `.alpns([b"holzi-sync/1", b"holzi-link/1"])`,
+  `.secret_key(..)`, `.alpns([b"haex-sync/1", b"haex-link/1"])`,
   `.relay_mode(RelayMode::custom(urls))` aus den Einstellungen (Standard: die öffentlichen
   iroh-Relays von n0), eigene Adresssuche über `MemoryLookup`, gefüllt aus Präsenzmeldungen (R7). `bind()`
   mit 15 s Zeitgrenze (geprüft: haex-vault 2.x macht das, weil `bind` an der DNS-Auflösung der iroh-Relays hängen kann).
 - Annehmen über `Router` mit je einem `ProtocolHandler` pro ALPN.
 - **Gegenseitiger Handshake** auf dem ersten Bi-Stream, den der Annehmende öffnet: Herausforderung
   mit 32 Byte Zufall in beide Richtungen; jede Seite signiert mit ihrem Geräteschlüssel (Schnorr)
-  `SHA-256("holzi-device-auth/v1" || len‖nonce_a || len‖nonce_b || len‖eigene endpoint_id ||
+  `SHA-256("haex-device-auth/v1" || len‖nonce_a || len‖nonce_b || len‖eigene endpoint_id ||
 len‖fremde endpoint_id || len‖vault_pubkey)`. Geprüft wird: `endpoint_id` gleich
   `Connection::remote_id()`, Signatur passt zum Geräteschlüssel, dieser steht mit genau dieser
   `endpoint_id` auf der aktuellen Geräteliste und gilt nicht als entfernt. Muster aus haex-vault 2.x
@@ -234,7 +234,7 @@ geprüft).
 **Entscheidung**:
 
 - **Postfach-Schlüssel**: `mb_sk = HKDF(inhaltsschlüssel der aktuellen Generation, info =
-"holzi/presence/v1" || tagesnummer)`, daraus `mb_pk`. Nur Geräte mit dem Inhaltsschlüssel können
+"haex/presence/v1" || tagesnummer)`, daraus `mb_pk`. Nur Geräte mit dem Inhaltsschlüssel können
   ihn bilden; nach einem Entfernen wechselt er mit der Generation (FR-026).
 - **Ereignis**: ein flüchtiges Ereignis der Art 21059 im Aufbau von NIP-59 (Siegel der Art 13 mit
   dem Geräteschlüssel signiert, außen ein zufälliger Einmalschlüssel, `p`-Tag `mb_pk`, Inhalt mit
@@ -246,9 +246,9 @@ geprüft).
   Vergangenheit gelegt. Abos setzen kein `since` (den Zeitfilter eines Abos, NIP-01); flüchtige
   Ereignisse kommen ohnehin nur live. Frisch ist eine Meldung, wenn ihr innerer `ts` höchstens
   150 s alt ist.
-- **Größen**: Eine Präsenzmeldung ist unter 1 KiB; holzi sendet nie ein Ereignis über 16 KiB und
+- **Größen**: Eine Präsenzmeldung ist unter 1 KiB; haex-vault sendet nie ein Ereignis über 16 KiB und
   verwirft größere empfangene Ereignisse, bevor es sie entschlüsselt. Höchstens 1 Meldung je Gerät und
-  Minute außer bei Adressänderungen. Ein Nostr-Relay bekommt von holzi damit nie mehr als wenige
+  Minute außer bei Adressänderungen. Ein Nostr-Relay bekommt von haex-vault damit nie mehr als wenige
   kleine Ereignisse je Gerät und Minute; seine eigenen Grenzen meldet es per NIP-11 (`limitation`).
 - **Takt**: beim Öffnen der Vault, bei jeder Adressänderung (`watch_addr`) und alle 60 s. Wer
   gerade online ist, abonniert `kind 21059, #p = mb_pk` (auch für den Vortag, um den Tageswechsel
@@ -283,7 +283,7 @@ Präsenz an jedes Gerät einzeln (mehr Ereignisse, Geräteanzahl sichtbar), mDNS
 Vault-Identität, Generation, `base_list_hash`, Einträgen (Geräteschlüssel, `endpoint_id`, Rolle,
 `vault_device_uuid`, verschlüsselter Name), entfernten Einträgen (Geräteschlüssel,
 `vault_device_uuid`, Grenze als HLC) und `issued_by`. Die Vault-Identität signiert den ganzen
-Datensatz über `SHA-256("holzi-device-list/v1" || bytes)`; die Liste liegt als ein Block in einer
+Datensatz über `SHA-256("haex-device-list/v1" || bytes)`; die Liste liegt als ein Block in einer
 Spalte, die Signatur deckt also jedes Feld. Der Name ist mit einem aus dem Inhaltsschlüssel
 abgeleiteten Schlüssel verschlüsselt (FR-005: Sync-Server und Mitglieder sehen ihn nicht).
 Gespeichert in der synchronisierten Tabelle `device_lists(list_hash PK, generation, payload,
@@ -318,7 +318,7 @@ maßgebliche Liste ignoriert oder dadurch alle Hauptgeräte entfernt.
 
 ## R9 Inhaltsschlüssel und Umschläge (FR-015)
 
-**Entscheidung**: Ein Inhaltsschlüssel sind 32 Zufallsbytes mit `key_id = SHA-256("holzi-key-id/v1"
+**Entscheidung**: Ein Inhaltsschlüssel sind 32 Zufallsbytes mit `key_id = SHA-256("haex-key-id/v1"
 || schlüssel)[0..16]`, einer Generation und dem Bereich. Jede Generation referenziert den Hash der
 gültigen Geräteliste, die sie ausstellt, und trägt eine Schnorr-Autorisierung des dort kausal
 berechtigten Hauptgeräts, also eines Geräts, das in dieser Liste als Hauptgerät eingetragen ist; so
@@ -326,9 +326,9 @@ kann kein verknüpftes Gerät eine Generation ausstellen. Ein Umschlag referenzi
 Schnorr-Autorisierung über Generation, Empfänger und verschlüsselten Inhalt. NIP-44 v2 läuft vom
 Geräteschlüssel des ausstellenden Hauptgeräts an den Geräteschlüssel des Empfängers, Inhalt
 `{bereich, generation, key_id, schlüssel}` (Format aus dem Entwurf, §5.2). `created_by` und `sender`
-allein sind keine Autorisierung. In 024 verwendet ihn holzi für zweierlei: den
+allein sind keine Autorisierung. In 024 verwendet ihn haex-vault für zweierlei: den
 Postfach-Schlüssel der Präsenz (R7) und die Namen in der Geräteliste (XChaCha20-Poly1305 mit 24 Byte
-Nonce und einem abgeleiteten Schlüssel `HKDF(inhaltsschlüssel, "holzi/device-name/v1")`, zusätzliche
+Nonce und einem abgeleiteten Schlüssel `HKDF(inhaltsschlüssel, "haex/device-name/v1")`, zusätzliche
 Daten `generation ‖ device_pubkey`). Beides nutzt die höchste Generation, die an kein entferntes
 Gerät verpackt ist (Entwurf §5.2). Änderungspakete mit diesem Schlüssel kommen mit Spec 026.
 
@@ -339,9 +339,9 @@ schützt dort nichts zusätzlich).
 ## R10 Kodierung signierter Daten
 
 **Entscheidung**: Signiert wird immer `SHA-256(domänen-tag ‖ kanonische bytes)` mit BIP-340;
-kanonische Bytes sind postcard eines festen Structs. Domänen-Tags: `holzi-device-auth/v1`,
-`holzi-device-list/v1`, `holzi-key-generation/v1`, `holzi-key-envelope/v1`,
-`holzi-admission/v1`, `holzi-link/v1`, `holzi-link-resume/v1`; die Präsenzmeldung ist ein
+kanonische Bytes sind postcard eines festen Structs. Domänen-Tags: `haex-device-auth/v1`,
+`haex-device-list/v1`, `haex-key-generation/v1`, `haex-key-envelope/v1`,
+`haex-admission/v1`, `haex-link/v1`, `haex-link-resume/v1`; die Präsenzmeldung ist ein
 Nostr-Ereignis und trägt dessen Signatur (R7). Signaturen
 je Änderung gibt es in 024 nicht (FR-021); die Zellsignatur mit Laufnummer für gemeinsame Bereiche
 legen Specs 027 und 028 fest und bauen dafür auf `column_sig_preimage*` von haex-crdt auf.
@@ -359,10 +359,10 @@ _Seit Spec 085 trägt der QR-Code nicht mehr nur den Code, sondern einen Link-Te
   oder fügt ihn ein; einen Kamera-Scanner gibt es erst mit mobilen Geräten (FR-024 verlangt
   „scannen oder eingeben“).
 - **Treffpunkt**: Das Hauptgerät abonniert, solange der Code gilt, flüchtige Ereignisse an
-  `rv_pk = HKDF(code, "holzi/link/rendezvous/v1")`. Die neue Installation veröffentlicht dort ihre
+  `rv_pk = HKDF(code, "haex/link/rendezvous/v1")`. Die neue Installation veröffentlicht dort ihre
   `endpoint_id` und Adressen (NIP-44 an `rv_pk`); das Hauptgerät verbindet sich über ALPN
-  `holzi-link/1`.
-- **Nachweis**: beide Seiten senden `HMAC-SHA256(HKDF(code, "holzi/link/proof/v1"), transkript)`
+  `haex-link/1`.
+- **Nachweis**: beide Seiten senden `HMAC-SHA256(HKDF(code, "haex/link/proof/v1"), transkript)`
   über beide `endpoint_id`s und Geräteschlüssel; erst danach zeigt das Hauptgerät den Namen und die
   Rollenfrage (FR-024). 128 Bit Zufall machen einen Offline-Angriff auf das Transkript aussichtslos.
 - **Übertragung**: nach der Bestätigung eine Momentaufnahme des Bereichs „Vault“ (alle Zellen mit
@@ -386,7 +386,7 @@ QR-Code schon bringt).
 
 ## R12 Kopie der Vault-Datei und Aufnahmeanfrage (FR-006, FR-044, FR-045)
 
-**Entscheidung**: Beim Öffnen erkennt holzi eine Kopie daran, dass `device_keys_no_sync` keine
+**Entscheidung**: Beim Öffnen erkennt haex-vault eine Kopie daran, dass `device_keys_no_sync` keine
 Zeile für die eigene Installations-UUID hat, aber Zeilen anderer. Es erzeugt eigene Schlüssel in
 einer neuen Zeile und legt über den vorhandenen `known_devices`-Ablauf eine neue
 `vault_device_uuid` an; die neue Installation schreibt damit unter einer eigenen HLC-Knoten-ID. Die
@@ -412,8 +412,8 @@ die Stelle ist als Erweiterungspunkt für 027/028 angelegt. Geheimnisse werden n
 
 ## R14 Doppelte Geräte und Versionen (FR-029, FR-030)
 
-**Entscheidung** (geändert durch Spec 059: die ALPN bleibt `holzi-sync/1`, die Versionsprüfung ist `v` in `Challenge`/`Response`, beide Seiten nennen ihren Stand vor der Entscheidung): Die Protokollversion steckt im ALPN; die Schema-Version (Migrationsstand von
-holzi und haex-crdt-Triggerversion) wird im Handshake verglichen. Bei Abweichung: kein Sync, beide
+**Entscheidung** (geändert durch Spec 059: die ALPN bleibt `haex-sync/1`, die Versionsprüfung ist `v` in `Challenge`/`Response`, beide Seiten nennen ihren Stand vor der Entscheidung): Die Protokollversion steckt im ALPN; die Schema-Version (Migrationsstand von
+haex-vault und haex-crdt-Triggerversion) wird im Handshake verglichen. Bei Abweichung: kein Sync, beide
 zeigen „ein Gerät muss aktualisiert werden“. Doppelt: zwei gleichzeitige Präsenzmeldungen oder
 Verbindungen mit demselben Geräteschlüssel, aber verschiedenen `endpoint_id`s, oder dieselbe
 `vault_device_uuid` auf zwei Geräteschlüsseln → Sync mit beiden anhalten, Meldung.
@@ -483,12 +483,12 @@ Produktionsdatei stehen Tests.
 
 ## R19 Schreiben über den CRDT-Weg von haex-crdt (Betreiber-Entscheidung)
 
-**Befund** (geprüft): holzi hat keinen allgemeinen Befehl wie `sql_execute`/`sql_execute_with_crdt`
+**Befund** (geprüft): haex-vault hat keinen allgemeinen Befehl wie `sql_execute`/`sql_execute_with_crdt`
 in haex-vault 2.x. Chat, Einstellungen, Sitzung, Provider, Modelle, Wartung und Freigaben greifen mit
 56 Aufrufen in 15 Produktionsdateien selbst über `haex_crdt::Database::with_connection` zu (dazu
 14 Integrationstestdateien), den Notausgang hinter
 dem Feature `raw-connection`, jede mit eigenem `spawn_blocking` und eigener Fehlerumwandlung. Die
-Arbeit des CRDT-Transformers macht holzi dabei von Hand: Jede INSERT- und UPDATE-Anweisung auf eine
+Arbeit des CRDT-Transformers macht haex-vault dabei von Hand: Jede INSERT- und UPDATE-Anweisung auf eine
 CRDT-Tabelle muss `haex_hlc_no_sync = current_hlc()` selbst setzen (`storage/mod.rs`, „Etappe-0
 finding #2“). Die Trigger übernehmen den HLC nur aus diesem Feld (geprüft, `crdt/trigger/mod.rs`:
 `WHEN NEW.haex_hlc_no_sync IS NOT NULL`). Fehlt es, ist die Schreibung für den Sync unsichtbar,
@@ -503,7 +503,7 @@ BLOBs) und hatte eine feste Größengrenze.
 
 **Entscheidung**:
 
-- **haex-crdt** (umgesetzt in haexmas/haex-crdt#34 bis #36, gepinnt in holzi mit voller SHA;
+- **haex-crdt** (umgesetzt in haexmas/haex-crdt#34 bis #36, gepinnt in haex-vault mit voller SHA;
   [contracts/haex-crdt-upstream.md](./contracts/haex-crdt-upstream.md)):
   `Database::write(|tx: &mut CrdtTransaction| …)` öffnet eine `IMMEDIATE`-Transaktion mit einem
   HLC; darin laufen beliebig viele `tx.execute`, `tx.query_map` und `tx.query_row`, jede Schreibung
@@ -516,8 +516,8 @@ BLOBs) und hatte eine feste Größengrenze.
   `Error::Consumer` für eigene Fehler aus dem Closure, `Error::sqlite_error()`). Die alte
   `DbConnection`-Schicht aus haex-vault 2.x mit `execute_with_crdt`, `select_with_crdt` und den Hooks
   ist entfernt; `select_with_crdt` änderte unter harten Löschungen an einem `SELECT` nichts.
-- **holzi**: Ein Modul `src-tauri/src/storage/vault_db.rs` kapselt das asynchron (`spawn_blocking`,
-  einheitliche Umwandlung in `HolziError`): `read(|conn| …)` und `write(|tx| …)`. Nach dem Commit
+- **haex-vault**: Ein Modul `src-tauri/src/storage/vault_db.rs` kapselt das asynchron (`spawn_blocking`,
+  einheitliche Umwandlung in `HaexError`): `read(|conn| …)` und `write(|tx| …)`. Nach dem Commit
   stößt `write` den Sync-Dienst an (`tokio::sync::Notify`); der fasst dicht folgende Anstöße
   zusammen und schickt verbundenen Geräten seinen Fortschrittsstand (R4).
 - Alle Zugriffe ziehen um; jedes von Hand gesetzte `haex_hlc_no_sync = current_hlc()` entfällt
@@ -526,7 +526,7 @@ BLOBs) und hatte eine feste Größengrenze.
   Begründung nur für Wartung (`PRAGMA`, `VACUUM` in `storage/maintenance.rs`) und die Tests. Der
   Sync-Dienst nutzt `scan_table_for_local_changes` und `apply_remote_changes` von `Database`.
 - Der erste Umsetzungsschritt lässt jede heutige Anweisung durch den Transformer laufen (Tests je
-  Speicher-Modul), bevor die Stellen umziehen; sqlparser muss holzis SQL verstehen.
+  Speicher-Modul), bevor die Stellen umziehen; sqlparser muss haex-vaults SQL verstehen.
 
 **Begründung**: Der Weg, den haex-crdt für CRDT-Schreibungen vorsieht, statt der eigenen Konvention;
 eine vergessene HLC-Zuweisung kann es nicht mehr geben; ein Ort für Transaktion, Größengrenze, Fehler
@@ -536,22 +536,22 @@ und Anstoß des Sync statt vieler; atomare Schreibvorgänge unabhängig vom Sync
 **Verworfen**: das damalige `execute_with_crdt` direkt (eine Anweisung je Transaktion, keine BLOBs),
 eine eigene `write`-Hülle über dem rohen Weg mit von Hand gesetztem HLC (die Konvention bliebe, die
 Größengrenze greift dort nicht), ein Commit-Beobachter in haex-crdt (behandelt das Symptom, die vielen
-Stellen blieben), ein allgemeiner SQL-Befehl für die Oberfläche wie in haex-vault 2.x (holzi schreibt
+Stellen blieben), ein allgemeiner SQL-Befehl für die Oberfläche wie in haex-vault 2.x (haex-vault schreibt
 nur aus dem Backend; ein SQL-Befehl wäre eine neue Angriffsfläche für Erweiterungen und Agenten).
 
 ## R20 Begrenztes Wachstum
 
 **Entscheidung**: Keine Tabelle wächst ohne Grenze.
 
-| Tabelle                   | Wächst mit            | Regel                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| ------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `haex_deleted_rows`       | jeder Löschung        | holzi räumt heute nie auf (geprüft: kein Aufruf von `cleanup_deleted_rows`). Neu: Löschvermerke älter als 90 Tage werden gelöscht (`RetentionPolicy::TimeBasedDays { days: 90 }`). Nennt ein `Pull` für irgendeinen Ursprung einen Stand vor dieser Frist, liefert der Sender keine Seiten, sondern `Resync`: Das veraltete Gerät schickt zuerst seine eigenen, noch nicht übertragenen Änderungen (die Gegenseite holt sie per `Pull`) und ersetzt danach seine synchronisierten Tabellen durch eine Momentaufnahme. Sonst tauchten gelöschte Einträge wieder auf. |
-| `device_lists`            | jeder Geräteänderung  | Jede Liste führt alle Entfernungen weiter (R8). Eine ältere Liste darf erst gelöscht werden, wenn keine behaltene Liste mehr in `base_list_hash` auf sie verweist; Listen gleicher Generation bleiben, bis die zusammengeführte Liste da ist. So bleibt für jede behaltene Liste der gesamte gültige Ahnenpfad erhalten.                                                                                                                                                                                                                                            |
-| `sync_progress_no_sync`   | jedem Ursprungsgerät  | eine Zeile je Ursprung, keine abgelehnten Bereiche (R5); Zeilen entfernter Geräte fallen mit ihrer Liste weg, sobald ihr Stand die Grenze erreicht hat.                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `admission_requests`      | Kopien                | Nach jeder Zusammenführung bleiben deterministisch nur die 20 kleinsten offenen Anfragen nach `(requested_at, device_pubkey)` offen; alle übrigen werden `rejected`. Nach „Aufnehmen“ oder „Ablehnen“ gelöscht; offene nach 30 Tagen gelöscht.                                                                                                                                                                                                                                                                                                                      |
-| `pending_links_no_sync`   | Verknüpfungen         | nach Abschluss gelöscht; ohne Abschluss nach 24 h, oder wenn die Nutzerin das Verknüpfen abbricht.                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `vault_key_*`             | jedem Entfernen       | je Generation 32 Byte je Gerät. Die Tabellen dürfen erst mit einem Release aktiviert werden, für das Spec 026 eine konkrete, begrenzte Aufbewahrung und den Resync veralteter Geräte definiert; bis dahin ist die Aktivierung ein Release-Gate. Damit gilt „Keine Tabelle wächst ohne Grenze“ für den aktivierten Funktionsumfang.                                                                                                                                                                                                                                  |
-| `device_presence_no_sync` | jedem Gerät der Liste | Zeile beim Entfernen des Geräts gelöscht.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Tabelle                   | Wächst mit            | Regel                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `haex_deleted_rows`       | jeder Löschung        | haex-vault räumt heute nie auf (geprüft: kein Aufruf von `cleanup_deleted_rows`). Neu: Löschvermerke älter als 90 Tage werden gelöscht (`RetentionPolicy::TimeBasedDays { days: 90 }`). Nennt ein `Pull` für irgendeinen Ursprung einen Stand vor dieser Frist, liefert der Sender keine Seiten, sondern `Resync`: Das veraltete Gerät schickt zuerst seine eigenen, noch nicht übertragenen Änderungen (die Gegenseite holt sie per `Pull`) und ersetzt danach seine synchronisierten Tabellen durch eine Momentaufnahme. Sonst tauchten gelöschte Einträge wieder auf. |
+| `device_lists`            | jeder Geräteänderung  | Jede Liste führt alle Entfernungen weiter (R8). Eine ältere Liste darf erst gelöscht werden, wenn keine behaltene Liste mehr in `base_list_hash` auf sie verweist; Listen gleicher Generation bleiben, bis die zusammengeführte Liste da ist. So bleibt für jede behaltene Liste der gesamte gültige Ahnenpfad erhalten.                                                                                                                                                                                                                                                 |
+| `sync_progress_no_sync`   | jedem Ursprungsgerät  | eine Zeile je Ursprung, keine abgelehnten Bereiche (R5); Zeilen entfernter Geräte fallen mit ihrer Liste weg, sobald ihr Stand die Grenze erreicht hat.                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `admission_requests`      | Kopien                | Nach jeder Zusammenführung bleiben deterministisch nur die 20 kleinsten offenen Anfragen nach `(requested_at, device_pubkey)` offen; alle übrigen werden `rejected`. Nach „Aufnehmen“ oder „Ablehnen“ gelöscht; offene nach 30 Tagen gelöscht.                                                                                                                                                                                                                                                                                                                           |
+| `pending_links_no_sync`   | Verknüpfungen         | nach Abschluss gelöscht; ohne Abschluss nach 24 h, oder wenn die Nutzerin das Verknüpfen abbricht.                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `vault_key_*`             | jedem Entfernen       | je Generation 32 Byte je Gerät. Die Tabellen dürfen erst mit einem Release aktiviert werden, für das Spec 026 eine konkrete, begrenzte Aufbewahrung und den Resync veralteter Geräte definiert; bis dahin ist die Aktivierung ein Release-Gate. Damit gilt „Keine Tabelle wächst ohne Grenze“ für den aktivierten Funktionsumfang.                                                                                                                                                                                                                                       |
+| `device_presence_no_sync` | jedem Gerät der Liste | Zeile beim Entfernen des Geräts gelöscht.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 Die Aufräumarbeiten laufen nach dem Öffnen im vorhandenen Wartungsablauf (`storage/maintenance.rs`)
 und nach jedem Abgleich für die Löschvermerke.

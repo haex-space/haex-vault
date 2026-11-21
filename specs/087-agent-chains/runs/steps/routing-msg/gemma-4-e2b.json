@@ -247,7 +247,7 @@
       "id": "mail_read-de-2-s",
       "result": "missed",
       "calls": [],
-      "text": "Ich kann nicht direkt wissen, was die Hausverwaltung schreibt. Möchten Sie, dass ich nach Informationen suche oder eine bestimmte Aktion in holzi durchführe?"
+      "text": "Ich kann nicht direkt wissen, was die Hausverwaltung schreibt. Möchten Sie, dass ich nach Informationen suche oder eine bestimmte Aktion in haex-vault durchführe?"
     },
     {
       "id": "mail_read-de-3-s",
@@ -265,7 +265,7 @@
       "id": "mail_reply-de-1-s",
       "result": "missed",
       "calls": [],
-      "text": "Ich kann diese Nachricht nicht direkt an Anna senden. Möchtest du, dass ich eine Nachricht in einer bestimmten Anwendung öffne oder eine Aktion in holzi ausführe?"
+      "text": "Ich kann diese Nachricht nicht direkt an Anna senden. Möchtest du, dass ich eine Nachricht in einer bestimmten Anwendung öffne oder eine Aktion in haex-vault ausführe?"
     },
     {
       "id": "mail_tidy-de-1-s",

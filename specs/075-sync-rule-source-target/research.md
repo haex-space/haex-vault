@@ -72,7 +72,7 @@ The `UPDATE`s use `CASE … ELSE side END`, so they never touch a value they do 
 
 - `RENAME COLUMN` keeps every row and the `PRIMARY KEY`s and foreign keys; no table is rebuilt.
 - The tables are `_no_sync` (ADR 0018), so haex-crdt neither tracks nor syncs them and
-  `HOLZI_TRIGGER_VERSION` stays, as for `0046_sync_rules_decrypt`, which also uses `ALTER TABLE`.
+  `HAEX_TRIGGER_VERSION` stays, as for `0046_sync_rules_decrypt`, which also uses `ALTER TABLE`.
 - Without the value `UPDATE`s, `parse::<SyncRuleSide>` in `store.rs` and `run_log.rs` returns `None` for `a` and `b`,
   and the callers drop those rows silently: pending deletions and log items would vanish. The migration test asserts
   that they survive.

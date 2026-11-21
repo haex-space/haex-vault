@@ -93,7 +93,7 @@ Auswahlfeld prüfen.
    schließt der Nutzer ihre letzte Instanz, verschwindet sie wieder.
 3. **Given** eine App hat genau eine Instanz, in einem anderen Arbeitsbereich und in einem
    minimierten Fenster hinter einem anderen Tab, **When** der Nutzer ihren Dock-Eintrag anklickt,
-   **Then** wechselt holzi in diesen Arbeitsbereich, holt das Fenster aus der Minimierung, macht den
+   **Then** wechselt HaexVault in diesen Arbeitsbereich, holt das Fenster aus der Minimierung, macht den
    Tab aktiv und fokussiert das Fenster; es entsteht keine neue Instanz.
 4. **Given** eine App hat mehrere Instanzen, **When** der Nutzer ihren Dock-Eintrag anklickt,
    **Then** öffnet sich ein Auswahlfeld mit allen Instanzen, nach Arbeitsbereich gruppiert, und dem
@@ -165,7 +165,7 @@ die Reihenfolge ändern und „Fenster“ entfernen; versuchen, den Launcher zu 
    verschwindet er aus dem Dock; über den Launcher erreicht der Nutzer die Einstellungen „Dock“ und
    kann ihn dort wieder hinzufügen.
 5. **Given** der Launcher-Eintrag, **When** der Nutzer ihn im Dock oder in den Einstellungen
-   entfernen will, **Then** bietet holzi diese Möglichkeit nicht an.
+   entfernen will, **Then** bietet HaexVault diese Möglichkeit nicht an.
 
 ---
 
@@ -204,22 +204,22 @@ Einträge anheften als in einen Bogen passen, einen Eintrag aktivieren, per Tast
 Als Nutzer auf dem Telefon oder in einem schmalen Fenster habe ich ein Dock, das dort gut bedienbar
 ist, unabhängig davon, wo ich es am Desktop platziert habe.
 
-**Why this priority**: holzi läuft auf Android (Spec 043); ein seitliches Dock wäre dort unbrauchbar.
+**Why this priority**: HaexVault läuft auf Android (Spec 043); ein seitliches Dock wäre dort unbrauchbar.
 
 **Independent Test**: Mit Stil „Leiste, links“ und mit Stil „Rad, oben links“ das Fenster unter die
 Kompakt-Schwelle verkleinern und zurück; auf dem Telefon per Touch bedienen.
 
 **Acceptance Scenarios**:
 
-1. **Given** Stil „Leiste“ mit beliebiger Platzierung, **When** holzi in den Kompaktmodus wechselt,
+1. **Given** Stil „Leiste“ mit beliebiger Platzierung, **When** HaexVault in den Kompaktmodus wechselt,
    **Then** steht die Leiste unten mittig und reserviert Platz; passen nicht alle Einträge hinein,
    lässt sie sich seitlich wischen.
-2. **Given** Stil „Rad“ mit Ausrichtung „Anfang“, **When** holzi in den Kompaktmodus wechselt,
+2. **Given** Stil „Rad“ mit Ausrichtung „Anfang“, **When** HaexVault in den Kompaktmodus wechselt,
    **Then** steht das Rad unten links; bei jeder anderen Ausrichtung unten rechts.
-3. **Given** der Kompaktmodus, **When** holzi ihn wieder verlässt, **Then** gilt wieder die gewählte
+3. **Given** der Kompaktmodus, **When** HaexVault ihn wieder verlässt, **Then** gilt wieder die gewählte
    Platzierung, ohne dass der Nutzer etwas einstellen muss.
 4. **Given** ein Fenster knapp oberhalb der Kompakt-Schwelle und eine Leiste links mit Modus „Platz
-   reservieren“, **When** das Dock Platz beansprucht, **Then** wechselt holzi deswegen nicht in den
+   reservieren“, **When** das Dock Platz beansprucht, **Then** wechselt HaexVault deswegen nicht in den
    Kompaktmodus.
 5. **Given** ein Touch-Gerät, **When** der Nutzer einen Dock-Eintrag lange drückt, **Then** öffnet
    sich das Kontextmenü.
@@ -241,7 +241,7 @@ Kompakt-Schwelle verkleinern und zurück; auf dem Telefon per Touch bedienen.
   „läuft“.
 - Der Arbeitsbereich einer Instanz wird geschlossen, während das Auswahlfeld offen ist: Das Auswahlfeld
   zeigt nur Instanzen, die es noch gibt; ist keine mehr übrig, schließt es sich.
-- holzi wechselt zwischen Kompakt- und Normalmodus, während das Rad aufgefächert oder ein Auswahlfeld
+- HaexVault wechselt zwischen Kompakt- und Normalmodus, während das Rad aufgefächert oder ein Auswahlfeld
   offen ist: Beides schließt sich.
 - Zwei Geräte ändern die Reihenfolge gleichzeitig: Nach der Synchronisierung gilt die zuletzt
   geschriebene Reihenfolge vollständig; es entsteht keine Mischung.
@@ -254,7 +254,7 @@ Kompakt-Schwelle verkleinern und zurück; auf dem Telefon per Touch bedienen.
 
 **Inhalt und Aufbau**
 
-- **FR-001**: holzi MUSS im Arbeitsbereich ein Dock anzeigen, das die drei bisherigen schwebenden
+- **FR-001**: HaexVault MUSS im Arbeitsbereich ein Dock anzeigen, das die drei bisherigen schwebenden
   Schaltflächen für Launcher, Fensterübersicht und Arbeitsbereichs-Übersicht ersetzt.
 - **FR-002**: Das Dock MUSS eine geordnete Liste von Einträgen zeigen. Ein Eintrag ist entweder ein
   Steuer-Eintrag (Launcher, Fensterübersicht, Arbeitsbereichs-Übersicht) oder eine angeheftete App.
@@ -339,7 +339,7 @@ Kompakt-Schwelle verkleinern und zurück; auf dem Telefon per Touch bedienen.
   der gewählten Platzierung und dem gewählten Modus.
 - **FR-032**: Im Kompaktmodus MUSS das Rad unten links stehen, wenn die Ausrichtung „Anfang“ ist, sonst
   unten rechts.
-- **FR-033**: Ob holzi im Kompaktmodus ist, MUSS sich nach der Größe des gesamten App-Fensters richten,
+- **FR-033**: Ob HaexVault im Kompaktmodus ist, MUSS sich nach der Größe des gesamten App-Fensters richten,
   nicht nach der Fläche, die das Dock übrig lässt.
 - **FR-034**: Beim Wechsel zwischen Kompakt- und Normalmodus MÜSSEN ein aufgefächertes Rad und ein
   offenes Auswahlfeld schließen; die gespeicherte Platzierung DARF sich dabei NICHT ändern.
@@ -413,5 +413,5 @@ Kompakt-Schwelle verkleinern und zurück; auf dem Telefon per Touch bedienen.
 - Instanzen im Dock-Auswahlfeld tragen den Titel ihres Tabs, wie in der Tableiste.
 - Größe der Dock-Einträge, Animationen und Abstände folgen dem bestehenden Erscheinungsbild; eine eigene
   Einstellung für die Größe des Docks ist nicht vorgesehen.
-- holzi hat noch keine Nutzer; die bisherigen drei Schaltflächen entfallen ersatzlos, ohne
+- HaexVault hat noch keine Nutzer; die bisherigen drei Schaltflächen entfallen ersatzlos, ohne
   Übergangsoption.

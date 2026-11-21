@@ -60,7 +60,7 @@ button did (helpers offer `click`, no key-based submit). A call that closes the 
 ## R3 Tools: from the dev shell, checked before anything starts
 
 **Decision**: `tauri-driver`, `WebKitWebDriver` and `xvfb-run` come from the Nix dev shell through the
-atoms molecules (haexmas/atoms#32, merged as `d5c48d0eb6662da84086bf69a3ca041a494e2b26`). holzi's pin of
+atoms molecules (haexmas/atoms#32, merged as `d5c48d0eb6662da84086bf69a3ca041a494e2b26`). haex-vault's pin of
 the atoms repository is still the older revision and has to be moved, with `spaex install`, before the
 tools exist in the shell (Stage 0 of the plan). The webview library itself stays the host's.
 
@@ -86,7 +86,7 @@ change: its libraries would be found ahead of the host's through `LD_LIBRARY_PAT
 
 **Decision**: Without options the suite runs `pnpm tauri build --debug --no-bundle` (default features,
 the profile a developer already builds, with the interface embedded) and tests
-`<target>/debug/holzi`, where `<target>` is `CARGO_TARGET_DIR` if set, else `src-tauri/target`. It never
+`<target>/debug/haex`, where `<target>` is `CARGO_TARGET_DIR` if set, else `src-tauri/target`. It never
 builds a release profile itself. `--app <path>` skips the build and tests that binary (FR-004, clarified
 2026-09-21).
 
@@ -165,14 +165,14 @@ setting is ignored (E1).
 ## R8 Identifying and cleaning up exactly the processes a run started
 
 **Decision**: Every process the suite starts carries an environment marker,
-`HOLZI_E2E_RUN=<runner pid>:<runner start time>:<random>`. The environment is inherited by everything
+`HAEX_E2E_RUN=<runner pid>:<runner start time>:<random>`. The environment is inherited by everything
 below it: the spike's isolation variables reached the application through `tauri-driver` and the webview
 driver the same way. That the relaunched application inherits it too is expected (a restart starts the
 same binary without clearing the environment) and is the first thing the relaunch scenario checks.
 
 - Identify: scan `/proc/<pid>/environ` for the marker (same user only). A run's processes are those with
   its own marker. The application is the marked process whose `/proc/<pid>/exe` is the binary under test.
-  No name, path or command-line match is used on its own, so a maintainer's Holzi, even the same binary,
+  No name, path or command-line match is used on its own, so a maintainer's HaexVault, even the same binary,
   is never matched (FR-008).
 - Start: processes with a marker whose owner (pid and start time) is gone are leftovers of a killed run.
   They are stopped and reported before the new run starts (FR-009).
@@ -333,7 +333,7 @@ User Story 6 is separable by the spec.
   credential is committed even as a fixture.
 - No local absolute paths: every path is derived at run time.
 - Pins: `tauri-driver` is pinned by version and hash in the atoms molecule; the atoms revision is a full
-  commit hash in holzi's manifest.
+  commit hash in haex-vault's manifest.
 - Graphify consulted before naming new artifacts (R9); no candidate to extend.
 
 ## Not researched, left to tasks

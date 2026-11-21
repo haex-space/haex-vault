@@ -11,7 +11,7 @@ Das Bild eines Eintrags im Dateibrowser kommt heute aus einer festen Zuordnung i
 Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](./research.md)):
 
 - **Regel für Mitgeliefertes** (R1, FR-017): nur permissive Lizenz, Drittquellen benannt, kein Copyleft. Danach bleiben **Lucide** (Standard und Rückfall, kein Paket: die Iconify-Symbole der App), **Phosphor** (MIT, kuratiertes Paket mit rund 35 Dateitypen, beim Bauen für hell und dunkel gefärbt) und das **Material Icon Theme** (MIT, Apache-2.0-Teile, vollständig; das Restrisiko der darin enthaltenen Logos hat der Betreiber angenommen, die Lizenzseite sagt, dass Marken ihren Inhabern gehören). Adwaita und vscode-icons sind vom Nutzer importierbar, aber nicht mitgeliefert.
-- **Ein Format für alles** (R6, R7): ein Paket ist ein ZIP mit dem Manifest im Format der Icon-Themes von VS Code, den Bildern und einer `LICENSE`, ergänzt um den Block `x-holzi` (Rollen, Herkunft). Die mitgelieferten Pakete entstehen aus eingecheckten Quellverzeichnissen (jede Änderung im Diff sichtbar), werden vom selben Rust-Code wie der Import gepackt, liegen in `src-tauri/icon-sets/` und sind mit `include_bytes!` eingebunden (kein Resource-Resolver, derselbe Weg auf Android, nichts im JS-Bundle).
+- **Ein Format für alles** (R6, R7): ein Paket ist ein ZIP mit dem Manifest im Format der Icon-Themes von VS Code, den Bildern und einer `LICENSE`, ergänzt um den Block `x-haex` (Rollen, Herkunft). Die mitgelieferten Pakete entstehen aus eingecheckten Quellverzeichnissen (jede Änderung im Diff sichtbar), werden vom selben Rust-Code wie der Import gepackt, liegen in `src-tauri/icon-sets/` und sind mit `include_bytes!` eingebunden (kein Resource-Resolver, derselbe Weg auf Android, nichts im JS-Bundle).
 - **Auflösung nur in Rust** (R5, R7, R8): Befehl `files_icons_resolve` liefert je Eintrag ein fertiges Bild (`id`, `mime`) oder ein Rückfall-Symbol; `files_icon_image` liefert die Bytes. Rolle und Reihenfolge (Zustand, Name, Endung, Rolle, Vorgabe des Themes, Standard-Set) stehen in einem Modul. Das Frontend sammelt die Anfragen der sichtbaren Zeilen und hält Antworten und `blob:`-URLs in einem begrenzten Speicher.
 - **Eine Bereinigung** (R9, R10): `icons/svg.rs` auf `quick-xml` mit Erlaubnisliste; Pixelbilder über `image` mit Limits. Sie läuft beim Import und, idempotent, beim Ausliefern; ein per Sync angekommenes Paket wird beim ersten Öffnen auf Aufbau, Limits und SHA-256 geprüft und gilt sonst als beschädigt (Rückfall Lucide).
 - **Atomar und synchronisiert** (R3, R4): ein eigenes Set ist eine Zeile in `haex_file_icon_sets` mit dem Paket als BLOB (Migration `0036`); die Wahl ist die Vault-Preference `files.iconSet`.
@@ -103,7 +103,7 @@ src-tauri/
 ├── src/files/icons/
 │   ├── mod.rs                    # NEU: Typen (IconQuery, IconAnswer), Rückfall-Tabelle
 │   ├── role.rs                   # NEU: Eintrag -> Rolle (viewer_kind, no_access, EncryptedInfo)
-│   ├── manifest.rs               # NEU: VS-Code-Manifest lesen, x-holzi, Tabellen bauen
+│   ├── manifest.rs               # NEU: VS-Code-Manifest lesen, x-haex, Tabellen bauen
 │   ├── resolve.rs                # NEU: Reihenfolge Zustand/Name/Endung/Rolle/Vorgabe/Standard
 │   ├── svg.rs                    # NEU: Bereinigung (quick-xml, Erlaubnisliste)
 │   ├── raster.rs                 # NEU: PNG/WebP prüfen (image, Limits)
@@ -115,7 +115,7 @@ src-tauri/
 ├── src/identity/
 │   ├── migrations_icon_sets.rs   # NEU: SQL, SYNCED_TABLES
 │   ├── migrations_icon_sets_tests.rs
-│   └── migrations.rs             # Eintragung 0036, HOLZI_TRIGGER_VERSION erhöhen
+│   └── migrations.rs             # Eintragung 0036, HAEX_TRIGGER_VERSION erhöhen
 ├── src/storage/preferences_commands.rs   # validate_value: files.iconSet
 ├── src/vault_events.rs           # Tabellenname haex_file_icon_sets
 ├── src/files/mod.rs              # pub mod icons

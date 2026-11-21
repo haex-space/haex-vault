@@ -11,7 +11,7 @@ weil `identity/migrations.rs` schon über 500 Zeilen steht), ist CRDT-synchronis
 den Sync an; Eindeutigkeit über abgeleitete Kennungen, wie in 034 R2) und wird beim
 endgültigen Löschen eines Eintrags oder Passkeys **ausdrücklich zuerst** gelöscht
 (`trash::purge_item`; der Sync wendet entfernte Löschungen ohne Fremdschlüssel an).
-`HOLZI_TRIGGER_VERSION` 15 → 16 (wie bei 0022 und 0023, damit der CRDT-Trigger der neuen
+`HAEX_TRIGGER_VERSION` 15 → 16 (wie bei 0022 und 0023, damit der CRDT-Trigger der neuen
 Tabelle angelegt wird); eine Zeile im Versionsverlauf der Konstante.
 
 ## Neue Tabelle
@@ -50,7 +50,7 @@ Die Zahl der Verweise auf einen Eintrag ist abgeleitet (R12), nicht gespeichert.
 
 - `haex_passwords_passkeys`: `item_id` bleibt nullbar (alte Daten); ein Passkey ohne Eintrag
   zählt für alle Aufrufer außer dem Nutzer als nicht vorhanden (Spec, Randfall) und wird in
-  der Oberfläche nicht angezeigt. holzi legt keinen an; der Import legt immer einen Eintrag an
+  der Oberfläche nicht angezeigt. haex-vault legt keinen an; der Import legt immer einen Eintrag an
   (034 FR-023).
 - `trash::purge_item` löscht zusätzlich `passkey_links` (als Quelle und als Ziel) **vor** den
   Passkeys.

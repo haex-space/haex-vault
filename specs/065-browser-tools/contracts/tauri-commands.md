@@ -30,7 +30,7 @@
 | `agent-browser-sessions-changed` | –                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 Die Rückfragen erscheinen als Dialog im Fenster (wie der Aufrufdialog aus 021 PR C), eine nach der
-anderen; holzi kommt nach vorn oder meldet sich per Systembenachrichtigung.
+anderen; haex-vault kommt nach vorn oder meldet sich per Systembenachrichtigung.
 
 Bei `kind = "fill"` enthält `entries` für den Dialog nur opaque `entryId`-Werte und Titel. Der
 Nutzer wählt eine ID; nur diese ID darf mit `agent_browser_prompt_answer` zurückkommen. Geheimnis,
@@ -52,6 +52,6 @@ Benutzername und Feldwerte werden nie an das Frontend übergeben.
 | `settings.agentBrowser.dns.set`                                       | `guardrails` | `write`       | nein          |
 
 Neuer Bereich `browser` in `src/lib/actions/scopes.ts` mit lokalisiertem Namen. Er gehört nicht zur
-Gruppe „holzi bedienen“ (`grants::OPERATE_SCOPES`), sondern zur Rechtegruppe `browser`.
+Gruppe „haex-vault bedienen“ (`grants::OPERATE_SCOPES`), sondern zur Rechtegruppe `browser`.
 `scripts/check-agent-actions.ts` prüft: alle `browser.*` sind `runner: 'native'`, ändernde und
 zerstörende haben `confirmsItself`; `settings.agentBrowser.*` liegen im Bereich `guardrails`.

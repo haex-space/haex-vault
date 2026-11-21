@@ -125,7 +125,7 @@ answer (FR-004–FR-012).
 - [x] T040 Let `find_actions` find `wm.apps.list` for „Erweiterungen“ (research R15): name the extensions in its description and titles, match words of five or more letters as prefixes in `search_score` (`offer.rs`), make the empty-result hint say it is about actions, not data; tests in `offer_tests.rs`, eval sentence `read-extensions-de-1`, `pnpm export:eval-tools`
 - [x] T041 Put `wm.apps.list` back into `CORE_AGENT_TOOLS` (research R16): first offer at most 11 tools (`check-agent-actions.ts`, `eval/runner_tests.rs`), `MAX_ACTION_OFFER` 16, `pnpm export:eval-tools`
 - [x] T042 Keep ids out of the agent's replies (research R17): the tool instruction in `prompt.rs` says to name things by their title and never show ids; `wm.apps.list` returns an extension's manifest `description` (`AppDefinition.description`, `extensionApps`); tests in `prompt_tests.rs` and `check-extensions-apps.ts`
-- [x] T043 Limit `run_command`'s description to commands the user asks for on the device, not holzi's apps, extensions or their data, and never an invented command (research R18); test in `cli_tests.rs`
+- [x] T043 Limit `run_command`'s description to commands the user asks for on the device, not haex-vault's apps, extensions or their data, and never an invented command (research R18); test in `cli_tests.rs`
 
 ---
 

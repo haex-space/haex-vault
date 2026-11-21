@@ -327,7 +327,7 @@
           "ending": "ran"
         }
       ],
-      "text": "holzi has no action for booking a restaurant table, and none of the installed apps (Einstellungen, Chat, Dateien, Passwörter, Kontakte, haex-mail) does that. I can look up a restaurant's contact details in Kontakte, or search the web for a restaurant that takes online reservations. Which would you l"
+      "text": "haex-vault has no action for booking a restaurant table, and none of the installed apps (Einstellungen, Chat, Dateien, Passwörter, Kontakte, haex-mail) does that. I can look up a restaurant's contact details in Kontakte, or search the web for a restaurant that takes online reservations. Which would you l"
     },
     {
       "id": "no_tool-de-2",
@@ -346,7 +346,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich kann das Licht im Wohnzimmer leider nicht ausschalten: In holzi gibt es keine Smart-Home- oder Lichtsteuerung, und es ist auch keine passende Erweiterung installiert. Installiert sind nur Einstellungen, Chat, Dateien, Passwörter, Kontakte und haex-mail."
+      "text": "Ich kann das Licht im Wohnzimmer leider nicht ausschalten: In haex-vault gibt es keine Smart-Home- oder Lichtsteuerung, und es ist auch keine passende Erweiterung installiert. Installiert sind nur Einstellungen, Chat, Dateien, Passwörter, Kontakte und haex-mail."
     },
     {
       "id": "no_tool-en-3",

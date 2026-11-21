@@ -239,7 +239,7 @@
       "id": "mail_reply-de-2",
       "result": "missed",
       "calls": [],
-      "text": "Es gibt keine Funktion, die eine E-Mail antworten kann. Ich kann keine Tools aufrufen, um eine E-Mail zu antworten. Wenn du eine E-Mail antworten möchtest, kannst du sie in Holzi erstellen und dann eine Antwort hinzufügen."
+      "text": "Es gibt keine Funktion, die eine E-Mail antworten kann. Ich kann keine Tools aufrufen, um eine E-Mail zu antworten. Wenn du eine E-Mail antworten möchtest, kannst du sie in HaexVault erstellen und dann eine Antwort hinzufügen."
     },
     {
       "id": "mail_tidy-de-1",
@@ -273,7 +273,7 @@
       "id": "mail_tidy-de-3",
       "result": "missed",
       "calls": [],
-      "text": "Es kann nicht geprüft werden, ob eine Mail von der Sparkasse stammt, da dies keine direkte Funktion von holzi umfasst. Bitte geben Sie weitere Details oder verwenden Sie eine andere Methode, um die Mails zu markieren."
+      "text": "Es kann nicht geprüft werden, ob eine Mail von der Sparkasse stammt, da dies keine direkte Funktion von haex-vault umfasst. Bitte geben Sie weitere Details oder verwenden Sie eine andere Methode, um die Mails zu markieren."
     },
     {
       "id": "mail_tidy-de-4",
@@ -340,7 +340,7 @@
       "id": "file-de-1",
       "result": "missed",
       "calls": [],
-      "text": "Es ist nicht möglich, die Position der Steuererklärung in holzi zu finden. Bitte geben Sie weitere Informationen oder verwenden Sie die entsprechenden Tools, um die Steuererklärung zu finden."
+      "text": "Es ist nicht möglich, die Position der Steuererklärung in haex-vault zu finden. Bitte geben Sie weitere Informationen oder verwenden Sie die entsprechenden Tools, um die Steuererklärung zu finden."
     },
     {
       "id": "file-de-2",
@@ -519,7 +519,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Der Eintrag für \"Netflix\" wurde gefunden. Der Titel ist \"Netflix\", die Tags sind \"Streaming\", und der Ordner ist \"Privat\". Der Eintrag hat keinen One-Time-Code. Um den Eintrag zu öffnen, können Sie die Anwendung \"Holzi\" öffnen und den Ordner \"Privat\" aufrufen, um den Eintrag zu sehen."
+      "text": "Der Eintrag für \"Netflix\" wurde gefunden. Der Titel ist \"Netflix\", die Tags sind \"Streaming\", und der Ordner ist \"Privat\". Der Eintrag hat keinen One-Time-Code. Um den Eintrag zu öffnen, können Sie die Anwendung \"HaexVault\" öffnen und den Ordner \"Privat\" aufrufen, um den Eintrag zu sehen."
     },
     {
       "id": "file-de-1-s",
@@ -583,7 +583,7 @@
           "ending": "ran"
         }
       ],
-      "text": "The action \"What did Tom write?\" does not match any available actions in holzi. Try different keywords, such as in English, to find the appropriate action. If no match is found, let the user know that there is no action available for this query."
+      "text": "The action \"What did Tom write?\" does not match any available actions in haex-vault. Try different keywords, such as in English, to find the appropriate action. If no match is found, let the user know that there is no action available for this query."
     },
     {
       "id": "mail_read-en-3",

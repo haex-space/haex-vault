@@ -185,7 +185,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Dafür hat holzi leider keine Funktion: Ich habe keine Erinnerungs-, Timer- oder Kalenderfunktion gefunden, und unter den installierten Apps (Einstellungen, Chat, Dateien, Passwörter, Kontakte, haex-mail) gibt es auch keine passende. Deshalb kann ich dich nicht in einer Stunde an die Wäsche erinnern."
+      "text": "Dafür hat haex-vault leider keine Funktion: Ich habe keine Erinnerungs-, Timer- oder Kalenderfunktion gefunden, und unter den installierten Apps (Einstellungen, Chat, Dateien, Passwörter, Kontakte, haex-mail) gibt es auch keine passende. Deshalb kann ich dich nicht in einer Stunde an die Wäsche erinnern."
     },
     {
       "id": "no_tool-de-3",
@@ -211,7 +211,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Das kann ich leider nicht erledigen: In holzi gibt es keine Kalender-App und keine Aktion, mit der ich einen Termin eintragen könnte. Installiert sind nur Einstellungen, Chat, Dateien, Passwörter, Kontakte und haex-mail. Du kannst den Zahnarzttermin morgen um 10:00 Uhr also nur in einer anderen Kale"
+      "text": "Das kann ich leider nicht erledigen: In haex-vault gibt es keine Kalender-App und keine Aktion, mit der ich einen Termin eintragen könnte. Installiert sind nur Einstellungen, Chat, Dateien, Passwörter, Kontakte und haex-mail. Du kannst den Zahnarzttermin morgen um 10:00 Uhr also nur in einer anderen Kale"
     },
     {
       "id": "no_tool-de-4",
@@ -270,7 +270,7 @@
           "ending": "ran"
         }
       ],
-      "text": "holzi has no alarm or timer feature, so I can't set an alarm for you. Your device's clock app or a phone timer for 15 minutes (around 09:56) will do it."
+      "text": "haex-vault has no alarm or timer feature, so I can't set an alarm for you. Your device's clock app or a phone timer for 15 minutes (around 09:56) will do it."
     },
     {
       "id": "no_tool-en-2",
@@ -296,7 +296,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I can't set a reminder: holzi has no reminder, timer, calendar or task action, and none of the installed apps (Einstellungen, Chat, Dateien, Passwörter, Kontakte, haex-mail) handles reminders. It's now 09:41, so you'd want to be reminded around 10:41 about the laundry. I can do something else instea"
+      "text": "I can't set a reminder: haex-vault has no reminder, timer, calendar or task action, and none of the installed apps (Einstellungen, Chat, Dateien, Passwörter, Kontakte, haex-mail) handles reminders. It's now 09:41, so you'd want to be reminded around 10:41 about the laundry. I can do something else instea"
     },
     {
       "id": "no_tool-en-3",
@@ -322,7 +322,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I can't add the dentist appointment, because holzi has no calendar app or calendar action. The installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail, and none of them manages calendar events. I can open haex-mail or another app for you if you want to work on it there."
+      "text": "I can't add the dentist appointment, because haex-vault has no calendar app or calendar action. The installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail, and none of them manages calendar events. I can open haex-mail or another app for you if you want to work on it there."
     },
     {
       "id": "no_tool-en-4",
@@ -350,7 +350,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "I couldn't find a shopping list in holzi. Where should I put \"milk\"?",
+            "question": "I couldn't find a shopping list in haex-vault. Where should I put \"milk\"?",
             "options": [
               "Look for an existing shopping list file in Files",
               "Start a new chat conversation with the note \"milk\"",
@@ -361,7 +361,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I couldn't find a shopping list in holzi. Where should I put \"milk\"?"
+      "text": "I couldn't find a shopping list in haex-vault. Where should I put \"milk\"?"
     },
     {
       "id": "no_tool-en-1-s",
@@ -387,7 +387,7 @@
           "ending": "ran"
         }
       ],
-      "text": "holzi has no alarm, timer or reminder feature, so I can't set one for you. Its installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail. If you set a timer on your phone or another device for 15 minutes, it would go off at about 09:56."
+      "text": "haex-vault has no alarm, timer or reminder feature, so I can't set one for you. Its installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail. If you set a timer on your phone or another device for 15 minutes, it would go off at about 09:56."
     }
   ],
   "requests": [

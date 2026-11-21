@@ -1,4 +1,4 @@
-# Holzi — Founding Design
+# HaexVault — Founding Design
 
 **Status**: Draft. Founding design captured 2026-09-04.
 
@@ -7,9 +7,9 @@
 - [`docs/plans/2026-09-04-v1-scope-design.md`](../plans/2026-09-04-v1-scope-design.md). That document draws the v1 scope line and revises the identity/pairing model, the storage layer (introducing `haex-crdt`), and the mobile availability model. Where the two documents disagree for v1, the plans document wins. **§4 of that plan carries a 2026-09-06 revision that fully supersedes §2's Identity model in this founding doc** (Master key + master-signed device attestations → per-SQLite-instance keypairs stored inside the encrypted database; paper-seed dropped; recovery via surviving synced instance or `.db` backup).
 - [`specs/001-frontend-onboarding/spec.md`](../../specs/001-frontend-onboarding/spec.md). First speckit spec. Refines §2.2 "Device equals relay equals Tauri application" to "the _active_ SQLite instance equals the running Nostr relay endpoint equals the running iroh peer" — the Tauri application is a container that may hold multiple `.db` files on disk with exactly one active at a time. Rationale in [`specs/001-frontend-onboarding/research.md → Storage-file model`](../../specs/001-frontend-onboarding/research.md).
 
-**What holzi is**: a portable, isolated personal-agent app. Runs as a Tauri application on any device the operator owns. All LLM credentials, model choice, and history live inside the app. LLM interactions happen inside holzi; the host system's LLM configuration (if any) is unrelated. External access to holzi is only via MCP.
+**What haex-vault is**: a portable, isolated personal-agent app. Runs as a Tauri application on any device the operator owns. All LLM credentials, model choice, and history live inside the app. LLM interactions happen inside haex-vault; the host system's LLM configuration (if any) is unrelated. External access to haex-vault is only via MCP.
 
-**Origin**: This design emerged from a brainstorming session that briefly considered building the same feature set inside haex-hive. The scope shift (from haex-hive's harness-configurator role to a full agent runtime with signaling and transport planes) was too large, so holzi lives as its own project. haex-hive stays as it is (harness plane per its Scope Realignment). Where useful, holzi may consume haex-hive-distributed configuration for the harness that runs inside it, but that is a downstream integration question, not a coupling.
+**Origin**: This design emerged from a brainstorming session that briefly considered building the same feature set inside haex-hive. The scope shift (from haex-hive's harness-configurator role to a full agent runtime with signaling and transport planes) was too large, so haex-vault lives as its own project. haex-hive stays as it is (harness plane per its Scope Realignment). Where useful, haex-vault may consume haex-hive-distributed configuration for the harness that runs inside it, but that is a downstream integration question, not a coupling.
 
 **Purpose of this document**: hold the founding architecture in one place so the first implementation slices have a normative reference. Field names, event kinds, wire formats, and identity derivations are working proposals, not settled interfaces.
 
@@ -17,22 +17,22 @@
 
 ## 0. Normative status
 
-This is a design record. Every requirement below has to be re-expressed as a numbered spec before any code moves. Holzi adopted the full speckit workflow on 2026-09-04; `specs/001-frontend-onboarding/` is its first numbered spec. Field names, event kinds, wire formats and identity derivations are working proposals, not settled interfaces.
+This is a design record. Every requirement below has to be re-expressed as a numbered spec before any code moves. HaexVault adopted the full speckit workflow on 2026-09-04; `specs/001-frontend-onboarding/` is its first numbered spec. Field names, event kinds, wire formats and identity derivations are working proposals, not settled interfaces.
 
-## 1. What holzi is, and what it is not
+## 1. What haex-vault is, and what it is not
 
-Holzi is:
+HaexVault is:
 
 - A **Tauri application** that runs on desktop and server (mobile later, see open questions).
-- **Isolated from the host**: LLM credentials and model configuration live inside holzi; the operator can open holzi on any device, including one without any LLM installed on the host, and use it normally.
-- A **Nostr relay endpoint** and an **iroh peer** in one process, forming (with the operator's other holzi installations) a **closed federation** of the operator's own devices.
-- An **MCP server** for external clients: the only way for anything outside holzi to reach into it. Standard MCP auth applies.
+- **Isolated from the host**: LLM credentials and model configuration live inside haex-vault; the operator can open haex-vault on any device, including one without any LLM installed on the host, and use it normally.
+- A **Nostr relay endpoint** and an **iroh peer** in one process, forming (with the operator's other haex-vault installations) a **closed federation** of the operator's own devices.
+- An **MCP server** for external clients: the only way for anything outside haex-vault to reach into it. Standard MCP auth applies.
 - **Local-first**: local model available when the device has the capacity; provider model when the operator explicitly chooses it; no automatic model routing.
 
-Holzi is not:
+HaexVault is not:
 
 - A coding harness. If the operator wants a coding harness inside an IDE, that lives in the IDE's own tool space (typically distributed via haex-hive).
-- A bridge into IDEs. External integration is by having the external tool speak MCP into holzi; holzi does not ship IDE plugins or custom session tokens at v1.
+- A bridge into IDEs. External integration is by having the external tool speak MCP into haex-vault; haex-vault does not ship IDE plugins or custom session tokens at v1.
 - A general execution plane for third parties. Cross-user sharing is a future direction (Section 6), not a v1 feature.
 
 ## 2. Architecture summary
@@ -77,7 +77,7 @@ Both handlers live in the same relay instance, dispatched by event kind.
 
 - **Master key**: held offline (hardware token, a Nostr signer such as NIP-46, or paper backup). Not used for daily traffic.
 - **Device keys**: one per installation. Each device holds its own Nostr keypair AND an iroh NodeId; both are bound in the same master-signed attestation event. Attestations are short-lived (working default: 7 days) and renewed while the master is present. Revocation is a single event that invalidates both endpoint identities.
-- The attestation event kind is a holzi-specific kind, not NIP-26 (deprecated).
+- The attestation event kind is a haex-vault-specific kind, not NIP-26 (deprecated).
 
 ### Trust store covers both endpoints
 
@@ -99,14 +99,14 @@ Single-use therefore means "one accepted stream per ticket": one blob download s
 
 ### MCP as capability schema
 
-- Local tools are exposed by a local MCP server per device (holzi's own tool space).
+- Local tools are exposed by a local MCP server per device (haex-vault's own tool space).
 - A compact capability summary (tool names, resource URIs, version) is published in the presence event; the full MCP schema is fetched over the direct connection once a session is opened.
-- Remote MCP invocation between the operator's own holzi devices is translated by an adapter into Nostr command events. The receiving device's adapter dispatches the tool call against its local MCP server and returns the result over Nostr.
+- Remote MCP invocation between the operator's own haex-vault devices is translated by an adapter into Nostr command events. The receiving device's adapter dispatches the tool call against its local MCP server and returns the result over Nostr.
 - For results above a size threshold, or of a file-artifact type, the response event carries only metadata plus a `blob.offer`; the bytes travel via iroh. The calling LLM sees a normal MCP result with a resource URI.
 
 ### External MCP access
 
-Holzi exposes an MCP server on the host so that external tools (a shell, an IDE with an MCP-capable AI assistant, a script) can reach it as any MCP server. Authentication follows the MCP standard for the chosen transport (stdio, HTTP, Unix socket). Custom bridge tools, session tokens tied to particular IDEs, or per-environment policy tuples are not part of v1; if a class of external caller needs sharper policy than MCP's own mechanisms provide, that is a future direction (Section 6).
+HaexVault exposes an MCP server on the host so that external tools (a shell, an IDE with an MCP-capable AI assistant, a script) can reach it as any MCP server. Authentication follows the MCP standard for the chosen transport (stdio, HTTP, Unix socket). Custom bridge tools, session tokens tied to particular IDEs, or per-environment policy tuples are not part of v1; if a class of external caller needs sharper policy than MCP's own mechanisms provide, that is a future direction (Section 6).
 
 ### Confirmation for write actions
 
@@ -151,11 +151,11 @@ Recorded here so the follow-up spec work knows its scope:
 
 Ordered by the earliest thing that must exist for the rest to have a normative home.
 
-1. **Project structure and spec workflow for holzi.** Resolved on 2026-09-04: holzi uses the full speckit workflow; `specs/001-frontend-onboarding/` is the first normative slice. Future specs continue to be captured, reviewed, and versioned there.
+1. **Project structure and spec workflow for haex-vault.** Resolved on 2026-09-04: haex-vault uses the full speckit workflow; `specs/001-frontend-onboarding/` is the first normative slice. Future specs continue to be captured, reviewed, and versioned there.
 2. **Spec for the `peer_instances` record and peer registry.** The smallest normative slice, no transport yet.
 3. **Spec for the two-track ingress policy** with concrete event kinds and the relay policy engine surface.
 4. **Spec for the `blob.offer` announcement, ticket lifecycle, and iroh accept-handler.**
-5. **Spec for the MCP-to-Nostr adapter** (cross-device MCP invocation between the operator's own holzi devices) and remote capability advertisement.
+5. **Spec for the MCP-to-Nostr adapter** (cross-device MCP invocation between the operator's own haex-vault devices) and remote capability advertisement.
 6. **Spec for the local MCP server** exposed to external clients on the host, and its auth boundary.
 7. **Spec for the Tauri application shell**: LLM adapters, credential storage, model routing UI, chat surface.
 8. **Comparison with existing tools** (Buzz, OpenHands, ACP-based bridges) as normal due diligence, once the first implementation slice is underway.
@@ -182,6 +182,6 @@ Open sub-questions for the future spec:
 - Discovery and change notification: does the grantee poll the resource, or does the granter push updates through the same DM channel that delivered the grant.
 - Whether recursive delegation (Bob re-grants to Charlie) is allowed at all, and if so under what constraints.
 
-Deeper integration with external environments (IDE plugins, session-token-authenticated bridge tools, environment-scoped policy tuples that let `laptop:vscode` and `laptop:shell` carry different rights) is a second future direction. In v1, external tools reach holzi through its plain MCP server with standard MCP auth; anything richer is out of scope until the v1 surface is stable.
+Deeper integration with external environments (IDE plugins, session-token-authenticated bridge tools, environment-scoped policy tuples that let `laptop:vscode` and `laptop:shell` carry different rights) is a second future direction. In v1, external tools reach haex-vault through its plain MCP server with standard MCP auth; anything richer is out of scope until the v1 surface is stable.
 
 This section is a scope pointer, not design input for the v1 specs listed in Section 5.

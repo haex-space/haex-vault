@@ -3,7 +3,7 @@
 All items of the Technical Context are decided; no `NEEDS CLARIFICATION` remains. Sources:
 `@haex-space/marketplace-sdk` 0.1.6 (types and paths, read from the npm package), the live service
 `https://marketplace.haex.space` (read-only calls on 2026-10-28), haex-vault 2.x @ `8dce379d` and the
-holzi code (references per item).
+haex-vault code (references per item).
 
 ## R1 – The interface of the service
 
@@ -77,7 +77,7 @@ Android); bytes into the webview and back (rejected, see above).
 
 **Rationale**: One implementation per rule; there is no second installation routine and no second
 dialog. All callers are searched for and changed (see task "every call site", memory
-`holzi-every-call-site`): `InstallDialog.vue`, dev loading (`extension_dev_load` stays a file), e2e
+`haex-every-call-site`): `InstallDialog.vue`, dev loading (`extension_dev_load` stays a file), e2e
 scripts and every place with `extension_install`.
 
 **Alternatives**: two new commands `marketplace_install_*` (rejected: duplicates the arguments and the
@@ -252,7 +252,7 @@ deliberate decision.
 
 ## R14 – Live data and sync
 
-**Decision**: `haex_marketplaces` is an ordinary CRDT table (`HOLZI_TRIGGER_VERSION` + 1, entry in the
+**Decision**: `haex_marketplaces` is an ordinary CRDT table (`HAEX_TRIGGER_VERSION` + 1, entry in the
 list of synced tables). The settings view subscribes to changes through the existing
 `vault-data-changed`/`onVaultTablesChanged` (Spec 028 live data); on/off and rank write immediately on
 tap (Spec 023). No UNIQUE (a conflict would halt the sync, pattern of the other tables); sort gaps and
@@ -263,7 +263,7 @@ equal ranks are resolved stably on read with `(rank, name, id)`.
 **Decision**: The rig (Spec 016) gets a small Node server that serves catalog, categories, details and
 download for two extensions, one of them with the existing signed test bundle (`haextension-test-bundles`,
 throw-away key). The address of the preset can be overridden in the e2e build
-(`HOLZI_E2E_MARKETPLACE_URL`). Decided in T003, like `HOLZI_E2E_SYNC_LOOPBACK` in
+(`HAEX_E2E_MARKETPLACE_URL`). Decided in T003, like `HAEX_E2E_SYNC_LOOPBACK` in
 `sync/endpoint.rs`: the variable is read only when `cfg!(debug_assertions)` (the E2E suite always builds
 and tests the debug profile) and only for the preset (`store::preset_url`); a release build ignores it. The
 gate is a function of the build kind and the value (`store::preset_url_for`), so a unit test covers the
@@ -286,11 +286,11 @@ Read in haex-vault @ `8dce379d`: `useMarketplaces.ts`, `useMarketplaceCatalog.ts
 - After install, update and remove the catalog refreshes (legacy fix "refresh catalog after extension
   update"): tile states follow `vault-data-changed` (ui.md).
 - Choose a version in the details; an update keeps the data, a reinstall is a confirmation of its own
-  (in holzi already part of the preview, Spec 017).
+  (in haex-vault already part of the preview, Spec 017).
 
 **Deliberately different**
 
-| Legacy                                                        | holzi                                                                                       | Reason                                              |
+| Legacy                                                        | haex-vault                                                                                  | Reason                                              |
 | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------- |
 | Dedupe by `extensionId`, first source wins (test `dedupes…`)  | No merging, every tile with its source (R7)                                                 | a source must not hide another (self-hosted)        |
 | Token/password as columns of the table                        | Reference to a password entry (R11)                                                         | no secrets in vault tables, sync and logs           |

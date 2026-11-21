@@ -5,11 +5,11 @@ Wird mit Spec 027 oder 028 umgesetzt; hier festgelegt, damit deren Pläne darauf
 
 ## Schichten (NIP-59)
 
-| Schicht   | kind                    | unterschrieben von            | verschlüsselt an                           |
-| --------- | ----------------------- | ----------------------------- | ------------------------------------------ |
-| Gift Wrap | 1059 (gespeichert)      | Einmalschlüssel               | Geräteschlüssel des Empfängers (NIP-44 v2) |
-| Seal      | 13                      | Geräteschlüssel des Absenders | Geräteschlüssel des Empfängers (NIP-44 v2) |
-| Rumor     | 24110 (holzi-Einladung) | – (nicht unterschrieben)      | –                                          |
+| Schicht   | kind                         | unterschrieben von            | verschlüsselt an                           |
+| --------- | ---------------------------- | ----------------------------- | ------------------------------------------ |
+| Gift Wrap | 1059 (gespeichert)           | Einmalschlüssel               | Geräteschlüssel des Empfängers (NIP-44 v2) |
+| Seal      | 13                           | Geräteschlüssel des Absenders | Geräteschlüssel des Empfängers (NIP-44 v2) |
+| Rumor     | 24110 (haex-vault-Einladung) | – (nicht unterschrieben)      | –                                          |
 
 Tags des Gift Wraps: `["p", <Geräteschlüssel Empfänger hex>]`, `["expiration", <Ablauf der Einladung>]`
 (NIP-40). `created_at` zufällig bis 48 h zurück (NIP-59). Größe ≤ 16 KiB wie `presence::MAX_EVENT`.
@@ -22,7 +22,7 @@ Tags des Gift Wraps: `["p", <Geräteschlüssel Empfänger hex>]`, `["expiration"
   "type": "space" | "data-share",
   "invite": "<Einladungslink-Text aus 027 FR-008 / 028>",
   "recipient": "<Vault-Identität Empfänger hex>",
-  "senderCard": "<holzi:card:…>"
+  "senderCard": "<haex:card:…>"
 }
 ```
 

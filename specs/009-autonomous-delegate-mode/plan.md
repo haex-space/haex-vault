@@ -6,7 +6,7 @@
 ## Summary
 
 Adds a per-request **Autonomy Mode** (`standard` / `ungated` / `gated-permissive`) to the existing
-`cli_delegate` backends (007-cli-delegate), letting Claude Code or Codex run without holzi's live
+`cli_delegate` backends (007-cli-delegate), letting Claude Code or Codex run without haex-vault's live
 per-tool-call human approval — either fully ungated (the delegate's own native full-autonomy
 mechanism, no bridge) or gated-but-permissive (007's existing approval bridge stays wired and every
 call is still recorded, but the response is auto-`allow` unless an operator-configured, persisted
@@ -41,7 +41,7 @@ only the mode actually used is recorded on that request's message rows for audit
 `pnpm typecheck` for the new composer control. Live-CLI verification spikes (flag/schema behavior)
 already run during the 2026-09-17 design session — see `docs/plans/2026-09-17-autonomous-delegate-mode-design.md`
 and [research.md](research.md) §1-2 — are not repeated as automated tests (they test vendor CLI
-behavior, not holzi's own code) but their _results_ are hard-coded as the two vendor branches below.
+behavior, not haex-vault's own code) but their _results_ are hard-coded as the two vendor branches below.
 **Target Platform**: Desktop only — unchanged from 007-cli-delegate (spec FR-012); no new
 mobile-adjacent code path.
 **Performance Goals**: Stopping an autonomous delegate response terminates the subprocess within the
@@ -63,7 +63,7 @@ no general-purpose rule engine.
 
 - **Claude Code** (`claude.rs::build_command`, currently claude.rs:117-145): replace the hardcoded
   `.arg("--permission-mode").arg("default")` with `.arg("--permission-mode").arg("bypassPermissions")`
-  and _omit_ `.arg("--mcp-config").arg(mcp_config)` / `.arg("--permission-prompt-tool").arg("mcp__holzi-approve__approve")`
+  and _omit_ `.arg("--mcp-config").arg(mcp_config)` / `.arg("--permission-prompt-tool").arg("mcp__haex-approve__approve")`
   entirely for this mode — confirmed via `claude --help` (v2.1.274) that `bypassPermissions` is a
   valid `--permission-mode` enum value, and confirmed live (design doc §4 item 5) that host isolation
   holds under it.
@@ -80,8 +80,8 @@ no general-purpose rule engine.
   `ungated` never silently degrades to `danger-full-access` if that default ever changes upstream.
   (Codex also exposes an `approvalsReviewer: "auto_review"` option — an automatic reviewing subagent —
   considered and not used: it is Codex's own built-in equivalent of `gated-permissive`, but adopting
-  it would mean trusting Codex's internal review model instead of holzi's own deny-rule list, which
-  is exactly the "harness decides risk, holzi's rule is an explicit additional filter" split the spec
+  it would mean trusting Codex's internal review model instead of haex-vault's own deny-rule list, which
+  is exactly the "harness decides risk, haex-vault's rule is an explicit additional filter" split the spec
   clarification rejected reversing.)
 
 ### Vendor mechanism for `gated-permissive` — reuses 007 unchanged, only the decision changes
@@ -114,7 +114,7 @@ schema change or category exception is required.
 
 _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
-Evaluated against the holzi Constitution (`.specify/memory/constitution.md`, hard-pinned from
+Evaluated against the haex-vault Constitution (`.specify/memory/constitution.md`, hard-pinned from
 haex-hive, revision `336eaf1e`):
 
 | Principle                                               | Status | Rationale                                                                                                                                                                                                                                                                                                           |
@@ -125,7 +125,7 @@ haex-hive, revision `336eaf1e`):
 | IV. Cross-Repo References Pin Immutable Revisions       | ✓ PASS | No new external harness content or dependency; `rmcp`'s existing pin is untouched.                                                                                                                                                                                                                                  |
 | V. External Sources Are Opt-in Per Project              | ✓ PASS | N/A — no external harness content involved.                                                                                                                                                                                                                                                                         |
 | VI. Self-Modifying Instructions Are Always Review-Gated | ✓ PASS | This feature's docs/spec edits land through normal PR review like any other change.                                                                                                                                                                                                                                 |
-| VII. Relay Unavailability Never Blocks Local Work       | ✓ PASS | Autonomy mode and deny-rule evaluation are local subprocess + local preference reads, independent of holzi's sync relay.                                                                                                                                                                                            |
+| VII. Relay Unavailability Never Blocks Local Work       | ✓ PASS | Autonomy mode and deny-rule evaluation are local subprocess + local preference reads, independent of haex-vault's sync relay.                                                                                                                                                                                       |
 | VIII. No Concealment Instructions in Agent Output       | ✓ PASS | Spec FR-005 requires every gated-permissive turn to record every tool call and to make the active autonomy mode visible; `ungated` runs are explicitly documented (spec US2 scenario 2) as intentionally not producing a per-call record, which is disclosed to the user via the visible mode label, not concealed. |
 
 **Result**: All gates PASS. No Complexity Tracking entry needed.

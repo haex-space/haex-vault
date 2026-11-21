@@ -7,8 +7,8 @@ kommen als ein Objekt `args` (`invoke('shell_…', { args })`), Felder sind
 `camelCase`, Rückgabetypen sind ts-rs-Bindings unter `src/types/bindings/`
 (`#[ts(export, export_to = "../../src/types/bindings/")]`). Kein Command nimmt eine
 Geräte-UUID entgegen — das Backend löst das aktuelle Gerät selbst auf
-(research R4). Fehlt ein geöffneter Vault: `HolziError::NoActiveInstance`.
-Verstöße gegen Invarianten und Grenzen: `HolziError::InvalidInput { reason }`.
+(research R4). Fehlt ein geöffneter Vault: `HaexError::NoActiveInstance`.
+Verstöße gegen Invarianten und Grenzen: `HaexError::InvalidInput { reason }`.
 Rückgaben enthalten nie lokalisierte Texte.
 
 ## Datentypen
@@ -114,15 +114,15 @@ je Gerät.
 
 ## Fehlerabbildung
 
-| Situation                                                | Fehler                                       |
-| -------------------------------------------------------- | -------------------------------------------- |
-| Kein Vault geöffnet                                      | `NoActiveInstance`                           |
-| Unbekannte `workspaceId`                                 | `InvalidInput`                               |
-| Letzten Arbeitsbereich löschen                           | `InvalidInput`                               |
-| Fenster ohne Tab, `activeTabId` ∉ Tabs, > 100 Tabs       | `InvalidInput`                               |
-| Doppelte `tabId` im Aufruf oder in einem anderen Fenster | `InvalidInput`                               |
-| Geometrie/`appId` außerhalb der Grenzen                  | `InvalidInput`                               |
-| Datenbankfehler                                          | bestehende Abbildung über `HolziError::from` |
+| Situation                                                | Fehler                                      |
+| -------------------------------------------------------- | ------------------------------------------- |
+| Kein Vault geöffnet                                      | `NoActiveInstance`                          |
+| Unbekannte `workspaceId`                                 | `InvalidInput`                              |
+| Letzten Arbeitsbereich löschen                           | `InvalidInput`                              |
+| Fenster ohne Tab, `activeTabId` ∉ Tabs, > 100 Tabs       | `InvalidInput`                              |
+| Doppelte `tabId` im Aufruf oder in einem anderen Fenster | `InvalidInput`                              |
+| Geometrie/`appId` außerhalb der Grenzen                  | `InvalidInput`                              |
+| Datenbankfehler                                          | bestehende Abbildung über `HaexError::from` |
 
 ## Nicht Teil dieses Vertrags
 

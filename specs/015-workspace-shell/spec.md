@@ -3,7 +3,7 @@
 **Feature Branch**: `015-workspace-shell`
 **Created**: 2026-09-21
 **Status**: Implemented (T057 offen)
-**Input**: holzi übernimmt aus haex-vault 2.x (Legacy) das Shell-Konzept aus Workspaces (Arbeitsbereichen), Apps und Fenstern. Die heutige Workspace-Seite ist nur ein Stub mit Vault-Name und Chat-Einstieg; Chat, Einstellungen und Föderation sind eigene Vollseiten. Nach dieser Spec öffnet der Nutzer Apps als Fenster in einem Arbeitsbereich, bündelt mehrere Apps oder Ansichten als Tabs in einem Fenster (Bedienung wie in Firefox), kann mehrere Arbeitsbereiche pro Gerät verwalten, und sein Layout überlebt einen Neustart.
+**Input**: HaexVault übernimmt aus haex-vault 2.x (Legacy) das Shell-Konzept aus Workspaces (Arbeitsbereichen), Apps und Fenstern. Die heutige Workspace-Seite ist nur ein Stub mit Vault-Name und Chat-Einstieg; Chat, Einstellungen und Föderation sind eigene Vollseiten. Nach dieser Spec öffnet der Nutzer Apps als Fenster in einem Arbeitsbereich, bündelt mehrere Apps oder Ansichten als Tabs in einem Fenster (Bedienung wie in Firefox), kann mehrere Arbeitsbereiche pro Gerät verwalten, und sein Layout überlebt einen Neustart.
 
 > **Note (spec 090):** The tab strip is suspended by spec 090 until spec 091 (switching tabs) is done.
 
@@ -256,7 +256,7 @@ verschieben, zwischen beiden wechseln, den zweiten löschen.
 
 > **Seit Spec 022** gilt dies nur bei eingeschalteter Einstellung „Sitzung wiederherstellen“ (standardmäßig aus), siehe [`022-session-restore`](../022-session-restore/spec.md). Mit der Einstellung kommen zusätzlich Ort und Vor-/Zurück-Historie jedes Tabs zurück.
 
-Ein Nutzer schließt holzi und öffnet die Vault später wieder. Seine
+Ein Nutzer schließt HaexVault und öffnet die Vault später wieder. Seine
 Arbeitsbereiche und deren Reihenfolge, die Anordnung seiner Fenster und
 deren Tabs sind wieder da. Auf einem anderen Gerät, auf dem er dieselbe Vault öffnet, hat
 er sein eigenes, davon unabhängiges Layout.
@@ -266,7 +266,7 @@ einrichten; das entwertet Arbeitsbereiche. Es ist aber auf einem ersten Schnitt
 verzichtbar, deshalb P2.
 
 **Independent Test**: Zwei Arbeitsbereiche mit je einem Fenster einrichten, in
-einem Fenster zwei Tabs, holzi beenden, Vault erneut öffnen: gleiche
+einem Fenster zwei Tabs, HaexVault beenden, Vault erneut öffnen: gleiche
 Arbeitsbereiche, gleiche Fenster an gleicher Position und Größe, gleiche Tabs in
 gleicher Reihenfolge mit gleichem aktivem Tab, zuletzt aktiver Arbeitsbereich ist
 aktiv.
@@ -304,11 +304,11 @@ aktiv.
 
 ### User Story 6 - Kleine Bildschirme: Fenster im Vollbild (Priority: P2)
 
-Ein Nutzer verwendet holzi auf einem schmalen Bildschirm (Handy, schmales
+Ein Nutzer verwendet HaexVault auf einem schmalen Bildschirm (Handy, schmales
 Fenster). Fenster passen dort nicht nebeneinander; jede App öffnet daher im
 Vollbild, und der Nutzer wechselt zwischen Apps über die Fensterübersicht.
 
-**Why this priority**: holzi ist als portable, geräteübergreifende App gedacht;
+**Why this priority**: HaexVault ist als portable, geräteübergreifende App gedacht;
 eine Shell, die auf kleinen Bildschirmen unbedienbar ist, ist dort wertlos. Der
 erste Schnitt läuft aber auf dem Desktop, deshalb P2.
 
@@ -338,7 +338,7 @@ Bereich, der Wechsel gelingt über die Fensterübersicht.
 
 ### User Story 7 - Fenster- und Tab-Modell mit mehreren Instanzen einer App (Priority: P3)
 
-Ein Entwickler von holzi definiert eine App so, dass sie mehrfach geöffnet
+Ein Entwickler von HaexVault definiert eine App so, dass sie mehrfach geöffnet
 werden darf — als eigene Tabs oder eigene Fenster — die Voraussetzung dafür,
 dass eine künftige Spec (parallele Chat-Sessions) mehrere Chats parallel ermöglichen kann, ohne die Shell
 umzubauen. In dieser Spec sind alle ausgelieferten Apps auf eine Instanz
@@ -417,7 +417,7 @@ den ausgelieferten Apps öffnet ein zweiter Aufruf keine zweite Instanz.
 **Shell und Launcher**
 
 - **FR-001**: Nach erfolgreichem Vault-Open und abgeschlossenem Onboarding MUSS
-  holzi den aktiven Arbeitsbereich der Shell anzeigen; die Erzwingung des
+  HaexVault den aktiven Arbeitsbereich der Shell anzeigen; die Erzwingung des
   Onboardings aus Spec 002 MUSS unverändert bleiben.
 - **FR-002**: Die Shell MUSS einen Launcher bereitstellen, der alle verfügbaren
   Apps mit lokalisiertem Namen und Icon listet und per Auswahl ein Fenster

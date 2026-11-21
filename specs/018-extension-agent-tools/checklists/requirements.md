@@ -32,6 +32,6 @@
 ## Notes
 
 - MCP and the signed manifest are named because ADR-0004 fixes them as the architecture; the spec
-  does not prescribe how holzi implements them.
+  does not prescribe how HaexVault implements them.
 - Both clarifications resolved on 2026-10-10 (effect type from the manifest; vault-sdk building block in
   this spec as FR-021).

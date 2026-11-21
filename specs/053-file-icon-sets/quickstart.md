@@ -1,6 +1,6 @@
 # Quickstart: Austauschbare Icon-Sets für den Dateibrowser
 
-Prüfpfade für die Umsetzung. Befehle laufen in der Devshell (`nix develop --command …`); Cargo zusätzlich über `scripts/with-nix-host-bridge.sh` (siehe die Regel im holzi-Atom). Nur die berührten Ziele bauen und testen, `-j 4`.
+Prüfpfade für die Umsetzung. Befehle laufen in der Devshell (`nix develop --command …`); Cargo zusätzlich über `scripts/with-nix-host-bridge.sh` (siehe die Regel im HaexVault-Atom). Nur die berührten Ziele bauen und testen, `-j 4`.
 
 ## 1. Automatische Prüfungen
 

@@ -153,7 +153,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich kann deine Steuererklärung damit leider nicht finden. Mir stehen in holzi nur Mail-Funktionen zum Verschieben von Nachrichten, zum Anlegen von Ordnern und zum Erstellen von Regeln zur Verfügung, aber keine Suche. Ich kann die Mail-App für dich öffnen, damit du selbst nach „Steuererklärung“ suche"
+      "text": "Ich kann deine Steuererklärung damit leider nicht finden. Mir stehen in haex-vault nur Mail-Funktionen zum Verschieben von Nachrichten, zum Anlegen von Ordnern und zum Erstellen von Regeln zur Verfügung, aber keine Suche. Ich kann die Mail-App für dich öffnen, damit du selbst nach „Steuererklärung“ suche"
     },
     {
       "id": "no_tool-de-4",
@@ -181,7 +181,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "Ich finde in holzi keine Einkaufsliste. Wie soll ich „Milch“ notieren?",
+            "question": "Ich finde in haex-vault keine Einkaufsliste. Wie soll ich „Milch“ notieren?",
             "options": [
               "In der Chat-App als Notiz festhalten",
               "Als Datei in den Dateien anlegen",
@@ -191,7 +191,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich finde in holzi keine Einkaufsliste. Wie soll ich „Milch“ notieren?"
+      "text": "Ich finde in haex-vault keine Einkaufsliste. Wie soll ich „Milch“ notieren?"
     },
     {
       "id": "mail_tidy-de-1-s",

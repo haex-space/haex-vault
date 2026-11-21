@@ -22,7 +22,7 @@ aber zulassen. Die Sync-Regeln und der Umbau 027/029 sollen dasselbe Format nutz
 - **Dateibrowser**, **Quelle**, **Viewer**, **Transfer**, **Agent**, **Agent-Berechtigung**: wie in
   Spec 044.
 - **Verschlüsselter Ordner**: ein Ordner in einem Speicher oder auf dem Gerät (User Story 7), dessen
-  Inhalt holzi verschlüsselt ablegt.
+  Inhalt HaexVault verschlüsselt ablegt.
   Im Dateibrowser verhält er sich wie ein gewöhnlicher Ordner mit Unterordnern und Dateien; beim
   Anbieter ist er ein Präfix mit zufälligem Namen, darunter liegen nur Objekte mit zufälligen Namen und
   unlesbarem Inhalt. Sichtbar ist nur, in welchem gewöhnlichen Ordner er liegt; sein Name steht
@@ -33,10 +33,10 @@ aber zulassen. Die Sync-Regeln und der Umbau 027/029 sollen dasselbe Format nutz
   `Thumbs.db`.
 - **Eintrag**: eine Datei oder ein Unterordner in einem verschlüsselten Ordner.
 - **Inhaltsobjekt**: der verschlüsselte Inhalt einer Datei als ein Objekt im Speicher, in Blöcken
-  verschlüsselt, sodass holzi beliebige Teilbereiche lesen kann.
+  verschlüsselt, sodass HaexVault beliebige Teilbereiche lesen kann.
 - **Begleitdatei**: ein kleines verschlüsseltes Objekt je Eintrag mit dem, was der Dateibrowser über
   ihn wissen muss (Elterneintrag und Name, Art, Größe, Änderungszeit, Inhaltstyp, Prüfsumme) und dem
-  verschlüsselten Dateischlüssel. Aus den Begleitdateien baut holzi die Ordneransicht auf; sie sind
+  verschlüsselten Dateischlüssel. Aus den Begleitdateien baut HaexVault die Ordneransicht auf; sie sind
   die einzige Quelle für die Zuordnung von Pfaden zu Inhaltsobjekten.
 - **Kopf des Ordners**: ein Objekt im verschlüsselten Ordner, das ihn als solchen kennzeichnet und
   die Formatversion, den verschlüsselten Ordnerschlüssel und den verschlüsselten Namen des Ordners
@@ -52,14 +52,14 @@ aber zulassen. Die Sync-Regeln und der Umbau 027/029 sollen dasselbe Format nutz
     Ordnerschlüssel der Vault und verlässt die Vault nie.
 - **Freigabe für einen verschlüsselten Ordner**: die eigene, ausdrückliche Berechtigung eines Agents
   oder einer Erweiterung für genau einen verschlüsselten Ordner, „Lesen“ oder „Lesen und Schreiben“.
-  Sie entsteht nur durch eine Antwort des Nutzers in der Frage von holzi, nie durch das Manifest einer
+  Sie entsteht nur durch eine Antwort des Nutzers in der Frage von HaexVault, nie durch das Manifest einer
   Erweiterung. Mit dem Haken „Erlaubnis merken“ bleibt sie gespeichert, sonst gilt sie nur für den
   laufenden Vorgang (FR-031).
 
 ## Beziehung zu bestehenden Specs
 
 - **Spec 038** (Speicherverbindungen): liefert die Speicher. Ihr „Nicht im Umfang“ schließt die
-  Verschlüsselung von Objekten durch holzi aus; diese Spec ergänzt sie für verschlüsselte Ordner, ohne
+  Verschlüsselung von Objekten durch HaexVault aus; diese Spec ergänzt sie für verschlüsselte Ordner, ohne
   die Funktionen für Erweiterungen zu ändern. Was eine Erweiterung in ihrem Bereich ablegt, bleibt so,
   wie sie es schickt.
 - **Spec 044** (Dateibrowser): Ein verschlüsselter Ordner ist ein Ordner in der Quelle „Speicher“.
@@ -87,7 +87,7 @@ aber zulassen. Die Sync-Regeln und der Umbau 027/029 sollen dasselbe Format nutz
 - **Vorlage haex-vault 2.x**: Repository `https://github.com/haex-space/haex-vault-legacy`, Revision
   `8dce379d94e18fcd42c3b73686a06f984ca3f574`, Pfad `src-tauri/src/file_sync/crypto/` (Envelope `HXFE`,
   Blöcke zu 1 MiB mit XChaCha20-Poly1305, zufällige Objektnamen, Begleitdateien `.m`, Dateischlüssel
-  verschlüsselt mit dem Schlüssel der Stufe darüber). holzi übernimmt das Modell und schließt seine
+  verschlüsselt mit dem Schlüssel der Stufe darüber). HaexVault übernimmt das Modell und schließt seine
   Lücken (FR-022 bis FR-025); haex-vault 2.x ist kein Maßstab für Oberfläche.
 
 ## Clarifications
@@ -109,7 +109,7 @@ aber zulassen. Die Sync-Regeln und der Umbau 027/029 sollen dasselbe Format nutz
 - Q: Müssen bestehende Ordner umgewandelt werden? → A: Nein, es gibt keine (Betreiber).
 - Q: Dürfen Erweiterungen verschlüsselte Ordner erreichen? → A: Ja, aber nur über Speicher als
   eigene Berechtigung (`remoteStorage`, getrennt vom Dateizugriff) und nur nach einer Frage an den
-  Nutzer vor dem Zugriff; mit dem Haken „Erlaubnis merken“ fragt holzi danach nicht mehr. Die
+  Nutzer vor dem Zugriff; mit dem Haken „Erlaubnis merken“ fragt HaexVault danach nicht mehr. Die
   Freigabe DARF NICHT im Manifest stehen. Sonst sehen Erweiterungen nur ihre eigenen Daten. Für
   Agents gilt derselbe Dialog (Betreiber).
 - Q: Wie weit reicht eine Erlaubnis ohne „Erlaubnis merken“? → A: Für den laufenden Vorgang: eine
@@ -119,11 +119,11 @@ aber zulassen. Die Sync-Regeln und der Umbau 027/029 sollen dasselbe Format nutz
   zufällig, der Name steht verschlüsselt im Kopf; Umbenennen ändert nur den Kopf (Betreiber).
 - Q: Dürfen Agents mit Freigabe Inhalte an Cloud-Modelle geben? → A: Ja, aber die Frage nennt Modell
   und ob es lokal oder in der Cloud läuft; eine Freigabe gilt nur lokal oder ausdrücklich auch für
-  Cloud-Modelle, und beim Wechsel auf ein Cloud-Modell fragt holzi neu (Betreiber).
+  Cloud-Modelle, und beim Wechsel auf ein Cloud-Modell fragt HaexVault neu (Betreiber).
 - Q: Soll „Mit System-App öffnen“ in verschlüsselten Ordnern gehen? → A: Ja, mit Hinweis (Haken
-  „Nicht mehr fragen“ je Ordner), Kopie in einem eigenen Ordner von holzi, gelöscht beim Sperren oder
+  „Nicht mehr fragen“ je Ordner), Kopie in einem eigenen Ordner von HaexVault, gelöscht beim Sperren oder
   Schließen der Vault und nach einem Absturz beim nächsten Start. Auf Android dürfen andere Apps nicht
-  in holzis Speicher schauen; dort nur über eine befristete Leseberechtigung für genau diese Datei
+  in HaexVaults Speicher schauen; dort nur über eine befristete Leseberechtigung für genau diese Datei
   (Betreiber).
 - Q: Braucht ein eigenes Gerät ein Passwort für den Ordner? → A: Nein. Jedes Gerät der Vault liest
   ohne Rückfrage.
@@ -141,9 +141,9 @@ aber zulassen. Die Sync-Regeln und der Umbau 027/029 sollen dasselbe Format nutz
 - Q: Gilt „Dateien des Geräts“ eines Agents auch für verschlüsselte Ordner auf dem Gerät? → A: Nein.
   Es gilt dieselbe Freigabe je Ordner wie im Speicher (FR-030 bis FR-034) (Betreiber).
 - Q: Dürfen Erweiterungen mit Dateizugriff die rohen Dateien eines verschlüsselten Ordners auf dem
-  Gerät lesen oder ändern? → A: Nein. Sie sind für den Dateizugriff gesperrt wie holzis eigene Daten;
+  Gerät lesen oder ändern? → A: Nein. Sie sind für den Dateizugriff gesperrt wie HaexVaults eigene Daten;
   Zugang gibt es nur über die Freigabe je Ordner (FR-035 bis FR-039) (Betreiber).
-- Q: Was passiert mit fremden Dateien, etwa Konfliktkopien eines Sync-Programms? → A: holzi zeigt sie
+- Q: Was passiert mit fremden Dateien, etwa Konfliktkopien eines Sync-Programms? → A: HaexVault zeigt sie
   nicht als Einträge, nennt ihre Zahl als Hinweis und löscht sie nie von selbst (Betreiber).
 
 ## User Scenarios & Testing _(mandatory)_
@@ -165,7 +165,7 @@ Bild öffnen.
 **Acceptance Scenarios**:
 
 1. **Given** ein Speicher im Dateibrowser, **When** Anna „Neuer verschlüsselter Ordner“ wählt und
-   einen Namen eingibt, **Then** erscheint der Ordner mit Schloss-Symbol, und holzi weist einmal
+   einen Namen eingibt, **Then** erscheint der Ordner mit Schloss-Symbol, und HaexVault weist einmal
    darauf hin, dass der Inhalt ohne diese Vault nicht lesbar ist.
 2. **Given** ein verschlüsselter Ordner, **When** Anna Dateien und Ordner vom Gerät hineinzieht,
    **Then** zeigt der Dateibrowser sie mit ihren Namen, Größen und Änderungszeiten, und der Transfer
@@ -182,7 +182,7 @@ Bild öffnen.
 
 Anna öffnet die Weboberfläche ihres Anbieters und sieht sich den Bucket an. Statt „Unterlagen“ findet
 sie einen Ordner mit zufälligem Namen und darin nur Objekte mit zufälligen Namen. Keine Datei, kein Ordnername und keine Struktur aus dem Ordner
-ist zu erkennen. Ein Objekt, das sie dort von Hand verändert, öffnet holzi nicht mehr, sondern meldet
+ist zu erkennen. Ein Objekt, das sie dort von Hand verändert, öffnet HaexVault nicht mehr, sondern meldet
 es als beschädigt.
 
 **Why this priority**: Das ist der Zweck der Funktion. Was hier nicht stimmt, macht alles andere
@@ -191,7 +191,7 @@ wertlos.
 **Independent Test**: Nach dem Befüllen den Bucket direkt beim Anbieter auflisten und lesen: kein Name,
 Pfad, Inhalt oder Inhaltstyp aus dem Ordner kommt in Objektnamen, Objektinhalten oder Metadaten vor.
 Dann einzelne Objekte verändern, kürzen, vertauschen und durch ältere ersetzen und das Verhalten von
-holzi prüfen.
+HaexVault prüfen.
 
 **Acceptance Scenarios**:
 
@@ -199,10 +199,10 @@ holzi prüfen.
    beim Anbieter auflistet, **Then** kommen weder „Unterlagen“, „Rechnungen“, „2026“, „strom“ noch „pdf“ in einem
    Objektnamen vor, und alle Objekte liegen flach unter dem Ordner, ohne die innere Struktur
    nachzubilden.
-2. **Given** ein Inhaltsobjekt, **When** ein Byte darin verändert wird, **Then** meldet holzi die
+2. **Given** ein Inhaltsobjekt, **When** ein Byte darin verändert wird, **Then** meldet HaexVault die
    Datei beim Öffnen als beschädigt und zeigt keinen Teil des veränderten Inhalts.
 3. **Given** zwei Dateien im Ordner, **When** ihre Inhaltsobjekte beim Anbieter vertauscht oder eines
-   am Ende gekürzt wird, **Then** erkennt holzi das beim Lesen und meldet beide als beschädigt, statt
+   am Ende gekürzt wird, **Then** erkennt HaexVault das beim Lesen und meldet beide als beschädigt, statt
    den falschen oder gekürzten Inhalt zu zeigen.
 4. **Given** eine beschädigte Datei, **When** Anna den Ordner öffnet, **Then** sind alle übrigen
    Einträge weiter lesbar.
@@ -237,19 +237,19 @@ ergänzen; auf Gerät 1 nach dem Neuladen sehen.
 ### User Story 4 - Videos und große Dateien abspielen (Priority: P2)
 
 Anna legt ein 4-GB-Urlaubsvideo in den verschlüsselten Ordner. Auf dem Desktop und auf dem Telefon
-startet es nach wenigen Sekunden und springt an jede Stelle, ohne dass holzi die ganze Datei lädt.
+startet es nach wenigen Sekunden und springt an jede Stelle, ohne dass HaexVault die ganze Datei lädt.
 
 **Why this priority**: Fotos und Videos sind ein Hauptgrund für eigenen Speicher; ohne Springen ist
 der Ordner für Medien unbrauchbar. Es baut auf US1 auf.
 
 **Independent Test**: Ein Video (Fixture aus 044, plus ein großes, im Test erzeugtes) hochladen,
-abspielen, in die Mitte springen; prüfen, dass holzi nur die nötigen Teilbereiche beim Anbieter liest
+abspielen, in die Mitte springen; prüfen, dass HaexVault nur die nötigen Teilbereiche beim Anbieter liest
 und der Speicherbedarf nicht mit der Dateigröße wächst.
 
 **Acceptance Scenarios**:
 
 1. **Given** ein Video im verschlüsselten Ordner, **When** Anna es abspielt und in die Mitte springt,
-   **Then** liest holzi nur die Blöcke um diese Stelle und entschlüsselt sie, nie die ganze Datei.
+   **Then** liest HaexVault nur die Blöcke um diese Stelle und entschlüsselt sie, nie die ganze Datei.
 2. **Given** ein Upload einer großen Datei, **When** Anna ihn abbricht oder das Netz abreißt,
    **Then** erscheint im Ordner kein halber Eintrag, und auf Dauer bleibt beim Anbieter kein
    Inhaltsobjekt ohne Begleitdatei zurück.
@@ -271,22 +271,22 @@ Inhaltsobjekt neu schreiben.
 
 **Acceptance Scenarios**:
 
-1. **Given** ein Unterordner mit 1 000 Dateien, **When** Anna ihn umbenennt, **Then** ändert holzi nur
+1. **Given** ein Unterordner mit 1 000 Dateien, **When** Anna ihn umbenennt, **Then** ändert HaexVault nur
    Begleitdateien, kein Inhaltsobjekt.
 2. **Given** eine Datei im verschlüsselten Ordner, **When** Anna sie in einen gewöhnlichen Ordner
-   desselben oder eines anderen Speichers kopiert oder verschiebt, **Then** fragt holzi vorher, weil
+   desselben oder eines anderen Speichers kopiert oder verschiebt, **Then** fragt HaexVault vorher, weil
    sie dort unverschlüsselt liegen wird; aufs Gerät fragt es nicht.
 3. **Given** eine Suche nach „strom“ im verschlüsselten Ordner, **When** sie läuft, **Then** findet sie
    `Belege/2026/strom.pdf` über die entschlüsselten Namen.
 4. **Given** Anna löscht den verschlüsselten Ordner selbst, **When** sie die Frage bestätigt, **Then**
-   entfernt holzi alle seine Objekte beim Anbieter.
+   entfernt HaexVault alle seine Objekte beim Anbieter.
 
 ---
 
 ### User Story 6 - Agents und Erweiterungen nur mit ausdrücklicher Freigabe (Priority: P2)
 
 Annas Agent hat „Lesen“ für ihren Speicher. Als er eine Datei aus „Unterlagen“ lesen soll, fragt
-holzi Anna, ob der Agent diesen verschlüsselten Ordner lesen darf. Erst nach ihrem „Ja“ liest er.
+HaexVault Anna, ob der Agent diesen verschlüsselten Ordner lesen darf. Erst nach ihrem „Ja“ liest er.
 Später widerruft sie die Freigabe in den Einstellungen.
 
 **Why this priority**: Verschlüsselte Inhalte sind besonders schützenswert; ohne eigene Freigabe würde
@@ -294,30 +294,30 @@ die Berechtigung für den Speicher sie Agents (und Cloud-Modellen) öffnen. Es b
 
 **Independent Test**: Ein Agent mit Speicherberechtigung listet den Speicher, versucht den
 verschlüsselten Ordner zu listen, zu lesen und zu durchsuchen: ohne Freigabe kommt nichts aus dem
-Ordner zurück und holzi fragt; nach „Lesen“ liest er, Schreiben bleibt verweigert; nach dem Widerruf
+Ordner zurück und HaexVault fragt; nach „Lesen“ liest er, Schreiben bleibt verweigert; nach dem Widerruf
 wieder nichts.
 
 **Acceptance Scenarios**:
 
 1. **Given** ein Agent mit „Lesen“ für den Speicher und ohne Freigabe für den Ordner, **When** er den
    Speicher listet, **Then** sieht er den Ordner nur als verschlüsselten Ordner ohne Namen und Inhalt.
-2. **Given** derselbe Agent, **When** er etwas im Ordner listet, liest oder sucht, **Then** fragt holzi
+2. **Given** derselbe Agent, **When** er etwas im Ordner listet, liest oder sucht, **Then** fragt HaexVault
    den Nutzer (Lesen erlauben, Lesen und Schreiben erlauben, Ablehnen), nennt dabei das Modell und ob
    es lokal oder in der Cloud läuft, und merkt sich die Antwort nur mit „Erlaubnis merken“.
 3. **Given** eine gespeicherte Freigabe „nur lokal“, **When** Anna im Chat auf ein Cloud-Modell
-   wechselt und der Agent wieder auf den Ordner zugreift, **Then** fragt holzi neu.
-4. **Given** eine Freigabe „Lesen“, **When** der Agent schreiben will, **Then** lehnt holzi ab.
+   wechselt und der Agent wieder auf den Ordner zugreift, **Then** fragt HaexVault neu.
+4. **Given** eine Freigabe „Lesen“, **When** der Agent schreiben will, **Then** lehnt HaexVault ab.
 5. **Given** eine Suche des Agents über den ganzen Speicher, **When** er keine Freigabe für den Ordner
    hat, **Then** enthält das Ergebnis nichts aus dem Ordner.
 6. **Given** eine Erweiterung mit der Berechtigung `remoteStorage` für den Speicher, **When** sie auf
-   „Unterlagen“ zugreifen will, **Then** fragt holzi Anna zuerst; ohne Haken bei „Erlaubnis merken“
+   „Unterlagen“ zugreifen will, **Then** fragt HaexVault Anna zuerst; ohne Haken bei „Erlaubnis merken“
    gilt die Antwort, bis die Erweiterung beendet oder neu geladen oder die Vault gesperrt wird, danach
-   fragt holzi wieder; mit Haken fragt es nicht mehr.
+   fragt HaexVault wieder; mit Haken fragt es nicht mehr.
 7. **Given** eine Erweiterung, deren Manifest eine Freigabe für verschlüsselte Ordner mitbringt,
-   **When** Anna sie installiert, **Then** lehnt holzi die Installation mit einer verständlichen
+   **When** Anna sie installiert, **Then** lehnt HaexVault die Installation mit einer verständlichen
    Meldung ab.
 8. **Given** eine Erweiterung ohne `remoteStorage` für den Speicher, **When** sie auf den Ordner
-   zugreifen will, **Then** fragt holzi nicht einmal, sondern lehnt ab wie heute in 038.
+   zugreifen will, **Then** fragt HaexVault nicht einmal, sondern lehnt ab wie heute in 038.
 
 ### User Story 7 - Verschlüsselte Ordner auf dem Gerät (Priority: P2)
 
@@ -343,29 +343,29 @@ Dateizugriff auf das Verzeichnis versuchen lassen, die rohen Dateien zu lesen.
 2. **Given** dieser Ordner, **When** Anna darin wie in US1, US4 und US5 arbeitet (hineinkopieren,
    öffnen, Video abspielen, umbenennen, verschieben, suchen), **Then** geht alles wie in einem Speicher,
    und andere Programme sehen nur Dateien mit zufälligen Namen und unlesbarem Inhalt.
-3. **Given** ein Eintrag im verschlüsselten Ordner, **When** Anna ihn löscht, **Then** fragt holzi vorher
+3. **Given** ein Eintrag im verschlüsselten Ordner, **When** Anna ihn löscht, **Then** fragt HaexVault vorher
    und löscht endgültig, nicht in den Papierkorb.
 4. **Given** ein anderes Gerät derselben Vault mit demselben synchronisierten Ordner, **When** es den
    verschlüsselten Ordner öffnet, **Then** sieht es dieselben Einträge ohne Rückfrage.
 5. **Given** eine Konfliktkopie des Sync-Programms im verschlüsselten Ordner, **When** Anna ihn öffnet,
-   **Then** erscheint sie nicht als Eintrag, holzi nennt die Zahl fremder Dateien und löscht sie nicht.
+   **Then** erscheint sie nicht als Eintrag, HaexVault nennt die Zahl fremder Dateien und löscht sie nicht.
 6. **Given** ein Agent mit „Dateien des Geräts“, **When** er in den verschlüsselten Ordner will, **Then**
    gelten die Freigaben je Ordner aus US6; die rohen Dateien erreicht er nie.
 7. **Given** eine Erweiterung mit Dateizugriff auf `~/Nextcloud`, **When** sie die rohen Dateien unter
-   `<zufall>.hxef` lesen, schreiben oder löschen will, **Then** lehnt holzi ab.
+   `<zufall>.hxef` lesen, schreiben oder löschen will, **Then** lehnt HaexVault ab.
 
 ### Edge Cases
 
 - **Vault verloren**: Ohne die Vault (oder ein Backup von ihr) sind die Inhalte nicht mehr lesbar. Es
-  gibt keinen Weg daran vorbei; holzi sagt das beim Anlegen (US1, Szenario 1).
-- **Neuere Formatversion**: Ein Ordner, den eine neuere holzi-Version mit einem neueren Format
-  angelegt hat, wird nicht geöffnet; holzi sagt, dass ein Update nötig ist, und schreibt nichts hinein.
+  gibt keinen Weg daran vorbei; HaexVault sagt das beim Anlegen (US1, Szenario 1).
+- **Neuere Formatversion**: Ein Ordner, den eine neuere HaexVault-Version mit einem neueren Format
+  angelegt hat, wird nicht geöffnet; HaexVault sagt, dass ein Update nötig ist, und schreibt nichts hinein.
 - **Kopf fehlt oder ist beschädigt**: Der Ordner wird als beschädigter verschlüsselter Ordner gezeigt,
-  ohne Inhalt; holzi schreibt nichts hinein und legt keinen neuen Kopf über einen alten.
+  ohne Inhalt; HaexVault schreibt nichts hinein und legt keinen neuen Kopf über einen alten.
 - **Begleitdatei ohne Inhaltsobjekt**: Der Eintrag erscheint als beschädigt; die übrigen bleiben
   lesbar.
 - **Inhaltsobjekt ohne Begleitdatei** (abgebrochener Upload, abgestürztes Gerät): Es erscheint nicht.
-  holzi entfernt es frühestens 24 Stunden nach seiner Änderungszeit, damit kein laufender Upload eines
+  HaexVault entfernt es frühestens 24 Stunden nach seiner Änderungszeit, damit kein laufender Upload eines
   anderen Geräts getroffen wird.
 - **Zwei Begleitdateien für denselben Pfad** (gleichzeitiges Schreiben): Beide Einträge bleiben; der
   ältere erscheint als Konfliktkopie mit eigenem Namen. Nichts geht still verloren.
@@ -374,39 +374,39 @@ Dateizugriff auf das Verzeichnis versuchen lassen, die rohen Dateien zu lesen.
 - **Leerer Unterordner**: Er bleibt sichtbar, auch auf anderen Geräten.
 - **Verschlüsselter Ordner in einem verschlüsselten Ordner**: Nicht möglich; ein Unterordner darin ist
   einfach ein verschlüsselter Unterordner.
-- **Verschlüsselter Ordner im Bereich einer Erweiterung** (038 FR-010): Nicht möglich; holzi bietet es
+- **Verschlüsselter Ordner im Bereich einer Erweiterung** (038 FR-010): Nicht möglich; HaexVault bietet es
   dort nicht an.
-- **Den verschlüsselten Ordner selbst umbenennen**: holzi ändert nur seinen Kopf; kein anderes
+- **Den verschlüsselten Ordner selbst umbenennen**: HaexVault ändert nur seinen Kopf; kein anderes
   Objekt wird geschrieben.
 - **Den verschlüsselten Ordner in einen anderen gewöhnlichen Ordner verschieben**: Sein zufälliges
-  Präfix liegt unter dem Pfad des Elternordners; holzi kopiert dabei alle seine Objekte beim Anbieter
+  Präfix liegt unter dem Pfad des Elternordners; HaexVault kopiert dabei alle seine Objekte beim Anbieter
   und löscht die alten, wie bei einem gewöhnlichen Ordner in 044. Inhalte werden nicht neu
   verschlüsselt.
-- **Gleicher Name zweimal**: Weil die Präfixe zufällig sind, prüft holzi beim Anlegen und Umbenennen
+- **Gleicher Name zweimal**: Weil die Präfixe zufällig sind, prüft HaexVault beim Anlegen und Umbenennen
   die entschlüsselten Namen der verschlüsselten Ordner und die gewöhnlichen Ordner und Dateien im
   selben Elternordner und lehnt einen doppelten Namen ab. Legen zwei Geräte gleichzeitig denselben
   Namen an, erscheinen beide, einer als Konfliktkopie.
 - **Gewöhnlicher Name, der wie ein verschlüsselter Ordner aussieht** (26 Zeichen Base32 und
-  `.hxef`): holzi legt einen solchen gewöhnlichen Ordner oder eine solche Datei nicht an und meldet
+  `.hxef`): HaexVault legt einen solchen gewöhnlichen Ordner oder eine solche Datei nicht an und meldet
   einen ungültigen Namen, damit er nicht als beschädigter verschlüsselter Ordner erscheint.
-- **Ordner einer anderen Vault**: Weil holzi seinen Namen nicht entschlüsseln kann, zeigt es ihn mit
+- **Ordner einer anderen Vault**: Weil HaexVault seinen Namen nicht entschlüsseln kann, zeigt es ihn mit
   einer neutralen Bezeichnung („Verschlüsselter Ordner einer anderen Vault“) und der Änderungszeit
   seines Kopfes beim Anbieter.
 - **Gerät entfernt, neue Schlüsselgeneration** (Spec 024, D22): Bestehende Ordner bleiben über ihre
   Generation lesbar, neue nutzen die aktuelle. Ein entferntes Gerät, das einen Ordnerschlüssel schon
   kannte, behält ihn; Entzug ist nicht im Umfang.
-- **Gerät noch ohne Inhaltsschlüssel** (vor dem ersten Datensync): holzi kann keinen verschlüsselten
+- **Gerät noch ohne Inhaltsschlüssel** (vor dem ersten Datensync): HaexVault kann keinen verschlüsselten
   Ordner anlegen oder öffnen und sagt das.
 - **Viele Einträge**: Ein Ordner mit 10 000 Einträgen muss sich auf einem neuen Gerät öffnen lassen,
-  ohne dass holzi alle Begleitdateien nacheinander lädt (SC-003).
+  ohne dass HaexVault alle Begleitdateien nacheinander lädt (SC-003).
 - **Sperren der Vault während eines Transfers oder einer Wiedergabe**: Transfer und Freigabe-URL enden
-  wie in 044; danach liegt nichts Entschlüsseltes mehr im Speicher von holzi.
-- **„Mit System-App öffnen“**: Dafür entsteht eine entschlüsselte Kopie auf dem Gerät. holzi weist
+  wie in 044; danach liegt nichts Entschlüsseltes mehr im Speicher von HaexVault.
+- **„Mit System-App öffnen“**: Dafür entsteht eine entschlüsselte Kopie auf dem Gerät. HaexVault weist
   vorher darauf hin und entfernt sie spätestens beim Sperren oder Schließen der Vault (FR-028). Auf
-  Android sieht keine andere App holzis privaten Speicher; dort bekommt nur die gewählte App eine
+  Android sieht keine andere App HaexVaults privaten Speicher; dort bekommt nur die gewählte App eine
   befristete Leseberechtigung für genau diese Datei (FR-028a).
 - **Speicher hat Versionierung eingeschaltet**: Alte Fassungen bleiben beim Anbieter liegen, auch
-  nach dem Löschen. holzi nennt das im Hinweis beim Löschen, wenn es die Versionierung erkennt.
+  nach dem Löschen. HaexVault nennt das im Hinweis beim Löschen, wenn es die Versionierung erkennt.
 - **Mehr als die Größengrenze des Anbieters für ein Objekt**: wie in 044 (mehrteiliger Upload); die
   Verschlüsselung in Blöcken DARF das nicht verhindern.
 - **Auf dem Gerät: ein anderes Programm ändert den Ordner** (Sync-Programm lädt neue Dateien herunter,
@@ -414,10 +414,10 @@ Dateizugriff auf das Verzeichnis versuchen lassen, die rohen Dateien zu lesen.
   fehlt oder halb geschrieben ist, gilt wie im Speicher als beschädigt oder unsichtbar.
 - **Auf dem Gerät: Datenträger entfernt** (USB-Stick abgezogen): Der Ordner ist nicht mehr da; offene
   Freigabe-URLs und Transfers enden mit „nicht gefunden“, nichts Entschlüsseltes bleibt zurück.
-- **Auf dem Gerät: halb geschriebene Datei** (Absturz während des Schreibens): Teil-Dateien von holzi
-  im verschlüsselten Ordner sind keine Einträge; holzi entfernt sie nach 24 Stunden wie verwaiste
+- **Auf dem Gerät: halb geschriebene Datei** (Absturz während des Schreibens): Teil-Dateien von HaexVault
+  im verschlüsselten Ordner sind keine Einträge; HaexVault entfernt sie nach 24 Stunden wie verwaiste
   Objekte.
-- **Auf dem Gerät: fremde Dateien**: Sie erscheinen nicht als Einträge, holzi nennt ihre Zahl und löscht
+- **Auf dem Gerät: fremde Dateien**: Sie erscheinen nicht als Einträge, HaexVault nennt ihre Zahl und löscht
   sie nie von selbst, auch nicht beim Aufräumen; beim Löschen des ganzen verschlüsselten Ordners nennt
   die Rückfrage sie mit und löscht sie mit.
 - **Auf dem Gerät: Kopie mit einem anderen Programm** (der Nutzer kopiert `<zufall>.hxef` mit dem
@@ -433,12 +433,12 @@ Dateizugriff auf das Verzeichnis versuchen lassen, die rohen Dateien zu lesen.
 - **FR-001**: Der Nutzer MUSS im Dateibrowser in jedem Ordner eines Speichers einen neuen
   verschlüsselten Ordner anlegen können, außer innerhalb eines verschlüsselten Ordners und im Bereich
   einer Erweiterung.
-- **FR-002**: holzi MUSS beim Anlegen einen zufälligen Ordnerschlüssel erzeugen, ihn mit dem
+- **FR-002**: HaexVault MUSS beim Anlegen einen zufälligen Ordnerschlüssel erzeugen, ihn mit dem
   Dateiverschlüsselungsschlüssel der Vault verschlüsseln und mit Formatversion und dem mit dem
   Ordnerschlüssel verschlüsselten Namen im Kopf des Ordners ablegen. Das Präfix des Ordners beim
-  Anbieter MUSS zufällig sein und DARF seinen Namen nicht verraten. Vor dem ersten Anlegen MUSS holzi einmal darauf hinweisen, dass der Inhalt ohne diese
+  Anbieter MUSS zufällig sein und DARF seinen Namen nicht verraten. Vor dem ersten Anlegen MUSS HaexVault einmal darauf hinweisen, dass der Inhalt ohne diese
   Vault nicht lesbar ist.
-- **FR-003**: holzi MUSS einen verschlüsselten Ordner an seinem Kopf erkennen und im Dateibrowser mit
+- **FR-003**: HaexVault MUSS einen verschlüsselten Ordner an seinem Kopf erkennen und im Dateibrowser mit
   einem eigenen Symbol und dem Zustand zeigen: lesbar, gehört einer anderen Vault, neuere
   Formatversion, beschädigt.
 - **FR-004**: Ein gewöhnlicher Ordner DARF NICHT nachträglich in einen verschlüsselten umgewandelt
@@ -459,7 +459,7 @@ Dateizugriff auf das Verzeichnis versuchen lassen, die rohen Dateien zu lesen.
 
 **Was beim Anbieter liegt**
 
-- **FR-009**: Den Namen eines verschlüsselten Ordners MUSS holzi aus seinem Kopf entschlüsseln und
+- **FR-009**: Den Namen eines verschlüsselten Ordners MUSS HaexVault aus seinem Kopf entschlüsseln und
   im Dateibrowser, in der Pfadleiste, in Sitzungen und in Antworten an Agents mit Freigabe zeigen.
   Umbenennen MUSS nur den Kopf ändern. Ein Agent oder eine Erweiterung ohne Freigabe erfährt den Namen
   nicht (FR-032, FR-039).
@@ -474,7 +474,7 @@ Dateizugriff auf das Verzeichnis versuchen lassen, die rohen Dateien zu lesen.
   Inhaltstyp und Prüfsumme des Klartexts sowie den verschlüsselten Dateischlüssel tragen, alles
   verschlüsselt mit dem Ordnerschlüssel. Leere Unterordner MÜSSEN eine eigene Begleitdatei haben.
 - **FR-013**: Die Ansicht eines verschlüsselten Ordners MUSS sich allein aus dem Bucket aufbauen
-  lassen. holzi DARF dafür auf dem Gerät einen Zwischenspeicher halten, der nur in den verschlüsselten
+  lassen. HaexVault DARF dafür auf dem Gerät einen Zwischenspeicher halten, der nur in den verschlüsselten
   Daten der Vault liegt, nicht synchronisiert wird und jederzeit aus dem Bucket neu entstehen kann.
 
 **Lesen und Schreiben**
@@ -482,35 +482,35 @@ Dateizugriff auf das Verzeichnis versuchen lassen, die rohen Dateien zu lesen.
 - **FR-014**: Alle Aktionen des Dateibrowsers aus 044 (Navigieren, Liste und Raster, Vorschaubilder,
   Viewer, Freigabe-URLs, Hochladen, Herunterladen, Anlegen, Umbenennen, Kopieren, Verschieben, Löschen,
   Suchen, Drag & Drop ins Fenster, Wiederherstellen der Sitzung) MÜSSEN in einem verschlüsselten
-  Ordner funktionieren; holzi ver- und entschlüsselt dabei ohne Zutun des Nutzers.
-- **FR-015**: Inhalte MÜSSEN in Blöcken verschlüsselt sein, sodass holzi einen beliebigen
+  Ordner funktionieren; HaexVault ver- und entschlüsselt dabei ohne Zutun des Nutzers.
+- **FR-015**: Inhalte MÜSSEN in Blöcken verschlüsselt sein, sodass HaexVault einen beliebigen
   Teilbereich liest, indem es nur die betroffenen Blöcke beim Anbieter lädt. Wiedergabe und Springen
-  in Video und Audio MÜSSEN so funktionieren wie in 044; holzi DARF eine Datei dafür nie ganz in den
+  in Video und Audio MÜSSEN so funktionieren wie in 044; HaexVault DARF eine Datei dafür nie ganz in den
   Arbeitsspeicher laden.
 - **FR-016**: Ein Eintrag MUSS erst erscheinen, wenn sein Inhaltsobjekt vollständig geschrieben ist.
   Abgebrochene oder gescheiterte Uploads DÜRFEN keinen sichtbaren Eintrag hinterlassen; verwaiste
-  Inhaltsobjekte MUSS holzi frühestens 24 Stunden nach ihrer Änderungszeit entfernen.
-- **FR-017**: Beim Überschreiben MUSS holzi die neue Fassung vollständig ablegen, bevor die alte
+  Inhaltsobjekte MUSS HaexVault frühestens 24 Stunden nach ihrer Änderungszeit entfernen.
+- **FR-017**: Beim Überschreiben MUSS HaexVault die neue Fassung vollständig ablegen, bevor die alte
   verschwindet; ein Leser bekommt immer eine Fassung ganz.
 - **FR-018**: Umbenennen und Verschieben innerhalb eines verschlüsselten Ordners DÜRFEN kein
   Inhaltsobjekt neu schreiben. Kopieren innerhalb desselben verschlüsselten Ordners SOLL ohne
   Herunterladen beim Anbieter geschehen.
 - **FR-019**: Kopieren oder Verschieben aus einem verschlüsselten Ordner in einen gewöhnlichen Ordner
   eines Speichers MUSS vorher fragen, weil der Inhalt dort unverschlüsselt liegt. Aufs Gerät fragt
-  holzi nicht.
+  HaexVault nicht.
 - **FR-020**: Kopieren zwischen zwei verschlüsselten Ordnern derselben Vault MUSS den Inhalt im
   Zielordner mit dessen Ordnerschlüssel lesbar machen.
 - **FR-021**: Gleichzeitiges Schreiben desselben Pfads von zwei Geräten DARF keine Fassung verlieren;
-  holzi MUSS beide zeigen und eine als Konfliktkopie benennen.
+  HaexVault MUSS beide zeigen und eine als Konfliktkopie benennen.
 
 **Unversehrtheit**
 
-- **FR-022**: holzi MUSS jede Veränderung von Kopf, Begleitdatei oder Inhaltsobjekt beim Lesen
+- **FR-022**: HaexVault MUSS jede Veränderung von Kopf, Begleitdatei oder Inhaltsobjekt beim Lesen
   erkennen und den betroffenen Eintrag als beschädigt melden, ohne veränderten Klartext zu zeigen oder
   an Viewer, Agents oder Transfers zu geben.
-- **FR-023**: holzi MUSS erkennen, wenn ein Inhaltsobjekt gekürzt, verlängert, gegen das einer
+- **FR-023**: HaexVault MUSS erkennen, wenn ein Inhaltsobjekt gekürzt, verlängert, gegen das einer
   anderen Datei vertauscht oder Blöcke darin umgestellt wurden.
-- **FR-024**: holzi MUSS erkennen, wenn eine Begleitdatei auf ein Inhaltsobjekt zeigt, das nicht zu
+- **FR-024**: HaexVault MUSS erkennen, wenn eine Begleitdatei auf ein Inhaltsobjekt zeigt, das nicht zu
   ihr gehört.
 - **FR-025**: Eine beschädigte Datei DARF das Lesen anderer Einträge desselben Ordners nicht
   verhindern.
@@ -526,9 +526,9 @@ Dateizugriff auf das Verzeichnis versuchen lassen, die rohen Dateien zu lesen.
 - **FR-028**: „Mit System-App öffnen“ MUSS für Dateien aus verschlüsselten Ordnern vor dem Öffnen
   darauf hinweisen, dass eine entschlüsselte Kopie auf dem Gerät entsteht, die die andere App behalten
   kann; mit dem Haken „Nicht mehr fragen“ gilt das für diesen Ordner. Die Kopie MUSS in einem eigenen
-  Ordner von holzi liegen, außerhalb des gewöhnlichen Zwischenspeichers aus 044, und MUSS spätestens
+  Ordner von HaexVault liegen, außerhalb des gewöhnlichen Zwischenspeichers aus 044, und MUSS spätestens
   beim Sperren oder Schließen der Vault entfernt werden, nach einem Absturz beim nächsten Start.
-- **FR-028a**: Auf Android MUSS holzi die Kopie in seinem privaten Speicher halten und der gewählten
+- **FR-028a**: Auf Android MUSS HaexVault die Kopie in seinem privaten Speicher halten und der gewählten
   App nur über eine befristete Leseberechtigung für genau diese eine Datei geben; sie DARF nie in einen
   gemeinsamen Ordner (Downloads, Dokumente) gelegt werden. Solange 044 „Mit System-App öffnen“ auf
   Android nicht anbietet (heute „noch nicht auf dieser Plattform“), gilt das auch für verschlüsselte
@@ -541,19 +541,19 @@ Dateizugriff auf das Verzeichnis versuchen lassen, die rohen Dateien zu lesen.
   Berechtigung für den Speicher (044 FR-031a). Die Freigabe für den Ordner DARF NICHT mehr erlauben als
   die für den Speicher.
 - **FR-030a**: Die Frage MUSS nennen, wohin gelesene Inhalte gehen: das Modell des Agents und ob es
-  auf dem Gerät oder in der Cloud läuft. Externe Agents (Spec 021) und Delegates, deren Modell holzi
+  auf dem Gerät oder in der Cloud läuft. Externe Agents (Spec 021) und Delegates, deren Modell HaexVault
   nicht kennt, MÜSSEN wie Cloud-Modelle behandelt und so benannt werden. Eine Freigabe gilt entweder
   nur für lokale Modelle oder ausdrücklich auch für Cloud-Modelle; ab Werk ist „nur lokal“ gewählt,
   wenn der Agent gerade ein lokales Modell nutzt. Wechselt ein Agent mit einer Freigabe „nur lokal“
-  auf ein Cloud-Modell, MUSS holzi vor dem nächsten Zugriff neu fragen.
-- **FR-031**: Fehlt die Freigabe, MUSS holzi den Nutzer fragen (Lesen erlauben, Lesen und Schreiben
+  auf ein Cloud-Modell, MUSS HaexVault vor dem nächsten Zugriff neu fragen.
+- **FR-031**: Fehlt die Freigabe, MUSS HaexVault den Nutzer fragen (Lesen erlauben, Lesen und Schreiben
   erlauben, Ablehnen) mit einem Haken „Erlaubnis merken“, ab Werk nicht gesetzt. Nur mit Haken MUSS
-  holzi die Antwort speichern. Ohne Haken gilt sie nur für den laufenden Vorgang: bei einer
+  HaexVault die Antwort speichern. Ohne Haken gilt sie nur für den laufenden Vorgang: bei einer
   Erweiterung, bis sie beendet oder neu geladen wird, bei einem Agent bis zum Ende seiner Aufgabe
   (ein Turn im Chat, eine Sitzung über MCP), in jedem Fall höchstens bis zum Sperren der Vault.
 - **FR-032**: Ohne Freigabe DARF ein Agent aus dem Ordner nichts erfahren außer dass es ihn gibt und
   dass er verschlüsselt ist, unter einer neutralen Bezeichnung, mit der er nach der Freigabe fragen
-  kann; den Namen nennt holzi nur dem Nutzer in der Frage. Er erfährt keinen Namen, keine Einträge, keine Anzahl, keine Suchtreffer, keine Objekte beim Anbieter,
+  kann; den Namen nennt HaexVault nur dem Nutzer in der Frage. Er erfährt keinen Namen, keine Einträge, keine Anzahl, keine Suchtreffer, keine Objekte beim Anbieter,
   auch nicht verschlüsselt.
 - **FR-033**: Der Nutzer MUSS die Freigaben jedes Agents für verschlüsselte Ordner bei den
   Datei-Berechtigungen des Agents sehen und widerrufen können (044 FR-031b). Ein Widerruf MUSS sofort
@@ -562,13 +562,13 @@ Dateizugriff auf das Verzeichnis versuchen lassen, die rohen Dateien zu lesen.
 - **FR-035**: Eine Erweiterung DARF Speicher nur mit der Berechtigung `remoteStorage` erreichen,
   getrennt vom Dateizugriff auf dem Gerät (038 FR-009). Sonst sieht sie nur ihren eigenen Bereich (038
   FR-010); einzige Ausnahme sind verschlüsselte Ordner nach FR-036.
-- **FR-036**: Will eine Erweiterung auf einen verschlüsselten Ordner zugreifen, MUSS holzi den Nutzer
+- **FR-036**: Will eine Erweiterung auf einen verschlüsselten Ordner zugreifen, MUSS HaexVault den Nutzer
   zuerst fragen, mit denselben Antworten und demselben Haken wie in FR-031, und zwar in einem Dialog
-  von holzi, den die Erweiterung weder gestalten noch auslösen kann, ohne zuzugreifen. Ohne
-  `remoteStorage` für den Speicher MUSS holzi ablehnen, ohne zu fragen. Die Erweiterung bekommt
+  von HaexVault, den die Erweiterung weder gestalten noch auslösen kann, ohne zuzugreifen. Ohne
+  `remoteStorage` für den Speicher MUSS HaexVault ablehnen, ohne zu fragen. Die Erweiterung bekommt
   entschlüsselte Inhalte, nie rohe Objekte, Schlüssel oder Begleitdateien.
 - **FR-037**: Eine Freigabe für verschlüsselte Ordner DARF NICHT im Manifest einer Erweiterung stehen.
-  holzi MUSS ein Manifest, das sie verlangt, bei Installation und Update mit einer verständlichen
+  HaexVault MUSS ein Manifest, das sie verlangt, bei Installation und Update mit einer verständlichen
   Meldung ablehnen. Auch Entwicklerversionen und Updates DÜRFEN keine gespeicherte Freigabe erben,
   die der Nutzer nicht für genau diese Erweiterung gegeben hat.
 - **FR-038**: Gespeicherte Freigaben einer Erweiterung MUSS der Nutzer bei ihren Berechtigungen sehen
@@ -584,15 +584,15 @@ Dateizugriff auf das Verzeichnis versuchen lassen, die rohen Dateien zu lesen.
   zu schreiben und ohne den Dateiverschlüsselungsschlüssel der Vault weiterzugeben.
 - **FR-041**: Das Format MUSS eine Versionsangabe tragen und so beschrieben sein, dass die
   Sync-Regeln es ohne zweite Umsetzung nutzen. Ver- und Entschlüsselung MÜSSEN
-  an genau einer Stelle in holzi umgesetzt sein.
+  an genau einer Stelle in HaexVault umgesetzt sein.
 - **FR-042**: Das Format MUSS in einem Dokument im Repository beschrieben sein (Aufbau aller drei
-  Objektarten, Schlüsselableitung, Verfahren, Versionen), damit Ordner auch ohne holzi geprüft werden
+  Objektarten, Schlüsselableitung, Verfahren, Versionen), damit Ordner auch ohne HaexVault geprüft werden
   können, und es MUSS Testvektoren geben.
 
 **Auf dem Gerät (User Story 7)**
 
 - **FR-043**: Der Nutzer MUSS in jedem Ordner des Geräts, den er schreiben darf, einen verschlüsselten
-  Ordner anlegen können, außer in holzis eigenen Daten (044 FR-037) und innerhalb eines verschlüsselten
+  Ordner anlegen können, außer in HaexVaults eigenen Daten (044 FR-037) und innerhalb eines verschlüsselten
   Ordners. Er MUSS im selben Format liegen wie im Speicher (`<zufall>.hxef/` mit `h`, `m/…`, `c/…`).
 - **FR-044**: Alle Anforderungen an verschlüsselte Ordner im Speicher (FR-001 bis FR-042) MÜSSEN auf dem
   Gerät genauso gelten, umgesetzt über dieselbe Schicht und eine gemeinsame Speicher-Schnittstelle mit
@@ -606,7 +606,7 @@ Dateizugriff auf das Verzeichnis versuchen lassen, die rohen Dateien zu lesen.
   endgültig löschen, nie in den Papierkorb.
 - **FR-047**: Schreiben auf dem Gerät MUSS über eine Teil-Datei und Umbenennen geschehen, sodass andere
   Programme nie eine halbe Datei unter einem endgültigen Namen sehen.
-- **FR-048**: Fremde Dateien in einem verschlüsselten Ordner DÜRFEN NICHT als Einträge erscheinen; holzi
+- **FR-048**: Fremde Dateien in einem verschlüsselten Ordner DÜRFEN NICHT als Einträge erscheinen; HaexVault
   MUSS ihre Zahl als Hinweis zeigen und DARF sie nicht von selbst löschen, außer beim Löschen des ganzen
   Ordners nach einer Rückfrage, die sie nennt.
 - **FR-049**: Die Suche ab einem gewöhnlichen Ordner des Geräts MUSS verschlüsselte Ordner über ihre
@@ -616,7 +616,7 @@ Dateizugriff auf das Verzeichnis versuchen lassen, die rohen Dateien zu lesen.
   verlangen wie im Speicher (FR-030 bis FR-034); „Dateien des Geräts“ DARF ihn nicht einschließen, und
   rohe Dateien darin DÜRFEN Agents weder sehen noch lesen noch ändern.
 - **FR-051**: Der Dateizugriff von Erweiterungen (Spec 017) MUSS rohe Dateien und Verzeichnisse in
-  verschlüsselten Ordnern sperren wie holzis eigene Daten (017 FR-049): kein Auflisten, Lesen,
+  verschlüsselten Ordnern sperren wie HaexVaults eigene Daten (017 FR-049): kein Auflisten, Lesen,
   Schreiben, Löschen oder Beobachten. Erweiterungen erreichen einen verschlüsselten Ordner auf dem
   Gerät nur über die Freigabe je Ordner (FR-035 bis FR-039).
 - **FR-052**: Verschlüsselte Ordner auf dem Gerät MÜSSEN unter Linux, Windows, macOS und Android
@@ -647,7 +647,7 @@ Dateizugriff auf das Verzeichnis versuchen lassen, die rohen Dateien zu lesen.
   Pfade, leere Ordner, alle Inhaltstypen aus 044) kommt kein Name, Pfadteil, Inhaltstyp oder
   Klartextausschnitt in Objektnamen, Objektinhalten oder Metadaten beim Anbieter vor.
 - **SC-002**: In 100 % der geprüften Manipulationen (verändertes Byte, gekürztes, verlängertes,
-  vertauschtes Objekt, umgestellte Blöcke, fremde Begleitdatei) meldet holzi den Eintrag als beschädigt
+  vertauschtes Objekt, umgestellte Blöcke, fremde Begleitdatei) meldet HaexVault den Eintrag als beschädigt
   und gibt keinen veränderten Klartext heraus.
 - **SC-003**: Ein verschlüsselter Ordner mit 1 000 Einträgen ist auf einem Gerät, das ihn zum ersten
   Mal öffnet, bei guter Verbindung in unter 5 Sekunden vollständig sichtbar, beim nächsten Öffnen in
@@ -655,7 +655,7 @@ Dateizugriff auf das Verzeichnis versuchen lassen, die rohen Dateien zu lesen.
   verschlüsselten Ordnern zeigt deren Namen bei guter Verbindung in unter 2 Sekunden.
 - **SC-004**: Ein 4-GB-Video in einem verschlüsselten Ordner beginnt bei guter Verbindung in unter
   5 Sekunden zu spielen, ein Sprung an eine beliebige Stelle ist in unter 5 Sekunden sichtbar, und der
-  Speicherbedarf von holzi wächst dabei um weniger als 100 MB.
+  Speicherbedarf von HaexVault wächst dabei um weniger als 100 MB.
 - **SC-005**: Hoch- und Herunterladen in einen verschlüsselten Ordner sind höchstens 20 % langsamer als
   in einen gewöhnlichen Ordner desselben Speichers; das Volumen beim Anbieter ist höchstens 1 % größer
   als der Klartext (Dateien ab 1 MB).
@@ -671,7 +671,7 @@ Dateizugriff auf das Verzeichnis versuchen lassen, die rohen Dateien zu lesen.
 - **SC-009**: Nach dem Schließen der Vault liegt in 100 % der geprüften Fälle (Viewer, Vorschaubilder,
   Transfer, „Mit System-App öffnen“, Logs) kein Klartext aus verschlüsselten Ordnern außerhalb der
   verschlüsselten Daten der Vault auf dem Gerät.
-- **SC-010**: Die Testvektoren aus FR-042 laufen in der CI bei jedem PR auf allen Plattformen von holzi
+- **SC-010**: Die Testvektoren aus FR-042 laufen in der CI bei jedem PR auf allen Plattformen von HaexVault
   durch, auch auf Android.
 - **SC-011**: Ein verschlüsselter Ordner auf dem Gerät mit 1 000 Einträgen ist beim ersten Öffnen in
   unter 2 Sekunden sichtbar, beim nächsten in unter 1 Sekunde.
@@ -693,13 +693,13 @@ Dateizugriff auf das Verzeichnis versuchen lassen, die rohen Dateien zu lesen.
   Schreiben) und dass zwei Inhaltsobjekte Kopien voneinander sind. Das ist dieselbe Grenze wie bei
   Cryptomator, ohne dessen sichtbaren Ordnernamen; Auffüllen auf feste Größen ist nicht vorgesehen.
 - Ein Anbieter, der ein altes Objekt wiederherstellt (Zurückspielen einer früheren Fassung), wird
-  nicht in jedem Fall erkannt; holzi erkennt Veränderung und Vertauschen, nicht jedes Zurückspielen
-  einer ganzen früheren Fassung. Ebenso wenig erkennt holzi, wenn der Anbieter ganze Einträge
+  nicht in jedem Fall erkannt; HaexVault erkennt Veränderung und Vertauschen, nicht jedes Zurückspielen
+  einer ganzen früheren Fassung. Ebenso wenig erkennt HaexVault, wenn der Anbieter ganze Einträge
   (Begleitdatei samt Inhaltsobjekt) entfernt; es gibt kein signiertes Verzeichnis des Ordners.
 - Verfahren und Blockgröße legt der Plan fest (research R2, R4: XChaCha20-Poly1305, Blöcke zu
   64 KiB); das Modell kommt aus haex-vault 2.x, das Format nicht (research R3).
 - Ein Speicher hat keine Benachrichtigung über Änderungen; Änderungen anderer Geräte erscheinen wie in
-  044 beim Neuladen oder Zurückkehren. Auf dem Gerät beobachtet holzi das Verzeichnis.
+  044 beim Neuladen oder Zurückkehren. Auf dem Gerät beobachtet HaexVault das Verzeichnis.
 - Auf dem Gerät gilt für andere Programme dieselbe Grenze wie für einen Anbieter: Sie sehen Zahl,
   Größen und Zeiten der Dateien. Die Verschlüsselung der Festplatte durch das System bleibt davon
   unberührt.

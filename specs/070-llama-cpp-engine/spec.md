@@ -11,14 +11,14 @@ Qwen3.5 4B failed to load as GGUF (operator, 2026-10-29)
 
 ## Background
 
-- holzi loads local models only through mistralrs (`llm/local/loader.rs`, GGUF, CPU/CUDA/Metal).
+- HaexVault loads local models only through mistralrs (`llm/local/loader.rs`, GGUF, CPU/CUDA/Metal).
 - Qwen3.5 (`general.architecture = qwen35`) and Gemma 4 (`gemma4`) cannot be loaded this way. In its GGUF
   path mistralrs knows only Llama, Qwen2, Qwen3, Qwen3MoE, Phi, Mistral3 and a few older architectures.
 - Upstream this is open and not in sight: issue #2125 (qwen35) open since May, its finished fix PR #2129
   without any review; issue #2098 (gemma4) without a reply; PR #2425 (error instead of panic) open.
   New models reach mistralrs through safetensors and dedicated loaders, not through GGUF. State:
   2026-10-29, v0.9.5 on GitHub.
-- Until then holzi refuses unknown architectures with a clear message (PR #640) and does not list
+- Until then HaexVault refuses unknown architectures with a clear message (PR #640) and does not list
   Qwen3.5 and Gemma 4 in the catalog.
 
 ## Idea
@@ -63,7 +63,7 @@ The spike shows that a tool call in the model output arrives cleanly as a `ToolC
 mode (`reasoning_requested`) is emitted separately from the answer text.
 
 **Why this priority**: Chat and agents (specs 032, 021) depend on tool calls. Without them the engine is
-worthless for holzi. mistralrs delivers this ready-made today; llama.cpp provides chat template and
+worthless for HaexVault. mistralrs delivers this ready-made today; llama.cpp provides chat template and
 parser only in part through the Rust binding.
 
 **Independent Test**: The example sentences of the tool evaluation (spec 032, `eval-results.md`; 83 at set
@@ -148,7 +148,7 @@ what the spike shows for tool calls, Qwen3-VL (spec 055) and speed. Until then: 
 - **FR-004**: An architecture that no engine loads MUST fail immediately with a clear message.
 - **FR-005**: The build MUST stay possible without llama.cpp (its own feature, like `llm-cuda`), so
   `--no-default-features` builds and CI do not get slower.
-- **FR-006**: The engine MUST run on every platform where holzi offers local models (Linux, Windows,
+- **FR-006**: The engine MUST run on every platform where HaexVault offers local models (Linux, Windows,
   macOS, Android; iOS where mistralrs runs today). A gap is a bug, not a decision. Android is built
   first, iOS second.
 - **FR-007**: The catalog MUST list a model only once it demonstrably loads and answers through the

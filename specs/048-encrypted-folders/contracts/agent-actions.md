@@ -1,7 +1,7 @@
 # Contract: Änderungen an den Dateiaktionen der Agents (048)
 
 Grundlage sind die `files.*`-Aktionen aus [044](../../044-file-browser/contracts/agent-actions.md).
-Neue Aktionen gibt es nicht; geändert wird, was Agents sehen und wann holzi fragt.
+Neue Aktionen gibt es nicht; geändert wird, was Agents sehen und wann haex-vault fragt.
 
 ## Sichtbarkeit
 
@@ -11,11 +11,11 @@ Neue Aktionen gibt es nicht; geändert wird, was Agents sehen und wann holzi fra
   den Ordner in weiteren Aktionen nennt. Name, Einträge, Anzahl und Objekte bleiben verborgen
   (FR-032).
 - `path` dieses Eintrags ist der übergeordnete Ordner mit `ref` als letztem Teil; über diesen Pfad
-  (und darunter) fragt holzi nach der Freigabe. Nennt der Agent den Ordner ohne Freigabe bei seinem
+  (und darunter) fragt haex-vault nach der Freigabe. Nennt der Agent den Ordner ohne Freigabe bei seinem
   echten Namen oder seinem Präfix beim Anbieter, ist er „nicht gefunden“, ohne Frage.
 - `files.search` über einen Speicher lässt verschlüsselte Ordner ohne Freigabe aus.
 - Kopieren oder Verschieben aus einem verschlüsselten Ordner in einen gewöhnlichen Ordner eines
-  Speichers lehnt holzi für Agents ab (die Rückfrage aus FR-019 kann nur der Nutzer beantworten).
+  Speichers lehnt haex-vault für Agents ab (die Rückfrage aus FR-019 kann nur der Nutzer beantworten).
 - Mit Freigabe sieht der Agent den Ordner mit seinem Namen und darin alles wie in einem gewöhnlichen
   Ordner.
 
@@ -37,7 +37,7 @@ Jede Aktion, die in einen verschlüsselten Ordner ohne passende Freigabe führt,
 - Ohne Haken gilt die Antwort bis zum Ende des Turns (eingebauter Agent) oder der MCP-Sitzung (externe
   Agents), höchstens bis zum Sperren der Vault.
 - Eine gespeicherte Freigabe „nur lokal“ gilt nicht, wenn der Turn ein Cloud-Modell nutzt; dann fragt
-  holzi neu.
+  haex-vault neu.
 - Antwortet niemand in 60 Sekunden oder ist kein Fenster offen: abgelehnt für diesen Aufruf, nichts
   gespeichert (wie 044).
 

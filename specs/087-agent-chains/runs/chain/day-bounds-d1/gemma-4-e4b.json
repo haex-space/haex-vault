@@ -321,7 +321,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich kann in holzi keine Aktionen finden, die mit \"Julia\" zusammenhängen. Meinst du eine Person, über die ich etwas nachschlagen soll, oder beziehst du dich auf etwas anderes?"
+      "text": "Ich kann in haex-vault keine Aktionen finden, die mit \"Julia\" zusammenhängen. Meinst du eine Person, über die ich etwas nachschlagen soll, oder beziehst du dich auf etwas anderes?"
     },
     {
       "id": "mail_read-en-1-s",
@@ -608,7 +608,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich kann keine spezifische Aktion für \"Sparkasse\" finden. Könntest du mir bitte mehr Kontext geben, was du mit der Sparkasse machen möchtest? Zum Beispiel: Möchtest du eine Information suchen, eine App öffnen oder etwas in holzi überprüfen?"
+      "text": "Ich kann keine spezifische Aktion für \"Sparkasse\" finden. Könntest du mir bitte mehr Kontext geben, was du mit der Sparkasse machen möchtest? Zum Beispiel: Möchtest du eine Information suchen, eine App öffnen oder etwas in haex-vault überprüfen?"
     },
     {
       "id": "mail_read-en-5",

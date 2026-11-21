@@ -51,23 +51,23 @@ durchgereicht werden. Modelle/Anbieter-Gruppen werden weiterhin mit
 vollständig aus dem DOM, wodurch Rekas Tastatur-Navigation automatisch nur
 sichtbare Einträge sieht.
 
-**Rationale**: Alle bestehenden Auswahllisten in holzi (`ComposerControl.vue`,
+**Rationale**: Alle bestehenden Auswahllisten in haex-vault (`ComposerControl.vue`,
 `settings/Select.vue`, hier) nutzen ausschließlich die `Shadcn*`-Hüllen aus
 dem externen haex-ui-Nuxt-Layer (`github:haex-space/haextension/packages/
 haex-ui`, gepinnt in `nuxt.config.ts`); nirgends im Projekt wird `reka-ui`
-direkt importiert. Diese Spec ändert nur holzi, nicht den externen Layer.
+direkt importiert. Diese Spec ändert nur haex-vault, nicht den externen Layer.
 
 **Alternatives considered**:
 
 - **`reka-ui`s `Combobox*`-Primitive direkt verwenden** (technisch für genau
   diesen Fall gebaut, im installierten `reka-ui` bereits vorhanden): verworfen,
-  weil damit erstmals ein holzi-Component direkt an rohen `reka-ui`-Bausteinen
+  weil damit erstmals ein haex-vault-Component direkt an rohen `reka-ui`-Bausteinen
   vorbei an der gemeinsamen `Shadcn*`-Hülle bedient würde — ein Bruch mit der
   einzigen im Projekt etablierten Konvention für Auswahllisten. Der saubere
   Weg (eine `ShadcnCombobox*`-Familie im haex-ui-Layer) ist eine
   Cross-Repo-Änderung an einem separaten, von haex-space verwalteten Repo und
   damit außerhalb des Umfangs dieser Spec.
-- **Neue lokale Wrapper-Komponente um `reka-ui`s Combobox** (nur in holzi,
+- **Neue lokale Wrapper-Komponente um `reka-ui`s Combobox** (nur in haex-vault,
   ohne den haex-ui-Layer zu ändern): verworfen aus demselben Grund — sie
   würde dauerhaft neben der `Shadcn*`-Familie als zweiter, abweichender
   Auswahl-Baustein bestehen bleiben.

@@ -46,7 +46,7 @@ gesetzt = aus. Leitplanke: nur über die Aktion `settings.agentBrowser.builtin.s
 kein Agent aufrufen kann.
 
 Geräteeinstellung `agent_browser.builtin_passwords` (JSON, Form wie `PasswordRights`: `level`,
-`tags`, `defaultTag`), ab Werk nicht gesetzt = aus: die Einträge, aus denen holzi für den
+`tags`, `defaultTag`), ab Werk nicht gesetzt = aus: die Einträge, aus denen haex-vault für den
 eingebauten Agenten eintragen darf (2026-11-02). Leitplanke: nur über
 `settings.agentBrowser.builtinPasswords.set`.
 
@@ -76,7 +76,7 @@ verschlüsselte Ordner „Profil“ (048 US7, Schlüssel aus dem Inhaltsschlüss
 Datei `profile.zip`: ZIP (Deflate) der bleibenden Profilteile (R3). Jedes Ende schreibt eine neue
 Version der Datei; die vorige entfällt wie beim Überschreiben im Dateibrowser. Lässt sich die
 Datei nicht lesen (kaputt, Vault ohne passenden Schlüssel), startet der Browser mit leerem Profil
-und holzi meldet es in „KI → Browser“.
+und haex-vault meldet es in „KI → Browser“.
 
 ## Filter lists and the tracker switch (FR-045)
 
@@ -85,21 +85,21 @@ belongs to the vault; before that it was the file `settings.json` next to the do
 value is JSON with `enabled`, `off` (ids of default lists) and `custom` (a list of objects with `id`,
 `name`, `url` and `enabled`); no row means the defaults. The default lists of uBlock
 Origin cannot be removed, only switched off by their id; own lists have an `https` address, a name
-(the host when empty), an id holzi gives them and can be changed and removed. The addresses of the
-default lists live in the code, not in the setting, so an update of holzi may change them.
+(the host when empty), an id haex-vault gives them and can be changed and removed. The addresses of the
+default lists live in the code, not in the setting, so an update of haex-vault may change them.
 
 The downloaded lists are files in `<AppLocalData>/filter-lists/` (spec 084; one file per list; its
 modification time is the time of the download, the error of the last download is kept in memory),
-device-local, without sync and without secrets; when they are missing, holzi downloads them at the next start.
+device-local, without sync and without secrets; when they are missing, haex-vault downloads them at the next start.
 
 ## DNS over HTTPS (FR-048)
 
 The choice is the `preferences` row `agentBrowser.dns` of the device (spec 084: it lies in the vault,
 but only this device reads it; before that it was the file `agent-browser/dns.json`; no secrets): `{ "mode": "automatic" | "secure" | "off", "provider": "quad9" | "cloudflare" | "google"
 | "mullvad" | "custom", "custom": "<https template>" }`. No row means automatic with Quad9. The
-templates of the presets live in the code, not in the file, so an update of holzi may change them;
+templates of the presets live in the code, not in the file, so an update of haex-vault may change them;
 `custom` counts only with the provider `custom` and must be an `https` address with a host, no user
-info and at most 2048 characters. At the browser's start holzi writes the result into the `Local
+info and at most 2048 characters. At the browser's start haex-vault writes the result into the `Local
 State` file of the working directory (`dns_over_https.mode`, `dns_over_https.templates`); the saved
 profile's own copy of that key is replaced, every other key stays.
 

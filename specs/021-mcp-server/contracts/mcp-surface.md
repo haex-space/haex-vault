@@ -6,15 +6,15 @@ Was ein externer Agent über MCP sieht. Gilt für beide Wege (Programm-Weg und H
 
 ## Server
 
-- `serverInfo.name`: `holzi`, `serverInfo.version`: Version der App.
+- `serverInfo.name`: `haex`, `serverInfo.version`: Version der App.
 - Protokollversion: die neueste, die `rmcp` 3.5 und der Client gemeinsam haben.
 - `capabilities`: nur `tools` mit `listChanged: true`. Keine Ressourcen, keine Prompts (Spec
   „Nicht im Umfang“).
 - `instructions`:
-  - registriert: kurzer Text, dass Werkzeuge holzi auf diesem Gerät bedienen, dass Ziele (Tab,
+  - registriert: kurzer Text, dass Werkzeuge haex-vault auf diesem Gerät bedienen, dass Ziele (Tab,
     Fenster) ausdrücklich anzugeben sind (020 FR-030) und dass `needs_choice` eine Auswahl verlangt
     (046);
-  - wartet: „Warte auf Registrierung in holzi. Bestätige den Dialog im holzi-Fenster.“
+  - wartet: „Warte auf Registrierung in haex-vault. Bestätige den Dialog im haex-vault-Fenster.“
 
 ## Werkzeuge
 

@@ -9,7 +9,7 @@ Nothing is persisted. One field is added to spec 090's description (`specs/090-a
 | `active` | boolean | optional, default `false`; the menu's filter, sort or view is not at its default: the renderer draws a dot (spec 093 FR-008) |
 
 `active` on any other type is left out by the checks (as an unknown field of that type). It is state of the app, never
-persisted by holzi. In the overflow panel a menu is a group (heading plus entries), so the dot is drawn next to the
+persisted by haex-vault. In the overflow panel a menu is a group (heading plus entries), so the dot is drawn next to the
 heading there; it is positioned over the icon in the row and adds no width.
 
 An entry id is unique in the whole description, not only inside its menu (`headerChecks` warns about a repeated id and

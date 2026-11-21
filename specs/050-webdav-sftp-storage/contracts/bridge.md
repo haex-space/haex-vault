@@ -32,12 +32,12 @@ Zugangsdaten (FR-017a).
   IP-Adresse ohne Schema, `port` 1–65535.
 - **Berechtigung `add`** (FR-017b): Ziel ist bei WebDAV `host:port` der Adresse (Port aus dem Schema, wenn
   keiner angegeben ist), bei SFTP `host:port`. Rückfrage, Ablehnung und lokale Adressen wie 038.
-- **Abgelehnt vor jedem Dialog** (3001 `credentials are entered in holzi`): `config` oder `request`
+- **Abgelehnt vor jedem Dialog** (3001 `credentials are entered in haex`): `config` oder `request`
   enthält eines von `accessKeyId`, `secretAccessKey`, `sessionToken`, `username`, `password`,
   `privateKey`, `passphrase`, `hostKey`, `fingerprint`.
 - **Dialog**: wie 038. Für eine neue SFTP-Verbindung zeigt das Fenster über der ganzen App nach den
   Zugangsdaten den Fingerabdruck des Hostschlüssels, den der Server beim Test zeigt; erst nach der
-  Bestätigung des Nutzers testet holzi weiter. Ablehnen = Abbruch (1002).
+  Bestätigung des Nutzers testet haex-vault weiter. Ablehnen = Abbruch (1002).
 - **Ergebnis**: Eintrag wie in der Liste; die Erweiterung erhält Lesen und Schreiben für den neuen
   Speicher (038 FR-013).
 
@@ -46,7 +46,7 @@ Zugangsdaten (FR-017a).
 `extension_remote_storage_update_backend`: `config` kennt bei `webdav` und `sftp` nur `folder` (statt
 `bucket`); ein neuer Ordner wird vor dem Speichern getestet. Fehlt er, bietet der Dialog wie die
 Einstellungen an, ihn anzulegen (FR-006), nur nach Bestätigung. Umgesetzt (PR E): Der Dialog über dem Tab hat dafür ein Kästchen
-„Ordner beim Anbieter anlegen, falls er fehlt“; holzis Fenster über der App bietet nach dem Ergebnis
+„Ordner beim Anbieter anlegen, falls er fehlt“; haex-vaults Fenster über der App bietet nach dem Ergebnis
 `folderMissing` „Ordner anlegen und speichern“. Dasselbe gilt beim Hinzufügen.
 
 ## Objekte
@@ -56,7 +56,7 @@ Einstellungen an, ihn anzulegen (FR-006), nur nach Bestätigung. Umgesetzt (PR E
 - `list` mit `prefix` liefert dieselben Schlüssel wie bei S3, auch für ein Präfix, das mitten in einem
   Namen endet; Ordner und Zwischendateien erscheinen nicht (research R9).
 - Zusätzliche Schlüsselprüfung bei WebDAV und SFTP (3001): Teil länger als 255 Byte, Teil `.`, `\`,
-  `:*?"<>|`, Teil beginnt mit `.holzi-part-`, und ein Name, der sich im Elternordner nur in der
+  `:*?"<>|`, Teil beginnt mit `.haex-part-`, und ein Name, der sich im Elternordner nur in der
   Schreibweise von einem vorhandenen unterscheidet.
 - `delete` entfernt danach leere Elternordner bis zur Wurzel des Bereichs der Erweiterung.
 - Wie bei S3 (bei PR E ergänzt): Ein Präfix in einem Ordner, den es nicht gibt, listet leer; ein

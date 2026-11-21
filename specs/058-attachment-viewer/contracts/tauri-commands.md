@@ -2,7 +2,7 @@
 
 **Feature**: [spec.md](../spec.md) | **Research**: [research.md](../research.md)
 
-Alle drei Commands sind nur für das Fenster von holzi registriert, prüfen `require_user` (FR-014)
+Alle drei Commands sind nur für das Fenster von haex-vault registriert, prüfen `require_user` (FR-014)
 und erscheinen weder in der Brücke für Erweiterungen noch unter den Werkzeugen für Agenten. Kein
 Fehler und kein Log nennt Inhalt oder Pfad (FR-013); der Dateiname erscheint in Logs nur
 `Redacted`.

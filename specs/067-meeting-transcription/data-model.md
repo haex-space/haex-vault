@@ -4,7 +4,7 @@
 
 Alle Tabellen sind CRDT-Tabellen (Vault-Daten, synchronisiert, FR-027), ohne UNIQUE-Bedingungen;
 Ids nach dem Muster abgeleiteter Ids (`contacts/ids.rs`). Eine Migration mit der nächsten freien Nummer;
-`HOLZI_TRIGGER_VERSION` +1.
+`HAEX_TRIGGER_VERSION` +1.
 
 ## Wiederverwendet aus 066
 

@@ -57,7 +57,7 @@ Automatisch in `files-encrypted`: das MP4-Fixture aus 044 spielt, ein Sprung in 
 die betroffenen Blöcke (Range-Anfragen der Szene).
 
 **Von Hand** (SC-004): ein 4-GB-Video hochladen, bei guter Verbindung Start < 5 s, Sprung < 5 s,
-Speicherzuwachs von holzi < 100 MB (Systemmonitor). Ergebnis im PR notieren.
+Speicherzuwachs von HaexVault < 100 MB (Systemmonitor). Ergebnis im PR notieren.
 
 ## §6 Aufräumen im Ordner (US5, PR E)
 

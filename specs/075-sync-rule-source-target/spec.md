@@ -156,7 +156,7 @@ names (works) and with the old ones (refused).
 
 - The name `location` for the storage reference is the author's proposal; the operator only asked that the
   inner `source` be renamed, not what to.
-- Holzi has no users yet, so there are no aliases, redirects or compatibility code for the old names (agent
+- HaexVault has no users yet, so there are no aliases, redirects or compatibility code for the old names (agent
   tools, wire values). The one exception is the stored data of existing vaults (FR-004): the operator's own
   vault and test vaults hold rules, and a changed schema must not strand them.
 - The migration is a new one that renames the columns and rewrites the stored side and direction values; the

@@ -2,7 +2,7 @@
 
 **Spec**: [../spec.md](../spec.md) | **Research**: R1 bis R4, R6, R16, R22
 
-Ab PR G spricht holzi Protokoll 3: Der Handshake verlangt den Nachweis des Client-Schlüssels
+Ab PR G spricht haex-vault Protokoll 3: Der Handshake verlangt den Nachweis des Client-Schlüssels
 (`challenge`/`proof`, FR-048), und Protokoll 2 wird abgewiesen (FR-049). Die Beispiele unten zeigen
 Protokoll 3; bis PR G gilt 2 ohne die Abschnitte zum Nachweis.
 
@@ -13,7 +13,7 @@ Gegenstück: `haex-pass-browser` in `https://github.com/haex-space/haextension`,
 - Die Form der Nachrichten ist die der Vorlage haex-vault 2.x
   (`https://github.com/haex-space/haex-vault-legacy`, Revision
   `8dce379d94e18fcd42c3b73686a06f984ca3f574`, `src-tauri/src/external_bridge/protocol.rs`).
-- Wo holzi abweicht, steht das ausdrücklich da.
+- Wo haex-vault abweicht, steht das ausdrücklich da.
 
 ## Transport
 
@@ -28,7 +28,7 @@ Gegenstück: `haex-pass-browser` in `https://github.com/haex-space/haextension`,
 
 Jede Nachricht hat das Feld `type`. Feldnamen sind camelCase.
 
-## Handshake (Client → holzi)
+## Handshake (Client → haex-vault)
 
 ```json
 {
@@ -53,18 +53,18 @@ Jede Nachricht hat das Feld `type`. Feldnamen sind camelCase.
 }
 ```
 
-holzi prüft der Reihe nach:
+haex-vault prüft der Reihe nach:
 
-1. `version < 3`: holzi schickt `{"type":"error","code":"PROTOCOL_UPDATE_REQUIRED","message":"…"}`
+1. `version < 3`: haex-vault schickt `{"type":"error","code":"PROTOCOL_UPDATE_REQUIRED","message":"…"}`
    und schließt, ohne Dialog (FR-049). Der Text sagt, dass haex-pass aktualisiert werden muss.
-2. `permissions.core.passwords` fehlt oder ist leer: holzi schickt
+2. `permissions.core.passwords` fehlt oder ist leer: haex-vault schickt
    `{"type":"error","code":"PERMISSIONS_DECLARATION_REQUIRED","message":"…"}`, dann
    `handshakeResponse` mit `authorized: false, pendingApproval: false`, und schließt.
    - **Abweichung**: Die Vorlage nimmt auch Erklärungen ohne Passwörter an.
 3. `clientId != hex(SHA-256(base64decode(publicKey))[0..16])`, oder `publicKey` ist nicht 32 Byte
    lang: `handshakeResponse(false, false)` und Schließen (FR-006).
    - **Abweichung**: Die Vorlage prüft das nicht.
-4. Besitznachweis (FR-048, Abschnitt unten): holzi schickt `challenge` und wartet auf `proof`.
+4. Besitznachweis (FR-048, Abschnitt unten): haex-vault schickt `challenge` und wartet auf `proof`.
    Ohne passenden `proof` bis zur Handshake-Frist: `error PROOF_FAILED` und Schließen. Erst danach
    kommen die folgenden Schritte.
    - **Abweichung**: Die Vorlage kennt keinen Nachweis.
@@ -74,15 +74,15 @@ holzi prüft der Reihe nach:
 7. Sonst: `handshakeResponse(false, true)` und ein Zulassungsdialog, höchstens einer je
    `clientId`.
 
-Weitere Erklärungen als `passwords` (etwa `database`, `bookmarks`) speichert holzi in der
+Weitere Erklärungen als `passwords` (etwa `database`, `bookmarks`) speichert haex-vault in der
 Erklärung, gewährt sie aber nie (R5). `requestedExtensions[].actions` werden übergangen.
 `requestedExtensions[].capabilities` enthält eine eindeutige Liste deklarierter Erweiterungs-
 Fähigkeiten. Unbekannte Einträge werden gespeichert, aber nie freigegeben. `agentTabs`-Nachrichten
-darf holzi nur an eine zugelassene Erweiterung routen, wenn der passende Eintrag
+darf haex-vault nur an eine zugelassene Erweiterung routen, wenn der passende Eintrag
 `requestedExtensions` die Fähigkeit `agentTabs` deklariert und der Nutzer dieser Erweiterung in
 der Extension-Zulassung das Recht `user-browser` erteilt hat. Die Freigabe bindet an
 Erweiterungsschlüssel und Revision; eine spätere Revision muss erneut zugelassen werden. Fehlt
-eine der Bedingungen, antwortet holzi mit `NOT_SUPPORTED`. Die derzeit oben gepinnte Revision
+eine der Bedingungen, antwortet haex-vault mit `NOT_SUPPORTED`. Die derzeit oben gepinnte Revision
 implementiert `agentTabs` noch nicht; die Funktion bleibt deaktiviert, bis eine kompatible
 Erweiterungsrevision veröffentlicht, hier gepinnt und mit T070–T073 umgesetzt ist.
 
@@ -90,7 +90,7 @@ Ein wiederholter Handshake auf derselben Verbindung mit derselben `clientId` bek
 aktuellen Zustand nach Schritt 5 bis 7, ohne neuen Nachweis und ohne zweiten Dialog. Eine andere
 `clientId` auf derselben Verbindung schließt sie.
 
-## challenge (holzi → Client) und proof (Client → holzi)
+## challenge (haex-vault → Client) und proof (Client → haex-vault)
 
 Ab Protokoll 3, nach Schritt 3 des Handshakes (FR-048, R22).
 
@@ -98,7 +98,7 @@ Ab Protokoll 3, nach Schritt 3 des Handshakes (FR-048, R22).
 {
   "type": "challenge",
   "serverPublicKey": "<Standard-Base64, 32 Byte X25519>",
-  "publicKey": "<Standard-Base64, flüchtiger Schlüssel von holzi>",
+  "publicKey": "<Standard-Base64, flüchtiger Schlüssel von haex-vault>",
   "iv": "<Standard-Base64, 12 Byte>",
   "message": "<Standard-Base64: Chiffrat ‖ GCM-Tag>"
 }
@@ -119,11 +119,11 @@ Ab Protokoll 3, nach Schritt 3 des Handshakes (FR-048, R22).
 
 - Der Umschlag ist der eines `request`: versiegelt an `serverPublicKey`. Der Klartext ist
   `{"challenge":"…"}` mit genau den Bytes der Aufgabe.
-- holzi vergleicht in konstanter Zeit. Die Aufgabe gilt nur auf dieser Verbindung und nur einmal;
+- haex-vault vergleicht in konstanter Zeit. Die Aufgabe gilt nur auf dieser Verbindung und nur einmal;
   ein zweiter `proof` oder einer nach der Frist endet mit `PROOF_FAILED`.
-- `request` vor einem gelungenen Nachweis beantwortet holzi mit `UNAUTHORIZED`.
+- `request` vor einem gelungenen Nachweis beantwortet haex-vault mit `UNAUTHORIZED`.
 
-## handshakeResponse (holzi → Client)
+## handshakeResponse (haex-vault → Client)
 
 ```json
 {
@@ -137,7 +137,7 @@ Ab Protokoll 3, nach Schritt 3 des Handshakes (FR-048, R22).
 
 `serverPublicKey` steht immer darin. Der Schlüssel gilt, solange die Bridge läuft (R3).
 
-## authorizationUpdate (holzi → Client)
+## authorizationUpdate (haex-vault → Client)
 
 ```json
 { "type": "authorizationUpdate", "authorized": true }
@@ -152,10 +152,10 @@ Ab Protokoll 3, nach Schritt 3 des Handshakes (FR-048, R22).
 
 ## ping / pong
 
-`{"type":"ping"}` beantwortet holzi in jedem Zustand mit `{"type":"pong"}`.
+`{"type":"ping"}` beantwortet haex-vault in jedem Zustand mit `{"type":"pong"}`.
 WebSocket-Ping-Rahmen beantwortet `tokio-tungstenite` selbst.
 
-## error (holzi → Client)
+## error (haex-vault → Client)
 
 ```json
 {
@@ -176,7 +176,7 @@ WebSocket-Ping-Rahmen beantwortet `tokio-tungstenite` selbst.
 
 Ein `error`-Rahmen trägt keine `requestId`; der Client lässt die betroffene Anfrage ablaufen.
 
-## request (Client → holzi)
+## request (Client → haex-vault)
 
 ```json
 {
@@ -193,11 +193,11 @@ Ein `error`-Rahmen trägt keine `requestId`; der Client lässt die betroffene An
 
 - **Schlüssel**: `AES-256-GCM` mit dem rohen Ergebnis von `X25519(serverSecret, publicKey)`.
   Der Klartext ist die Nutzlast der Methode plus `requestId` (32 Hex-Zeichen).
-- **Feld `clientId`**: holzi übergeht es. Der Aufrufer ergibt sich aus der Verbindung (FR-014).
+- **Feld `clientId`**: haex-vault übergeht es. Der Aufrufer ergibt sich aus der Verbindung (FR-014).
 - **Ziel**: Ist das Paar `extensionPublicKey`/`extensionName` ein anderes als
-  `__core__`/`core`, lehnt holzi mit `NOT_SUPPORTED` ab (FR-029).
+  `__core__`/`core`, lehnt haex-vault mit `NOT_SUPPORTED` ab (FR-029).
 
-## response (holzi → Client)
+## response (haex-vault → Client)
 
 ```json
 {
@@ -206,7 +206,7 @@ Ein `error`-Rahmen trägt keine `requestId`; der Client lässt die betroffene An
   "message": "<Standard-Base64>",
   "iv": "<Standard-Base64, 12 Byte>",
   "clientId": "",
-  "publicKey": "<Standard-Base64, frischer X25519-Schlüssel von holzi>",
+  "publicKey": "<Standard-Base64, frischer X25519-Schlüssel von haex-vault>",
   "extensionPublicKey": null,
   "extensionName": null
 }
@@ -232,7 +232,7 @@ Ein `error`-Rahmen trägt keine `requestId`; der Client lässt die betroffene An
 
 ### Fehler auf Anfragen
 
-`error` ist eine der festen Zeichenketten unten. Holzi reicht nie Text des Dienstes durch (R16).
+`error` ist eine der festen Zeichenketten unten. HaexVault reicht nie Text des Dienstes durch (R16).
 Der Client zeigt nur `error`.
 
 | `errorCode`                 | `error`                       | Wann                                                                                    |
@@ -255,7 +255,7 @@ Der Client zeigt nur `error`.
 ## Methoden
 
 Je Methode die Art, die sie verlangt (FR-018), dann Eingabe und Ausgabe. Felder der Eingabe, die
-hier nicht stehen, übergeht holzi (R6). Binärwerte sind Standard-Base64 mit Auffüllung.
+hier nicht stehen, übergeht haex-vault (R6). Binärwerte sind Standard-Base64 mit Auffüllung.
 
 ### `get-items` — Lesen
 
@@ -373,9 +373,9 @@ Ausgabe:
 }
 ```
 
-- **`requireResidentKey`**: Alle Passkeys von holzi sind auffindbar; das Feld wird gelesen und
+- **`requireResidentKey`**: Alle Passkeys von haex-vault sind auffindbar; das Feld wird gelesen und
   hat keine Wirkung.
-- **`userVerification`**: Bei `"required"` fragt holzi das Vault-Passwort ab und setzt UV (FR-033).
+- **`userVerification`**: Bei `"required"` fragt haex-vault das Vault-Passwort ab und setzt UV (FR-033).
 - **`clientDataJson`**: `{"type":"webauthn.create","challenge":"<b64url der Aufgabe>","origin":"<origin>","crossOrigin":false}`.
 - **`attestationObject`**: `fmt: "none"`, `attStmt: {}`, `authData` mit den Flags `UP|AT|BE|BS`
   (bei UV zusätzlich `UV`) und dem Zähler 0.

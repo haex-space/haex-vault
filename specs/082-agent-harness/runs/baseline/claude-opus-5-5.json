@@ -140,7 +140,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Das kann ich leider nicht eintragen: In holzi gibt es keinen Kalender. Installiert sind nur Einstellungen, Chat, Dateien, Passwörter, Kontakte und haex-mail, und keine davon kann Termine anlegen.\n\nDu kannst den Zahnarzttermin morgen, Donnerstag, 19.03.2026, um 10:00 Uhr in deiner gewohnten Kalender-"
+      "text": "Das kann ich leider nicht eintragen: In haex-vault gibt es keinen Kalender. Installiert sind nur Einstellungen, Chat, Dateien, Passwörter, Kontakte und haex-mail, und keine davon kann Termine anlegen.\n\nDu kannst den Zahnarzttermin morgen, Donnerstag, 19.03.2026, um 10:00 Uhr in deiner gewohnten Kalender-"
     },
     {
       "id": "no_tool-de-4",
@@ -198,7 +198,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I couldn't add the dentist appointment for tomorrow (Thursday, 19 March) at 10:00 because holzi has no calendar. The installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail, and none of them can create calendar events. If you install a calendar extension in holzi, I can a"
+      "text": "I couldn't add the dentist appointment for tomorrow (Thursday, 19 March) at 10:00 because haex-vault has no calendar. The installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail, and none of them can create calendar events. If you install a calendar extension in haex-vault, I can a"
     },
     {
       "id": "no_tool-en-4",
@@ -219,7 +219,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "There is no shopping list in holzi. Where should I put \"milk\"?",
+            "question": "There is no shopping list in haex-vault. Where should I put \"milk\"?",
             "options": [
               "Write it in a shopping list file in Files",
               "Note it in a Chat conversation",
@@ -229,7 +229,7 @@
           "ending": "ran"
         }
       ],
-      "text": "There is no shopping list in holzi. Where should I put \"milk\"?"
+      "text": "There is no shopping list in haex-vault. Where should I put \"milk\"?"
     }
   ]
 }

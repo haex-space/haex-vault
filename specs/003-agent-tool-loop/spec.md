@@ -5,7 +5,7 @@
 **Status**: Draft
 **Input**: User description: "Agent tool loop: turn/step model, tool-calling (built-in tools,
 MCP-client tools, host-CLI tool), permission gate (Manual/Auto/Plan modes), LLM-request retries with
-backoff, and turn cancellation — for holzi's chat/agent runtime. Based on the agreed design in
+backoff, and turn cancellation — for HaexVault's chat/agent runtime. Based on the agreed design in
 docs/plans/2026-09-11-agent-tool-loop-design.md. Scope: the local + api_key provider tool loop
 (turn/step, tool registry, permission gate, storage extensions, retry, cancellation). Delegating to
 an external CLI-based coding assistant (e.g. Claude Code / Codex) as a backend is a separate,

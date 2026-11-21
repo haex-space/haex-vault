@@ -17,7 +17,7 @@ attachments, a link between entries, a pkpass import and barcode capture.
   boarding passes and train tickets as a code (barcode or QR) plus a few fields, show the code large and bright at the
   counter or the gate, and surface the pass that matters now on the lock screen. Both are essentially a flat list; neither
   has user folders, and their search over contents is weak. They are also where payment cards, IDs and keys live, but those
-  need vendor-attested hardware paths holzi cannot get (Not in scope).
+  need vendor-attested hardware paths HaexVault cannot get (Not in scope).
 - **The password manager already carries most of what a pass needs.** An entry (spec
   [`034`](../034-password-manager/spec.md)) has a title, note, address, icon, colour, expiry date, free fields, attachments,
   tags, a folder, a trash, a history and sync. What it lacks is everything that makes a card a card: one or more codes in a
@@ -164,7 +164,7 @@ and the credential tools of an agent do not return it, and that the login entrie
 
 **Acceptance Scenarios**:
 
-1. **Given** a vault from before this spec, **When** holzi opens it, **Then** every entry is a login and every field, tag,
+1. **Given** a vault from before this spec, **When** HaexVault opens it, **Then** every entry is a login and every field, tag,
    folder, attachment, history stand and passkey is unchanged.
 2. **Given** a pass in the vault, **When** autofill, `entry.fill` or the external bridge look for credentials for a page,
    **Then** the pass is never offered, filled or counted as a duplicate of a login.
@@ -241,7 +241,7 @@ Tickets sit in a folder (`Tickets`, optionally one per provider), carry a tag, s
 A loyalty card is not in that folder; it is an entry at the root or wherever the user keeps it, found by the name of the
 provider.
 
-**Why this priority**: The wallets are weak here; this is where holzi is better. It matters once the user has more than a
+**Why this priority**: The wallets are weak here; this is where HaexVault is better. It matters once the user has more than a
 handful of passes.
 
 **Independent Test**: With twenty tickets of three providers and five loyalty cards, sort by date, hide the expired, filter by
@@ -306,7 +306,7 @@ type, dates, codes and fields, and that anything not stored is named in the repo
 3. **Given** the dialog, **When** the user chooses "Belongs to", **Then** it lists entries, puts a probable match (same
    provider name or address) first, and links the new pass to the chosen one; it never links or merges by itself.
 4. **Given** the same pass imported twice, **When** the second import is read, **Then** the dialog says it exists and asks.
-5. **Given** a pass with fields or images holzi does not keep, **When** it is imported, **Then** the report names them.
+5. **Given** a pass with fields or images HaexVault does not keep, **When** it is imported, **Then** the report names them.
 6. **Given** the import dialog, **When** it shows a pass, **Then** it offers "Check signature", off by default; **When** the
    user turns it on, **Then** the result (issuer, valid, invalid or not checkable) is shown before saving and does not stop
    the import.
@@ -317,7 +317,7 @@ type, dates, codes and fields, and that anything not stored is named in the repo
 
 ### User Story 7 - Capture a code by camera, photo or PDF (Priority: P2)
 
-The user points the camera at a barcode on a card or a printout, or picks a photo or a PDF, and holzi reads the code into a
+The user points the camera at a barcode on a card or a printout, or picks a photo or a PDF, and HaexVault reads the code into a
 new pass, or adds it to an existing one.
 
 **Why this priority**: Most loyalty cards and many tickets have no file, only a code on paper or a screen.
@@ -336,22 +336,22 @@ from a PDF; check format and value of the result.
 
 ---
 
-### User Story 8 - Share a ticket to holzi on Android, open it from the home screen (Priority: P3)
+### User Story 8 - Share a ticket to HaexVault on Android, open it from the home screen (Priority: P3)
 
-On Android the user shares a pkpass, a PDF or an image from the mail or the browser to holzi, and gets the import dialog.
+On Android the user shares a pkpass, a PDF or an image from the mail or the browser to HaexVault, and gets the import dialog.
 The user can pin a pass to the home screen and open it from there.
 
 **Why this priority**: It makes the wallet quick, but needs native Android code and, to be quick, biometric unlock, which is
 a separate feature.
 
-**Independent Test**: On the emulator or a phone, share a pkpass to holzi with the vault locked and with it unlocked; pin a
+**Independent Test**: On the emulator or a phone, share a pkpass to HaexVault with the vault locked and with it unlocked; pin a
 pass and open it from the launcher.
 
 **Acceptance Scenarios**:
 
-1. **Given** holzi is closed and the vault locked, **When** the user shares a pkpass to it, **Then** holzi asks to unlock
+1. **Given** HaexVault is closed and the vault locked, **When** the user shares a pkpass to it, **Then** HaexVault asks to unlock
    and then shows the import dialog with the shared file; the file is not lost between the two steps.
-2. **Given** a pinned pass, **When** the user opens it from the launcher, **Then** holzi asks to unlock and then opens
+2. **Given** a pinned pass, **When** the user opens it from the launcher, **Then** HaexVault asks to unlock and then opens
    that pass, not the list.
 3. **Given** the launcher, **When** a pass is pinned, **Then** the launcher holds a label the user chose (a neutral default,
    not the title) and the pass's identifier, and never a code.
@@ -368,7 +368,7 @@ pass and open it from the launcher.
   carries no zone.
 - A device whose zone changes (travel, daylight saving time): the point in time is unchanged; only the device's time shown
   next to the time of the place moves.
-- A kind of pass written by a newer holzi that this one does not know: shown as "other" with its data; never refused.
+- A kind of pass written by a newer HaexVault that this one does not know: shown as "other" with its data; never refused.
 - A pass whose parent id points at an entry not in the vault (yet): shows "(not available)" until the entry arrives; never an
   error and never an empty page.
 - The parent is also a pass that is expired: the child is unaffected; its state is its own.
@@ -376,11 +376,11 @@ pass and open it from the launcher.
   in the order of FR-021; hide-expired applies here too.
 - A pkpass with localised strings: the strings of the UI language are used when present, otherwise the base ones; which is a
   plan detail, but the choice never drops a field.
-- A pkpass with a code in a format holzi does not draw: stored as text with its original format name, flagged, and the
+- A pkpass with a code in a format HaexVault does not draw: stored as text with its original format name, flagged, and the
   report names it.
 - A pkpass over the attachment limit (034 FR-020) or an image over the limit: the pass is created, the image is not kept and
   the report says so.
-- A code read by camera that is a payment or identity QR (a URL, a token): holzi stores what it read as text; it does not
+- A code read by camera that is a payment or identity QR (a URL, a token): HaexVault stores what it read as text; it does not
   open it, call it or interpret it.
 - The shared file on Android is large or the vault takes long to unlock: the file stays in the app's own temporary space
   until the dialog ends or is cancelled and is then removed.
@@ -409,7 +409,7 @@ pass and open it from the launcher.
   optional label and a position. A code entered by hand MUST be validated against its format (including check digits)
   and refused with a reason if it does not fit; a code that arrives by import or sync MUST be kept, shown as text, flagged
   and repairable, as an invalid TOTP secret is (034 FR-003).
-- **FR-004**: A kind of pass the system does not know (written by a newer holzi, or imported) MUST be kept and shown as
+- **FR-004**: A kind of pass the system does not know (written by a newer HaexVault, or imported) MUST be kept and shown as
   "other".
 - **FR-005**: The data model MUST be: `haex_passwords_item_details` stays the one table for the identity and the shared
   fields and gets the type column; a new table `haex_passwords_pass_details` holds one row per pass (item id as key, kind of
@@ -520,7 +520,7 @@ pass and open it from the launcher.
   offset from UTC; that offset is the time zone of the place when the file names no zone, and the user can change it
   in the dialog), the end from the expiration date (as a date), the
   codes from the barcodes with their formats, the fields and back fields as free fields, and the logo as the icon. Anything
-  in the file that holzi does not keep MUST be named in the report; nothing is lost silently (034, Clarifications).
+  in the file that HaexVault does not keep MUST be named in the report; nothing is lost silently (034, Clarifications).
 - **FR-029**: An import MUST never use the network: the update service address in a pass is not called, and no pass is
   updated by its issuer.
 - **FR-030**: The signature of a pass is not checked by default. The import dialog MUST show an option "Check signature" (off
@@ -548,8 +548,8 @@ pass and open it from the launcher.
 - **FR-036**: Every function of this spec MUST work on every platform the password manager runs on (desktop and Android);
   where the operating system limits a part (brightness, keeping the screen on, the camera) the rest MUST still work and the
   logic MUST be testable on Linux. iOS is not part of it.
-- **FR-037**: On Android, holzi MUST be offered as a share target for `.pkpass`, PDF and image files. A shared file MUST reach
-  the import dialog after the vault is unlocked, also when holzi was not running (a cold process, spec 013), and MUST NOT
+- **FR-037**: On Android, HaexVault MUST be offered as a share target for `.pkpass`, PDF and image files. A shared file MUST reach
+  the import dialog after the vault is unlocked, also when HaexVault was not running (a cold process, spec 013), and MUST NOT
   be lost between the start and the unlock.
 - **FR-038**: The user MUST be able to pin a pass to the launcher; opening it MUST ask to unlock, then open that pass. The
   launcher entry MUST hold a label the user chose (a neutral default, never the title) and the pass's identifier, and MUST
@@ -564,7 +564,7 @@ pass and open it from the launcher.
 - **FR-041**: The password manager MUST update live when a pass changes in another window, by an agent or by sync, without
   overwriting an edit in progress (034 FR-038).
 - **FR-042**: A device that does not know the type of an entry MUST NOT show it as an empty login, MUST NOT let the user edit
-  it and MUST NOT write over its data; it shows a notice that the entry needs a newer holzi. The sync version
+  it and MUST NOT write over its data; it shows a notice that the entry needs a newer HaexVault. The sync version
   gate of spec 024 already keeps builds with different migrations from syncing (plan, research R1); this requirement is the
   second layer behind it.
 - **FR-043**: Every text MUST exist in German and English; the interface MUST work at 360 px without horizontal scrolling and
@@ -647,7 +647,7 @@ linked passes stay in the list, the type of an entry is fixed.
 - **Digital IDs, driver licences, car and hotel keys, transit on NFC.** They rest on keys attested by the vendor. An
   identity entry as stored data is a possible later type.
 - **Codes that rotate** (the Deutschlandticket and some train tickets show an animated or time-based code). A static import of
-  such a ticket is not valid at the gate; holzi does not pretend otherwise.
+  such a ticket is not valid at the gate; HaexVault does not pretend otherwise.
 - **Updates pushed by the issuer** (gate changed, delay). They go through the vendor's push service; the pass is edited by
   hand or re-imported.
 - **iOS.** Not on the roadmap (no Apple developer licence); the iOS parts of spec 085 and 070 are deferred the same way.

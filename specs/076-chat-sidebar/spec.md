@@ -8,7 +8,7 @@
 
 **Input**: User description (operator, 2026-11-02): the chat "soll noch etwas optimiert werden": the button
 that hides the sidebar leaves the top row and becomes part of the sidebar; the sidebar never disappears
-completely and shows only the avatars of users and bots when collapsed; the Holzi logo goes; the sidebar
+completely and shows only the avatars of users and bots when collapsed; the HaexVault logo goes; the sidebar
 gets a search to search chats; its title is just "Chats" with an icon button to start a new conversation
 at its right; contact chats get voice messages, with the same input field as the agent, without model
 selection and approval button.
@@ -46,7 +46,7 @@ conversation from the header; delivers a chat that behaves like the other apps.
 **Acceptance Scenarios**:
 
 1. **Given** the sidebar is shown, **When** the user looks at its top, **Then** they see the title "Chats";
-   there is no Holzi logo, no instance name and no wide "Neue Unterhaltung" button. The window's header
+   there is no HaexVault logo, no instance name and no wide "Neue Unterhaltung" button. The window's header
    has the sidebar button and, at its right, an icon button to start a new conversation.
 2. **Given** the window is wide and the sidebar is shown, **When** the user presses the sidebar button,
    **Then** the sidebar is gone completely and the conversation uses the room; pressing it again brings the
@@ -143,7 +143,7 @@ agent conversation behaves as before.
   that starts a new conversation (072 FR-004) are in the window's header, as in every other app.
 - **FR-003**: The chat MUST NOT show a row of its own above the sidebar and the conversation that holds the
   sidebar button; the buttons are in the window's header (FR-002).
-- **FR-004**: The sidebar MUST NOT show the Holzi logo, the vault's instance name or a wide button
+- **FR-004**: The sidebar MUST NOT show the HaexVault logo, the vault's instance name or a wide button
   "Neue Unterhaltung".
 - **FR-005**: _(Withdrawn 2026-11-14 with the rail: there is no collapsed sidebar with one avatar per
   conversation any more.)_

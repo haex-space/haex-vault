@@ -102,7 +102,7 @@ sowie dateien hatte ich gehofft, wir können nostr dafür nutzen".
 - **Spec 060** (contact sharing): this is the "later messenger spec" 060 names. The share dialog gets
   the target "Im Chat senden" (US6), and a contact passed on in a chat carries its photo.
 - **Spec 048** (encrypted folders): received chat files are kept in an encrypted folder (FR-031).
-- **Spec 021** (MCP server) and **spec 032** (model operates holzi): the agent permissions of US7 apply
+- **Spec 021** (MCP server) and **spec 032** (model operates HaexVault): the agent permissions of US7 apply
   to the built-in agent and to agents connected over MCP alike.
 - **Spec 023** (settings app): the settings of US8 are a category of the settings app.
 

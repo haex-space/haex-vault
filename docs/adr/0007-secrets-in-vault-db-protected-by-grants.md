@@ -21,7 +21,7 @@ What protects the secrets instead:
   entries with a tag). Lists carry headers without secrets; a secret is
   returned only on a single request for one entry that a grant covers.
 - **The caller is the entrance, never an argument.** A Tauri command fixes the
-  caller (`User` for the window, `BuiltinAgent` for the chat action); a holzi
+  caller (`User` for the window, `BuiltinAgent` for the chat action); a haex-vault
   function calls the service from Rust with a fixed grant; extensions and
   external agents get their own entrances with specs 017–019 and 021. No
   command takes an identity from the frontend.

@@ -17,7 +17,7 @@ Speicher erreichen (FR-018). `ProtocolStore` reicht nach `access.location.protoc
 | `head`               | `HEAD`                         | `PROPFIND` `Depth: 0`                                                | `metadata`                                                           |
 | `get_range`          | `GET` mit `Range`              | `GET` mit `Range` (200 ohne Bereich: Bytes vor `start` verwerfen)    | Datei öffnen, an `start` springen, `len` Bytes als Strom             |
 | `copy`               | `CopyObject` bis 5 GB          | `COPY` mit `Overwrite: T`                                            | nicht angeboten (`copies_on_provider` = nein)                        |
-| `copies_on_provider` | ja                             | ja                                                                   | nein → der Transfer streamt über holzi                               |
+| `copies_on_provider` | ja                             | ja                                                                   | nein → der Transfer streamt über haex-vault                          |
 | `rename_tree`        | `Unsupported` (nie aufgerufen) | `MOVE` des Ordners                                                   | Umbenennen des Ordners                                               |
 | `remove_tree`        | `Unsupported` (nie aufgerufen) | `DELETE` des Ordners                                                 | rekursiv von unten                                                   |
 | `begin_upload`       | `CreateMultipartUpload`        | gestreamter `PUT` auf Zwischendatei beginnt                          | Zwischendatei anlegen                                                |
@@ -29,7 +29,7 @@ Speicher erreichen (FR-018). `ProtocolStore` reicht nach `access.location.protoc
 
 - **Schlüssel** sind Pfade relativ zum Ordner des Speichers (bei S3: Objektschlüssel im Bucket). Teile
   vor einem `/` sind Ordner. Ein Schlüssel mit `/` am Ende bezeichnet einen Ordner.
-- **Zwischendateien** `.holzi-part-<UUID>` erscheinen in keiner Antwort; ältere als 24 Stunden löscht
+- **Zwischendateien** `.haex-part-<UUID>` erscheinen in keiner Antwort; ältere als 24 Stunden löscht
   `list`/`list_dir` nebenbei (R7).
 - **Fehlende Elternordner** unterhalb des Speicherordners legt `put`/`begin_upload` an; fehlt der
   Speicherordner selbst, ist das `NotFound` (R2).

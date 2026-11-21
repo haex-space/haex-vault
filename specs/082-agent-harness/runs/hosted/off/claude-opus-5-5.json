@@ -134,7 +134,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Das geht leider nicht: holzi hat keinen Kalender. Installiert sind nur Einstellungen, Chat, Dateien, Passwörter, Kontakte und haex-mail, und keine davon kann Termine anlegen. Den Zahnarzttermin morgen, Donnerstag, 19. März, um 10:00 Uhr müsstest du deshalb selbst in deine Kalender-App eintragen. Mit"
+      "text": "Das geht leider nicht: haex-vault hat keinen Kalender. Installiert sind nur Einstellungen, Chat, Dateien, Passwörter, Kontakte und haex-mail, und keine davon kann Termine anlegen. Den Zahnarzttermin morgen, Donnerstag, 19. März, um 10:00 Uhr müsstest du deshalb selbst in deine Kalender-App eintragen. Mit"
     },
     {
       "id": "no_tool-de-4",
@@ -200,17 +200,17 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "holzi has no calendar app installed, so I can't add the dentist appointment for tomorrow (Thursday, 19 March) at 10:00 directly. How would you like to proceed?",
+            "question": "haex-vault has no calendar app installed, so I can't add the dentist appointment for tomorrow (Thursday, 19 March) at 10:00 directly. How would you like to proceed?",
             "options": [
               "Draft an email reminder to myself in haex-mail",
-              "Search the web for a calendar extension for holzi",
+              "Search the web for a calendar extension for haex-vault",
               "Skip it, I'll add it elsewhere"
             ]
           },
           "ending": "ran"
         }
       ],
-      "text": "holzi has no calendar app installed, so I can't add the dentist appointment for tomorrow (Thursday, 19 March) at 10:00 directly. How would you like to proceed?"
+      "text": "haex-vault has no calendar app installed, so I can't add the dentist appointment for tomorrow (Thursday, 19 March) at 10:00 directly. How would you like to proceed?"
     },
     {
       "id": "no_tool-en-4",
@@ -243,7 +243,7 @@
           "ending": "ran"
         }
       ],
-      "text": "holzi has no shopping list: none of the installed apps or available actions can keep one. If you install an extension that offers a shopping list, I can add milk to it."
+      "text": "haex-vault has no shopping list: none of the installed apps or available actions can keep one. If you install an extension that offers a shopping list, I can add milk to it."
     },
     {
       "id": "mail_read-en-2-s",

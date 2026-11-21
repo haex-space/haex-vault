@@ -1,6 +1,6 @@
 # Contract: Tauri-Befehle für Icon-Sets
 
-Alle Befehle sind Befehle der App (Webview → Rust). Sie sind **nicht** über die Brücke für Erweiterungen und **nicht** als Aktion für Agenten erreichbar (FR-016); ein Test hält das fest. Fehler sind `HolziError` ohne Pfade der Quelle über den Namen hinaus. Typen werden mit ts-rs nach `src/types/bindings/` erzeugt.
+Alle Befehle sind Befehle der App (Webview → Rust). Sie sind **nicht** über die Brücke für Erweiterungen und **nicht** als Aktion für Agenten erreichbar (FR-016); ein Test hält das fest. Fehler sind `HaexError` ohne Pfade der Quelle über den Namen hinaus. Typen werden mit ts-rs nach `src/types/bindings/` erzeugt.
 
 ## Typen
 

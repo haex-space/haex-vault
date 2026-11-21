@@ -260,7 +260,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich kann in holzi nach Dateien suchen, aber ich habe keine spezifische Funktion, um Ihre Steuererklärung zu finden, es sei denn, sie ist als Datei gespeichert.\n\nMöchten Sie, dass ich in Ihren Dateien nach \"Steuererklärung\" suche? Wenn ja, müssten Sie mir sagen, wo ich suchen soll (z.B. auf Ihrem Ger"
+      "text": "Ich kann in haex-vault nach Dateien suchen, aber ich habe keine spezifische Funktion, um Ihre Steuererklärung zu finden, es sei denn, sie ist als Datei gespeichert.\n\nMöchten Sie, dass ich in Ihren Dateien nach \"Steuererklärung\" suche? Wenn ja, müssten Sie mir sagen, wo ich suchen soll (z.B. auf Ihrem Ger"
     },
     {
       "id": "mail_read-de-2-s",
@@ -398,7 +398,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich kann dir nicht direkt sagen, wo deine Steuererklärung ist, da ich keinen Zugriff auf deine persönlichen Dateien oder E-Mails habe, es sei denn, sie sind in holzi gespeichert.\n\nMeinst du, du möchtest:\n\n1.  Nach einer E-Mail mit dem Stichwort \"Steuererklärung\" suchen?\n2.  Nach einer Datei mit dem "
+      "text": "Ich kann dir nicht direkt sagen, wo deine Steuererklärung ist, da ich keinen Zugriff auf deine persönlichen Dateien oder E-Mails habe, es sei denn, sie sind in haex-vault gespeichert.\n\nMeinst du, du möchtest:\n\n1.  Nach einer E-Mail mit dem Stichwort \"Steuererklärung\" suchen?\n2.  Nach einer Datei mit dem "
     },
     {
       "id": "mail_read-en-3",

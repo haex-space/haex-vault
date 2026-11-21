@@ -270,7 +270,7 @@
       "id": "mail_read-en-1-s",
       "result": "missed",
       "calls": [],
-      "text": "I don't have information about what \"it\" supported writing. Could you please clarify what you're referring to? Are you asking about a specific app, feature, or tool within holzi?"
+      "text": "I don't have information about what \"it\" supported writing. Could you please clarify what you're referring to? Are you asking about a specific app, feature, or tool within haex-vault?"
     },
     {
       "id": "mail_read-de-3-s",
@@ -501,7 +501,7 @@
       "id": "mail_reply-en-2",
       "result": "missed",
       "calls": [],
-      "text": "I cannot answer IT on your behalf. I am an AI assistant and do not have the ability to send emails, log into systems, or perform actions outside of the holzi app.\n\nYou will need to log in to your IT portal or email account yourself to send the message."
+      "text": "I cannot answer IT on your behalf. I am an AI assistant and do not have the ability to send emails, log into systems, or perform actions outside of the haex-vault app.\n\nYou will need to log in to your IT portal or email account yourself to send the message."
     },
     {
       "id": "mail_read-de-5-s",
@@ -527,7 +527,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich habe keine Informationen über Ihre Sparkasse in holzi gefunden. Holzi ist eine E-Mail-App und verwaltet nur Ihre E-Mails, nicht Ihre Bankkonten.\n\nUm Ihre Sparkasse zu finden, müssten Sie:\n1. In Ihrem Bankkonto-Portal oder Online-Banking zugreifen\n2. In Ihren E-Mails nach Bankmitteilungen suchen "
+      "text": "Ich habe keine Informationen über Ihre Sparkasse in haex-vault gefunden. HaexVault ist eine E-Mail-App und verwaltet nur Ihre E-Mails, nicht Ihre Bankkonten.\n\nUm Ihre Sparkasse zu finden, müssten Sie:\n1. In Ihrem Bankkonto-Portal oder Online-Banking zugreifen\n2. In Ihren E-Mails nach Bankmitteilungen suchen "
     },
     {
       "id": "no_tool-de-3",

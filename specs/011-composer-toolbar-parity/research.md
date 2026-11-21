@@ -29,7 +29,7 @@ non-interactive mode: Yes") — i.e. it works with the exact `-p` invocation
 `claude.rs::build_command` already constructs. Critically, Claude Code's own
 docs state: "Unsupported levels fall back to highest supported level at or
 below the requested one" — the CLI self-clamps per the model it's actually
-running. This means holzi does **not** need to maintain a second copy of
+running. This means haex-vault does **not** need to maintain a second copy of
 Claude Code's own per-model level table for the delegate path (unlike the
 direct-API path, where Anthropic's HTTP API is not documented to do this and
 an unsupported value is safer to simply never send).

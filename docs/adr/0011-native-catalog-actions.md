@@ -10,7 +10,7 @@ every action in the frontend: Rust registers one `ActionTool` per definition, an
 webview and back. A call without a running webview fails with `action_timeout`.
 
 The file actions of spec 044 (`files.list`, `files.search`, `files.read`, `files.copy`, …) work on the
-file system and on S3. They need no UI, and FR-034 requires them to work while no holzi window is open.
+file system and on S3. They need no UI, and FR-034 requires them to work while no haex-vault window is open.
 They are also nine tools: as Rust tools with their own source they would land in every request
 (`chat/tools/offer.rs`) and break the core budget of at most ten tools.
 

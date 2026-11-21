@@ -36,8 +36,8 @@
   not implementation choices; this follows the style of Spec 038. No libraries, crates or code
   structure are named.
 - Decisions taken without a clarification marker (operator may correct them in `/speckit-clarify`):
-  extensions can propose WebDAV/SFTP storages (FR-017b, parity with S3 as requested); holzi offers to
-  create a missing folder (FR-006); holzi can generate SSH key pairs (FR-008); host keys are confirmed
+  extensions can propose WebDAV/SFTP storages (FR-017b, parity with S3 as requested); HaexVault offers to
+  create a missing folder (FR-006); HaexVault can generate SSH key pairs (FR-008); host keys are confirmed
   on first use and synced (FR-012, FR-009); no exceptions for self-signed certificates; no resumable
   uploads; Spec 056 shares folders and files from these storages without sharing credentials.
 - Validation pass 1: all items pass.

@@ -7,7 +7,7 @@ Date: 2026-10-26
 
 Spec 051's own-card flow cannot express per-share selection and treats the signed card as the
 whole contact. Spec 060 needs the same sharing dialog for the own contact and every address-book
-contact, while preserving the signed proof for holzi addresses and ensuring that importing a
+contact, while preserving the signed proof for haex-vault addresses and ensuring that importing a
 partial contact never removes existing data.
 
 ## Decision
@@ -39,7 +39,7 @@ with a fresh user confirmation for every call.
 ## Alternatives
 
 - Keep using the old own-card text: it cannot represent per-share field selection.
-- Use vCard: deferred to a later feature and it does not carry the signed holzi-address proof.
+- Use vCard: deferred to a later feature and it does not carry the signed haex-vault-address proof.
 - Enforce one process with a single-instance plugin: rejected because one process per vault session
   is an existing design constraint.
 - Use random card-row IDs: rejected because the same signed card would be duplicated after import;

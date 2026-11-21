@@ -6,7 +6,7 @@ Date: 2026-10-26
 ## Context
 
 Spec 061 adds sync rules: a rule keeps two folders equal and runs only on the device that created it
-(FR-003). For each rule holzi keeps the size and modification time of every file on both sides after the
+(FR-003). For each rule haex-vault keeps the size and modification time of every file on both sides after the
 last success (the **Stand**), the deletions waiting for a confirmation, and a run log with one entry per
 file action and run (FR-043 to FR-045). A rule over a photo folder has tens of thousands of files, so the
 Stand and the log reach hundreds of thousands of rows per device.

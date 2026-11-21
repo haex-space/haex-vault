@@ -50,7 +50,7 @@ tauri-plugin-dialog/fs, haex-ui. **No new crate**; `hyper` (already a dev-depend
 optional dependency for the `e2e` feature's test Blossom server.
 
 **Storage**: vault SQLite (SQLCipher) via haex-crdt; migration `0049_chat_contacts` (data-model.md),
-`HOLZI_TRIGGER_VERSION` 30 → 31; chat files in a per-device encrypted folder (spec 048).
+`HAEX_TRIGGER_VERSION` 30 → 31; chat files in a per-device encrypted folder (spec 048).
 
 **Testing**: `cargo test` (lib + integration tests with `MockRelay` and an in-process Blossom server),
 `pnpm` check scripts, lint, typecheck, e2e rig of specs 016/033 (tauri-driver).
@@ -122,7 +122,7 @@ docs/adr/0024-chat-over-nostr-and-blossom.md
 src-tauri/src/
 ├── sync/presence.rs                 # wrap_payload/unwrap_rumor: kind, time tweak, size limit as parameters
 ├── identity/
-│   ├── migrations.rs                # register 0049, HOLZI_TRIGGER_VERSION 31
+│   ├── migrations.rs                # register 0049, HAEX_TRIGGER_VERSION 31
 │   ├── migrations_chat_contacts.rs  # NEW: tables of data-model.md
 │   └── migrations_chat_contacts_tests.rs
 ├── chat/
@@ -161,7 +161,7 @@ src-tauri/src/
 ├── instances/{open,create,import}.rs # start chat::peer with the session
 ├── lib.rs                           # commands, executor registration
 └── bin/e2e_blossom.rs               # NEW, feature e2e
-src-tauri/plugins/holzi-android/     # HolziAndroidPlugin.kt: isActiveNetworkMetered (FR-036)
+src-tauri/plugins/haex-android/     # HaexAndroidPlugin.kt: isActiveNetworkMetered (FR-036)
 src-tauri/tests/
 ├── support/blossom.rs               # in-process Blossom server (hyper)
 └── chat_two_vaults.rs, chat_own_devices.rs, chat_files.rs, chat_group_three_vaults.rs,

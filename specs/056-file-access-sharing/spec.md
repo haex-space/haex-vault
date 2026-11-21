@@ -15,16 +15,16 @@ Kontakte. Grundlage ist das abgestimmte Design docs/plans/2026-10-21-file-access
 
 - **Vault-Identität**, **Geräteschlüssel**, **Geräteliste**, **Gerät der Vault**, **Präsenzmeldung**:
   wie in Spec 024. Ein Gerät gehört zu einer Vault, solange es auf deren aktueller Geräteliste steht.
-- **Kontakt**, **Visitenkarte**, **holzi-Adressen**: wie in Spec 051. **Bestätigt** sind die
-  holzi-Adressen eines Kontakts, wenn sie aus einer gültigen Visitenkarte stammen.
+- **Kontakt**, **Visitenkarte**, **HaexVault-Adressen**: wie in Spec 051. **Bestätigt** sind die
+  HaexVault-Adressen eines Kontakts, wenn sie aus einer gültigen Visitenkarte stammen.
 - **Dateibrowser**, **Quelle**, **Viewer**, **Transfer**, **Agent**, **Agent-Berechtigung**,
-  **Freigabestufe**, **eigene Daten von holzi**: wie in Spec 044. **Speicher**: wie in den Specs 038
+  **Freigabestufe**, **eigene Daten von HaexVault**: wie in Spec 044. **Speicher**: wie in den Specs 038
   und 050. **Verschlüsselter Ordner**: wie in Spec 048.
 - **Bedienendes Gerät**: das Gerät, dessen Dateien ein anderes Gerät gerade liest oder ändert. Nur
   dieses Gerät beantwortet Anfragen zu seinen Dateien; es prüft jede Anfrage selbst.
 - **Anfragendes Gerät**: das Gerät, das auf Dateien eines bedienenden Geräts zugreift, ein eigenes
   oder eines einer fremden Vault.
-- **Fremde Vault**: eine Vault, deren Vault-Identität ein Kontakt mit bestätigten holzi-Adressen
+- **Fremde Vault**: eine Vault, deren Vault-Identität ein Kontakt mit bestätigten HaexVault-Adressen
   trägt und nicht die eigene ist.
 - **Geräte-Dateizugriff**: der Zugriff eines eigenen Geräts auf das ganze Dateisystem eines anderen
   eigenen Geräts, lesend und schreibend. Er braucht keine Dateifreigabe.
@@ -70,11 +70,11 @@ ein **Zugriffsrecht** ist keine **Berechtigung** einer Erweiterung (Spec 017) un
 - **Spec 024** (Sync der eigenen Geräte): liefert Vault-Identität, Geräteschlüssel, Geräteliste,
   Präsenz und die direkte, verschlüsselte Verbindung zwischen Geräten. Dateifreigaben und empfangene
   Dateifreigaben sind gewöhnliche Vault-Daten und kommen mit dem Datensync auf alle eigenen Geräte.
-- **Spec 051** (Adressbuch): liefert die Kontakte mit bestätigten holzi-Adressen (Vault-Identität,
+- **Spec 051** (Adressbuch): liefert die Kontakte mit bestätigten HaexVault-Adressen (Vault-Identität,
   Geräte, Nostr-Relays). Zugriffsrechte gibt es nur für solche Kontakte.
 - **Spec 044** (Dateibrowser): Eigene Geräte und empfangene Dateifreigaben erscheinen dort als weitere
   Quellen. Viewer, Transfers, Namenskonflikte, Abbruch beim Sperren und die Regeln für Agents gelten
-  für sie wie für einen Speicher. Ein eigenes Gerät sieht die eigenen Daten von holzi des bedienenden
+  für sie wie für einen Speicher. Ein eigenes Gerät sieht die eigenen Daten von HaexVault des bedienenden
   Geräts wie dessen Dateibrowser: nur lesend (044 FR-037), für Agents gesperrt (044 FR-033); für
   Kontakte bleiben sie gesperrt. Ein geöffneter Ordner auf dem Gerät aktualisiert sich live wie in
   044 FR-006.
@@ -92,7 +92,7 @@ ein **Zugriffsrecht** ist keine **Berechtigung** einer Erweiterung (Spec 017) un
 
 ### Session 2026-10-21 (Brainstorming mit dem Betreiber)
 
-- Q: Braucht holzi Spaces? → A: Nein. Ordner und Dateien werden einzelnen Kontakten freigegeben, an
+- Q: Braucht HaexVault Spaces? → A: Nein. Ordner und Dateien werden einzelnen Kontakten freigegeben, an
   mehrere Kontakte zugleich und für jeden einzeln entziehbar, ohne Schlüssel neu zu verteilen.
 - Q: Muss eine Datei ankommen, wenn der Eigentümer offline ist? → A: Nein. Zugriff nur, solange beide
   Vaults geöffnet sind.
@@ -110,7 +110,7 @@ ein **Zugriffsrecht** ist keine **Berechtigung** einer Erweiterung (Spec 017) un
 
 ### Session 2026-10-22
 
-- Q: Sieht ein eigenes Gerät auch die eigenen Daten von holzi des anderen Geräts? → A: Ja, alles, was
+- Q: Sieht ein eigenes Gerät auch die eigenen Daten von HaexVault des anderen Geräts? → A: Ja, alles, was
   der Dateibrowser des anderen Geräts selbst zeigt, mit denselben Regeln (lesen ja, ändern nein, für
   Agents gesperrt). Für Kontakte bleiben sie gesperrt.
 - Q: Dürfen Agents Dateifreigaben verwalten? → A: Ja, wenn der Nutzer es dem Agent erlaubt (eigene
@@ -151,7 +151,7 @@ Gerät B prüfen, dass alles angekommen ist.
    im Papierkorb des Laptops.
 6. **Given** der Laptop ist aus, **When** Anna „Meine Geräte“ öffnet, **Then** steht der Laptop dort
    als „nicht erreichbar“ und lässt sich nicht öffnen.
-7. **Given** der Laptop, **When** Anna auf dem Telefon das Datenverzeichnis von holzi auf dem Laptop
+7. **Given** der Laptop, **When** Anna auf dem Telefon das Datenverzeichnis von HaexVault auf dem Laptop
    öffnet, **Then** sieht sie es wie auf dem Laptop selbst, nur lesend.
 8. **Given** Anna hat auf dem Telefon `Downloads` des Laptops offen, **When** auf dem Laptop eine Datei
    dort ankommt, **Then** erscheint sie auf dem Telefon ohne Aktualisieren.
@@ -169,7 +169,7 @@ einen eigenen Ordner.
 **Why this priority**: Das ist der Kern des Teilens mit anderen Menschen, und Lesen ist die häufigste
 und ungefährlichste Stufe.
 
-**Independent Test**: Zwei Vaults, die sich gegenseitig als Kontakt mit bestätigten holzi-Adressen
+**Independent Test**: Zwei Vaults, die sich gegenseitig als Kontakt mit bestätigten HaexVault-Adressen
 führen. In Vault A einen Ordner für Vault B mit „Lesen“ freigeben; in Vault B den Kontakt aufklappen,
 die Dateifreigabe öffnen, eine Datei ansehen und herauskopieren; prüfen, dass Vault B nichts außerhalb
 der Wurzel sieht und nichts schreiben kann.
@@ -177,14 +177,14 @@ der Wurzel sieht und nichts schreiben kann.
 **Acceptance Scenarios**:
 
 1. **Given** ein Ordner auf dem Laptop, **When** Anna „Freigeben …“ wählt, **Then** zeigt der Dialog
-   nur Kontakte mit bestätigten holzi-Adressen zur Auswahl, mit der Stufe „Lesen“ als Vorgabe und dem
+   nur Kontakte mit bestätigten HaexVault-Adressen zur Auswahl, mit der Stufe „Lesen“ als Vorgabe und dem
    Ordnernamen als Vorgabe für den Namen der Dateifreigabe.
 2. **Given** Annas Dateifreigabe für Ben, **When** Ben bei sich unter „Von Kontakten“ Anna aufklappt,
    während Annas Laptop die Vault offen hat, **Then** erscheint „Urlaub 2026“ als Quelle mit der
    Angabe „Lesen“.
 3. **Given** Ben hat „Urlaub 2026“ geöffnet, **When** er nach oben navigieren will, **Then** endet die
    Pfadleiste an der Wurzel der Dateifreigabe; Ordner darüber oder daneben sind für ihn nicht sichtbar.
-4. **Given** Stufe „Lesen“, **When** Ben die Dateifreigabe ansieht, **Then** bietet holzi keine
+4. **Given** Stufe „Lesen“, **When** Ben die Dateifreigabe ansieht, **Then** bietet HaexVault keine
    Aktion zum Anlegen, Ändern, Umbenennen, Verschieben oder Löschen an, und das bedienende Gerät
    lehnt solche Anfragen ab, auch wenn sie trotzdem kommen.
 5. **Given** Ben hat die Dateifreigabe einmal gesehen, **When** Annas Laptop aus ist, **Then** steht
@@ -203,7 +203,7 @@ der Wurzel sieht und nichts schreiben kann.
 
 Anna gibt Ben und Clara den Ordner `Verein/Protokolle` mit „Lesen und Schreiben“ frei. Ben legt ein
 neues Protokoll an, Clara korrigiert eines. Als Ben und Anna gleichzeitig dieselbe Datei speichern,
-fragt holzi Ben, ob er überschreiben oder seine Fassung als Kopie speichern will.
+fragt HaexVault Ben, ob er überschreiben oder seine Fassung als Kopie speichern will.
 
 **Why this priority**: Schreiben macht die Dateifreigabe zur Zusammenarbeit, setzt aber Lesen voraus
 und bringt Konflikte, die erst danach sinnvoll prüfbar sind.
@@ -217,16 +217,16 @@ und bringt Konflikte, die erst danach sinnvoll prüfbar sind.
 1. **Given** Stufe „Lesen und Schreiben“, **When** Ben eine Datei anlegt, umbenennt, verschiebt oder
    löscht, **Then** wirkt das sofort auf Annas Gerät, und Clara sieht es beim nächsten Auflisten.
 2. **Given** eine Datei, die Anna nach Bens letztem Öffnen geändert hat, **When** Ben seine Fassung
-   speichert, **Then** meldet holzi einen Schreibkonflikt und Ben wählt „Ersetzen“ oder „Beide
+   speichert, **Then** meldet HaexVault einen Schreibkonflikt und Ben wählt „Ersetzen“ oder „Beide
    behalten“; ohne Wahl ändert sich nichts.
 3. **Given** Ben löscht eine Datei, **When** Annas Laptop sie entfernt, **Then** liegt sie auf dem
    Desktop im Papierkorb des Laptops.
 4. **Given** eine Dateifreigabe einer einzelnen Datei mit „Lesen und Schreiben“, **When** Ben sie
-   umbenennen oder löschen will, **Then** lehnt holzi das ab; ändern kann er nur den Inhalt.
+   umbenennen oder löschen will, **Then** lehnt HaexVault das ab; ändern kann er nur den Inhalt.
 5. **Given** die Wurzel eines Ordners, **When** Ben sie umbenennen, verschieben oder löschen will,
-   **Then** lehnt holzi das ab.
+   **Then** lehnt HaexVault das ab.
 6. **Given** das bedienende Gerät hat keinen Papierkorb, **When** Ben eine Datei löscht, **Then** fragt
-   holzi vor dem Löschen nach, und ohne Bestätigung bleibt die Datei unverändert.
+   HaexVault vor dem Löschen nach, und ohne Bestätigung bleibt die Datei unverändert.
 
 ---
 
@@ -234,7 +234,7 @@ und bringt Konflikte, die erst danach sinnvoll prüfbar sind.
 
 Clara ist aus dem Verein ausgetreten. Anna öffnet auf dem Telefon „Meine Dateifreigaben“, sieht
 „Protokolle“ mit Ben und Clara und entzieht Clara das Zugriffsrecht. Ben stuft sie auf „Lesen“
-herunter. Weil der Laptop gerade aus ist, zeigt holzi „Entzug wartet auf Laptop“, bis der Laptop die
+herunter. Weil der Laptop gerade aus ist, zeigt HaexVault „Entzug wartet auf Laptop“, bis der Laptop die
 Änderung erhalten hat.
 
 **Why this priority**: Entziehen ist das Versprechen dieser Spec gegenüber Spaces; ohne verlässlichen
@@ -253,7 +253,7 @@ anderen eigenen Gerät aus, während das bedienende Gerät aus ist.
    Zugriffsrecht entzieht, **Then** bricht Claras Transfer ab, und das bedienende Gerät beantwortet
    keine weitere Anfrage von Clara zu dieser Dateifreigabe.
 3. **Given** das bedienende Gerät ist aus, **When** Anna auf einem anderen Gerät entzieht, **Then**
-   zeigt holzi „Entzug wartet auf ‹Gerät›“, bis das bedienende Gerät die Änderung erhalten hat.
+   zeigt HaexVault „Entzug wartet auf ‹Gerät›“, bis das bedienende Gerät die Änderung erhalten hat.
 4. **Given** Ben hat „Lesen und Schreiben“, **When** Anna ihn auf „Lesen“ stellt, **Then** lehnt das
    bedienende Gerät ab der nächsten Anfrage jede Änderung durch Ben ab.
 5. **Given** eine Dateifreigabe, **When** Anna ihren Quellordner auf dem Gerät umbenennt oder löscht,
@@ -280,7 +280,7 @@ an Kontakte auf Gerät A weiter prüfen.
 1. **Given** ein neues Gerät der Vault, **When** Anna seine Einstellungen öffnet, **Then** ist der
    Geräte-Dateizugriff eingeschaltet.
 2. **Given** der Schalter ist auf dem Arbeitslaptop aus, **When** Anna auf dem Telefon den
-   Arbeitslaptop öffnen will, **Then** zeigt holzi „Dateizugriff auf diesem Gerät ausgeschaltet“ und
+   Arbeitslaptop öffnen will, **Then** zeigt HaexVault „Dateizugriff auf diesem Gerät ausgeschaltet“ und
    keine Datei.
 3. **Given** der Schalter ist aus, **When** ein Kontakt eine Dateifreigabe dieses Geräts öffnet,
    **Then** funktioniert sie weiter; der Schalter betrifft nur eigene Geräte.
@@ -305,15 +305,15 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
 **Acceptance Scenarios**:
 
 1. **Given** ein Agent ohne Berechtigung für „Laptop“, **When** er dort lesen will, **Then** lehnt
-   holzi ab.
+   HaexVault ab.
 2. **Given** ein Agent mit „Lesen“ für eine empfangene Dateifreigabe, **When** er dort schreiben will,
-   **Then** lehnt holzi ab, auch wenn das Zugriffsrecht des Kontakts „Lesen und Schreiben“ wäre.
+   **Then** lehnt HaexVault ab, auch wenn das Zugriffsrecht des Kontakts „Lesen und Schreiben“ wäre.
 3. **Given** ein Agent mit „Lesen und Schreiben“, **When** er eine Datei ändert, **Then** gilt die
    Freigabestufe wie bei jeder anderen Quelle.
 4. **Given** ein Agent ohne die Berechtigung „Dateifreigaben verwalten“, **When** Anna ihn bittet, einen
-   Ordner an Ben freizugeben, **Then** lehnt holzi ab und nennt die fehlende Berechtigung.
+   Ordner an Ben freizugeben, **Then** lehnt HaexVault ab und nennt die fehlende Berechtigung.
 5. **Given** ein Agent mit dieser Berechtigung, **When** er einen Ordner an Ben freigeben will, **Then**
-   zeigt holzi einen Dialog mit Ordner, Gerät, Kontakt und Stufe, und erst Annas Bestätigung legt die
+   zeigt HaexVault einen Dialog mit Ordner, Gerät, Kontakt und Stufe, und erst Annas Bestätigung legt die
    Dateifreigabe an, auch im Modus „Auto“.
 6. **Given** ein Agent mit dieser Berechtigung, **When** er Ben ein Zugriffsrecht entzieht, **Then**
    geschieht das ohne Rückfrage.
@@ -331,7 +331,7 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
 - **Verschieben zwischen zwei Dateifreigaben oder aus einer Dateifreigabe auf ein eigenes Gerät**:
   Das ist ein Transfer aus Kopieren und Löschen wie zwischen Quellen in Spec 044; die Stufe beider
   Seiten gilt.
-- **Kontakt wird im Adressbuch gelöscht oder verliert seine bestätigten holzi-Adressen**: Seine
+- **Kontakt wird im Adressbuch gelöscht oder verliert seine bestätigten HaexVault-Adressen**: Seine
   Zugriffsrechte fallen weg; der Dialog zum Löschen nennt die betroffenen Dateifreigaben vorher.
 - **Kontakt legt eine ältere Geräteliste vor als zuletzt gesehen**: Das bedienende Gerät lehnt ab,
   wenn sie älter ist als die der gespeicherten Visitenkarte oder als eine in dieser Sitzung gesehene.
@@ -348,24 +348,24 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
   Handshake ohne Grund und gibt nichts preis. Wer die Endpoint-ID kennt, erfährt aber, dass das Gerät
   online ist (bewusst akzeptiert, Betreiber 2026-10-23).
 - **Entzug von einem anderen Gerät, während das bedienende Gerät aus ist**: Der Entzug wirkt, sobald
-  das bedienende Gerät ihn per Datensync erhalten hat. Bis dahin zeigt holzi „Entzug wartet auf
+  das bedienende Gerät ihn per Datensync erhalten hat. Bis dahin zeigt HaexVault „Entzug wartet auf
   ‹Gerät›“. Startet das bedienende Gerät und beantwortet eine Anfrage, bevor der Datensync gelaufen
   ist, kann der Kontakt in diesem Fenster noch zugreifen; das ist eine bekannte Grenze.
 - **Quelle der Dateifreigabe nicht verfügbar** (Speicher gestört, verschlüsselter Ordner nicht
   lesbar, Laufwerk ausgehängt): Kontakte erhalten „beim Eigentümer nicht verfügbar“ ohne interne
   Angaben; der Eigentümer sieht den Grund in „Meine Dateifreigaben“.
-- **Dieselbe Quelle zweimal freigeben**: holzi öffnet die vorhandene Dateifreigabe zum Bearbeiten statt
+- **Dieselbe Quelle zweimal freigeben**: HaexVault öffnet die vorhandene Dateifreigabe zum Bearbeiten statt
   eine zweite anzulegen.
 - **Verschachtelte Dateifreigaben** (ein Ordner an Ben, sein Unterordner an Clara): erlaubt; jede ist
   eine eigene Wurzel mit eigenen Zugriffsrechten. Hat ein Kontakt beide, sieht er beide getrennt.
-- **Dateifreigabe der eigenen Daten von holzi oder eines Ordners darüber**: Die eigenen Daten von holzi
+- **Dateifreigabe der eigenen Daten von HaexVault oder eines Ordners darüber**: Die eigenen Daten von HaexVault
   bleiben auch innerhalb einer Dateifreigabe für Kontakte gesperrt.
 - **Agent liest eine präparierte Datei, die zum Freigeben auffordert**: Ohne Bestätigung des Nutzers
   entsteht keine Dateifreigabe und kein erweitertes Zugriffsrecht (FR-045).
 - **Beide Geräte im Ruhezustand oder Android im Hintergrund**: Zugriff nur, solange auf beiden
-  Geräten holzi läuft und die Vault geöffnet ist; ein Hintergrunddienst ist nicht Teil dieser Spec.
+  Geräten HaexVault läuft und die Vault geöffnet ist; ein Hintergrunddienst ist nicht Teil dieser Spec.
 - **Gleichzeitiger Zugriff vieler Kontakte**: Das bedienende Gerät bedient alle; die eigene Bedienung
-  von holzi auf diesem Gerät bleibt bedienbar (SC-006).
+  von HaexVault auf diesem Gerät bleibt bedienbar (SC-006).
 
 ## Requirements _(mandatory)_
 
@@ -393,7 +393,7 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
 - **FR-006**: Das bedienende Gerät MUSS jeden Pfad vor dem Zugriff auflösen und ablehnen, wenn er über
   `..`, symbolische Links, Verknüpfungen oder Schreibvarianten aus der Wurzel herausführt; das gilt
   auch für das Ziel von Umbenennen und Verschieben.
-- **FR-007**: Die eigenen Daten von holzi des bedienenden Geräts MÜSSEN für Kontakte gesperrt sein,
+- **FR-007**: Die eigenen Daten von HaexVault des bedienenden Geräts MÜSSEN für Kontakte gesperrt sein,
   auch innerhalb einer Dateifreigabe. Ein eigenes Gerät MUSS sie sehen wie der Dateibrowser des
   bedienenden Geräts: nur lesend (Spec 044 FR-037), für Agents gesperrt (Spec 044 FR-033).
 - **FR-008**: Um ein Gerät eines Kontakts zu erreichen, MUSS das anfragende Gerät jedes Gerät der
@@ -402,7 +402,7 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
   Gerät, ist der Kontakt „nicht erreichbar“ mit dem Hinweis, eine aktuelle Karte zu teilen.
 - **FR-009**: Ein Gerät, das der anfragenden Vault nach FR-004 nichts zugänglich macht, MUSS die
   Verbindung im Handshake ohne Grund schließen; es DARF nichts darüber verraten, ob es etwas freigibt.
-- **FR-010**: holzi DARF Adressen von Geräten nicht öffentlich verzeichnen lassen (keine öffentliche
+- **FR-010**: HaexVault DARF Adressen von Geräten nicht öffentlich verzeichnen lassen (keine öffentliche
   Adressauflösung); eigene Geräte finden sich weiter über die Präsenz aus Spec 024.
 
 **Geräte-Dateizugriff (eigene Geräte)**
@@ -428,7 +428,7 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
   Nutzer auf dem Gerät frei, auf dem die Quelle liegt. Anlegen DARF der Nutzer eine Dateifreigabe nur
   auf dem Gerät, auf dem die Quelle liegt; eine bestehende Dateifreigabe ändern, entziehen und löschen
   DARF er auf jedem eigenen Gerät (FR-019).
-- **FR-016**: Der Dialog „Freigeben …“ MUSS zur Auswahl nur Kontakte mit bestätigten holzi-Adressen
+- **FR-016**: Der Dialog „Freigeben …“ MUSS zur Auswahl nur Kontakte mit bestätigten HaexVault-Adressen
   anbieten, je Kontakt die Stufe „Lesen“ (Vorgabe) oder „Lesen und Schreiben“, einen änderbaren Namen
   (Vorgabe: Name des Ordners bzw. der Datei) und die vorhandenen Zugriffsrechte zum Ändern und
   Entziehen.
@@ -438,17 +438,17 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
   nur dieses Gerät DARF Anfragen dazu beantworten.
 - **FR-019**: Dateifreigaben und ihre Zugriffsrechte MÜSSEN mit dem Datensync (Spec 024) auf alle
   eigenen Geräte kommen und sich auf jedem eigenen Gerät ändern und entziehen lassen.
-- **FR-020**: holzi MUSS eine Übersicht „Meine Dateifreigaben“ bieten mit Name, Quelle, bedienendem
+- **FR-020**: HaexVault MUSS eine Übersicht „Meine Dateifreigaben“ bieten mit Name, Quelle, bedienendem
   Gerät, Kontakten mit Stufe und Zustand: „aktiv“, „Quelle fehlt“, „Quelle nicht verfügbar“ oder
   „Änderung wartet auf ‹Gerät›“. (Seit Spec 071 steht die Übersicht als Liste im Panel des
   Dateibrowsers, nicht mehr in einem Dialog.)
 - **FR-021**: Die Kontaktseite (Spec 051) MUSS die Dateifreigaben an diesen Kontakt zeigen und Ändern
   und Entziehen dort erlauben.
 - **FR-022**: Fällt die Quelle einer Dateifreigabe weg (umbenannt, verschoben, gelöscht), MUSS die
-  Dateifreigabe mit „Quelle fehlt“ bestehen bleiben, bis der Nutzer sie löscht; holzi DARF sie nicht
+  Dateifreigabe mit „Quelle fehlt“ bestehen bleiben, bis der Nutzer sie löscht; HaexVault DARF sie nicht
   stillschweigend auf einen anderen Pfad umlenken.
-- **FR-023**: Wird ein Kontakt gelöscht oder verliert er seine bestätigten holzi-Adressen, MÜSSEN seine
-  Zugriffsrechte entfallen; vor dem Löschen MUSS holzi die betroffenen Dateifreigaben nennen.
+- **FR-023**: Wird ein Kontakt gelöscht oder verliert er seine bestätigten HaexVault-Adressen, MÜSSEN seine
+  Zugriffsrechte entfallen; vor dem Löschen MUSS HaexVault die betroffenen Dateifreigaben nennen.
 
 **Entziehen und Ändern**
 
@@ -457,29 +457,29 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
   Datei.
 - **FR-025**: Entziehen DARF keine Schlüssel neu verteilen und keine Mitwirkung anderer Kontakte
   verlangen.
-- **FR-026**: Wurde eine Änderung an einem anderen Gerät vorgenommen, MUSS holzi bis zu ihrem Eintreffen
+- **FR-026**: Wurde eine Änderung an einem anderen Gerät vorgenommen, MUSS HaexVault bis zu ihrem Eintreffen
   auf dem bedienenden Gerät „Änderung wartet auf ‹Gerät›“ zeigen.
-- **FR-027**: Was ein Kontakt vor dem Entziehen kopiert hat, behält er; holzi DARF das nicht
+- **FR-027**: Was ein Kontakt vor dem Entziehen kopiert hat, behält er; HaexVault DARF das nicht
   verhindern oder zurückfordern.
 
 **Empfangene Dateifreigaben (Empfänger)**
 
-- **FR-028**: Der Dateibrowser MUSS unter „Von Kontakten“ die Kontakte mit bestätigten holzi-Adressen
-  zeigen. Klappt der Nutzer einen Kontakt auf, MUSS holzi dessen Geräte anwählen (FR-008) und die
+- **FR-028**: Der Dateibrowser MUSS unter „Von Kontakten“ die Kontakte mit bestätigten HaexVault-Adressen
+  zeigen. Klappt der Nutzer einen Kontakt auf, MUSS HaexVault dessen Geräte anwählen (FR-008) und die
   Dateifreigaben abfragen, die dieser für die eigene Vault hat.
-- **FR-029**: holzi DARF Geräte von Kontakten nicht ohne Zutun des Nutzers anwählen, außer um eine
+- **FR-029**: HaexVault DARF Geräte von Kontakten nicht ohne Zutun des Nutzers anwählen, außer um eine
   schon bekannte empfangene Dateifreigabe zu öffnen, die der Nutzer aufruft.
 - **FR-030**: Eine abgefragte Dateifreigabe MUSS als empfangene Dateifreigabe gespeichert werden und
   mit dem Datensync auf alle eigenen Geräte kommen; jedes eigene Gerät MUSS sie öffnen können.
 - **FR-031**: Eine bekannte empfangene Dateifreigabe MUSS sichtbar bleiben, wenn der Kontakt nicht
   erreichbar ist, ausgegraut mit „nicht erreichbar“. Meldet das bedienende Gerät des Kontakts sie bei
-  einer Abfrage nicht mehr, MUSS holzi sie entfernen; Freigaben anderer Geräte desselben Kontakts
+  einer Abfrage nicht mehr, MUSS HaexVault sie entfernen; Freigaben anderer Geräte desselben Kontakts
   bleiben davon unberührt.
 - **FR-032**: Eine empfangene Dateifreigabe MUSS sich im Dateibrowser wie eine Quelle verhalten:
   Auflisten, Viewer mit Wiedergabe vor vollständiger Übertragung und Springen (Spec 044 FR-012),
   Transfers mit Fortschritt und Abbruch, Kopieren heraus in eigene Quellen.
 - **FR-033**: Die Pfadleiste MUSS an der Wurzel einer empfangenen Dateifreigabe enden.
-- **FR-034**: Bei Stufe „Lesen“ DARF holzi keine schreibenden Aktionen anbieten.
+- **FR-034**: Bei Stufe „Lesen“ DARF HaexVault keine schreibenden Aktionen anbieten.
 - **FR-046**: Ist auf dem anfragenden Gerät ein Ordner eines anderen Geräts oder einer Dateifreigabe
   geöffnet, der auf dem bedienenden Gerät liegt, MUSS die Ansicht Änderungen dort ohne Zutun des
   Nutzers zeigen, wie Spec 044 FR-006 lokal; endet die Verbindung, zeigt sie „nicht erreichbar“.
@@ -495,7 +495,7 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
   löschen; bei einer freigegebenen Datei DARF er nur den Inhalt ändern.
 - **FR-038**: Löschen durch ein anderes Gerät MUSS auf einem Desktop-Gerät in dessen Papierkorb gehen,
   wo das Gerät einen hat (wie Spec 044 FR-023); sonst MUSS das anfragende Gerät vorher nachfragen.
-- **FR-039**: Namenskonflikte am Ziel MUSS holzi behandeln wie in Spec 044 FR-021.
+- **FR-039**: Namenskonflikte am Ziel MUSS HaexVault behandeln wie in Spec 044 FR-021.
 
 **Agents**
 
@@ -550,7 +550,7 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
 - **SC-005**: Jeder Fall aus einer Testsammlung von Pfadausbrüchen (`..`, symbolische Links,
   Verknüpfungen, Schreibvarianten, Ziele von Verschieben und Umbenennen) wird abgelehnt: 100 %.
 - **SC-006**: Während fünf Kontakte gleichzeitig große Dateien aus Dateifreigaben eines Geräts lesen,
-  öffnet holzi auf diesem Gerät einen lokalen Ordner mit 1 000 Einträgen und wechselt Tabs jeweils in
+  öffnet HaexVault auf diesem Gerät einen lokalen Ordner mit 1 000 Einträgen und wechselt Tabs jeweils in
   höchstens 1 Sekunde.
 - **SC-007**: Kein Geräte- oder Vault-Zugriff gelingt ohne gültige Geräteliste: Sobald das bedienende
   Gerät die neue Liste akzeptiert und verbreitet hat, erhält ein Gerät, das nicht auf der höchsten
@@ -566,7 +566,7 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
 
 ## Assumptions
 
-- Beide Seiten haben holzi geöffnet und die Vault entsperrt; ein Hintergrunddienst kommt mit einer
+- Beide Seiten haben HaexVault geöffnet und die Vault entsperrt; ein Hintergrunddienst kommt mit einer
   eigenen Spec.
 - Kontakte entstehen wie in Spec 051 aus einer Visitenkarte; eine andere Art, eine fremde Vault
   auszuweisen, gibt es nicht.
@@ -578,14 +578,14 @@ Dateifreigabe geben bzw. verweigern; Lesen und Schreiben über Agent-Aktionen pr
 - Das Risiko des Geräte-Dateizugriffs ist bewusst akzeptiert: Ein verlorenes oder kompromittiertes
   eigenes Gerät erreicht das Dateisystem jedes anderen eigenen Geräts, dessen Vault offen ist und
   dessen Schalter an ist. Ein ADR hält das bei der Planung fest.
-- Wer eine Dateifreigabe bekommt, darf mit den Inhalten alles tun; holzi verhindert Weitergabe nicht.
+- Wer eine Dateifreigabe bekommt, darf mit den Inhalten alles tun; HaexVault verhindert Weitergabe nicht.
 
 ## Nicht im Umfang
 
 - Gespiegelte Kopien, Offline-Verfügbarkeit und Cloud-Sicherung (Sync-Regeln, Spec 061).
 - Zugriff, wenn eine Seite offline ist; Zwischenspeichern von Inhalten bei Dritten.
 - Ablaufdatum von Dateifreigaben, Kontaktgruppen, Benachrichtigung über neue Dateifreigaben.
-- Links für Personen ohne holzi.
+- Links für Personen ohne HaexVault.
 - Zugriff von Erweiterungen auf andere Geräte oder empfangene Dateifreigaben.
 - Weitergabe einer empfangenen Dateifreigabe an Dritte als Dateifreigabe (ein Kontakt kann Inhalte
   kopieren und selbst freigeben).

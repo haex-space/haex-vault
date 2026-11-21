@@ -19,7 +19,7 @@ verschieben in einen Papierkorb gibt und nutze das vor endgültigem löschen fal
 häufiger. Auch bei Dateioperationen. Manche Systeme haben zb für löschen ein verschieben in den Papierkorb, aber nicht
 alle. Auf Android gibt es zb keinen Papierkorb, auf Desktop Systemen aber schon. Das Modell sollte also immer erst
 schauen, ob es das Konzept Papierkorb gibt (könnte auch je nach Erweiterung/Domäne unterschiedlich heißen) und nutzt
-das vor endgültigem löschen." Agreed form (2026-11-11): holzi enforces it with a short check before the permission
+das vor endgültigem löschen." Agreed form (2026-11-11): HaexVault enforces it with a short check before the permission
 dialog, not with a sentence for the model.
 
 ## Background
@@ -31,7 +31,7 @@ sentence on every final tool, a sentence telling the model to prefer a tool that
 request), offering final tools last, and naming the reversible tools after a decline. The models pick the tool named
 like the user's verb, wherever it stands and whatever its description says.
 
-Small models do answer short, focused questions reliably: the routing call (spec 082) is one. So holzi asks one such
+Small models do answer short, focused questions reliably: the routing call (spec 082) is one. So HaexVault asks one such
 question when a final action is proposed, and acts on the answer itself.
 
 Rejected on the way (2026-11-11): moving to the trash after the user declined (a "no" must never start another
@@ -43,8 +43,8 @@ notion of alternatives, and only one extension would fill it).
 ### User Story 1 - An ordinary delete takes the reversible way (Priority: P1)
 
 A user asks to delete something without saying "for good". The model proposes an action that cannot be undone. Before
-any dialog, holzi checks whether the user asked for exactly that and whether one of the offered tools does what was
-asked in a way that can be undone. If the user did not ask for a final action and such a tool exists, holzi does not
+any dialog, HaexVault checks whether the user asked for exactly that and whether one of the offered tools does what was
+asked in a way that can be undone. If the user did not ask for a final action and such a tool exists, HaexVault does not
 run the proposal and tells the model which tool to use instead; the model then uses it, and the item ends up where it
 can be restored (for mail: the trash).
 
@@ -56,7 +56,7 @@ trash, no dialog asks to delete it for good, and the answer says it was moved to
 **Acceptance Scenarios**:
 
 1. **Given** a request without "for good" and a proposed final action, **When** an offered tool of the same area
-   changes data without being final and the check names it, **Then** holzi turns the proposal away with an answer that
+   changes data without being final and the check names it, **Then** HaexVault turns the proposal away with an answer that
    says nothing ran, why, and which tool to use, and the model's next call uses that tool.
 2. **Given** the model then calls the named tool, **When** it runs, **Then** it runs like any other changing action
    (no dialog in Auto mode) and the answer to the user reports its outcome.
@@ -97,7 +97,7 @@ the dialog asks as today, and no turn-away happens.
 **Acceptance Scenarios**:
 
 1. **Given** no offered tool of the proposal's area changes data without being final, **When** a final action is
-   proposed, **Then** holzi skips the check and the dialog asks as today.
+   proposed, **Then** HaexVault skips the check and the dialog asks as today.
 2. **Given** the check answers "none" or cannot be answered in time, **When** a final action is proposed, **Then** the
    dialog asks as today.
 
@@ -128,7 +128,7 @@ and the turned-away proposals.
   checked only the first time (FR-006).
 - **The user confirms a question of the assistant** ("Endgültig löschen?" – "Ja"): the check reads the conversation,
   so the confirmation counts as asking for the final action (FR-002).
-- **The named tool needs values the model does not have**: the model builds the call itself from what it found; holzi
+- **The named tool needs values the model does not have**: the model builds the call itself from what it found; HaexVault
   does not carry values over.
 - **The user's message is ambiguous** ("weg damit"): the check decides; the dialog remains the safety net for a final
   action that gets through.
@@ -144,23 +144,23 @@ and the turned-away proposals.
 
 ### Functional Requirements
 
-- **FR-001**: holzi MUST recognise a final action by the effect its tool declares (an action's or an extension tool's
+- **FR-001**: HaexVault MUST recognise a final action by the effect its tool declares (an action's or an extension tool's
   declared effect that makes it ask in Auto mode), never by its name or description.
-- **FR-002**: Before the permission dialog, for a proposed final action in a turn that routes, holzi MUST ask the model
+- **FR-002**: Before the permission dialog, for a proposed final action in a turn that routes, HaexVault MUST ask the model
   one short question: did the user ask for exactly this final action, and which of the offered tools of the same area
   that change data without being final does what the user asked, or none. The question MUST carry what the user said
   in the conversation and, if the assistant's last answer before the latest user message asked the user something,
   that answer, so a short confirmation is read in context.
 - **FR-003**: The question MUST name the proposed action and the candidate tools by their titles, and MUST name no area
   and no particular concept such as a trash (087 FR-019).
-- **FR-004**: When the answer is "not asked for" and names one of the candidate tools, holzi MUST NOT run the proposal
+- **FR-004**: When the answer is "not asked for" and names one of the candidate tools, HaexVault MUST NOT run the proposal
   and MUST NOT ask the user; the model MUST get an answer that says nothing ran, that the action cannot be undone and
   was not asked for, and which tool to use instead.
-- **FR-005**: In every other case (asked for, none, no candidates, an answer holzi cannot read, no answer in time) the
+- **FR-005**: In every other case (asked for, none, no candidates, an answer HaexVault cannot read, no answer in time) the
   proposal MUST go on to the permission dialog unchanged.
-- **FR-006**: holzi MUST check each tool's final action at most once per turn; the same tool proposed again in the turn
+- **FR-006**: HaexVault MUST check each tool's final action at most once per turn; the same tool proposed again in the turn
   goes to the dialog without a second check.
-- **FR-007**: holzi MUST NOT run the named tool itself; only the model's own next call can run it.
+- **FR-007**: HaexVault MUST NOT run the named tool itself; only the model's own next call can run it.
 - **FR-008**: The check MUST have a time limit like the routing call's, and MUST NOT run in Plan mode or for an action
   that asks the user itself.
 - **FR-009**: The everyday measurement MUST run the check as the app does, and its report MUST record each check's
@@ -201,8 +201,8 @@ and the turned-away proposals.
   a run of `main` at that state without the check (T001), not the 087 numbers alone.
 - The check runs only in turns that route (local models), like the other spec 087 sentences; hosted models choose the
   reversible tool already and pay no extra call. Hosted scores therefore need no rerun unless a change touches them.
-- "Area" is the routed domain of spec 082 (holzi's declared domains, one per extension); candidates come only from the
+- "Area" is the routed domain of spec 082 (HaexVault's declared domains, one per extension); candidates come only from the
   proposal's own area.
-- The model writes the reversible call's values itself; holzi does not map values between tools.
+- The model writes the reversible call's values itself; HaexVault does not map values between tools.
 - No backward compatibility: nothing is stored, so there is nothing to migrate.
 - A second topic-level spec ("topics across sources", 089) is separate and measured on its own.

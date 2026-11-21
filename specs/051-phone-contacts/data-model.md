@@ -3,7 +3,7 @@
 Alle Tabellen sind synchronisiert (haex-crdt, LWW je Spalte), außer wo `_no_sync` steht. Regeln aus
 `identity/migrations_passwords.rs`: Primärschlüssel Pflicht, kein `WITHOUT ROWID`, kein UNIQUE
 (Eindeutigkeit über abgeleitete UUIDv5-IDs), `ON DELETE CASCADE` erlaubt. Migration `0033_contacts` in
-`src-tauri/src/identity/migrations_contacts.rs`; `HOLZI_TRIGGER_VERSION` +1.
+`src-tauri/src/identity/migrations_contacts.rs`; `HAEX_TRIGGER_VERSION` +1.
 
 ## haex_contacts
 
@@ -23,7 +23,7 @@ Ein Kontakt (FR-001, FR-003, FR-018a).
 | `job_title`      | TEXT NULL |                                                                         |
 | `note`           | TEXT NULL | höchstens 64 KiB                                                        |
 | `photo`          | TEXT NULL | SHA-256 hex → `haex_contacts_binaries.hash`                             |
-| `origin_kind`    | TEXT      | `holzi` \| `phone` \| `card`; nach dem Anlegen unveränderlich           |
+| `origin_kind`    | TEXT      | `haex` \| `phone` \| `card`; nach dem Anlegen unveränderlich            |
 | `origin_device`  | TEXT      | `vault_device_uuid` des anlegenden Geräts                               |
 | `origin_caller`  | TEXT      | `user` \| `builtin_agent` \| `external_agent:<id>` \| `internal:<name>` |
 | `origin_account` | TEXT NULL | bei `phone`: `account_type/account_name` (lokal: leer)                  |
@@ -48,32 +48,32 @@ Eine Angabe (FR-003, FR-007, FR-008 unbestätigt).
 
 Arten dieser Spec und ob sie ins Telefon gehen (FR-014):
 
-| `kind`              | `value`                                                                        | Telefon                      |
-| ------------------- | ------------------------------------------------------------------------------ | ---------------------------- |
-| `phone`             | Text wie eingegeben                                                            | ja (`Phone`)                 |
-| `email`             | Text                                                                           | ja (`Email`)                 |
-| `address`           | JSON `{street, pobox, neighborhood, city, region, postcode, country}`          | ja (`StructuredPostal`)      |
-| `website`           | URL                                                                            | ja (`Website`)               |
-| `im`                | JSON `{service, handle}`                                                       | ja (`Im`, `PROTOCOL_CUSTOM`) |
-| `sip`               | Text                                                                           | ja (`SipAddress`)            |
-| `event`             | JSON `{date: "YYYY-MM-DD" \| "--MM-DD"}`; `label` `birthday`, `anniversary`, … | ja (`Event`)                 |
-| `relation`          | Name                                                                           | ja (`Relation`)              |
-| `custom`            | Text; `label` ist die Bezeichnung                                              | nein                         |
-| `holzi_vault`       | npub (unbestätigt)                                                             | nein                         |
-| `holzi_nostr_relay` | `wss://…` (unbestätigt)                                                        | nein                         |
-| `holzi_iroh`        | Endpunkt-ID hex, optional `@<iroh-Relay-URL>` (unbestätigt)                    | nein                         |
+| `kind`             | `value`                                                                        | Telefon                      |
+| ------------------ | ------------------------------------------------------------------------------ | ---------------------------- |
+| `phone`            | Text wie eingegeben                                                            | ja (`Phone`)                 |
+| `email`            | Text                                                                           | ja (`Email`)                 |
+| `address`          | JSON `{street, pobox, neighborhood, city, region, postcode, country}`          | ja (`StructuredPostal`)      |
+| `website`          | URL                                                                            | ja (`Website`)               |
+| `im`               | JSON `{service, handle}`                                                       | ja (`Im`, `PROTOCOL_CUSTOM`) |
+| `sip`              | Text                                                                           | ja (`SipAddress`)            |
+| `event`            | JSON `{date: "YYYY-MM-DD" \| "--MM-DD"}`; `label` `birthday`, `anniversary`, … | ja (`Event`)                 |
+| `relation`         | Name                                                                           | ja (`Relation`)              |
+| `custom`           | Text; `label` ist die Bezeichnung                                              | nein                         |
+| `haex_vault`       | npub (unbestätigt)                                                             | nein                         |
+| `haex_nostr_relay` | `wss://…` (unbestätigt)                                                        | nein                         |
+| `haex_iroh`        | Endpunkt-ID hex, optional `@<iroh-Relay-URL>` (unbestätigt)                    | nein                         |
 
 Unbekannte `kind`-Werte: nur lesen und anzeigen; der Dienst ändert oder löscht sie nur, wenn der
 Kontakt gelöscht wird. Spätere Specs fügen Arten hinzu, ohne Migration.
 
-Prüfung beim Speichern (FR-008): `holzi_vault` muss ein gültiger npub sein, `holzi_nostr_relay` eine
-`wss://`- oder `ws://`-Adresse, `holzi_iroh` 64 Hex-Zeichen mit optionaler Relay-URL.
+Prüfung beim Speichern (FR-008): `haex_vault` muss ein gültiger npub sein, `haex_nostr_relay` eine
+`wss://`- oder `ws://`-Adresse, `haex_iroh` 64 Hex-Zeichen mit optionaler Relay-URL.
 
 ## haex_contacts_cards
 
 > Spec 060: der Schlüssel ist der Hash der unterschriebenen Nutzlast, eine Vault kann mehrere Karten haben (siehe `specs/060-contact-sharing/data-model.md` §1).
 
-Bestätigte holzi-Adressen aus einer Visitenkarte (FR-008 bis FR-013).
+Bestätigte haex-vault-Adressen aus einer Visitenkarte (FR-008 bis FR-013).
 
 | Spalte         | Typ     | Regeln                                                    |
 | -------------- | ------- | --------------------------------------------------------- |
@@ -124,7 +124,7 @@ wieder als Ziel, führt der Lauf ihn mit diesem Roh-Kontakt zusammen, statt ihn 
 
 Gruppen gleicht der Abgleich über den Namen ab: Eine Mitgliedschaft in `haex_contacts_group_members`
 entspricht im Telefon einer `GroupMembership` in der Gruppe gleichen Titels im Konto des Roh-Kontakts;
-fehlt die Gruppe dort, legt holzi sie an. Gruppen des Systems („My Contacts“) bleiben unberührt.
+fehlt die Gruppe dort, legt haex-vault sie an. Gruppen des Systems („My Contacts“) bleiben unberührt.
 
 ## haex_contacts_phone_links
 
@@ -143,12 +143,12 @@ Zuordnung je Telefon (FR-024, ADR 0001: synchronisierte Tabelle mit `vault_devic
 | `version`           | INTEGER   | `RawContacts.VERSION` nach dem letzten Lauf                              |
 | `read_only`         | INTEGER   | 0/1                                                                      |
 | `base`              | TEXT      | JSON: abgebildete Angaben dieses Roh-Kontakts nach dem letzten Lauf (R6) |
-| `photo_base`        | TEXT NULL | Hash des holzi-Fotos beim letzten Lauf                                   |
+| `photo_base`        | TEXT NULL | Hash des haex-vault-Fotos beim letzten Lauf                              |
 
 ## haex_contacts_phone_known_no_sync
 
 Welche Roh-Kontakte dieses Telefon schon einmal zugeordnet hat (Migration `0034`). Gerätelokal (kein
-CRDT): Löscht holzi einen Kontakt, gehen seine Zuordnungen mit (`ON DELETE CASCADE`); diese Liste
+CRDT): Löscht haex-vault einen Kontakt, gehen seine Zuordnungen mit (`ON DELETE CASCADE`); diese Liste
 sagt dem Telefon dann noch, welchen Roh-Kontakt es löschen muss, statt ihn als neu zu übernehmen.
 
 | Spalte           | Typ        | Regeln                               |

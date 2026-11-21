@@ -11,7 +11,7 @@ commands below describe the intended use.
 
 - A worktree of this repository, entered through `nix develop`, with a real `pnpm install` (do not
   symlink `node_modules`).
-- holzi's atoms pin at or after `d5c48d0eb6662da84086bf69a3ca041a494e2b26` (Stage 0), so the shell
+- HaexVault's atoms pin at or after `d5c48d0eb6662da84086bf69a3ca041a494e2b26` (Stage 0), so the shell
   carries `tauri-driver`, `WebKitWebDriver` and `xvfb-run`. `command -v` for each should print a path
   inside the Nix store.
 - The host's `webkit2gtk-4.1`, the same prerequisite as for `pnpm tauri:dev`. The driver and it must be
@@ -29,7 +29,7 @@ commands below describe the intended use.
 
 In an ordinary run (debug build) the relaunch scenario is listed as skipped with its reason. To run it,
 build the same release artifact used by T067 with `pnpm tauri build --no-bundle`, then pass
-`<target>/release/holzi` with `--app` (`<target>` is `CARGO_TARGET_DIR` when set, otherwise
+`<target>/release/haex` with `--app` (`<target>` is `CARGO_TARGET_DIR` when set, otherwise
 `src-tauri/target`).
 
 ## Expected result of the first full run
@@ -38,7 +38,7 @@ build the same release artifact used by T067 with `pnpm tauri build --no-bundle`
 - The relaunch scenario is skipped with the reason that the build exits on close.
 - Exit status 0. No window appeared on your desktop. Read the run marker from the printed run directory's
   `report.json`, then verify that no process from this run remains:
-  `marker=$(node --input-type=module -e 'import { readFileSync } from "node:fs"; console.log(JSON.parse(readFileSync(process.argv[1], "utf8")).runMarker)' <run-directory>/report.json); ! grep -l "HOLZI_E2E_RUN=$marker" /proc/*/environ 2>/dev/null`.
+  `marker=$(node --input-type=module -e 'import { readFileSync } from "node:fs"; console.log(JSON.parse(readFileSync(process.argv[1], "utf8")).runMarker)' <run-directory>/report.json); ! grep -l "HAEX_E2E_RUN=$marker" /proc/*/environ 2>/dev/null`.
   This ignores unrelated `tauri-driver` processes.
 
 ## Proving the success criteria
@@ -52,11 +52,11 @@ scenarios should be under 30 seconds and the run under 5 minutes.
 
 ### SC-002: nothing left behind, nothing touched
 
-1. Start your own Holzi (for example `pnpm tauri:dev`) and note the data directory's checksum listing.
+1. Start your own HaexVault (for example `pnpm tauri:dev`) and note the data directory's checksum listing.
 2. Run the suite 20 times, in 10 of them sending `kill -9` to the runner at a random moment (a shell
    loop with `sleep $((RANDOM % 25))` before the kill).
 3. After each run: no marked process is left (the next run's sweep prints nothing to remove, except right
-   after a killed run, where it prints what it removed), no window appeared, your Holzi is still running,
+   after a killed run, where it prints what it removed), no window appeared, your HaexVault is still running,
    and its data listing is unchanged.
 
 ### SC-003: each promise, broken on purpose

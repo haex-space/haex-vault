@@ -78,10 +78,10 @@ zieht sie mit.
 
 PRIMARY KEY (`storage_id`, `folder_id`, `sidecar`); INDEX (`storage_id`, `folder_id`, `parent_id`).
 
-- `FK` und `DEK` liegen nie in der Datenbank; holzi entpackt sie bei Bedarf und hält sie nur im
+- `FK` und `DEK` liegen nie in der Datenbank; haex-vault entpackt sie bei Bedarf und hält sie nur im
   Arbeitsspeicher (`Zeroizing`).
 - `remote_storage::store::remove_storage` löscht die Zeilen eines Speichers im selben Vorgang.
-- Fehlt eine Zeile oder passt ein ETag nicht, lädt holzi aus dem Bucket nach (research R6).
+- Fehlt eine Zeile oder passt ein ETag nicht, lädt haex-vault aus dem Bucket nach (research R6).
 
 ### `agent_file_permissions` (aus 044)
 
@@ -103,7 +103,7 @@ PRIMARY KEY (`storage_id`, `folder_id`, `sidecar`); INDEX (`storage_id`, `folder
   Freigaben (`<storage_id>/<folder_id>`) tragen für das Gerät die Kennung `device:<wurzel>`
   (`device:/` unter Linux, macOS und Android; `device:C:` je Laufwerk unter Windows); `object_key` ist
   der Pfad ohne die Wurzel.
-- Zeilen zu Ordnern, deren Kopf beim Laden fehlt, löscht holzi.
+- Zeilen zu Ordnern, deren Kopf beim Laden fehlt, löscht haex-vault.
 - `EncryptedInfo` bekommt `foreign: number` (Zahl fremder Dateien, nur für den Ordner selbst, sonst 0).
 
 ## Nur im Arbeitsspeicher

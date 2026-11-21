@@ -341,7 +341,7 @@
       "id": "mail_tidy-de-3",
       "result": "missed",
       "calls": [],
-      "text": "Es kann nicht geprüft werden, ob eine Mail von der Sparkasse stammt, da dies keine direkte Funktion von holzi umfasst. Bitte geben Sie weitere Details oder verwenden Sie eine andere Methode, um die Mails zu markieren."
+      "text": "Es kann nicht geprüft werden, ob eine Mail von der Sparkasse stammt, da dies keine direkte Funktion von haex-vault umfasst. Bitte geben Sie weitere Details oder verwenden Sie eine andere Methode, um die Mails zu markieren."
     },
     {
       "id": "mail_tidy-de-4",
@@ -539,7 +539,7 @@
       "id": "mail_read-de-2-s",
       "result": "missed",
       "calls": [],
-      "text": "Es scheint, dass Sie eine Frage stellen möchten, die mit der \"Holzi\" (einem App-Tool) verbunden ist. Die Frage lautet: \"Was schreibt die Hausverwaltung?\" \n\nDa die Frage nicht sehr klar ist, und es sich um eine mögliche Verwechslung mit einem anderen Begriff handelt, werde ich die Suche durchführen, "
+      "text": "Es scheint, dass Sie eine Frage stellen möchten, die mit der \"HaexVault\" (einem App-Tool) verbunden ist. Die Frage lautet: \"Was schreibt die Hausverwaltung?\" \n\nDa die Frage nicht sehr klar ist, und es sich um eine mögliche Verwechslung mit einem anderen Begriff handelt, werde ich die Suche durchführen, "
     },
     {
       "id": "mail_read-de-3-s",
@@ -676,7 +676,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Hier sind die installierten Anwendungen, die in Holzi verfügbar sind:\n\n1. **Einstellungen** – ID: `system.settings`\n2. **Chat** – ID: `system.chat`\n3. **Dateien** – ID: `system.files`\n4. **Passwörter** – ID: `system.passwords`\n5. **Kontakte** – ID: `system.contacts`\n6. **haex-mail** – ID: `extension"
+      "text": "Hier sind die installierten Anwendungen, die in HaexVault verfügbar sind:\n\n1. **Einstellungen** – ID: `system.settings`\n2. **Chat** – ID: `system.chat`\n3. **Dateien** – ID: `system.files`\n4. **Passwörter** – ID: `system.passwords`\n5. **Kontakte** – ID: `system.contacts`\n6. **haex-mail** – ID: `extension"
     },
     {
       "id": "app_setting-de-5-s",

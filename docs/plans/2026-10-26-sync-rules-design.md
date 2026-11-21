@@ -21,8 +21,8 @@ cloud backup are the same mechanism.
 | 1   | Which places?             | Any place of the file browser on both sides. Contacts' shares (foreign vaults) are excluded: sync and revocation collide.                                                                                                                                                                                        |
 | 2   | Who runs a rule?          | One device per rule: the device that created it. The rule is device-local and not synced (spec 024). The other side is reached through the live access of 056. No shared file index, no reconciliation between devices.                                                                                          |
 | 3   | Concurrent changes        | Conflict copy: the newer version keeps the name, the older one is stored beside it as `name (Konflikt <device> <date>).ext`; both sides get both. Changed on one side and deleted on the other: the changed file stays and is copied back.                                                                       |
-| 4   | Deletions                 | Per rule: mirror, keep or ask. Mirror moves to the system trash where one exists, else to a `.holzi-trash` folder of the rule. Defaults: mirror for two-way, keep for one-way. "Ask" lists pending deletions in the rule status.                                                                                 |
-| 5   | When does it run?         | While holzi runs with an unlocked vault: file watcher on local folders, interval for remote places (default 15 min), "sync now". Android needs the background service, a separate spec. The status shows "paused, holzi not active".                                                                             |
+| 4   | Deletions                 | Per rule: mirror, keep or ask. Mirror moves to the system trash where one exists, else to a `.haex-trash` folder of the rule. Defaults: mirror for two-way, keep for one-way. "Ask" lists pending deletions in the rule status.                                                                                  |
+| 5   | When does it run?         | While haex-vault runs with an unlocked vault: file watcher on local folders, interval for remote places (default 15 min), "sync now". Android needs the background service, a separate spec. The status shows "paused, haex-vault not active".                                                                   |
 | 6   | Encryption in the cloud   | None of its own. Whoever wants ciphertext at the provider picks an encrypted folder (048) as the place. The rule sees plaintext because the folder is unlocked.                                                                                                                                                  |
 | 7   | Change and move detection | Size plus modification time against the remembered state of the same side; clocks of different devices are never compared (only to pick the newer side in a conflict). A vanished and a new file with equal size and time are a move. A checksum is computed only for ambiguous candidates and to verify a copy. |
 
@@ -83,7 +83,7 @@ status by default; resetting the target is not the default because it would over
 
 A permission "manage sync rules". Reading rules and status is allowed; creating, changing and
 deleting go through the approval gate. A running rule needs no agent and has only the rights the user
-confirmed when creating it. holzi's own data stays blocked as in spec 044.
+confirmed when creating it. haex-vault's own data stays blocked as in spec 044.
 
 ## Tests
 

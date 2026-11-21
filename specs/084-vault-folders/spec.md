@@ -51,26 +51,26 @@ folder with the tracker lists.)
 
 ### User Story 1 - Existing vaults move into their own folders (Priority: P1)
 
-After the update the user starts holzi and finds every vault as before: same list, same data, same unlock. Behind the
+After the update the user starts HaexVault and finds every vault as before: same list, same data, same unlock. Behind the
 scenes each vault now has its own folder with its database, and nothing of it is left in the old places.
 
 **Why this priority**: Every other story builds on the layout, and a failure here costs the user a vault.
 
 **Independent Test**: Start a build with the old layout on a data folder with three vaults (one with an agent browser
-profile and chat files, one named `filters`, one open in another holzi process) and check the result by file listing and
+profile and chat files, one named `filters`, one open in another HaexVault process) and check the result by file listing and
 by opening each.
 
 **Acceptance Scenarios**:
 
-1. **Given** vaults in the old layout, **When** holzi starts, **Then** each vault lies in `vaults/<name>/`, appears in
+1. **Given** vaults in the old layout, **When** HaexVault starts, **Then** each vault lies in `vaults/<name>/`, appears in
    the list, opens with its passphrase and has the same data as before.
 2. **Given** a vault with an agent browser profile and chat files, **When** it has moved, **Then** both lie in
    subfolders of its folder and are found by the features that use them.
-3. **Given** the move was interrupted (power loss, killed process), **When** holzi starts again, **Then** it continues,
+3. **Given** the move was interrupted (power loss, killed process), **When** HaexVault starts again, **Then** it continues,
    no vault is lost or listed twice, and the result equals an uninterrupted move.
-4. **Given** a vault that another holzi process of this device has open, **When** holzi starts, **Then** that vault is
+4. **Given** a vault that another HaexVault process of this device has open, **When** HaexVault starts, **Then** that vault is
    not moved, stays usable where it is and is moved at a later start.
-5. **Given** a vault named `filters`, **When** holzi starts, **Then** it moves like any other and the tracker lists are
+5. **Given** a vault named `filters`, **When** HaexVault starts, **Then** it moves like any other and the tracker lists are
    untouched.
 
 ---
@@ -90,7 +90,7 @@ that nothing of it is left; list the root of a vault's folder.
 1. **Given** a vault, **When** the agent browser, the chat files or any other module keeps files for it, **Then** they
    lie in a subfolder of the vault's folder, never in the root and never in a folder outside it that is named after the
    vault.
-2. **Given** a vault whose creation was interrupted, **When** holzi starts, **Then** its folder is gone, with everything in
+2. **Given** a vault whose creation was interrupted, **When** HaexVault starts, **Then** its folder is gone, with everything in
    it, and nothing of it is left elsewhere on the device.
 3. **Given** a vault named like a device-wide folder (`filters`, `models`, `agent-browser`), **When** it is created and
    used, **Then** nothing of it and nothing device-wide interferes with the other.
@@ -147,7 +147,7 @@ read it on a second one.
   name as before (`vault.db-wal`, `vault.db.lock`, `vault.db.vault-id`, `vault.db.pending`).
 - **FR-003**: One function MUST resolve the vault's folder and the paths in it. No module builds a path to a vault's
   files from the vault's name by itself (constitution: one implementation per rule).
-- **FR-004**: At start, before the vault list is read, holzi MUST move every vault of the old layout into its folder:
+- **FR-004**: At start, before the vault list is read, HaexVault MUST move every vault of the old layout into its folder:
   the database with its sidecar files, `agent-browser/<name>/` to `vaults/<name>/agent-browser/` and
   `chat-files/<name>/` to `vaults/<name>/chat-files/`. The move MUST be automatic and use renames within one volume.
 - **FR-005**: The move MUST be restartable. After an interruption the next start completes it; at no moment may a vault be
@@ -182,7 +182,7 @@ read it on a second one.
 - **SC-001**: After the update every vault of a test data folder with at least five vaults opens with its data intact.
 - **SC-002**: After the update no database file lies in `instances/` and no vault-named folder lies in `agent-browser/` or
   `chat-files/`.
-- **SC-003**: Killing holzi at every step of the move, one run per step, always ends with all vaults moved after the next
+- **SC-003**: Killing HaexVault at every step of the move, one run per step, always ends with all vaults moved after the next
   start.
 - **SC-004**: The clean-up of an interrupted creation leaves no file of that vault on the device (checked by a file listing
   of the data folder).

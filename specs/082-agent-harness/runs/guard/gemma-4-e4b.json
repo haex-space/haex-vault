@@ -289,7 +289,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich kann in Holzi keine spezifische Datei oder Dokumente wie Ihre Steuererklärung suchen, da ich keinen Zugriff auf Ihre lokalen Dateien habe.\n\nWenn Sie die Steuererklärung per E-Mail erhalten haben, kann ich nach E-Mails mit dem Stichwort \"Steuererklärung\" suchen, falls Sie mir weitere Informatione"
+      "text": "Ich kann in HaexVault keine spezifische Datei oder Dokumente wie Ihre Steuererklärung suchen, da ich keinen Zugriff auf Ihre lokalen Dateien habe.\n\nWenn Sie die Steuererklärung per E-Mail erhalten haben, kann ich nach E-Mails mit dem Stichwort \"Steuererklärung\" suchen, falls Sie mir weitere Informatione"
     },
     {
       "id": "file-de-2",
@@ -691,7 +691,7 @@
       "id": "contact-en-1",
       "result": "missed",
       "calls": [],
-      "text": "I do not have access to personal contact information like phone numbers. I can only interact with the applications and settings available in holzi."
+      "text": "I do not have access to personal contact information like phone numbers. I can only interact with the applications and settings available in haex-vault."
     },
     {
       "id": "contact-en-2",
@@ -751,7 +751,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I couldn't find any specific action related to \"Projektplan Q2\". Since this sounds like a file you want to find, I don't have a tool to search your local files directly.\n\nCould you clarify if you are looking for:\n1.  An application or feature within holzi that might contain this file?\n2.  Something "
+      "text": "I couldn't find any specific action related to \"Projektplan Q2\". Since this sounds like a file you want to find, I don't have a tool to search your local files directly.\n\nCould you clarify if you are looking for:\n1.  An application or feature within haex-vault that might contain this file?\n2.  Something "
     },
     {
       "id": "file-en-2",

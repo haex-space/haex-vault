@@ -34,7 +34,7 @@ keine neue Frontend-Abhängigkeit.**
 
 **Storage**: PR B ergänzt `turn_tokens_in` und `turn_tokens_out` an `chat_messages` mit eigener
 Migration. PR C ergänzt `chat_tasks` und `chat_task_questions` sowie ggf. `chat_threads.origin`, falls
-066 noch nicht gemergt ist; jede Migration erhöht `HOLZI_TRIGGER_VERSION`. Geräteeinstellungen
+066 noch nicht gemergt ist; jede Migration erhöht `HAEX_TRIGGER_VERSION`. Geräteeinstellungen
 `orchestration.*` ([data-model.md](./data-model.md)).
 
 **Testing**:

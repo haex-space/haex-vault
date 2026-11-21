@@ -59,7 +59,7 @@ _GATE: passed before Phase 0, re-checked after Phase 1._
 | Settings apply on selection                                               | No new setting: the camera pick holds for the open scan only                                                      |
 | Product name HaexVault, no bare "Relay", specs in English                 | Texts reviewed in tasks (FR-014)                                                                                  |
 | No secrets in git, no local absolute paths                                | Fixtures use generated codes; no paths                                                                            |
-| Every device and OS (memory: holzi-every-os)                              | Desktop camera on three OSes with a native fallback (R4); phones via plugin; iOS explicitly out                   |
+| Every device and OS (memory: haex-every-os)                               | Desktop camera on three OSes with a native fallback (R4); phones via plugin; iOS explicitly out                   |
 | Encrypted storage and credentials rule                                    | Not touched: no credentials, no stored data                                                                       |
 | ADR for principle-affecting decisions                                     | None needed: no Core Principle changes. The camera-permission gate (R5) is recorded in research                   |
 | 500 LoC per file                                                          | New files stay far below                                                                                          |

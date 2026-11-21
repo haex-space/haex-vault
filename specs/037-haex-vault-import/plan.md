@@ -7,7 +7,7 @@
 ## Summary
 
 Der Import des Passwortmanagers (034) bekommt die Quelle „haex-vault 2.x“. haex-vault 2.x hat keinen
-Export; holzi liest deshalb die verschlüsselte Vault-Datei direkt. Weil 034 das Datenmodell von
+Export; haex-vault liest deshalb die verschlüsselte Vault-Datei direkt. Weil 034 das Datenmodell von
 haex-vault 2.x übernommen hat, ist die Abbildung fast 1:1. Die Arbeit liegt in drei Teilen
 (Begründungen in [research.md](./research.md)):
 
@@ -35,7 +35,7 @@ Kein neues Tabellenschema, keine Migration, keine neue Abhängigkeit.
 `bundled-sqlcipher-vendored-openssl`), `tempfile 3`, `base64 0.23`, `sha2`, `zeroize`, `serde_json`,
 `ts-rs`; Frontend `@tauri-apps/plugin-dialog`
 
-**Storage**: Vault von holzi (SQLCipher, unverändertes Schema); Quelle: Vault-Datei von haex-vault 2.x
+**Storage**: Vault von haex-vault (SQLCipher, unverändertes Schema); Quelle: Vault-Datei von haex-vault 2.x
 (SQLCipher 4, nur gelesen, als Kopie in `TempDir`)
 
 **Testing**: `cargo test` (Integrationstests unter `src-tauri/tests/`, Unit-Tests in eigenen

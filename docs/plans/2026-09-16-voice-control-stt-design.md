@@ -26,7 +26,7 @@ routing, and a small fixed set of interrupt words. It explicitly does **not** co
 - New voice-triggered UI actions (switch model, open settings, navigate) beyond the interrupt
   words. Controlling the rest of the app by voice is expected to happen later, transitively,
   through whatever tools the agent has (today's tool loop, and eventually app functionality
-  exposed as MCP/ACP tools per holzi's stated direction) — not through new voice-specific command
+  exposed as MCP/ACP tools per haex-vault's stated direction) — not through new voice-specific command
   plumbing built here.
 - Wake-word / always-listening activation. Activation is push-to-talk only.
 - A user-facing model picker/download flow for the local STT model. It ships bundled with the app.
@@ -42,7 +42,7 @@ the final local audio frame.
 
 In scope for both desktop and mobile (iOS/Android) from the start. Voice control is a
 foreground-only feature: if the app is backgrounded mid-recording (most relevant on mobile), the
-in-progress recording is discarded rather than transcribed — consistent with how holzi already
+in-progress recording is discarded rather than transcribed — consistent with how haex-vault already
 treats backgrounding as a normal presence state, not an error. No system-wide global hotkey; the
 mic control is only reachable while the app is focused.
 
@@ -75,7 +75,7 @@ recognized interrupt. Nothing about "controlling the app" is built beyond this: 
 
 ## 4. STT as a provider capability
 
-Holzi already has a `Provider`/`ProviderAdapter` abstraction for chat models: `ProviderKind`
+HaexVault already has a `Provider`/`ProviderAdapter` abstraction for chat models: `ProviderKind`
 (`local` / `api_key` / `cli_delegate`), one adapter per vendor, credential storage, and a
 "Modelle verwalten" management UI. Rather than building a separate parallel system for STT, this
 design extends that abstraction with a capability dimension (`chat` | `transcription`):

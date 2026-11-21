@@ -1,7 +1,7 @@
 # Research: Reuse the prompt a local model has already read
 
-Facts were read from holzi's code on `main` at the start of this branch and from the binding `llama-cpp-2` 0.1.160
-and its llama.cpp (`ggml-org/llama.cpp@d81235049384534c167caea52b85a694f6103d14`), the version holzi ships.
+Facts were read from haex-vault's code on `main` at the start of this branch and from the binding `llama-cpp-2` 0.1.160
+and its llama.cpp (`ggml-org/llama.cpp@d81235049384534c167caea52b85a694f6103d14`), the version haex-vault ships.
 
 ## R1 What is measured, and what is still open
 
@@ -22,7 +22,7 @@ and its llama.cpp (`ggml-org/llama.cpp@d81235049384534c167caea52b85a694f6103d14`
   length (`Placement.context`) and a batch of 512, and lives until the model is dropped.
 - **Rationale**:
   - A `LlamaContext<'a>` borrows its `LlamaModel`, so a struct holding both refers to itself. `self_cell` makes
-    that sound without `unsafe` in holzi.
+    that sound without `unsafe` in haex-vault.
   - `self_cell` 1.3.0 is already in `Cargo.lock` as a transitive dependency; declaring it adds no new crate to
     the build.
   - `LlamaContext` is `Send` (the binding implements it), so the mutex makes it shareable. The existing `gate`
@@ -168,7 +168,7 @@ LlamaStateSeqFlags::PARTIAL_ONLY)`:
     word; a step that starts with a tool call sends its first chunk only when the whole call is parsed, so it
     measures reading and writing the call. The report shows the median of the later steps that start with text
     (SC-001, SC-002) apart from those that start with a tool call, and the share reused.
-  - `LoadOptions.prompt_cache: bool` (default `true`); the evaluation reads `HOLZI_LLAMACPP_PROMPT_CACHE=off` to
+  - `LoadOptions.prompt_cache: bool` (default `true`); the evaluation reads `HAEX_LLAMACPP_PROMPT_CACHE=off` to
     measure without reuse (FR-010).
   - A new ignored test measures User Stories 1 and 2 directly with the real files (quickstart).
 - **Rationale**: SC-001 to SC-004 need the time per step and the comparison with reuse off.

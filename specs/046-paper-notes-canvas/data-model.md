@@ -68,7 +68,7 @@ finishedAt?: ISO timestamp
 
 Regeln:
 
-- Es gibt kein Feld für Adresse, Anbieter oder Schlüssel; holzi gibt sie der Erweiterung nicht (Spec 055 FR-030).
+- Es gibt kein Feld für Adresse, Anbieter oder Schlüssel; haex-vault gibt sie der Erweiterung nicht (Spec 055 FR-030).
 - `state = "failed"` braucht `error` und behält `originalAssetId`. `processing_failed` heißt: die Arbeitskopie oder
   ein Ausschnitt ließ sich auf dem Gerät nicht erzeugen; dann fehlt `workingAssetId`.
 - `state = "ready"` braucht `model` und `place`; die Liste der Regionen darf leer sein (leere Seite).

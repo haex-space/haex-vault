@@ -11,10 +11,10 @@ produktiver Schlüssel in Git).
 ## 0. Vorarbeiten (L0)
 
 - haex-crdt: PR mit `write_guarded`/`read_guarded` (`SqlGuard`), Triggern nach Schemaänderungen,
-  Schema-Modus, metadatentreuem Umbau, Spaltennamen ohne Zeilen und lokalem Modus gemerged; holzi pinnt die
+  Schema-Modus, metadatentreuem Umbau, Spaltennamen ohne Zeilen und lokalem Modus gemerged; HaexVault pinnt die
   volle Revision in `src-tauri/Cargo.toml`.
 - vault-sdk: PR mit Format v2 (`haex sign`, `haex verify`), Testvektoren und Prüfung von `event.source`
-  gemerged; holzi verweist auf die volle Revision; Testvektoren liegen mit Herkunftskopf in
+  gemerged; HaexVault verweist auf die volle Revision; Testvektoren liegen mit Herkunftskopf in
   `src-tauri/tests/fixtures/extension_bundles/`.
 
 ```bash
@@ -45,10 +45,10 @@ und scheitert, wenn eine Schicht allein einen Fall durchlässt ([contracts/sql-p
 
 1. Einstellungen → Erweiterungen → „Aus Datei installieren“ → `good-notes-like.xt`.
    Erwartet: Name, Fassung, Herausgeber-Kürzel, „Signatur gültig“, alle erklärten Berechtigungen, abwählbar.
-2. Installieren, im Launcher öffnen. Erwartet: Tab mit der Erweiterung, Theme und Sprache wie holzi.
-3. In der Erweiterung navigieren, in holzi Zurück. Erwartet: Ort im Verlauf, Zurück führt dorthin
-   (Spec 020); Tastenkürzel von holzi wirken mit Fokus im Rahmen.
-4. holzi neu starten. Erwartet: der Tab kommt am Ort zurück (Spec 022).
+2. Installieren, im Launcher öffnen. Erwartet: Tab mit der Erweiterung, Theme und Sprache wie HaexVault.
+3. In der Erweiterung navigieren, in HaexVault Zurück. Erwartet: Ort im Verlauf, Zurück führt dorthin
+   (Spec 020); Tastenkürzel von HaexVault wirken mit Fokus im Rahmen.
+4. HaexVault neu starten. Erwartet: der Tab kommt am Ort zurück (Spec 022).
 5. `bad-moved-content.xt`, `bad-extra-file.xt`, `legacy-format.xt` installieren. Erwartet: Ablehnung mit
    Grund, nichts installiert; beim alten Format der Hinweis auf `haex`.
 6. Eine Datei im gespeicherten Bundle per Test-Haken verändern, Erweiterung öffnen. Erwartet: startet nicht
@@ -78,7 +78,7 @@ Test-Bundle `perm-probe.xt` fragt eine nicht erklärte Berechtigung an.
 ## 5. Abschottung (FR-009–FR-011, L1)
 
 End-to-End `extension-isolation`: Aus dem Rahmen scheitern Zugriffe auf `parent.document`,
-`localStorage` von holzi, `fetch('https://…')`, `new WebSocket(…)`, `<img src="https://…">`,
+`localStorage` von HaexVault, `fetch('https://…')`, `new WebSocket(…)`, `<img src="https://…">`,
 `location = 'https://…'`, `window.open`, Zugriffe auf `__TAURI_INTERNALS__`/`ipc:`; ein Geschwisterrahmen,
 der `port:init` an einen anderen Rahmen schickt, bekommt keinen Kanal; ein Rahmen, der zur Seite einer anderen
 Erweiterung navigiert, wird nicht ausgeliefert (Start-Token).

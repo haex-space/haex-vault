@@ -1,4 +1,4 @@
-# Datenmodell: Modell bedient holzi über die Aktionen
+# Datenmodell: Modell bedient haex-vault über die Aktionen
 
 **Spec**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md) | **Research**: [research.md](./research.md)
 

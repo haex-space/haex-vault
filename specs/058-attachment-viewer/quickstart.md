@@ -11,7 +11,7 @@
   - `gross.log` mit mehr als 5 MB Text
   - `kaputt.txt` mit einem NUL-Byte am Anfang (`printf 'a\0b' > kaputt.txt`)
   - `police.pdf` mit mindestens zwei Seiten, `defekt.pdf` (beliebige Bytes mit Endung pdf)
-  - `tabelle.ods` (oder eine andere Datei, die holzi nicht anzeigt)
+  - `tabelle.ods` (oder eine andere Datei, die HaexVault nicht anzeigt)
 
 ## Automatische Prüfungen
 
@@ -41,7 +41,7 @@ Erwartet: alle grün. Danach `cargo fmt --check`, `pnpm lint:all` und `pnpm type
 | M10 | Noch einmal, Haken „Nicht mehr fragen“, Öffnen                                 | Datei öffnet in der System-App (US3)                                              |
 | M11 | Einen anderen Anhang mit der System-App öffnen                                 | Kein Hinweis mehr (US3 S3)                                                        |
 | M12 | Vault sperren, den App-Cache-Ordner `files-opened-encrypted` ansehen           | Ordner fehlt oder ist leer (US3 S4, SC-004)                                       |
-| M13 | Datei öffnen, holzi hart beenden (`kill -9`), neu starten                      | Kopie beim Start entfernt (US3 S4)                                                |
+| M13 | Datei öffnen, HaexVault hart beenden (`kill -9`), neu starten                  | Kopie beim Start entfernt (US3 S4)                                                |
 | M14 | Eintrag in den Papierkorb, dort `notiz.txt` antippen                           | Ansicht öffnet; Umbenennen und Entfernen fehlen (US1 S5)                          |
 | M15 | Fenster auf 360 px Breite                                                      | Ansicht füllt das Fenster, nichts scrollt seitwärts                               |
 | M16 | Auf einem zweiten Gerät derselben Vault einen Anhang mit der System-App öffnen | Hinweis erscheint dort (FR-010)                                                   |

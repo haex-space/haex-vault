@@ -47,7 +47,7 @@ a previous installation is untouched.
 
 While the newest installed version of that vendor is unconfirmed and an older complete version exists: deletes the newest
 and leaves the older one in use. Fails with `cli_tools.nothing_to_revert` otherwise, and with `cli_tools.in_use` while a
-delegate child of that vendor is live in this vault. holzi never calls this by itself (spec FR-022).
+delegate child of that vendor is live in this vault. haex-vault never calls this by itself (spec FR-022).
 
 ### `cli_tools_remove(vendor: string) -> CliToolStatus`
 
@@ -95,7 +95,7 @@ window of the same vault refreshes its row.
   `<version>/.confirmed` and schedules older versions for deletion once no active run uses them (spec FR-022); a stop,
   a missing login and a network error never call it. A second update is refused while the current version is unconfirmed.
 - Provider rows: `add_provider` for `cli_delegate` no longer requires `base_url`; `upsert_delegate_provider` stores none.
-- `holzi --mcp-agent …` (the MCP helper Claude spawns) receives the endpoint folder as `--endpoint-dir <path>` in the
+- `haex --mcp-agent …` (the MCP helper Claude spawns) receives the endpoint folder as `--endpoint-dir <path>` in the
   generated MCP config and no longer derives it from `XDG_RUNTIME_DIR`/`TMPDIR`/`HOME`.
 
 ## Not exposed

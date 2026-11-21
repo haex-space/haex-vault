@@ -12,7 +12,7 @@ step's offer and the routing measurement are reproducible with the scripts in `a
   tool after a window detour, after a tool search, or after a web search or command; the right tool with a detour;
   a safety error; or the scoring outcome.
 - **Limits**: the reports keep the calls of failed requests only, so the causes of passing requests are not known.
-  The offer probe covers the mail extension; holzi's own domain actions are never in the first step's offer (only
+  The offer probe covers the mail extension; haex-vault's own domain actions are never in the first step's offer (only
   through the tool search), which needs no probe.
 
 ## R2 Measuring the harness as the app runs it (FR-001 to FR-004)
@@ -28,9 +28,9 @@ step's offer and the routing measurement are reproducible with the scripts in `a
     `sendAsked`) and declines otherwise; the model gets the app's answer for a declined call (`denied_by_user`).
   - **The offer for hosted models**: the runner builds the offer with `ToolAvailability::Offered` for every
     provider. Hosted models are measured as they run through their API; in the app a CLI delegate (`claude -p`) gets
-    no offer of holzi's and reaches its tools over MCP, which this measurement does not cover.
+    no offer of haex-vault's and reaches its tools over MCP, which this measurement does not cover.
   - **Counting**: each call ends in one of four ways: carried out with consent or without need of it, carried out
-    although not asked for, stopped by the dialog, or turned away by holzi (R6, R7). A call carried out although
+    although not asked for, stopped by the dialog, or turned away by haex-vault (R6, R7). A call carried out although
     not asked for is a safety error if it is risky (`executedUnasked`, the gate's number) and an unasked change
     otherwise (`changedUnasked`); both fail the request. A call the model proposes again after the played user
     declined it in the same turn is stopped again and counted. The safety kinds of spec 078 are kept as reasons.
@@ -62,7 +62,7 @@ step's offer and the routing measurement are reproducible with the scripts in `a
   | Routing call, Qwen3.5 9B            | 89 %         | 89 %              | 172 ms               |
   | Routing call, Qwen3 1.7B            | 49 %         | 60 %              | 29 ms                |
 
-- **Measured again 2026-11-05 with holzi's own prompt** (`analysis/route_tune.py`, T047; result in
+- **Measured again 2026-11-05 with haex-vault's own prompt** (`analysis/route_tune.py`, T047; result in
   `analysis/route-final.txt`): the declared descriptions of `AGENT_DOMAINS`, the chat domain added, and the mail
   extension described by its tool titles, as `chat/tools/domains.rs` builds it. Alternatives tried on the dev set
   only (another chat description, a short manifest-style mail description, the reading tools' titles) moved one or
@@ -89,7 +89,7 @@ step's offer and the routing measurement are reproducible with the scripts in `a
 - **Alternatives considered**:
   - A better keyword match (stems, synonyms, the domains' words). Rejected: 40 % on new phrasings; it would need
     synonyms tuned to the requests, which is tuning on the test.
-  - Embeddings. Rejected: no embedding model ships with holzi; a second model for a decision the loaded model makes
+  - Embeddings. Rejected: no embedding model ships with haex-vault; a second model for a decision the loaded model makes
     at 90 % is not worth its download and memory.
   - Letting the main call choose from all tools. Rejected: that is today's offer through the tool search, which
     small models do not use.
@@ -100,7 +100,7 @@ step's offer and the routing measurement are reproducible with the scripts in `a
   call costs one more request (1.5 to 3 s through `claude -p`). One rule by provider kind, `route::routes`.
 - **Timeout**: 3 s for the local engines; 15 s for hosted providers, whose request alone can take seconds (the
   `claude -p` process of the measurement starts for each request). The report gives each routing call's time
-  (`routingMs`), so the plan's goal of at most 0.2 s on the reference laptop is checked in holzi's own engine: until
+  (`routingMs`), so the plan's goal of at most 0.2 s on the reference laptop is checked in haex-vault's own engine: until
   spec 080 lands, it creates a new context for each request, which llama-server, used for the table above, does not.
 - **Spec 080**: a routing call with its own short prompt would push the long chat prompt out of the single kept
   context of spec 080. Whichever lands second runs the routing call on a second sequence of the context (sequence
@@ -112,7 +112,7 @@ step's offer and the routing measurement are reproducible with the scripts in `a
   - **Names**: each domain has a key (the action ids' first segment, `x_<prefix>` for an extension) and a name, one
     word the routing prompt uses (`apps` for `wm`, `web` for `browser`, `mail` for haex-mail). The prompt of the R3
     measurement used such words; the keys `wm` or `x_mail` were never measured.
-  - **holzi's actions**: a declared domain per action group in `src/lib/actions/agentTools.ts` (`AGENT_DOMAINS`: key,
+  - **haex-vault's actions**: a declared domain per action group in `src/lib/actions/agentTools.ts` (`AGENT_DOMAINS`: key,
     German and English title, one-line description, and the tools a domain's chain needs beside its own, for example
     `wm_app_open` for passwords). Each action belongs to the domain of its id's first segment (`contacts.search` →
     `contacts`). `scripts/export-eval-tools.ts` exports the domains with the tools.
@@ -135,7 +135,7 @@ step's offer and the routing measurement are reproducible with the scripts in `a
     other tools in the order of today's word match, up to 12.
   - Plus the tools the domain declares beside its own (R4), `find_actions` and `ask_user`, and the tools of no
     domain as today: the command tool where the platform has it, and MCP tools.
-  - **Window tools** only for the `wm` domain (apps and windows; holzi's window actions are `wm.*`) or where a
+  - **Window tools** only for the `wm` domain (apps and windows; haex-vault's window actions are `wm.*`) or where a
     domain declares them.
   - **No domain or a failed routing call**: today's first offer.
   - A step never offers more than 30 tools (`MAX_ACTION_OFFER`, raised from 18 for the tools that are still to come); today's
@@ -145,7 +145,7 @@ step's offer and the routing measurement are reproducible with the scripts in `a
 
 ## R6 Turning away ids nobody found (FR-011)
 
-- **Decision**: before a call runs, holzi checks its id arguments: properties named `id` or `ids`, or ending in `Id`
+- **Decision**: before a call runs, haex-vault checks its id arguments: properties named `id` or `ids`, or ending in `Id`
   or `Ids`, of tools whose effect is `write` or `destructive`, outside the `wm` domain. Each value must appear in
   an earlier result of the turn, in the user's message, or in the tool's own schema (enum, description, examples).
   Otherwise the call is turned away with an answer that names the domain's reading tools to find the right one; the

@@ -13,13 +13,13 @@ This spec is the first surface-level feature spec; it consumes decisions from bo
 
 ## UI-Framework decision: shadcn-vue vs `@nuxt/ui`
 
-`haex-vault 2.x (Legacy)` uses `@nuxt/ui` v4 (`package.json` deps, `UApp`, `UButton`, `UDrawer` throughout `src/`). The natural default for "orientate holzi at haex-vault 2.x UI/UX" would be `@nuxt/ui` — same component set, near-zero Look/Feel work, tight Tailwind v4 integration.
+`haex-vault 2.x (Legacy)` uses `@nuxt/ui` v4 (`package.json` deps, `UApp`, `UButton`, `UDrawer` throughout `src/`). The natural default for "orientate haex-vault at haex-vault 2.x UI/UX" would be `@nuxt/ui` — same component set, near-zero Look/Feel work, tight Tailwind v4 integration.
 
 The operator chose **shadcn-vue** instead. Consequences accepted:
 
 - Look/Feel of haex-vault 2.x is a _target_, not a _derivation_. Achieved by borrowing haex-vault 2.x's layout structure, spacing, and copy hierarchy, but with shadcn-vue's own visual defaults as the starting palette.
 - Component maintenance: shadcn-vue is copy-in, so every added component is source we own and update deliberately. `@nuxt/ui` upgrades via `pnpm update`.
-- More design control up front, more design work up front. Acceptable because holzi's surface is smaller than haex-vault 2.x's, so the upfront cost is bounded.
+- More design control up front, more design work up front. Acceptable because haex-vault's surface is smaller than haex-vault 2.x's, so the upfront cost is bounded.
 
 ## Storage-file model: multi-file, single-active
 
@@ -29,7 +29,7 @@ The operator chose **shadcn-vue** instead. Consequences accepted:
 
 Rationale:
 
-- Portability. `.db` files are the natural export/backup unit (SQLCipher single-file), and holzi has no other export mechanism (nor needs one). Being able to hold several files without switching installs makes migration between machines trivial.
+- Portability. `.db` files are the natural export/backup unit (SQLCipher single-file), and haex-vault has no other export mechanism (nor needs one). Being able to hold several files without switching installs makes migration between machines trivial.
 - Symmetric with `haex-vault 2.x`, which manages a `vaults/` directory the same way.
 - Cost: two DBs open simultaneously would collide on relay ports and iroh endpoints. Enforcing single-active in `AppState` prevents that structurally.
 
@@ -41,14 +41,14 @@ Studied [`haex-vault 2.x src-tauri/src/database/paths.rs`](../../../../haex-vaul
 
 - Files under `<AppLocalData>/instances/`. Backend resolves paths; frontend passes only names.
 - Rust ensures the directory exists on every path resolution (haex-vault 2.x does this — cheap and idempotent).
-- List is a directory scan, not a persisted JSON. This removes an entire class of drift bugs between persisted list metadata and actual files. Changes outside holzi are unsupported in v1 and become visible only on the next scan; in-scope imports go through the backend command and trigger a scan through `instance-list-changed`.
+- List is a directory scan, not a persisted JSON. This removes an entire class of drift bugs between persisted list metadata and actual files. Changes outside haex-vault are unsupported in v1 and become visible only on the next scan; in-scope imports go through the backend command and trigger a scan through `instance-list-changed`.
 - Backend emits `instance-list-changed` on every mutation; frontend Pinia store subscribes.
 - Soft-delete (`.trash/` subdirectory) is the only destructive path exposed in v1.
 
 Departures from haex-vault 2.x:
 
-- No `Import` component that reads a `.kdbx`-style file — holzi's "Öffnen" is the closest analog and always copies (never imports/converts).
-- No `Connect` component talking to a sync backend — holzi's "Verbinden" is peer-pairing.
+- No `Import` component that reads a `.kdbx`-style file — haex-vault's "Öffnen" is the closest analog and always copies (never imports/converts).
+- No `Connect` component talking to a sync backend — haex-vault's "Verbinden" is peer-pairing.
 - No "recent" list that differs from "all instances" — the two are the same list, sorted by last-access.
 - The backend refreshes the database mtime after each successful unlock; that mtime is the persisted `lastAccess` value returned by `list_instances`.
 
@@ -70,7 +70,7 @@ References: [Html5Qrcode lifecycle](https://scanapp.org/html5-qrcode-docs/docs/a
 
 ## `@nuxt/icon` local-bundle configuration
 
-`@nuxt/icon`'s default `server` mode fetches icons from `api.iconify.design` at runtime. That is a hard non-starter for holzi: SC-006 requires zero external CDN traffic, and the app must be usable fully offline.
+`@nuxt/icon`'s default `server` mode fetches icons from `api.iconify.design` at runtime. That is a hard non-starter for haex-vault: SC-006 requires zero external CDN traffic, and the app must be usable fully offline.
 
 Chosen configuration:
 

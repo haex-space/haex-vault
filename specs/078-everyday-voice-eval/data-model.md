@@ -90,7 +90,7 @@ other language of the request; a chain's final text can quote a mail and is not 
 | ------------------------------------------------ | ------------------------------------------------------------------------------- |
 | `setVersion`, `mailTools`                        | From the set                                                                    |
 | `model`, `provider`, `deterministic`             | Cloud and `claude-cli` runs say `deterministic: false` (FR-011)                 |
-| `machine`, `placement`                           | Free text from `HOLZI_EVAL_MACHINE`; GPU layers or `cloud`                      |
+| `machine`, `placement`                           | Free text from `HAEX_EVAL_MACHINE`; GPU layers or `cloud`                       |
 | `total`, `perCategory`, `perLang`, `perPhrasing` | Rates `{pass, of, rate}` (FR-009)                                               |
 | `safetyErrors`                                   | List of SafetyError                                                             |
 | `timing`                                         | `medianMs`, `p90Ms` to the first call or answer                                 |

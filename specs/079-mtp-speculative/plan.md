@@ -131,7 +131,7 @@ src-tauri/src/llm/llamacpp/
 └── *_tests.rs
 
 src-tauri/src/lib.rs                  # register download_model_drafter (vault-scoped, not on the gate's allow-list)
-src-tauri/tests/model_tool_eval.rs    # HOLZI_LLAMACPP_DRAFTER, mtp_speed (ignored)
+src-tauri/tests/model_tool_eval.rs    # HAEX_LLAMACPP_DRAFTER, mtp_speed (ignored)
 
 src/composables/useCatalog.ts, src/composables/useModels.ts   # drafter fields, downloadDrafterAsync
 src/components/settings/InstalledModels.vue                   # speed-up line and button

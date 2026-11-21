@@ -183,7 +183,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "Für eine Einkaufsliste gibt es in holzi keine passende App. Was soll ich tun?",
+            "question": "Für eine Einkaufsliste gibt es in haex-vault keine passende App. Was soll ich tun?",
             "options": [
               "Dateien öffnen, damit du Milch selbst in eine Liste schreibst",
               "Noch einmal gezielt nach einer Listen- oder Aufgaben-Funktion suchen",
@@ -193,7 +193,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Für eine Einkaufsliste gibt es in holzi keine passende App. Was soll ich tun?"
+      "text": "Für eine Einkaufsliste gibt es in haex-vault keine passende App. Was soll ich tun?"
     },
     {
       "id": "file-en-1",
@@ -248,7 +248,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I'm sorry, but holzi has no action for setting reminders, timers or alarms, so I can't set a reminder for the laundry. You could set a timer on your phone for 10:41 instead."
+      "text": "I'm sorry, but haex-vault has no action for setting reminders, timers or alarms, so I can't set a reminder for the laundry. You could set a timer on your phone for 10:41 instead."
     },
     {
       "id": "no_tool-en-3",
@@ -274,7 +274,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I can't add the dentist appointment, because holzi has no calendar app or calendar action. The installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail. If you install a calendar extension, I can add it for tomorrow (Thursday, 2026-03-19) at 10:00."
+      "text": "I can't add the dentist appointment, because haex-vault has no calendar app or calendar action. The installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail. If you install a calendar extension, I can add it for tomorrow (Thursday, 2026-03-19) at 10:00."
     },
     {
       "id": "no_tool-en-4",
@@ -295,9 +295,9 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "I couldn't find a shopping list app in holzi. How would you like to keep \"milk\" on your list?",
+            "question": "I couldn't find a shopping list app in haex-vault. How would you like to keep \"milk\" on your list?",
             "options": [
-              "Search holzi for a notes or to-do action",
+              "Search haex-vault for a notes or to-do action",
               "Send myself an email with \"milk\" using haex-mail",
               "Never mind"
             ]
@@ -305,7 +305,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I couldn't find a shopping list app in holzi. How would you like to keep \"milk\" on your list?"
+      "text": "I couldn't find a shopping list app in haex-vault. How would you like to keep \"milk\" on your list?"
     },
     {
       "id": "password-en-1-s",

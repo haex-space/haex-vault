@@ -149,7 +149,7 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
   | `decided_at`        | INTEGER NOT NULL                                                            |
   | `last_seen_at`      | INTEGER                                                                     |
 
-  No UNIQUE constraint (it would halt the sync): `id` is `UUIDv5(NS, device ":" client_id)` (`approvals::row_id`), so one client has one row per device. Register the migration in `src-tauri/src/identity/migrations.rs`. Raise `HOLZI_TRIGGER_VERSION` 25 → 26 with a changelog line ("26: `0038_browser_clients` (spec 049) introduced the CRDT-tracked `haex_browser_clients`"). The migration tests in `identity/migrations_browser_clients_tests.rs` cover a fresh vault and an upgrade from the schema before.
+  No UNIQUE constraint (it would halt the sync): `id` is `UUIDv5(NS, device ":" client_id)` (`approvals::row_id`), so one client has one row per device. Register the migration in `src-tauri/src/identity/migrations.rs`. Raise `HAEX_TRIGGER_VERSION` 25 → 26 with a changelog line ("26: `0038_browser_clients` (spec 049) introduced the CRDT-tracked `haex_browser_clients`"). The migration tests in `identity/migrations_browser_clients_tests.rs` cover a fresh vault and an upgrade from the schema before.
 
 - [x] T017 [P] Tests in `src-tauri/src/browser_bridge/approvals_tests.rs`:
   - Store and load by `(device, client_id)`.
@@ -179,16 +179,16 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 - [x] T023 Contract test `src-tauri/tests/browser_bridge_contract.rs`, after `tests/extension_bridge_contract.rs`. It parses the method and "Nicht unterstützt" lists out of `specs/049-external-bridge/contracts/wire-protocol.md` and checks:
   - `METHODS` names equal the contract's method headings that are implemented so far (PR B: none; each later PR adds its names);
   - `NOT_SUPPORTED` equals the contract list;
-  - every `module` starts with `holzi_lib::browser_bridge::` and contains none of `::chat`, `::llm`, `::adapters`, `::providers`;
+  - every `module` starts with `haex_lib::browser_bridge::` and contains none of `::chat`, `::llm`, `::adapters`, `::providers`;
   - each name appears once.
 
 **Checkpoint**: `cargo test --lib browser_bridge`, `cargo test --lib prompt_park` and `cargo test --test browser_bridge_contract` are green. The bridge can be started and stopped but has no server yet.
 
 ---
 
-## Phase 3: User Story 1 - Browser-Erweiterung verbinden und in holzi zulassen (P1) 🎯 MVP — PR B
+## Phase 3: User Story 1 - Browser-Erweiterung verbinden und in haex-vault zulassen (P1) 🎯 MVP — PR B
 
-**Goal**: The extension connects, holzi shows the approval dialog, the user approves with a grant and a default tag, and the client is told at once. Remembered approvals survive restarts; session ones end with the vault (FR-001–FR-004, FR-008–FR-012).
+**Goal**: The extension connects, haex-vault shows the approval dialog, the user approves with a grant and a default tag, and the client is told at once. Remembered approvals survive restarts; session ones end with the vault (FR-001–FR-004, FR-008–FR-012).
 
 **Independent Test**: Integration test with the Rust test client (below), then quickstart M1–M2 with the real extension.
 
@@ -246,7 +246,7 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
   Usable at 360 px without horizontal scroll (FR-044). Test ids `bridge-approval-*`. Mount it in `src/components/wm/Desktop.vue` next to `PermissionRequestDialog`.
 
-- [x] T033 [US1] Settings page skeleton `src/components/settings/BrowserBridgeSettings.vue` (new), registered as section "Browser-Erweiterungen" with `subView('extensions.browserBridge', 'extensions/browser-bridge', 'extensions')` in `src/lib/settings/registry.ts` and the views map in `src/components/wm/appRoutes.ts`. It shows the on/off switch (saves on change, no save button), the port field and the state (`off`, `running`, `portInUse` with a hint about another holzi or haex-vault 2.x, `noVault`). On Android it shows `NotOnThisDevice.vue`. Update `scripts/check-settings.ts` for the new location.
+- [x] T033 [US1] Settings page skeleton `src/components/settings/BrowserBridgeSettings.vue` (new), registered as section "Browser-Erweiterungen" with `subView('extensions.browserBridge', 'extensions/browser-bridge', 'extensions')` in `src/lib/settings/registry.ts` and the views map in `src/components/wm/appRoutes.ts`. It shows the on/off switch (saves on change, no save button), the port field and the state (`off`, `running`, `portInUse` with a hint about another haex-vault or haex-vault 2.x, `noVault`). On Android it shows `NotOnThisDevice.vue`. Update `scripts/check-settings.ts` for the new location.
 - [x] T034 [P] [US1] i18n: `browserBridge.*` keys in `src/i18n/locales/de.json` and `en.json` for the dialog, settings, states and errors. No `<…>` in messages (vue-i18n).
 - [x] T035 [US1] `src-tauri/src/bin/e2e_bridge_client.rs` (feature `e2e`, after `bin/e2e_nostr_relay.rs`): a CLI that connects with `Origin: chrome-extension://e2e`, performs the handshake with a fixed test key, waits for `authorized`, then sends one request given on the command line and prints the decrypted reply as JSON. Reuse the client code by moving the T024 client into `src-tauri/tests/support/bridge_client.rs` only if the e2e binary needs the same code. Otherwise keep both small and local (constitution: test helpers local).
 - [x] T036 [US1] e2e scenario `scripts/e2e/scenarios/browser-bridge.test.ts` part 1:
@@ -321,7 +321,7 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
   - `https://bad-example.de` [web];
   - `https://example.de` without tag;
   - `https://example.de` [web] in trash;
-  - an entry of a holzi feature (034 Z14);
+  - an entry of a haex-vault feature (034 Z14);
   - `https://example.de` [web] whose username references an entry without tag.
 
   Client granted `Read` on tag `web`. Assertions:
@@ -496,7 +496,7 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
 - [x] T068 [US4] e2e scenario part 3: `e2e_bridge_client passkey-create` with a fixed challenge → presence dialog → confirm → the client prints a response; the passkey appears in the entry's Extra tab. A second run denied → `USER_CANCELLED`.
 
-**As built (PR E)**: the worktree branches from PR D, not from `main`, since both change the e2e scenario and this file; after D was merged, its commits were rebased onto `main`. The cases of T064 are in their own file, `tests/browser_bridge_passkeys.rs`. The presence confirmation is `browser_bridge/methods/presence.rs`; the methods are `methods/passkeys.rs`. The bridge gets the vault file in `StartArgs` (`vault_path`) and checks the password with `instances::verify_current` on a blocking thread that holds the vault open. `PasskeyCreated` also carries `passkey_id`. `BridgeAnswer` is no longer `Clone` or comparable, since it may carry the vault password. A wrong vault password closes the dialog and is told to the window by the event `browser-bridge-wrong-passphrase` (a toast), because the answer command returns before Rust checks it. The presence dialog is mounted in `Prompts.vue`, next to the other two. The extension decides between holzi and the browser before holzi is asked (`webauthn-bridge.ts`: its own consent prompt, and a sign-in without a matching passkey goes to the browser), so a security key keeps working; declining holzi's confirmation cancels like a browser dialog.
+**As built (PR E)**: the worktree branches from PR D, not from `main`, since both change the e2e scenario and this file; after D was merged, its commits were rebased onto `main`. The cases of T064 are in their own file, `tests/browser_bridge_passkeys.rs`. The presence confirmation is `browser_bridge/methods/presence.rs`; the methods are `methods/passkeys.rs`. The bridge gets the vault file in `StartArgs` (`vault_path`) and checks the password with `instances::verify_current` on a blocking thread that holds the vault open. `PasskeyCreated` also carries `passkey_id`. `BridgeAnswer` is no longer `Clone` or comparable, since it may carry the vault password. A wrong vault password closes the dialog and is told to the window by the event `browser-bridge-wrong-passphrase` (a toast), because the answer command returns before Rust checks it. The presence dialog is mounted in `Prompts.vue`, next to the other two. The extension decides between haex-vault and the browser before haex-vault is asked (`webauthn-bridge.ts`: its own consent prompt, and a sign-in without a matching passkey goes to the browser), so a security key keeps working; declining haex-vault's confirmation cancels like a browser dialog.
 
 **Checkpoint**: PR E complete. Run quickstart M6 and M7 with the PR H build of the extension, then open PR E.
 
@@ -504,13 +504,13 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
 ## Phase 9: Companion PR in haextension (PR H, parallel to PR B–E)
 
-**Goal**: The extension reaches holzi for passkey sign-in, names no specific vault app and treats unsupported bookmarks calmly (research R19).
+**Goal**: The extension reaches haex-vault for passkey sign-in, names no specific vault app and treats unsupported bookmarks calmly (research R19).
 
-- [x] T069 Worktree in `haex-space/haextension` on branch `fix/haex-pass-browser-holzi` from `origin/main` (`c8133b94` or later). Run the app's install there.
+- [x] T069 Worktree in `haex-space/haextension` on branch `fix/haex-pass-browser-haex` from `origin/main` (`c8133b94` or later). Run the app's install there.
 - [x] T070 [P] Test first, then the fix for the passkey-list reply. `apps/haex-pass-browser/src/background/main.ts:233-242` answers `{ success, passkeys }` while `contentScripts/webauthn-bridge.ts:141-150` reads `response.data`. Make both use the `BridgeResult` shape `{ success, data: { passkeys } }` of `background/vaultResponse.ts`. Add a vitest case: a vault reply with one passkey for the RP makes `vaultHasPasskeyFor` return true. Done as `passkeyListReply` in `contentScripts/webauthn-routing.ts`, tested in `webauthn-routing.test.ts`.
-- [x] T071 [P] Name: no change in the end. #113 renamed "HaexVault" to "haex-vault"; #114 reverted it, because HaexVault is the product name holzi takes over.
-- [x] T072 Bookmarks: when a `bookmarks-*` reply has `errorCode === 'NOT_SUPPORTED'`, the bookmark calls keep the marker `BOOKMARKS_NOT_SUPPORTED` (`bookmarks/messages.ts` `bookmarkErrorText`) and onboarding and options show "Deine Vault-App synchronisiert keine Lesezeichen." (`shownBookmarkError`). The 5-minute retry stays: it only runs with an active collection, which holzi never creates. Vitest `bookmarks/__tests__/messages.test.ts`.
-- [x] T073 (haex-space/haextension#113 merged 2026-10-21, #114 after it; pinned to `ab4e0b0ac9a05488659836a7526a250beab9dfd9`) Run the app's `lint`, `typecheck` and `test`, then open the PR (push as `haex-space`, no agent attribution). After merge, update the client pin in `specs/049-external-bridge/spec.md` and `contracts/wire-protocol.md` to the merge SHA, in the next holzi PR or a small docs PR.
+- [x] T071 [P] Name: no change in the end. #113 renamed "HaexVault" to "haex-vault"; #114 reverted it, because HaexVault is the product name haex-vault takes over.
+- [x] T072 Bookmarks: when a `bookmarks-*` reply has `errorCode === 'NOT_SUPPORTED'`, the bookmark calls keep the marker `BOOKMARKS_NOT_SUPPORTED` (`bookmarks/messages.ts` `bookmarkErrorText`) and onboarding and options show "Deine Vault-App synchronisiert keine Lesezeichen." (`shownBookmarkError`). The 5-minute retry stays: it only runs with an active collection, which haex-vault never creates. Vitest `bookmarks/__tests__/messages.test.ts`.
+- [x] T073 (haex-space/haextension#113 merged 2026-10-21, #114 after it; pinned to `ab4e0b0ac9a05488659836a7526a250beab9dfd9`) Run the app's `lint`, `typecheck` and `test`, then open the PR (push as `haex-space`, no agent attribution). After merge, update the client pin in `specs/049-external-bridge/spec.md` and `contracts/wire-protocol.md` to the merge SHA, in the next haex-vault PR or a small docs PR.
 
 ---
 
@@ -537,13 +537,13 @@ Priorities: P1 US1, US2, US6; P2 US3, US4, US5.
 
 - [x] T080 Follow-up refactor PR (K1): move `src-tauri/src/files/agent/prompt.rs` and `src-tauri/src/chat/tools/action_bridge.rs` onto `prompt_park.rs`, with behavior unchanged (their tests stay green). This is a separate PR after PR B. Done: both keep their public API and their own rules (the asking turn of the files question; the run lock, the early `action_unavailable` and the ignored second emitter of the action bridge); `PromptPark` gained `has_emitter` for the last two.
 
-**As built (T074–T076, PR E)**: the leak test is its own binary, `tests/browser_bridge_leaks.rs`, because its capturing logger is process-wide. It keeps what a log could hold: holzi's own lines at every level, and every line at `Info` and above (the level of `lib.rs`); below that, tungstenite traces raw frames, whose envelope repeats the action in the clear and whose payload is sealed. Besides the markers of T074 it plants the client's own saved password, a wrong vault password, an unknown entry id, a foreign origin and an undecryptable message, and also searches the questions to the window and the notices. An unknown action name is only searched in the log, because the answer's envelope repeats it (wire protocol). The fixture generator uses fixed keys and IVs, so `pnpm check:browser-bridge` also checks that the committed file is what the generator writes. The `ponytail:` comments of T076 were already in place from PR B and C.
+**As built (T074–T076, PR E)**: the leak test is its own binary, `tests/browser_bridge_leaks.rs`, because its capturing logger is process-wide. It keeps what a log could hold: haex-vault's own lines at every level, and every line at `Info` and above (the level of `lib.rs`); below that, tungstenite traces raw frames, whose envelope repeats the action in the clear and whose payload is sealed. Besides the markers of T074 it plants the client's own saved password, a wrong vault password, an unknown entry id, a foreign origin and an undecryptable message, and also searches the questions to the window and the notices. An unknown action name is only searched in the log, because the answer's envelope repeats it (wire protocol). The fixture generator uses fixed keys and IVs, so `pnpm check:browser-bridge` also checks that the committed file is what the generator writes. The `ponytail:` comments of T076 were already in place from PR B and C.
 
 ---
 
 ## Phase 11: Recognise the official extension (US1 addendum, FR-045, FR-046) — PR F
 
-**Goal**: The approval dialog and the settings list say whether a client is the official extension, only calls itself so, is unknown or cannot be checked, so a fork with the original's name no longer looks like the original (research R21). Nothing about what holzi allows changes.
+**Goal**: The approval dialog and the settings list say whether a client is the official extension, only calls itself so, is unknown or cannot be checked, so a fork with the original's name no longer looks like the original (research R21). Nothing about what haex-vault allows changes.
 
 **Independent Test**: `browser_bridge/known_tests.rs`, `tests/browser_bridge.rs` part 8, the e2e scenario part 4, quickstart M12.
 
@@ -611,15 +611,15 @@ PR I (Phase 13) is haex-space/haextension#131, merged 2026-10-23, released as 1.
 
 ## Phase 13: Second companion PR in haextension (PR I, before PR G)
 
-**Goal**: haex-pass-browser speaks protocol 3, shows its own fingerprint, and still works with a holzi that does not ask for a proof yet (spec, section "Änderungen an haex-pass-browser", points 7 to 9).
+**Goal**: haex-pass-browser speaks protocol 3, shows its own fingerprint, and still works with a haex-vault that does not ask for a proof yet (spec, section "Änderungen an haex-pass-browser", points 7 to 9).
 
 - [x] T097 Worktree in `haex-space/haextension` on branch `feat/haex-pass-browser-protocol-3` from `origin/main`; run the app's install there.
 - [x] T098 [P] Tests first (vitest, `background/__tests__/connection.test.ts`):
   - a `challenge` sealed to the extension's key is opened and answered with a `proof` that the server key opens to the same bytes;
-  - a `handshakeResponse` without a preceding `challenge` (holzi before PR G) still leads to "paired" or "pending" as before;
+  - a `handshakeResponse` without a preceding `challenge` (haex-vault before PR G) still leads to "paired" or "pending" as before;
   - a `challenge` the extension cannot open sends no `proof` and shows an error.
 - [x] T099 `background/protocol.ts` and `connection.ts`: `PROTOCOL_VERSION = 3`, the `challenge` and `proof` messages, using `decryptMessageEnvelope` and the request sealing that exist.
-- [x] T100 [P] Options page: show the instance's fingerprint (the `clientId`) in groups of four like holzi's dialog, with the sentence that it must match the one holzi shows. German and English.
+- [x] T100 [P] Options page: show the instance's fingerprint (the `clientId`) in groups of four like haex-vault's dialog, with the sentence that it must match the one haex-vault shows. German and English.
 - [x] T101 [P] Texts for `PROTOCOL_UPDATE_REQUIRED` and `PROOF_FAILED` in German and English instead of the raw code.
 - [x] T102 Run the app's `lint`, `typecheck` and `test`; open the PR (push as `haex-space`, no agent attribution).
 - [x] T103 After merge, release with `pnpm release:haex-pass-browser minor` from the haextension root (1.4.0); watch `browser-extension-release.yml` and confirm AMO signed 1.4.0. Only then start PR G (T089).
@@ -633,9 +633,9 @@ PR I (Phase 13) is haex-space/haextension#131, merged 2026-10-23, released as 1.
 - **US2** and **US3** (PR C) need PR B. US3's write prompt T050 needs `prompts.rs` (T028).
 - **US5** (PR D) needs PR B; the editor validation reuses T028's validator. It can start in parallel with PR C on a separate branch, but merges after C because both touch `methods/mod.rs`.
 - **US4** (PR E) needs PR B and the method dispatch of PR C (T045/T049 patterns, the write prompt T050).
-- **PR H** is independent of holzi and can start now. Quickstart M6/M7 and the release T079 need it merged.
+- **PR H** is independent of haex-vault and can start now. Quickstart M6/M7 and the release T079 need it merged.
 - **PR F** (Phase 11) needs PR B (dialog, `BridgeClientRef`) and PR D (settings rows); it can ship any time after both. T081 only decides the list entry.
-- **PR I** (Phase 13) is released as 1.4.0 before **PR G** (Phase 12) is merged: 1.4.0 also works with holzi before G, while G refuses everything below protocol 3. holzi's own release should carry G, so no holzi release ever accepts protocol 2.
+- **PR I** (Phase 13) is released as 1.4.0 before **PR G** (Phase 12) is merged: 1.4.0 also works with haex-vault before G, while G refuses everything below protocol 3. haex-vault's own release should carry G, so no haex-vault release ever accepts protocol 2.
 - **Polish** T074–T076 can land in the PR of the code they test; T077–T079 come last. T080 comes any time after PR B.
 
 ## Parallel Opportunities
@@ -658,6 +658,6 @@ Task: "T019 PlatformCapabilities.browser_bridge"
 ## Implementation Strategy
 
 - **MVP = PR B (US1 + US6)**: the bridge connects, approves safely and refuses everything else. It is off by default, so shipping it alone exposes nothing.
-- **First useful release = PR C**: fill, TOTP and save. This is the point where haex-pass-browser users can switch from haex-vault 2.x to holzi.
+- **First useful release = PR C**: fill, TOTP and save. This is the point where haex-pass-browser users can switch from haex-vault 2.x to haex-vault.
 - **Then PR D** (management) and **PR E** (passkeys, with PR H).
-- **Release**: the extension release (T079) comes after PR H and the quickstart, so the store build matches what holzi was tested against.
+- **Release**: the extension release (T079) comes after PR H and the quickstart, so the store build matches what haex-vault was tested against.

@@ -7,7 +7,7 @@
 ## Summary
 
 Jede Vault bekommt einen festen Ich-Kontakt. Jeder Kontakt lässt sich über denselben Teilen-Dialog weitergeben:
-der Nutzer wählt vorher jede Angabe einzeln ab, holzi baut daraus einen Text `haex-vault://contact/…` (ein Deep
+der Nutzer wählt vorher jede Angabe einzeln ab, haex-vault baut daraus einen Text `haex-vault://contact/…` (ein Deep
 Link; Link, Zwischenablage und QR-Code tragen denselben Text). Beim Einlesen zeigt eine Vorschau, was neu ist, und
 der Nutzer wählt je Angabe „Hinzufügen“, „Aktualisieren“ oder „Nicht übernehmen“; an einem vorhandenen Kontakt geht
 nie etwas verloren. Agenten teilen über eine zerstörerische Aktion mit einer Abfrage je Aufruf.
@@ -22,7 +22,7 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 - **Eigene Karte** (R4): `own_card::build_for_share` unterschreibt pro Teilen eine frische Karte mit der
   Auswahl an Geräten und Relays, ohne zu speichern.
 - **Karten speichern** (R5): `haex_contacts_cards` wird mit dem Hash des unterschriebenen Inhalts als
-  Primärschlüssel neu aufgebaut (Migration `0043`, `HOLZI_TRIGGER_VERSION` 28); mehrere Karten je Vault, Adressen
+  Primärschlüssel neu aufgebaut (Migration `0043`, `HAEX_TRIGGER_VERSION` 28); mehrere Karten je Vault, Adressen
   als Vereinigung, Schwellwert = neueste Karte, Prüfung beim Lesen.
 - **Einlesen** (R6): `contacts_share_preview`/`contacts_share_accept` mit Posten, Wahlen und einer
   Zielrevision gegen veraltete Vorschauen; die
@@ -138,7 +138,7 @@ src-tauri/src/
 │   ├── mod.rs                          # Plugin anmelden, URL an das Frontend (Ereignis)
 │   └── inbox.rs                        # Posteingangsverzeichnis (ablegen, abholen, Zeitablauf)
 ├── identity/
-│   ├── migrations.rs                   # 0042, 0043 anmelden; HOLZI_TRIGGER_VERSION = 28
+│   ├── migrations.rs                   # 0042, 0043 anmelden; HAEX_TRIGGER_VERSION = 28
 │   ├── migrations_contacts_self.rs     # neu
 │   ├── migrations_contacts_cards.rs    # neu (Hash-Schlüssel)
 │   └── migrations_*_tests.rs
@@ -194,7 +194,7 @@ Stelle: die Prüfung der Karten in `received::verified`, die Namensregel in `sha
 | Migrations-Insert wird nicht gestempelt                    | Test mit zwei Vaults (R1); Rückfall: Seed im Bootstrap mit festen Werten        |
 | Deep Link auf Linux nur mit installiertem Paket            | `register_all` im Entwicklungsbetrieb, E2E über Android und AppImage-/Deb-Probe |
 | Neuaufbau der Kartentabelle verliert vorhandene Adressen   | im PR genannt, kein Kopieren möglich (R5); die Kontakte bleiben                 |
-| `HOLZI_TRIGGER_VERSION` 28 trennt alte und neue Geräte     | bestehendes Verhalten (Handshake `crdtTrigger`); im PR genannt                  |
+| `HAEX_TRIGGER_VERSION` 28 trennt alte und neue Geräte      | bestehendes Verhalten (Handshake `crdtTrigger`); im PR genannt                  |
 | Mehrere Prozesse: Link landet in der falschen Vault        | Vorschau nennt die Vault; Abbrechen immer möglich (R9)                          |
 | Migrationsnummer 0042/0043 kollidiert mit anderen Branches | vor dem Push `git fetch`, Nummern neu prüfen                                    |
 

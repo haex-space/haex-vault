@@ -2,7 +2,7 @@
 
 ## Voraussetzungen
 
-- Worktree von holzi mit Nix-Devshell; cargo läuft nur über
+- Worktree von HaexVault mit Nix-Devshell; cargo läuft nur über
   `nix develop --command scripts/with-nix-host-bridge.sh …`.
 - Für §3: eine echte Vault-Datei von haex-vault 2.x @ `8dce379` mit Passwörtern und ihr Vault-Passwort.
 
@@ -38,12 +38,12 @@ haben; die neuen Bindings (`ImportSource`, `ImportPreview`, `AttentionKind`) wer
 
 1. haex-vault 2.x auf dem alten Gerät schließen, `<name>.db` (und `<name>.db-wal`, falls vorhanden)
    auf dieses Gerät kopieren. SHA-256 der Dateien notieren.
-2. holzi starten, Passwortmanager → Import → Quelle „haex-vault 2.x“, Datei wählen.
+2. HaexVault starten, Passwortmanager → Import → Quelle „haex-vault 2.x“, Datei wählen.
 3. Falsches Passwort eingeben → Vorschau meldet „Vault-Passwort passt nicht oder keine
    haex-vault-2.x-Vault“, nichts geschrieben.
 4. Richtiges Passwort → Vorschau: Zahlen mit haex-vault 2.x vergleichen (Einträge, Ordner, Papierkorb,
    Tags, Anhänge, Verlauf, Passkeys, Voreinstellungen); Hinweis zum Schließen von haex-vault 2.x ist da.
-5. Import starten → Bericht lesen; jede genannte Stelle in holzi prüfen.
+5. Import starten → Bericht lesen; jede genannte Stelle in HaexVault prüfen.
 6. Stichproben: drei Einträge mit TOTP (Code stimmt mit haex-vault 2.x überein), ein Anhang öffnen
    (Inhalt gleich), ein eigenes Bild, ein Eintrag im Papierkorb, Farbe von Eintrag, Ordner und Tag,
    ein Verlaufsstand mit Anhang, ein Passkey (Relying Party, Nutzer).
