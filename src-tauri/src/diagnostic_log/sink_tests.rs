@@ -23,6 +23,7 @@ fn a_record_is_dropped_while_no_writer_is_attached_and_never_buffered() {
 
     sink.attach(&folder, LogLevel::Standard).unwrap();
     sink.write_record(Level::Error, "haex_lib::unlock", "after the unlock");
+    sink.flush_sync();
 
     let text = log_text(&folder);
     assert!(!text.contains("before the unlock"), "{text}");
@@ -35,6 +36,7 @@ fn an_attached_sink_writes_the_documented_line() {
     let sink = DiagnosticSink::new();
     sink.attach(dir.path(), LogLevel::Standard).unwrap();
     sink.write_record(Level::Warn, "haex_lib::sync", "something went wrong");
+    sink.flush_sync();
 
     let text = log_text(dir.path());
     let line = text.lines().next().unwrap();
@@ -83,6 +85,7 @@ fn a_ui_record_gets_origin_ui_and_keeps_its_stack_indented() {
     let sink = DiagnosticSink::new();
     let session = sink.attach(dir.path(), LogLevel::Standard).unwrap();
     sink.write_ui(&session, Level::Error, "Error: probe\nat here");
+    sink.flush_sync();
 
     let text = log_text(dir.path());
     assert!(
@@ -102,6 +105,7 @@ fn a_ui_record_of_another_session_is_dropped() {
     sink.write_ui(&first, Level::Error, "for the earlier vault");
     sink.write_ui("", Level::Error, "without a token");
     sink.write_ui(&second, Level::Error, "for this vault");
+    sink.flush_sync();
 
     let text = log_text(dir.path());
     assert!(!text.contains("earlier"), "{text}");
@@ -118,6 +122,7 @@ fn a_record_the_level_does_not_allow_is_not_written() {
     sink.write_ui(&session, Level::Info, "ui information is kept");
     sink.write_ui(&session, Level::Debug, "ui detail");
     sink.write_record(Level::Info, "iroh::magicsock", "packet");
+    sink.flush_sync();
 
     let text = log_text(dir.path());
     assert!(!text.contains("detail"), "{text}");
@@ -127,6 +132,7 @@ fn a_record_the_level_does_not_allow_is_not_written() {
     sink.set_level(LogLevel::Verbose).unwrap();
     sink.write_record(Level::Debug, "haex_lib::sync", "now detail");
     sink.write_record(Level::Info, "iroh::magicsock", "still no packet");
+    sink.flush_sync();
     let text = log_text(dir.path());
     assert!(text.contains("now detail"));
     assert!(!text.contains("still no packet"));
@@ -172,6 +178,7 @@ fn a_second_attachment_moves_the_writing_and_leaves_the_first_folder_alone() {
     sink.write_record(Level::Info, "haex_lib::a", "in a");
     sink.attach(&b, LogLevel::Standard).unwrap();
     sink.write_record(Level::Info, "haex_lib::a", "in b");
+    sink.flush_sync();
 
     assert!(log_text(&a).contains("in a") && !log_text(&a).contains("in b"));
     assert!(log_text(&b).contains("in b") && !log_text(&b).contains("in a"));
@@ -188,6 +195,7 @@ fn a_failed_write_sets_the_flag_once_and_the_next_write_is_tried_again() {
     });
     sink.attach(dir.path(), LogLevel::Standard).unwrap();
     sink.write_record(Level::Info, "haex_lib::a", "fine");
+    sink.flush_sync();
     assert!(!sink.unwritable());
 
     // A folder where the oldest archive belongs makes the next rotation fail.
@@ -195,12 +203,14 @@ fn a_failed_write_sets_the_flag_once_and_the_next_write_is_tried_again() {
     let long = "z".repeat(MAX_RECORD);
     for _ in 0..40 {
         sink.write_record(Level::Warn, "haex_lib::a", &long);
+        sink.flush_sync();
         if sink.unwritable() {
             break;
         }
     }
     assert!(sink.unwritable());
     sink.write_record(Level::Warn, "haex_lib::a", &long);
+    sink.flush_sync();
     assert_eq!(
         announced.load(Ordering::SeqCst),
         1,
@@ -209,6 +219,7 @@ fn a_failed_write_sets_the_flag_once_and_the_next_write_is_tried_again() {
 
     fs::remove_dir(dir.path().join("haex.log.3")).unwrap();
     sink.write_record(Level::Warn, "haex_lib::a", "recovered");
+    sink.flush_sync();
     assert!(!sink.unwritable());
     assert!(log_text(dir.path()).contains("recovered"));
 }

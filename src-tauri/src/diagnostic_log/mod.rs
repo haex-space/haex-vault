@@ -14,7 +14,7 @@ pub mod rotation;
 pub mod sink;
 
 use std::path::Path;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, LazyLock, Mutex, PoisonError};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use log::{LevelFilter, Log, Metadata, Record};
@@ -35,7 +35,7 @@ pub const EVENT_CHANGED: &str = "haex:diagnostic-log-changed";
 /// The first write that failed after the earlier ones went through.
 pub const EVENT_UNWRITABLE: &str = "haex:diagnostic-log-unwritable";
 
-static SINK: DiagnosticSink = DiagnosticSink::new();
+static SINK: LazyLock<DiagnosticSink> = LazyLock::new(DiagnosticSink::new);
 static CURRENT: Mutex<LevelState> = Mutex::new(LevelState::STANDARD);
 /// The task that ends "Ausführlich", while one runs.
 static EXPIRY: Mutex<Option<tokio::task::AbortHandle>> = Mutex::new(None);
@@ -185,11 +185,15 @@ pub(crate) async fn start(db: &VaultDb, gate: &VaultGate, folder: &Path, emit: &
         ),
     };
     let state = judged.state;
-    let attached = SINK.attach(folder, state.level);
+    let log_folder = folder.to_path_buf();
+    let folder = log_folder.clone();
+    let attached = tokio::task::spawn_blocking(move || SINK.attach(&folder, state.level))
+        .await
+        .unwrap_or_else(|error| Err(std::io::Error::other(error)));
     apply_state(state);
     if let Err(error) = &attached {
         // The sink is detached, so this goes nowhere; the status says the log is not writable.
-        log::warn!("diagnostic log: could not start in {folder:?}: {error}");
+        log::warn!("diagnostic log: could not start in {log_folder:?}: {error}");
     }
     if let Some(error) = read_error {
         log::warn!("diagnostic log: could not read the level, using Standard: {error}");
@@ -225,9 +229,6 @@ pub fn end() {
 /// Makes `state` the level in force: for the status, the sink's files and the `log` macros.
 pub(crate) fn apply_state(state: LevelState) {
     *CURRENT.lock().unwrap_or_else(PoisonError::into_inner) = state;
-    if let Err(error) = SINK.set_level(state.level) {
-        log::warn!("diagnostic log: could not bring the files to the new level: {error}");
-    }
     state.level.apply();
 }
 

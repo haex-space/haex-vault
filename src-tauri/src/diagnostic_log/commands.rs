@@ -54,6 +54,12 @@ pub(crate) async fn switch_level(
         LogLevel::Verbose => DEADLINE.set(std::time::Instant::now()),
         LogLevel::Standard => DEADLINE.clear(),
     }
+    let worker_level = state.level;
+    match tokio::task::spawn_blocking(move || SINK.set_level(worker_level)).await {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => log::warn!("diagnostic log: could not resize its files: {error}"),
+        Err(error) => log::warn!("diagnostic log: could not update its writer: {error}"),
+    }
     apply_state(state);
     cancel_expiry();
     if let Some(until_ms) = state.until_ms {

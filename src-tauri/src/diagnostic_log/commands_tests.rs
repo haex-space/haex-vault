@@ -224,6 +224,7 @@ async fn switching_back_to_standard_cuts_the_archives_down_at_once() {
     }
     assert!(files <= limits.files, "{files} files");
     assert!(total <= limits.bytes * limits.files as u64);
+    SINK.flush_sync();
     let newest = std::fs::read_to_string(f.folder().join("haex.log")).unwrap();
     assert!(newest.contains("] 199 "), "the newest record stays");
     assert!(
@@ -240,6 +241,7 @@ async fn a_ui_message_is_written_only_for_the_vault_that_is_open() {
 
     ui_message(&token, UiLevel::Error, "Error: probe");
     ui_message("stale", UiLevel::Error, "from an earlier vault");
+    SINK.flush_sync();
 
     let text = std::fs::read_to_string(f.folder().join("haex.log")).unwrap();
     assert!(text.contains("[ERROR][ui] Error: probe"));
