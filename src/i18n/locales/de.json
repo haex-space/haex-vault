@@ -642,6 +642,7 @@
       "revert": "Zurück zu {version}",
       "cancel": "Abbrechen",
       "size": "{download} Download, {disk} in diesem Vault",
+      "downloadProgress": "{percent} % · {done} von {total}",
       "updateAvailable": "Version {version} ist verfügbar",
       "unconfirmed": "Diese Version hat noch keine Anfrage beendet. Version {previous} bleibt erhalten, bis sie es hat, und du kannst zu ihr zurückgehen.",
       "untested": "Neuer als die Versionen, die HaexVault getestet hat. Sie wird weiter benutzt.",

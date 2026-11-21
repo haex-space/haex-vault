@@ -11,6 +11,7 @@ import {
   updatable,
   usable,
 } from '~/lib/cli-tools'
+import { formatSpeed } from '~/lib/transferSpeed'
 import type { CliToolProgress } from '~/types/bindings/CliToolProgress'
 import type { CliToolStatus } from '~/types/bindings/CliToolStatus'
 
@@ -58,6 +59,28 @@ const percent = computed(() => {
   return fraction === null ? null : fraction * 100
 })
 
+const speed = useTransferSpeed(() =>
+  props.progress?.phase === 'downloading' ? props.progress.bytesDone : null,
+)
+
+/** While installing: the phase, and during the download how far it is, how much, and how fast. */
+const installingLead = computed(() => {
+  const phase = t(phaseKey(props.progress))
+  const progress = props.progress
+  const fraction = progressFraction(progress)
+  if (!progress || fraction === null) return phase
+  const parts = [
+    phase,
+    t('settings.cliTools.downloadProgress', {
+      percent: Math.floor(fraction * 100),
+      done: formatBytes(progress.bytesDone),
+      total: formatBytes(progress.bytesTotal),
+    }),
+  ]
+  if (speed.value !== null) parts.push(formatSpeed(speed.value))
+  return parts.join(' · ')
+})
+
 /** The size is shown before the install, so the click is an informed one. */
 const sizeNote = computed(() => {
   const status = props.status
@@ -74,7 +97,7 @@ const sizeNote = computed(() => {
 const lead = computed(() => {
   const status = props.status
   if (!status) return t('settings.cliTools.statusUnavailable')
-  if (installing(status)) return t(phaseKey(props.progress))
+  if (installing(status)) return installingLead.value
   if (usable(status)) {
     return status.installedVersion
       ? t('settings.cliTools.line.version', {
