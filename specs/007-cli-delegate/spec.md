@@ -10,6 +10,12 @@ This was explicitly deferred out of scope from spec 003-agent-tool-loop. Prior d
 exists in `docs/plans/2026-09-11-agent-tool-loop-design.md` §8 (`cli_delegate`) and
 `plans/001-desktop-mvp.md` (cli_delegate credential class)."
 
+> **Partly superseded by spec 094 (CLI tools per vault).** Where this spec says that the tool is found on the
+> host (on `PATH`, or through the provider's `base_url`) or that a missing tool is "not installed or not on PATH",
+> the tool is now installed into the vault from Settings (`<vault folder>/cli-tools/`), found only there, and a
+> delegate's `base_url` carries no program. The per-run folders are no longer in the operating system's temporary
+> folder but under the vault home (`<vault folder>/home/`). See `specs/094-vault-cli-tools/spec.md`.
+
 ## Clarifications
 
 ### Session 2026-09-16
