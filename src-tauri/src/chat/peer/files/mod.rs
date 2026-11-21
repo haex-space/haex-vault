@@ -5,6 +5,7 @@
 
 pub mod blossom;
 pub mod crypto;
+pub mod probe;
 pub mod store;
 pub mod transfers;
 

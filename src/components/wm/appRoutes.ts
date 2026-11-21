@@ -123,6 +123,9 @@ const SETTINGS_VIEWS: Record<string, Component> = {
   contacts: defineAsyncComponent(
     () => import('~/components/settings/ContactsView.vue'),
   ),
+  chat: defineAsyncComponent(
+    () => import('~/components/settings/ChatView.vue'),
+  ),
   extensions: defineAsyncComponent(
     () => import('~/components/settings/extensions/ExtensionsListView.vue'),
   ),

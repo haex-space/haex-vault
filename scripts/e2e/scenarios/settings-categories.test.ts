@@ -8,6 +8,7 @@ const CATEGORIES = [
   'ai',
   'storage',
   'contacts',
+  'chat',
   'extensions',
   'federation',
 ]

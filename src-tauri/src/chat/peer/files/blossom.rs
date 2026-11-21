@@ -137,22 +137,34 @@ fn allowed_scheme(url: &Url) -> bool {
     }
 }
 
+/// The base URL of the address the user gave, ending with `/`; no host lookup yet.
+fn parse_address(address: &str) -> Result<Url> {
+    let mut base = Url::parse(address.trim()).map_err(|_| BlossomError::NotAllowed)?;
+    if !allowed_scheme(&base)
+        || !base.username().is_empty()
+        || base.password().is_some()
+        || base.query().is_some()
+        || base.fragment().is_some()
+    {
+        return Err(BlossomError::NotAllowed);
+    }
+    if !base.path().ends_with('/') {
+        let path = format!("{}/", base.path());
+        base.set_path(&path);
+    }
+    Ok(base)
+}
+
+/// Whether `address` has the shape of a Blossom-Server address: `https` (or `http` to `127.0.0.1`)
+/// and no credentials, query or fragment. Where its host lies is checked when it is used.
+pub fn is_valid_address(address: &str) -> bool {
+    parse_address(address).is_ok()
+}
+
 impl Server {
     /// Checks the address the user gave and where its host lies.
     pub async fn new(address: &str, resolver: &dyn Resolver) -> Result<Self> {
-        let mut base = Url::parse(address.trim()).map_err(|_| BlossomError::NotAllowed)?;
-        if !allowed_scheme(&base)
-            || !base.username().is_empty()
-            || base.password().is_some()
-            || base.query().is_some()
-            || base.fragment().is_some()
-        {
-            return Err(BlossomError::NotAllowed);
-        }
-        if !base.path().ends_with('/') {
-            let path = format!("{}/", base.path());
-            base.set_path(&path);
-        }
+        let base = parse_address(address)?;
         let scope = address::scope_of(&base, resolver)
             .await
             .map_err(|_| BlossomError::NotAllowed)?;

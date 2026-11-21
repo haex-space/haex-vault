@@ -102,6 +102,15 @@ pub(crate) fn validate_value(key: &str, value: &str) -> Result<()> {
             ),
         });
     }
+    // The Blossom-Server for chat files: none (empty) or an address a file may go to.
+    if key == crate::chat::peer::settings::KEY_BLOSSOM_SERVER
+        && !value.trim().is_empty()
+        && !crate::chat::peer::files::blossom::is_valid_address(value)
+    {
+        return Err(HaexError::InvalidInput {
+            reason: format!("{key} must be empty or an https address without credentials"),
+        });
+    }
     // Spec 061: runs kept per sync rule, 0 to 100.
     if key == crate::file_sync::run_log::LOG_DEPTH_KEY
         && !crate::file_sync::run_log::is_valid_depth(value)
