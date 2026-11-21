@@ -3,7 +3,12 @@
 //! deleting only with the uploading key. Plus the address rules: no plain `http` to other hosts,
 //! no local host from a message.
 
+use std::time::Instant as StdInstant;
+
+use futures::stream;
 use nostr::key::Keys;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpListener;
 
 use super::*;
 use crate::chat::peer::files::crypto::{ciphertext_len, MAX_PLAINTEXT};
@@ -21,6 +26,71 @@ async fn server() -> (BlossomTestServer, Server) {
 fn sha(bytes: &[u8]) -> String {
     hex(&Sha256::digest(bytes))
 }
+
+async fn upload_blob(server: &Server, keys: &Keys, blob: Vec<u8>) -> Result<Descriptor> {
+    server
+        .upload(keys, UploadBody::whole(blob), &SystemResolver, &mut |_| {})
+        .await
+}
+
+/// The whole blob at `url`, as the receiving side reads it: piece by piece to the verdict.
+async fn fetch(url: &str, hash: &str, max: u64, own: Option<&Server>) -> Result<Vec<u8>> {
+    let mut stream = download(url, hash, max, own, &SystemResolver).await?;
+    let mut all = Vec::new();
+    while let Some(piece) = stream.chunk().await? {
+        all.extend(piece);
+    }
+    Ok(all)
+}
+
+/// A server on this machine that answers every `GET` with a head that declares `declared` bytes,
+/// sends `body` and then stays silent (or hangs up when `hang_up`). Its own server and the address
+/// of a blob named `hash`.
+async fn answers_then_stays_silent(
+    declared: usize,
+    body: Vec<u8>,
+    hang_up: bool,
+    patience: Patience,
+    hash: &str,
+) -> (Server, String) {
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let port = listener.local_addr().expect("address").port();
+    tokio::spawn(async move {
+        loop {
+            let Ok((mut socket, _)) = listener.accept().await else {
+                return;
+            };
+            let body = body.clone();
+            tokio::spawn(async move {
+                let mut seen = Vec::new();
+                let mut buf = [0; 1024];
+                while !seen.ends_with(b"\r\n\r\n") {
+                    match socket.read(&mut buf).await {
+                        Ok(0) | Err(_) => return,
+                        Ok(n) => seen.extend_from_slice(&buf[..n]),
+                    }
+                }
+                let head = format!("HTTP/1.1 200 OK\r\nContent-Length: {declared}\r\n\r\n");
+                let _ = socket.write_all(head.as_bytes()).await;
+                let _ = socket.write_all(&body).await;
+                if !hang_up {
+                    std::future::pending::<()>().await;
+                }
+            });
+        }
+    });
+    let base = format!("http://127.0.0.1:{port}/");
+    let server = Server::new(&base, &SystemResolver)
+        .await
+        .expect("a local server is allowed")
+        .with_patience(patience);
+    (server, format!("{base}{hash}"))
+}
+
+const QUICK: Patience = Patience {
+    stall: Duration::from_millis(300),
+    answer: Duration::from_secs(2),
+};
 
 #[test]
 fn uploads_respect_the_hxcf_ciphertext_cap() {
@@ -40,27 +110,26 @@ async fn an_upload_is_asked_first_stored_and_downloaded_by_its_hash() {
         .check_upload(&keys, &hash, blob.len() as u64, &SystemResolver)
         .await
         .expect("the server takes it");
-    let descriptor = server
-        .upload(&keys, blob.clone(), &SystemResolver)
+    let descriptor = upload_blob(&server, &keys, blob.clone())
         .await
         .expect("upload");
     assert_eq!(descriptor.sha256, hash);
     assert_eq!(descriptor.size, blob.len() as u64);
     assert!(test.has(&hash));
 
-    let mut seen = 0;
-    let got = download(
-        &descriptor.url,
-        &hash,
-        1024,
-        Some(&server),
-        &SystemResolver,
-        &mut |bytes| seen = bytes,
-    )
-    .await
-    .expect("download");
+    let mut stream = download(&descriptor.url, &hash, 1024, Some(&server), &SystemResolver)
+        .await
+        .expect("download");
+    let mut got = Vec::new();
+    while let Some(piece) = stream.chunk().await.expect("a piece") {
+        got.extend(piece);
+    }
     assert_eq!(got, blob);
-    assert_eq!(seen, blob.len() as u64, "progress reports the bytes");
+    assert_eq!(
+        stream.received(),
+        blob.len() as u64,
+        "the bytes are counted"
+    );
 
     let put = test
         .log()
@@ -106,7 +175,7 @@ async fn the_servers_limit_and_reason_refuse_before_and_at_the_upload() {
     );
     assert_eq!(refusal.code(), "blossom:413");
     assert!(matches!(
-        server.upload(&keys, blob, &SystemResolver).await,
+        upload_blob(&server, &keys, blob).await,
         Err(BlossomError::Refused { status: 413, .. })
     ));
 }
@@ -130,8 +199,7 @@ async fn only_the_uploading_key_deletes_and_a_deleted_blob_is_gone() {
     }
 
     let blob = b"to be deleted".to_vec();
-    let descriptor = server
-        .upload(&uploader, blob.clone(), &SystemResolver)
+    let descriptor = upload_blob(&server, &uploader, blob.clone())
         .await
         .expect("upload");
 
@@ -153,15 +221,7 @@ async fn only_the_uploading_key_deletes_and_a_deleted_blob_is_gone() {
         .delete(&uploader, &descriptor.sha256, &SystemResolver)
         .await
         .expect("a gone blob is no failure");
-    let gone = download(
-        &descriptor.url,
-        &descriptor.sha256,
-        1024,
-        Some(&server),
-        &SystemResolver,
-        &mut |_| {},
-    )
-    .await;
+    let gone = fetch(&descriptor.url, &descriptor.sha256, 1024, Some(&server)).await;
     assert_eq!(gone, Err(BlossomError::Gone));
 }
 
@@ -170,32 +230,13 @@ async fn a_download_checks_the_hash_and_the_size() {
     let (_test, server) = server().await;
     let keys = Keys::generate();
     let blob = vec![7; 100];
-    let descriptor = server
-        .upload(&keys, blob, &SystemResolver)
-        .await
-        .expect("upload");
-    let too_small = download(
-        &descriptor.url,
-        &descriptor.sha256,
-        99,
-        Some(&server),
-        &SystemResolver,
-        &mut |_| {},
-    )
-    .await;
+    let descriptor = upload_blob(&server, &keys, blob).await.expect("upload");
+    let too_small = fetch(&descriptor.url, &descriptor.sha256, 99, Some(&server)).await;
     assert_eq!(too_small, Err(BlossomError::TooLarge));
 
     // An address whose name is not the hash the message named is not fetched at all.
     let other = sha(b"another file");
-    let wrong = download(
-        &descriptor.url,
-        &other,
-        1024,
-        Some(&server),
-        &SystemResolver,
-        &mut |_| {},
-    )
-    .await;
+    let wrong = fetch(&descriptor.url, &other, 1024, Some(&server)).await;
     assert_eq!(wrong, Err(BlossomError::NotAllowed));
 }
 
@@ -218,18 +259,99 @@ async fn addresses_must_be_https_and_a_message_cannot_reach_a_local_host() {
     // The test server is local: a download from it without it being the own server is refused.
     let (_test, server) = server().await;
     let keys = Keys::generate();
-    let descriptor = server
-        .upload(&keys, b"x".to_vec(), &SystemResolver)
+    let descriptor = upload_blob(&server, &keys, b"x".to_vec())
         .await
         .expect("upload");
-    let refused = download(
-        &descriptor.url,
-        &descriptor.sha256,
-        1024,
-        None,
-        &SystemResolver,
-        &mut |_| {},
-    )
-    .await;
+    let refused = fetch(&descriptor.url, &descriptor.sha256, 1024, None).await;
     assert_eq!(refused, Err(BlossomError::NotAllowed));
+}
+
+#[test]
+fn the_total_allowance_grows_with_the_size() {
+    assert_eq!(total_limit(0), TRANSFER);
+    assert_eq!(
+        total_limit(100 * MIN_RATE),
+        TRANSFER + Duration::from_secs(100)
+    );
+    assert!(total_limit(ciphertext_len(MAX_PLAINTEXT)) > Duration::from_secs(50 * 60));
+}
+
+#[tokio::test]
+async fn an_upload_that_stands_still_fails_and_one_that_moves_slowly_does_not() {
+    let (_test, server) = server().await;
+    let server = server.with_patience(QUICK);
+    let keys = Keys::generate();
+
+    // One piece, then nothing: the body never ends.
+    let stalled = UploadBody {
+        sha256: sha(&[1; 20]),
+        size: 20,
+        chunks: Box::pin(stream::once(async { Ok(vec![1; 10]) }).chain(stream::pending())),
+    };
+    let start = StdInstant::now();
+    let result = server
+        .upload(&keys, stalled, &SystemResolver, &mut |_| {})
+        .await;
+    assert_eq!(result, Err(BlossomError::TimedOut));
+    assert!(
+        start.elapsed() < Duration::from_secs(5),
+        "{:?}",
+        start.elapsed()
+    );
+
+    // Longer than the stall time in all, but never still for that long.
+    let blob = vec![2; 20];
+    let slow = UploadBody {
+        sha256: sha(&blob),
+        size: 20,
+        chunks: Box::pin(stream::iter(vec![vec![2; 5]; 4]).then(|piece| async move {
+            tokio::time::sleep(Duration::from_millis(120)).await;
+            Ok(piece)
+        })),
+    };
+    let mut heard = Vec::new();
+    let descriptor = server
+        .upload(&keys, slow, &SystemResolver, &mut |sent| heard.push(sent))
+        .await
+        .expect("a slow upload that keeps moving goes through");
+    assert_eq!(descriptor.sha256, sha(&blob));
+    assert!(heard.windows(2).all(|pair| pair[0] < pair[1]), "{heard:?}");
+}
+
+#[tokio::test]
+async fn a_download_that_stands_still_fails_after_the_stall_time() {
+    let hash = sha(b"whatever");
+    let (server, url) = answers_then_stays_silent(20, vec![9; 5], false, QUICK, &hash).await;
+    let mut stream = download(&url, &hash, 1024, Some(&server), &SystemResolver)
+        .await
+        .expect("the head comes");
+    assert_eq!(
+        stream.chunk().await.expect("the first piece"),
+        Some(vec![9; 5])
+    );
+    let start = StdInstant::now();
+    assert_eq!(stream.chunk().await, Err(BlossomError::TimedOut));
+    assert!(
+        start.elapsed() < Duration::from_secs(5),
+        "{:?}",
+        start.elapsed()
+    );
+}
+
+#[tokio::test]
+async fn a_blob_that_is_not_the_one_named_ends_in_a_mismatch_after_its_last_byte() {
+    let hash = sha(b"the file the message named");
+    let (server, url) = answers_then_stays_silent(20, vec![9; 20], true, QUICK, &hash).await;
+    let mut stream = download(&url, &hash, 1024, Some(&server), &SystemResolver)
+        .await
+        .expect("the head comes");
+    let mut got = 0;
+    let verdict = loop {
+        match stream.chunk().await {
+            Ok(Some(piece)) => got += piece.len(),
+            other => break other,
+        }
+    };
+    assert_eq!(got, 20, "the bytes arrive before the check can tell");
+    assert_eq!(verdict, Err(BlossomError::Mismatch));
 }

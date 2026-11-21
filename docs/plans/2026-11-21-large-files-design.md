@@ -51,8 +51,10 @@ reads segment by segment. Only the callers hold everything.
    0.7 MB/s. Upload and download fail after 30 seconds without progress, and after
    `5 min + size / 64 KiB/s` in total. The stall limit alone would let a server that sends one byte every 29
    seconds hold the transfer open for ever; the total keeps the old protection and scales with the file.
-8. **Progress for sending.** Streaming gives the bytes sent for free; the sender's `bytes_done` is
-   reported like the receiver's (FR-037).
+8. **No progress for sending in this PR.** The streaming makes the bytes sent known (`upload` takes a
+   progress callback), but the message does not exist for the window until it is queued, so there is
+   nothing to show the progress on. The callback stays unused (`ponytail:`); a sending state in the
+   window is its own change.
 9. **Per message the sum stays bounded by the same constant** (`MAX_MESSAGE_PLAINTEXT`), now 200 MiB
    for the sum of the files of one message. Memory is no longer the reason; a message of many large
    files is a different feature.
@@ -64,11 +66,13 @@ receive. The semaphore of one for store writes stays: writes still take turns.
 
 ## Tests
 
-Rust tests in `*_tests.rs`: streaming seal equals `encrypt` byte for byte; pass 2 detects a changed
-source; a stalled server fails after the stall time and a slow one does not; a 3-segment file and an
-empty file through send and receive; a failed check leaves no stored file; the two-vault test sends
-a file above the old limit. A memory check: the process does not grow by the file's size (a 150 MiB
-file through the test server).
+Rust tests in `*_tests.rs`: the streaming seal equals `encrypt` byte for byte whatever the piece size; a
+stalled upload and a stalled download fail after the stall time and a slow one that keeps moving does not;
+the total allowance grows with the size; a stream put shows nothing before the commit, has sent parts
+by then (the memory bound by construction) and leaves nothing after an abort or a failed commit; two
+vaults send a file of more than one store part intact; a source that changes between the passes is not
+sent; a blob that is not the named one leaves no stored file. No 200 MiB file runs in a test: sealing
+that much in a debug build is minutes.
 
 ## Split
 
@@ -76,4 +80,4 @@ file through the test server).
 2. `crypto`: streaming sealer.
 3. `blossom`: streaming upload and download, stall timeouts.
 4. `files::encrypted`: streaming put; `ChatFileStore::put_stream`.
-5. `transfers` and `commands/files.rs`: sources, two passes, receive pipeline, progress.
+5. `transfers` and `commands/files.rs`: sources, passes, receive pipeline.

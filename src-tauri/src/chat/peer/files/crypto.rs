@@ -135,7 +135,7 @@ impl Encryptor {
             .checked_add(plain.len() as u64)
             .filter(|&taken| taken <= MAX_PLAINTEXT)
             .ok_or_else(|| HaexError::InvalidInput {
-                reason: "chat file: the file is larger than 200 MiB".into(),
+                reason: "chat.file.tooLarge".into(),
             })?;
         self.buffer.extend_from_slice(plain);
         let mut out = self.header();
@@ -292,7 +292,11 @@ impl Decryptor {
             plain.extend(self.open(&buffer[start..start + sealed], false)?);
             start += sealed;
         }
-        self.buffer = buffer[start..].to_vec();
+        self.buffer = if start == 0 {
+            buffer
+        } else {
+            buffer[start..].to_vec()
+        };
         Ok(plain)
     }
 

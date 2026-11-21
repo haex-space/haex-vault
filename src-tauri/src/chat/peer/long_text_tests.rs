@@ -118,12 +118,12 @@ async fn a_long_text_stays_an_inline_file_when_ordinary_files_are_attached() {
     let (preview, inline_text) = prepare_with_files(&anna.db, &anna.session, thread, &text)
         .await
         .expect("prepare long text");
-    let mut files = vec![super::super::files::transfers::Picked {
-        name: "photo.png".into(),
-        mime: "image/png".into(),
-        bytes: vec![1, 2, 3],
-        inline: false,
-    }];
+    let mut files = vec![super::super::files::transfers::Picked::in_memory(
+        "photo.png",
+        "image/png",
+        vec![1, 2, 3],
+        false,
+    )];
     files.push(inline_text.expect("long text becomes a file"));
 
     anna.session

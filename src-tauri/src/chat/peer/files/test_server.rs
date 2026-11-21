@@ -69,6 +69,16 @@ impl BlossomTestServer {
         self.lock().max_size = Some((bytes, reason.to_owned()));
     }
 
+    /// Flips a byte of the stored blob `sha256`, so that the bytes it serves are not the ones its
+    /// name says.
+    pub(crate) fn tamper(&self, sha256: &str) {
+        if let Some((blob, _)) = self.lock().blobs.get_mut(sha256) {
+            if let Some(byte) = blob.last_mut() {
+                *byte ^= 1;
+            }
+        }
+    }
+
     pub(crate) fn has(&self, sha256: &str) -> bool {
         self.lock().blobs.contains_key(sha256)
     }

@@ -8,10 +8,14 @@
 //! message, so it must lie on a public host unless it is on the user's own server; a message cannot
 //! make this device reach into its local network.
 
+use std::pin::Pin;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use futures::stream::{Stream, StreamExt};
 use nostr::event::{EventBuilder, FinalizeEvent, Kind, Tag};
 use nostr::key::Keys;
 use nostr::types::Timestamp;
@@ -33,8 +37,38 @@ pub const AUTH_KIND: u16 = 24242;
 const AUTH_VALID: Duration = Duration::from_secs(10 * 60);
 /// The most a short request (ask, delete) may take, connecting included.
 const SHORT: Duration = Duration::from_secs(30);
-/// The most one upload or download may take.
+/// An upload or download that moves no bytes for this long fails.
+const STALL: Duration = Duration::from_secs(30);
+/// After the last byte of an upload the server may take this long to answer.
+const ANSWER: Duration = Duration::from_secs(60);
+/// What a transfer may take whatever its size; [`total_limit`] adds the time its size needs.
 const TRANSFER: Duration = Duration::from_secs(5 * 60);
+/// The slowest average, in bytes per second, a transfer is given time for.
+const MIN_RATE: u64 = 64 * 1024;
+
+/// How long a transfer may stand still (the tests shorten it).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Patience {
+    /// With no byte moved while sending or receiving.
+    pub stall: Duration,
+    /// For the answer once the last byte of an upload is sent.
+    pub answer: Duration,
+}
+
+impl Default for Patience {
+    fn default() -> Self {
+        Self {
+            stall: STALL,
+            answer: ANSWER,
+        }
+    }
+}
+
+/// The most a transfer of `size` bytes may take in all: a stalled one fails sooner, this stops
+/// one that crawls (a server that sends a byte every few seconds) from holding on for ever.
+fn total_limit(size: u64) -> Duration {
+    TRANSFER + Duration::from_secs(size / MIN_RATE)
+}
 
 /// Why a Blossom request did not go through.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -82,6 +116,7 @@ type Result<T> = std::result::Result<T, BlossomError>;
 pub struct Server {
     base: Url,
     scope: EndpointScope,
+    patience: Patience,
 }
 
 /// What the server answers to an upload (BUD-02 blob descriptor).
@@ -120,7 +155,18 @@ impl Server {
         let scope = address::scope_of(&base, resolver)
             .await
             .map_err(|_| BlossomError::NotAllowed)?;
-        Ok(Self { base, scope })
+        Ok(Self {
+            base,
+            scope,
+            patience: Patience::default(),
+        })
+    }
+
+    /// The same server with another patience, for the tests.
+    #[cfg(test)]
+    pub fn with_patience(mut self, patience: Patience) -> Self {
+        self.patience = patience;
+        self
     }
 
     /// The address as checked, ending with `/`.
@@ -161,28 +207,38 @@ impl Server {
         refused(&response).map_or(Ok(()), Err)
     }
 
-    /// Uploads `blob` (`ponytail:` whole in memory, ≤ 100 MB per file, research R14) and checks the
-    /// descriptor the server answers.
+    /// Uploads the blob as it is produced and checks the descriptor the server answers. `progress`
+    /// hears the bytes sent so far. The upload fails when no byte moves for [`Patience::stall`].
     pub async fn upload(
         &self,
         signer: &Keys,
-        blob: Vec<u8>,
+        body: UploadBody,
         resolver: &dyn Resolver,
+        progress: &mut (dyn FnMut(u64) + Send),
     ) -> Result<Descriptor> {
-        check_upload_size(blob.len() as u64)?;
-        let sha256 = hex(&Sha256::digest(&blob));
-        let size = blob.len() as u64;
+        check_upload_size(body.size)?;
+        let (sha256, size) = (body.sha256, body.size);
         let url = self.join("upload")?;
         let auth = authorization(signer, "upload", &sha256, "Upload encrypted chat file")?;
-        let response = send(
-            self.request(Method::PUT, &url, resolver)
-                .await?
-                .header("Authorization", auth)
-                .header("Content-Type", "application/octet-stream")
-                .body(blob),
-            TRANSFER,
-        )
-        .await?;
+        let moved = Arc::new(AtomicU64::new(0));
+        let counted = {
+            let moved = Arc::clone(&moved);
+            body.chunks.inspect(move |chunk| {
+                if let Ok(chunk) = chunk {
+                    moved.fetch_add(chunk.len() as u64, Ordering::Relaxed);
+                }
+            })
+        };
+        let request = self
+            .request(Method::PUT, &url, resolver)
+            .await?
+            .header("Authorization", auth)
+            .header("Content-Type", "application/octet-stream")
+            .header(reqwest::header::CONTENT_LENGTH, size)
+            .body(reqwest::Body::wrap_stream(counted));
+        let response = answer(
+            standing_still_fails(request.send(), &moved, size, self.patience, progress).await?,
+        )?;
         if let Some(refusal) = refused(&response) {
             return Err(refusal);
         }
@@ -245,17 +301,66 @@ fn check_upload_size(size: u64) -> Result<()> {
     Ok(())
 }
 
-/// Downloads the blob at `url` (from a message) and checks it is the one with hash `sha256` and at
-/// most `max` bytes. `own` is the user's own server: only there may a local address be reached.
-/// `progress` hears the bytes received so far.
+/// A blob on its way down, checked as it comes: [`Self::chunk`] answers its bytes one piece at a
+/// time and, once the last one is in, whether they hashed to the name the message gave. The caller
+/// must treat what it wrote as unconfirmed until `chunk` has answered `None`.
+pub struct Download {
+    response: reqwest::Response,
+    hasher: Sha256,
+    expected: String,
+    max: u64,
+    received: u64,
+    patience: Patience,
+    until: Instant,
+}
+
+impl Download {
+    /// The bytes received so far.
+    pub fn received(&self) -> u64 {
+        self.received
+    }
+
+    /// The same download with another patience, for the tests.
+    #[cfg(test)]
+    pub fn with_patience(mut self, patience: Patience) -> Self {
+        self.patience = patience;
+        self
+    }
+
+    /// The next piece, or `None` when the blob is complete and is the one with the hash that was
+    /// named. Fails after [`Patience::stall`] without a byte, past the total allowance, above the
+    /// size the caller allows and when the hash is another.
+    pub async fn chunk(&mut self) -> Result<Option<Vec<u8>>> {
+        let limit = (Instant::now() + self.patience.stall).min(self.until);
+        let piece = tokio::time::timeout_at(limit, self.response.chunk())
+            .await
+            .map_err(|_| BlossomError::TimedOut)?
+            .map_err(|_| BlossomError::Network)?;
+        let Some(piece) = piece else {
+            return if hex(&self.hasher.clone().finalize()).eq_ignore_ascii_case(&self.expected) {
+                Ok(None)
+            } else {
+                Err(BlossomError::Mismatch)
+            };
+        };
+        self.received += piece.len() as u64;
+        if self.received > self.max {
+            return Err(BlossomError::TooLarge);
+        }
+        self.hasher.update(&piece);
+        Ok(Some(piece.to_vec()))
+    }
+}
+
+/// Starts the download of the blob at `url` (from a message) with hash `sha256`, at most `max`
+/// bytes. `own` is the user's own server: only there may a local address be reached.
 pub async fn download(
     url: &str,
     sha256: &str,
     max: u64,
     own: Option<&Server>,
     resolver: &dyn Resolver,
-    progress: &mut (dyn FnMut(u64) + Send),
-) -> Result<Vec<u8>> {
+) -> Result<Download> {
     let url = Url::parse(url).map_err(|_| BlossomError::NotAllowed)?;
     if !allowed_scheme(&url) || !names_blob(&url, sha256) {
         return Err(BlossomError::NotAllowed);
@@ -264,9 +369,9 @@ pub async fn download(
         Some(server) => server.scope,
         None => EndpointScope::Public,
     };
+    let patience = own.map_or_else(Patience::default, |server| server.patience);
     let client = checked_client(&url, scope, resolver).await?;
-    let deadline = Instant::now() + TRANSFER;
-    let response = send(client.get(url), TRANSFER).await?;
+    let response = send(client.get(url), patience.answer).await?;
     if response.status() == StatusCode::NOT_FOUND {
         return Err(BlossomError::Gone);
     }
@@ -276,12 +381,15 @@ pub async fn download(
     if response.content_length().is_some_and(|length| length > max) {
         return Err(BlossomError::TooLarge);
     }
-    let max = usize::try_from(max).unwrap_or(usize::MAX);
-    let blob = read(response, max, deadline, progress).await?;
-    if !hex(&Sha256::digest(&blob)).eq_ignore_ascii_case(sha256) {
-        return Err(BlossomError::Mismatch);
-    }
-    Ok(blob)
+    Ok(Download {
+        response,
+        hasher: Sha256::new(),
+        expected: sha256.to_owned(),
+        max,
+        received: 0,
+        patience,
+        until: Instant::now() + total_limit(max),
+    })
 }
 
 /// Resolves and pins an endpoint within the same 30-second connection allowance as the request.
@@ -320,10 +428,74 @@ fn authorization(signer: &Keys, action: &str, sha256: &str, content: &str) -> Re
 async fn send(request: reqwest::RequestBuilder, limit: Duration) -> Result<reqwest::Response> {
     match tokio::time::timeout(limit, request.timeout(limit).send()).await {
         Err(_) => Err(BlossomError::TimedOut),
-        Ok(Err(error)) if error.is_timeout() => Err(BlossomError::TimedOut),
-        Ok(Err(_)) => Err(BlossomError::Network),
-        Ok(Ok(response)) if response.status().is_redirection() => Err(BlossomError::Network),
-        Ok(Ok(response)) => Ok(response),
+        Ok(result) => answer(result),
+    }
+}
+
+/// A transport answer as this client's result: a timeout, a failure, a redirect (never followed).
+fn answer(
+    result: std::result::Result<reqwest::Response, reqwest::Error>,
+) -> Result<reqwest::Response> {
+    match result {
+        Err(error) if error.is_timeout() => Err(BlossomError::TimedOut),
+        Err(_) => Err(BlossomError::Network),
+        Ok(response) if response.status().is_redirection() => Err(BlossomError::Network),
+        Ok(response) => Ok(response),
+    }
+}
+
+/// Runs `operation` (an upload whose body is read by the connection, counted in `moved`) and gives
+/// up when `moved` stands still for the stall time, when the answer to a finished body takes
+/// longer than the answer time, or after the total allowance of `size` bytes. `progress` hears
+/// `moved` as it grows.
+async fn standing_still_fails<T>(
+    operation: impl std::future::Future<Output = T>,
+    moved: &AtomicU64,
+    size: u64,
+    patience: Patience,
+    progress: &mut (dyn FnMut(u64) + Send),
+) -> Result<T> {
+    tokio::pin!(operation);
+    let until = Instant::now() + total_limit(size);
+    let (mut last, mut since) = (0, Instant::now());
+    let mut tick = tokio::time::interval(
+        (patience.stall / 4).clamp(Duration::from_millis(20), Duration::from_millis(500)),
+    );
+    loop {
+        tokio::select! {
+            output = &mut operation => return Ok(output),
+            _ = tick.tick() => {
+                let now = moved.load(Ordering::Relaxed);
+                if now != last {
+                    (last, since) = (now, Instant::now());
+                    progress(now);
+                }
+                let waiting_for = if now >= size { patience.answer } else { patience.stall };
+                if since.elapsed() >= waiting_for || Instant::now() >= until {
+                    return Err(BlossomError::TimedOut);
+                }
+            }
+        }
+    }
+}
+
+/// What an upload sends: the blob as a stream of pieces, with the hash and length of all of it
+/// (the server is asked and the upload is signed before the first byte).
+pub struct UploadBody {
+    pub sha256: String,
+    pub size: u64,
+    pub chunks: Pin<Box<dyn Stream<Item = std::io::Result<Vec<u8>>> + Send + Sync>>,
+}
+
+impl UploadBody {
+    /// A blob that is in memory.
+    #[cfg(test)]
+    pub fn whole(blob: Vec<u8>) -> Self {
+        Self {
+            sha256: hex(&Sha256::digest(&blob)),
+            size: blob.len() as u64,
+            chunks: Box::pin(futures::stream::once(async move { Ok(blob) })),
+        }
     }
 }
 

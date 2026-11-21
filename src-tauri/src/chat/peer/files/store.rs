@@ -4,9 +4,9 @@
 //! and they never leave this device's data directory. Like the agent browser's profile
 //! (`agent_browser::profile_store`).
 //!
-//! `ponytail:` a file is sealed whole in memory (`put_file`, ≤ 100 MB per file); writes take turns
-//! behind a semaphore of one, so at most one file is in memory for writing. Upgrade: a streaming
-//! put in `files::encrypted`.
+//! A file is written as its plaintext comes in (`PutStream`), a few parts in memory at a time, and
+//! shows only when the caller commits (R14 amendment of 2026-11-21). Making the folder takes turns
+//! behind a semaphore of one, so two first writes do not both create it.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -18,7 +18,7 @@ use crate::files::encrypted::device::DeviceRoot;
 use crate::files::encrypted::ops::{create_encrypted_folder, file_at};
 use crate::files::encrypted::route::{route, Route};
 use crate::files::encrypted::source::EncryptedFile;
-use crate::files::encrypted::transfer::put_file;
+use crate::files::encrypted::transfer::PutStream;
 use crate::files::encrypted::{EncryptedFolders, Scope, VaultSource};
 use crate::files::storage_source::StorageFiles;
 use crate::files::{FilesError, FilesErrorCode};
@@ -38,7 +38,7 @@ pub struct ChatFileStore {
     files: StorageFiles,
     root: DeviceRoot,
     dir: PathBuf,
-    writing: Semaphore,
+    making: Semaphore,
 }
 
 impl ChatFileStore {
@@ -60,7 +60,7 @@ impl ChatFileStore {
             files,
             root,
             dir: dir.to_path_buf(),
-            writing: Semaphore::new(1),
+            making: Semaphore::new(1),
         })
     }
 
@@ -95,37 +95,79 @@ impl ChatFileStore {
             .map_err(store_error)
     }
 
-    /// Stores `bytes` as the file of attachment `id`, making the folders on first use.
-    pub async fn put(&self, id: &str, bytes: &[u8]) -> Result<()> {
-        let _turn = self
-            .writing
-            .acquire()
-            .await
-            .map_err(|_| HaexError::InvalidInput {
-                reason: "the chat files store is closed".into(),
+    /// Starts the file of attachment `id`, making the folders on first use. It shows when the
+    /// writer commits; a writer that is dropped without that leaves no file.
+    pub async fn writer(&self, id: &str) -> Result<StoreWriter<'_>> {
+        let at = {
+            let _turn = self
+                .making
+                .acquire()
+                .await
+                .map_err(|_| HaexError::InvalidInput {
+                    reason: "the chat files store is closed".into(),
+                })?;
+            std::fs::create_dir_all(&self.dir).map_err(|e| HaexError::InvalidInput {
+                reason: format!("the chat files folder: {e}"),
             })?;
-        std::fs::create_dir_all(&self.dir).map_err(|e| HaexError::InvalidInput {
-            reason: format!("the chat files folder: {e}"),
-        })?;
-        if !matches!(
-            route(&self.files, &self.view(&[FOLDER]))
+            if !matches!(
+                route(&self.files, &self.view(&[FOLDER]))
+                    .await
+                    .map_err(store_error)?,
+                Route::Encrypted(_)
+            ) {
+                create_encrypted_folder(&self.files, &self.view(&[]), FOLDER)
+                    .await
+                    .map_err(store_error)?;
+            }
+            match route(&self.files, &self.view(&[FOLDER, id]))
                 .await
-                .map_err(store_error)?,
-            Route::Encrypted(_)
-        ) {
-            create_encrypted_folder(&self.files, &self.view(&[]), FOLDER)
-                .await
-                .map_err(store_error)?;
-        }
-        let Route::Encrypted(at) = route(&self.files, &self.view(&[FOLDER, id]))
-            .await
-            .map_err(store_error)?
-        else {
-            return Err(HaexError::InvalidInput {
-                reason: "the encrypted chat folder is gone".into(),
-            });
+                .map_err(store_error)?
+            {
+                Route::Encrypted(at) => at,
+                _ => {
+                    return Err(HaexError::InvalidInput {
+                        reason: "the encrypted chat folder is gone".into(),
+                    })
+                }
+            }
         };
-        put_file(&self.files, &at, bytes).await.map_err(store_error)
+        let put = PutStream::begin(&self.files, &at)
+            .await
+            .map_err(store_error)?;
+        Ok(StoreWriter { put })
+    }
+
+    /// Stores `bytes` as the file of attachment `id`.
+    pub async fn put(&self, id: &str, bytes: &[u8]) -> Result<()> {
+        let mut writer = self.writer(id).await?;
+        if let Err(error) = writer.push(bytes).await {
+            writer.abort().await;
+            return Err(error);
+        }
+        writer.commit().await
+    }
+}
+
+/// A chat file being written (see [`ChatFileStore::writer`]). After an error the caller calls
+/// [`Self::abort`].
+pub struct StoreWriter<'a> {
+    put: PutStream<'a>,
+}
+
+impl StoreWriter<'_> {
+    /// Takes the next plaintext.
+    pub async fn push(&mut self, bytes: &[u8]) -> Result<()> {
+        self.put.push(bytes).await.map_err(store_error)
+    }
+
+    /// Makes the file show.
+    pub async fn commit(self) -> Result<()> {
+        self.put.commit().await.map_err(store_error)
+    }
+
+    /// Drops what was written.
+    pub async fn abort(self) {
+        self.put.abort().await;
     }
 }
 

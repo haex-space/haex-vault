@@ -5,18 +5,23 @@
 //! again when the vault opens next (FR-037). Where a file stands on this device is device-local
 //! (`chat_attachment_files_no_sync`).
 
+use std::io::{self, Cursor, Read};
 use std::sync::Arc;
 use std::time::Duration;
 
+use futures::channel::mpsc;
+use futures::{SinkExt, StreamExt};
 use haex_crdt::rusqlite::params;
 use nostr::key::Keys;
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use tokio::sync::Notify;
+use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use super::blossom::{self, BlossomError, Server};
-use super::crypto::{self, FileKey};
+use super::blossom::{self, BlossomError, Server, UploadBody};
+use super::crypto::{self, Decryptor, FileKey, SealedFacts};
 use super::store::ChatFileStore;
 use crate::chat::peer::delivery::now_ms;
 use crate::chat::peer::envelope::{self, Attachment, BlobRef, FileAttachment, INLINE_MIME};
@@ -41,7 +46,8 @@ pub const TRANSFER_EVENT: &str = "chat-transfer";
 #[serde(rename_all = "camelCase")]
 pub struct Progress {
     pub attachment_id: String,
-    /// `down`; uploads report no progress yet (`ponytail:` the upload is one request).
+    /// `down`; an upload reports no progress yet: the message does not exist for the window until
+    /// it is queued, so there is nothing to show it on (`ponytail:`).
     pub direction: &'static str,
     pub state: String,
     pub bytes_done: u64,
@@ -49,14 +55,68 @@ pub struct Progress {
     pub error: Option<String>,
 }
 
+/// Where the bytes of a file to send come from. Sending reads them more than once (the hash is
+/// needed before the upload), so every pass opens the source again; nothing holds the file.
+#[derive(Clone)]
+pub struct Source(Arc<dyn Fn() -> Result<Box<dyn Read + Send>> + Send + Sync>);
+
+impl Source {
+    /// Bytes that are in memory, such as a long text.
+    pub fn bytes(bytes: Vec<u8>) -> Self {
+        let bytes: Arc<[u8]> = bytes.into();
+        Self(Arc::new(move || {
+            Ok(Box::new(Cursor::new(Arc::clone(&bytes))) as Box<dyn Read + Send>)
+        }))
+    }
+
+    /// A file that `open` opens for reading, once for every pass.
+    pub fn opened_by(
+        open: impl Fn() -> Result<Box<dyn Read + Send>> + Send + Sync + 'static,
+    ) -> Self {
+        Self(Arc::new(open))
+    }
+
+    fn open(&self) -> Result<Box<dyn Read + Send>> {
+        (self.0)()
+    }
+}
+
+impl std::fmt::Debug for Source {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Source(..)")
+    }
+}
+
 /// A file the user picked to send.
 #[derive(Debug, Clone)]
 pub struct Picked {
     pub name: String,
     pub mime: String,
-    pub bytes: Vec<u8>,
+    pub source: Source,
     /// The file is the full text of the message (research R2), not an attachment of the user.
     pub inline: bool,
+}
+
+impl Picked {
+    /// A file whose bytes are in memory.
+    pub fn in_memory(name: &str, mime: &str, bytes: Vec<u8>, inline: bool) -> Self {
+        Self {
+            name: name.to_owned(),
+            mime: mime.to_owned(),
+            source: Source::bytes(bytes),
+            inline,
+        }
+    }
+}
+
+/// The bound of the files of one message together (FR-034).
+pub const MAX_MESSAGE_PLAINTEXT: u64 = crypto::MAX_PLAINTEXT;
+
+/// What a message may still take after `total` bytes of files.
+pub fn remaining_message_limit(total: u64) -> Result<u64> {
+    MAX_MESSAGE_PLAINTEXT
+        .checked_sub(total)
+        .ok_or_else(|| invalid("chat.file.tooLarge"))
 }
 
 /// The files of the open vault on this device.
@@ -77,11 +137,18 @@ impl std::fmt::Debug for ChatFiles {
     }
 }
 
+/// A file that was read once to learn its size and hashes; it still has to be uploaded.
+struct Prepared {
+    file: Picked,
+    key: FileKey,
+    facts: SealedFacts,
+}
+
 /// An uploaded file: what the message carries and what this device keeps.
 struct Uploaded {
     attachment: FileAttachment,
     signer: Keys,
-    plaintext: Vec<u8>,
+    source: Source,
 }
 
 impl ChatFiles {
@@ -149,13 +216,25 @@ impl ChatFiles {
             .await?
             .ok_or_else(|| invalid("chat.file.noServer"))?;
         let message_id = ids::message_id(thread_id, &me.vault_hex, event_id);
-        let mut uploaded = Vec::with_capacity(files.len());
+        // Every file is read once first: the server is asked, and the upload signed, with hashes of
+        // the whole file, and the files of one message may together be no more than the limit.
+        let mut prepared = Vec::with_capacity(files.len());
+        let mut total = 0_u64;
         for file in files {
+            let key = FileKey::generate()?;
+            let facts = self.measure(&file, &key).await?;
+            total += facts.plaintext_len;
+            remaining_message_limit(total)?;
+            prepared.push(Prepared { file, key, facts });
+        }
+        let mut uploaded = Vec::with_capacity(prepared.len());
+        for file in prepared {
             uploaded.push(self.upload(&server, file).await?);
         }
         for (index, file) in uploaded.iter().enumerate() {
             let id = ids::attachment_id(message_id, index).to_string();
-            self.store.put(&id, &file.plaintext).await?;
+            self.keep(&id, &file.source, &file.attachment.sha256)
+                .await?;
         }
         let pending = self.expected_devices(me, &peer).await?;
         let (me, event_id, text) = (me.clone(), event_id.to_owned(), text.to_owned());
@@ -208,12 +287,7 @@ impl ChatFiles {
         event_id: &str,
         text: &str,
     ) -> Result<Uuid> {
-        let file = Picked {
-            name: "message.txt".into(),
-            mime: INLINE_MIME.into(),
-            bytes: text.as_bytes().to_vec(),
-            inline: true,
-        };
+        let file = Picked::in_memory("message.txt", INLINE_MIME, text.as_bytes().to_vec(), true);
         self.send(
             me,
             thread_id,
@@ -224,47 +298,110 @@ impl ChatFiles {
         .await
     }
 
-    /// Encrypts and uploads one file with a fresh key (research R12), asking the server first.
-    async fn upload(&self, server: &Server, file: Picked) -> Result<Uploaded> {
-        if file.bytes.len() as u64 > crypto::MAX_PLAINTEXT {
-            return Err(invalid("chat.file.tooLarge"));
-        }
-        let key = FileKey::generate()?;
-        let sealing = key.clone();
-        let (plaintext, sealed) = tokio::task::spawn_blocking(move || {
-            let sealed = crypto::encrypt(&sealing, &file.bytes);
-            (file.bytes, sealed)
-        })
-        .await
-        .map_err(|e| invalid(&e.to_string()))?;
-        let sealed = sealed?;
-        let sha256 = crypto::sha256_hex(&sealed);
+    /// Reads `file` once, sealing it as it will be sealed for the upload, and answers its length and
+    /// hashes. Nothing is kept (research R14 amendment).
+    async fn measure(&self, file: &Picked, key: &FileKey) -> Result<SealedFacts> {
+        let (source, key) = (file.source.clone(), key.clone());
+        tokio::task::spawn_blocking(move || crypto::seal_stream(&key, source.open()?, |_| Ok(())))
+            .await
+            .map_err(|e| invalid(&e.to_string()))?
+    }
+
+    /// Encrypts and uploads one file with its key (research R12), asking the server first. The file
+    /// is sealed a second time while it is sent, a segment at a time, and must come out as it did
+    /// the first time; a file that changed in between is not sent.
+    async fn upload(&self, server: &Server, prepared: Prepared) -> Result<Uploaded> {
+        let Prepared { file, key, facts } = prepared;
         let signer = Keys::generate();
         let resolver = self.resolver.as_ref();
         server
-            .check_upload(&signer, &sha256, sealed.len() as u64, resolver)
+            .check_upload(
+                &signer,
+                &facts.ciphertext_sha256,
+                facts.ciphertext_len,
+                resolver,
+            )
             .await
             .map_err(blossom_error)?;
-        let descriptor = server
-            .upload(&signer, sealed, resolver)
-            .await
-            .map_err(blossom_error)?;
+        let (sender, receiver) = mpsc::channel::<io::Result<Vec<u8>>>(2);
+        let body = UploadBody {
+            sha256: facts.ciphertext_sha256.clone(),
+            size: facts.ciphertext_len,
+            chunks: Box::pin(receiver),
+        };
+        let sealing = {
+            let (source, key, expected) = (file.source.clone(), key.clone(), facts.clone());
+            tokio::task::spawn_blocking(move || seal_into(&source, &key, &expected, sender))
+        };
+        let mut progress = |_: u64| {};
+        let (sent, sealed) = tokio::join!(
+            server.upload(&signer, body, resolver, &mut progress),
+            sealing
+        );
+        let sealed = sealed.map_err(|e| invalid(&e.to_string()))?;
+        let descriptor = match (sent, sealed) {
+            (Ok(descriptor), Ok(())) => descriptor,
+            (Ok(descriptor), Err(error)) => {
+                // The server took a blob that is not the file it was told about: take it down.
+                let _ = server.delete(&signer, &descriptor.sha256, resolver).await;
+                return Err(error);
+            }
+            // Reading failed or the file changed, and the upload broke because of it.
+            (Err(_), Err(error)) if !is_aborted(&error) => return Err(error),
+            (Err(error), _) => return Err(blossom_error(error)),
+        };
         Ok(Uploaded {
             attachment: FileAttachment {
                 name: file.name,
                 mime: file.mime,
-                size: plaintext.len() as u64,
-                sha256: crypto::sha256_hex(&plaintext),
+                size: facts.plaintext_len,
+                sha256: facts.plaintext_sha256,
                 blossom: BlobRef {
                     url: descriptor.url,
-                    sha256,
+                    sha256: facts.ciphertext_sha256,
                     key: hex(&key.key),
                 },
                 inline: file.inline,
             },
             signer,
-            plaintext,
+            source: file.source,
         })
+    }
+
+    /// Keeps this device's own copy of a sent file as attachment `id`: the source is read a third
+    /// time into the store, and the copy shows only if it is the file that was sent.
+    async fn keep(&self, id: &str, source: &Source, plaintext_sha256: &str) -> Result<()> {
+        let mut writer = self.store.writer(id).await?;
+        let (mut pieces, reading) = read_in_pieces(source.clone());
+        let mut failed = None;
+        while let Some(piece) = pieces.next().await {
+            let written = match piece {
+                Ok(piece) => writer.push(&piece).await,
+                Err(error) => Err(invalid(&error.to_string())),
+            };
+            if let Err(error) = written {
+                failed = Some(error);
+                break;
+            }
+        }
+        // Without the pieces the reader stops at its next send.
+        drop(pieces);
+        let read = reading.await.map_err(|e| invalid(&e.to_string()))?;
+        match (failed, read) {
+            (None, Ok(sha256)) if sha256.eq_ignore_ascii_case(plaintext_sha256) => {
+                writer.commit().await
+            }
+            (None, Ok(_)) => {
+                writer.abort().await;
+                Err(invalid("chat.file.changed"))
+            }
+            (failed, read) => {
+                writer.abort().await;
+                Err(failed
+                    .or(read.err())
+                    .unwrap_or_else(|| invalid("chat.file.changed")))
+            }
+        }
     }
 
     /// Every device that will download the file: the recipient's and this vault's other ones
@@ -312,7 +449,8 @@ impl ChatFiles {
         String::from_utf8(bytes).map_err(|_| invalid("chat.file.damaged"))
     }
 
-    /// Downloads, checks, decrypts and keeps the file of attachment `id` (FR-032).
+    /// Downloads, checks, decrypts and keeps the file of attachment `id` (FR-032). The bytes go into
+    /// the store as they come; the file shows only after both hashes were checked.
     pub async fn download(&self, id: &str) -> Result<()> {
         let attachment_id = id.to_owned();
         let row = self
@@ -348,48 +486,80 @@ impl ChatFiles {
         }
         self.record(id, "downloading", 0, size, None).await?;
         let own = self.server().await.ok().flatten();
-        let mut last = tokio::time::Instant::now();
-        let mut on_progress = |done: u64| {
-            if last.elapsed() >= PROGRESS_EVERY {
-                last = tokio::time::Instant::now();
-                self.report(id, "downloading", done, size, None);
-            }
-        };
-        let fetched = blossom::download(
-            &url,
-            &blob,
-            crypto::ciphertext_len(size),
-            own.as_ref(),
-            self.resolver.as_ref(),
-            &mut on_progress,
-        )
-        .await;
-        let sealed = match fetched {
-            Ok(sealed) => sealed,
-            Err(BlossomError::Gone) => return self.record(id, "gone", 0, size, None).await,
-            Err(error) => {
+        let received = self
+            .receive(id, &url, &blob, &key, &sha256, size, own.as_ref())
+            .await;
+        match received {
+            Ok(()) => self.record(id, "stored", size, size, None).await,
+            Err(Receive::Gone) => self.record(id, "gone", 0, size, None).await,
+            Err(Receive::Blossom(error)) => {
                 let code = error.code();
                 self.record(id, "failed", 0, size, Some(&code)).await?;
-                return Err(blossom_error(error));
+                Err(blossom_error(error))
             }
-        };
-        let opened = tokio::task::spawn_blocking(move || crypto::decrypt(&key, &sealed, &sha256))
-            .await
-            .map_err(|e| invalid(&e.to_string()))?;
-        let plaintext = match opened {
-            Ok(plaintext) => plaintext,
-            Err(error) => {
+            Err(Receive::Damaged(error)) => {
                 self.record(id, "failed", 0, size, Some("chat.file.damaged"))
                     .await?;
-                return Err(error);
+                Err(error)
             }
-        };
-        if let Err(error) = self.store.put(id, &plaintext).await {
-            self.record(id, "failed", 0, size, Some("chat.file.storeFailed"))
-                .await?;
-            return Err(error);
+            Err(Receive::Store(error)) => {
+                self.record(id, "failed", 0, size, Some("chat.file.storeFailed"))
+                    .await?;
+                Err(error)
+            }
         }
-        self.record(id, "stored", size, size, None).await
+    }
+
+    /// The streaming part of [`Self::download`]: bytes in, plaintext out into the store.
+    #[allow(clippy::too_many_arguments)]
+    async fn receive(
+        &self,
+        id: &str,
+        url: &str,
+        blob: &str,
+        key: &[u8; 32],
+        plaintext_sha256: &str,
+        size: u64,
+        own: Option<&Server>,
+    ) -> std::result::Result<(), Receive> {
+        let mut stream = blossom::download(
+            url,
+            blob,
+            crypto::ciphertext_len(size),
+            own,
+            self.resolver.as_ref(),
+        )
+        .await
+        .map_err(Receive::from)?;
+        let mut writer = self.store.writer(id).await.map_err(Receive::Store)?;
+        let mut decryptor = Decryptor::new(key, plaintext_sha256);
+        let mut last = tokio::time::Instant::now();
+        let outcome: std::result::Result<(), Receive> = async {
+            loop {
+                let Some(piece) = stream.chunk().await.map_err(Receive::from)? else {
+                    break;
+                };
+                let plain = decryptor.push(&piece).map_err(Receive::Damaged)?;
+                if !plain.is_empty() {
+                    writer.push(&plain).await.map_err(Receive::Store)?;
+                }
+                if last.elapsed() >= PROGRESS_EVERY {
+                    last = tokio::time::Instant::now();
+                    self.report(id, "downloading", stream.received(), size, None);
+                }
+            }
+            // The ciphertext is the blob that was named; now the plaintext is checked.
+            let rest = decryptor.finish().map_err(Receive::Damaged)?;
+            writer.push(&rest).await.map_err(Receive::Store)
+        }
+        .await;
+        match outcome {
+            Ok(()) => writer.commit().await.map_err(Receive::Store),
+            Err(error) => {
+                writer.abort().await;
+                Err(error)
+            }
+        }
     }
 
     async fn record(
@@ -494,6 +664,97 @@ fn set_state(
         ],
     )?;
     Ok(())
+}
+
+/// Why a download did not end in a stored file.
+enum Receive {
+    /// The blob is no longer on the server.
+    Gone,
+    Blossom(BlossomError),
+    /// A hash or a segment did not check out.
+    Damaged(HaexError),
+    /// This device could not keep the file.
+    Store(HaexError),
+}
+
+impl From<BlossomError> for Receive {
+    fn from(error: BlossomError) -> Self {
+        match error {
+            BlossomError::Gone => Self::Gone,
+            // The blob is not the one the message named: damaged, not a network matter.
+            BlossomError::Mismatch => Self::Damaged(invalid("chat.file.damaged")),
+            other => Self::Blossom(other),
+        }
+    }
+}
+
+/// Seals `source` into `sender` piece by piece and checks that it comes out as `expected` did. A
+/// failure is also put into the stream, so that the upload breaks instead of ending as if it were
+/// complete.
+fn seal_into(
+    source: &Source,
+    key: &FileKey,
+    expected: &SealedFacts,
+    mut sender: mpsc::Sender<io::Result<Vec<u8>>>,
+) -> Result<()> {
+    let outcome = source.open().and_then(|reader| {
+        crypto::seal_stream(key, reader, |piece| {
+            futures::executor::block_on(sender.send(Ok(piece.to_vec()))).map_err(|_| aborted())
+        })
+    });
+    let failure = match outcome {
+        Ok(again) if &again == expected => return Ok(()),
+        Ok(_) => invalid("chat.file.changed"),
+        Err(error) => error,
+    };
+    if !is_aborted(&failure) {
+        let _ =
+            futures::executor::block_on(sender.send(Err(io::Error::other(failure.to_string()))));
+    }
+    Err(failure)
+}
+
+/// Reads `source` on a blocking thread and answers its bytes in pieces; the handle answers the
+/// SHA-256 of what was read. A reader whose pieces are not taken any more stops.
+fn read_in_pieces(
+    source: Source,
+) -> (
+    mpsc::Receiver<io::Result<Vec<u8>>>,
+    JoinHandle<Result<String>>,
+) {
+    let (mut sender, receiver) = mpsc::channel::<io::Result<Vec<u8>>>(2);
+    let reading = tokio::task::spawn_blocking(move || {
+        let mut reader = source.open()?;
+        let mut hasher = Sha256::new();
+        let mut buf = vec![0; crypto::SEGMENT];
+        loop {
+            let n = match reader.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => n,
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                Err(error) => {
+                    let _ = futures::executor::block_on(
+                        sender.send(Err(io::Error::new(error.kind(), error.to_string()))),
+                    );
+                    return Err(invalid("chat.file.unreadable"));
+                }
+            };
+            hasher.update(&buf[..n]);
+            futures::executor::block_on(sender.send(Ok(buf[..n].to_vec())))
+                .map_err(|_| aborted())?;
+        }
+        Ok(hex(&hasher.finalize()))
+    });
+    (receiver, reading)
+}
+
+/// The consumer of a stream is gone, so reading it further is pointless.
+fn aborted() -> HaexError {
+    invalid("chat.file.aborted")
+}
+
+fn is_aborted(error: &HaexError) -> bool {
+    matches!(error, HaexError::InvalidInput { reason } if reason == "chat.file.aborted")
 }
 
 /// The server's address as the blob rows keep it, to delete there later.

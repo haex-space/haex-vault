@@ -41,12 +41,12 @@ pub async fn prepare_with_files(
     if fits {
         Ok((text, None))
     } else {
-        let file = super::files::transfers::Picked {
-            name: "message.txt".into(),
-            mime: envelope::INLINE_MIME.into(),
-            bytes: text.as_bytes().to_vec(),
-            inline: true,
-        };
+        let file = super::files::transfers::Picked::in_memory(
+            "message.txt",
+            envelope::INLINE_MIME,
+            text.as_bytes().to_vec(),
+            true,
+        );
         Ok((envelope::preview(&text), Some(file)))
     }
 }

@@ -511,6 +511,9 @@
       "resend": "Send again"
     },
     "file": {
+      "tooLarge": "The file is too large (200 MB at most).",
+      "changed": "The file changed while it was being sent. Send it again.",
+      "unreadable": "The file cannot be read.",
       "noServer": "This text is too long for a single message and would have to be sent as a file. No Blossom server is set up for that.",
       "damaged": "The file is damaged."
     },
