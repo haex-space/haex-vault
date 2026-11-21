@@ -400,7 +400,42 @@ impl ObjectStore for LocalStore {
                 return Err(error);
             }
         };
-        blocking(deadline, move || settle(&part, &path)).await
+        // Do not start the rename after the deadline has already passed. Otherwise the timeout
+        // can win while the blocking rename creates the final object, leaving cleanup to race
+        // with the caller's next operation.
+        if Instant::now() >= deadline {
+            let _ = fs::remove_file(&part);
+            return Err(StorageError::TimedOut);
+        }
+        let cleanup = path.clone();
+        let work = tokio::task::spawn_blocking(move || settle(&part, &path));
+        let (result_tx, result_rx) = tokio::sync::oneshot::channel();
+        let (accept_tx, accept_rx) = tokio::sync::oneshot::channel();
+        tokio::spawn(async move {
+            let result = match work.await {
+                Ok(result) => result,
+                Err(_) => Err(StorageError::Network),
+            };
+            let succeeded = result.is_ok();
+            let _ = result_tx.send(result);
+            // Keep the object only when the caller receives the successful result and accepts
+            // ownership. Timeout or cancellation closes this channel; cleanup waits for the
+            // blocking rename to settle so it cannot recreate the object afterward.
+            let accepted = succeeded && matches!(accept_rx.await, Ok(true));
+            if !accepted {
+                let _ = tokio::task::spawn_blocking(move || fs::remove_file(cleanup)).await;
+            }
+        });
+
+        match tokio::time::timeout_at(deadline, result_rx).await {
+            Ok(Ok(Ok(()))) => {
+                let _ = accept_tx.send(true);
+                Ok(())
+            }
+            Ok(Ok(Err(error))) => Err(error),
+            Ok(Err(_)) => Err(StorageError::Network),
+            Err(_) => Err(StorageError::TimedOut),
+        }
     }
 
     async fn abort_upload(

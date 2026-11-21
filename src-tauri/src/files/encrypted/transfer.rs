@@ -2,7 +2,8 @@
 //! into a content object in upload parts, [`Decrypting`] reads a file of an encrypted folder window
 //! by window and checks its SHA-256 at the end, [`ensure_folder`] makes the sub folders a
 //! transfer into an encrypted folder needs, [`file_version`] is the sidecar of a new file, and
-//! [`put_file`] writes a whole file from memory (the bridge of extensions, spec 048 US6).
+//! [`put_file`] writes a whole file from memory (the bridge of extensions, spec 048 US6) and
+//! [`PutStream`] writes one as its plaintext comes in (the chat files, spec 072 R14).
 //!
 //! Every block is sealed exactly once: a part that fails is sent again with the same bytes, and a
 //! transfer that starts again seals a new content object with a new `DEK`, `cid` and
@@ -26,6 +27,7 @@ use super::{damaged, new_id, OpenFolder};
 use crate::files::kind::mime_for;
 use crate::files::local::edit::check_name;
 use crate::files::storage_source::{storage_error, StorageFiles};
+use crate::files::transfer::remote::PART;
 use crate::files::{Entry, FilesError, FilesErrorCode};
 
 fn soon() -> tokio::time::Instant {
@@ -250,10 +252,17 @@ pub fn file_version(
     }
 }
 
-/// Writes `data` as the file at `at` (names below the encrypted folder): missing folders get a
-/// sidecar each, a file there becomes the next version, a folder there is `exists`. The content
-/// object goes in one request, then the sidecar; nothing shows before it (FR-016).
-pub async fn put_file(files: &StorageFiles, at: &Located, data: &[u8]) -> Result<(), FilesError> {
+/// Where a file is written: the folder, the entry it goes below, its name and the file it replaces.
+struct Target {
+    folder: Arc<OpenFolder>,
+    parent: Id,
+    name: String,
+    replaced: Option<Version>,
+}
+
+/// Finds or makes the folders above the file at `at` (a sidecar each) and what the name is now: free,
+/// a file that becomes the next version, or a folder, which is `exists`.
+async fn target(files: &StorageFiles, at: &Located) -> Result<Target, FilesError> {
     let Some((name, dirs)) = at.rest.split_last() else {
         return Err(FilesError::invalid_path("the encrypted folder is no file"));
     };
@@ -276,20 +285,24 @@ pub async fn put_file(files: &StorageFiles, at: &Located, data: &[u8]) -> Result
             Some(_) => return Err(FilesError::new(FilesErrorCode::Exists, "the name is taken")),
         }
     };
-    // One part for the whole object: it is in memory already.
-    let whole = usize::try_from(ciphertext_len(data.len() as u64))
-        .map_err(|_| FilesError::new(FilesErrorCode::TooLarge, "too large"))?;
-    let mut sealer = SealedParts::fresh(whole);
-    let mut body = sealer.push(data).concat();
-    let (last, sealed) = sealer.finish();
-    body.extend_from_slice(&last);
-    let oid = new_id();
-    let key = folder.content_key(&oid);
-    files
-        .store()
-        .put(files.access(), &key, body, soon())
-        .await
-        .map_err(storage_error)?;
+    Ok(Target {
+        folder,
+        parent,
+        name: name.clone(),
+        replaced,
+    })
+}
+
+/// Writes the sidecar of the complete content object `key` (`oid`) so that the file shows, then
+/// drops the file it replaces. A sidecar that cannot be written takes the content object down.
+async fn place(
+    files: &StorageFiles,
+    target: Target,
+    oid: Id,
+    key: &str,
+    sealed: Sealed,
+    cleanup_object: &mut bool,
+) -> Result<(), FilesError> {
     let object_len = sealed.object_len();
     let file = NewFile {
         oid,
@@ -298,18 +311,203 @@ pub async fn put_file(files: &StorageFiles, at: &Located, data: &[u8]) -> Result
         sha256: sealed.sha256,
         dek: sealed.dek,
         modified: now_ms(),
-        content_type: mime_for(name).map(str::to_owned),
+        content_type: mime_for(&target.name).map(str::to_owned),
     };
-    let version = file_version(&folder, parent, name.clone(), file, replaced.as_ref());
+    let version = file_version(
+        &target.folder,
+        target.parent,
+        target.name.clone(),
+        file,
+        target.replaced.as_ref(),
+    );
     let entry = version.sidecar.entry;
-    if let Err(error) = write_version(files, &folder, version, Some((oid, object_len))).await {
-        let _ = files.store().delete(files.access(), &key, soon()).await;
+    if let Err(error) = write_version(files, &target.folder, version, Some((oid, object_len))).await
+    {
+        let _ = files.store().delete(files.access(), key, soon()).await;
         return Err(error);
     }
-    if replaced.is_some() {
-        drop_replaced(files, &folder, &entry).await;
+    // Once the sidecar is durable, the content object is published and must survive cancellation
+    // while cleaning up a replaced version.
+    *cleanup_object = false;
+    if target.replaced.is_some() {
+        drop_replaced(files, &target.folder, &entry).await;
     }
     Ok(())
+}
+
+/// Writes `data` as the file at `at` (names below the encrypted folder): missing folders get a
+/// sidecar each, a file there becomes the next version, a folder there is `exists`. The content
+/// object goes in one request, then the sidecar; nothing shows before it (FR-016).
+pub async fn put_file(files: &StorageFiles, at: &Located, data: &[u8]) -> Result<(), FilesError> {
+    let target = target(files, at).await?;
+    // One part for the whole object: it is in memory already.
+    let whole = usize::try_from(ciphertext_len(data.len() as u64))
+        .map_err(|_| FilesError::new(FilesErrorCode::TooLarge, "too large"))?;
+    let mut sealer = SealedParts::fresh(whole);
+    let mut body = sealer.push(data).concat();
+    let (last, sealed) = sealer.finish();
+    body.extend_from_slice(&last);
+    let oid = new_id();
+    let key = target.folder.content_key(&oid);
+    files
+        .store()
+        .put(files.access(), &key, body, soon())
+        .await
+        .map_err(storage_error)?;
+    let mut cleanup_object = true;
+    place(files, target, oid, &key, sealed, &mut cleanup_object).await
+}
+
+/// A file written into an encrypted folder as its plaintext comes in: [`Self::push`] seals it into
+/// parts of [`PART`] bytes and sends each full one, [`Self::commit`] sends the rest and writes the
+/// sidecar. Only a few parts are in memory, never the file. Nothing shows before `commit` (FR-016),
+/// so a caller that checks the plaintext at the end (a download) commits only after the check; after
+/// any error it must call [`Self::abort`], which leaves no content object behind.
+pub struct PutStream<'a> {
+    files: &'a StorageFiles,
+    runtime: tokio::runtime::Handle,
+    target: Option<Target>,
+    oid: Id,
+    key: String,
+    parts: Option<SealedParts>,
+    /// The id of the upload in parts and the mark of every part sent, once the first one went.
+    upload: Option<(String, Vec<String>)>,
+    /// The completed content object stays owned until its sidecar is written.
+    cleanup_object: bool,
+}
+
+impl<'a> PutStream<'a> {
+    /// Prepares the file at `at` like [`put_file`] does. Missing parent folders may be created and
+    /// remain if this writer is aborted; the file itself is not published until [`Self::commit`].
+    pub async fn begin(files: &'a StorageFiles, at: &Located) -> Result<Self, FilesError> {
+        let target = target(files, at).await?;
+        let oid = new_id();
+        let key = target.folder.content_key(&oid);
+        Ok(Self {
+            files,
+            runtime: tokio::runtime::Handle::current(),
+            target: Some(target),
+            oid,
+            key,
+            parts: Some(SealedParts::fresh(PART)),
+            upload: None,
+            cleanup_object: false,
+        })
+    }
+
+    /// Takes the next plaintext and sends the parts it filled.
+    pub async fn push(&mut self, data: &[u8]) -> Result<(), FilesError> {
+        let full = self
+            .parts
+            .as_mut()
+            .map(|parts| parts.push(data))
+            .unwrap_or_default();
+        for body in full {
+            self.send_part(body).await?;
+        }
+        Ok(())
+    }
+
+    /// Sends the last part, joins the parts and writes the sidecar: the file shows now.
+    pub async fn commit(mut self) -> Result<(), FilesError> {
+        let Some(parts) = self.parts.take() else {
+            return Err(FilesError::invalid_path("the file was written already"));
+        };
+        let (last, sealed) = parts.finish();
+        if let Err(error) = self.join(last).await {
+            self.abort().await;
+            return Err(error);
+        }
+        self.cleanup_object = true;
+        // The multipart upload is complete; dropping this writer must not try to abort it.
+        self.upload.take();
+        let target = self
+            .target
+            .take()
+            .ok_or_else(|| FilesError::invalid_path("the file was written already"))?;
+        place(
+            self.files,
+            target,
+            self.oid,
+            &self.key,
+            sealed,
+            &mut self.cleanup_object,
+        )
+        .await
+    }
+
+    /// Drops what was sent: no part stays at the storage.
+    pub async fn abort(mut self) {
+        if let Some((id, _)) = self.upload.take() {
+            let _ = self
+                .files
+                .store()
+                .abort_upload(self.files.access(), &self.key, &id, soon())
+                .await;
+        }
+    }
+
+    async fn join(&mut self, last: Vec<u8>) -> Result<(), FilesError> {
+        let (store, access) = (self.files.store(), self.files.access());
+        if self.upload.is_none() {
+            // The whole object fits one part: one request.
+            return store
+                .put(access, &self.key, last, soon())
+                .await
+                .map_err(storage_error);
+        }
+        if !last.is_empty() {
+            self.send_part(last).await?;
+        }
+        let (id, marks) = self.upload.as_ref().expect("the upload started");
+        store
+            .finish_upload(access, &self.key, id, marks, soon())
+            .await
+            .map_err(storage_error)
+    }
+
+    async fn send_part(&mut self, body: Vec<u8>) -> Result<(), FilesError> {
+        let (store, access) = (self.files.store(), self.files.access());
+        if self.upload.is_none() {
+            let id = store
+                .begin_upload(access, &self.key, soon())
+                .await
+                .map_err(storage_error)?;
+            self.upload = Some((id, Vec::new()));
+        }
+        let (id, marks) = self.upload.as_mut().expect("the upload started");
+        let number = u16::try_from(marks.len() + 1)
+            .map_err(|_| FilesError::new(FilesErrorCode::TooLarge, "too many parts"))?;
+        let mark = store
+            .upload_part(access, &self.key, id, number, body, soon())
+            .await
+            .map_err(storage_error)?;
+        marks.push(mark);
+        Ok(())
+    }
+}
+
+impl Drop for PutStream<'_> {
+    fn drop(&mut self) {
+        let upload_id = self.upload.take().map(|(id, _)| id);
+        if upload_id.is_none() && !self.cleanup_object {
+            return;
+        }
+        // `Drop` cannot await. Schedule the provider cleanup so a cancelled download or caller
+        // future does not leave a multipart upload open or a completed object without a sidecar.
+        let store = Arc::clone(self.files.store());
+        let access = self.files.access().clone();
+        let key = self.key.clone();
+        let cleanup_object = self.cleanup_object;
+        self.runtime.spawn(async move {
+            if let Some(id) = upload_id {
+                let _ = store.abort_upload(&access, &key, &id, soon()).await;
+            }
+            if cleanup_object {
+                let _ = store.delete(&access, &key, soon()).await;
+            }
+        });
+    }
 }
 
 /// Creates the empty file `name` in the folder at `at`; a name that is taken is `exists`.

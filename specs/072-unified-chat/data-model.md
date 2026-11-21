@@ -86,7 +86,7 @@ Rename and picture use the same LWW rule on the thread row: an op whose `(at, op
 | `kind`        | TEXT NOT NULL              | `file` or `contact`                                                |
 | `name`        | TEXT NULL                  | file name (sanitised, ≤ 255 bytes)                                 |
 | `mime`        | TEXT NULL                  |                                                                    |
-| `size`        | INTEGER NULL               | plaintext bytes, ≤ 100 MB (FR-034)                                 |
+| `size`        | INTEGER NULL               | plaintext bytes, ≤ 200 MiB (FR-034)                                |
 | `sha256`      | TEXT NULL                  | plaintext hash                                                     |
 | `blossom_url` | TEXT NULL                  | full blob URL                                                      |
 | `blob_sha256` | TEXT NULL                  | ciphertext hash (Blossom address)                                  |

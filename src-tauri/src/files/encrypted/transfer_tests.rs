@@ -320,3 +320,176 @@ async fn a_taken_name_is_replaced_after_the_new_version_or_kept_beside() {
     names.sort();
     assert_eq!(names, ["notiz (2).txt", "notiz.txt"]);
 }
+
+/// The file `name` below the folder `Unterlagen`, as a stream put sees it.
+async fn put_at(scene: &Scene, name: &str) -> Located {
+    let Route::Encrypted(at) = route(&scene.files(), &format!("/Unterlagen/{name}"))
+        .await
+        .unwrap()
+    else {
+        panic!("the folder is encrypted");
+    };
+    at
+}
+
+fn bytes(len: usize) -> Vec<u8> {
+    (0..len).map(|i| (i * 31 % 251) as u8).collect()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_stream_put_sends_parts_before_the_commit_and_shows_the_same_bytes() {
+    let scene = with_folder().await;
+    let data = bytes(2 * PART + 12_345);
+    let files = scene.files();
+    let at = put_at(&scene, "gross.bin").await;
+
+    let mut put = PutStream::begin(&files, &at).await.unwrap();
+    for piece in data.chunks(1024 * 1024) {
+        put.push(piece).await.unwrap();
+    }
+    // Two full parts are at the storage already: the file was never held whole.
+    let calls = scene.fake.calls();
+    let parts = calls.iter().filter(|(op, _)| *op == Op::UploadPart).count();
+    assert!(parts >= 2, "{calls:?}");
+    assert!(
+        under(&scene, ".hxef/m/").is_empty(),
+        "nothing shows before the commit"
+    );
+    let listed = scene.fresh_files().list("/Unterlagen").await.unwrap();
+    assert!(listed.is_empty());
+
+    put.commit().await.unwrap();
+    assert!(!under(&scene, ".hxef/m/").is_empty());
+
+    let (_dir, back) = device();
+    assert_eq!(
+        download(&scene, "/Unterlagen/gross.bin", &back).await,
+        Outcome::Done
+    );
+    assert_eq!(std::fs::read(back.join("gross.bin")).unwrap(), data);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_stream_put_that_fits_one_part_is_one_request_like_put_file() {
+    let scene = with_folder().await;
+    let files = scene.files();
+    let at = put_at(&scene, "klein.txt").await;
+    let mut put = PutStream::begin(&files, &at).await.unwrap();
+    put.push(b"Strom ").await.unwrap();
+    put.push(b"2026").await.unwrap();
+    put.commit().await.unwrap();
+    let calls = scene.fake.calls();
+    assert!(!calls.iter().any(|(op, _)| *op == Op::BeginUpload));
+
+    let (_dir, back) = device();
+    download(&scene, "/Unterlagen/klein.txt", &back).await;
+    assert_eq!(
+        std::fs::read_to_string(back.join("klein.txt")).unwrap(),
+        "Strom 2026"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_aborted_stream_put_leaves_no_part_and_no_file() {
+    let scene = with_folder().await;
+    let files = scene.files();
+    let at = put_at(&scene, "weg.bin").await;
+    let mut put = PutStream::begin(&files, &at).await.unwrap();
+    put.push(&bytes(PART + 10)).await.unwrap();
+    assert!(
+        scene
+            .fake
+            .calls()
+            .iter()
+            .any(|(op, _)| *op == Op::UploadPart),
+        "a part is at the storage"
+    );
+    put.abort().await;
+    assert!(scene
+        .fake
+        .calls()
+        .iter()
+        .any(|(op, _)| *op == Op::AbortUpload));
+    assert!(under(&scene, ".hxef/c/").is_empty());
+    assert!(under(&scene, ".hxef/m/").is_empty());
+    assert!(scene
+        .fresh_files()
+        .list("/Unterlagen")
+        .await
+        .unwrap()
+        .is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_failed_commit_takes_the_parts_down_and_shows_nothing() {
+    let scene = with_folder().await;
+    let files = scene.files();
+    let at = put_at(&scene, "kaputt.bin").await;
+    let mut put = PutStream::begin(&files, &at).await.unwrap();
+    put.push(&bytes(PART + 10)).await.unwrap();
+    scene.fake.fail(
+        Op::FinishUpload,
+        crate::remote_storage::StorageError::AccessDenied,
+    );
+    assert!(put.commit().await.is_err());
+    assert!(under(&scene, ".hxef/m/").is_empty());
+    assert!(scene
+        .fresh_files()
+        .list("/Unterlagen")
+        .await
+        .unwrap()
+        .is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_stream_put_that_is_dropped_aborts_its_upload() {
+    let scene = with_folder().await;
+    let files = scene.files();
+    let at = put_at(&scene, "verloren.bin").await;
+    let mut put = PutStream::begin(&files, &at).await.unwrap();
+    put.push(&bytes(PART + 10)).await.unwrap();
+    assert!(scene
+        .fake
+        .calls()
+        .iter()
+        .any(|(op, _)| *op == Op::UploadPart));
+    // A cancelled caller drops the writer without `abort`.
+    drop(put);
+    for _ in 0..50 {
+        if scene
+            .fake
+            .calls()
+            .iter()
+            .any(|(op, _)| *op == Op::AbortUpload)
+        {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+    assert!(
+        scene
+            .fake
+            .calls()
+            .iter()
+            .any(|(op, _)| *op == Op::AbortUpload),
+        "the upload is aborted by the drop"
+    );
+    assert!(under(&scene, ".hxef/m/").is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_committed_stream_put_does_not_abort_when_it_is_dropped_later() {
+    let scene = with_folder().await;
+    let files = scene.files();
+    let at = put_at(&scene, "fertig.bin").await;
+    let mut put = PutStream::begin(&files, &at).await.unwrap();
+    put.push(&bytes(PART + 10)).await.unwrap();
+    put.commit().await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    assert!(!scene
+        .fake
+        .calls()
+        .iter()
+        .any(|(op, _)| *op == Op::AbortUpload));
+    assert!(!under(&scene, ".hxef/m/").is_empty());
+}

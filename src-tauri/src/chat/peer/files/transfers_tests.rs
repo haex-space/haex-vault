@@ -9,19 +9,36 @@ use super::*;
 use crate::chat::peer::files::test_server::BlossomTestServer;
 use crate::chat::peer::messages::PeerMessage;
 use crate::chat::peer::test_support::{mock_relay, two_vaults, ChatDevice};
+use crate::remote_storage::address::SystemResolver;
 
 const PLAN: &[u8] = b"%PDF-1.7 the plan for saturday, never in plaintext on a server";
 
 fn picked(bytes: &[u8]) -> Picked {
-    Picked {
-        name: "Plan.pdf".into(),
-        mime: "application/pdf".into(),
-        bytes: bytes.to_vec(),
-        inline: false,
-    }
+    Picked::in_memory("Plan.pdf", "application/pdf", bytes.to_vec(), false)
+}
+
+#[test]
+fn one_message_cannot_exceed_the_aggregate_file_size_limit() {
+    assert_eq!(
+        remaining_message_limit(0).expect("empty selection"),
+        MAX_MESSAGE_PLAINTEXT
+    );
+    assert_eq!(
+        remaining_message_limit(MAX_MESSAGE_PLAINTEXT - 1).expect("one byte left"),
+        1
+    );
+    assert_eq!(
+        remaining_message_limit(MAX_MESSAGE_PLAINTEXT).expect("limit reached"),
+        0
+    );
+    assert!(remaining_message_limit(MAX_MESSAGE_PLAINTEXT + 1).is_err());
 }
 
 async fn send_file(from: &ChatDevice, to: &ChatDevice, text: &str, bytes: &[u8]) -> Result<Uuid> {
+    send_picked(from, to, text, picked(bytes)).await
+}
+
+async fn send_picked(from: &ChatDevice, to: &ChatDevice, text: &str, file: Picked) -> Result<Uuid> {
     let thread = from.thread_with(to);
     let (own, peer) = (from.me.vault_hex.clone(), to.me.vault_hex.clone());
     from.db
@@ -36,9 +53,7 @@ async fn send_file(from: &ChatDevice, to: &ChatDevice, text: &str, bytes: &[u8])
         .expect("open");
     let files = from.session.files.get().expect("files").clone();
     let event = crate::chat::peer::envelope::new_event_id();
-    let sent = files
-        .send(&from.me, thread, &event, text, vec![picked(bytes)])
-        .await;
+    let sent = files.send(&from.me, thread, &event, text, vec![file]).await;
     from.session.kick.notify_one();
     sent
 }
@@ -413,4 +428,218 @@ async fn the_receivers_second_device_downloads_the_file_itself() {
         .expect("one blob");
     let devices: Vec<String> = serde_json::from_str(&pending).expect("json");
     assert_eq!(devices.len(), 2, "both of Ben's devices: {devices:?}");
+}
+
+/// More than one part of the store (8 MiB) and more than eight segments, deterministic.
+fn many_segments() -> Vec<u8> {
+    (0..9 * 1024 * 1024 + 17)
+        .map(|i| (i * 31 % 251) as u8)
+        .collect()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_file_of_many_segments_goes_through_the_streams_intact() {
+    let (_relay, url) = mock_relay().await;
+    let blossom = BlossomTestServer::start().await;
+    let (anna, ben) = two_vaults(&[url]).await;
+    anna.enable_files(&blossom.url, None);
+    ben.enable_files(&blossom.url, None);
+    anna.start().await;
+    ben.start().await;
+
+    let data = many_segments();
+    send_file(&anna, &ben, "viel", &data).await.expect("send");
+    let at_anna = anna.messages_with(&ben);
+    let id = attachment_id(&at_anna);
+    assert!(stored(&anna, &id).await.as_deref() == Some(data.as_slice()));
+
+    let at_ben = ben
+        .wait_for(&anna, "the file at Ben", |m| {
+            file_state(m).as_deref() == Some("stored")
+        })
+        .await;
+    assert_eq!(at_ben[0].attachments[0].size, data.len() as i64);
+    assert!(stored(&ben, &id).await.as_deref() == Some(data.as_slice()));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_file_that_changes_between_the_passes_is_not_sent() {
+    let (_relay, url) = mock_relay().await;
+    let blossom = BlossomTestServer::start().await;
+    let (anna, ben) = two_vaults(&[url]).await;
+    anna.enable_files(&blossom.url, None);
+    ben.enable_files(&blossom.url, None);
+    anna.start().await;
+    ben.start().await;
+
+    let opened = Arc::new(Mutex::new(0_u32));
+    let counted = Arc::clone(&opened);
+    let source = Source::opened_by(move || {
+        let mut times = counted.lock().expect("count");
+        *times += 1;
+        let mut bytes = PLAN.to_vec();
+        // The second look at the file finds another byte.
+        if *times > 1 {
+            bytes[5] ^= 1;
+        }
+        Ok(Box::new(std::io::Cursor::new(bytes)) as Box<dyn Read + Send>)
+    });
+    let file = Picked {
+        name: "Plan.pdf".into(),
+        mime: "application/pdf".into(),
+        source,
+        inline: false,
+    };
+    let error = send_picked(&anna, &ben, "", file)
+        .await
+        .expect_err("a changed file is not sent");
+    assert!(error.to_string().contains("chat.file.changed"), "{error}");
+    assert!(anna.messages_with(&ben).is_empty(), "no message was queued");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_blob_that_is_not_the_named_one_is_dropped_and_leaves_no_file() {
+    let (_relay, url) = mock_relay().await;
+    let blossom = BlossomTestServer::start().await;
+    let (anna, ben) = two_vaults(&[url]).await;
+    anna.enable_files(&blossom.url, None);
+    let ben_files = ben.enable_files(&blossom.url, None);
+    let device = ben_files.device;
+    ben.db
+        .write_blocking(move |tx| Ok(settings::set_auto_limit(tx, device, 10)?))
+        .expect("limit");
+    anna.start().await;
+    ben.start().await;
+
+    send_file(&anna, &ben, "kaputt", PLAN).await.expect("send");
+    let at_ben = ben
+        .wait_for(&anna, "pending", |m| {
+            file_state(m).as_deref() == Some("pending")
+        })
+        .await;
+    let id = attachment_id(&at_ben);
+    let blob = blossom
+        .log()
+        .into_iter()
+        .find(|logged| logged.method == "PUT")
+        .map(|put| hex(&Sha256::digest(&put.body)))
+        .expect("the upload");
+    blossom.tamper(&blob);
+
+    let error = ben_files.download(&id).await.expect_err("damaged");
+    assert!(error.to_string().contains("chat.file.damaged"), "{error}");
+    assert_eq!(stored(&ben, &id).await, None, "no file shows");
+    let at_ben = ben.messages_with(&anna);
+    assert_eq!(file_state(&at_ben).as_deref(), Some("failed"));
+}
+
+async fn orphan_rows(files: &ChatFiles) -> i64 {
+    files
+        .db
+        .read(|r| {
+            r.query_row(
+                "SELECT COUNT(*) FROM chat_blobs_no_sync WHERE attachment_id LIKE 'orphan-cleanup:%'",
+                params![],
+                |row| row.get::<_, i64>(0),
+            )
+        })
+        .await
+        .expect("count")
+        .unwrap_or(0)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_file_that_grows_after_it_was_measured_stops_the_copy_and_takes_the_blob_down() {
+    let (_relay, url) = mock_relay().await;
+    let blossom = BlossomTestServer::start().await;
+    let (anna, ben) = two_vaults(&[url]).await;
+    anna.enable_files(&blossom.url, None);
+    ben.enable_files(&blossom.url, None);
+    anna.start().await;
+    ben.start().await;
+
+    let opened = Arc::new(Mutex::new(0_u32));
+    let counted = Arc::clone(&opened);
+    let source = Source::opened_by(move || {
+        let mut times = counted.lock().expect("count");
+        *times += 1;
+        let mut bytes = PLAN.to_vec();
+        // The measuring pass and the upload see the file as it was; the copy finds more.
+        if *times > 2 {
+            bytes.extend_from_slice(b" and more that was appended meanwhile");
+        }
+        Ok(Box::new(std::io::Cursor::new(bytes)) as Box<dyn Read + Send>)
+    });
+    let file = Picked {
+        name: "Plan.pdf".into(),
+        mime: "application/pdf".into(),
+        source,
+        inline: false,
+    };
+    let error = send_picked(&anna, &ben, "", file)
+        .await
+        .expect_err("a file that grew is not sent");
+    assert!(error.to_string().contains("chat.file.changed"), "{error}");
+    assert!(anna.messages_with(&ben).is_empty(), "no message was queued");
+
+    let uploaded = blossom
+        .log()
+        .into_iter()
+        .find(|logged| logged.method == "PUT")
+        .map(|put| hex(&Sha256::digest(&put.body)))
+        .expect("the blob was uploaded first");
+    assert!(
+        !blossom.has(&uploaded),
+        "the blob of a message that was never queued is deleted"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_deletion_that_fails_is_remembered_and_done_when_the_server_is_back() {
+    let blossom = BlossomTestServer::start().await;
+    let (anna, _ben) = two_vaults(&[]).await;
+    let files = anna.enable_files(&blossom.url, None);
+    let keys = Keys::generate();
+    let live = Server::new(&blossom.url, &SystemResolver)
+        .await
+        .expect("server");
+    let blob = b"ciphertext of a message that was never queued".to_vec();
+    let descriptor = live
+        .upload(&keys, UploadBody::whole(blob), &SystemResolver, &mut |_| {})
+        .await
+        .expect("upload");
+    assert!(blossom.has(&descriptor.sha256));
+
+    // Nothing listens at the other address: the deletion fails and is kept.
+    let gone = Server::new("http://127.0.0.1:1/", &SystemResolver)
+        .await
+        .expect("server");
+    files
+        .delete_unqueued(&gone, &[(keys.clone(), descriptor.sha256.clone())])
+        .await;
+    assert_eq!(orphan_rows(&files).await, 1);
+    assert!(blossom.has(&descriptor.sha256), "the blob is still there");
+
+    // The same row for the server that is back.
+    let (hash, address, signer, secret) = (
+        descriptor.sha256.clone(),
+        blossom.url.clone(),
+        keys.public_key().to_hex(),
+        keys.secret_key().to_secret_bytes().to_vec(),
+    );
+    files
+        .db
+        .write(move |tx| {
+            tx.execute(
+                "UPDATE chat_blobs_no_sync SET server = ?2, signer = ?3, upload_secret = ?4 \
+                 WHERE blob_sha256 = ?1",
+                params![hash, address, signer, secret],
+            )?;
+            Ok(())
+        })
+        .await
+        .expect("row");
+    files.retry_orphan_deletes().await.expect("retry");
+    assert!(!blossom.has(&descriptor.sha256), "the retry deleted it");
+    assert_eq!(orphan_rows(&files).await, 0, "and forgot it");
 }

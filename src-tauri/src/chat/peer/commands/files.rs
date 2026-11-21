@@ -2,21 +2,18 @@
 //! message and downloading a file on request (above the automatic limit, or again after a
 //! failure). Opening and saving follow with the window in PR E3.
 
+use std::io::Read;
 use std::sync::Arc;
 
 use serde::Deserialize;
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
-use crate::chat::peer::files::crypto::MAX_PLAINTEXT;
-use crate::chat::peer::files::transfers::{ChatFiles, Picked};
+use crate::chat::peer::files::transfers::{ChatFiles, Picked, Source};
 use crate::chat::peer::session::{PeerRegistry, Session};
 use crate::error::{HaexError, Result};
 use crate::files::kind::mime_for;
 use crate::files::picked::{self, PickedFile};
-
-/// Bound the plaintext retained while preparing one message, including on mobile devices.
-const MAX_MESSAGE_PLAINTEXT: u64 = MAX_PLAINTEXT;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -48,62 +45,40 @@ fn chat_files(session: &Session) -> Result<Arc<ChatFiles>> {
         })
 }
 
-/// Reads the picked files, each at most 100 MB (FR-034).
-async fn read_picked(
+/// The picked files as sources for sending. Nothing is read here: every pass over a file opens it
+/// again, so a file of up to the limit (FR-034) is never held whole.
+async fn pick_files(
     app: &AppHandle,
     files: Vec<PickedFile>,
     inline_text: Option<Picked>,
 ) -> Result<Vec<Picked>> {
     let app = app.clone();
     tokio::task::spawn_blocking(move || {
-        let mut total = 0_u64;
         let mut picked: Vec<Picked> = files
-            .iter()
+            .into_iter()
             .map(|file| {
-                let name = picked::display_name(&app, file);
-                let remaining = remaining_message_limit(total)?;
-                let bytes = picked::read(&app, file, remaining)?;
-                let size = bytes.len() as u64;
-                if size > remaining {
-                    return Err(HaexError::InvalidInput {
-                        reason: "chat.file.tooLarge".into(),
-                    });
-                }
-                total += size;
+                let name = picked::display_name(&app, &file);
                 let mime = mime_for(&name)
                     .unwrap_or("application/octet-stream")
                     .to_owned();
-                Ok(Picked {
+                let opener = app.clone();
+                Picked {
                     name,
                     mime,
-                    bytes,
+                    source: Source::opened_by(move || {
+                        Ok(Box::new(picked::open_read(&opener, &file)?) as Box<dyn Read + Send>)
+                    }),
                     inline: false,
-                })
+                }
             })
-            .collect::<Result<_>>()?;
-        if let Some(file) = inline_text {
-            let remaining = remaining_message_limit(total)?;
-            if file.bytes.len() as u64 > remaining {
-                return Err(HaexError::InvalidInput {
-                    reason: "chat.file.tooLarge".into(),
-                });
-            }
-            picked.push(file);
-        }
+            .collect();
+        picked.extend(inline_text);
         Ok(picked)
     })
     .await
     .map_err(|e| HaexError::InvalidInput {
         reason: e.to_string(),
     })?
-}
-
-fn remaining_message_limit(total: u64) -> Result<u64> {
-    MAX_MESSAGE_PLAINTEXT
-        .checked_sub(total)
-        .ok_or_else(|| HaexError::InvalidInput {
-            reason: "chat.file.tooLarge".into(),
-        })
 }
 
 /// Uploads the picked files and queues the message with them (FR-031).
@@ -116,7 +91,7 @@ pub(super) async fn send_with_files(
     inline_text: Option<Picked>,
 ) -> Result<Uuid> {
     let session = session(app)?;
-    let picked = read_picked(app, files, inline_text).await?;
+    let picked = pick_files(app, files, inline_text).await?;
     let id = chat_files(&session)?
         .send(&session.me, thread_id, event_id, text, picked)
         .await?;
@@ -144,7 +119,3 @@ pub async fn chat_attachment_text(app: AppHandle, args: TextArgs) -> Result<Stri
     let session = session(&app)?;
     chat_files(&session)?.text(&id.to_string()).await
 }
-
-#[cfg(test)]
-#[path = "files_tests.rs"]
-mod tests;

@@ -361,6 +361,34 @@ and fully after a click.
 
 ---
 
+## Phase 13: Files up to 200 MiB (Priority: P1) (PR M)
+
+**Goal**: A chat file of up to 200 MiB is sent and received on every platform while a transfer holds a
+few segments in memory (FR-034, R14 amendment of 2026-11-21); design in
+[docs/plans/2026-11-21-large-files-design.md](../../docs/plans/2026-11-21-large-files-design.md). No new
+file format and no migration.
+
+### Tests for large files
+
+- [x] T133 [P] Tests in `src-tauri/src/chat/peer/files/crypto_tests.rs`: the streaming sealer equals `encrypt` byte for byte (empty file, one segment, a segment boundary, three segments), and a reader that fails midway fails the seal.
+- [x] T134 [P] Tests in `src-tauri/src/chat/peer/files/blossom_tests.rs`: a stalled upload and a stalled download fail after the stall time, a slow one that keeps moving does not; the total bound scales with the size; an upload is a stream, not one buffer.
+- [x] T135 [P] Tests in `src-tauri/src/files/encrypted/transfer_tests.rs`: the streaming put equals `put_file` for the same bytes; nothing shows before the commit; an abandoned put leaves no content object.
+- [x] T136 [P] Tests in `src-tauri/src/chat/peer/files/transfers_tests.rs` and `long_text_tests.rs`: two vaults send a file of more than one store part (9 MiB) over the test Blossom-Server, intact on both sides; a source that changes between the passes fails with `chat.file.changed` and queues nothing; a failed hash on receive leaves no stored file.
+
+### Implementation for large files
+
+- [x] T137 `src-tauri/src/chat/peer/files/crypto.rs`: `MAX_PLAINTEXT` 209,715,200; a streaming sealer that takes a reader and answers segments; `encrypt` stays for small inputs.
+- [x] T138 `src-tauri/src/chat/peer/files/blossom.rs`: `upload` takes a body stream with a known hash and length; `download` writes to a sink; stall timeout plus the size-scaled total (contracts/blossom.md).
+- [x] T139 `src-tauri/src/files/encrypted/transfer.rs`: a streaming put next to `put_file`; `src-tauri/src/chat/peer/files/store.rs`: `put_stream`, with per-attachment writes serialized and the semaphore guarding first-time folder creation only.
+- [x] T140 `src-tauri/src/chat/peer/files/transfers.rs`, `commands/files.rs`: `Picked` has a source (bytes or a picked file opened per pass); send in three passes (measure, upload, own copy); receive writes while it downloads and commits after the check; `MAX_MESSAGE_PLAINTEXT` bounds the sum of a message's files at the new limit.
+- [x] T141 [P] i18n `chat.file.tooLarge`, `chat.file.changed` and `chat.file.unreadable` in `src/i18n/locales/de.json` and `en.json`.
+- [x] T142 Checks: `pnpm check:*`, `typecheck:scripts`, clippy for the host and `aarch64-linux-android`; the memory bound is shown by construction (T135: parts are at the storage before the commit), not by a measurement.
+
+**Checkpoint**: A 200 MiB file goes to a contact and arrives, on desktop and on a phone, with the
+process well below the file's size in memory.
+
+---
+
 ## Dependencies & Execution Order
 
 - **Setup (T001–T003)** → **Foundational (T004–T008)** → US1 (PR B).

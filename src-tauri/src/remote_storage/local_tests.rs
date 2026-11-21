@@ -274,3 +274,32 @@ async fn errors_carry_no_path() {
     assert!(!text.contains("fehlt"), "{text}");
     assert!(!text.contains(&*root.path().to_string_lossy()), "{text}");
 }
+
+#[tokio::test]
+async fn a_finish_that_misses_its_deadline_leaves_no_unreferenced_object() {
+    let root = tempfile::tempdir().unwrap();
+    let store = LocalStore::new();
+    let access = access(root.path());
+    let id = store
+        .begin_upload(&access, "o/spaet", soon())
+        .await
+        .unwrap();
+    store
+        .upload_part(&access, "o/spaet", &id, 1, b"ab".to_vec(), soon())
+        .await
+        .unwrap();
+    // The deadline is over at once; the rename may still win the race with it.
+    let finished = store
+        .finish_upload(&access, "o/spaet", &id, &[], tokio::time::Instant::now())
+        .await;
+    let exists = root.path().join("o/spaet").exists();
+    match finished {
+        Err(StorageError::TimedOut) => assert!(!exists, "a timed-out commit leaves nothing"),
+        Ok(()) => assert!(exists),
+        other => panic!("{other:?}"),
+    }
+    // Either way nothing half-written lies beside it.
+    assert!(names(&root.path().join("o"))
+        .iter()
+        .all(|name| name == "spaet"));
+}

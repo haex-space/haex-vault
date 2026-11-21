@@ -64,8 +64,8 @@ except notifications permission and "open with system app", which stays desktop-
 min); receipts batched every 2 s; ≤ ~100 wraps per group message.
 
 **Constraints**: wraps ≤ 60 KiB; no plaintext, names or vault ids outside the encrypted layers (SC-005);
-chat files ≤ 100 MB and ≤ the server's limit; one file in memory at a time while sealing into the
-encrypted folder (`ponytail:` R14); Nostr-Relay changes apply at the next vault open (as presence).
+chat files ≤ 200 MiB and ≤ the server's limit; a few segments in memory at a time while sealing into the
+encrypted folder (streaming put, R14 amendment); Nostr-Relay changes apply at the next vault open (as presence).
 
 **Scale/Scope**: conversations in the hundreds, messages in the tens of thousands per vault; groups ≤ 32
 members; 8 user stories, ~80 FRs; ~25 new Rust files, ~15 new Vue/TS files.
@@ -85,7 +85,7 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 | One implementation per rule                          | ✅ one wrap implementation (presence's, generalised); card trust via `received::*` and 060's replace rule; agent prompts via `PermissionPrompt`; notification routing shared with extensions                                                        |
 | No `unwrap`/`expect` on input, don't swallow errors  | ✅ rumors parsed once with size limits; drops are logged with reason codes, without content (R5)                                                                                                                                                    |
 | Async not blocking                                   | ✅ DB access on the blocking pool; encryption of segments in `spawn_blocking`; network on the vault gate's tracker                                                                                                                                  |
-| `ponytail:` markers                                  | ✅ idle write-relay timeout (R3), device-local outbox (R6), blob kept for dead devices until the sweep (R13), whole-file seal into the encrypted folder (R14)                                                                                       |
+| `ponytail:` markers                                  | ✅ idle write-relay timeout (R3), device-local outbox (R6), blob kept for dead devices until the sweep (R13), ~~whole-file seal into the encrypted folder (R14)~~ paid by the streaming put (R14 amendment, 2026-11-21)                             |
 | I. No secrets in git                                 | ✅ keys only at runtime (per-blob keys in `_no_sync`, upload key in the password manager); test keys generated                                                                                                                                      |
 | II./III. No local paths, device-independent identity | ✅ no paths in config; chat file folder resolved from `app_local_data` at runtime                                                                                                                                                                   |
 | IV. Foreign content pinned                           | ✅ not touched (Blossom/NIP references are public specs, not consumed content)                                                                                                                                                                      |
