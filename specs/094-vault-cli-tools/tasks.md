@@ -157,7 +157,7 @@ description: 'Task list for CLI tools per vault (spec 094)'
 ### Tests for User Story 4
 
 - [x] T057 [P] [US4] `src-tauri/src/cli_tools/commands_tests.rs`: remove deletes all versions of one vendor and leaves the other vendor and `home/` alone; `in_use` while a delegate child of that vendor is live; the stored provider row is not touched by the command (the settings action removes it).
-- [ ] T058 [P] [US4] `src-tauri/src/instances/cleanup_tests.rs`: `take_back` removes a vault folder that contains populated `cli-tools/` and `home/` (SC-006).
+- [x] T058 [P] [US4] `src-tauri/src/instances/cleanup_tests.rs`: `take_back` removes a vault folder that contains populated `cli-tools/` and `home/` (SC-006). (Done: `taking_back_a_vault_leaves_no_file_of_its_tools_or_home_and_keeps_those_of_another_vault`. `take_back` is the only vault removal the app has; there is no user-facing "delete vault" command.)
 
 ### Implementation for User Story 4
 
@@ -176,13 +176,13 @@ description: 'Task list for CLI tools per vault (spec 094)'
 
 ### Tests for User Story 5
 
-- [ ] T061 [P] [US5] `src-tauri/src/cli_tools/installed_tests.rs`: `install.json` for another platform gives `needs_reinstall` (`platform`); a missing executable, or one whose size differs from `install.json`, gives `needs_reinstall` (`incomplete`); a spawn that fails with permission denied gives `not_runnable` with the reason and no copy elsewhere on the host.
-- [ ] T062 [P] [US5] `src-tauri/src/instances/import_tests.rs`: an imported or synced vault arrives with no `cli-tools/` content, and its tools show `not_installed`.
+- [x] T061 [P] [US5] `src-tauri/src/cli_tools/installed_tests.rs`: `install.json` for another platform gives `needs_reinstall` (`platform`); a missing executable, or one whose size differs from `install.json`, gives `needs_reinstall` (`incomplete`); a spawn that fails with permission denied gives `not_runnable` with the reason and no copy elsewhere on the host. (Done earlier, with the foundation: `installed_tests.rs` has the platform and incomplete cases, and `adapters/cli_delegate/process_tests.rs` has the permission-denied case that gives `not runnable: <vendor>: permission denied` and copies nothing.)
+- [x] T062 [P] [US5] `src-tauri/src/instances/import_tests.rs`: an imported or synced vault arrives with no `cli-tools/` content, and its tools show `not_installed`. (Done in `src-tauri/tests/vault_file_import.rs`, not `import_tests.rs`: only the real `import_instance_core` over the mock runtime shows what arrives. A vault whose other device had a tool and a home folder arrives with neither, and both tools are `not_installed`. Sync moves rows, never files, so there is nothing more to test for a synced vault.)
 
 ### Implementation for User Story 5
 
-- [ ] T063 [US5] `src-tauri/src/cli_tools/installed.rs`, `commands.rs` and `src-tauri/src/adapters/cli_delegate/process.rs`: derive `needs_reinstall` and `not_runnable`, map the permission-denied spawn error to an `Unavailable` reason `not runnable: <reason>`; never start an installation that does not fit. Makes T061 pass.
-- [ ] T064 [P] [US5] Frontend states and strings for `needs_reinstall` (`platform`, `incomplete`) and `not_runnable` in `CliToolRow.vue`, `useErrorString.ts` and both locale files; reinstall is the install action.
+- [x] T063 [US5] `src-tauri/src/cli_tools/installed.rs`, `commands.rs` and `src-tauri/src/adapters/cli_delegate/process.rs`: derive `needs_reinstall` and `not_runnable`, map the permission-denied spawn error to an `Unavailable` reason `not runnable: <reason>`; never start an installation that does not fit. Makes T061 pass. (Done earlier, with the foundation: `installed.rs` resolves `needs_reinstall`, `runtime.rs` refuses to start it, `process.rs::map_spawn_error` maps permission denied. `not_runnable` is not a derived status state: the status reads the file tree and cannot know that a start fails, so it is the reason of the failed start and the chat shows it.)
+- [x] T064 [P] [US5] Frontend states and strings for `needs_reinstall` (`platform`, `incomplete`) and `not_runnable` in `CliToolRow.vue`, `useErrorString.ts` and both locale files; reinstall is the install action. (Done: `needs_reinstall` and its install action were in `DelegateRow.vue` (it replaced `CliToolRow.vue`) and the locale files; this adds the `not runnable` reason to `unavailableTool`, `useErrorString.ts` and `errors.cliTools.notRunnable` in both languages.)
 
 **Checkpoint**: every state a user can reach has a message and an action
 

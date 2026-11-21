@@ -2004,6 +2004,7 @@
     "cliTools": {
       "notInstalled": "{name} ist in diesem Vault nicht installiert. Installiere es in den Einstellungen und versuche es erneut.",
       "needsReinstall": "{name} ist in diesem Vault beschädigt oder für ein anderes Gerät erstellt. Installiere es in den Einstellungen erneut.",
+      "notRunnable": "{name} lässt sich in diesem Vault nicht starten: Das System erlaubt keine Programme im Vault-Ordner (Zugriff verweigert). Prüfe, ob der Ordner das Ausführen von Programmen zulässt.",
       "unknown_vendor": "Dieses Programm wird nicht angeboten.",
       "unknown_version": "Diese Version wird nicht angeboten.",
       "unsupported_platform": "Dieses Programm gibt es für dieses Gerät nicht.",

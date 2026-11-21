@@ -136,17 +136,26 @@ export function phaseKey(
 
 /**
  * The reasons an adapter gives when it cannot start a tool (`not installed in this vault: <vendor>`,
- * `needs reinstall: <vendor>`) and the vendor they name; `null` for any other text. The chat shows
- * these as an invitation to install, not as a failure.
+ * `needs reinstall: <vendor>`, `not runnable: <vendor>: <reason>`) and the vendor they name; `null`
+ * for any other text. The first two are shown as an invitation to install, the third says the
+ * system refuses to run the program, which installing again does not change.
  */
-export function unavailableTool(
-  text: string,
-): { kind: 'not_installed' | 'needs_reinstall'; vendor: string } | null {
+export function unavailableTool(text: string): {
+  kind: 'not_installed' | 'needs_reinstall' | 'not_runnable'
+  vendor: string
+} | null {
   const match =
-    /(not installed in this vault|needs reinstall): ([a-z0-9]+)/.exec(text)
+    /(not installed in this vault|needs reinstall|not runnable): ([a-z0-9]+)/.exec(
+      text,
+    )
   if (!match) return null
+  const kinds = {
+    'not installed in this vault': 'not_installed',
+    'needs reinstall': 'needs_reinstall',
+    'not runnable': 'not_runnable',
+  } as const
   return {
-    kind: match[1] === 'needs reinstall' ? 'needs_reinstall' : 'not_installed',
+    kind: kinds[match[1] as keyof typeof kinds],
     vendor: match[2]!,
   }
 }

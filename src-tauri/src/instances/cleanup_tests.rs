@@ -1,4 +1,5 @@
 use super::*;
+use crate::instances::vault_paths::VaultPaths;
 
 #[test]
 fn every_file_of_the_vault_goes_and_others_stay() {
@@ -74,4 +75,54 @@ fn the_folder_stays_while_a_file_of_the_vault_cannot_go() {
 
     assert!(!take_back(&folder.join("vault.db")));
     assert!(folder.join("vault.db.pending").exists());
+}
+
+/// Fills the tool area and the home folder of the vault `name` the way installs and runs do.
+fn populate_tools_and_home(paths: &VaultPaths, name: &str) {
+    let version = paths.cli_tool_dir(name, "claude").join("1.0.0");
+    std::fs::create_dir_all(version.join("lib")).unwrap();
+    std::fs::write(version.join("claude"), b"program").unwrap();
+    std::fs::write(version.join("install.json"), b"{}").unwrap();
+    std::fs::write(version.join("lib").join("engine"), b"library").unwrap();
+    std::fs::create_dir_all(paths.cli_tool_dir(name, "codex").join("2.0.0")).unwrap();
+    std::fs::create_dir_all(paths.home(name).join(".claude")).unwrap();
+    std::fs::write(paths.home(name).join(".claude").join("history"), b"x").unwrap();
+    std::fs::create_dir_all(paths.run_root(name).join("run-1")).unwrap();
+    std::fs::create_dir_all(paths.records_dir(name)).unwrap();
+    std::fs::write(
+        paths.records_dir(name).join("tools.log"),
+        b"1 install_started\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn taking_back_a_vault_leaves_no_file_of_its_tools_or_home_and_keeps_those_of_another_vault() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = VaultPaths::new(dir.path());
+    for name in ["anna", "ben"] {
+        std::fs::create_dir_all(paths.folder(name)).unwrap();
+        std::fs::write(paths.database(name), b"x").unwrap();
+        std::fs::write(get_pending_marker_path(&paths.database(name)), b"").unwrap();
+        populate_tools_and_home(&paths, name);
+    }
+
+    assert!(take_back(&paths.database("anna")));
+
+    assert!(
+        !paths.folder("anna").exists(),
+        "nothing of the vault is left"
+    );
+    assert!(!paths.cli_tools("anna").exists());
+    assert!(!paths.home("anna").exists());
+    assert!(
+        paths
+            .cli_tool_dir("ben", "claude")
+            .join("1.0.0")
+            .join("lib")
+            .join("engine")
+            .is_file(),
+        "the tools of another vault stay"
+    );
+    assert!(paths.records_dir("ben").join("tools.log").is_file());
 }
