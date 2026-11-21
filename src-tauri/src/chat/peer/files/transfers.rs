@@ -519,7 +519,10 @@ impl ChatFiles {
                 )
             })
             .await?;
-        for (blob, address, signer, Some(secret)) in rows {
+        for (blob, address, signer, secret) in rows {
+            let Some(secret) = secret else {
+                continue;
+            };
             let Ok(secret) = nostr::key::SecretKey::from_slice(&secret) else {
                 continue;
             };
