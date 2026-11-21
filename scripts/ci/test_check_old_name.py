@@ -130,6 +130,7 @@ class OldNameGateTest(unittest.TestCase):
     def test_a_broken_unused_or_incomplete_entry_fails_with_its_line(self):
         cases = {
             "no reason": "path | a.txt |\n",
+            "extra field": "path | a.txt | because | S10 | ignored\n",
             "empty pattern": "path |  | because\n",
             "unknown kind": "glob | a.txt | because\n",
             "bad regex": "line | ( | because\n",

@@ -70,6 +70,9 @@ def read_allowlist(root):
         # `kind | pattern | reason |` (a bare trailing pipe) is a list without a reason.
         if line.endswith("|") and len(fields) < 4:
             fields = [part.strip() for part in line.rstrip("|").split(" | ")] + [""]
+        if len(fields) > 4:
+            problems.append(f"{shown}:{number}: expected 3 or 4 fields, found {len(fields)}")
+            continue
         kind = fields[0] if fields else ""
         pattern = fields[1] if len(fields) > 1 else ""
         reason = fields[2] if len(fields) > 2 else ""
