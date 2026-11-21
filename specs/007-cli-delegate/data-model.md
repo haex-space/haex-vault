@@ -1,5 +1,11 @@
 # Phase 1 Data Model: CLI Delegate Backend (Claude Code / Codex)
 
+> **Teilweise ersetzt durch Spec 094 (CLI-Tools pro Vault).** Der Ort des Programms (`base_url` als Binary-Name oder
+> -Pfad, `binary` aus `provider.base_url`) und die Verzeichnisse pro Lauf im temporären Ordner des Betriebssystems
+> gelten nicht mehr: das Programm liegt im Vault (`<Vault-Ordner>/cli-tools/`), die Läufe unter dem Vault-Home
+> (`<Vault-Ordner>/home/`), und `base_url` eines Delegates trägt kein Programm mehr. Siehe
+> `specs/094-vault-cli-tools/spec.md`.
+
 ## Geänderte Entitäten (bestehendes Schema, keine neue Migration)
 
 ### `providers` (bestehend, `storage/providers.rs`)

@@ -19,8 +19,9 @@ _Avoid_: instance (used to mean this earlier, deprecated), database.
 SQLite files (`vault.db`, `-wal`, `-shm`) and small bookkeeping files (`.lock`,
 `.vault-id`, `.pending` while the vault is being created); everything else of
 the vault lies in subfolders that can be encrypted later with keys from the
-opened vault: `agent-browser/` (the browser profile) and `chat-files/` (files of
-the chat). `instances::vault_paths::VaultPaths` is the only place that builds
+opened vault: `agent-browser/` (the browser profile), `chat-files/` (files of
+the chat), `cli-tools/` (the CLI tools of the vault, spec 094) and `home/` (the
+vault home). `instances::vault_paths::VaultPaths` is the only place that builds
 these paths. Vaults of the old layout (`instances/<name>.db`,
 `agent-browser/<name>/`, `chat-files/<name>/`) move in at start. Data of the device,
 not of a vault, stays outside: models, the installation id and the tracker list
@@ -91,6 +92,38 @@ tokenizer repo, provider id).
 An entry in `providers`: `local` (llama.cpp in-process), `api_key`
 (external HTTP API such as Anthropic), or `cli_delegate` (spawn an
 external CLI — design pass open).
+
+**Tool installation** (spec 094):
+One version of one CLI tool (Claude Code, Codex) for one operating system
+and architecture, in `<vault folder>/cli-tools/<vendor>/<version>/`. It is
+complete or absent: an install unpacks into a staging folder and publishes it
+with one rename. It exists only because the person asked for it in Settings;
+nothing installs or updates on its own, and the tool's own updater is off.
+**Confirmed** once a run with it ended normally; until then the older version
+stays as the way back. A vault copied to another device arrives without its
+tools: installations are not synced, and each device installs for itself.
+_Avoid_: the tool on the host's PATH (the app never looks there).
+
+**Vault home** (spec 094):
+`<vault folder>/home/`, given as `HOME` (and the vendor's own config variables)
+to every delegate process of the vault, so that config, history and caches of a
+tool land in the vault and nowhere else on the device. It also holds the per-run
+folders while a run lasts and the record `tools.log`.
+_Avoid_: the user's real home.
+
+**Containment** (spec 094):
+`cli_tools::containment::Containment`, the one place that decides how a tool's
+process is kept inside the vault. Today `EnvContainment` redirects what
+environment variables can reach and reports its **isolation level** as
+`best_effort`; an OS sandbox that would report `enforced` is a later spec behind
+the same interface.
+
+**Tested-version list** (spec 094):
+Per vendor, the versions haex-vault has tested with its adapter, newest first,
+each with a SHA-256 per platform (`cli_tools/catalog.json`, written by
+`scripts/cli-tools/add-version.ts`). An install or update only ever takes a
+version from it and checks the download against that checksum. A version in a
+vault that is newer than the list is shown as untested and still started.
 
 **Model ID**:
 Cross-provider unique string. For local models: catalog id. For api_key
