@@ -210,7 +210,7 @@ fn load_drafter(backend: &LlamaBackend, path: &Path, model: &LlamaModel) -> Opti
     let drafter = match LlamaModel::load_from_file(backend, path, &params) {
         Ok(drafter) => drafter,
         Err(e) => {
-            log::warn!("drafter {} not loaded: {e}", path.display());
+            log::warn!("drafter not loaded: {e}");
             return None;
         }
     };
@@ -218,8 +218,7 @@ fn load_drafter(backend: &LlamaBackend, path: &Path, model: &LlamaModel) -> Opti
     let expected = architecture(model).map(|a| format!("{a}-assistant"));
     if architecture(&drafter).is_none() || architecture(&drafter) != expected {
         log::warn!(
-            "drafter {} is {:?}, the model needs {:?}; loading without it",
-            path.display(),
+            "drafter is {:?}, the model needs {:?}; loading without it",
             architecture(&drafter),
             expected
         );
@@ -227,8 +226,7 @@ fn load_drafter(backend: &LlamaBackend, path: &Path, model: &LlamaModel) -> Opti
     }
     if drafter.n_embd_out() != model.n_embd() {
         log::warn!(
-            "drafter {} reads embeddings of width {}, the model has {}; loading without it",
-            path.display(),
+            "drafter reads embeddings of width {}, the model has {}; loading without it",
             drafter.n_embd_out(),
             model.n_embd()
         );
@@ -251,7 +249,7 @@ fn drafter_shape(path: &Path) -> Option<DrafterShape> {
         )
     };
     read().unwrap_or_else(|e| {
-        log::warn!("drafter {} unreadable: {e}", path.display());
+        log::warn!("drafter unreadable: {e}");
         None
     })
 }

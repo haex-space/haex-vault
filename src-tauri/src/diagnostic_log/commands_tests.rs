@@ -297,13 +297,22 @@ async fn the_timer_ends_verbose_by_itself_and_announces_it() {
     f.switch(LogLevel::Verbose).await;
 
     // The end time comes within a moment (as if 24 hours had passed).
-    schedule_expiry(f.db.clone(), &f.gate, now_ms() + 50, &f.emit);
+    let until_ms = now_ms() + 50;
+    apply_state(expiry::LevelState {
+        level: LogLevel::Verbose,
+        until_ms: Some(until_ms),
+    });
+    schedule_expiry(f.db.clone(), &f.gate, until_ms, &f.emit);
 
     let mut waited = 0;
-    while status().level == LogLevel::Verbose {
+    while !f
+        .events()
+        .last()
+        .is_some_and(|event| event.level == LogLevel::Standard)
+    {
         tokio::time::sleep(Duration::from_millis(20)).await;
         waited += 20;
-        assert!(waited < 5000, "verbose did not end");
+        assert!(waited < 5000, "expiry did not emit Standard");
     }
     assert_eq!(log::max_level(), LevelFilter::Info);
     assert_eq!(f.stored().state, expiry::LevelState::STANDARD);

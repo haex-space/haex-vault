@@ -154,6 +154,57 @@ fn switching_to_smaller_limits_keeps_only_the_newest_whole_records() {
 }
 
 #[test]
+fn a_failed_compaction_is_retried_before_the_next_append() {
+    let dir = tempfile::tempdir().unwrap();
+    let big = Limits {
+        files: 5,
+        bytes: 1000,
+    };
+    let mut log = RotatingFile::open(dir.path(), big).unwrap();
+    for number in 1..=40 {
+        log.write_line(&record(number, 100)).unwrap();
+    }
+    log.file = None;
+    fs::remove_file(dir.path().join("haex.log")).unwrap();
+    fs::create_dir(dir.path().join("haex.log")).unwrap();
+
+    assert!(log.set_limits(SMALL).is_err());
+    fs::remove_dir(dir.path().join("haex.log")).unwrap();
+    log.write_line("recovered").unwrap();
+
+    assert!(!dir.path().join("haex.log.3").exists());
+    assert!(read(dir.path(), "haex.log").contains("recovered"));
+}
+
+#[test]
+fn a_partial_append_is_removed_before_the_next_record() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut log = RotatingFile::open(dir.path(), SMALL).unwrap();
+    log.write_line("kept").unwrap();
+    let size = log.size;
+    log.file.as_mut().unwrap().write_all(b"partial").unwrap();
+    log.repair_to = Some(size);
+
+    log.write_line("next").unwrap();
+
+    assert_eq!(read(dir.path(), "haex.log"), "kept\nnext\n");
+}
+
+#[test]
+fn an_interrupted_compaction_finishes_on_open() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("haex.log"), "new current\n").unwrap();
+    fs::write(dir.path().join("haex.log.compact-1"), "new archive\n").unwrap();
+    fs::write(dir.path().join(COMPACT_READY), "2").unwrap();
+
+    let _log = RotatingFile::open(dir.path(), SMALL).unwrap();
+
+    assert_eq!(read(dir.path(), "haex.log"), "new current\n");
+    assert_eq!(read(dir.path(), "haex.log.1"), "new archive\n");
+    assert!(!dir.path().join(COMPACT_READY).exists());
+}
+
+#[test]
 fn opening_with_smaller_limits_than_the_files_left_brings_them_within() {
     let dir = tempfile::tempdir().unwrap();
     let big = Limits {

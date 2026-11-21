@@ -17,11 +17,11 @@ DiagnosticLogStatus {
   level: "standard" | "verbose",
   untilMs: number | null,         // Unix ms, only with "verbose"
   writable: boolean,              // false after a failed write or a failed begin
-  canReveal: boolean,             // desktop (with the reveal command, US3)
-  canShare: boolean,              // Android (with the share command, US3)
   sessionId: string | null,       // fresh opaque token per begin; null with no attached vault
 }
 ```
+
+The `canReveal` and `canShare` fields are deferred with User Story 3 and are not returned yet.
 
 Errors use the repository's `HaexError`; a missing vault gives the usual "no active vault" error. `diagnostic_log_set`
 with the level it already has changes nothing and returns the status.

@@ -14,6 +14,7 @@ pub mod rotation;
 pub mod sink;
 
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, PoisonError};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -38,7 +39,8 @@ pub const EVENT_UNWRITABLE: &str = "haex:diagnostic-log-unwritable";
 static SINK: LazyLock<DiagnosticSink> = LazyLock::new(DiagnosticSink::new);
 static CURRENT: Mutex<LevelState> = Mutex::new(LevelState::STANDARD);
 /// The task that ends "Ausführlich", while one runs.
-static EXPIRY: Mutex<Option<tokio::task::AbortHandle>> = Mutex::new(None);
+static EXPIRY: Mutex<Option<(u64, tokio::task::AbortHandle)>> = Mutex::new(None);
+static EXPIRY_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 /// Serializes the tests that touch the statics above and the global max level.
 #[cfg(test)]
@@ -185,15 +187,14 @@ pub(crate) async fn start(db: &VaultDb, gate: &VaultGate, folder: &Path, emit: &
         ),
     };
     let state = judged.state;
-    let log_folder = folder.to_path_buf();
-    let folder = log_folder.clone();
+    let folder = folder.to_path_buf();
     let attached = tokio::task::spawn_blocking(move || SINK.attach(&folder, state.level))
         .await
         .unwrap_or_else(|error| Err(std::io::Error::other(error)));
     apply_state(state);
     if let Err(error) = &attached {
         // The sink is detached, so this goes nowhere; the status says the log is not writable.
-        log::warn!("diagnostic log: could not start in {log_folder:?}: {error}");
+        log::warn!("diagnostic log: could not start: {error}");
     }
     if let Some(error) = read_error {
         log::warn!("diagnostic log: could not read the level, using Standard: {error}");
@@ -235,6 +236,7 @@ pub(crate) fn apply_state(state: LevelState) {
 /// Ends "Ausführlich" after what remains of its 24 hours, as session work: it ends with the
 /// close. A timer that runs is replaced.
 pub(crate) fn schedule_expiry(db: VaultDb, gate: &VaultGate, until_ms: i64, emit: &Emitter) {
+    let generation = EXPIRY_GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
     let left = expiry::remaining(until_ms, now_ms(), DEADLINE.left(Instant::now()));
     let token = gate.token();
     let task_gate = gate.clone();
@@ -244,15 +246,15 @@ pub(crate) fn schedule_expiry(db: VaultDb, gate: &VaultGate, until_ms: i64, emit
             () = token.cancelled() => return,
             () = tokio::time::sleep(left) => {}
         }
-        // This task's own handle: let go of it without aborting the task that is running.
-        EXPIRY.lock().unwrap_or_else(PoisonError::into_inner).take();
-        if let Err(error) = commands::switch_level(&db, &task_gate, LogLevel::Standard, &emit).await
+        // A replaced timer must not take the current timer's handle or end its level early.
+        if let Err(error) =
+            commands::expire_level(&db, &task_gate, generation, until_ms, &emit).await
         {
             log::warn!("diagnostic log: \"Ausführlich\" could not be ended: {error}");
         }
     });
     match spawned {
-        Ok(handle) => replace_expiry(Some(handle.abort_handle())),
+        Ok(handle) => replace_expiry(Some((generation, handle.abort_handle()))),
         Err(error) => log::warn!("diagnostic log: the timer did not start: {error}"),
     }
 }
@@ -262,10 +264,23 @@ pub(crate) fn cancel_expiry() {
     replace_expiry(None);
 }
 
-fn replace_expiry(next: Option<tokio::task::AbortHandle>) {
+fn replace_expiry(next: Option<(u64, tokio::task::AbortHandle)>) {
     let mut slot = EXPIRY.lock().unwrap_or_else(PoisonError::into_inner);
     if let Some(old) = std::mem::replace(&mut *slot, next) {
-        old.abort();
+        old.1.abort();
+    }
+}
+
+fn take_expiry(generation: u64) -> bool {
+    let mut slot = EXPIRY.lock().unwrap_or_else(PoisonError::into_inner);
+    if slot
+        .as_ref()
+        .is_some_and(|(current, _)| *current == generation)
+    {
+        slot.take();
+        true
+    } else {
+        false
     }
 }
 
@@ -276,7 +291,7 @@ pub(crate) fn expiry_running() -> bool {
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .as_ref()
-        .is_some_and(|handle| !handle.is_finished())
+        .is_some_and(|(_, handle)| !handle.is_finished())
 }
 
 pub(crate) fn now_ms() -> i64 {

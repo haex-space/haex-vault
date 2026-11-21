@@ -17,6 +17,9 @@ const setLevel = useActionOrThrow('settings.diagnostics.logLevel.set')
 
 const status = ref<DiagnosticLogStatus | null>(null)
 const busy = ref(false)
+let disposed = false
+let statusRevision = 0
+let reloadRequest = 0
 
 const options = computed<SettingsSelectOption[]>(() => [
   { value: 'standard', label: t('settings.diagnosticLog.levelStandard') },
@@ -33,10 +36,17 @@ const endsAt = computed(() => {
 })
 
 async function reloadAsync() {
+  const revision = statusRevision
+  const request = ++reloadRequest
   try {
-    status.value = await invoke<DiagnosticLogStatus>('diagnostic_log_get')
+    const loaded = await invoke<DiagnosticLogStatus>('diagnostic_log_get')
+    if (!disposed && revision === statusRevision && request === reloadRequest) {
+      status.value = loaded
+    }
   } catch (error: unknown) {
-    toast.error(`${t('errors.prefLoadFailed')}: ${errString(error)}`)
+    if (!disposed) {
+      toast.error(`${t('errors.prefLoadFailed')}: ${errString(error)}`)
+    }
   }
 }
 
@@ -57,21 +67,33 @@ async function chooseAsync(value: string) {
 const unlisten: UnlistenFn[] = []
 
 onMounted(async () => {
-  await reloadAsync()
-  unlisten.push(
-    await listen<DiagnosticLogStatus>(
-      'haex:diagnostic-log-changed',
-      (event) => {
-        status.value = event.payload
-      },
-    ),
-    await listen('haex:diagnostic-log-unwritable', () => {
-      if (status.value) status.value = { ...status.value, writable: false }
-    }),
+  const stopChanged = await listen<DiagnosticLogStatus>(
+    'haex:diagnostic-log-changed',
+    (event) => {
+      statusRevision += 1
+      status.value = event.payload
+    },
   )
+  if (disposed) {
+    stopChanged()
+    return
+  }
+  unlisten.push(stopChanged)
+
+  const stopUnwritable = await listen('haex:diagnostic-log-unwritable', () => {
+    statusRevision += 1
+    if (status.value) status.value = { ...status.value, writable: false }
+  })
+  if (disposed) {
+    stopUnwritable()
+    return
+  }
+  unlisten.push(stopUnwritable)
+  await reloadAsync()
 })
 
 onBeforeUnmount(() => {
+  disposed = true
   for (const stop of unlisten) stop()
 })
 </script>

@@ -6,6 +6,7 @@
 //! folder it was attached to (FR-007). A failing disk never fails the app: the line is dropped,
 //! the sink remembers it (FR-016) and tries again on the next record.
 
+use std::cell::Cell;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::mpsc::{self, Receiver, SyncSender, TrySendError};
@@ -29,6 +30,30 @@ const STANDARD: u8 = 0;
 const VERBOSE: u8 = 1;
 const DETACHED: u8 = 2;
 const QUEUE_CAPACITY: usize = 512;
+
+thread_local! {
+    static IN_SINK_WRITE: Cell<bool> = const { Cell::new(false) };
+}
+
+struct SinkWriteGuard;
+
+impl SinkWriteGuard {
+    fn enter() -> Option<Self> {
+        IN_SINK_WRITE.with(|inside| {
+            if inside.replace(true) {
+                None
+            } else {
+                Some(Self)
+            }
+        })
+    }
+}
+
+impl Drop for SinkWriteGuard {
+    fn drop(&mut self) {
+        IN_SINK_WRITE.with(|inside| inside.set(false));
+    }
+}
 
 struct Attached {
     level: LogLevel,
@@ -215,6 +240,11 @@ impl DiagnosticSink {
     }
 
     fn write(&self, session: Option<&str>, level: Level, origin: &str, message: &str) {
+        // Jiff can report a failed local-time lookup through the log facade. Drop that nested
+        // record instead of asking Jiff for another timestamp recursively.
+        let Some(_write_guard) = SinkWriteGuard::enter() else {
+            return;
+        };
         let session = {
             let guard = self.lock();
             let Some(attached) = guard.as_ref() else {
@@ -434,18 +464,8 @@ fn now() -> DateTime {
 /// `[2026-11-21][07:02:02.123][WARN][origin] message`. A message of several lines (a stack) stays
 /// one record: every line after the first starts with four spaces (see `contracts/log-format.md`).
 pub fn format_record(at: DateTime, level: Level, origin: &str, message: &str) -> String {
-    let mut text = message.replace("\r\n", "\n").replace('\r', "\n");
-    if text.len() > MAX_RECORD {
-        let mut end = MAX_RECORD;
-        while !text.is_char_boundary(end) {
-            end -= 1;
-        }
-        text.truncate(end);
-        text.push_str(CUT);
-    }
-    let text = text.replace('\n', "\n    ");
-    format!(
-        "[{:04}-{:02}-{:02}][{:02}:{:02}:{:02}.{:03}][{}][{origin}] {text}",
+    let mut prefix = format!(
+        "[{:04}-{:02}-{:02}][{:02}:{:02}:{:02}.{:03}][{}][{origin}] ",
         at.year(),
         at.month(),
         at.day(),
@@ -454,7 +474,38 @@ pub fn format_record(at: DateTime, level: Level, origin: &str, message: &str) ->
         at.second(),
         at.subsec_nanosecond() / 1_000_000,
         level.as_str(),
-    )
+    );
+    if prefix.len() >= MAX_RECORD {
+        let mut end = MAX_RECORD - 1;
+        while !prefix.is_char_boundary(end) {
+            end -= 1;
+        }
+        prefix.truncate(end);
+    }
+    let message = message.replace("\r\n", "\n").replace('\r', "\n");
+    let body = message.replace('\n', "\n    ");
+    let budget = MAX_RECORD.saturating_sub(prefix.len() + 1);
+    let body = if body.len() <= budget {
+        body
+    } else if budget < CUT.len() {
+        String::new()
+    } else {
+        let content_budget = budget.saturating_sub(CUT.len());
+        let mut content = String::new();
+        let mut used = 0;
+        for character in message.chars() {
+            let bytes = character.len_utf8() + usize::from(character == '\n') * 4;
+            if used + bytes > content_budget {
+                break;
+            }
+            content.push(character);
+            used += bytes;
+        }
+        let mut body = content.replace('\n', "\n    ");
+        body.push_str(CUT);
+        body
+    };
+    format!("{prefix}{body}")
 }
 
 #[cfg(test)]

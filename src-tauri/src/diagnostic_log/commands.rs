@@ -14,6 +14,8 @@ use crate::state::AppState;
 use crate::state_utils::active_database;
 use crate::vault_gate::{VaultDb, VaultGate};
 
+static LEVEL_TRANSITION: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 /// The severity of a message of the interface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -38,6 +40,35 @@ impl From<UiLevel> for log::Level {
 /// Switches the level at once: stores it, applies it to the sink and the `log` macros, starts or
 /// stops the timer of "Ausführlich" and announces it. Choosing the level in force changes nothing.
 pub(crate) async fn switch_level(
+    db: &VaultDb,
+    gate: &VaultGate,
+    level: LogLevel,
+    emit: &Emitter,
+) -> Result<DiagnosticLogStatus> {
+    let _transition = LEVEL_TRANSITION.lock().await;
+    switch_level_locked(db, gate, level, emit).await
+}
+
+/// Applies an expiry only when the timer still belongs to the current verbose selection.
+pub(crate) async fn expire_level(
+    db: &VaultDb,
+    gate: &VaultGate,
+    generation: u64,
+    until_ms: i64,
+    emit: &Emitter,
+) -> Result<()> {
+    let _transition = LEVEL_TRANSITION.lock().await;
+    if !super::take_expiry(generation)
+        || status().level != LogLevel::Verbose
+        || status().until_ms != Some(until_ms)
+    {
+        return Ok(());
+    }
+    switch_level_locked(db, gate, LogLevel::Standard, emit).await?;
+    Ok(())
+}
+
+async fn switch_level_locked(
     db: &VaultDb,
     gate: &VaultGate,
     level: LogLevel,

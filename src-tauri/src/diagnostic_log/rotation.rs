@@ -10,6 +10,8 @@ use std::path::{Path, PathBuf};
 
 /// The name of the current file.
 pub const FILE_NAME: &str = "haex.log";
+const COMPACT_READY: &str = "haex.log.compact-ready";
+const COMPACT_READY_TEMP: &str = "haex.log.compact-ready.tmp";
 
 /// How much a log may keep: `files` files (the current one and its archives) of `bytes` each.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,6 +44,8 @@ pub struct RotatingFile {
     /// `None` after a failed reopen; the next write tries again.
     file: Option<File>,
     size: u64,
+    repair_to: Option<u64>,
+    needs_compact: bool,
 }
 
 impl RotatingFile {
@@ -54,7 +58,10 @@ impl RotatingFile {
             limits,
             file: None,
             size: 0,
+            repair_to: None,
+            needs_compact: false,
         };
+        this.recover_compaction()?;
         this.reopen()?;
         this.compact()?;
         Ok(this)
@@ -65,9 +72,13 @@ impl RotatingFile {
     /// again.
     pub fn write_line(&mut self, record: &str) -> io::Result<()> {
         let len = record.len() as u64 + 1;
+        if self.needs_compact || self.ready_marker().exists() {
+            self.compact()?;
+        }
         if self.file.is_none() {
             self.reopen()?;
         }
+        self.repair_tail()?;
         if self.size > 0 && self.size + len > self.limits.bytes {
             self.rotate()?;
         }
@@ -78,7 +89,13 @@ impl RotatingFile {
             return Err(io::Error::other("the log file is not open"));
         };
         // One call per record, unbuffered: a crash loses no line that was reported as written.
-        file.write_all(&bytes)?;
+        if let Err(error) = file.write_all(&bytes) {
+            self.repair_to = Some(self.size);
+            if file.set_len(self.size).is_ok() {
+                self.repair_to = None;
+            }
+            return Err(error);
+        }
         self.size += len;
         Ok(())
     }
@@ -112,6 +129,19 @@ impl RotatingFile {
             .open(self.current())?;
         self.size = file.metadata()?.len();
         self.file = Some(file);
+        Ok(())
+    }
+
+    fn repair_tail(&mut self) -> io::Result<()> {
+        let Some(size) = self.repair_to else {
+            return Ok(());
+        };
+        let Some(file) = self.file.as_ref() else {
+            return Err(io::Error::other("the log file is not open"));
+        };
+        file.set_len(size)?;
+        self.size = size;
+        self.repair_to = None;
         Ok(())
     }
 
@@ -151,6 +181,7 @@ impl RotatingFile {
     /// Brings the files within the limits when they are not: more archives than the limit keeps,
     /// or a file above the size.
     fn compact(&mut self) -> io::Result<()> {
+        self.recover_compaction()?;
         let indices = self.archive_indices();
         let too_many = indices
             .first()
@@ -161,8 +192,10 @@ impl RotatingFile {
             .chain([self.current()])
             .any(|path| fs::metadata(path).is_ok_and(|meta| meta.len() > self.limits.bytes));
         if !too_many && !too_big {
+            self.needs_compact = false;
             return Ok(());
         }
+        self.needs_compact = true;
         self.file = None;
         // Oldest first: the highest archive, down to `.1`, then the current file.
         let mut content = Vec::new();
@@ -173,25 +206,104 @@ impl RotatingFile {
         let slots = fit(&content, self.limits);
         // New files first, then the old ones go and the new ones take their place.
         for (slot, text) in slots.iter().enumerate() {
-            fs::write(self.staged(slot), text)?;
+            let staged = self.staged(slot);
+            fs::write(&staged, text)?;
+            File::open(staged)?.sync_all()?;
         }
-        for index in &indices {
-            remove_if_exists(&self.archive(*index))?;
-        }
-        remove_if_exists(&self.current())?;
-        for slot in 0..slots.len() {
-            let target = if slot == 0 {
-                self.current()
-            } else {
-                self.archive(slot)
-            };
-            fs::rename(self.staged(slot), target)?;
-        }
+        self.mark_compaction_ready(slots.len())?;
+        self.recover_compaction()?;
+        self.needs_compact = false;
         self.reopen()
     }
 
     fn staged(&self, slot: usize) -> PathBuf {
         self.folder.join(format!("{FILE_NAME}.compact-{slot}"))
+    }
+
+    fn ready_marker(&self) -> PathBuf {
+        self.folder.join(COMPACT_READY)
+    }
+
+    fn mark_compaction_ready(&self, slots: usize) -> io::Result<()> {
+        let mut marker = OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(self.folder.join(COMPACT_READY_TEMP))?;
+        write!(marker, "{slots}")?;
+        marker.sync_all()?;
+        fs::rename(self.folder.join(COMPACT_READY_TEMP), self.ready_marker())
+    }
+
+    /// Installs a complete staged generation. The marker is written only after every staged file
+    /// is complete; if installation stops part-way through, the next open finishes it.
+    fn recover_compaction(&mut self) -> io::Result<()> {
+        let marker = self.ready_marker();
+        let count = match fs::read_to_string(&marker) {
+            Ok(value) => value
+                .trim()
+                .parse::<usize>()
+                .ok()
+                .filter(|count| *count > 0)
+                .ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "diagnostic log compaction marker is invalid",
+                    )
+                })?,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                remove_if_exists(&self.folder.join(COMPACT_READY_TEMP))?;
+                self.remove_staged_files(0)?;
+                return Ok(());
+            }
+            Err(error) => return Err(error),
+        };
+        for slot in 0..count {
+            let staged = self.staged(slot);
+            let target = if slot == 0 {
+                self.current()
+            } else {
+                self.archive(slot)
+            };
+            if staged.exists() {
+                remove_if_exists(&target)?;
+                fs::rename(staged, target)?;
+            } else if !target.exists() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "diagnostic log compaction is missing a staged file",
+                ));
+            }
+        }
+        for index in self.archive_indices() {
+            if index >= count {
+                remove_if_exists(&self.archive(index))?;
+            }
+        }
+        remove_if_exists(&marker)?;
+        remove_if_exists(&self.folder.join(COMPACT_READY_TEMP))?;
+        self.remove_staged_files(count)?;
+        Ok(())
+    }
+
+    fn remove_staged_files(&self, from: usize) -> io::Result<()> {
+        let Ok(entries) = fs::read_dir(&self.folder) else {
+            return Ok(());
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let Some(name) = name.to_str() else { continue };
+            let Some(slot) = name
+                .strip_prefix(&format!("{FILE_NAME}.compact-"))
+                .and_then(|slot| slot.parse::<usize>().ok())
+            else {
+                continue;
+            };
+            if slot >= from {
+                remove_if_exists(&entry.path())?;
+            }
+        }
+        Ok(())
     }
 }
 

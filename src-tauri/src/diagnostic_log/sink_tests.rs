@@ -73,10 +73,32 @@ fn a_message_with_a_line_break_is_one_record_with_indented_lines() {
 #[test]
 fn an_overlong_message_is_cut() {
     let at = date(2026, 11, 21).at(7, 2, 2, 0);
-    let message = "é".repeat(MAX_RECORD);
+    let message = "x\n".repeat(MAX_RECORD / 2);
     let line = format_record(at, Level::Warn, "ui", &message);
-    assert!(line.len() < MAX_RECORD + 100);
+    assert!(
+        line.len() + 1 <= MAX_RECORD,
+        "the serialized record is bounded"
+    );
     assert!(line.ends_with("[cut]"));
+    assert!(line.lines().skip(1).all(|line| line.starts_with("    ")));
+}
+
+#[test]
+fn the_record_limit_includes_a_long_origin() {
+    let at = date(2026, 11, 21).at(7, 2, 2, 0);
+    let line = format_record(at, Level::Warn, &"x".repeat(MAX_RECORD), "message");
+    assert!(line.len() + 1 <= MAX_RECORD);
+}
+
+#[test]
+fn a_nested_sink_record_is_dropped_without_poisoning_the_guard() {
+    let outer = SinkWriteGuard::enter().expect("outer sink write");
+    assert!(SinkWriteGuard::enter().is_none(), "nested write is dropped");
+    drop(outer);
+    assert!(
+        SinkWriteGuard::enter().is_some(),
+        "a later write is allowed"
+    );
 }
 
 #[test]
