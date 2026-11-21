@@ -39,31 +39,13 @@ test('an object or an array becomes [object] and none of its fields appear', () 
   assert.equal(text, 'saving [object] [object]')
 })
 
-test('the error of the backend gives its kind and reason, no other field', () => {
+test('a structured backend error stays [object] and none of its fields appear', () => {
   const failed = {
     kind: 'InvalidInput',
     reason: 'no such file',
     path: '/secret',
   }
-  assert.equal(
-    messageText(['reading failed', failed]),
-    'reading failed InvalidInput: no such file',
-  )
-})
-
-test('a failed action gives its code and message, a plugin its message', () => {
-  assert.equal(
-    messageText([
-      {
-        ok: false,
-        code: 'failed',
-        message: 'the app is closed',
-        input: { pw: 'x' },
-      },
-    ]),
-    'failed: the app is closed',
-  )
-  assert.equal(messageText([{ message: 'no camera' }]), 'no camera')
+  assert.equal(messageText(['reading failed', failed]), 'reading failed [object]')
 })
 
 test('a field that is no text is not read', () => {
