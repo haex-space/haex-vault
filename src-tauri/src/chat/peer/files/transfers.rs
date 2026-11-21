@@ -228,6 +228,18 @@ impl ChatFiles {
             remaining_message_limit(total)?;
             prepared.push(Prepared { file, key, facts });
         }
+        // Keep upload, local copies, queueing, and failure cleanup for one message together. A
+        // second call may have passed the first idempotency check while this one was measuring.
+        let message_lock = format!("message:{message_id}");
+        let _same_message = self.store.lock_attachment(&message_lock).await;
+        let (check_me, check_event) = (me.clone(), event_id.to_owned());
+        if let Some(message_id) = self
+            .db
+            .read(move |r| Ok(send::sent_already(r, &check_me, thread_id, &check_event)?))
+            .await?
+        {
+            return Ok(message_id);
+        }
         let mut uploaded = Vec::with_capacity(prepared.len());
         for file in prepared {
             match self.upload(&server, file).await {
@@ -260,13 +272,16 @@ impl ChatFiles {
                 .await
             {
                 self.delete_unqueued(&server, &cleanup_credentials).await;
+                self.discard_copies(message_id, index + 1).await;
                 return Err(error);
             }
         }
+        let copies = uploaded.len();
         let pending = match self.expected_devices(me, &peer).await {
             Ok(pending) => pending,
             Err(error) => {
                 self.delete_unqueued(&server, &cleanup_credentials).await;
+                self.discard_copies(message_id, copies).await;
                 return Err(error);
             }
         };
@@ -313,7 +328,19 @@ impl ChatFiles {
             Ok(id) => Ok(id),
             Err(error) => {
                 self.delete_unqueued(&server, &cleanup_credentials).await;
+                self.discard_copies(message_id, copies).await;
                 Err(error)
+            }
+        }
+    }
+
+    /// Deletes the own copies of the first `count` files of a message that was not queued, so a
+    /// failed send leaves no file nothing refers to.
+    async fn discard_copies(&self, message_id: Uuid, count: usize) {
+        for index in 0..count {
+            let id = ids::attachment_id(message_id, index).to_string();
+            if let Err(error) = self.store.remove(&id).await {
+                log::warn!("chat: an unsent file's own copy was not deleted: {error}");
             }
         }
     }

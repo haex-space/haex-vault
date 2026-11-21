@@ -3,7 +3,7 @@
 //! the server or without one, a blob that is gone, and the receiver's second device downloading
 //! itself.
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Barrier, Mutex};
 
 use super::*;
 use crate::chat::peer::files::test_server::BlossomTestServer;
@@ -591,6 +591,146 @@ async fn a_file_that_grows_after_it_was_measured_stops_the_copy_and_takes_the_bl
     assert!(
         !blossom.has(&uploaded),
         "the blob of a message that was never queued is deleted"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_send_that_fails_after_a_copy_was_kept_deletes_the_copies() {
+    let (_relay, url) = mock_relay().await;
+    let blossom = BlossomTestServer::start().await;
+    let (anna, ben) = two_vaults(&[url]).await;
+    anna.enable_files(&blossom.url, None);
+    ben.enable_files(&blossom.url, None);
+    anna.start().await;
+    ben.start().await;
+
+    let opened = Arc::new(Mutex::new(0_u32));
+    let counted = Arc::clone(&opened);
+    // The second file grows between the upload and its own copy, after the first copy was kept.
+    let growing = Source::opened_by(move || {
+        let mut times = counted.lock().expect("count");
+        *times += 1;
+        let mut bytes = b"second file".to_vec();
+        if *times > 2 {
+            bytes.extend_from_slice(b" and more");
+        }
+        Ok(Box::new(std::io::Cursor::new(bytes)) as Box<dyn Read + Send>)
+    });
+    let files = vec![
+        picked(PLAN),
+        Picked {
+            name: "Two.txt".into(),
+            mime: "text/plain".into(),
+            source: growing,
+            inline: false,
+        },
+    ];
+    let thread = anna.thread_with(&ben);
+    let (own, peer) = (anna.me.vault_hex.clone(), ben.me.vault_hex.clone());
+    anna.db
+        .write_blocking(move |tx| {
+            Ok(crate::chat::peer::store::open_direct(
+                tx,
+                &own,
+                &peer,
+                now_ms(),
+            )?)
+        })
+        .expect("open");
+    let chat_files = anna.session.files.get().expect("files").clone();
+    let event = crate::chat::peer::envelope::new_event_id();
+    let error = chat_files
+        .send(&anna.me, thread, &event, "", files)
+        .await
+        .expect_err("the grown file is not sent");
+    assert!(error.to_string().contains("chat.file.changed"), "{error}");
+    assert!(anna.messages_with(&ben).is_empty(), "no message was queued");
+
+    let message = ids::message_id(thread, &anna.me.vault_hex, &event);
+    for index in 0..2 {
+        let id = ids::attachment_id(message, index).to_string();
+        assert_eq!(
+            stored(&anna, &id).await,
+            None,
+            "file {index} left a copy nothing refers to"
+        );
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn concurrent_sends_with_one_event_id_only_upload_once() {
+    let (_relay, url) = mock_relay().await;
+    let blossom = BlossomTestServer::start().await;
+    let (anna, ben) = two_vaults(&[url]).await;
+    anna.enable_files(&blossom.url, None);
+    ben.enable_files(&blossom.url, None);
+    anna.start().await;
+    ben.start().await;
+
+    let thread = anna.thread_with(&ben);
+    let (own, peer) = (anna.me.vault_hex.clone(), ben.me.vault_hex.clone());
+    anna.db
+        .write_blocking(move |tx| {
+            Ok(crate::chat::peer::store::open_direct(
+                tx,
+                &own,
+                &peer,
+                now_ms(),
+            )?)
+        })
+        .expect("open");
+
+    let barrier = Arc::new(Barrier::new(2));
+    let source = |bytes: &'static [u8]| {
+        let barrier = Arc::clone(&barrier);
+        let first_open = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let first = Arc::clone(&first_open);
+        Source::opened_by(move || {
+            if first.swap(false, std::sync::atomic::Ordering::SeqCst) {
+                barrier.wait();
+            }
+            Ok(Box::new(std::io::Cursor::new(bytes)) as Box<dyn Read + Send>)
+        })
+    };
+    let (files, me, event) = (
+        anna.session.files.get().expect("files").clone(),
+        anna.me.clone(),
+        crate::chat::peer::envelope::new_event_id(),
+    );
+    let first = {
+        let (files, me, event) = (Arc::clone(&files), me.clone(), event.clone());
+        let file = Picked {
+            name: "First.txt".into(),
+            mime: "text/plain".into(),
+            source: source(b"first"),
+            inline: false,
+        };
+        tokio::spawn(async move { files.send(&me, thread, &event, "", vec![file]).await })
+    };
+    let second = {
+        let file = Picked {
+            name: "Second.txt".into(),
+            mime: "text/plain".into(),
+            source: source(b"second"),
+            inline: false,
+        };
+        tokio::spawn(async move { files.send(&me, thread, &event, "", vec![file]).await })
+    };
+
+    let first_id = first.await.expect("first task").expect("first send");
+    let second_id = second.await.expect("second task").expect("second send");
+    assert_eq!(
+        first_id, second_id,
+        "an idempotent retry returns the queued id"
+    );
+    assert_eq!(
+        blossom
+            .log()
+            .iter()
+            .filter(|entry| entry.method == "PUT")
+            .count(),
+        1,
+        "the concurrent retry must not upload a second attachment"
     );
 }
 
