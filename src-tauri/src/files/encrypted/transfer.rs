@@ -367,6 +367,8 @@ pub struct PutStream<'a> {
     parts: Option<SealedParts>,
     /// The id of the upload in parts and the mark of every part sent, once the first one went.
     upload: Option<(String, Vec<String>)>,
+    /// The completed content object stays owned until its sidecar is written.
+    cleanup_object: bool,
 }
 
 impl<'a> PutStream<'a> {
@@ -384,6 +386,7 @@ impl<'a> PutStream<'a> {
             key,
             parts: Some(SealedParts::fresh(PART)),
             upload: None,
+            cleanup_object: false,
         })
     }
 
@@ -410,13 +413,18 @@ impl<'a> PutStream<'a> {
             self.abort().await;
             return Err(error);
         }
+        self.cleanup_object = true;
         // The multipart upload is complete; dropping this writer must not try to abort it.
         self.upload.take();
         let target = self
             .target
             .take()
             .ok_or_else(|| FilesError::invalid_path("the file was written already"))?;
-        place(self.files, target, self.oid, &self.key, sealed).await
+        let result = place(self.files, target, self.oid, &self.key, sealed).await;
+        if result.is_ok() {
+            self.cleanup_object = false;
+        }
+        result
     }
 
     /// Drops what was sent: no part stays at the storage.
@@ -472,16 +480,23 @@ impl<'a> PutStream<'a> {
 
 impl Drop for PutStream<'_> {
     fn drop(&mut self) {
-        let Some((id, _)) = self.upload.take() else {
+        let upload_id = self.upload.take().map(|(id, _)| id);
+        if upload_id.is_none() && !self.cleanup_object {
             return;
-        };
+        }
         // `Drop` cannot await. Schedule the provider cleanup so a cancelled download or caller
-        // future does not leave a multipart upload open until provider-side expiry.
+        // future does not leave a multipart upload open or a completed object without a sidecar.
         let store = Arc::clone(self.files.store());
         let access = self.files.access().clone();
         let key = self.key.clone();
+        let cleanup_object = self.cleanup_object;
         self.runtime.spawn(async move {
-            let _ = store.abort_upload(&access, &key, &id, soon()).await;
+            if let Some(id) = upload_id {
+                let _ = store.abort_upload(&access, &key, &id, soon()).await;
+            }
+            if cleanup_object {
+                let _ = store.delete(&access, &key, soon()).await;
+            }
         });
     }
 }

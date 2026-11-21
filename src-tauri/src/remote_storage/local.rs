@@ -401,19 +401,33 @@ impl ObjectStore for LocalStore {
             }
         };
         let cleanup = path.clone();
-        let mut work = tokio::task::spawn_blocking(move || settle(&part, &path));
-        match tokio::time::timeout_at(deadline, &mut work).await {
-            Ok(Ok(result)) => result,
-            Ok(Err(_)) => Err(StorageError::Network),
-            Err(_) => {
-                // The upload id has already been removed from `uploads`. Wait for the rename to
-                // settle, then remove the content object if it won the race with the deadline.
-                // Otherwise a timed-out commit could leave an unreferenced object behind.
-                if matches!(work.await, Ok(Ok(()))) {
-                    let _ = tokio::task::spawn_blocking(move || fs::remove_file(cleanup)).await;
-                }
-                Err(StorageError::TimedOut)
+        let work = tokio::task::spawn_blocking(move || settle(&part, &path));
+        let (result_tx, result_rx) = tokio::sync::oneshot::channel();
+        let (accept_tx, accept_rx) = tokio::sync::oneshot::channel();
+        tokio::spawn(async move {
+            let result = match work.await {
+                Ok(result) => result,
+                Err(_) => Err(StorageError::Network),
+            };
+            let succeeded = result.is_ok();
+            let _ = result_tx.send(result);
+            // Keep the object only when the caller receives the successful result and accepts
+            // ownership. Timeout or cancellation closes this channel; cleanup waits for the
+            // blocking rename to settle so it cannot recreate the object afterward.
+            let accepted = succeeded && matches!(accept_rx.await, Ok(true));
+            if !accepted {
+                let _ = tokio::task::spawn_blocking(move || fs::remove_file(cleanup)).await;
             }
+        });
+
+        match tokio::time::timeout_at(deadline, result_rx).await {
+            Ok(Ok(Ok(()))) => {
+                let _ = accept_tx.send(true);
+                Ok(())
+            }
+            Ok(Ok(Err(error))) => Err(error),
+            Ok(Err(_)) => Err(StorageError::Network),
+            Err(_) => Err(StorageError::TimedOut),
         }
     }
 

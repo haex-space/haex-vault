@@ -452,11 +452,13 @@ impl ChatFiles {
                 writer.abort().await;
                 Err(invalid("chat.file.changed"))
             }
-            (failed, read) => {
+            (Some(error), _) => {
                 writer.abort().await;
-                Err(failed
-                    .or(read.err())
-                    .unwrap_or_else(|| invalid("chat.file.changed")))
+                Err(error)
+            }
+            (None, Err(_)) => {
+                writer.abort().await;
+                Err(invalid("chat.file.unreadable"))
             }
         }
     }
