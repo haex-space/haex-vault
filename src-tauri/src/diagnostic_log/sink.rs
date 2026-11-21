@@ -63,6 +63,7 @@ struct Attached {
 struct Shared {
     unwritable: AtomicBool,
     on_unwritable: OnceLock<Box<dyn Fn() + Send + Sync>>,
+    on_writable: OnceLock<Box<dyn Fn() + Send + Sync>>,
 }
 
 enum WriterCommand {
@@ -117,6 +118,7 @@ impl DiagnosticSink {
             shared: Arc::new(Shared {
                 unwritable: AtomicBool::new(false),
                 on_unwritable: OnceLock::new(),
+                on_writable: OnceLock::new(),
             }),
         }
     }
@@ -125,6 +127,11 @@ impl DiagnosticSink {
     pub fn on_unwritable(&self, hook: impl Fn() + Send + Sync + 'static) {
         // The first hook stays: the app handle it holds is the same for every vault.
         let _ = self.shared.on_unwritable.set(Box::new(hook));
+    }
+
+    /// Runs when a successful append recovers from an earlier failed write. It must not log.
+    pub fn on_writable(&self, hook: impl Fn() + Send + Sync + 'static) {
+        let _ = self.shared.on_writable.set(Box::new(hook));
     }
 
     /// Starts writing into `folder`, at `level`, from now on; what an earlier folder held is not
@@ -399,9 +406,7 @@ fn writer_loop(receiver: Receiver<WriterCommand>, shared: Arc<Shared>) {
                     Some((file, active)) if *active == session => file.set_limits(limits),
                     _ => Ok(()),
                 };
-                if result.is_ok() {
-                    shared.unwritable.store(false, Ordering::Release);
-                } else {
+                if result.is_err() {
                     failed();
                 }
                 let _ = reply.send(result);
@@ -410,7 +415,11 @@ fn writer_loop(receiver: Receiver<WriterCommand>, shared: Arc<Shared>) {
                 if let Some((file, active)) = attached.as_mut() {
                     if *active == session {
                         if file.write_line(&line).is_ok() {
-                            shared.unwritable.store(false, Ordering::Release);
+                            if shared.unwritable.swap(false, Ordering::AcqRel) {
+                                if let Some(hook) = shared.on_writable.get() {
+                                    hook();
+                                }
+                            }
                         } else {
                             failed();
                         }

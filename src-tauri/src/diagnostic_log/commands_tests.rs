@@ -92,6 +92,18 @@ impl Fixture {
             })
             .unwrap();
     }
+
+    #[allow(clippy::disallowed_methods)]
+    fn execute_sql(&self, sql: &str) {
+        let sql = sql.to_owned();
+        self.db
+            .database()
+            .with_connection(|conn| {
+                conn.execute_batch(&sql)?;
+                Ok(())
+            })
+            .unwrap();
+    }
 }
 
 #[tokio::test]
@@ -317,6 +329,42 @@ async fn the_timer_ends_verbose_by_itself_and_announces_it() {
     assert_eq!(log::max_level(), LevelFilter::Info);
     assert_eq!(f.stored().state, expiry::LevelState::STANDARD);
     assert_eq!(f.events().last().unwrap().level, LogLevel::Standard);
+    assert!(!expiry_running());
+}
+
+#[tokio::test]
+async fn the_timer_retries_expiry_after_a_transient_database_failure() {
+    let f = Fixture::new().await;
+    f.start().await;
+    f.switch(LogLevel::Verbose).await;
+    f.execute_sql(
+        "CREATE TRIGGER fail_diagnostic_log_expiry BEFORE UPDATE \
+         ON haex_diagnostic_log_no_sync BEGIN \
+         SELECT RAISE(ABORT, 'temporary failure'); END;",
+    );
+
+    let until_ms = now_ms() + 50;
+    apply_state(expiry::LevelState {
+        level: LogLevel::Verbose,
+        until_ms: Some(until_ms),
+    });
+    schedule_expiry(f.db.clone(), &f.gate, until_ms, &f.emit);
+    tokio::time::sleep(Duration::from_millis(250)).await;
+    assert_eq!(status().level, LogLevel::Verbose);
+
+    f.execute_sql("DROP TRIGGER fail_diagnostic_log_expiry;");
+
+    let mut waited = 0;
+    while !f
+        .events()
+        .last()
+        .is_some_and(|event| event.level == LogLevel::Standard)
+    {
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        waited += 20;
+        assert!(waited < 7000, "expiry retry did not emit Standard");
+    }
+    assert_eq!(f.stored().state, expiry::LevelState::STANDARD);
     assert!(!expiry_running());
 }
 

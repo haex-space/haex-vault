@@ -191,6 +191,33 @@ fn a_partial_append_is_removed_before_the_next_record() {
 }
 
 #[test]
+fn a_partial_append_is_repaired_before_compaction_replaces_the_current_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let big = Limits {
+        files: 5,
+        bytes: 1000,
+    };
+    let mut log = RotatingFile::open(dir.path(), big).unwrap();
+    for number in 1..=8 {
+        log.write_line(&record(number, 100)).unwrap();
+    }
+    let size = log.size;
+    log.file
+        .as_mut()
+        .unwrap()
+        .write_all(b"partial-record")
+        .unwrap();
+    log.repair_to = Some(size);
+
+    log.set_limits(SMALL).unwrap();
+
+    assert!(names(dir.path())
+        .iter()
+        .filter(|name| name.starts_with(FILE_NAME))
+        .all(|name| !read(dir.path(), name).contains("partial-record")));
+}
+
+#[test]
 fn an_interrupted_compaction_finishes_on_open() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(dir.path().join("haex.log"), "new current\n").unwrap();

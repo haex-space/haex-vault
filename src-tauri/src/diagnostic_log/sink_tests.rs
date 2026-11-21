@@ -212,6 +212,11 @@ fn a_failed_write_sets_the_flag_once_and_the_next_write_is_tried_again() {
     sink.on_unwritable(move || {
         seen.fetch_add(1, Ordering::SeqCst);
     });
+    let recovered = Arc::new(AtomicUsize::new(0));
+    let seen = Arc::clone(&recovered);
+    sink.on_writable(move || {
+        seen.fetch_add(1, Ordering::SeqCst);
+    });
     sink.attach(dir.path(), LogLevel::Standard).unwrap();
     sink.write_record(Level::Info, "haex_lib::a", "fine");
     sink.flush_sync();
@@ -237,9 +242,16 @@ fn a_failed_write_sets_the_flag_once_and_the_next_write_is_tried_again() {
     );
 
     fs::remove_dir(dir.path().join("haex.log.3")).unwrap();
+    sink.set_level(LogLevel::Standard).unwrap();
+    sink.flush_sync();
+    assert!(
+        sink.unwritable(),
+        "a no-op limit change is not evidence that appends recovered"
+    );
     sink.write_record(Level::Warn, "haex_lib::a", "recovered");
     sink.flush_sync();
     assert!(!sink.unwritable());
+    assert_eq!(recovered.load(Ordering::SeqCst), 1);
     assert!(log_text(dir.path()).contains("recovered"));
 }
 

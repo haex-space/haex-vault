@@ -4,6 +4,7 @@
 | -------------------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
 | `haex:diagnostic-log-changed`    | `DiagnosticLogStatus` | at the end of **every** `begin` (the unlock, after a reset of an ended level or not), and whenever the level changes by `diagnostic_log_set` or by the end time | the settings component and the interface plugin |
 | `haex:diagnostic-log-unwritable` | `{}`                  | the first failed write after a successful one (not on every line)                                                                                               | the settings component                          |
+| `haex:diagnostic-log-writable`   | `{}`                  | the first successful append after an earlier failed write                                                                                                       | the settings component                          |
 
 The interface plugin loads at the start of the app, before any vault is unlocked, so it cannot ask for the level then. It stays at
 "Standard" and sends no records until the event of `begin` arrives; that event provides the current `sessionId` and level.

@@ -35,6 +35,8 @@ use crate::vault_gate::{VaultDb, VaultGate};
 pub const EVENT_CHANGED: &str = "haex:diagnostic-log-changed";
 /// The first write that failed after the earlier ones went through.
 pub const EVENT_UNWRITABLE: &str = "haex:diagnostic-log-unwritable";
+/// A record was written successfully after an earlier write failure; payload is empty.
+pub const EVENT_WRITABLE: &str = "haex:diagnostic-log-writable";
 
 static SINK: LazyLock<DiagnosticSink> = LazyLock::new(DiagnosticSink::new);
 static CURRENT: Mutex<LevelState> = Mutex::new(LevelState::STANDARD);
@@ -155,6 +157,10 @@ pub async fn begin<R: Runtime>(app: &AppHandle<R>, state: &AppState) {
     SINK.on_unwritable(move || {
         let _ = handle.emit(EVENT_UNWRITABLE, ());
     });
+    let handle = app.clone();
+    SINK.on_writable(move || {
+        let _ = handle.emit(EVENT_WRITABLE, ());
+    });
     start(&db, state.gate(), &paths.logs_dir(&name), &emitter(app)).await;
 }
 
@@ -236,21 +242,39 @@ pub(crate) fn apply_state(state: LevelState) {
 /// Ends "Ausführlich" after what remains of its 24 hours, as session work: it ends with the
 /// close. A timer that runs is replaced.
 pub(crate) fn schedule_expiry(db: VaultDb, gate: &VaultGate, until_ms: i64, emit: &Emitter) {
-    let generation = EXPIRY_GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
     let left = expiry::remaining(until_ms, now_ms(), DEADLINE.left(Instant::now()));
+    schedule_expiry_after(db, gate, until_ms, emit, left);
+}
+
+fn schedule_expiry_retry(db: VaultDb, gate: &VaultGate, until_ms: i64, emit: &Emitter) {
+    schedule_expiry_after(db, gate, until_ms, emit, std::time::Duration::from_secs(5));
+}
+
+fn schedule_expiry_after(
+    db: VaultDb,
+    gate: &VaultGate,
+    until_ms: i64,
+    emit: &Emitter,
+    delay: std::time::Duration,
+) {
+    let generation = EXPIRY_GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
     let token = gate.token();
     let task_gate = gate.clone();
     let emit = Arc::clone(emit);
     let spawned = gate.spawn(async move {
         tokio::select! {
             () = token.cancelled() => return,
-            () = tokio::time::sleep(left) => {}
+            () = tokio::time::sleep(delay) => {}
         }
         // A replaced timer must not take the current timer's handle or end its level early.
         if let Err(error) =
             commands::expire_level(&db, &task_gate, generation, until_ms, &emit).await
         {
             log::warn!("diagnostic log: \"Ausführlich\" could not be ended: {error}");
+            let current = status();
+            if current.level == LogLevel::Verbose && current.until_ms == Some(until_ms) {
+                schedule_expiry_retry(db, &task_gate, until_ms, &emit);
+            }
         }
     });
     match spawned {

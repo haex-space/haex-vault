@@ -20,6 +20,7 @@ const busy = ref(false)
 let disposed = false
 let statusRevision = 0
 let reloadRequest = 0
+let pendingUnwritable = false
 
 const options = computed<SettingsSelectOption[]>(() => [
   { value: 'standard', label: t('settings.diagnosticLog.levelStandard') },
@@ -41,7 +42,7 @@ async function reloadAsync() {
   try {
     const loaded = await invoke<DiagnosticLogStatus>('diagnostic_log_get')
     if (!disposed && revision === statusRevision && request === reloadRequest) {
-      status.value = loaded
+      status.value = pendingUnwritable ? { ...loaded, writable: false } : loaded
     }
   } catch (error: unknown) {
     if (!disposed) {
@@ -71,6 +72,7 @@ onMounted(async () => {
     'haex:diagnostic-log-changed',
     (event) => {
       statusRevision += 1
+      pendingUnwritable = !event.payload.writable
       status.value = event.payload
     },
   )
@@ -81,14 +83,28 @@ onMounted(async () => {
   unlisten.push(stopChanged)
 
   const stopUnwritable = await listen('haex:diagnostic-log-unwritable', () => {
-    statusRevision += 1
-    if (status.value) status.value = { ...status.value, writable: false }
+    pendingUnwritable = true
+    if (status.value) {
+      statusRevision += 1
+      status.value = { ...status.value, writable: false }
+    }
   })
   if (disposed) {
     stopUnwritable()
     return
   }
   unlisten.push(stopUnwritable)
+
+  const stopWritable = await listen('haex:diagnostic-log-writable', () => {
+    pendingUnwritable = false
+    statusRevision += 1
+    void reloadAsync()
+  })
+  if (disposed) {
+    stopWritable()
+    return
+  }
+  unlisten.push(stopWritable)
   await reloadAsync()
 })
 

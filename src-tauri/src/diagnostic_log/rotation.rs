@@ -136,10 +136,15 @@ impl RotatingFile {
         let Some(size) = self.repair_to else {
             return Ok(());
         };
-        let Some(file) = self.file.as_ref() else {
+        if self.file.is_none() {
             return Err(io::Error::other("the log file is not open"));
-        };
-        file.set_len(size)?;
+        }
+        // Append handles on Windows do not include FILE_WRITE_DATA, which set_len requires.
+        // Open a separate truncation handle rather than relying on append mode for this repair.
+        OpenOptions::new()
+            .write(true)
+            .open(self.current())?
+            .set_len(size)?;
         self.size = size;
         self.repair_to = None;
         Ok(())
@@ -182,6 +187,9 @@ impl RotatingFile {
     /// or a file above the size.
     fn compact(&mut self) -> io::Result<()> {
         self.recover_compaction()?;
+        // A failed append may have left an incomplete record. Repair it before reading the
+        // current file into a compacted generation, even if the rollback previously failed.
+        self.repair_tail()?;
         let indices = self.archive_indices();
         let too_many = indices
             .first()
@@ -208,7 +216,7 @@ impl RotatingFile {
         for (slot, text) in slots.iter().enumerate() {
             let staged = self.staged(slot);
             fs::write(&staged, text)?;
-            File::open(staged)?.sync_all()?;
+            OpenOptions::new().write(true).open(staged)?.sync_all()?;
         }
         self.mark_compaction_ready(slots.len())?;
         self.recover_compaction()?;
