@@ -46,21 +46,21 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
 Spec Kit constitution (`.specify/memory/constitution.md`, v1.4.0) and the spaex constitution (`.spaex/constitution.md`):
 
-| Principle                                                  | Result                                                                                                                                                            |
-| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| I. No secrets in git                                       | Pass. The feature touches no key material in the repository. The runtime log is the opposite concern and is covered by FR-009 and SC-003.                         |
-| II. No local absolute paths in versioned config            | Pass. Every path is built from the vault's folder at run time; docs and tests use relative paths and temporary folders.                                           |
-| III, IV, V. Identity, pinned revisions, opt-in sources     | Pass. Not touched. The one new npm dependency is pinned.                                                                                                          |
-| VI. Self-modifying instructions are review-gated           | Pass. No instruction file is changed.                                                                                                                             |
-| VII. Relay unavailability never blocks local work          | Pass. The log is local disk only.                                                                                                                                 |
-| VIII. No concealment instructions                          | Pass.                                                                                                                                                             |
-| ADR for principle-affecting decisions                      | The decision "a plain-text log lies beside the encrypted vault" is lasting, so an ADR (`docs/adr/`) is planned in the tasks, though it changes no Core Principle. |
-| Tests in separate files (spaex)                            | Pass. Unit tests in `*_tests.rs`, integration tests in `src-tauri/tests/`.                                                                                        |
-| 500 LoC per file (spaex)                                   | Pass by design: the sink, the level, the rotation and the commands are separate modules (see the structure).                                                      |
-| Imports at the top of the file                             | Pass; applies to the new modules and the plugin.                                                                                                                  |
-| `holzi-ui-feedback`: no success message inside a component | Pass. The setting shows no "Gespeichert"; a failure goes to the toast like the neighbouring settings.                                                             |
-| New identifiers use `haex`                                 | Pass: preference keys `diagnostics.*`, events `haex:diagnostic-log-…`, module `diagnostic_log`.                                                                   |
-| No backward compatibility                                  | Pass. The old global dev log file simply stops being written.                                                                                                     |
+| Principle                                               | Result                                                                                                                                                            |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| I. No secrets in git                                    | Pass. The feature touches no key material in the repository. The runtime log is the opposite concern and is covered by FR-009 and SC-003.                         |
+| II. No local absolute paths in versioned config         | Pass. Every path is built from the vault's folder at run time; docs and tests use relative paths and temporary folders.                                           |
+| III, IV, V. Identity, pinned revisions, opt-in sources  | Pass. Not touched. The one new npm dependency is pinned.                                                                                                          |
+| VI. Self-modifying instructions are review-gated        | Pass. No instruction file is changed.                                                                                                                             |
+| VII. Relay unavailability never blocks local work       | Pass. The log is local disk only.                                                                                                                                 |
+| VIII. No concealment instructions                       | Pass.                                                                                                                                                             |
+| ADR for principle-affecting decisions                   | The decision "a plain-text log lies beside the encrypted vault" is lasting, so an ADR (`docs/adr/`) is planned in the tasks, though it changes no Core Principle. |
+| Tests in separate files (spaex)                         | Pass. Unit tests in `*_tests.rs`, integration tests in `src-tauri/tests/`.                                                                                        |
+| 500 LoC per file (spaex)                                | Pass by design: the sink, the level, the rotation and the commands are separate modules (see the structure).                                                      |
+| Imports at the top of the file                          | Pass; applies to the new modules and the plugin.                                                                                                                  |
+| UI feedback rule: no success message inside a component | Pass. The setting shows no "Gespeichert"; a failure goes to the toast like the neighbouring settings.                                                             |
+| New identifiers use `haex`                              | Pass: preference keys `diagnostics.*`, events `haex:diagnostic-log-…`, module `diagnostic_log`.                                                                   |
+| No backward compatibility                               | Pass. The old global dev log file simply stops being written.                                                                                                     |
 
 No violation, so the Complexity Tracking table stays empty. After the Phase 1 design the check holds unchanged; the one
 point to watch in review is FR-009 (no secret in any line), covered by the test in the plan's last phase.
