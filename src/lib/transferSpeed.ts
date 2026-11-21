@@ -6,7 +6,7 @@ export function formatSpeed(bytesPerSecond: number): string {
   return `${Math.round(bytesPerSecond / 1e3)} kB/s`
 }
 
-/** How many bytes of a transfer had arrived at a moment (`Date.now()`). */
+/** How many bytes of a transfer had arrived at a monotonic-clock timestamp. */
 export interface ProgressSample {
   at: number
   bytes: number

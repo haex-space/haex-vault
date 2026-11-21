@@ -13,12 +13,12 @@ import {
  */
 export function useTransferSpeed(bytes: () => number | null | undefined) {
   const samples = ref<ProgressSample[]>([])
-  const now = ref(Date.now())
+  const now = ref(performance.now())
   let ticker: ReturnType<typeof setInterval> | undefined
 
   onMounted(() => {
     ticker = setInterval(() => {
-      now.value = Date.now()
+      now.value = performance.now()
     }, 1000)
   })
 
@@ -31,7 +31,7 @@ export function useTransferSpeed(bytes: () => number | null | undefined) {
       samples.value = []
       return
     }
-    const at = Date.now()
+    const at = performance.now()
     now.value = at
     // A count below an earlier one is a new transfer: the old samples say nothing about it.
     const kept = samples.value.filter(
