@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
+use haex_crdt::rusqlite::types::Value;
 use haex_crdt::rusqlite::{params, Connection, OptionalExtension};
 use zeroize::Zeroizing;
 
@@ -20,8 +21,9 @@ use crate::passwords::import::{
 use crate::passwords::model::{AttentionKind, KeyValueInput, PresetInput};
 use crate::passwords::passkeys::PasskeyInput;
 
-/// Reads binary rows on demand. haex-vault 2.x stores them as standard Base64 text; haex-vault hashes the
-/// decoded bytes again when it writes them.
+/// Reads binary rows on demand. haex-vault 2.x stores them as standard Base64 text; a vault file of
+/// this app (also from before the rename) stores the bytes themselves as a blob. haex-vault hashes
+/// the decoded bytes again when it writes them.
 pub(super) struct Binaries<'c> {
     conn: &'c Connection,
 }
@@ -38,7 +40,7 @@ impl<'c> Binaries<'c> {
     }
 
     pub fn get(&self, hash: &str) -> Result<Binary> {
-        let data: Option<String> = self
+        let data: Option<Value> = self
             .conn
             .query_row(
                 "SELECT data FROM haex_passwords_binaries WHERE hash = ?1",
@@ -49,10 +51,12 @@ impl<'c> Binaries<'c> {
             .map_err(corrupt)?;
         Ok(match data {
             None => Binary::Missing,
-            Some(text) => match STANDARD.decode(text.trim()) {
+            Some(Value::Blob(bytes)) => Binary::Bytes(bytes),
+            Some(Value::Text(text)) => match STANDARD.decode(text.trim()) {
                 Ok(bytes) => Binary::Bytes(bytes),
                 Err(_) => Binary::Unreadable,
             },
+            Some(_) => Binary::Unreadable,
         })
     }
 }
