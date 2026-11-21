@@ -51,6 +51,7 @@ use super::migrations_contacts::{CONTACTS_0033, CONTACTS_PHONE_KNOWN_0034};
 use super::migrations_contacts_cards::CONTACTS_CARDS_0043;
 use super::migrations_contacts_self::CONTACTS_SELF_0042;
 use super::migrations_default_model::DEFAULT_MODEL_0062;
+use super::migrations_diagnostic_log::DIAGNOSTIC_LOG_0068;
 use super::migrations_drop_agent_files::DROP_AGENT_FILES_0059;
 use super::migrations_drop_agent_grants::DROP_AGENT_GRANTS_0056;
 use super::migrations_encrypted_folders::ENCRYPTED_FOLDERS_0030;
@@ -876,6 +877,11 @@ pub fn haex_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0067_chat_attachment_inline"),
         CHAT_ATTACHMENT_INLINE_0067.to_owned(),
+    );
+    // Spec 098: the level of the diagnostic log; `_no_sync`, so HAEX_TRIGGER_VERSION stays.
+    m.insert(
+        MigrationName::from("0068_diagnostic_log"),
+        DIAGNOSTIC_LOG_0068.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

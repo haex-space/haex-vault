@@ -3,8 +3,9 @@
 //! Every vault has a folder, `<AppLocalData>/vaults/<name>/`. Its root holds the SQLite files
 //! (`vault.db`, `-wal`, `-shm`) and small bookkeeping files (`.lock`, `.vault-id`, `.pending`);
 //! everything else goes into subfolders: the agent browser profile in `agent-browser/`, the
-//! chat files in `chat-files/`, the delegate CLI tools in `cli-tools/` and the home folder of
-//! those tools (per-run folders, records) in `home/` (spec 094).
+//! chat files in `chat-files/`, the delegate CLI tools in `cli-tools/`, the home folder of
+//! those tools (per-run folders, records) in `home/` (spec 094) and the diagnostic log in
+//! `logs/` (spec 098).
 //!
 //! The `legacy_*` functions name where the database of a vault lay before the folders; only the
 //! move at start (`layout_move`) uses them.
@@ -29,6 +30,7 @@ const AGENT_BROWSER: &str = "agent-browser";
 const CHAT_FILES: &str = "chat-files";
 const CLI_TOOLS: &str = "cli-tools";
 const HOME: &str = "home";
+const LOGS: &str = "logs";
 const RUN: &str = "run";
 const RECORDS: &str = "records";
 const FILTER_LISTS: &str = "filter-lists";
@@ -112,6 +114,12 @@ impl VaultPaths {
     /// The installations of one vendor's tool in the vault `name`, one folder per version.
     pub fn cli_tool_dir(&self, name: &str, vendor: &str) -> PathBuf {
         self.cli_tools(name).join(vendor)
+    }
+
+    /// The folder of the diagnostic log of the vault `name` (spec 098). It lies in the vault's
+    /// folder, so it goes along when the folder is copied or deleted.
+    pub fn logs_dir(&self, name: &str) -> PathBuf {
+        self.subfolder(name, LOGS)
     }
 
     /// The home folder of every delegate process of the vault `name`: the vault's own `HOME`.

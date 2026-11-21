@@ -9,6 +9,9 @@ use crate::state::AppState;
 
 /// Starts every service that runs while the vault is open; each ends with the session.
 pub async fn start(app: &AppHandle, state: &AppState, chat: &ChatState) {
+    // Spec 098: the log of this vault begins here, before any service can write a line; what came
+    // before the unlock is not kept.
+    crate::diagnostic_log::begin(app, state).await;
     // Spec 094: what an earlier session left in the vault's tool folders (an interrupted install,
     // run folders of a killed run) goes before anything can start a delegate.
     sweep_cli_tools(app, state).await;

@@ -55,6 +55,9 @@ mod migrations_contacts_tests;
 mod migrations_default_model;
 #[cfg(test)]
 mod migrations_default_model_tests;
+mod migrations_diagnostic_log;
+#[cfg(test)]
+mod migrations_diagnostic_log_tests;
 mod migrations_drop_agent_files;
 #[cfg(test)]
 mod migrations_drop_agent_files_tests;
