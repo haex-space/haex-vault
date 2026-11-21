@@ -99,11 +99,7 @@ export function createWmNavigation(deps: {
 
   /** Asks the tab's navigation guard; `true` if it holds the navigation back. Its `proceed` runs
    * `run` once without asking again. */
-  function held(
-    tabId: string,
-    to: TabLocation | null,
-    run: () => void,
-  ): boolean {
+  function held(tabId: string, to: TabLocation, run: () => void): boolean {
     const guard = navigationGuards.get(tabId)
     if (!guard || passing.has(tabId)) return false
     return guard({
@@ -148,7 +144,10 @@ export function createWmNavigation(deps: {
   }
 
   function goNow(tabId: string, delta: number): boolean {
-    if (held(tabId, null, () => goNow(tabId, delta))) return false
+    const history = histories.get(tabId)
+    const destination = history?.entries[history.index + delta]?.location
+    if (destination && held(tabId, destination, () => goNow(tabId, delta)))
+      return false
     const changed = goTab(histories, tabId, delta, deps.titleOverrideOf(tabId))
     if (changed) {
       lastDirection.set(tabId, delta < 0 ? -1 : 1)
