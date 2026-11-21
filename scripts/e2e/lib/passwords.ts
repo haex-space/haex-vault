@@ -412,6 +412,38 @@ export async function slideSettled(
   )
 }
 
+/**
+ * Runs `change` in the tab Extra of the editor and returns to the tab Extra of the view. The view
+ * only shows the attachments and the passkeys (their buttons stand disabled there); adding,
+ * renaming and removing happen in the editor, where each change is saved at once and the draft
+ * stays clean, so leaving asks nothing.
+ */
+export async function inEditorExtra(
+  ctx: Pick<WaitContext, 'waitFor'>,
+  instance: FlowInstance,
+  change: () => Promise<void>,
+): Promise<void> {
+  await instance.click('passwords-edit')
+  await instance.waitForDisplayed('passwords-editor')
+  await selectTab(instance, 'extra')
+  await ctx.waitFor('the editor slide Extra to rest', () =>
+    slideSettled(instance, 'extra'),
+  )
+  await change()
+  await instance.click('passwords-editor-cancel')
+  await ctx.waitFor(
+    'the editor to close',
+    async () =>
+      !(await instance.exec<boolean>(
+        `return Boolean(document.querySelector('[data-testid="passwords-editor"]'))`,
+      )),
+  )
+  await selectTab(instance, 'extra')
+  await ctx.waitFor('the view slide Extra to rest', () =>
+    slideSettled(instance, 'extra'),
+  )
+}
+
 /** Whether the swipe surface shows this tab's slide: the slide follows the tab bar (spec 036 FR-002). */
 export async function slideShows(
   instance: FlowInstance,

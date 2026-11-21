@@ -6,6 +6,7 @@ import { createAndUnlock, unwrap, type FlowInstance } from '../lib/flows.ts'
 import {
   contextMenu,
   importExport,
+  inEditorExtra,
   openPasswords,
   overview,
   selectTab,
@@ -107,16 +108,27 @@ scenario('passwords-passkeys', { timeoutMs: 240_000 }, async (ctx) => {
   )
   ctx.step('the imported passkey shows in the tab Extra')
 
-  await instance.click(`passwords-passkey-rename-${passkey.id}`)
-  await instance.type(
-    `passwords-passkey-nickname-${passkey.id}`,
-    `Laptop${KEY.enter}`,
+  // The view lists the passkey with its buttons disabled; the editor changes it.
+  assert.equal(
+    await instance.exec<boolean>(
+      `return document.querySelector('[data-testid="passwords-passkey-rename-' + arguments[0] + '"]').disabled`,
+      [passkey.id],
+    ),
+    true,
+    'the view does not rename',
   )
-  await ctx.waitFor(
-    'the nickname',
-    async () =>
-      (await detail(instance, original)).passkeys[0]?.nickname === 'Laptop',
-  )
+  await inEditorExtra(ctx, instance, async () => {
+    await instance.click(`passwords-passkey-rename-${passkey.id}`)
+    await instance.type(
+      `passwords-passkey-nickname-${passkey.id}`,
+      `Laptop${KEY.enter}`,
+    )
+    await ctx.waitFor(
+      'the nickname',
+      async () =>
+        (await detail(instance, original)).passkeys[0]?.nickname === 'Laptop',
+    )
+  })
   ctx.step('the passkey is renamed')
 
   // A copy with "Passkeys per Verweis".
@@ -149,11 +161,13 @@ scenario('passwords-passkeys', { timeoutMs: 240_000 }, async (ctx) => {
   assert.deepEqual(offers, [false, false, true], 'a link offers only unlink')
   ctx.step('the copy shows the passkey by a link')
 
-  await instance.click(`passwords-passkey-unlink-${passkey.id}`)
-  await ctx.waitFor(
-    'the link to go',
-    async () => (await detail(instance, copy)).passkeys.length === 0,
-  )
+  await inEditorExtra(ctx, instance, async () => {
+    await instance.click(`passwords-passkey-unlink-${passkey.id}`)
+    await ctx.waitFor(
+      'the link to go',
+      async () => (await detail(instance, copy)).passkeys.length === 0,
+    )
+  })
   assert.equal((await detail(instance, original)).passkeys.length, 1)
   ctx.step('"Verweis lösen" removes only the link')
 
@@ -161,16 +175,18 @@ scenario('passwords-passkeys', { timeoutMs: 240_000 }, async (ctx) => {
   await instance.click('passwords-all')
   await instance.click(`passwords-entry-${original}`)
   await openExtra(ctx, instance)
-  await instance.click(`passwords-passkey-delete-${passkey.id}`)
-  await instance.waitForDisplayed('passwords-passkey-delete-confirm')
-  const asked = await instance.exec<string>(
-    `return document.querySelector('[role="alertdialog"]').textContent`,
-  )
-  assert.ok(asked.includes('Example'), asked)
-  await instance.click('passwords-passkey-delete-confirm')
-  await ctx.waitFor(
-    'the passkey to go',
-    async () => (await detail(instance, original)).passkeys.length === 0,
-  )
+  await inEditorExtra(ctx, instance, async () => {
+    await instance.click(`passwords-passkey-delete-${passkey.id}`)
+    await instance.waitForDisplayed('passwords-passkey-delete-confirm')
+    const asked = await instance.exec<string>(
+      `return document.querySelector('[role="alertdialog"]').textContent`,
+    )
+    assert.ok(asked.includes('Example'), asked)
+    await instance.click('passwords-passkey-delete-confirm')
+    await ctx.waitFor(
+      'the passkey to go',
+      async () => (await detail(instance, original)).passkeys.length === 0,
+    )
+  })
   ctx.step('deleting the passkey asks with the relying party named')
 })
