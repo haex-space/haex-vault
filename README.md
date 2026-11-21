@@ -465,3 +465,5 @@ HaexVault is free software under the GNU Affero General Public License, version 
 any later version (AGPL-3.0-or-later). The full text is in [LICENSE](LICENSE).
 
 </details>
+
+Test line for the old-name gate: holzi.
