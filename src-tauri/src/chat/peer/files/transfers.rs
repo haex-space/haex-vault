@@ -230,7 +230,19 @@ impl ChatFiles {
         }
         let mut uploaded = Vec::with_capacity(prepared.len());
         for file in prepared {
-            uploaded.push(self.upload(&server, file).await?);
+            match self.upload(&server, file).await {
+                Ok(file) => uploaded.push(file),
+                Err(error) => {
+                    let credentials: Vec<_> = uploaded
+                        .iter()
+                        .map(|file: &Uploaded| {
+                            (file.signer.clone(), file.attachment.blossom.sha256.clone())
+                        })
+                        .collect();
+                    self.delete_unqueued(&server, &credentials).await;
+                    return Err(error);
+                }
+            }
         }
         let cleanup_credentials: Vec<_> = uploaded
             .iter()
