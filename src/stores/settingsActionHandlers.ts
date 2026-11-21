@@ -21,6 +21,7 @@ import { useModelDownloadsStore } from '~/stores/modelDownloads'
 import type { useWindowManagerStore } from '~/stores/windowManager'
 import type { AgentProfileDeleted } from '~/types/bindings/AgentProfileDeleted'
 import type { BridgeOverview } from '~/types/bindings/BridgeOverview'
+import type { DiagnosticLogStatus } from '~/types/bindings/DiagnosticLogStatus'
 import type { McpStatus } from '~/types/bindings/McpStatus'
 
 type WmStore = ReturnType<typeof useWindowManagerStore>
@@ -130,6 +131,13 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
       enabled: input.enabled === true,
     }),
   }))
+  on('settings.diagnostics.logLevel.set', async ({ input }) => {
+    const { level, untilMs, writable } = await invoke<DiagnosticLogStatus>(
+      'diagnostic_log_set',
+      { level: input.level === 'verbose' ? 'verbose' : 'standard' },
+    )
+    return { level, untilMs, writable }
+  })
   on('settings.files.deviceAccess.set', async ({ input }) => ({
     enabled: await invoke<boolean>('files_device_access_set', {
       enabled: input.enabled === true,

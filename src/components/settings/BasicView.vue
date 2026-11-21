@@ -31,5 +31,6 @@ const { capabilities } = useDeviceCapabilities()
     />
     <SettingsSessionRestoreSetting />
     <SettingsScreenCaptureSetting v-if="capabilities?.screenCapture" />
+    <SettingsDiagnosticLogSetting />
   </div>
 </template>

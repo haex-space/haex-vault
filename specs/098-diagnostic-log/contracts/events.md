@@ -6,7 +6,7 @@
 | `haex:diagnostic-log-unwritable` | `{}`                  | the first failed write after a successful one (not on every line)                                                                                               | the settings component                          |
 
 The interface plugin loads at the start of the app, before any vault is unlocked, so it cannot ask for the level then. It stays at
-"Standard" and sends no records until the event of `begin` arrives; that event provides the current `session_id` and level.
+"Standard" and sends no records until the event of `begin` arrives; that event provides the current `sessionId` and level.
 When the window is reloaded while a vault is open, the plugin also calls `diagnostic_log_get` once at its start; an error "no
 active vault" there means no unlock yet and changes nothing. A change event received while that read is pending takes precedence:
 the older startup response must not overwrite the event's level or session token.

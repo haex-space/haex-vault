@@ -125,6 +125,7 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
       'settings.alias.label',
       'settings.sessionRestore.title',
       'settings.screenCapture.title',
+      'settings.diagnosticLog.title',
     ],
   }),
   // Reached from its row in "Grundeinstellung"; an agent opens it with `wm.app.open` (FR-014).

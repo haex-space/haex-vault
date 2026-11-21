@@ -65,7 +65,7 @@ made exactly when something is being diagnosed, possibly the sync itself, so it 
 observation. The repository has the other precedent for a setting of one device only: `haex_file_device_access_no_sync`
 (`identity/migrations_file_shares.rs`, one row with `id = 1`, written with a plain `INSERT … ON CONFLICT` in
 `files/share/device_access.rs`), and about forty `_no_sync` tables in all. A `_no_sync` table is not tracked, so no change of
-`HAEX_TRIGGER_VERSION` is needed for it. The latest migration of this tree is `0066_chat_record_relays`.
+`HAEX_TRIGGER_VERSION` is needed for it. The latest migration of this tree when this was written was `0066_chat_record_relays`; it became `0068_diagnostic_log` (0067 was taken meanwhile).
 
 **Decision.** One table `haex_diagnostic_log_no_sync` in a new migration (the next free number when it is written, file
 `identity/migrations_diagnostic_log.rs`, registered in `haex_migration_source`): one row with `id = 1` and the columns `level`
@@ -101,7 +101,7 @@ capabilities files apply to the window `main` only, so extension frames get noth
 and `console.debug` while "Ausführlich" is on), listens to `window.onerror` and `unhandledrejection`, and listens to
 the Nuxt hooks `vue:error` and `app:error` for errors of the view layer (Nuxt itself sets `vueApp.config.errorHandler` in
 `nuxt/dist/app/entry.js`, so the plugin must not replace it). Each message becomes a string (the text of the arguments, the stack of an `Error`); objects other
-than errors are not serialised, they become `[object]` (FR-006). The plugin calls a dedicated `diagnostic_log_ui_message` command with the current opaque `session_id`; the backend drops a
+than errors are not serialised, they become `[object]` (FR-006). The plugin calls a dedicated `diagnostic_log_ui_message` command with the current opaque `sessionId`; the backend drops a
 queued message unless its token matches the attached vault session. The original `console` call still runs. The
 plugin takes the current level from the change event, which the backend sends at every `begin` (the plugin loads before the unlock and cannot ask then), and from one `diagnostic_log_get` at its start for a reload of the window, and drops `info`/`debug` without an IPC
 call in "Standard". A token bucket (100 messages a second, burst 200) limits a loop; once a second the plugin writes one line with
