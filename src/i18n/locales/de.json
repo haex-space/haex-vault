@@ -2499,7 +2499,8 @@
     "entryGone": "Dieser Eintrag existiert nicht mehr.",
     "markers": {
       "totp": "Hat einen TOTP-Code",
-      "passkey": "Hat Passkeys"
+      "passkey": "Hat Passkeys",
+      "attachments": "Hat Dateianhänge"
     },
     "reveal": "{field} anzeigen",
     "revealHint": "Anzeigen",
