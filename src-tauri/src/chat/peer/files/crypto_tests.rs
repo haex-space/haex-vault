@@ -141,3 +141,99 @@ fn decryptor_rejects_ciphertext_over_the_plaintext_limit() {
 fn ciphertext_length_does_not_overflow_for_untrusted_sizes() {
     assert_eq!(ciphertext_len(u64::MAX), u64::MAX);
 }
+
+#[test]
+fn the_streaming_sealer_equals_encrypt_whatever_the_piece_size() {
+    for len in [
+        0,
+        1,
+        SEGMENT - 1,
+        SEGMENT,
+        SEGMENT + 1,
+        3 * SEGMENT,
+        3 * SEGMENT + 5,
+    ] {
+        let plain = bytes(len);
+        let whole = encrypt(&key(), &plain).expect("encrypt");
+        for piece in [1000, 4093, SEGMENT, SEGMENT + 7] {
+            let mut encryptor = Encryptor::new(&key());
+            let mut streamed = Vec::new();
+            for part in plain.chunks(piece) {
+                streamed.extend(encryptor.push(part).expect("push"));
+            }
+            streamed.extend(encryptor.finish().expect("finish"));
+            assert_eq!(streamed, whole, "{len} bytes in pieces of {piece}");
+        }
+    }
+}
+
+#[test]
+fn the_streaming_sealer_holds_at_most_one_segment_back() {
+    let mut encryptor = Encryptor::new(&key());
+    let sealed = encryptor.push(&bytes(SEGMENT)).expect("push");
+    // The header goes out at once; a full segment waits, it may still be the last one.
+    assert_eq!(sealed.len(), HEADER_LEN);
+    let sealed = encryptor.push(&[1]).expect("push");
+    assert_eq!(sealed.len(), SEGMENT + TAG_LEN);
+}
+
+#[test]
+fn the_streaming_sealer_refuses_more_than_the_limit() {
+    let mut encryptor = Encryptor::new(&key());
+    // Counting is what is under test; sealing 200 MiB in a debug build would only be slow.
+    encryptor.taken = MAX_PLAINTEXT - 1;
+    encryptor.push(&[0]).expect("exactly the limit");
+    assert!(encryptor.push(&[0]).is_err());
+}
+
+#[test]
+fn sealing_a_reader_gives_the_object_its_length_and_both_hashes() {
+    for len in [0, 5, SEGMENT, 2 * SEGMENT + 3] {
+        let plain = bytes(len);
+        let mut object = Vec::new();
+        let facts = seal_stream(&key(), plain.as_slice(), |piece| {
+            object.extend_from_slice(piece);
+            Ok(())
+        })
+        .expect("seal");
+        assert_eq!(object, encrypt(&key(), &plain).expect("encrypt"), "{len}");
+        assert_eq!(facts.plaintext_len, len as u64);
+        assert_eq!(facts.plaintext_sha256, sha256_hex(&plain));
+        assert_eq!(facts.ciphertext_len, object.len() as u64);
+        assert_eq!(facts.ciphertext_sha256, sha256_hex(&object));
+    }
+}
+
+/// Gives `good` bytes, then fails.
+struct Breaking {
+    good: usize,
+}
+
+impl std::io::Read for Breaking {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.good == 0 {
+            return Err(std::io::Error::other("the disk went away"));
+        }
+        let n = buf.len().min(self.good);
+        buf[..n].fill(3);
+        self.good -= n;
+        Ok(n)
+    }
+}
+
+#[test]
+fn a_reader_that_fails_midway_fails_the_seal() {
+    let result = seal_stream(&key(), Breaking { good: SEGMENT + 10 }, |_| Ok(()));
+    assert!(result.is_err());
+}
+
+#[test]
+fn a_sink_that_fails_stops_the_seal() {
+    let mut calls = 0;
+    let result = seal_stream(&key(), bytes(3 * SEGMENT).as_slice(), |_| {
+        calls += 1;
+        Err(invalid("the upload broke"))
+    });
+    assert!(result.is_err());
+    assert_eq!(calls, 1, "nothing is sealed after the sink failed");
+}

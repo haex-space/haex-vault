@@ -4,6 +4,8 @@
 //! of order or a changed byte fails; so does a plaintext whose SHA-256 is not the one the message
 //! named. An empty file is one empty last segment.
 
+use std::io::{ErrorKind, Read};
+
 use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
 use sha2::{Digest, Sha256};
@@ -22,7 +24,7 @@ pub const HEADER_LEN: usize = 4 + 1 + 4 + 8;
 /// The GCM tag behind every segment.
 pub const TAG_LEN: usize = 16;
 /// HaexVault's own cap of a file (FR-034); a lower limit of the server wins.
-pub const MAX_PLAINTEXT: u64 = 100_000_000;
+pub const MAX_PLAINTEXT: u64 = 200 * 1024 * 1024;
 /// Largest valid HXCF object under the plaintext limit.
 const MAX_CIPHERTEXT: u64 =
     HEADER_LEN as u64 + MAX_PLAINTEXT + TAG_LEN as u64 * MAX_PLAINTEXT.div_ceil(SEGMENT as u64);
@@ -89,42 +91,152 @@ fn aad(last: bool) -> [u8; 6] {
     aad
 }
 
-/// Encrypts a whole file. `ponytail:` the plaintext and the result are held in memory (≤ 100 MB per
-/// file, research R14); upgrade: seal segment by segment from a reader into the upload stream.
+/// Encrypts a whole file that is in memory already; a file that is not goes through [`Encryptor`] or
+/// [`seal_stream`].
 pub fn encrypt(file: &FileKey, plaintext: &[u8]) -> Result<Vec<u8>> {
-    if plaintext.len() as u64 > MAX_PLAINTEXT {
-        return Err(HaexError::InvalidInput {
-            reason: "the file is larger than 100 MB".into(),
-        });
-    }
     let len = usize::try_from(ciphertext_len(plaintext.len() as u64)).map_err(|_| too_big())?;
+    let mut encryptor = Encryptor::new(file);
     let mut out = Vec::with_capacity(len);
-    out.extend_from_slice(MAGIC);
-    out.push(VERSION);
-    out.extend_from_slice(&(SEGMENT as u32).to_be_bytes());
-    out.extend_from_slice(&file.nonce_prefix);
-    let cipher = file.cipher();
-    let segments: Vec<&[u8]> = if plaintext.is_empty() {
-        vec![&[]]
-    } else {
-        plaintext.chunks(SEGMENT).collect()
-    };
-    let count = segments.len();
-    for (index, segment) in segments.into_iter().enumerate() {
-        let last = index + 1 == count;
-        let index = u32::try_from(index).map_err(|_| too_big())?;
-        let sealed = cipher
+    out.extend(encryptor.push(plaintext)?);
+    out.extend(encryptor.finish()?);
+    Ok(out)
+}
+
+/// Encrypts a file as its plaintext comes in: [`Self::push`] answers the sealed bytes of every
+/// segment that is complete and not the last one, [`Self::finish`] seals the last one. The header
+/// leads the first answer. The same key and nonce prefix give the same bytes every time, so a file
+/// can be sealed once to learn its hash and again to send it.
+pub struct Encryptor {
+    cipher: Aes256Gcm,
+    nonce_prefix: [u8; 8],
+    /// Plaintext not sealed yet: at most one segment between calls.
+    buffer: Vec<u8>,
+    header_sent: bool,
+    index: u32,
+    taken: u64,
+}
+
+impl Encryptor {
+    pub fn new(file: &FileKey) -> Self {
+        Self {
+            cipher: file.cipher(),
+            nonce_prefix: file.nonce_prefix,
+            buffer: Vec::new(),
+            header_sent: false,
+            index: 0,
+            taken: 0,
+        }
+    }
+
+    /// Takes the next plaintext; answers the sealed bytes of the segments it completed.
+    pub fn push(&mut self, plain: &[u8]) -> Result<Vec<u8>> {
+        self.taken = self
+            .taken
+            .checked_add(plain.len() as u64)
+            .filter(|&taken| taken <= MAX_PLAINTEXT)
+            .ok_or_else(|| HaexError::InvalidInput {
+                reason: "chat file: the file is larger than 200 MiB".into(),
+            })?;
+        self.buffer.extend_from_slice(plain);
+        let mut out = self.header();
+        // A full segment is the last one only when nothing follows it, so one stays buffered.
+        let buffer = std::mem::take(&mut self.buffer);
+        let mut start = 0;
+        while buffer.len() - start > SEGMENT {
+            self.seal(&buffer[start..start + SEGMENT], false, &mut out)?;
+            start += SEGMENT;
+        }
+        self.buffer = if start == 0 {
+            buffer
+        } else {
+            buffer[start..].to_vec()
+        };
+        Ok(out)
+    }
+
+    /// Seals the last segment (empty for an empty file) and answers its bytes.
+    pub fn finish(mut self) -> Result<Vec<u8>> {
+        let mut out = self.header();
+        let last = std::mem::take(&mut self.buffer);
+        self.seal(&last, true, &mut out)?;
+        Ok(out)
+    }
+
+    fn header(&mut self) -> Vec<u8> {
+        if std::mem::replace(&mut self.header_sent, true) {
+            return Vec::new();
+        }
+        let mut header = Vec::with_capacity(HEADER_LEN);
+        header.extend_from_slice(MAGIC);
+        header.push(VERSION);
+        header.extend_from_slice(&(SEGMENT as u32).to_be_bytes());
+        header.extend_from_slice(&self.nonce_prefix);
+        header
+    }
+
+    fn seal(&mut self, segment: &[u8], last: bool, out: &mut Vec<u8>) -> Result<()> {
+        let sealed = self
+            .cipher
             .encrypt(
-                &Nonce::from(nonce(&file.nonce_prefix, index)),
+                &Nonce::from(nonce(&self.nonce_prefix, self.index)),
                 Payload {
                     msg: segment,
                     aad: &aad(last),
                 },
             )
             .map_err(|_| invalid("a segment could not be sealed"))?;
+        self.index = self.index.checked_add(1).ok_or_else(too_big)?;
         out.extend_from_slice(&sealed);
+        Ok(())
     }
-    Ok(out)
+}
+
+/// What sealing a file produced: the lengths and the two hashes a message and Blossom name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SealedFacts {
+    pub plaintext_len: u64,
+    pub plaintext_sha256: String,
+    pub ciphertext_len: u64,
+    pub ciphertext_sha256: String,
+}
+
+/// Seals what `reader` gives, a segment at a time, and hands every sealed piece to `sink` in
+/// order; nothing is kept. A failing reader or sink ends it at once. Run it on a blocking thread.
+pub fn seal_stream(
+    file: &FileKey,
+    mut reader: impl Read,
+    mut sink: impl FnMut(&[u8]) -> Result<()>,
+) -> Result<SealedFacts> {
+    let mut encryptor = Encryptor::new(file);
+    let (mut plain_hash, mut sealed_hash) = (Sha256::new(), Sha256::new());
+    let (mut plain_len, mut sealed_len) = (0_u64, 0_u64);
+    let mut buf = vec![0; SEGMENT];
+    let mut emit = |bytes: &[u8]| -> Result<()> {
+        sealed_hash.update(bytes);
+        sealed_len += bytes.len() as u64;
+        if bytes.is_empty() {
+            return Ok(());
+        }
+        sink(bytes)
+    };
+    loop {
+        let n = match reader.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => n,
+            Err(error) if error.kind() == ErrorKind::Interrupted => continue,
+            Err(error) => return Err(invalid(&format!("the file could not be read: {error}"))),
+        };
+        plain_hash.update(&buf[..n]);
+        plain_len += n as u64;
+        emit(&encryptor.push(&buf[..n])?)?;
+    }
+    emit(&encryptor.finish()?)?;
+    Ok(SealedFacts {
+        plaintext_len: plain_len,
+        plaintext_sha256: hex(&plain_hash.finalize()),
+        ciphertext_len: sealed_len,
+        ciphertext_sha256: hex(&sealed_hash.finalize()),
+    })
 }
 
 /// Decrypts an encrypted file as its bytes come in: [`Self::push`] answers the plaintext of every
