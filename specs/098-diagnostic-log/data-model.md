@@ -42,7 +42,7 @@ A switch to `verbose` sets `until_ms = now + 24 h` and `run_id = this run`. Its 
 monotonic instant of that switch, so a backward wall-clock change cannot extend it; the monotonic deadline is held for the
 current run. A new app run resets the level to `standard`. A switch back writes `standard` and clears both.
 
-Each `begin` creates a fresh opaque `session_id`, returned in `DiagnosticLogStatus` and in the changed event. Interface records
+Each `begin` creates a fresh opaque `sessionId`, returned in `DiagnosticLogStatus` and in the changed event. Interface records
 carry that token; the backend drops a record unless it matches the currently attached vault session.
 
 ## Log

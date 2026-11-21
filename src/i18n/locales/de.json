@@ -612,6 +612,17 @@
       "description": "Keine Bildschirmfotos und Aufnahmen, leere Vorschau in der App-Übersicht",
       "failed": "Die Einstellung konnte nicht geändert werden"
     },
+    "diagnosticLog": {
+      "title": "Protokoll",
+      "description": "Wie ausführlich die App für diese Vault mitschreibt. „Ausführlich“ hilft bei der Fehlersuche und endet nach 24 Stunden oder beim nächsten Start von selbst.",
+      "levelStandard": "Standard",
+      "levelVerbose": "Ausführlich",
+      "endsAt": "Endet am {time}",
+      "location": "Das Protokoll liegt im Ordner dieser Vault und geht mit, wenn der Ordner kopiert wird.",
+      "moreLater": "Weitere Detailzeilen kommen in späteren Versionen schrittweise dazu.",
+      "unwritable": "Das Protokoll kann nicht geschrieben werden",
+      "failed": "Die Einstellung konnte nicht geändert werden"
+    },
     "sttModel": {
       "modelLabel": "Modell",
       "downloading": "Lade herunter…",
@@ -2298,6 +2309,11 @@
       "privacy": {
         "screenCapture": {
           "set": "Bildschirmschutz ein- oder ausschalten"
+        }
+      },
+      "diagnostics": {
+        "logLevel": {
+          "set": "Ausführlichkeit des Protokolls festlegen"
         }
       },
       "appearance": {

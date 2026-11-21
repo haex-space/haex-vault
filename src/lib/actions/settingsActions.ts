@@ -258,6 +258,28 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
     effect: 'write',
   }),
   setting({
+    // Writes more into a log beside the vault: a guardrail, never callable by agents (spec 098).
+    id: 'settings.diagnostics.logLevel.set',
+    description:
+      'Set how much the diagnostic log of this vault records: "standard" or "verbose". Verbose ends by itself after 24 hours or at the next start of the app.',
+    input: {
+      type: 'object',
+      properties: { level: { type: 'string', enum: ['standard', 'verbose'] } },
+      required: ['level'],
+    },
+    result: {
+      type: 'object',
+      properties: {
+        level: { type: 'string', enum: ['standard', 'verbose'] },
+        untilMs: { type: 'number', nullable: true },
+        writable: { type: 'boolean' },
+      },
+      required: ['level', 'untilMs', 'writable'],
+    },
+    scope: 'guardrails',
+    effect: 'write',
+  }),
+  setting({
     // Lets other own devices reach this device's files: a guardrail, never callable by agents
     // (spec 056 FR-014, research R12).
     id: 'settings.files.deviceAccess.set',

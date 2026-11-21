@@ -117,3 +117,15 @@ fn the_cli_tools_and_their_home_lie_in_subfolders_of_the_vault_folder() {
         assert_ne!(paths.home(name), paths.folder(name));
     }
 }
+
+#[test]
+fn the_log_lies_in_a_subfolder_of_the_vault_folder() {
+    let paths = VaultPaths::new(ROOT);
+    for name in NAMES {
+        let folder = Path::new(ROOT).join("vaults").join(name);
+        assert_eq!(paths.logs_dir(name), folder.join("logs"));
+        // Never the folder of the vault or the folder of all vaults (spec 098 FR-010).
+        assert_ne!(paths.logs_dir(name), paths.folder(name));
+        assert!(paths.logs_dir(name).starts_with(paths.folder(name)));
+    }
+}

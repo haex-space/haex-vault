@@ -362,7 +362,7 @@ pub async fn discard_partial(destination: &std::path::Path) {
     let part = part_path(destination);
     if let Err(e) = tokio::fs::remove_file(&part).await {
         if e.kind() != std::io::ErrorKind::NotFound {
-            log::warn!("remove {}: {e}", part.display());
+            log::warn!("model download: could not remove the partial file: {e}");
         }
     }
 }

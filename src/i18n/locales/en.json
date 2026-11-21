@@ -612,6 +612,17 @@
       "description": "No screenshots or recordings, an empty preview among the recent apps",
       "failed": "The setting could not be changed"
     },
+    "diagnosticLog": {
+      "title": "Log",
+      "description": "How much the app writes down for this vault. \"Verbose\" helps with troubleshooting and ends by itself after 24 hours or at the next start.",
+      "levelStandard": "Standard",
+      "levelVerbose": "Verbose",
+      "endsAt": "Ends on {time}",
+      "location": "The log lies in this vault's folder and goes along when the folder is copied.",
+      "moreLater": "More detail lines will follow step by step in later versions.",
+      "unwritable": "The log cannot be written",
+      "failed": "The setting could not be changed"
+    },
     "sttModel": {
       "modelLabel": "Model",
       "downloading": "Downloading…",
@@ -2298,6 +2309,11 @@
       "privacy": {
         "screenCapture": {
           "set": "Turn the screen protection on or off"
+        }
+      },
+      "diagnostics": {
+        "logLevel": {
+          "set": "Set how verbose the log is"
         }
       },
       "appearance": {

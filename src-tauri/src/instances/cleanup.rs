@@ -17,7 +17,7 @@ fn remove(path: &Path) -> bool {
         Ok(()) => true,
         Err(error) if error.kind() == ErrorKind::NotFound => true,
         Err(error) => {
-            log::warn!("could not remove {path:?}: {error}");
+            log::warn!("could not remove a vault file: {error}");
             false
         }
     }
@@ -65,7 +65,7 @@ pub fn take_back(db_path: &Path) -> bool {
         Ok(()) => true,
         Err(error) if error.kind() == ErrorKind::NotFound => true,
         Err(error) => {
-            log::warn!("could not remove {folder:?}: {error}");
+            log::warn!("could not remove a vault folder: {error}");
             false
         }
     }

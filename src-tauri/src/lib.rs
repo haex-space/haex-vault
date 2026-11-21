@@ -18,6 +18,7 @@ pub mod compute;
 pub mod contacts;
 pub mod deep_link;
 pub mod device;
+pub mod diagnostic_log;
 pub mod error;
 pub mod extensions;
 pub mod file_sync;
@@ -368,17 +369,9 @@ pub fn run() {
                 use tauri_plugin_haex_android::HaexAndroidExt;
                 hardware::hostname::use_platform_name(app.haex_android().device_name());
             }
-            if cfg!(debug_assertions) {
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        // iroh logs every sent packet at info; the log keeps only 40 kB, so
-                        // without this the sync lines are rotated away within seconds.
-                        .level_for("iroh", log::LevelFilter::Warn)
-                        .level_for("tracing::span", log::LevelFilter::Warn)
-                        .build(),
-                )?;
-            }
+            // Spec 098: the log runs in every build; its sink writes into the open vault's folder.
+            app.handle().plugin(diagnostic_log::plugin())?;
+            diagnostic_log::level::LogLevel::Standard.apply();
             let app_local_data = get_app_local_data(app.handle())?;
             // Spec 084: vaults of the old layout move into their folders first, so the clean-up
             // below and every command see the new one only.
@@ -835,6 +828,9 @@ pub fn run() {
             privacy::screen_display::screen_set_bright,
             privacy::screen_display::screen_set_keep_on,
             privacy::screen_capture::screen_capture_protection_set,
+            diagnostic_log::commands::diagnostic_log_get,
+            diagnostic_log::commands::diagnostic_log_set,
+            diagnostic_log::commands::diagnostic_log_ui_message,
             list_instances,
             create_instance,
             import_instance,
