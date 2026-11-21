@@ -360,7 +360,7 @@ pub async fn put_file(files: &StorageFiles, at: &Located, data: &[u8]) -> Result
 /// any error it must call [`Self::abort`], which leaves no content object behind.
 pub struct PutStream<'a> {
     files: &'a StorageFiles,
-    target: Target,
+    target: Option<Target>,
     oid: Id,
     key: String,
     parts: Option<SealedParts>,
@@ -376,7 +376,7 @@ impl<'a> PutStream<'a> {
         let key = target.folder.content_key(&oid);
         Ok(Self {
             files,
-            target,
+            target: Some(target),
             oid,
             key,
             parts: Some(SealedParts::fresh(PART)),
@@ -407,16 +407,22 @@ impl<'a> PutStream<'a> {
             self.abort().await;
             return Err(error);
         }
-        place(self.files, self.target, self.oid, &self.key, sealed).await
+        // The multipart upload is complete; dropping this writer must not try to abort it.
+        self.upload.take();
+        let target = self
+            .target
+            .take()
+            .ok_or_else(|| FilesError::invalid_path("the file was written already"))?;
+        place(self.files, target, self.oid, &self.key, sealed).await
     }
 
     /// Drops what was sent: no part stays at the storage.
-    pub async fn abort(self) {
-        if let Some((id, _)) = &self.upload {
+    pub async fn abort(mut self) {
+        if let Some((id, _)) = self.upload.take() {
             let _ = self
                 .files
                 .store()
-                .abort_upload(self.files.access(), &self.key, id, soon())
+                .abort_upload(self.files.access(), &self.key, &id, soon())
                 .await;
         }
     }
@@ -458,6 +464,24 @@ impl<'a> PutStream<'a> {
             .map_err(storage_error)?;
         marks.push(mark);
         Ok(())
+    }
+}
+
+impl Drop for PutStream<'_> {
+    fn drop(&mut self) {
+        let Some((id, _)) = self.upload.take() else {
+            return;
+        };
+        // `Drop` cannot await. Schedule the provider cleanup so a cancelled download or caller
+        // future does not leave a multipart upload open until provider-side expiry.
+        let store = Arc::clone(self.files.store());
+        let access = self.files.access().clone();
+        let key = self.key.clone();
+        if let Ok(runtime) = tokio::runtime::Handle::try_current() {
+            runtime.spawn(async move {
+                let _ = store.abort_upload(&access, &key, &id, soon()).await;
+            });
+        }
     }
 }
 
