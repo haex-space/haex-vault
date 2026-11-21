@@ -414,28 +414,18 @@ async fn lines_of_the_backend_and_of_the_interface_read_in_the_order_they_came()
     SINK.flush_sync();
 
     let text = std::fs::read_to_string(f.folder().join("haex.log")).unwrap();
-    let seen: Vec<&str> = text
+    let seen: Vec<(&str, usize)> = text
         .lines()
-        .filter_map(|line| line.rsplit(' ').nth(1).zip(line.rsplit(' ').next()))
-        .filter(|(kind, _)| *kind == "backend" || *kind == "interface")
-        .map(|(_, number)| number)
-        .collect();
-    let expected: Vec<String> = (0..20)
-        .flat_map(|n| [n.to_string(), n.to_string()])
-        .collect();
-    assert_eq!(seen, expected, "one story, in one order: {text}");
-    let origins: Vec<&str> = text
-        .lines()
-        .map(|line| {
+        .filter_map(|line| {
             if line.contains("[ui]") {
-                "ui"
+                Some(("ui", line.rsplit_once("interface ")?.1.parse().ok()?))
             } else {
-                "backend"
+                Some(("backend", line.rsplit_once("backend ")?.1.parse().ok()?))
             }
         })
         .collect();
-    assert_eq!(origins[0], "backend");
-    assert_eq!(origins[1], "ui");
+    let expected: Vec<(&str, usize)> = (0..20).flat_map(|n| [("backend", n), ("ui", n)]).collect();
+    assert_eq!(seen, expected, "one story, in one order: {text}");
 }
 
 fn sources_below(dir: &Path, extension: &str, out: &mut Vec<PathBuf>) {

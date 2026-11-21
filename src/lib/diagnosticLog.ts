@@ -46,7 +46,15 @@ function errorText(error: Error): string {
 /** The text of the arguments of a console call: joined with spaces, cut at `MAX_TEXT`. */
 export function messageText(args: readonly unknown[]): string {
   const text = args.map(argumentText).join(' ')
-  return text.length > MAX_TEXT ? text.slice(0, MAX_TEXT) + CUT_MARK : text
+  if (text.length <= MAX_TEXT) return text
+
+  // String.slice counts UTF-16 code units and could leave a lone high surrogate at the edge.
+  const high = text.charCodeAt(MAX_TEXT - 1)
+  const low = text.charCodeAt(MAX_TEXT)
+  const splitsSurrogatePair =
+    high >= 0xd800 && high <= 0xdbff && low >= 0xdc00 && low <= 0xdfff
+  const end = splitsSurrogatePair ? MAX_TEXT - 1 : MAX_TEXT
+  return text.slice(0, end) + CUT_MARK
 }
 
 /** Whether a message of this severity is sent: info and debug only in "Ausführlich". */
@@ -70,8 +78,11 @@ export function createBucket(now: () => number): Bucket {
 
   const refill = () => {
     const at = now()
-    tokens = Math.min(BURST, tokens + ((at - refilled) / 1000) * PER_SECOND)
-    refilled = at
+    // A backwards clock reading must not subtract already-earned tokens.
+    if (at > refilled) {
+      tokens = Math.min(BURST, tokens + ((at - refilled) / 1000) * PER_SECOND)
+      refilled = at
+    }
   }
 
   return {
