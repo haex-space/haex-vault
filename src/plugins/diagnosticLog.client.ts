@@ -25,7 +25,7 @@ const CONSOLE_LEVELS: readonly UiLevel[] = ['error', 'warn', 'info', 'debug']
  */
 export default defineNuxtPlugin((nuxtApp) => {
   const state = createLogState()
-  const bucket = createBucket(() => Date.now())
+  const bucket = createBucket(() => performance.now())
   let sending = false
 
   /** Sends one message; the log is best effort, so a failure is dropped and never logged again. */

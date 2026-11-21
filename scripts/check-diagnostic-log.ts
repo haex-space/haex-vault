@@ -82,6 +82,11 @@ test('a long text is cut with a marker', () => {
   assert.match(text, /cut/)
 })
 
+test('cutting a long text does not split an emoji', () => {
+  const prefix = 'x'.repeat(MAX_TEXT - 1)
+  assert.equal(messageText([prefix + '😀tail']), prefix + '… [cut]')
+})
+
 test('a text at the limit stays whole', () => {
   const whole = 'y'.repeat(MAX_TEXT)
   assert.equal(messageText([whole]), whole)
@@ -107,6 +112,17 @@ test('the bucket does not refill beyond the burst', () => {
   let passed = 0
   for (let i = 0; i < 300; i += 1) if (bucket.take()) passed += 1
   assert.equal(passed, 200)
+})
+
+test('a backwards clock reading does not take away available tokens', () => {
+  let now = 0
+  const bucket = createBucket(() => now)
+  for (let i = 0; i < 190; i += 1) assert.equal(bucket.take(), true)
+
+  now = 1000
+  for (let i = 0; i < 100; i += 1) assert.equal(bucket.take(), true)
+  now = 500
+  assert.equal(bucket.take(), true)
 })
 
 test('the bucket reports its dropped count once a second', () => {
