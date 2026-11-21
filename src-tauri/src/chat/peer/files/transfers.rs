@@ -503,21 +503,20 @@ impl ChatFiles {
         let rows = self
             .db
             .read(|r| {
-                let mut stmt = r.prepare(
+                let prefix = format!("{ORPHAN_ATTACHMENT_PREFIX}%");
+                r.query_map(
                     "SELECT blob_sha256, server, signer, upload_secret FROM chat_blobs_no_sync \
                      WHERE attachment_id LIKE ?1",
-                )?;
-                let rows =
-                    stmt.query_map(params![format!("{ORPHAN_ATTACHMENT_PREFIX}%")], |row| {
+                    &[&prefix],
+                    |row| {
                         Ok((
                             row.get::<_, String>(0)?,
                             row.get::<_, String>(1)?,
                             row.get::<_, String>(2)?,
                             row.get::<_, Option<Vec<u8>>>(3)?,
                         ))
-                    })?;
-                rows.collect::<std::result::Result<Vec<_>, _>>()
-                    .map_err(Into::into)
+                    },
+                )
             })
             .await?;
         for (blob, address, signer, Some(secret)) in rows {
