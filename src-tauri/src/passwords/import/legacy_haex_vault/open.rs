@@ -18,8 +18,20 @@ use crate::passwords::model::AttentionKind;
 const MIN_FILE_BYTES: u64 = 4096;
 const PLAIN_SQLITE_HEADER: &[u8; 16] = b"SQLite format 3\0";
 
-/// The columns haex-vault 2.x's sync layer adds to every table at run time; known and ignored.
-const CRDT_COLUMNS: [&str; 3] = ["haex_hlc", "haex_column_hlcs", "haex_column_sigs"];
+/// The columns the sync layer adds to every table at run time; known and ignored. haex-vault 2.x
+/// names them plain, a vault file of this app carries them with the suffix `_no_sync`.
+const CRDT_COLUMNS: [&str; 6] = [
+    "haex_hlc",
+    "haex_column_hlcs",
+    "haex_column_sigs",
+    "haex_hlc_no_sync",
+    "haex_column_hlcs_no_sync",
+    "haex_column_sigs_no_sync",
+];
+
+/// Columns a vault file of this app has beyond haex-vault 2.x that hold no data worth a warning:
+/// the time a binary lost its last reference, which only the clean-up of that vault reads.
+const BOOKKEEPING_COLUMNS: [(&str, &str); 1] = [("haex_passwords_binaries", "orphaned_at")];
 
 /// The tables of the password manager and their columns, exactly as haex-vault 2.x @ `8dce379`
 /// creates them (`0000_jazzy_chat.sql:414-552`). A missing one means a layout the reader cannot
@@ -222,8 +234,9 @@ pub(super) fn check_layout(conn: &Connection) -> Result<Layout> {
             return Err(failed("unsupported_format"));
         }
         for column in &columns {
-            let known =
-                expected.contains(&column.as_str()) || CRDT_COLUMNS.contains(&column.as_str());
+            let known = expected.contains(&column.as_str())
+                || CRDT_COLUMNS.contains(&column.as_str())
+                || BOOKKEEPING_COLUMNS.contains(&(*table, column.as_str()));
             if !known {
                 problems.push(Problem::field(
                     AttentionKind::UnknownSourceData,
