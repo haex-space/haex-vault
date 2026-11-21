@@ -42,7 +42,8 @@ async function reloadAsync() {
   try {
     const loaded = await invoke<DiagnosticLogStatus>('diagnostic_log_get')
     if (!disposed && revision === statusRevision && request === reloadRequest) {
-      status.value = pendingUnwritable ? { ...loaded, writable: false } : loaded
+      pendingUnwritable = !loaded.writable
+      status.value = loaded
     }
   } catch (error: unknown) {
     if (!disposed) {
