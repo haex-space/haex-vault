@@ -2499,7 +2499,8 @@
     "entryGone": "This entry no longer exists.",
     "markers": {
       "totp": "Has a TOTP code",
-      "passkey": "Has passkeys"
+      "passkey": "Has passkeys",
+      "attachments": "Has attachments"
     },
     "reveal": "Show {field}",
     "revealHint": "Show",

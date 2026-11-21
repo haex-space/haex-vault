@@ -2,7 +2,7 @@
 /**
  * One entry in the list (spec 034, FR-001, FR-008, US1): icon, title (or the placeholder text of the
  * window for an entry without one), username, tag chips, a badge when it has expired and markers
- * for a TOTP and for passkeys, and one for an entry that belongs to a haex-vault function (spec 038, Z14). It holds a header only, never a secret. Spec 036 adds the context
+ * for a TOTP, for passkeys and for attachments (fixed slots, so they never move), and one for an entry that belongs to a haex-vault function (spec 038, Z14). It holds a header only, never a secret. Spec 036 adds the context
  * menu and the menu button (FR-018), the dimming of a cut entry (FR-013) and the one tab stop of
  * the list (arrow keys move it, FR-016).
  */
@@ -146,7 +146,9 @@ function onDragStart(event: DragEvent) {
             </template>
           </span>
         </span>
-        <span class="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+        <span
+          class="flex min-w-0 max-w-[60%] shrink-0 items-center justify-end gap-1.5"
+        >
           <ShadcnBadge
             v-if="unknownType"
             variant="outline"
@@ -169,29 +171,59 @@ function onDragStart(event: DragEvent) {
             }}
           </ShadcnBadge>
           <span
-            v-if="header.hasTotp"
-            class="text-muted-foreground"
-            :title="t('passwords.markers.totp')"
+            class="flex min-w-0 items-center justify-end gap-1.5 overflow-hidden"
           >
-            <Icon name="lucide:timer" class="size-4" />
-            <span class="sr-only">{{ t('passwords.markers.totp') }}</span>
+            <ShadcnBadge
+              v-for="tag in header.tags"
+              :key="tag.id"
+              variant="secondary"
+              :style="tag.color ? { color: tag.color } : undefined"
+            >
+              {{ tag.name }}
+            </ShadcnBadge>
+          </span>
+          <!-- Fixed slots, always reserved: the markers keep their column whether or not the
+               entry has tags or the other markers. -->
+          <span
+            class="flex size-4 shrink-0 items-center justify-center text-muted-foreground"
+            :title="header.hasTotp ? t('passwords.markers.totp') : undefined"
+            data-testid="passwords-marker-totp"
+          >
+            <template v-if="header.hasTotp">
+              <Icon name="lucide:timer" class="size-4" />
+              <span class="sr-only">{{ t('passwords.markers.totp') }}</span>
+            </template>
           </span>
           <span
-            v-if="header.passkeyCount > 0"
-            class="text-muted-foreground"
-            :title="t('passwords.markers.passkey')"
+            class="flex size-4 shrink-0 items-center justify-center text-muted-foreground"
+            :title="
+              header.passkeyCount > 0
+                ? t('passwords.markers.passkey')
+                : undefined
+            "
+            data-testid="passwords-marker-passkey"
           >
-            <Icon name="lucide:fingerprint" class="size-4" />
-            <span class="sr-only">{{ t('passwords.markers.passkey') }}</span>
+            <template v-if="header.passkeyCount > 0">
+              <Icon name="lucide:fingerprint" class="size-4" />
+              <span class="sr-only">{{ t('passwords.markers.passkey') }}</span>
+            </template>
           </span>
-          <ShadcnBadge
-            v-for="tag in header.tags"
-            :key="tag.id"
-            variant="secondary"
-            :style="tag.color ? { color: tag.color } : undefined"
+          <span
+            class="flex size-4 shrink-0 items-center justify-center text-muted-foreground"
+            :title="
+              header.attachmentCount > 0
+                ? t('passwords.markers.attachments')
+                : undefined
+            "
+            data-testid="passwords-marker-attachments"
           >
-            {{ tag.name }}
-          </ShadcnBadge>
+            <template v-if="header.attachmentCount > 0">
+              <Icon name="lucide:paperclip" class="size-4" />
+              <span class="sr-only">{{
+                t('passwords.markers.attachments')
+              }}</span>
+            </template>
+          </span>
         </span>
       </button>
       <PasswordsEntryMenuButton
