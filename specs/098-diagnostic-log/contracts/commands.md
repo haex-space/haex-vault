@@ -4,13 +4,13 @@ All commands need an unlocked vault (`active_database`); all are `#[tauri::comma
 Types that cross to the interface are exported with `ts-rs` and carry the `DiagnosticLog` prefix (no name collision with other
 bindings).
 
-| Command                 | Arguments                        | Result                | Notes                                                                                                                   |
-| ----------------------- | -------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `diagnostic_log_get`    | none                             | `DiagnosticLogStatus` | the current level, the end time, whether the log can be written, whether this platform shares or reveals                |
-| `diagnostic_log_set`    | `level: "standard" \| "verbose"` | `DiagnosticLogStatus` | applies at once: writes the row of the level, sets the global max level, starts or stops the end timer, emits the event |
-| `diagnostic_log_reveal` | none                             | `()`                  | desktop only; reveals `logs/haex.log` in the file manager; `unsupported` elsewhere                                      |
-| `diagnostic_log_share`  | none                             | `()`                  | Android only; copies the log to a temporary snapshot and starts the share sheet; `unsupported` elsewhere                |
-| `diagnostic_log_ui_message` | `session_id`, `level`, `message` | `()`               | writes only when the token matches the attached vault session                                                        |
+| Command                     | Arguments                        | Result                | Notes                                                                                                                   |
+| --------------------------- | -------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `diagnostic_log_get`        | none                             | `DiagnosticLogStatus` | the current level, the end time, whether the log can be written, whether this platform shares or reveals                |
+| `diagnostic_log_set`        | `level: "standard" \| "verbose"` | `DiagnosticLogStatus` | applies at once: writes the row of the level, sets the global max level, starts or stops the end timer, emits the event |
+| `diagnostic_log_reveal`     | none                             | `()`                  | desktop only; reveals `logs/haex.log` in the file manager; `unsupported` elsewhere                                      |
+| `diagnostic_log_share`      | none                             | `()`                  | Android only; copies the log to a temporary snapshot and starts the share sheet; `unsupported` elsewhere                |
+| `diagnostic_log_ui_message` | `session_id`, `level`, `message` | `()`                  | writes only when the token matches the attached vault session                                                           |
 
 ```text
 DiagnosticLogStatus {

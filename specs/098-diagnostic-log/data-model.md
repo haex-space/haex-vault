@@ -67,12 +67,12 @@ a file outside `logs/` of the open vault, and never a file of another vault (FR-
 [2026-11-21][07:02:03.004][ERROR][ui] TypeError: x is undefined\n    at …
 ```
 
-| Part    | Content                                                                                        |
-| ------- | ---------------------------------------------------------------------------------------------- |
-| time    | local date and time with milliseconds                                                          |
-| level   | `ERROR`, `WARN`, `INFO`, `DEBUG`                                                               |
+| Part    | Content                                                                                          |
+| ------- | ------------------------------------------------------------------------------------------------ |
+| time    | local date and time with milliseconds                                                            |
+| level   | `ERROR`, `WARN`, `INFO`, `DEBUG`                                                                 |
 | origin  | the module path of the backend, or `ui` for a record written through `diagnostic_log_ui_message` |
-| message | the text; line breaks of a stack are kept and indented by the formatter                        |
+| message | the text; line breaks of a stack are kept and indented by the formatter                          |
 
 A line is never written with an object's fields (FR-006) or a secret (FR-009). One extra line kind, written by the interface
 plugin: `[ui] dropped N messages in the last second` (FR-014).
