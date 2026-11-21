@@ -78,8 +78,8 @@ export type CloseGuard = () => CloseGuardResult | null
 
 /** What a `registerNavigationGuard` callback gets when the tab's history is about to move. */
 export type NavigationRequest = {
-  /** Where it goes; `null` for back/forward, where the target is not looked up. */
-  to: { path: string; query: Record<string, string> } | null
+  /** Where the tab's history will move. */
+  to: { path: string; query: Record<string, string> }
   /** Carries out the held navigation, past this guard. */
   proceed: () => void
 }
