@@ -5,6 +5,7 @@ import {
   addAttachments,
   createEntry,
   horizontalOverflow,
+  inEditorExtra,
   openPasswords,
   selectTab,
   slideSettled,
@@ -280,22 +281,32 @@ scenario('passwords-attachments', { timeoutMs: 240_000 }, async (ctx) => {
      return true`,
     [blue],
   )
-  await instance.click(`passwords-attachment-rename-${blue}`)
-  await instance.type(`passwords-attachment-name-${blue}`, `-alt${KEY.escape}`)
-  await ctx.waitFor(
-    'Escape to keep the old name',
-    async () => (await cardTitle(instance, blue)) === 'blau.png',
-  )
-  await instance.click(`passwords-attachment-rename-${blue}`)
-  // Backspaces instead of Ctrl+A: the driver keeps Ctrl held for the keys after the chord.
-  await instance.type(
-    `passwords-attachment-name-${blue}`,
-    `${KEY.backspace.repeat('blau.png'.length)}meer.png${KEY.enter}`,
-  )
-  await ctx.waitFor(
-    'the new name',
-    async () => (await cardTitle(instance, blue)) === 'meer.png',
-  )
+  await inEditorExtra(ctx, instance, async () => {
+    await instance.exec(
+      `document.querySelector('[data-testid="passwords-attachment-card-' + arguments[0] + '"]').scrollIntoView({ block: 'center' })
+       return true`,
+      [blue],
+    )
+    await instance.click(`passwords-attachment-rename-${blue}`)
+    await instance.type(
+      `passwords-attachment-name-${blue}`,
+      `-alt${KEY.escape}`,
+    )
+    await ctx.waitFor(
+      'Escape to keep the old name',
+      async () => (await cardTitle(instance, blue)) === 'blau.png',
+    )
+    await instance.click(`passwords-attachment-rename-${blue}`)
+    // Backspaces instead of Ctrl+A: the driver keeps Ctrl held for the keys after the chord.
+    await instance.type(
+      `passwords-attachment-name-${blue}`,
+      `${KEY.backspace.repeat('blau.png'.length)}meer.png${KEY.enter}`,
+    )
+    await ctx.waitFor(
+      'the new name',
+      async () => (await cardTitle(instance, blue)) === 'meer.png',
+    )
+  })
   ctx.step('an attachment is renamed')
 
   await resizeAppWindow(instance, 'system.passwords', 360)
