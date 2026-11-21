@@ -369,7 +369,8 @@ pub struct PutStream<'a> {
 }
 
 impl<'a> PutStream<'a> {
-    /// Prepares the file at `at` like [`put_file`] does; nothing is written yet.
+    /// Prepares the file at `at` like [`put_file`] does. Missing parent folders may be created and
+    /// remain if this writer is aborted; the file itself is not published until [`Self::commit`].
     pub async fn begin(files: &'a StorageFiles, at: &Located) -> Result<Self, FilesError> {
         let target = target(files, at).await?;
         let oid = new_id();

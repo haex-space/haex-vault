@@ -379,7 +379,7 @@ file format and no migration.
 
 - [x] T137 `src-tauri/src/chat/peer/files/crypto.rs`: `MAX_PLAINTEXT` 209,715,200; a streaming sealer that takes a reader and answers segments; `encrypt` stays for small inputs.
 - [x] T138 `src-tauri/src/chat/peer/files/blossom.rs`: `upload` takes a body stream with a known hash and length; `download` writes to a sink; stall timeout plus the size-scaled total (contracts/blossom.md).
-- [x] T139 `src-tauri/src/files/encrypted/transfer.rs`: a streaming put next to `put_file`; `src-tauri/src/chat/peer/files/store.rs`: `put_stream` behind the same semaphore.
+- [x] T139 `src-tauri/src/files/encrypted/transfer.rs`: a streaming put next to `put_file`; `src-tauri/src/chat/peer/files/store.rs`: `put_stream`, with per-attachment writes serialized and the semaphore guarding first-time folder creation only.
 - [x] T140 `src-tauri/src/chat/peer/files/transfers.rs`, `commands/files.rs`: `Picked` has a source (bytes or a picked file opened per pass); send in three passes (measure, upload, own copy); receive writes while it downloads and commits after the check; `MAX_MESSAGE_PLAINTEXT` bounds the sum of a message's files at the new limit.
 - [x] T141 [P] i18n `chat.file.tooLarge`, `chat.file.changed` and `chat.file.unreadable` in `src/i18n/locales/de.json` and `en.json`.
 - [x] T142 Checks: `pnpm check:*`, `typecheck:scripts`, clippy for the host and `aarch64-linux-android`; the memory bound is shown by construction (T135: parts are at the storage before the commit), not by a measurement.

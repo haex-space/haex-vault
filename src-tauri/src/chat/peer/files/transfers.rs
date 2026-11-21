@@ -37,6 +37,7 @@ use crate::vault_gate::VaultDb;
 const LOOK_AGAIN: Duration = Duration::from_secs(10 * 60);
 /// Progress of one transfer is reported at most this often.
 const PROGRESS_EVERY: Duration = Duration::from_millis(100);
+const ORPHAN_ATTACHMENT_PREFIX: &str = "orphan-cleanup:";
 
 /// The event the window hears transfers by (`chat-transfer`).
 pub const TRANSFER_EVENT: &str = "chat-transfer";
@@ -231,16 +232,37 @@ impl ChatFiles {
         for file in prepared {
             uploaded.push(self.upload(&server, file).await?);
         }
+        let cleanup_credentials: Vec<_> = uploaded
+            .iter()
+            .map(|file| (file.signer.clone(), file.attachment.blossom.sha256.clone()))
+            .collect();
         for (index, file) in uploaded.iter().enumerate() {
             let id = ids::attachment_id(message_id, index).to_string();
-            self.keep(&id, &file.source, &file.attachment.sha256)
-                .await?;
+            if let Err(error) = self
+                .keep(
+                    &id,
+                    &file.source,
+                    file.attachment.size,
+                    &file.attachment.sha256,
+                )
+                .await
+            {
+                self.delete_unqueued(&server, &cleanup_credentials).await;
+                return Err(error);
+            }
         }
-        let pending = self.expected_devices(me, &peer).await?;
+        let pending = match self.expected_devices(me, &peer).await {
+            Ok(pending) => pending,
+            Err(error) => {
+                self.delete_unqueued(&server, &cleanup_credentials).await;
+                return Err(error);
+            }
+        };
         let (me, event_id, text) = (me.clone(), event_id.to_owned(), text.to_owned());
         let base = server_address(&server);
         let now = now_ms();
-        self.db
+        let queued = self
+            .db
             .write(move |tx| {
                 let attachments = uploaded
                     .iter()
@@ -274,7 +296,14 @@ impl ChatFiles {
                 }
                 Ok(id)
             })
-            .await
+            .await;
+        match queued {
+            Ok(id) => Ok(id),
+            Err(error) => {
+                self.delete_unqueued(&server, &cleanup_credentials).await;
+                Err(error)
+            }
+        }
     }
 
     /// Sends a text that does not fit one wrap (research R2): the whole text as the file
@@ -370,13 +399,29 @@ impl ChatFiles {
 
     /// Keeps this device's own copy of a sent file as attachment `id`: the source is read a third
     /// time into the store, and the copy shows only if it is the file that was sent.
-    async fn keep(&self, id: &str, source: &Source, plaintext_sha256: &str) -> Result<()> {
+    async fn keep(
+        &self,
+        id: &str,
+        source: &Source,
+        plaintext_size: u64,
+        plaintext_sha256: &str,
+    ) -> Result<()> {
         let mut writer = self.store.writer(id).await?;
         let (mut pieces, reading) = read_in_pieces(source.clone());
         let mut failed = None;
+        let mut done = 0_u64;
         while let Some(piece) = pieces.next().await {
             let written = match piece {
-                Ok(piece) => writer.push(&piece).await,
+                Ok(piece) => {
+                    let next = done.checked_add(piece.len() as u64);
+                    match next {
+                        Some(next) if next <= plaintext_size => {
+                            done = next;
+                            writer.push(&piece).await
+                        }
+                        _ => Err(invalid("chat.file.changed")),
+                    }
+                }
                 Err(error) => Err(invalid(&error.to_string())),
             };
             if let Err(error) = written {
@@ -402,6 +447,95 @@ impl ChatFiles {
                     .unwrap_or_else(|| invalid("chat.file.changed")))
             }
         }
+    }
+
+    /// Deletes blobs after a send failed before its message was queued. If a server is offline,
+    /// keep the deletion credentials locally and retry when due downloads are checked.
+    async fn delete_unqueued(&self, server: &Server, uploaded: &[(Keys, String)]) {
+        for (signer, blob) in uploaded {
+            if server
+                .delete(signer, blob, self.resolver.as_ref())
+                .await
+                .is_ok()
+            {
+                continue;
+            }
+            let (blob, address, signer, secret, attachment_id) = (
+                blob.clone(),
+                server.address().to_owned(),
+                signer.public_key().to_hex(),
+                signer.secret_key().to_secret_bytes().to_vec(),
+                format!("{ORPHAN_ATTACHMENT_PREFIX}{blob}"),
+            );
+            let now = now_ms();
+            if let Err(error) = self
+                .db
+                .write(move |tx| {
+                    tx.execute(
+                        "INSERT OR REPLACE INTO chat_blobs_no_sync (blob_sha256, server, signer, \
+                           upload_secret, attachment_id, pending_devices, uploaded_at) \
+                         VALUES (?1, ?2, ?3, ?4, ?5, '[]', ?6)",
+                        params![blob, address, signer, secret, attachment_id, now],
+                    )?;
+                    Ok(())
+                })
+                .await
+            {
+                log::warn!("chat: could not retain a failed blob deletion for retry: {error}");
+            }
+        }
+    }
+
+    /// Retries deletions recorded when a send failed before queueing its message.
+    async fn retry_orphan_deletes(&self) -> Result<()> {
+        let rows = self
+            .db
+            .read(|r| {
+                let mut stmt = r.prepare(
+                    "SELECT blob_sha256, server, signer, upload_secret FROM chat_blobs_no_sync \
+                     WHERE attachment_id LIKE ?1",
+                )?;
+                let rows =
+                    stmt.query_map(params![format!("{ORPHAN_ATTACHMENT_PREFIX}%")], |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, String>(1)?,
+                            row.get::<_, String>(2)?,
+                            row.get::<_, Option<Vec<u8>>>(3)?,
+                        ))
+                    })?;
+                rows.collect::<std::result::Result<Vec<_>, _>>()
+                    .map_err(Into::into)
+            })
+            .await?;
+        for (blob, address, signer, Some(secret)) in rows {
+            let Ok(secret) = nostr::key::SecretKey::from_slice(&secret) else {
+                continue;
+            };
+            let keys = Keys::new(secret);
+            if keys.public_key().to_hex() != signer {
+                continue;
+            }
+            let Ok(server) = Server::new(&address, self.resolver.as_ref()).await else {
+                continue;
+            };
+            if server
+                .delete(&keys, &blob, self.resolver.as_ref())
+                .await
+                .is_ok()
+            {
+                self.db
+                    .write(move |tx| {
+                        tx.execute(
+                            "DELETE FROM chat_blobs_no_sync WHERE blob_sha256 = ?1 AND attachment_id LIKE ?2",
+                            params![blob, format!("{ORPHAN_ATTACHMENT_PREFIX}%")],
+                        )?;
+                        Ok(())
+                    })
+                    .await?;
+            }
+        }
+        Ok(())
     }
 
     /// Every device that will download the file: the recipient's and this vault's other ones
@@ -522,6 +656,7 @@ impl ChatFiles {
         size: u64,
         own: Option<&Server>,
     ) -> std::result::Result<(), Receive> {
+        let same_attachment = self.store.lock_attachment(id).await;
         let mut stream = blossom::download(
             url,
             blob,
@@ -531,7 +666,11 @@ impl ChatFiles {
         )
         .await
         .map_err(Receive::from)?;
-        let mut writer = self.store.writer(id).await.map_err(Receive::Store)?;
+        let mut writer = self
+            .store
+            .writer_with_lock(id, same_attachment)
+            .await
+            .map_err(Receive::Store)?;
         let mut decryptor = Decryptor::new(key, plaintext_sha256);
         let mut last = tokio::time::Instant::now();
         let outcome: std::result::Result<(), Receive> = async {
@@ -586,6 +725,7 @@ impl ChatFiles {
     /// Downloads every file this device has not looked at yet, up to its limit; marks larger ones
     /// `pending`. `restart` (at the vault's opening) also takes the ones cut off or failed before.
     pub async fn download_due(&self, restart: bool) -> Result<()> {
+        self.retry_orphan_deletes().await?;
         let device = self.device;
         let (limit, due) = self
             .db

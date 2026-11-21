@@ -236,13 +236,16 @@ impl Server {
             .header("Content-Type", "application/octet-stream")
             .header(reqwest::header::CONTENT_LENGTH, size)
             .body(reqwest::Body::wrap_stream(counted));
-        let response = answer(
-            standing_still_fails(request.send(), &moved, size, self.patience, progress).await?,
-        )?;
+        let (response, deadline) =
+            standing_still_fails(request.send(), &moved, size, self.patience, progress).await?;
+        let response = answer(response)?;
         if let Some(refusal) = refused(&response) {
             return Err(refusal);
         }
-        let deadline = Instant::now() + SHORT;
+        let deadline = deadline.min(Instant::now() + SHORT);
+        if Instant::now() >= deadline {
+            return Err(BlossomError::TimedOut);
+        }
         let body = read(response, 64 * 1024, deadline, &mut |_| {}).await?;
         let descriptor: Descriptor =
             serde_json::from_slice(&body).map_err(|_| BlossomError::Mismatch)?;
@@ -331,6 +334,9 @@ impl Download {
     /// named. Fails after [`Patience::stall`] without a byte, past the total allowance, above the
     /// size the caller allows and when the hash is another.
     pub async fn chunk(&mut self) -> Result<Option<Vec<u8>>> {
+        if Instant::now() >= self.until {
+            return Err(BlossomError::TimedOut);
+        }
         let limit = (Instant::now() + self.patience.stall).min(self.until);
         let piece = tokio::time::timeout_at(limit, self.response.chunk())
             .await
@@ -371,7 +377,13 @@ pub async fn download(
     };
     let patience = own.map_or_else(Patience::default, |server| server.patience);
     let client = checked_client(&url, scope, resolver).await?;
-    let response = send(client.get(url), patience.answer).await?;
+    // `send()` also configures reqwest's whole-request timeout, which would cap a progressing
+    // response body. Here only waiting for the headers gets the answer deadline; `Download::chunk`
+    // applies the stall and size-based deadlines to the body.
+    let response = match tokio::time::timeout(patience.answer, client.get(url).send()).await {
+        Err(_) => return Err(BlossomError::TimedOut),
+        Ok(result) => answer(result)?,
+    };
     if response.status() == StatusCode::NOT_FOUND {
         return Err(BlossomError::Gone);
     }
@@ -454,7 +466,7 @@ async fn standing_still_fails<T>(
     size: u64,
     patience: Patience,
     progress: &mut (dyn FnMut(u64) + Send),
-) -> Result<T> {
+) -> Result<(T, Instant)> {
     tokio::pin!(operation);
     let until = Instant::now() + total_limit(size);
     let (mut last, mut since) = (0, Instant::now());
@@ -463,14 +475,14 @@ async fn standing_still_fails<T>(
     );
     loop {
         tokio::select! {
-            output = &mut operation => return Ok(output),
+            output = &mut operation => return Ok((output, until)),
             _ = tick.tick() => {
                 let now = moved.load(Ordering::Relaxed);
                 if now != last {
                     (last, since) = (now, Instant::now());
                     progress(now);
                 }
-                let waiting_for = if now >= size { patience.answer } else { patience.stall };
+                let waiting_for = patience.stall.min(patience.answer);
                 if since.elapsed() >= waiting_for || Instant::now() >= until {
                     return Err(BlossomError::TimedOut);
                 }

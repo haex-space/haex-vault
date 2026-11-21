@@ -400,7 +400,21 @@ impl ObjectStore for LocalStore {
                 return Err(error);
             }
         };
-        blocking(deadline, move || settle(&part, &path)).await
+        let cleanup = path.clone();
+        let mut work = tokio::task::spawn_blocking(move || settle(&part, &path));
+        match tokio::time::timeout_at(deadline, &mut work).await {
+            Ok(Ok(result)) => result,
+            Ok(Err(_)) => Err(StorageError::Network),
+            Err(_) => {
+                // The upload id has already been removed from `uploads`. Wait for the rename to
+                // settle, then remove the content object if it won the race with the deadline.
+                // Otherwise a timed-out commit could leave an unreferenced object behind.
+                if matches!(work.await, Ok(Ok(()))) {
+                    let _ = tokio::task::spawn_blocking(move || fs::remove_file(cleanup)).await;
+                }
+                Err(StorageError::TimedOut)
+            }
+        }
     }
 
     async fn abort_upload(

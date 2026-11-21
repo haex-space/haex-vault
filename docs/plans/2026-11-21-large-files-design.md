@@ -25,16 +25,17 @@ reads segment by segment. Only the callers hold everything.
    2^20 or in 10^6 passes either way. A lower server limit still wins (FR-034, `HEAD /upload`).
 2. **No new format.** `HXCF` v1 stays. Both sides keep working, and this PR needs no migration and no
    trigger-version change.
-3. **Send reads the file twice, from its source, and holds one segment.** Blossom signs the upload
+3. **Send reads the file three times, from its source, and holds one segment.** Blossom signs the upload
    with `x=<sha256 of the ciphertext>` before a byte is sent, so the hash must be known first. The
    sealing is deterministic (fixed key and nonce prefix), so
    - pass 1 reads the source segment by segment, seals each and feeds the ciphertext hash, the
      plaintext hash and the length; nothing is kept,
    - `check_upload` asks the server with those values,
-   - pass 2 reads and seals again into the upload body (a bounded channel, `Body::wrap_stream`) and
-     into the own copy in the store,
-   - pass 2 recomputes both hashes; a file that changed between the passes fails with
-     `chat.file.changed` and nothing is sent.
+   - pass 2 reads and seals again into the upload body (a bounded channel, `Body::wrap_stream`);
+     it recomputes both hashes, and a file that changed between passes fails with
+     `chat.file.changed` and the message is not queued,
+   - pass 3 reads the source into this device's own copy in the store and checks the plaintext hash;
+     the source must remain reopenable through this pass.
 4. **A sent file has a source, not bytes.** `Picked.bytes: Vec<u8>` becomes a source: bytes in memory
    (a long text, ≤ 4 MiB) or a picked file that is opened again for every pass (`picked::open_read`;
    an Android `content://` target opens again). Nothing but the long text is read whole.
@@ -62,7 +63,8 @@ reads segment by segment. Only the callers hold everything.
 ## Memory after
 
 One segment (1 MiB) plus the buffers of the channel (a few segments) per transfer, on send and on
-receive. The semaphore of one for store writes stays: writes still take turns.
+receive. The semaphore of one only guards first-time folder creation; concurrent transfers can
+each hold their per-transfer buffers.
 
 ## Tests
 

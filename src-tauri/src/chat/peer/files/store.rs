@@ -8,10 +8,11 @@
 //! shows only when the caller commits (R14 amendment of 2026-11-21). Making the folder takes turns
 //! behind a semaphore of one, so two first writes do not both create it.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, Weak};
 
-use tokio::sync::Semaphore;
+use tokio::sync::{Mutex as AsyncMutex, OwnedMutexGuard, Semaphore};
 
 use crate::error::{HaexError, Result};
 use crate::files::encrypted::device::DeviceRoot;
@@ -39,6 +40,7 @@ pub struct ChatFileStore {
     root: DeviceRoot,
     dir: PathBuf,
     making: Semaphore,
+    writing: Mutex<HashMap<String, Weak<AsyncMutex<()>>>>,
 }
 
 impl ChatFileStore {
@@ -61,6 +63,7 @@ impl ChatFileStore {
             root,
             dir: dir.to_path_buf(),
             making: Semaphore::new(1),
+            writing: Mutex::new(HashMap::new()),
         })
     }
 
@@ -98,6 +101,36 @@ impl ChatFileStore {
     /// Starts the file of attachment `id`, making the folders on first use. It shows when the
     /// writer commits; a writer that is dropped without that leaves no file.
     pub async fn writer(&self, id: &str) -> Result<StoreWriter<'_>> {
+        let same_id = self.lock_attachment(id).await;
+        self.writer_with_lock(id, same_id).await
+    }
+
+    /// Serializes the full download-to-commit path for this attachment. Different ids remain
+    /// independent; the guard can be passed to [`Self::writer_with_lock`].
+    pub async fn lock_attachment(&self, id: &str) -> OwnedMutexGuard<()> {
+        let same_id = {
+            let mut writing = self
+                .writing
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
+            writing.retain(|_, lock| lock.strong_count() > 0);
+            // The weak registry must not be the only owner of a lock.
+            let lock = writing
+                .get(id)
+                .and_then(Weak::upgrade)
+                .unwrap_or_else(|| Arc::new(AsyncMutex::new(())));
+            writing.insert(id.to_owned(), Arc::downgrade(&lock));
+            lock
+        };
+        Arc::clone(&same_id).lock_owned().await
+    }
+
+    /// Starts a writer while keeping an attachment guard from before the download began.
+    pub async fn writer_with_lock(
+        &self,
+        id: &str,
+        same_id: OwnedMutexGuard<()>,
+    ) -> Result<StoreWriter<'_>> {
         let at = {
             let _turn = self
                 .making
@@ -134,7 +167,10 @@ impl ChatFileStore {
         let put = PutStream::begin(&self.files, &at)
             .await
             .map_err(store_error)?;
-        Ok(StoreWriter { put })
+        Ok(StoreWriter {
+            put,
+            _same_id: same_id,
+        })
     }
 
     /// Stores `bytes` as the file of attachment `id`.
@@ -152,6 +188,7 @@ impl ChatFileStore {
 /// [`Self::abort`].
 pub struct StoreWriter<'a> {
     put: PutStream<'a>,
+    _same_id: OwnedMutexGuard<()>,
 }
 
 impl StoreWriter<'_> {

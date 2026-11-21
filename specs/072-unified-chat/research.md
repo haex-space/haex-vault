@@ -321,10 +321,12 @@ device holds a file, and the state of its download, is device-local (`chat_attac
 **Amendment (2026-11-21, files up to 200 MiB, FR-034)**: the `ponytail:` of this section is paid. Chat files
 go through a streaming put in `files::encrypted` (a sibling of `put_file` that takes the plaintext
 in pushes, seals it with `SealedParts` and writes the sidecar only when the caller says the check
-passed), so a transfer holds a few segments, not the file. A semaphore of 1 for chat file writes stays.
-Sending reads the source twice (the ciphertext hash must be known before the upload is signed; the
-sealing is deterministic) and fails with `chat.file.changed` if the source differs the second time;
-receiving writes into the store while it downloads and drops the content object if a hash fails.
+passed), so a transfer holds a few segments, not the file. A semaphore of 1 guards first-time
+folder creation; it does not serialize writes or cap concurrent transfers. Sending reads the source
+three times: measurement, upload, and this device's own copy. The source must remain reopenable
+through the third read; a changed upload fails with `chat.file.changed` and the message is not
+queued. Receiving writes into the store while it downloads and drops the content object if a hash
+fails.
 Upload and download time out after 30 s without progress and after `5 min + size / 64 KiB/s` in
 total, not after a flat 5 min. Design: `docs/plans/2026-11-21-large-files-design.md`.
 
