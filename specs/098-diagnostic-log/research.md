@@ -182,7 +182,7 @@ and `en`.
 is on, a line that says the log lies in the vault's folder and goes with the folder when it is copied (FR-017), a line that says
 more detail comes with later steps (spec Assumptions), the button to reveal the folder (desktop) or "Protokoll teilen" (Android), and
 a notice when the log cannot be written. The catalog action is `settings.diagnostics.logLevel.set`, marked as not callable by an
-agent. The component shows no success text (rule `holzi-ui-feedback`); a failure goes to the toast as in
+agent. The component shows no success text (UI feedback rule); a failure goes to the toast as in
 `ScreenCaptureSetting.vue`.
 
 ## Open questions
