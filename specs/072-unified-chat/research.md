@@ -245,7 +245,7 @@ AES-256-GCM** (`aes-gcm` 0.11, Cargo.toml:184), nonce = 8 random bytes ‖ 32-bi
 last segment flagged in the AAD (STREAM construction against truncation and reordering). Format header
 `HXCF` v1 + segment size. Blossom addresses the blob by SHA-256 of the ciphertext; the rumor carries
 key, ciphertext hash, plaintext SHA-256, size, MIME type and name. The receiver checks both hashes
-(FR-032). Segmenting keeps memory bounded on Android for 100 MB files.
+(FR-032). Segmenting keeps memory bounded on Android for large files.
 
 **Alternatives considered**: NIP-17 kind 15's single AES-GCM (whole file in memory, 100 MB on phones);
 ChaCha20-Poly1305 (equally fine; AES-GCM matches NIP-17's choice and spec 048 already uses it).
@@ -276,7 +276,7 @@ refuse opaque encrypted blobs (`application/octet-stream`).
 Consequences:
 
 - Before every upload HaexVault sends `HEAD /upload` (with auth) and shows the server's refusal or limit
-  before the message is sent (FR-034: 100 MB is HaexVault's own cap; a lower server limit wins).
+  before the message is sent (FR-034: 200 MiB is HaexVault's own cap; a lower server limit wins).
 - A server enters the preset list only after a test (implementation task) shows it accepts an
   encrypted 20 MB blob anonymously, reports limits and honours `DELETE`. If no public server passes,
   the default is "Keiner" and the settings explain the choice (FR-038); the presets live in code next
@@ -316,9 +316,17 @@ device, modelled on `agent_browser::profile_store::ProfileStore` (profile_store.
 files are written under their attachment id, which is unique, so equal names never clash (PR E2a: no folder per conversation). Whether this
 device holds a file, and the state of its download, is device-local (`chat_attachment_files_no_sync`).
 
-`files::encrypted::transfer::put_file` seals a whole file in memory (transfer.rs:256). `ponytail:` chat
-files ≤ 100 MB use it; ceiling = one file in memory at a time (a semaphore of 1 for chat file writes);
-upgrade = a streaming put in `files::encrypted` (also wanted by 048 for big files).
+`files::encrypted::transfer::put_file` seals a whole file in memory (transfer.rs:256).
+
+**Amendment (2026-11-21, files up to 200 MiB, FR-034)**: the `ponytail:` of this section is paid. Chat files
+go through a streaming put in `files::encrypted` (a sibling of `put_file` that takes the plaintext
+in pushes, seals it with `SealedParts` and writes the sidecar only when the caller says the check
+passed), so a transfer holds a few segments, not the file. A semaphore of 1 for chat file writes stays.
+Sending reads the source twice (the ciphertext hash must be known before the upload is signed; the
+sealing is deterministic) and fails with `chat.file.changed` if the source differs the second time;
+receiving writes into the store while it downloads and drops the content object if a hash fails.
+Upload and download time out after 30 s without progress and after `5 min + size / 64 KiB/s` in
+total, not after a flat 5 min. Design: `docs/plans/2026-11-21-large-files-design.md`.
 
 "Öffnen" goes through the files viewer (`files_open` → `Opened`, browser_commands/view.rs:58-80;
 `Viewer.vue`, `PdfViewer.vue`, `MediaViewer.vue`) with a chat source; "Mit System-App öffnen" through

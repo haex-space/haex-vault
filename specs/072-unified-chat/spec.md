@@ -548,9 +548,10 @@ where her files go and what others see.
 - **FR-033**: Every device that receives the message (each device of each recipient and each other own
   device of the sender) MUST download the file itself from the Blossom-Server, subject to FR-036. A
   device added to a vault after the file was removed from the server does not get it.
-- **FR-034**: The chat MUST accept files up to 100 MB each, and the Blossom-Server's own limit when it is
-  lower; a larger file is refused before sending and the user is offered a file share (spec 056)
-  instead.
+- **FR-034**: The chat MUST accept files up to 200 MiB (209,715,200 bytes) each, and the Blossom-Server's
+  own limit when it is lower; a larger file is refused before sending and the user is offered a file share
+  (spec 056) instead. Sending and receiving MUST NOT hold a file in memory beyond a few segments, so the
+  limit is the same on a phone as on a desktop.
 - **FR-035**: Once every device that received the message confirmed it has the file, the sender's vault
   MUST remove it from the Blossom-Server. A file not confirmed within 30 days MUST be removed then; recipients that
   have not downloaded it see "Datei nicht mehr verfügbar".
@@ -685,7 +686,7 @@ where her files go and what others see.
 - Public Blossom-Servers may limit size, keep files only for a while or refuse uploads; HaexVault shows
   their errors and the user may choose another server. The 30-day removal (FR-035) is HaexVault's own,
   servers may remove earlier.
-- Default limits (1,000,000 characters per text, 100 MB per file, 25 MB / 5 MB automatic download, 32 group members,
+- Default limits (1,000,000 characters per text, 200 MiB per file, 25 MB / 5 MB automatic download, 32 group members,
   30 days on the Blossom-Server) are first values the plan may adjust with a reason.
 - Message edit, "delete for everyone", reactions, replies to a single message, voice messages, calls
   and stickers are not part of this spec. _Changed 2026-11-02 (operator):_ message search is now part of
