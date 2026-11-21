@@ -301,6 +301,7 @@ async fn place(
     oid: Id,
     key: &str,
     sealed: Sealed,
+    cleanup_object: &mut bool,
 ) -> Result<(), FilesError> {
     let object_len = sealed.object_len();
     let file = NewFile {
@@ -325,6 +326,9 @@ async fn place(
         let _ = files.store().delete(files.access(), key, soon()).await;
         return Err(error);
     }
+    // Once the sidecar is durable, the content object is published and must survive cancellation
+    // while cleaning up a replaced version.
+    *cleanup_object = false;
     if target.replaced.is_some() {
         drop_replaced(files, &target.folder, &entry).await;
     }
@@ -350,7 +354,8 @@ pub async fn put_file(files: &StorageFiles, at: &Located, data: &[u8]) -> Result
         .put(files.access(), &key, body, soon())
         .await
         .map_err(storage_error)?;
-    place(files, target, oid, &key, sealed).await
+    let mut cleanup_object = true;
+    place(files, target, oid, &key, sealed, &mut cleanup_object).await
 }
 
 /// A file written into an encrypted folder as its plaintext comes in: [`Self::push`] seals it into
@@ -420,11 +425,15 @@ impl<'a> PutStream<'a> {
             .target
             .take()
             .ok_or_else(|| FilesError::invalid_path("the file was written already"))?;
-        let result = place(self.files, target, self.oid, &self.key, sealed).await;
-        if result.is_ok() {
-            self.cleanup_object = false;
-        }
-        result
+        place(
+            self.files,
+            target,
+            self.oid,
+            &self.key,
+            sealed,
+            &mut self.cleanup_object,
+        )
+        .await
     }
 
     /// Drops what was sent: no part stays at the storage.
