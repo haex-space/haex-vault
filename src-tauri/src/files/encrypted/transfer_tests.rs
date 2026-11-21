@@ -440,3 +440,56 @@ async fn a_failed_commit_takes_the_parts_down_and_shows_nothing() {
         .unwrap()
         .is_empty());
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_stream_put_that_is_dropped_aborts_its_upload() {
+    let scene = with_folder().await;
+    let files = scene.files();
+    let at = put_at(&scene, "verloren.bin").await;
+    let mut put = PutStream::begin(&files, &at).await.unwrap();
+    put.push(&bytes(PART + 10)).await.unwrap();
+    assert!(scene
+        .fake
+        .calls()
+        .iter()
+        .any(|(op, _)| *op == Op::UploadPart));
+    // A cancelled caller drops the writer without `abort`.
+    drop(put);
+    for _ in 0..50 {
+        if scene
+            .fake
+            .calls()
+            .iter()
+            .any(|(op, _)| *op == Op::AbortUpload)
+        {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+    assert!(
+        scene
+            .fake
+            .calls()
+            .iter()
+            .any(|(op, _)| *op == Op::AbortUpload),
+        "the upload is aborted by the drop"
+    );
+    assert!(under(&scene, ".hxef/m/").is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_committed_stream_put_does_not_abort_when_it_is_dropped_later() {
+    let scene = with_folder().await;
+    let files = scene.files();
+    let at = put_at(&scene, "fertig.bin").await;
+    let mut put = PutStream::begin(&files, &at).await.unwrap();
+    put.push(&bytes(PART + 10)).await.unwrap();
+    put.commit().await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    assert!(!scene
+        .fake
+        .calls()
+        .iter()
+        .any(|(op, _)| *op == Op::AbortUpload));
+    assert!(!under(&scene, ".hxef/m/").is_empty());
+}

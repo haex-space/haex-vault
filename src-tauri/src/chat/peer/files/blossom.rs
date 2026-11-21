@@ -51,7 +51,8 @@ const MIN_RATE: u64 = 64 * 1024;
 pub struct Patience {
     /// With no byte moved while sending or receiving.
     pub stall: Duration,
-    /// For the answer once the last byte of an upload is sent.
+    /// For the response headers of a download. An upload stands still at most the shorter of
+    /// `stall` and `answer`, whether it waits for its next byte or for the server's answer.
     pub answer: Duration,
 }
 

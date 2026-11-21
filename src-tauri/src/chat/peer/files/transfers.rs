@@ -739,7 +739,10 @@ impl ChatFiles {
     /// Downloads every file this device has not looked at yet, up to its limit; marks larger ones
     /// `pending`. `restart` (at the vault's opening) also takes the ones cut off or failed before.
     pub async fn download_due(&self, restart: bool) -> Result<()> {
-        self.retry_orphan_deletes().await?;
+        // A failed look for blobs to delete must not keep the downloads from running.
+        if let Err(error) = self.retry_orphan_deletes().await {
+            log::warn!("chat: failed blob deletions were not retried: {error}");
+        }
         let device = self.device;
         let (limit, due) = self
             .db

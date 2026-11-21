@@ -8,7 +8,7 @@ use std::time::Instant as StdInstant;
 use futures::stream;
 use nostr::key::Keys;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 
 use super::*;
 use crate::chat::peer::files::crypto::{ciphertext_len, MAX_PLAINTEXT};
@@ -354,4 +354,146 @@ async fn a_blob_that_is_not_the_one_named_ends_in_a_mismatch_after_its_last_byte
     };
     assert_eq!(got, 20, "the bytes arrive before the check can tell");
     assert_eq!(verdict, Err(BlossomError::Mismatch));
+}
+
+/// Runs `handler` for every connection to a server on this machine; answers its port.
+async fn serve_raw<F, Fut>(handler: F) -> u16
+where
+    F: Fn(TcpStream) -> Fut + Send + Sync + 'static,
+    Fut: std::future::Future<Output = ()> + Send + 'static,
+{
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let port = listener.local_addr().expect("address").port();
+    tokio::spawn(async move {
+        loop {
+            let Ok((socket, _)) = listener.accept().await else {
+                return;
+            };
+            tokio::spawn(handler(socket));
+        }
+    });
+    port
+}
+
+/// Reads what the client sends up to the end of its request head.
+async fn read_head(socket: &mut TcpStream) -> bool {
+    let mut seen = Vec::new();
+    let mut buf = [0; 1024];
+    while !seen.windows(4).any(|window| window == b"\r\n\r\n") {
+        match socket.read(&mut buf).await {
+            Ok(0) | Err(_) => return false,
+            Ok(n) => seen.extend_from_slice(&buf[..n]),
+        }
+    }
+    true
+}
+
+/// A server that reads every request head and never answers.
+async fn never_answers(patience: Patience) -> Server {
+    let port = serve_raw(|mut socket| async move {
+        if read_head(&mut socket).await {
+            std::future::pending::<()>().await;
+        }
+    })
+    .await;
+    Server::new(&format!("http://127.0.0.1:{port}/"), &SystemResolver)
+        .await
+        .expect("a local server is allowed")
+        .with_patience(patience)
+}
+
+/// A server that answers at once with a head declaring all `pieces`, sends them `gap` apart and
+/// hangs up. Its own server and the address of a blob named `hash`.
+async fn trickles(
+    pieces: Vec<Vec<u8>>,
+    gap: Duration,
+    patience: Patience,
+    hash: &str,
+) -> (Server, String) {
+    let declared: usize = pieces.iter().map(Vec::len).sum();
+    let port = serve_raw(move |mut socket| {
+        let pieces = pieces.clone();
+        async move {
+            if !read_head(&mut socket).await {
+                return;
+            }
+            let head = format!("HTTP/1.1 200 OK\r\nContent-Length: {declared}\r\n\r\n");
+            let _ = socket.write_all(head.as_bytes()).await;
+            for piece in pieces {
+                tokio::time::sleep(gap).await;
+                if socket.write_all(&piece).await.is_err() {
+                    return;
+                }
+            }
+        }
+    })
+    .await;
+    let base = format!("http://127.0.0.1:{port}/");
+    let server = Server::new(&base, &SystemResolver)
+        .await
+        .expect("a local server is allowed")
+        .with_patience(patience);
+    (server, format!("{base}{hash}"))
+}
+
+#[tokio::test]
+async fn an_upload_whose_answer_never_comes_fails_after_the_stall_time() {
+    let server = never_answers(QUICK).await;
+    let keys = Keys::generate();
+    let start = StdInstant::now();
+    let result = upload_blob(&server, &keys, vec![4; 20]).await;
+    assert_eq!(result, Err(BlossomError::TimedOut));
+    assert!(
+        start.elapsed() < Duration::from_secs(5),
+        "{:?}",
+        start.elapsed()
+    );
+}
+
+#[tokio::test]
+async fn a_download_whose_head_never_comes_fails_after_the_answer_time() {
+    let patience = Patience {
+        stall: Duration::from_secs(30),
+        answer: Duration::from_millis(400),
+    };
+    let server = never_answers(patience).await;
+    let hash = sha(b"whatever");
+    let url = format!("{}{hash}", server.address());
+    let start = StdInstant::now();
+    let result = download(&url, &hash, 1024, Some(&server), &SystemResolver)
+        .await
+        .map(|_| ());
+    assert_eq!(result, Err(BlossomError::TimedOut));
+    assert!(
+        start.elapsed() < Duration::from_secs(5),
+        "{:?}",
+        start.elapsed()
+    );
+}
+
+#[tokio::test]
+async fn a_body_that_keeps_coming_is_not_cut_by_the_time_for_the_head() {
+    let patience = Patience {
+        stall: Duration::from_millis(400),
+        answer: Duration::from_millis(300),
+    };
+    let pieces = vec![vec![9; 5]; 5];
+    let blob: Vec<u8> = pieces.concat();
+    let hash = sha(&blob);
+    // Five pieces 120 ms apart take longer than the answer time in all.
+    let (server, url) = trickles(pieces, Duration::from_millis(120), patience, &hash).await;
+    let got = fetch(&url, &hash, 1024, Some(&server)).await;
+    assert_eq!(got, Ok(blob));
+}
+
+#[tokio::test]
+async fn a_download_past_its_total_allowance_fails_before_the_next_piece() {
+    let hash = sha(b"whatever");
+    let (server, url) =
+        trickles(vec![vec![9; 5]; 2], Duration::from_millis(50), QUICK, &hash).await;
+    let mut stream = download(&url, &hash, 1024, Some(&server), &SystemResolver)
+        .await
+        .expect("the head comes");
+    stream.until = Instant::now();
+    assert_eq!(stream.chunk().await, Err(BlossomError::TimedOut));
 }

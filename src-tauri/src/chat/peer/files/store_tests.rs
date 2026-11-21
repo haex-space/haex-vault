@@ -3,6 +3,7 @@
 
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 
 use super::{dir, ChatFileStore};
 use crate::files::encrypted::test_support::give_key;
@@ -60,4 +61,28 @@ async fn a_file_round_trips_encrypted_and_a_missing_one_is_none() {
     );
     let again = store(&dir(data.path(), "anna"), &db);
     assert_eq!(again.get("a1").await.expect("get").as_deref(), Some(MARKER));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn two_writers_of_one_attachment_take_turns_and_other_ones_do_not_wait() {
+    let (_vault, db) = vault();
+    give_key(&db, 1);
+    let data = tempfile::tempdir().expect("tempdir");
+    let files = store(&dir(data.path(), "anna"), &db);
+
+    let first = files.writer("same").await.expect("first writer");
+    let second = tokio::time::timeout(Duration::from_millis(300), files.writer("same")).await;
+    assert!(second.is_err(), "the second writer waits for the first");
+    let other = tokio::time::timeout(Duration::from_secs(10), files.writer("other"))
+        .await
+        .expect("another attachment does not wait")
+        .expect("writer");
+    other.abort().await;
+
+    first.abort().await;
+    let second = tokio::time::timeout(Duration::from_secs(10), files.writer("same"))
+        .await
+        .expect("the lock is free again")
+        .expect("second writer");
+    second.abort().await;
 }
