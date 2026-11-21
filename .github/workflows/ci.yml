@@ -180,6 +180,10 @@ jobs:
         if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:platform-probe
 
+      - name: Check the diagnostic log
+        if: needs.changes.outputs.non_docs == 'true'
+        run: corepack pnpm check:diagnostic-log
+
       - name: Check the voice assistant
         if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:assistant

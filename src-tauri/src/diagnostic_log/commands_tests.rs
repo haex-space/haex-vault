@@ -1,6 +1,7 @@
 //! The switch of the level and the start and end of the log of a vault (spec 098 T015). The log
 //! and the level are process-wide, so each test takes `TEST_LOCK` and ends the log when done.
 
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -378,4 +379,147 @@ async fn a_log_that_cannot_start_is_not_writable_and_does_not_fail_the_unlock() 
     assert!(!status().writable);
     assert_eq!(status().session_id, None);
     assert_eq!(f.events().len(), 1, "the window is told");
+}
+
+#[tokio::test]
+async fn a_message_queued_for_the_first_vault_does_not_reach_the_second() {
+    let f = Fixture::new().await;
+    f.start().await;
+    let first = status().session_id.unwrap();
+    end();
+    f.start().await;
+    let second = status().session_id.unwrap();
+    assert_ne!(first, second, "every unlock has its own token");
+
+    // The webview had queued this message before the first vault closed; it arrives now.
+    ui_message(&first, UiLevel::Error, "queued for the first vault");
+    ui_message(&second, UiLevel::Error, "for the second vault");
+    SINK.flush_sync();
+
+    let text = std::fs::read_to_string(f.folder().join("haex.log")).unwrap();
+    assert!(text.contains("for the second vault"));
+    assert!(!text.contains("first vault"));
+}
+
+#[tokio::test]
+async fn lines_of_the_backend_and_of_the_interface_read_in_the_order_they_came() {
+    let f = Fixture::new().await;
+    f.start().await;
+    let token = status().session_id.unwrap();
+
+    for n in 0..20 {
+        SINK.write_record(Level::Warn, "haex::sync", &format!("backend {n}"));
+        ui_message(&token, UiLevel::Warn, &format!("interface {n}"));
+    }
+    SINK.flush_sync();
+
+    let text = std::fs::read_to_string(f.folder().join("haex.log")).unwrap();
+    let seen: Vec<&str> = text
+        .lines()
+        .filter_map(|line| line.rsplit(' ').nth(1).zip(line.rsplit(' ').next()))
+        .filter(|(kind, _)| *kind == "backend" || *kind == "interface")
+        .map(|(_, number)| number)
+        .collect();
+    let expected: Vec<String> = (0..20)
+        .flat_map(|n| [n.to_string(), n.to_string()])
+        .collect();
+    assert_eq!(seen, expected, "one story, in one order: {text}");
+    let origins: Vec<&str> = text
+        .lines()
+        .map(|line| {
+            if line.contains("[ui]") {
+                "ui"
+            } else {
+                "backend"
+            }
+        })
+        .collect();
+    assert_eq!(origins[0], "backend");
+    assert_eq!(origins[1], "ui");
+}
+
+fn sources_below(dir: &Path, extension: &str, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            sources_below(&path, extension, out);
+            continue;
+        }
+        let name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or_default();
+        let is_test = name.contains("_tests.") || name.contains("test_support");
+        if name.ends_with(extension) && !is_test {
+            out.push(path);
+        }
+    }
+}
+
+/// FR-007 and spec 098 T028: the command of the interface's messages is for the app's own window.
+/// Extension frames have no IPC of their own (the capabilities name the window `main` only), and
+/// no agent action, MCP tool or host method of an extension may name the command, so none of them
+/// can write a line into the log.
+#[test]
+fn only_the_main_window_can_write_a_ui_message() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    for file in ["default.json", "mobile.json"] {
+        let text = std::fs::read_to_string(root.join("capabilities").join(file)).unwrap();
+        let capability: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(
+            capability["windows"],
+            serde_json::json!(["main"]),
+            "{file} grants its permissions to the main window only"
+        );
+        assert!(
+            capability.get("remote").is_none(),
+            "{file} gives no remote origin IPC access"
+        );
+    }
+
+    let mut files = Vec::new();
+    for dir in [
+        "src/mcp_server",
+        "src/extensions/bridge",
+        "src/extensions/agent_tools",
+    ] {
+        sources_below(&root.join(dir), ".rs", &mut files);
+    }
+    sources_below(&root.join("../src/lib/actions"), ".ts", &mut files);
+    if let Ok(entries) = std::fs::read_dir(root.join("../src/stores")) {
+        files.extend(entries.flatten().map(|e| e.path()).filter(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.ends_with("ActionHandlers.ts"))
+        }));
+    }
+    assert!(
+        files.len() > 10,
+        "the registries were found: {}",
+        files.len()
+    );
+    let hits: Vec<String> = files
+        .iter()
+        .filter(|file| {
+            std::fs::read_to_string(file)
+                .unwrap_or_default()
+                .contains("diagnostic_log_ui_message")
+        })
+        .map(|file| file.display().to_string())
+        .collect();
+    assert!(
+        hits.is_empty(),
+        "agents and extensions must not reach diagnostic_log_ui_message, found at {hits:?}"
+    );
+
+    let lib = std::fs::read_to_string(root.join("src/lib.rs")).unwrap();
+    assert_eq!(
+        lib.matches("diagnostic_log::commands::diagnostic_log_ui_message")
+            .count(),
+        1,
+        "registered once, in the handler of the app's window"
+    );
 }
