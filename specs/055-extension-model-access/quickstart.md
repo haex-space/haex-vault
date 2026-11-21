@@ -1,4 +1,4 @@
-# Quickstart: Erweiterungen nutzen holzis Modelle
+# Quickstart: Erweiterungen nutzen HaexVaults Modelle
 
 Handtest nach den Lieferungen A und B (und C, wenn ein lokales Bildmodell vorhanden ist). Schritte 1–12 laufen
 mit `pnpm tauri:dev` und der Test-Erweiterung `model-jobs.xt` (`src-tauri/tests/fixtures/extension_e2e/model-jobs/`).
@@ -9,7 +9,7 @@ OpenAI-kompatibler Schnittstelle, und ein zweiter Anbieter in der Cloud oder im 
 1. **Anbieter eintragen**: Einstellungen → Anbieter → „OpenAI-kompatibel“: Adresse, Schlüssel (optional). Die Modelle
    erscheinen. Bei einem Bildmodell „nimmt Bilder an“ setzen. _(FR-018, FR-019, SC-007)_
 2. **Erweiterung installieren** und öffnen. Sie stellt ohne Freigabe einen Auftrag. _(FR-002, SC-001)_
-   - Erwartet: holzi fragt nach der Freigabe eines Modells (Auswahl und höchster Aufwand), Antwort „für die
+   - Erwartet: HaexVault fragt nach der Freigabe eines Modells (Auswahl und höchster Aufwand), Antwort „für die
      Sitzung“ oder „dauerhaft“ (FR-004).
 3. **Freigeben** und wiederholen: Das Ergebnis kommt mit Herkunft (Modell, Aufwand, Ort). _(FR-001, FR-023)_
 4. **Aufwand begrenzen**: Freigabe auf „mittel“, die Erweiterung verlangt „hoch“. Die Herkunft nennt „mittel“.
@@ -25,7 +25,7 @@ OpenAI-kompatibler Schnittstelle, und ein zweiter Anbieter in der Cloud oder im 
    (Server stoppen oder toten Port eintragen; die Testmodi der Test-Erweiterung wirken nur gegen den Stand-in-Server
    der E2E-Szene, ein echtes Modell scheitert damit nicht zuverlässig). Es wird nie von selbst ein anderes Modell genommen (Änderung
    2026-11-14). _(FR-027, FR-017)_
-   - **Ausfall, anderes Modell**: „Seite lesen und korrigieren“ hält an, holzi fragt, welches andere Modell den
+   - **Ausfall, anderes Modell**: „Seite lesen und korrigieren“ hält an, HaexVault fragt, welches andere Modell den
      Schritt übernehmen soll, nennt das ausgefallene Modell und den Grund und bietet es nicht erneut an. Wählt der
      Nutzer ein Modell von B und setzt den Haken „Als Standardmodell festlegen“, liefert B; die Herkunft nennt beide
      Versuche, und B trägt in den Einstellungen das Badge „Standard“. Liegt B außerhalb des Geräts, nennt die Frage
@@ -69,15 +69,15 @@ haex-notes; Bildschritte übergeht es, solange seine Fähigkeiten keine Bilder n
 
 ### Lokales Bildmodell einrichten (Ollama)
 
-holzi lädt Bildmodelle nicht selbst (research R8). Sie laufen in einem Ollama auf demselben Gerät:
+HaexVault lädt Bildmodelle nicht selbst (research R8). Sie laufen in einem Ollama auf demselben Gerät:
 
 1. Ollama installieren und mit genug Kontext starten. Ein Seitenfoto braucht rund 3300 Tokens Eingabe, die
    Antwort bis zu 3000: `OLLAMA_CONTEXT_LENGTH=8192 ollama serve`.
 2. `ollama pull qwen3-vl:4b-instruct`. Die Fassung ohne `-instruct` denkt zuerst und liefert bei begrenzter Länge
    leeren Inhalt.
-3. In holzi: Einstellungen → Modell-Server → hinzufügen, Adresse `http://localhost:11434/v1`, ohne Schlüssel. Am
+3. In HaexVault: Einstellungen → Modell-Server → hinzufügen, Adresse `http://localhost:11434/v1`, ohne Schlüssel. Am
    Modell „nimmt Bilder an“ setzen.
-4. Der Ort ist „dieses Gerät“, daher fragt holzi nicht nach einer Einwilligung zum Versand.
+4. Der Ort ist „dieses Gerät“, daher fragt HaexVault nicht nach einer Einwilligung zum Versand.
 
 Gemessen auf einer 8-GB-Karte: 5,5 GB Grafikspeicher, 12–18 s je Seite.
 

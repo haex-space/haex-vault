@@ -15,7 +15,7 @@ comes first because every other story is judged by it (spec Decision 4). The gua
 **Rules for every task**:
 
 - Run `graphify query "<what the function does>"` before writing a new function (spaex), and reuse what exists.
-- Build in the 10 GB scope with `-j 1`; run the lib tests with `--config 'profile.dev.package.holzi.debug=0'`.
+- Build in the 10 GB scope with `-j 1`; run the lib tests with `--config 'profile.dev.package.haex.debug=0'`.
 - Keep each file under 500 lines.
 - Tune the domain descriptions and the routing prompt only on `analysis/devset.json`, never on the everyday set
   (research R3).
@@ -121,7 +121,7 @@ tool.confirms_itself())`, the same order as `plan_calls`. Factor that order into
     The everyday runner then calls `first_offer` with `ToolAvailability::Offered` for every provider (hosted models
     are measured as through their API, research R2), and `extend_offer` exactly as `chat/send.rs` and
     `chat/turn/tool_round.rs` do. Remove anything this leaves unused.
-- [x] T012 [US1] Add the platform profile. `HOLZI_EVAL_PROFILE=desktop|phone` (default `desktop`) is read in
+- [x] T012 [US1] Add the platform profile. `HAEX_EVAL_PROFILE=desktop|phone` (default `desktop`) is read in
       `src-tauri/tests/model_tool_eval.rs`, passed to the everyday runner, and written as `profile` into the report.
 - [x] T013 [US1] Wire the played dialog into the runner loop of `chat/eval/everyday/runner.rs`:
   - Each proposed call gets its ending from `consent.rs`.
@@ -142,7 +142,7 @@ tool.confirms_itself())`, the same order as `plan_calls`. Factor that order into
 - [x] T017 [US1] Run the lib tests of `chat::eval` and `chat::tools`, clippy for desktop and Android, and
       `pnpm typecheck:scripts`. Strip trailing spaces from the ts-rs bindings as the CI does if `cargo test`
       rewrote them.
-- [x] T018 [US1] Baselines (FR-004, SC-001), with `HOLZI_EVAL_ROUTING` unset (no routing exists yet):
+- [x] T018 [US1] Baselines (FR-004, SC-001), with `HAEX_EVAL_ROUTING` unset (no routing exists yet):
   - Run the everyday set with the `desktop` profile for Qwen3.5 2B, 4B and 9B, Gemma 4 E2B, E4B and 12B, and
     Hermes 4 14B.
   - Run Qwen3 1.7B with both the `phone` and the `desktop` profile.
@@ -161,7 +161,7 @@ tool.confirms_itself())`, the same order as `plan_calls`. Factor that order into
 
 ## Phase 4: User Story 4 – Nothing risky without consent, wrong calls turned away (P1)
 
-**Goal**: holzi turns away ids no earlier result named and unknown tools, before the permission dialog. The dialog
+**Goal**: haex-vault turns away ids no earlier result named and unknown tools, before the permission dialog. The dialog
 behaves as today in every mode.
 
 **Independent Test**: scripted calls with a made-up id, an unknown tool and an unasked deletion. None reaches the
@@ -351,7 +351,7 @@ first tool of every expected chain, without a model.
   - `send.rs` shrinks from 538 to 531 lines; the voice assistant's turns go through `start_turn`
     (`assistant/turn.rs`).
 - [x] T045 [US2] Run the routing call in the everyday runner (`chat/eval/everyday/runner.rs`):
-  - `HOLZI_EVAL_ROUTING=off` skips it; read the variable in `src-tauri/tests/model_tool_eval.rs`.
+  - `HAEX_EVAL_ROUTING=off` skips it; read the variable in `src-tauri/tests/model_tool_eval.rs`.
   - Record `routed` per request, set `routing` in the report, and count `routingHits` against the domain of each
     request's expected first tool.
   - Record each routing call's time, and write the median as `routingMs`.
@@ -373,7 +373,7 @@ first tool of every expected chain, without a model.
 
 ---
 
-## Phase 7: User Story 3 – Never ask for what holzi can look up (P1)
+## Phase 7: User Story 3 – Never ask for what haex-vault can look up (P1)
 
 **Goal**: the instruction tells the model to look up what the user named, and to ask by titles only.
 
@@ -403,7 +403,7 @@ measurement.
 
 **Independent Test**: the everyday set with the three hosted models, compared with T018.
 
-- [x] T052 [US6] Run the three hosted models twice, with routing on and with `HOLZI_EVAL_ROUTING=off`. Store the
+- [x] T052 [US6] Run the three hosted models twice, with routing on and with `HAEX_EVAL_ROUTING=off`. Store the
       reports under `specs/082-agent-harness/runs/hosted/`.
 - [x] T053 [US6] Decide per the measurement (FR-016):
   - If routing does not raise a hosted model's pass rate, the hosted adapters skip the routing call. Do this with one

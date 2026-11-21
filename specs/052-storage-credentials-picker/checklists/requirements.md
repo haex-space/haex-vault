@@ -35,4 +35,4 @@
   references, as the other specs of this repository do; this is traceability, not implementation.
 - The tag name `haex-cloud-storage` is an assumption (the operator proposed it with "vielleicht").
 - Open for planning: how a gewählter Eintrag gets the tag without a caller other than the user
-  writing to a foreign entry, and whether holzi's internal caller may tag entries it does not own.
+  writing to a foreign entry, and whether HaexVault's internal caller may tag entries it does not own.

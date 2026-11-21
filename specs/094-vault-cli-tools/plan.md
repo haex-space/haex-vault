@@ -11,8 +11,8 @@ own home folder `<vault folder>/home/`. Every delegate process is started throug
 (`Containment`, spec FR-020). Its only implementation here is the portable base layer: it relocates only what a tool
 needs relocated, in the child process's environment alone, passes through what the tool needs from the host (proxy,
 certificates, `PATH`, locale) and reports the isolation level `best effort`. A later OS sandbox (Linux, macOS) plugs into
-the same interface as a separate spec. holzi downloads each tool itself
-from the vendor's release host, checks the SHA-256 held in a tested-version list that ships with holzi, unpacks into a
+the same interface as a separate spec. haex-vault downloads each tool itself
+from the vendor's release host, checks the SHA-256 held in a tested-version list that ships with haex-vault, unpacks into a
 staging folder and publishes it with one rename. The user installs, updates and removes tools in Settings. The host
 `PATH` lookup and the binary name in the provider row go away.
 
@@ -81,7 +81,7 @@ Re-check after design: unchanged. No violation needs the Complexity Tracking tab
 - **D1 – Residual host traces: RESOLVED 2026-11-16.** Measured: Claude Code creates `/tmp/cc-socks-<uid>/<pid>.sock` and
   no variable moves it; an approval socket for a long vault name cannot live in the vault folder (104-byte limit). Decision
   (operator): two isolation layers. This spec ships the base layer behind `Containment` and lists these two as residuals
-  (spec Assumptions) with the isolation level shown as `best effort`; the OS sandbox (Linux namespaces set up by holzi
+  (spec Assumptions) with the isolation level shown as `best effort`; the OS sandbox (Linux namespaces set up by haex-vault
   itself, macOS Seatbelt) is a separate spec that makes them literal zero. Docker and Podman were rejected (host
   dependency, traces outside the vault folder, the helper and the socket cross the VM boundary on macOS and Windows).
   Windows stays `best effort`. A bundled `bwrap` or a host `bwrap` is not assumed: on Ubuntu 24.04 unprivileged

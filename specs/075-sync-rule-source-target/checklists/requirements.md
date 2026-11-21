@@ -38,4 +38,4 @@
 - Settled with the operator on 2026-11-01: `source`/`target` on the rule, the inner field renamed, own spec
   before 074.
 - Open: the new name `location` (Assumptions) and the migration for existing vaults (FR-004), against the
-  "no migration paths" rule for holzi. Confirm at `/speckit-plan`.
+  "no migration paths" rule for HaexVault. Confirm at `/speckit-plan`.

@@ -303,7 +303,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I couldn't find a calendar in holzi, so I can't add the dentist appointment for tomorrow, Thursday 19 March, at 10:00. The apps installed here are Settings, Chat, Files, Passwords, Contacts and haex-mail, and none of them handles appointments. You'd need to add it in your calendar app. I can also dr"
+      "text": "I couldn't find a calendar in haex-vault, so I can't add the dentist appointment for tomorrow, Thursday 19 March, at 10:00. The apps installed here are Settings, Chat, Files, Passwords, Contacts and haex-mail, and none of them handles appointments. You'd need to add it in your calendar app. I can also dr"
     },
     {
       "id": "no_tool-en-4",
@@ -331,7 +331,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "I couldn't find a shopping list in holzi. Where should I put milk?",
+            "question": "I couldn't find a shopping list in haex-vault. Where should I put milk?",
             "options": [
               "Write it into a chat conversation with myself",
               "Add it to a text file in Dateien",
@@ -341,7 +341,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I couldn't find a shopping list in holzi. Where should I put milk?"
+      "text": "I couldn't find a shopping list in haex-vault. Where should I put milk?"
     },
     {
       "id": "mail_tidy-en-1-s",

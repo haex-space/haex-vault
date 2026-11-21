@@ -1,10 +1,10 @@
-# Quickstart: Modell bedient holzi über die Aktionen
+# Quickstart: Modell bedient HaexVault über die Aktionen
 
 **Spec**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md)
 
 Validierungsleitfaden, kein Bauplan. Jeder Abschnitt nennt Voraussetzung,
 Aufruf und erwartetes Ergebnis. Rust-Aufrufe brauchen die Umgebung aus dem
-Memory „cargo in holzi worktrees“ (`nix develop`, Host-Bridge); im Worktree
+Memory „cargo in HaexVault worktrees“ (`nix develop`, Host-Bridge); im Worktree
 gilt ein echtes `pnpm install` (kein Symlink auf `node_modules`).
 
 ## 1. Automatische Prüfungen (CI-gleich)
@@ -57,28 +57,28 @@ einmal Claude per API-Key, einmal das lokale Qwen3-4B.
    erklärt, dass der Nutzer es selbst einstellen muss (Leitplanke), in jedem
    Modus. Fordert es die Aktion dennoch an, lehnt der Runner sie ab.
 6. Ein Modell ohne Werkzeug-Vorlage wählen → Chat antwortet normal, Hinweis
-   „kann holzi nicht bedienen“ (einmal).
+   „kann HaexVault nicht bedienen“ (einmal).
 7. Ein frisch geladenes lokales Modell mit Werkzeug-Vorlage wählen → sofort
    chatbar mit Unzuverlässigkeits-Hinweis; nach einem bestandenen Selbsttest
    (≤ 2 Minuten, vorläufig `SELF_TEST_PASS = 0.6`) wechselt der Wert auf
    „Supported“, und der Hinweis erscheint bei der nächsten Unterhaltung nicht
    mehr. Bei einem Ergebnis unter der Schwelle wechselt der Wert auf
-   „Unsupported“; das Modell bleibt ohne holzi-Werkzeuge chatbar und erklärt,
-   dass es holzi nicht bedienen kann.
+   „Unsupported“; das Modell bleibt ohne HaexVault-Werkzeuge chatbar und erklärt,
+   dass es HaexVault nicht bedienen kann.
 8. Den MCP-Zugang einschalten, ein Profil mit MCP-Werkzeugen aktivieren und Claude Code oder Codex
    wählen → keine Registrierungsfrage; die Werkzeuge richten sich nach dem Profil des gewählten
    Abo-Agent-Modells. Den MCP-Zugang danach ausschalten und erneut wählen → ein Hinweis erklärt,
-   dass holzi-Werkzeuge über den MCP-Zugang nicht verfügbar sind.
+   dass HaexVault-Werkzeuge über den MCP-Zugang nicht verfügbar sind.
 
 ## 5. Messlauf je Modell (US5, SC-001, SC-002, SC-005, SC-008)
 
 ```bash
 # lokal (braucht ein heruntergeladenes GGUF, kein Tresor)
-HOLZI_TEST_GGUF=<pfad-zum-gguf> \
+HAEX_TEST_GGUF=<pfad-zum-gguf> \
   cargo test --manifest-path src-tauri/Cargo.toml --test model_tool_eval -- --ignored --nocapture
 
 # Cloud: Anbieter und Schlüssel aus der Umgebung, nie aus dem Repository
-HOLZI_EVAL_PROVIDER=anthropic HOLZI_EVAL_MODEL=<modell-id> \
+HAEX_EVAL_PROVIDER=anthropic HAEX_EVAL_MODEL=<modell-id> \
   ANTHROPIC_API_KEY=<schluessel> \
   cargo test --manifest-path src-tauri/Cargo.toml --test model_tool_eval -- --ignored --nocapture
 ```

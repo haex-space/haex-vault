@@ -1,7 +1,7 @@
 # Contract: what outside callers see of a pass
 
 Callers: the browser autofill and `entry.fill` (spec 065), the external bridge (spec 049), the built-in agent, external agents
-over MCP (spec 021), extensions, and holzi's own functions that read credentials. All reach entries through
+over MCP (spec 021), extensions, and haex-vault's own functions that read credentials. All reach entries through
 `PasswordsService`; the rules below are enforced there (research R11), not in each caller.
 
 ## The rule

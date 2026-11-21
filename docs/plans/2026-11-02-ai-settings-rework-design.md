@@ -35,7 +35,7 @@ Die Ansichten unter Einstellungen → KI drei Dinge ändern:
 - Die Kette wird: Session → zuletzt gewählt → keins. `DefaultDevice`, `DefaultVault`, `FirstAvailable` und `PREF_DEFAULT_MODEL` entfallen.
 - Ein gemerktes lokales Modell, das nicht aktiv ist, zählt als "keins".
 - Sprachassistent, Modellaufträge und `send_admission` rufen `resolve_model` ebenfalls auf. Bei "keins" liefern sie eine klare Meldung "kein Modell gewählt". Wie sie sich heute bei `None` verhalten, ist im Plan zu prüfen.
-- Alte `chat.default_model_id`-Einträge bleiben als tote Preferences liegen. holzi hat keine Nutzer, es gibt keine Migration.
+- Alte `chat.default_model_id`-Einträge bleiben als tote Preferences liegen. haex-vault hat keine Nutzer, es gibt keine Migration.
 
 ## 2. Anbieter
 

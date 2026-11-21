@@ -9,10 +9,10 @@ Agent-Zuschreibung). Grundlage: Berechtigungsart `remoteStorage` aus 038 und die
 - Ziel: `<storage_id>/<folder_id>` (`folder_id` = Base32 der Ordner-Kennung).
 - Aktionen: `read`, `readWrite` (`readWrite` deckt `read`).
 - Zustände wie in 017: `granted`, `denied`; keine Zeile = fragen.
-- **Nie im Manifest**: Ein Manifest mit dieser Kategorie (auch unter einem Alias) lehnt holzi bei
+- **Nie im Manifest**: Ein Manifest mit dieser Kategorie (auch unter einem Alias) lehnt haex-vault bei
   `install_preview`, `install`, Update und beim Laden einer Entwicklerversion mit
   `BundleRejection::ForbiddenPermission { category }` ab.
-- Gespeichert wird nur mit Haken „Erlaubnis merken“ (ab Werk aus). Ohne Haken hält holzi die Antwort im
+- Gespeichert wird nur mit Haken „Erlaubnis merken“ (ab Werk aus). Ohne Haken hält haex-vault die Antwort im
   Prozess, bis der Frame der Erweiterung entladen oder neu geladen wird, höchstens bis zum Sperren der
   Vault.
 
@@ -26,7 +26,7 @@ Agent-Zuschreibung). Grundlage: Berechtigungsart `remoteStorage` aus 038 und die
 | `extension_encrypted_folder_upload`   | `{ storageId, folderId, path, data }`        | –                                                 | `readWrite`                                        |
 | `extension_encrypted_folder_delete`   | `{ storageId, folderId, path }`              | –                                                 | `readWrite`                                        |
 
-- `choose` öffnet in holzi eine Auswahl der lesbaren verschlüsselten Ordner des Speichers mit ihren
+- `choose` öffnet in haex-vault eine Auswahl der lesbaren verschlüsselten Ordner des Speichers mit ihren
   Namen und stellt in derselben Ansicht die Frage (Lesen erlauben / Lesen und Schreiben erlauben /
   Ablehnen, Haken „Erlaubnis merken“). Die Erweiterung erfährt Namen erst nach einer Erlaubnis.
 - Die übrigen Funktionen fragen, wenn keine gehaltene oder gespeicherte Erlaubnis besteht, mit dem

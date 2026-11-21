@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Adressbuch in holzi mit Abgleich zum Telefon-Adressbuch (Android)
+# Specification Quality Checklist: Adressbuch in HaexVault mit Abgleich zum Telefon-Adressbuch (Android)
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-10-13
@@ -31,7 +31,7 @@
 
 ## Notes
 
-- Der Marker zum Zweck der holzi-Adressen ist geklärt (Option C, 2026-10-13): bestätigt aus der
+- Der Marker zum Zweck der HaexVault-Adressen ist geklärt (Option C, 2026-10-13): bestätigt aus der
   Visitenkarte, Einladen aus dem Adressbuch in 027/028 (US7, FR-033 bis FR-040).
 - Erweiterbare Angaben (FR-007) decken die später geplanten Messenger-Kennungen, PGP-Schlüssel und
   Serveradressen ab; deren konkrete Arten sind ausdrücklich nicht im Umfang.

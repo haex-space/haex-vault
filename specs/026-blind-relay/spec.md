@@ -16,7 +16,7 @@ vertrauenswürdig: Es sieht keine Inhalte und kann nur die Verfügbarkeit
 beeinträchtigen. Betreibervorgaben aus dem Design: Transport über iroh,
 Anmeldung mit Nostr-Schlüsseln (Challenge-Response nach NIP-42), optional ein
 Nostr-Relay für Signalisierung, Objektspeicher S3-kompatibel. Auf der Seite von
-holzi kommen dazu: Relays in den Einstellungen eintragen, ein Postfach für die
+HaexVault kommen dazu: Relays in den Einstellungen eintragen, ein Postfach für die
 eigene Vault, damit eigene Geräte auch ohne gleichzeitige Verbindung gleich
 werden, das Erkennen zurückgehaltener Daten und klare Anzeigen, wenn ein Relay
 nicht erreichbar ist oder ablehnt.
@@ -27,7 +27,7 @@ nicht erreichbar ist oder ablehnt.
   öffentlicher Schlüssel ist die feste Adresse der Vault; Zulassung, Kontingent
   und Mitgliedschaft am Relay hängen an ihr, nie an einem Gerät. Ihr privater
   Schlüssel liegt nur auf Hauptgeräten.
-- **Gerät**: eine holzi-Instanz der Vault (Spec 024). Ein **Hauptgerät** hat den
+- **Gerät**: eine HaexVault-Instanz der Vault (Spec 024). Ein **Hauptgerät** hat den
   privaten Schlüssel der Vault-Identität und darf Geräte hinzufügen und
   entfernen; es kann mehrere geben. Ein **verknüpftes Gerät** liest und
   schreibt alle Daten der Vault und darf Spaces und Datenfreigaben verwalten,
@@ -96,8 +96,8 @@ nicht erreichbar ist oder ablehnt.
   auch für Dateien ein blinder Teilnehmer. **Speicher-Backend B** ist der
   eigene S3-Speicher des Nutzers (Spec 029), ohne das Relay.
 - **Wiederherstellungsschlüssel**: ein zufälliger Schlüssel hoher Entropie,
-  den holzi beim Einrichten der Wiederherstellung einmal als Code und QR-Code
-  zeigt und den der Nutzer offline aufbewahrt (FR-050). holzi und das Relay
+  den HaexVault beim Einrichten der Wiederherstellung einmal als Code und QR-Code
+  zeigt und den der Nutzer offline aufbewahrt (FR-050). HaexVault und das Relay
   speichern ihn nicht.
 - **Wiederherstellungspaket**: verschlüsselt auf dem Relay hinterlegt; enthält
   den privaten Schlüssel der Vault-Identität, die Generationen des
@@ -201,7 +201,7 @@ nicht erreichbar ist oder ablehnt.
   bliebe bis zu ihrem Ablauf gültig und bräuchte eine eigene Widerrufsliste.
   Die Liste nutzt dieselben secp256k1-Schlüssel wie Nostr statt eines zweiten
   Schlüsselsystems. Es bleibt ein System von Fähigkeiten, nur ohne Ketten.
-- Q: Kann holzi den haex-sync-server übernehmen? → A: Die Form ja, das
+- Q: Kann HaexVault den haex-sync-server übernehmen? → A: Die Form ja, das
   Datenmodell nein (Design §3.4). Der Server darf weder das Schema der App noch
   die Aktivität einzelner Geräte sehen und führt nichts zusammen.
 - Q: Braucht ein Relay Konten? → A: Nein. Keine Konten, keine E-Mail-Adresse;
@@ -225,7 +225,7 @@ nicht erreichbar ist oder ablehnt.
   (D27).
 - Q: Wer darf Geräte hinzufügen und entfernen? → A: Nur Hauptgeräte, die den
   privaten Schlüssel der Vault-Identität haben; es kann mehrere geben. Beim
-  Verknüpfen fragt holzi, ob der Schlüssel mit übertragen wird (Standard:
+  Verknüpfen fragt HaexVault, ob der Schlüssel mit übertragen wird (Standard:
   nein). Verknüpfen ist der bevorzugte Weg, Kopieren der Datei bleibt möglich
   (D27).
 - Q: Wie kommt ein Nutzer, der alle Kopien verloren hat, wieder an seine
@@ -300,7 +300,7 @@ Auf seinen anderen Geräten erscheint das Relay von selbst.
 Schritt muss ohne Konto, E-Mail-Adresse oder Passwort gehen.
 
 **Independent Test**: Ein laufendes Relay mit einem frischen Einladungscode;
-in holzi Adresse und Code eintragen. Das Relay erscheint als verbunden; auf
+in HaexVault Adresse und Code eintragen. Das Relay erscheint als verbunden; auf
 einem zweiten Gerät der Vault steht es ohne weitere Eingabe in der Liste; ein
 zweiter Versuch mit demselben Code aus einer anderen Vault wird abgelehnt.
 
@@ -324,7 +324,7 @@ zweiter Versuch mit demselben Code aus einer anderen Vault wird abgelehnt.
    bestätigt, **Then** nutzt keines seiner Geräte es mehr, und das Postfach
    der Vault auf diesem Relay wird gelöscht, soweit das Relay erreichbar ist.
 6. **Given** die Vault ist zugelassen, **When** sich später die Identität des
-   Relays hinter derselben Adresse ändert, **Then** synchronisiert holzi nicht
+   Relays hinter derselben Adresse ändert, **Then** synchronisiert HaexVault nicht
    still weiter, sondern meldet das Relay als „Identität geändert“.
 
 ---
@@ -337,7 +337,7 @@ Kontingent und gibt sie weiter. Sie sieht, welche Vault-Identitäten zugelassen
 sind und wie viel Platz sie belegen, aber nicht, was darin steht, wie Tabellen
 oder Dateien heißen oder wer was geändert hat.
 
-**Why this priority**: Ohne betreibbares Relay gibt es für holzi-Nutzer keinen
+**Why this priority**: Ohne betreibbares Relay gibt es für HaexVault-Nutzer keinen
 Weg zwischen Geräten, die nie gleichzeitig online sind. Dass der Betreiber
 keine Inhalte sieht, ist die zentrale Zusage (D9).
 
@@ -464,18 +464,18 @@ restlichen Paketen denselben Stand.
 ### User Story 6 - Sehen, wenn das Relay nicht mitspielt (Priority: P2)
 
 Ein Relay ist nicht erreichbar, lehnt ab, hat ein Postfach verloren oder
-liefert Pakete nur lückenhaft. holzi bleibt voll nutzbar, synchronisiert direkt
+liefert Pakete nur lückenhaft. HaexVault bleibt voll nutzbar, synchronisiert direkt
 weiter, wo das geht, und zeigt beim Relay in den Einstellungen, was los ist.
 Es übernimmt nichts, was nicht geprüft ist, und verliert nichts, was die
 eigenen Geräte schon haben.
 
 **Why this priority**: Das Relay kann Daten zurückhalten, verhindern lässt sich
-das nicht (Design §13). Der Nutzer muss es aber merken, und holzi muss sich
+das nicht (Design §13). Der Nutzer muss es aber merken, und HaexVault muss sich
 selbst wieder heilen können.
 
 **Independent Test**: Mit einem Test-Relay, das auf Befehl nicht antwortet,
 Pakete auslässt, ein Postfach löscht oder eine alte Mitgliederliste verwendet:
-holzi zeigt jeweils den passenden Zustand beim Relay, arbeitet lokal weiter und
+HaexVault zeigt jeweils den passenden Zustand beim Relay, arbeitet lokal weiter und
 füllt ein gelöschtes Postfach wieder.
 
 **Acceptance Scenarios**:
@@ -483,20 +483,20 @@ füllt ein gelöschtes Postfach wieder.
 1. **Given** das Relay ist nicht erreichbar, **When** der Nutzer weiterarbeitet,
    **Then** gibt es keinen blockierenden Dialog; Änderungen sammeln sich lokal,
    und die Relay-Liste zeigt „Nicht erreichbar seit …“.
-2. **Given** das Relay liefert nach Nummer 10 die Nummer 12, **When** holzi die
+2. **Given** das Relay liefert nach Nummer 10 die Nummer 12, **When** HaexVault die
    Lücke bemerkt, **Then** übernimmt es die geprüften Pakete, hält seinen
    Lesestand vor der Lücke, fragt erneut an und zeigt „Unvollständige Daten“,
    wenn die Lücke bleibt.
 3. **Given** das Relay meldet ein Postfach als unbekannt oder mit neu
-   begonnener Nummerierung, **When** holzi einen höheren Lesestand hatte,
+   begonnener Nummerierung, **When** HaexVault einen höheren Lesestand hatte,
    **Then** meldet es „Daten auf dem Relay verloren“ und lädt eine neue
    Momentaufnahme hoch, wenn es dazu berechtigt ist.
 4. **Given** der Fortschrittsstand eines Pakets nennt Änderungen, die dieses
    Gerät weder hat noch im Postfach findet, **When** das länger als eine Frist
-   so bleibt, **Then** zeigt holzi, dass das Relay Daten zurückhält.
+   so bleibt, **Then** zeigt HaexVault, dass das Relay Daten zurückhält.
 5. **Given** das Relay lehnt ab (nicht zugelassen, keine Berechtigung, Liste
    fehlt oder abgelaufen, Kontingent erschöpft, Version nicht unterstützt),
-   **When** holzi das erfährt, **Then** zeigt die Relay-Liste genau diesen
+   **When** HaexVault das erfährt, **Then** zeigt die Relay-Liste genau diesen
    Grund und, wo möglich, was der Nutzer tun kann.
 
 ---
@@ -547,7 +547,7 @@ sofort abgelehnt.
 
 ### User Story 8 - Kontingente und volle Postfächer (Priority: P3)
 
-Das Kontingent einer Vault ist fast voll. holzi versucht zuerst, Platz durch
+Das Kontingent einer Vault ist fast voll. HaexVault versucht zuerst, Platz durch
 Momentaufnahmen zurückzugewinnen, und zeigt dann in der Relay-Liste
 „Kontingent fast voll“ oder „voll“. Lesen geht weiter, neue Uploads nicht.
 
@@ -555,7 +555,7 @@ Momentaufnahmen zurückzugewinnen, und zeigt dann in der Relay-Liste
 volles Kontingent nicht als unerklärlichen Sync-Ausfall erleben.
 
 **Independent Test**: Eine Vault mit kleinem Kontingent zulassen und füllen:
-holzi zeigt den Stand, eine Momentaufnahme wird trotz vollem Kontingent
+HaexVault zeigt den Stand, eine Momentaufnahme wird trotz vollem Kontingent
 angenommen, wenn sie Platz frei macht, weitere Pakete werden mit „Kontingent
 erschöpft“ abgelehnt, andere Vaults auf demselben Relay sind nicht betroffen.
 
@@ -581,8 +581,8 @@ Ein Nutzer hat seine Vault nur auf dem Laptop, und der Laptop wird gestohlen.
 Beim Einrichten hatte er auf einem Hauptgerät die Wiederherstellung
 eingeschaltet, den Wiederherstellungsschlüssel als Code ausgedruckt und eine
 Authenticator-App als zweiten Faktor eingerichtet. Auf einem neuen Rechner
-installiert er holzi, wählt „Vault wiederherstellen“, gibt den Code ein und
-bestätigt mit einem Code aus der App. holzi entschlüsselt das Paket auf dem
+installiert er HaexVault, wählt „Vault wiederherstellen“, gibt den Code ein und
+bestätigt mit einem Code aus der App. HaexVault entschlüsselt das Paket auf dem
 neuen Rechner, holt den Stand aus dem Postfach der Vault, lässt ihn eine neue
 Passphrase setzen und entfernt den gestohlenen Laptop aus der Geräteliste.
 
@@ -604,14 +604,14 @@ Relay.
 **Acceptance Scenarios**:
 
 1. **Given** ein Hauptgerät mit einem Relay, **When** der Nutzer in den
-   Einstellungen „Wiederherstellung einrichten“ wählt, **Then** erklärt holzi,
+   Einstellungen „Wiederherstellung einrichten“ wählt, **Then** erklärt HaexVault,
    was hinterlegt wird, erzeugt einen Wiederherstellungsschlüssel, zeigt ihn
    genau einmal als Code und QR-Code und schaltet die Wiederherstellung erst
    ein, wenn der Nutzer den zweiten Faktor eingerichtet und bestätigt hat
    (FR-050).
 2. **Given** das Einrichten, **When** der Nutzer den zweiten Faktor wählt,
    **Then** ist TOTP vorausgewählt und wird erst aktiv, wenn er einen gültigen
-   Code aus seiner App eingibt; wählt er stattdessen E-Mail, sagt holzi vorher,
+   Code aus seiner App eingibt; wählt er stattdessen E-Mail, sagt HaexVault vorher,
    dass das Relay dann seine Adresse kennt (FR-051).
 3. **Given** die Wiederherstellung ist eingerichtet, **When** ein Hauptgerät
    eine neue Generation des Inhaltsschlüssels des Bereichs „Vault“ erzeugt oder
@@ -626,13 +626,13 @@ Relay.
 5. **Given** ein richtiger Besitznachweis, **When** der zweite Faktor fehlt,
    falsch oder abgelaufen ist, **Then** liefert das Relay das Paket nicht aus;
    nach wiederholten Fehlversuchen sperrt es weitere Versuche für eine
-   wachsende Frist und zeigt holzi, bis wann (FR-053).
+   wachsende Frist und zeigt HaexVault, bis wann (FR-053).
 6. **Given** Besitznachweis und zweiter Faktor sind richtig, **When** das
-   Relay das Paket ausliefert, **Then** entschlüsselt holzi es nur auf dem
+   Relay das Paket ausliefert, **Then** entschlüsselt HaexVault es nur auf dem
    Gerät, lässt den Nutzer eine neue Passphrase setzen, holt die letzte
    Momentaufnahme und die Pakete danach aus dem Postfach der Vault und hat
    danach deren Stand (FR-054).
-7. **Given** die wiederhergestellte Instanz, **When** holzi die Geräteliste
+7. **Given** die wiederhergestellte Instanz, **When** HaexVault die Geräteliste
    veröffentlicht, **Then** ist die neue Instanz darin ein Hauptgerät, die
    bisherigen Geräte sind zum Entfernen vorausgewählt, der Nutzer entscheidet
    je Gerät, und das Relay lehnt jedes entfernte Gerät danach ab (FR-049,
@@ -664,7 +664,7 @@ Relay.
   lesen, weil der Admin nach dem Entfernen eine neue Generation des
   Inhaltsschlüssels erzeugt (Spec 027).
 - **Die Mitgliederliste läuft ab.** Das Relay lehnt dann jeden Zugriff auf den
-  Bereich ab (FR-019). holzi erneuert die Listen der Bereiche, deren Admin die
+  Bereich ab (FR-019). HaexVault erneuert die Listen der Bereiche, deren Admin die
   Vault ist, rechtzeitig vorher (FR-041). Ist kein Gerät des Admins lange
   genug online, ist der Bereich am Relay nicht erreichbar, bis eines wieder
   online kommt; direkter Sync bleibt möglich.
@@ -684,7 +684,7 @@ Relay.
   Änderungen verwerfen die Empfänger (FR-025).
 - **Ein Änderungspaket ist größer als die Obergrenze des Relays.** Pakete teilen
   nie eine zusammengehörige Änderungsgruppe (Spec 024). Ist schon eine einzelne
-  Gruppe zu groß, lädt holzi sie nicht hoch, zeigt es beim Relay an und
+  Gruppe zu groß, lädt HaexVault sie nicht hoch, zeigt es beim Relay an und
   synchronisiert sie weiter direkt.
 - **Ein Gerät geht verloren oder wird gestohlen.** Ein Hauptgerät entfernt es
   aus der Geräteliste und erzeugt eine neue Generation des Inhaltsschlüssels
@@ -712,10 +712,10 @@ Relay.
 - **Das Relay liefert ein älteres Wiederherstellungspaket oder hat es
   gelöscht.** Verhindern lässt sich das nicht (Design §13). Das Paket nennt
   seinen Stand; Änderungen im Postfach, die eine neuere Schlüsselgeneration
-  brauchen, kann holzi dann nicht entschlüsseln und meldet das. Ein Hauptgerät
+  brauchen, kann HaexVault dann nicht entschlüsseln und meldet das. Ein Hauptgerät
   prüft, ob das Paket auf dem Relay aktuell ist, und lädt es sonst neu hoch
   (FR-052).
-- **Das Relay mit dem Wiederherstellungspaket wird entfernt.** holzi sagt vor
+- **Das Relay mit dem Wiederherstellungspaket wird entfernt.** HaexVault sagt vor
   der Bestätigung, dass die Wiederherstellung damit endet, und bietet an, sie
   auf dem neuen Heimat-Relay neu einzurichten (FR-046, FR-055).
 - **Zwei Geräte des Admins veröffentlichen gleichzeitig verschiedene Listen
@@ -726,11 +726,11 @@ Relay.
 - **Zwei Geräte der Vault legen gleichzeitig eine Momentaufnahme an.** Das Relay
   nimmt nur eine an, deren Nummer über der geltenden liegt; die andere wird
   abgelehnt, das Gerät holt die neue Momentaufnahme und prüft FR-042.
-- **Ein Relay wird entfernt, während es nicht erreichbar ist.** holzi nutzt es
+- **Ein Relay wird entfernt, während es nicht erreichbar ist.** HaexVault nutzt es
   nicht mehr; das Postfach bleibt dort liegen, bis der Betreiber es aufräumt
   (FR-012) oder der Nutzer das Relay erneut einträgt und entfernt.
 - **Das Relay ist Heimat eines Bereichs, dessen Admin diese Vault ist**
-  (Space oder Datenfreigabe), und der Nutzer will es entfernen. holzi nennt die
+  (Space oder Datenfreigabe), und der Nutzer will es entfernen. HaexVault nennt die
   betroffenen Bereiche und verlangt eine Bestätigung; ein Umzug auf ein anderes
   Relay gehört zu Spec 027 bzw. 028.
 - **Uhrzeiten weichen ab.** Ausstellungs- und Ablaufzeit der Liste prüft das
@@ -781,7 +781,7 @@ Relay.
   verschlüsselt.
 - **FR-009**: Das Relay DARF optional eine Signalisierung für Anwesenheit und
   Einladungen anbieten (Spec 024, 027); wie Einladungen transportiert werden,
-  legt Spec 027 fest, und holzi DARF NICHT voraussetzen, dass ein Relay sie
+  legt Spec 027 fest, und HaexVault DARF NICHT voraussetzen, dass ein Relay sie
   anbietet. Ist sie eingeschaltet, MUSS sie
   schreibend nur angemeldeten Geräten offenstehen, und sie DARF NIE
   Änderungspakete tragen.
@@ -943,9 +943,9 @@ Relay.
   läuft ohne das Relay. Als gewöhnliche Daten der Vault reisen die
   Zugangsdaten nur verschlüsselt im Postfach der Vault (FR-032, D30).
 
-**holzi-Client: Postfach der Vault und Sync**
+**HaexVault-Client: Postfach der Vault und Sync**
 
-- **FR-031**: Sobald mindestens ein Relay eingetragen ist, MUSS holzi für den
+- **FR-031**: Sobald mindestens ein Relay eingetragen ist, MUSS HaexVault für den
   Bereich „Vault“ ein Postfach auf dem Relay führen, eine Mitgliederliste mit
   nur der eigenen Vault-Identität (Lesen, Schreiben) hochladen, eigene
   Änderungen als Änderungspakete hochladen und fremde abrufen und anwenden.
@@ -965,28 +965,28 @@ Relay.
   der Dateien (Spec 025). Das
   Postfach der Vault gehört zum Bereich „Vault“, nicht zu einem anderen
   Bereich. Tabellen mit `_no_sync` bleiben lokal.
-- **FR-033**: holzi DARF nur verschlüsselte Pakete und Momentaufnahmen zu einem
+- **FR-033**: HaexVault DARF nur verschlüsselte Pakete und Momentaufnahmen zu einem
   Relay senden. Pakete SOLLTEN auf feste Größenstufen aufgefüllt werden, damit
   ihre Länge wenig über den Inhalt verrät.
 - **FR-034**: Eine Änderung, die über das Postfach und direkt ankommt, MUSS
-  genau einmal wirken. holzi MUSS je Postfach seinen Lesestand und die
+  genau einmal wirken. HaexVault MUSS je Postfach seinen Lesestand und die
   Kennung der Nummerierung festhalten.
-- **FR-035**: Ohne erreichbares Relay MUSS holzi voll nutzbar bleiben. Eigene
+- **FR-035**: Ohne erreichbares Relay MUSS HaexVault voll nutzbar bleiben. Eigene
   Änderungen MÜSSEN lokal vorgemerkt und hochgeladen werden, sobald das Relay
-  wieder erreichbar ist; holzi MUSS es in wachsenden Abständen erneut
+  wieder erreichbar ist; HaexVault MUSS es in wachsenden Abständen erneut
   versuchen. Es DARF keinen blockierenden Dialog geben.
-- **FR-036**: holzi MUSS eine Momentaufnahme des Bereichs „Vault“ erstellen und
+- **FR-036**: HaexVault MUSS eine Momentaufnahme des Bereichs „Vault“ erstellen und
   hochladen, wenn die Pakete im Postfach eine Schwelle an Anzahl oder Größe
   überschreiten, und bevor das Kontingent voll ist. Die Momentaufnahme MUSS
   die ursprünglichen Signaturen jeder Änderung enthalten und jede Transaktion
   (Spec 024 FR-013) vollständig.
-- **FR-037**: holzi MUSS Pakete und Momentaufnahmen nach FR-025 prüfen, mit den
+- **FR-037**: HaexVault MUSS Pakete und Momentaufnahmen nach FR-025 prüfen, mit den
   Regeln von Spec 024 zur Unteilbarkeit: Ein Änderungspaket ist unteilbar; ist
-  eine Änderung darin ungültig, MUSS holzi das ganze Paket verwerfen. Eine
-  Momentaufnahme MUSS holzi dagegen je vollständiger Transaktion prüfen, also
+  eine Änderung darin ungültig, MUSS HaexVault das ganze Paket verwerfen. Eine
+  Momentaufnahme MUSS HaexVault dagegen je vollständiger Transaktion prüfen, also
   je Gruppe der Änderungen mit gemeinsamem HLC-Zeitstempel (Spec 024 FR-013):
   Ist eine Änderung einer Transaktion ungültig, etwa mit fehlender oder
-  falscher Signatur, MUSS holzi die ganze Transaktion verwerfen und die
+  falscher Signatur, MUSS HaexVault die ganze Transaktion verwerfen und die
   übrigen Transaktionen behalten. Eine Transaktion DARF nie zum Teil
   angewendet werden.
 - **FR-048**: Eigene synchronisierte Ordner (Spec 025) DÜRFEN ihre Objekte im
@@ -998,7 +998,7 @@ Relay.
   nennt, als Admin auf. Ohne ein solches Relay laufen die Objekte nur direkt
   zwischen eigenen Geräten (Spec 025).
 
-**holzi-Client: Einstellungen**
+**HaexVault-Client: Einstellungen**
 
 - **FR-038**: Die Kategorie „Föderation“ der Einstellungen (Spec 023) MUSS die
   Unteransicht „Relays“ bekommen, neben den Unteransichten „Geräte“ (Spec 024),
@@ -1008,10 +1008,10 @@ Relay.
   seit …, Abgelehnt mit Grund, Unvollständige Daten, Daten verloren,
   Identität geändert) und belegtem Anteil des Kontingents zeigen.
 - **FR-039**: Der Nutzer MUSS ein Relay über Adresse und Einladungscode
-  hinzufügen können. holzi MUSS dabei die Zulassung einlösen, die Identität des
+  hinzufügen können. HaexVault MUSS dabei die Zulassung einlösen, die Identität des
   Relays festhalten und das Postfach der Vault anlegen; ein Fehler MUSS am Feld
   erklärt werden. Der Einladungscode DARF nach der Zulassung nicht gespeichert
-  werden. Ändert sich die Identität des Relays später, MUSS holzi den Sync mit
+  werden. Ändert sich die Identität des Relays später, MUSS HaexVault den Sync mit
   ihm anhalten und „Identität geändert“ zeigen, bis der Nutzer das Relay
   entfernt oder neu hinzufügt.
 - **FR-040**: Die Liste der Relays MUSS für die Vault gelten und über den Sync
@@ -1021,16 +1021,16 @@ Relay.
   kann; die Liste mit Zuständen MUSS für Agenten mit Leserecht auf die
   Einstellungen abrufbar sein. Mehrere Relays DÜRFEN eingetragen sein; welche
   davon das Postfach der Vault führen: Ein Bereich liegt in v1 auf genau einem Relay, seinem Heimat-Relay: das Postfach der Vault auf dem zuerst eingetragenen Relay, ein Space oder eine Datenfreigabe auf dem Relay ihres Admins. Weitere Relays dienen nur dem NAT-Durchgang und als Heimat anderer Bereiche.
-- **FR-041**: holzi MUSS die Mitgliederliste jedes Bereichs, dessen Admin die
+- **FR-041**: HaexVault MUSS die Mitgliederliste jedes Bereichs, dessen Admin die
   Vault ist, erneuern, bevor die Hälfte ihrer Laufzeit verstrichen ist, sofern
   ein Gerät der Vault online ist und das Relay erreicht. Sieht ein Gerät des
   Admins zwei verschiedene gültige Listen derselben Generation (FR-018), MUSS
   es eine Liste der nächsten Generation veröffentlichen, die die Änderungen
   beider vereint (Spec 024).
-- **FR-042**: holzi MUSS prüfen, ob die eigenen hochgeladenen Pakete später
+- **FR-042**: HaexVault MUSS prüfen, ob die eigenen hochgeladenen Pakete später
   im Postfach auftauchen, und ob nach einer Momentaufnahme eigene Änderungen
   fehlen. Fehlt etwas, das dieses Gerät hat, MUSS es das erneut hochladen.
-- **FR-043**: holzi MUSS zurückgehaltene oder verlorene Daten erkennen: eine
+- **FR-043**: HaexVault MUSS zurückgehaltene oder verlorene Daten erkennen: eine
   Lücke in den Sequenznummern, eine geänderte Kennung der Nummerierung, eine
   höchste Nummer unter dem eigenen Lesestand, eine ältere Mitgliederliste als
   verlangt (FR-020) und Änderungen, die Fortschrittsstände nennen, die aber
@@ -1038,23 +1038,23 @@ Relay.
   Pakete MUSS es trotzdem anwenden, den Lesestand aber nicht über eine Lücke
   hinaus setzen. Der Zustand MUSS beim Relay angezeigt werden (FR-038).
 - **FR-044**: Hat ein Relay Daten eines Bereichs verloren, für den dieses Gerät
-  eine Momentaufnahme hochladen darf, MUSS holzi das Postfach aus dem eigenen
+  eine Momentaufnahme hochladen darf, MUSS HaexVault das Postfach aus dem eigenen
   Stand neu füllen, damit neue Geräte wieder aufschließen können.
-- **FR-045**: Lehnt ein Relay ab, MUSS holzi den Grund unterscheiden und zeigen:
+- **FR-045**: Lehnt ein Relay ab, MUSS HaexVault den Grund unterscheiden und zeigen:
   nicht zugelassen, Einladungscode ungültig, keine Berechtigung, Liste fehlt
   oder abgelaufen, Kontingent fast voll (ab 80 %) oder erschöpft, Version nicht
   unterstützt, Gerät nicht auf der Geräteliste (FR-049), Bereich vom Admin
   beendet (FR-021), mit dem Hinweis, dass er bis zum Ablauf der letzten Liste
   nur noch lesbar ist bzw. gelöscht wurde, und Beenden abgelehnt, weil kein
   Gerät des Admins die Erklärung signiert hat (FR-021). Wo der Nutzer etwas
-  tun kann (neuen Code eingeben, holzi aktualisieren, Platz schaffen, das Gerät
+  tun kann (neuen Code eingeben, HaexVault aktualisieren, Platz schaffen, das Gerät
   von einem Hauptgerät neu verknüpfen lassen, beim beendeten Bereich den Admin
   um eine neue Einladung bitten), MUSS die Anzeige das nennen.
-- **FR-046**: Entfernt der Nutzer ein Relay, MUSS holzi nach Bestätigung das
+- **FR-046**: Entfernt der Nutzer ein Relay, MUSS HaexVault nach Bestätigung das
   Postfach der Vault dort löschen, soweit das Relay erreichbar ist, und das
   Relay auf keinem eigenen Gerät mehr nutzen. Ist das Relay Heimat von
-  Bereichen, deren Admin die Vault ist, MUSS holzi diese vor der Bestätigung
-  nennen. Liegt dort das Wiederherstellungspaket, MUSS holzi vor der
+  Bereichen, deren Admin die Vault ist, MUSS HaexVault diese vor der Bestätigung
+  nennen. Liegt dort das Wiederherstellungspaket, MUSS HaexVault vor der
   Bestätigung sagen, dass die Wiederherstellung damit endet, und danach das
   Einrichten auf dem neuen Heimat-Relay anbieten (FR-055).
 - **FR-047**: Alle neuen Texte der Einstellungen und Zustände MÜSSEN auf Deutsch
@@ -1062,24 +1062,24 @@ Relay.
 
 **Wiederherstellung**
 
-- **FR-050**: holzi MUSS eine freiwillige Wiederherstellung anbieten, die der
+- **FR-050**: HaexVault MUSS eine freiwillige Wiederherstellung anbieten, die der
   Nutzer ausdrücklich einschaltet; ohne sein Zutun DARF nichts davon beim
   Relay liegen. Einrichten DARF nur ein Hauptgerät, und nur, wenn das
-  Postfach der Vault auf einem Relay liegt. holzi MUSS dabei einen
+  Postfach der Vault auf einem Relay liegt. HaexVault MUSS dabei einen
   Wiederherstellungsschlüssel mit mindestens 128 Bit Zufall erzeugen und ihn
   genau einmal als Code und als QR-Code zeigen, mit dem Hinweis, ihn offline
-  aufzubewahren. holzi DARF den Wiederherstellungsschlüssel weder in der Vault
+  aufzubewahren. HaexVault DARF den Wiederherstellungsschlüssel weder in der Vault
   noch sonst speichern, anzeigen oder übertragen, nachdem der Nutzer den Dialog
   verlassen hat. Der Code MUSS die Adresse des Relays enthalten, auf dem das
   Paket liegt.
 - **FR-051**: Zum Einrichten gehört ein zweiter Faktor. Voreingestellt MUSS
-  TOTP sein: holzi zeigt das TOTP-Geheimnis als QR-Code für eine
+  TOTP sein: HaexVault zeigt das TOTP-Geheimnis als QR-Code für eine
   Authenticator-App und schaltet die Wiederherstellung erst ein, wenn der
   Nutzer einen gültigen Code eingegeben hat. Wahlweise DARF der Nutzer
   stattdessen einen Link per E-Mail wählen, sofern das Relay ihn anbietet;
-  holzi MUSS vorher sagen, dass das Relay dann seine E-Mail-Adresse kennt
+  HaexVault MUSS vorher sagen, dass das Relay dann seine E-Mail-Adresse kennt
   (FR-003), und die Adresse mit einem ersten Link bestätigen lassen.
-- **FR-052**: Aus dem Wiederherstellungsschlüssel MUSS holzi auf dem Gerät
+- **FR-052**: Aus dem Wiederherstellungsschlüssel MUSS HaexVault auf dem Gerät
   ableiten: ein Schlüsselpaar zum Verschlüsseln des
   Wiederherstellungspakets, ein Schlüsselpaar zur Authentisierung und eine
   daraus abgeleitete Suchkennung. Auf den Geräten der Vault DARF danach nur
@@ -1111,15 +1111,15 @@ Relay.
   Besitznachweis DARF das Relay nicht verraten, ob es zu einer Suchkennung ein
   Paket gibt, und DARF keine E-Mail senden. Das Relay MUSS Versuche je
   Suchkennung und je Netzadresse begrenzen und nach wiederholten
-  Fehlversuchen weitere für eine wachsende Frist sperren; holzi MUSS die
+  Fehlversuchen weitere für eine wachsende Frist sperren; HaexVault MUSS die
   Sperre mit ihrem Ende anzeigen.
-- **FR-054**: holzi MUSS das Paket nur auf dem Gerät entschlüsseln. Danach MUSS
+- **FR-054**: HaexVault MUSS das Paket nur auf dem Gerät entschlüsseln. Danach MUSS
   es eine neue Instanz der Vault mit neuem Geräteschlüssel anlegen, den
   Nutzer eine neue Passphrase setzen lassen, die letzte Momentaufnahme und die
   Pakete danach aus dem Postfach der Vault holen und anwenden (FR-017,
   FR-037) und eine neue Geräteliste mit höherer Generation als die auf dem
   Relay veröffentlichen, in der die neue Instanz ein Hauptgerät ist. Die
-  bisherigen Geräte MUSS holzi dabei zeigen, zum Entfernen vorausgewählt; der
+  bisherigen Geräte MUSS HaexVault dabei zeigen, zum Entfernen vorausgewählt; der
   Nutzer entscheidet je Gerät. Entfernt er Geräte, gilt dasselbe wie bei jedem
   Entfernen (Spec 024): eine neue Generation des Inhaltsschlüssels des Bereichs
   „Vault“ und danach ein neues Paket (FR-052).
@@ -1132,7 +1132,7 @@ Relay.
   Suchkennung und Schlüssel zur Authentisierung auf dem Relay, sodass der alte
   nichts mehr öffnet, und Ausschalten löscht alles davon auf dem Relay.
   Verknüpfte Geräte zeigen den Zustand nur an. „Vault wiederherstellen“ MUSS
-  dort angeboten werden, wo holzi eine Vault anlegt oder öffnet.
+  dort angeboten werden, wo HaexVault eine Vault anlegt oder öffnet.
 - **FR-056**: Einrichten, Ändern, Ausschalten und Abrufen der Wiederherstellung
   MÜSSEN Aktionen im Katalog von Spec 020 sein, die nur der Nutzer auslösen
   kann. Kein Agent und keine Erweiterung DARF den Wiederherstellungsschlüssel,
@@ -1209,7 +1209,7 @@ Relay.
   Mitglied verändert oder für ein anderes Mitglied erfunden hat, werden von
   100 % der Empfänger verworfen, ohne dass etwas davon angewendet wird.
 - **SC-006**: In Tests mit einem Relay, das Pakete auslässt, ein Postfach
-  löscht oder die Nummerierung neu beginnt, zeigt holzi den passenden Zustand
+  löscht oder die Nummerierung neu beginnt, zeigt HaexVault den passenden Zustand
   spätestens beim nächsten Abruf; kein Gerät verliert dabei Daten, die es schon
   hatte, und ein danach neu verknüpftes Gerät erreicht denselben Stand wie die
   anderen.
@@ -1217,7 +1217,7 @@ Relay.
   belegte Platz des Postfachs durch eine Momentaufnahme um mindestens 90 %; ein
   neues Gerät erreicht aus Momentaufnahme und restlichen Paketen denselben
   Stand wie die anderen Geräte.
-- **SC-008**: Ist das Relay nicht erreichbar, bleibt jede Funktion von holzi
+- **SC-008**: Ist das Relay nicht erreichbar, bleibt jede Funktion von HaexVault
   außer dem Relay-Sync nutzbar, ohne blockierenden Dialog; lokale Änderungen
   sind spätestens 60 Sekunden, nachdem das Relay wieder erreichbar ist, auf
   einem anderen Gerät sichtbar.
@@ -1256,14 +1256,14 @@ Relay.
   dem letzten Stand des Postfachs der Vault wieder her, auch wenn nach dem
   Einrichten neue Generationen des Inhaltsschlüssels entstanden sind; das neue
   Gerät ist danach Hauptgerät, und jedes dabei entfernte Gerät wird vom Relay
-  abgelehnt. Die Schritte in holzi dauern ohne die Übertragung der Daten unter
+  abgelehnt. Die Schritte in HaexVault dauern ohne die Übertragung der Daten unter
   fünf Minuten.
 
 ## Assumptions
 
 - Das Relay ist ein eigener Dienst mit eigenem Betriebsmodell (kopflos, ohne
   Oberfläche, für viele Nutzer) und kann später in ein eigenes Repository
-  umziehen. Diese Spec beschreibt sein Verhalten und die Seite von holzi; wo
+  umziehen. Diese Spec beschreibt sein Verhalten und die Seite von HaexVault; wo
   der Code liegt, entscheidet der Plan.
 - Transport ist iroh: Das Relay spricht dieselbe Protokollfamilie wie der
   direkte Sync (Spec 024) als „blinder Teilnehmer“, der nur speichert und
@@ -1309,7 +1309,7 @@ Relay.
   entschlüsseln kann. Ob ein Relay den Link per E-Mail anbietet, entscheidet
   sein Betreiber; ohne ihn gibt es nur TOTP.
 - Der Einladungscode ist ein Geheimnis zur einmaligen Zulassung. Danach reicht
-  die Vault-Identität; deshalb speichert holzi den Code nicht, und andere
+  die Vault-Identität; deshalb speichert HaexVault den Code nicht, und andere
   Geräte brauchen ihn nicht.
 - Die Vault-Identität wechselt in v1 nie (D26). Verknüpfen, Entfernen und die
   Geräteliste legt Spec 024 fest (D27); diese Spec regelt, was das Relay damit

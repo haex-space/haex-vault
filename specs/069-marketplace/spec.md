@@ -8,7 +8,7 @@
 
 **Input**: "I would like to add the marketplace to haex-vault, the way we did it in haex-vault-legacy"
 (operator, 2026-10-28, translated from German). HaexVault is to let users browse and install
-extensions from a marketplace, the way haex-vault 2.x (legacy) does, but adapted to holzi. References:
+extensions from a marketplace, the way haex-vault 2.x (legacy) does, but adapted to HaexVault. References:
 haex-vault 2.x @ `8dce379d94e18fcd42c3b73686a06f984ca3f574`
 (`src/composables/useMarketplaces.ts`, `src/composables/useMarketplaceCatalog.ts`,
 `src/components/haex/system/marketplace*.vue`, `src/components/haex/system/settings/extensions/marketplaces.vue`,
@@ -91,7 +91,7 @@ haex-vault 2.x @ `8dce379d94e18fcd42c3b73686a06f984ca3f574`
   marketplace, see FR-021).
 - **Spec 021** (MCP server) and **specs 018/047** (agent tools): Agents and extensions can neither query
   the catalog nor install (see FR-030).
-- **ADR-0004**: The catalog is a holzi function of its own, not a host function for extensions.
+- **ADR-0004**: The catalog is a HaexVault function of its own, not a host function for extensions.
 
 ## User Scenarios & Testing _(mandatory)_
 

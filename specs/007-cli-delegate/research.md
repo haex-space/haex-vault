@@ -7,9 +7,9 @@ documentation turned out to be wrong on the single most load-bearing point (§1 
 ## 1. Claude Code (`claude -p`) — live per-tool-call approval
 
 **Decision**: Drive `claude -p` directly (no Agent SDK, no `claude-code-acp`), passing
-`--permission-prompt-tool mcp__<server>__<tool>` pointed at a small stdio MCP server holzi spawns
+`--permission-prompt-tool mcp__<server>__<tool>` pointed at a small stdio MCP server haex-vault spawns
 per invocation and registers via `--mcp-config`. That server's one tool bridges each pending approval
-into holzi's existing `ChatState.pending_tool_approvals` / `tool-permission-request` mechanism
+into haex-vault's existing `ChatState.pending_tool_approvals` / `tool-permission-request` mechanism
 (`turn.rs`, unchanged) instead of a Claude-Code-specific approval path.
 
 **Rationale**: The design doc's original assumption (`docs/plans/2026-09-11-agent-tool-loop-design.md`
@@ -163,7 +163,7 @@ Done` — never emitting `StreamChunk::ToolCalls`.
 **Rationale**: `adapters/types.rs`'s existing `ChatRequest.tools` documentation already establishes
 that an adapter "never errors on an empty list, it just never emits `StreamChunk::ToolCalls`" for
 models that don't support tool calling (`LocalAdapter`'s existing behavior for non-tool-calling local
-models). `turn.rs`'s `run_turn`/`run_step` only route through holzi's own `ToolRegistry`/permission-
+models). `turn.rs`'s `run_turn`/`run_step` only route through haex-vault's own `ToolRegistry`/permission-
 per-round machinery when a step's result actually carries `tool_calls` — the same escape hatch that
 already exists for plain-text local models applies unchanged to a delegate backend that does all of
 its own tool use internally. Confirmed by reading `turn.rs` end-to-end (no `match ProviderKind` or
@@ -171,10 +171,10 @@ delegate-specific special-casing exists there today, nor is any needed). This is
 plan.md Summary can truthfully say `turn.rs` needs zero changes.
 
 **Alternatives considered**: Exposing the delegate's internal tool_use/tool_result activity as
-holzi's own `StreamChunk::ToolCalls` round-trips (i.e., making `turn.rs` drive the delegate's tools
+haex-vault's own `StreamChunk::ToolCalls` round-trips (i.e., making `turn.rs` drive the delegate's tools
 one-by-one like it drives the built-in registry). Rejected — the whole point of a CLI delegate is
 that it runs its own tool loop with its own tools (Claude Code's Bash/Read/Edit/etc., Codex's
-equivalents); re-routing those through holzi's `ToolRegistry` would mean re-implementing each
+equivalents); re-routing those through haex-vault's `ToolRegistry` would mean re-implementing each
 delegate's own built-in tools a second time for no benefit. Tool activity the delegate performs is
 instead surfaced as a labeled record (FR-005) via `tool_source` (data-model.md), not replayed through
 the built-in tool-call machinery.
@@ -254,7 +254,7 @@ token and completes the flow itself; `submit_cli_delegate_code` is kept as a fal
 `claude` CLI build still shows a code.
 
 Same live session also surfaced a second, independent bug in the same flow: the OAuth URL rendered in
-`ConnectDelegateProvider.vue` was not clickable at all. Holzi's webview had no integration to request
+`ConnectDelegateProvider.vue` was not clickable at all. HaexVault's webview had no integration to request
 opening an external URL in the system browser — no `tauri-plugin-opener` dependency and no `opener:*`
 capability in `capabilities/default.json`. Fixed by adding
 `tauri-plugin-opener` (Rust crate + `@tauri-apps/plugin-opener` npm package, `opener:allow-open-url`
@@ -266,7 +266,7 @@ untouched by either fix.
 resulting token into a plain text field (mirrors the existing `api_key` provider flow exactly, avoids
 the `portable-pty` dependency and all ANSI/OSC-8 parsing entirely) — this was the recommended option but
 the operator explicitly chose the in-app PTY-driven flow instead for a more consistent "connect inside
-holzi" UX across both vendors. `codex login` default flow (local `localhost:1455` server) — rejected in
+haex-vault" UX across both vendors. `codex login` default flow (local `localhost:1455` server) — rejected in
 favor of `--device-auth` to avoid a local-port dependency, matching this feature's existing IPC
 preferences.
 
@@ -311,13 +311,13 @@ in this feature's testing) rather than removed.
 **Alternatives considered**: Trusting the existing valid-credential tests as sufficient isolation
 proof — rejected once it became clear they structurally can't distinguish real isolation from a silent
 host-state leak (raised directly by the operator: "the most interesting part is whether claude/codex
-can be started directly from holzi without possibly using the locally existing claude/codex").
+can be started directly from haex-vault without possibly using the locally existing claude/codex").
 
 ## Summary of resolved Technical Context unknowns
 
 | Unknown                                            | Resolution                                                                                                                                                |
 | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Claude Code live approval capability               | §1 — `--permission-prompt-tool` + holzi-run MCP server, verified live                                                                                     |
+| Claude Code live approval capability               | §1 — `--permission-prompt-tool` + haex-run MCP server, verified live                                                                                      |
 | Codex approval protocol shape                      | §2 — verified live: `item/commandExecution/requestApproval` + `CommandExecutionApprovalDecision`-shaped `{"decision":"accept"\|"decline"\|...}` responses |
 | Host isolation + subscription credential mechanism | §3 — `CLAUDE_CONFIG_DIR` + disposable `cwd`, not `--bare`; verified for credentials, hooks, _and_ skills/plugins                                          |
 | Turn/step loop integration point                   | §4 — `ProviderAdapter::stream_chat`, no `turn.rs` changes                                                                                                 |

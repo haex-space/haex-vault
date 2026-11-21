@@ -2,7 +2,7 @@
 
 No database tables. State is the catalog (shipped data) and the vault folder's file tree.
 
-## Catalog (shipped with holzi: `src-tauri/src/cli_tools/catalog.json`)
+## Catalog (shipped with haex-vault: `src-tauri/src/cli_tools/catalog.json`)
 
 **VendorDefinition**
 
@@ -14,7 +14,7 @@ No database tables. State is the catalog (shipped data) and the vault folder's f
 | `executable`          | per-platform relative path inside an installation | e.g. `claude` / `claude.exe`; for Codex the `entrypoint` of `codex-package.json` (`bin/codex`, `bin\codex.exe`).                                                                                                       |
 | `env_set`             | list of name/value                                | Always set on the tool: Claude `DISABLE_UPDATES=1`; Codex none.                                                                                                                                                        |
 | `config_args`         | list of strings                                   | Always passed: Codex `-c check_for_update_on_startup=false --disable plugins --disable plugin_discovery_prefetch --disable recommended_plugins --disable remote_plugin` (research §2: no plugin clone, no host `git`). |
-| `env_remove_prefixes` | list of strings                                   | Host variables removed before the start: Claude `ANTHROPIC_`, `CLAUDE_CODE_`, `CLAUDE_CONFIG_DIR`; Codex `OPENAI_`, `CODEX_`. holzi sets its own after removal.                                                        |
+| `env_remove_prefixes` | list of strings                                   | Host variables removed before the start: Claude `ANTHROPIC_`, `CLAUDE_CODE_`, `CLAUDE_CONFIG_DIR`; Codex `OPENAI_`, `CODEX_`. haex-vault sets its own after removal.                                                   |
 | `config_env`          | string                                            | The variable the tool reads its configuration folder from, pointed at the run folder (Claude `CLAUDE_CONFIG_DIR`, Codex `CODEX_HOME`).                                                                                 |
 | `tmp_env`             | list of strings                                   | Further variables pointed at the run's temp folder (Claude `CLAUDE_CODE_TMPDIR`).                                                                                                                                      |
 | `versions`            | list of **CatalogVersion**, newest first          | The tested-version list.                                                                                                                                                                                               |
@@ -97,7 +97,7 @@ exceeds the socket limit, the approval socket alone falls back to a random-named
 
 `DelegateRuntime::for_stub(vendor, path, dir)` builds one for tests from a vendor id of the shipped catalog, a stub script and a temporary directory.
 
-**Process environment of the base layer (`EnvContainment`)**. All of it applies to the child process alone; holzi's own
+**Process environment of the base layer (`EnvContainment`)**. All of it applies to the child process alone; haex-vault's own
 environment and every other process on the host are untouched.
 
 1. Start from the host environment unchanged.
@@ -113,7 +113,7 @@ environment and every other process on the host are untouched.
 5. Never touched: `PATH`, locale, proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` and lowercase forms),
    certificate variables (`SSL_CERT_FILE`, `SSL_CERT_DIR`, `NODE_EXTRA_CA_CERTS`, `CURL_CA_BUNDLE`), terminal variables.
    A unit test asserts that these survive.
-6. holzi's own components get what they need explicitly, not through the environment: the MCP helper receives
+6. haex-vault's own components get what they need explicitly, not through the environment: the MCP helper receives
    `--endpoint-dir <path>` in the generated MCP config.
 
 For Claude Code and Codex steps 3 and 4 are the only way to relocate their state (neither has a flag for it), which is

@@ -33,8 +33,8 @@ The decisions and their alternatives are in [research.md](research.md); tables, 
 
 ## Technical Context
 
-**Language/Version**: Rust 2021 (Tauri 2 backend, `holzi_lib`), TypeScript with Nuxt 3 / Vue 3 / Pinia (frontend), Kotlin
-(Android plugin `src-tauri/plugins/holzi-android`).
+**Language/Version**: Rust 2021 (Tauri 2 backend, `haex_lib`), TypeScript with Nuxt 3 / Vue 3 / Pinia (frontend), Kotlin
+(Android plugin `src-tauri/plugins/haex-android`).
 
 **Primary Dependencies**: existing: `zip` 8 (pkpass), `image` 0.25, `rqrr`/`qrcode` (link QR, unchanged), `pdfjs-dist` (PDF
 pages), `jsqr`, `@tauri-apps/plugin-barcode-scanner`, Fuse.js, ts-rs. New: `rxing` (encode, decode and check digits for QR,
@@ -107,7 +107,7 @@ src-tauri/src/
 ├── identity/
 │   ├── migrations_passwords_pass.rs         # new: 0061 (kind column, pass_details, pass_barcodes)
 │   ├── migrations_passwords_pass_tests.rs   # new
-│   └── migrations.rs, mod.rs                # register 0061, HOLZI_TRIGGER_VERSION 39 -> 40
+│   └── migrations.rs, mod.rs                # register 0061, HAEX_TRIGGER_VERSION 39 -> 40
 ├── passwords/
 │   ├── model.rs, items.rs, access.rs        # EntryType, kind on headers, login-only default
 │   ├── snapshots.rs                         # SnapshotData version 2, default for missing version stays 1
@@ -126,7 +126,7 @@ src-tauri/src/
 ├── agent_browser/{act_credentials,act_entry_fill}.rs, remote_storage/credentials.rs,
 │   files/local/drives/unlock.rs             # login-only
 ├── deep_link/                               # pass shortcut link, shared-file inbox (Android and desktop)
-src-tauri/plugins/holzi-android/             # brightness, keep-awake, share intent, pinned shortcut (Kotlin + Rust)
+src-tauri/plugins/haex-android/             # brightness, keep-awake, share intent, pinned shortcut (Kotlin + Rust)
 src-tauri/gen/android/app/src/main/AndroidManifest.xml, MainActivity.kt   # intent filters, forwarding
 src-tauri/tests/                             # passwords_pass_*.rs, vault_upgrade.rs, passwords_sync.rs, pre_rename_vault.rs
 

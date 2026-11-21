@@ -25,7 +25,7 @@ festplatten, usb sticks etc" (Betreiber, 2026-10-27). Abgestimmtes Design:
   kann aus dem Passwortmanager kommen und dort gespeichert werden, wenn der Nutzer das will.
 - Q: Wie findet haex das Passwort eines Laufwerks? → A: Ein normaler Eintrag im Passwortmanager, dessen
   URL `haex:drive:<Volume-UUID>` ist, mit dem Tag `haex-drive`. Es gibt keine eigene Verknüpfung
-  daneben; neue Bezeichner heißen `haex`, nicht `holzi`.
+  daneben; neue Bezeichner heißen `haex`, nicht `haex`.
 - Q: Was passiert mit einem von haex entsperrten Laufwerk, wenn der Vault sperrt oder haex endet? →
   A: Nichts. Es bleibt entsperrt und eingehängt, bis der Nutzer es auswirft oder abzieht; beim
   Auswerfen sperrt haex den verschlüsselten Container immer wieder.

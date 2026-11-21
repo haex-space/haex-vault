@@ -20,13 +20,13 @@ real model files are `#[ignore]` in `src-tauri/tests/prompt_cache_eval.rs`.
 - **graphify first**: before a new named function, run `graphify query "<concept>"` and extend an existing
   candidate where one matches (spaex).
 - **Builds**: in the memory scope `systemd-run --user --scope -q -p MemoryMax=10G -p MemorySwapMax=0`, with
-  `cargo … -j 1` and `env -u CC -u CXX -u AR`. Lib tests with `--config 'profile.dev.package.holzi.debug=0'`. The
+  `cargo … -j 1` and `env -u CC -u CXX -u AR`. Lib tests with `--config 'profile.dev.package.haex.debug=0'`. The
   CUDA build per spec 078's quickstart (`CUDAARCHS=86`, `CUDAFLAGS=-Xcompiler=-fPIC`,
   `CMAKE_BUILD_PARALLEL_LEVEL=2`, `CUDA_LIBRARY_PATH`). Ask the operator before going above 10 GB.
 - **Real files**: Gemma 4 E2B and E4B (`unsloth/gemma-4-E2B-it-GGUF`, `unsloth/gemma-4-E4B-it-GGUF`) and Qwen3.5 4B
   (`bartowski/Qwen_Qwen3.5-4B-GGUF`, `Qwen_Qwen3.5-4B-Q4_K_M.gguf`), all Q4_K_M, under their Hugging Face file
-  names in one folder outside the repository. The spike reads that folder from `HOLZI_TEST_GGUF_DIR`; every other
-  test runs one model and reads its path from `HOLZI_TEST_GGUF` (quickstart.md).
+  names in one folder outside the repository. The spike reads that folder from `HAEX_TEST_GGUF_DIR`; every other
+  test runs one model and reads its path from `HAEX_TEST_GGUF` (quickstart.md).
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -45,7 +45,7 @@ changes.
       `Cargo.lock` gains no new package.
 - [ ] T003 Spike: create `src-tauri/tests/prompt_cache_eval.rs` (`#![cfg(feature = "llm-llamacpp")]`, module doc with
       the run command of quickstart.md) with the ignored test `prompt_cache_spike`, using `llama_cpp_2` directly:
-  - Download the three model files of the working rules into `HOLZI_TEST_GGUF_DIR` if they are missing there (curl
+  - Download the three model files of the working rules into `HAEX_TEST_GGUF_DIR` if they are missing there (curl
     from `https://huggingface.co/<repo>/resolve/main/<file>`); fail with a message naming the variable when it is
     unset.
   - Build a 4000-token prompt: the model's chat template rendered for a system prompt of repeated tool-like text, a
@@ -261,7 +261,7 @@ tools and turn 1, and its first token comes at least twice as soon.
       `later_chunk_text`, `reused_tokens`, contract); the report shows the median of `later_chunk_ms` for the steps
       that start with text and for those that start with a tool call, the reused share and the cache switch. Tests in `report_tests.rs` and
       `scoring_tests.rs`.
-- [ ] T027 In `src-tauri/tests/model_tool_eval.rs`: read `HOLZI_LLAMACPP_PROMPT_CACHE=off` into
+- [ ] T027 In `src-tauri/tests/model_tool_eval.rs`: read `HAEX_LLAMACPP_PROMPT_CACHE=off` into
       `LoadOptions.prompt_cache` and note it in the report's placement string.
 - [ ] T028 Run `measure_everyday_voice` with Qwen3.5 4B, Qwen3 1.7B, Gemma 4 E2B, E4B and 12B, with and without the
       cache. Write

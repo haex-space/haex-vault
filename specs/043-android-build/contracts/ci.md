@@ -6,7 +6,7 @@
 
 | Job             | läuft bei         | tut                                                                                                                                                                                                                   | Ergebnis                                     |
 | --------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| `android-build` | PR, Push auf main | Java 17, SDK-Pakete per `sdkmanager`, Rust 1.98.1 + Ziele, `pnpm tauri android build --debug --apk --split-per-abi --target aarch64 --target x86_64`                                                                  | Artefakt `holzi-android-debug` (APK)         |
+| `android-build` | PR, Push auf main | Java 17, SDK-Pakete per `sdkmanager`, Rust 1.98.1 + Ziele, `pnpm tauri android build --debug --apk --split-per-abi --target aarch64 --target x86_64`                                                                  | Artefakt `haex-android-debug` (APK)          |
 | `android-e2e`   | PR, Push auf main | Matrix `shard: [1, 2, 3]`; KVM freischalten, Emulator (API 35, `google_apis`, x86_64, Snapshot-Cache), APK installieren, Linux-App für gemischte Gruppen bauen, `pnpm test:e2e --platform android --shard ${shard}/3` | Fehlerunterlagen als Artefakt bei Fehlschlag |
 | `android`       | PR, Push auf main | `needs: [android-build, android-e2e]`, scheitert, wenn einer scheitert                                                                                                                                                | **Pflicht-Check** im Branch-Schutz           |
 
@@ -36,8 +36,8 @@ aarch64 --target x86_64` (Release); vorher den Keystore aus den Geheimnissen nac
 - `versionCode` aus der Version in `tauri.conf.json` (Tauri-Standard: Major × 1 000 000 +
   Minor × 1 000 + Patch), damit jedes Release ein Update des vorigen ist. Ein Tag, der nicht
   `v<version>` heißt, lässt den Workflow scheitern.
-- Ergebnis: je ABI ein APK `holzi-<version>-<abi>.apk` (arm64 für Telefone, x86_64 für
-  Emulatoren) als Artefakt `holzi-android-release`; bei Tags hängt der Job `publish` von
+- Ergebnis: je ABI ein APK `haex-<version>-<abi>.apk` (arm64 für Telefone, x86_64 für
+  Emulatoren) als Artefakt `haex-android-release`; bei Tags hängt der Job `publish` von
   `release.yml` mit Schreibrecht sie an das Release des Tags, sobald CI und alle Builds grün sind
   (Signaturgeheimnisse und Schreib-Token nie im selben Job). Store-Veröffentlichung ist nicht
   Teil der Spec.

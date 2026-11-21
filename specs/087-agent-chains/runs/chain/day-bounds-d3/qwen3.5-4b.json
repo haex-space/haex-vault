@@ -666,7 +666,7 @@
       "id": "mail_reply-en-2",
       "result": "missed",
       "calls": [],
-      "text": "I cannot answer IT on your behalf. I am an AI assistant within the holzi app and do not have the ability to send emails, make phone calls, or access external systems like IT support portals.\n\nYou will need to log in to your email or IT portal yourself to send the message."
+      "text": "I cannot answer IT on your behalf. I am an AI assistant within the haex-vault app and do not have the ability to send emails, make phone calls, or access external systems like IT support portals.\n\nYou will need to log in to your email or IT portal yourself to send the message."
     },
     {
       "id": "mail_read-de-5-s",
@@ -692,7 +692,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich habe keine Informationen über Ihre Sparkasse in holzi gefunden. Holzi ist eine E-Mail-App und speichert keine Bankdaten.\n\nUm Ihre Sparkasse zu finden, könnten Sie:\n1. In Ihrem E-Mail-Postfach nach E-Mails von Ihrer Bank suchen\n2. In einer anderen App, die Ihre Bankdaten speichert (wie eine Banki"
+      "text": "Ich habe keine Informationen über Ihre Sparkasse in haex-vault gefunden. HaexVault ist eine E-Mail-App und speichert keine Bankdaten.\n\nUm Ihre Sparkasse zu finden, könnten Sie:\n1. In Ihrem E-Mail-Postfach nach E-Mails von Ihrer Bank suchen\n2. In einer anderen App, die Ihre Bankdaten speichert (wie eine Banki"
     },
     {
       "id": "no_tool-en-3",

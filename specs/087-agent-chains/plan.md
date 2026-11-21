@@ -12,7 +12,7 @@ or searching for tools although the area's tools are offered, deleting for good 
 without its end, a chain that stops after a successful search, and values in the wrong form. The plan first makes
 the report say where each request was routed and adds a chain development set, takes a new baseline on the current
 app, and then measures one lever at a time: a deterministic value turning before the guard, a clock line with the
-day's bounds, holzi-side wording for final tools and the offer's order, and wording for looking up and finishing a
+day's bounds, haex-vault-side wording for final tools and the offer's order, and wording for looking up and finishing a
 chain, each tuned on the chain set and kept by its everyday numbers. After the baseline the operator asked for
 general levers instead of mail levers (spec Decision 7): the measuring world first answers every reading tool
 truthfully (R12) and the chain set covers every area (R13), with a new baseline; requests that name only a person or
@@ -22,12 +22,12 @@ a thing are routed to every area that may hold them (R11).
 
 **Language/Version**: Rust (edition 2021, MSRV per `src-tauri/Cargo.toml`), TypeScript for the action exports
 
-**Primary Dependencies**: holzi's chat turn (`chat/turn`), tool offer and routing (`chat/tools`), the everyday
+**Primary Dependencies**: haex-vault's chat turn (`chat/turn`), tool offer and routing (`chat/tools`), the everyday
 measurement (`chat/eval/everyday`), llama.cpp for local models (CUDA build per spec 078/082 quickstart)
 
 **Storage**: none new; reports and run files under `specs/087-agent-chains/runs/`
 
-**Testing**: `cargo test` lib tests in `*_tests.rs` (with `--config 'profile.dev.package.holzi.debug=0'`), the
+**Testing**: `cargo test` lib tests in `*_tests.rs` (with `--config 'profile.dev.package.haex.debug=0'`), the
 `chat_tool_loop_*` and `action_*` integration tests, the everyday and chain sets as model measurements
 
 **Target Platform**: desktop (Linux reference laptop, RTX A2000 8 GB) and phone profile in the measurement
@@ -76,7 +76,7 @@ specs/087-agent-chains/
 ├── contracts/
 │   ├── report-routing.md     # per-request routing record in the everyday report
 │   ├── chain-set.md          # the chain development set and HAEX_EVAL_SET
-│   └── value-forms.md        # which values holzi turns and how
+│   └── value-forms.md        # which values haex-vault turns and how
 ├── analysis/
 │   └── chainset.json         # the chain development set (R3)
 ├── runs/                     # baseline/, chain/<step>/, steps/<step>/, final/
@@ -99,7 +99,7 @@ src-tauri/src/chat/
 │   ├── prompt.rs             # clock line with the day's bounds (R4); instruction sentences (R6.1, R7.1)
 │   ├── route.rs              # routing prompt: a person or a thing goes to every area that may hold it (R11.1)
 │   ├── offer.rs              # final tools after reversible ones in a routed offer (R8.1)
-│   ├── final_tools.rs        # new if needed: the sentence holzi adds to final tools (R8.2)
+│   ├── final_tools.rs        # new if needed: the sentence haex-vault adds to final tools (R8.2)
 │   └── find_actions.rs       # already offered tools named in the result (R6.2)
 src-tauri/tests/model_tool_eval.rs   # HAEX_EVAL_SET
 ```
@@ -117,7 +117,7 @@ src-tauri/tests/model_tool_eval.rs   # HAEX_EVAL_SET
    another extension name (FR-011).
 5. **Looking up first** (US2, R6): instruction, then the tool search's answer, then (only if needed) no tool search in
    a routed first step; chain set, then everyday. Then **a person or a thing, not an area** (R11): the routing prompt
-   and holzi's domain descriptions tuned on the routing development sets of every area, and the sentence to look in
+   and haex-vault's domain descriptions tuned on the routing development sets of every area, and the sentence to look in
    the next offered area; chain set, then everyday.
 6. **Finishing a chain** (US3, R7): instruction, then the next step after a successful result; chain set, then
    everyday.

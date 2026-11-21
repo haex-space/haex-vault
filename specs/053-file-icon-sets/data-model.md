@@ -24,7 +24,7 @@ Regeln für synchronisierte Tabellen (wie `migrations_storage.rs` und `migration
 - Primärschlüssel ist Pflicht; **kein UNIQUE** (ein Konflikt beim Anwenden würde den Sync anhalten). Dass ein Name nur einmal vorkommt, prüft der Import im Code (mit Rückfrage zum Ersetzen, US3 Szenario 6); zwei Geräte, die gleichzeitig denselben Namen importieren, ergeben zwei Zeilen gleichen Namens, die die Einstellungen beide zeigen und entfernbar sind.
 - Ein Paket ist **unveränderlich**: Ersetzen heißt neue Zeile, dann die alte löschen. Damit gibt es kein feldweises Zusammenführen zweier Fassungen, und eine Zeile kommt mit einer Transaktionsgruppe vollständig oder gar nicht an (FR-015).
 - Löschen ist ein einzelnes `DELETE`; haex-crdt schreibt den Löschmarker (`haex_deleted_rows`). Es gibt keine Kind-Zeilen.
-- Die Migration trägt die Tabelle in `SYNCED_TABLES` ein (`migrations_icon_sets.rs`), und `HOLZI_TRIGGER_VERSION` wird erhöht (heute 22), mit Eintrag in der Versionsliste von `migrations.rs`. Der Test der Migration (`migrations_icon_sets_tests.rs`) prüft, dass `SYNCED_TABLES` alle Tabellen der Migration abdeckt, wie bei den anderen Familien.
+- Die Migration trägt die Tabelle in `SYNCED_TABLES` ein (`migrations_icon_sets.rs`), und `HAEX_TRIGGER_VERSION` wird erhöht (heute 22), mit Eintrag in der Versionsliste von `migrations.rs`. Der Test der Migration (`migrations_icon_sets_tests.rs`) prüft, dass `SYNCED_TABLES` alle Tabellen der Migration abdeckt, wie bei den anderen Familien.
 - Die Nummer `0036` folgt `0035_chat_messages_tool_origin`, das während der Umsetzung auf `main` gelandet ist.
 
 Grenzen werden im Code geprüft (Import und Lader), nicht per `CHECK` in der Tabelle: höchstens 10 Zeilen, `byte_size` höchstens 8 MiB, entpackt höchstens 5 MiB.
@@ -62,7 +62,7 @@ Aufbau, so wie der Lader ihn liest ([research.md](./research.md) R6, R7):
 Ergänzung des Manifests (ignoriert jedes andere Programm, das das Format liest):
 
 ```json
-"x-holzi": {
+"x-haex": {
   "roles": { "image": "<Bild-Kennung>", "lockedFolder": "<Bild-Kennung>" },
   "origin": { "author": "…", "license": "MIT", "source": "…" }
 }

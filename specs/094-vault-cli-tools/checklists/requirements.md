@@ -31,7 +31,7 @@
 
 ## Notes
 
-- FR-009 (which version "update" installs) was put to the operator on 2026-11-16: only versions on holzi's tested-version list. Consequence taken into FR-006: each list entry carries its integrity information.
+- FR-009 (which version "update" installs) was put to the operator on 2026-11-16: only versions on HaexVault's tested-version list. Consequence taken into FR-006: each list entry carries its integrity information.
 - "No implementation details": `HOME`, `PATH` and the folder names `cli-tools/` and `home/` are named on purpose. They are the
   contract the operator asked for and the user-visible promise of the feature (as spec 084 names its folders). No language,
   framework, crate or API is named.

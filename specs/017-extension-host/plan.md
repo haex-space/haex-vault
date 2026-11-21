@@ -6,12 +6,12 @@
 
 ## Summary
 
-holzi bekommt einen Host für haextensions: signierte Web-Bundles laufen in abgeschotteten iframes als Apps im
+haex-vault bekommt einen Host für haextensions: signierte Web-Bundles laufen in abgeschotteten iframes als Apps im
 Window Manager, sprechen über das Protokoll des vault-sdk v3.7.0 mit einer einzigen Prüfstelle in Rust und
 dürfen SQL auf ihre eigenen Tabellen und mit Berechtigung auf die anderer Erweiterungen absetzen, nie auf
 Kerntabellen. Dazu kommen alle Host-Funktionen von haex-vault 2.x (Legacy) außer der Space-Zuordnung, auf Desktop, Android
 und iOS. Vorlage ist haex-vault 2.x: Verhalten und die Prüfungen in Rust werden übernommen, die Lücken, die die
-Analyse dort gefunden hat, schließt holzi beim Portieren (Spec, Clarifications 2026-10-02).
+Analyse dort gefunden hat, schließt haex-vault beim Portieren (Spec, Clarifications 2026-10-02).
 
 Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](./research.md)):
 
@@ -22,23 +22,23 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 - **Bundle-Format v2** (R2, R3): Zip mit Manifest als kanonischem JSON (RFC 8785) und einer eigenen
   `signature.json` mit Pfad, Größe und SHA-256 jeder Datei; Ed25519 über eine Nachricht mit Domänenpräfix.
   Strenge Regeln für Pfade, doppelte Einträge und Zip-Bomben. Das Werkzeug `haex` im vault-sdk erzeugt das
-  Format; holzi lehnt das alte ab.
+  Format; haex-vault lehnt das alte ab.
 - **Bundles als Vault-Daten** (R4, R5): je Datei ein inhaltsadressierter BLOB, ausgeliefert direkt aus der
   verschlüsselten Datenbank mit Hash-Prüfung bei jedem Start und jeder Anfrage; abgeleitete Kennungen statt
   UNIQUE-Constraints.
 - **SQL in zwei Schichten** (R6–R8): die **aus haex-vault 2.x portierte Rust-Prüfung** (Parser, Planer,
   Tabellen-Extraktion, Validator, Berechtigungsabgleich samt Tests), beim Portieren um die Lücken korrigiert,
-  liefert die nötigen Berechtigungen vorab, damit holzi fragen kann; dazu der **SQLite-Authorizer** als zweite,
+  liefert die nötigen Berechtigungen vorab, damit haex-vault fragen kann; dazu der **SQLite-Authorizer** als zweite,
   unabhängige Durchsetzung mit Erlaubtliste (eigene und freigegebene
   Tabellen, erlaubte Funktionen, nur Trigger von haex-crdt). Dafür bekommt haex-crdt `write_guarded`/
-  `read_guarded`. Migrationen laufen in einem eigenen Lauf in holzi mit Schema-Modus und Triggern im selben
+  `read_guarded`. Migrationen laufen in einem eigenen Lauf in haex-vault mit Schema-Modus und Triggern im selben
   Commit; Journal geräteeigen als `_no_sync`.
 - **Mehrere Geräte** (R10, R11): Gruppen für noch fehlende Tabellen werden ganz geparkt und nach den
   Migrationen angewendet, ohne anderen Sync aufzuhalten; wirksame Fassung deterministisch (höchste Semver);
   Entfernen über eine Grabstein-Marke, die jedes Gerät lokal ausführt.
-- **Einbettung** (R12–R14, R17): ein Protokoll `holzi-ext` mit Pfad-Routing, Abschottung über den
+- **Einbettung** (R12–R14, R17): ein Protokoll `haex-ext` mit Pfad-Routing, Abschottung über den
   undurchsichtigen Ursprung von `sandbox="allow-scripts allow-pointer-lock"` (mit `allow="fullscreen" allowfullscreen`), CSP als Antwort-Header mit Hashes der
-  Inline-Skripte, `frame-src` in holzis CSP gegen Selbstnavigation; Start-Token je Rahmen gegen
+  Inline-Skripte, `frame-src` in haex-vaults CSP gegen Selbstnavigation; Start-Token je Rahmen gegen
   Navigation zu einer anderen Erweiterung; SDK prüft `event.source`. Das Frontend reicht Anfragen nur an einen
   Command `extension_bridge_call`, Rust prüft. Ein eingefügter Rahmen-Shim bildet Hash-Navigation, Titel,
   `beforeunload`, `window.close()` und Tastenkürzel auf die Tab-Schnittstelle ab.
@@ -74,7 +74,7 @@ Veröffentlichung Fork über `[patch.crates-io]`); alle mit voller Revision gepi
 `identity/migrations_extensions.rs`: neun synchronisierte Tabellen (`extensions`, `extension_bundles`,
 `extension_bundle_files`, `extension_blobs`, `extension_migrations`, `extension_permissions`,
 `extension_limits`, `extension_device_status`, `extension_kv`) und sechs `_no_sync`-Tabellen (Journal,
-ausgeführtes Aufräumen, Protokolle, geparkte Sync-Gruppen, zwei für den Entwicklermodus). `HOLZI_TRIGGER_VERSION` 14 → 15. Tabellen der
+ausgeführtes Aufräumen, Protokolle, geparkte Sync-Gruppen, zwei für den Entwicklermodus). `HAEX_TRIGGER_VERSION` 14 → 15. Tabellen der
 Erweiterungen entstehen zur Laufzeit über deren Migrationen. Details in [data-model.md](./data-model.md).
 
 **Testing**: Rust — Einheitstests in `*_tests.rs` je Modul; Integration in `src-tauri/tests/`
@@ -86,7 +86,7 @@ Erweiterungen entstehen zur Laufzeit über deren Migrationen. Details in [data-m
 `extension-dialog`;
 manuell nach [quickstart.md](./quickstart.md)
 
-**Target Platform**: Linux, macOS, Windows, Android, iOS (FR-066). Die mobilen Builds von holzi (Projekt,
+**Target Platform**: Linux, macOS, Windows, Android, iOS (FR-066). Die mobilen Builds von haex-vault (Projekt,
 Signierung, CI, Oberfläche für kleine Bildschirme) sind eine eigene Spec; 017 baut den Host mobil-tauglich und
 wird auf Android und iOS abgenommen, sobald diese Ziele bestehen (R25).
 
@@ -125,14 +125,14 @@ Geprüft gegen `.specify/memory/constitution.md` (v1.4.0) und die spaex-Constitu
 | VII Relay-Ausfall blockiert lokale Arbeit nicht                            | ✅     | Erweiterungen laufen lokal; L2 parkt Gruppen, statt den Sync oder die lokale Arbeit anzuhalten                                                                                                                                                  |
 | VIII Keine Verheimlichung in Agent-Ausgaben                                | ✅     | Kein Weg aus Erweiterungen zum Agenten (FR-009, Vertragstest); Anfragen zeigen offen, ob eine Berechtigung erklärt war                                                                                                                          |
 | Workflow: speckit-Stufen, PR auf `main`, Conventional Commits, kein Squash | ✅     | specify → clarify → plan → tasks → implement; Worktree `.worktrees/017-extension-host`; je Lieferung ein PR                                                                                                                                     |
-| ADR bei prinzipienrelevanter Entscheidung                                  | ✅     | Kein Prinzip betroffen; ADR-0008 trotzdem für Signaturformat und Authorizer (R24), weil beides über holzi hinaus (vault-sdk) wirkt                                                                                                              |
+| ADR bei prinzipienrelevanter Entscheidung                                  | ✅     | Kein Prinzip betroffen; ADR-0008 trotzdem für Signaturformat und Authorizer (R24), weil beides über haex-vault hinaus (vault-sdk) wirkt                                                                                                         |
 | Test-Code in separaten Dateien                                             | ✅     | `*_tests.rs` per `#[path]`, `src-tauri/tests/`, `scripts/check-extensions-*.ts`                                                                                                                                                                 |
-| Worktree je Änderung                                                       | ✅     | holzi: `.worktrees/017-extension-host`; haex-crdt und vault-sdk: eigene Worktrees in ihren Repositories                                                                                                                                         |
+| Worktree je Änderung                                                       | ✅     | haex-vault: `.worktrees/017-extension-host`; haex-crdt und vault-sdk: eigene Worktrees in ihren Repositories                                                                                                                                    |
 | 500-LoC-Grenze                                                             | ⚠️     | `identity/migrations.rs` steht schon bei 585 (nicht von dieser Spec); das neue SQL liegt in `migrations_extensions.rs`, `migrations.rs` bekommt eine Zeile. Neue Module sind nach Aufgaben geteilt (siehe Struktur)                             |
 | Graphify vor neuen benannten Artefakten                                    | ✅     | Aufgabe in tasks: Abfragen für Tab-Schnittstelle, `VaultDb`, `vault_events`, Sync-Empfang, Einstellungs-Registry, Dialog-Muster vor dem ersten neuen Namen                                                                                      |
 | `ponytail:`-Kommentar bei bewusster Vereinfachung                          | ✅     | Geplant an: Neuladen des Rahmens beim Verschieben (R17), Ringpuffer der Protokolle (R20), feste Karenzzeit der BLOBs (R4), Klicks auf macOS/Windows (R20), Entwicklermodus ohne Netzsperre (R16)                                                |
 | Nicht-triviale Logik hinterlässt einen ausführbaren Check                  | ✅     | Umgehungssammlung, Format-Testvektoren, Vertragstest, Sync-Tests, `check:extensions`, End-to-End                                                                                                                                                |
-| Keine Selbstreferenzen von Agenten in Artefakten/Commits                   | ✅     | Commits und PRs ohne Agent-Zusätze (holzi-Regel), auch in haex-crdt und vault-sdk                                                                                                                                                               |
+| Keine Selbstreferenzen von Agenten in Artefakten/Commits                   | ✅     | Commits und PRs ohne Agent-Zusätze (haex-vault-Regel), auch in haex-crdt und vault-sdk                                                                                                                                                          |
 | Phasen-Disziplin                                                           | ✅     | Baut auf 015, 020, 022, 023 (gemerged, im Einsatz) und 024 (US1–US7 im Einsatz; L2 setzt das voraus); 034 ist gemerged (PR #222), L5 wartet nur für den entfernten Speicher auf 029; 018, 019, 021 und 028 folgen danach                        |
 
 **Ergebnis vor Phase 0**: kein unbegründeter Verstoß; ein ⚠️ dokumentiert.
@@ -157,7 +157,7 @@ specs/017-extension-host/
 │   ├── bridge.md            # Rahmen, Kanal, Shim, Methoden, Meldungen, Fehlercodes
 │   ├── sql-policy.md        # Laufzeit, Authorizer, Migrationen, Umgehungssammlung
 │   ├── permissions.md       # Arten, Auswertung, Installation, Anfrage, Einstellungen
-│   └── tauri-commands.md    # Commands und Ereignisse für holzis Oberfläche
+│   └── tauri-commands.md    # Commands und Ereignisse für haex-vaults Oberfläche
 ├── checklists/requirements.md
 └── tasks.md                 # Phase 2 (/speckit-tasks)
 ```
@@ -167,7 +167,7 @@ specs/017-extension-host/
 ```text
 src-tauri/src/
 ├── identity/
-│   ├── migrations.rs                 # HOLZI_TRIGGER_VERSION 15, Eintrag 0023         [ändern, klein]
+│   ├── migrations.rs                 # HAEX_TRIGGER_VERSION 15, Eintrag 0023         [ändern, klein]
 │   └── migrations_extensions.rs      # SQL der 15 Tabellen                                [neu]
 ├── extensions/
 │   ├── mod.rs                        # Modulliste, Konstanten (Grenzen)                   [neu, L1]
@@ -175,7 +175,7 @@ src-tauri/src/
 │   ├── error.rs                      # ExtensionErrorCode, Abbildung auf SDK-Fehler      [neu, L1]
 │   ├── bundle/                       # mod.rs (Aufruf von haex-bundle, R3), manifest.rs, store.rs (BLOBs, R4) [neu, L1]
 │   ├── registry/                     # install.rs, effective.rs (R11), lifecycle.rs, status.rs, purge.rs [neu, L1/L2/L3]
-│   ├── protocol/                     # handler.rs (holzi-ext), csp.rs (Hashes), shim.rs (Rahmen-Shim), token.rs [neu, L1]
+│   ├── protocol/                     # handler.rs (haex-ext), csp.rs (Hashes), shim.rs (Rahmen-Shim), token.rs [neu, L1]
 │   ├── bridge/                       # frames.rs (Rahmensitzungen), dispatch.rs (Erlaubtliste), events.rs [neu, L1]
 │   ├── permissions/                  # model.rs, evaluate.rs, store.rs, prompts.rs, manifest_map.rs [neu, L1]
 │   ├── sql/                          # policy.rs, ast_check.rs, authorizer.rs, exec.rs, values.rs, migrate.rs, migrate_rules.rs, changes.rs [neu, L1]
@@ -191,10 +191,10 @@ src-tauri/src/
 │   └── inbound_park.rs               # geparkte Gruppen, Anwenden nach Migrationen        [neu, L2]
 ├── vault_gate/db.rs                  # write_guarded / read_guarded                       [ändern, L1]
 ├── vault_events.rs                   # broadcast an den Host                              [ändern, L3]
-├── error.rs                          # HolziError::Extension*                              [ändern]
+├── error.rs                          # HaexError::Extension*                              [ändern]
 └── lib.rs                            # mod extensions, Protokoll, Plugins, generate_handler [ändern, klein]
 
-src-tauri/tauri.conf.json             # frame-src/img-src für holzi-ext in csp und devCsp  [ändern, L1]
+src-tauri/tauri.conf.json             # frame-src/img-src für haex-ext in csp und devCsp  [ändern, L1]
 src-tauri/tests/                      # die Integrationstests aus Technical Context        [neu]
 src-tauri/tests/fixtures/extension_bundles/  # Testvektoren aus dem vault-sdk mit Herkunftskopf [neu, L0/L1]
 
@@ -230,7 +230,7 @@ Prüfstelle in einem Modul liegt. Bestehende Module ändern sich nur an den Stel
 | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | Änderung in haex-crdt (anderes Repository)               | Der Authorizer muss um genau die Anweisung der Erweiterung liegen, und DDL zur Laufzeit braucht Trigger, Schema-Modus und metadatentreuen Umbau im selben Commit (R6, R8) | Nur AST-Prüfung ist die Lücke von haex-vault 2.x; `install_crdt` nachträglich ist nicht atomar und kaskadiert Löschungen beim Umbau |
 | Änderung im vault-sdk (anderes Repository)               | Signaturformat v2 und `event.source`-Prüfung (R2, R13)                                                                                                                    | Altes Format ist manipulierbar; ohne die Prüfung kann ein Geschwisterrahmen einen falschen Kanal unterschieben                      |
-| Fork von wry (Android, Windows) bis zur Veröffentlichung | Ohne Korrektur bekäme jeder Rahmen auf Android und Windows den Invoke-Key und damit holzis Commands (R25)                                                                 | Erweiterungen auf Android sperren (vom Betreiber abgelehnt); eigenes Webview je Erweiterung (auf Mobilgeräten nicht möglich)        |
+| Fork von wry (Android, Windows) bis zur Veröffentlichung | Ohne Korrektur bekäme jeder Rahmen auf Android und Windows den Invoke-Key und damit haex-vaults Commands (R25)                                                            | Erweiterungen auf Android sperren (vom Betreiber abgelehnt); eigenes Webview je Erweiterung (auf Mobilgeräten nicht möglich)        |
 | Eingriff in den Sync-Empfang                             | FR-037: Gerät ohne Tabellen einer Erweiterung darf den Sync nicht anhalten (R10)                                                                                          | Ohne Parken bricht der Empfang ab oder verliert Daten still                                                                         |
 | Rahmen-Shim in ausgelieferten HTML-Dokumenten            | FR-012/FR-013 ohne Änderung am Code der Erweiterungen (R17)                                                                                                               | SDK v3.7.0 hat keine Meldungen für Navigation, Titel, Tastatur                                                                      |
 
@@ -241,12 +241,12 @@ Prüfstelle in einem Modul liegt. Bestehende Module ändern sich nur an den Stel
 - Kein Schutz über CSP gegen WebRTC und DNS-Prefetch; keine Prozesstrennung zwischen Rahmen (R12).
 - Klicks auf Benachrichtigungen auf macOS und Windows nur, soweit das System es zulässt; scheitert die
   Machbarkeitsprüfung, kommt FR-052 zur Spec zurück (R20).
-- Entwicklermodus: Antworten des Entwicklungsservers ohne holzis CSP; Einschalten lädt das Hauptfenster neu
+- Entwicklermodus: Antworten des Entwicklungsservers ohne haex-vaults CSP; Einschalten lädt das Hauptfenster neu
   (R16).
 - Auf Android laufen Erweiterungen erst mit der wry-Korrektur (R25); auf Mobilgeräten keine Shell, kein
   Beobachten von Ordnern und nur Dateien aus der System-Auswahl.
 - Ganze Zahlen über 2^53 kommen ungenau an, wie in haex-vault 2.x (R7).
-- Hat ein Rahmen den Fokus, kann die Erweiterung ein gebundenes Kürzel von holzi auslösen, als hätte der Nutzer
+- Hat ein Rahmen den Fokus, kann die Erweiterung ein gebundenes Kürzel von haex-vault auslösen, als hätte der Nutzer
   die Taste gedrückt; ohne Fokus nicht (contracts/bridge.md §Rahmen-Shim, R17).
 - Eine Erweiterung, die nur mit `allow-same-origin` funktioniert (Service Worker, IndexedDB), läuft nicht
   (R12).

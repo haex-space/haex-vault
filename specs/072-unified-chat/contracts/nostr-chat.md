@@ -33,7 +33,7 @@ device, including the sender's own other devices.
   "type": "message" | "group.op" | "group.invite",
   "at": 1761900000000,
   "from": "<sender vault identity hex>",
-  "card": "holzi:card:…",
+  "card": "haex:card:…",
   "to": { "direct": "<recipient vault hex>" } | { "group": "<group uuid>" },
   "body": { … }
 }
@@ -90,7 +90,7 @@ check `v` is known. Any failure: drop silently, no receipt.
 { "op": "add" | "remove" | "leave" | "accept" | "decline" | "rename" | "picture",
   "opId": "<128-bit hex>",
   "member": "<vault hex>",            // add, remove
-  "memberCard": "holzi:card:…",       // add: the added vault's card (from the adder's address book)
+  "memberCard": "haex:card:…",       // add: the added vault's card (from the adder's address book)
   "name": "Familie",                  // rename
   "picture": "<base64 ≤ 12 KiB>" }    // JPEG/PNG thumbnail (empty = remove)
 ```
@@ -110,7 +110,7 @@ per-member / per-meta LWW rule of R9; each applied op also inserts a `note` mess
   "members": [
     {
       "vault": "<hex>",
-      "card": "holzi:card:…",
+      "card": "haex:card:…",
       "state": "member",
       "at": 1761900000000,
       "op": "<hex>",
@@ -129,7 +129,7 @@ rumor, including an optional picture, MUST remain ≤ 32 KiB; omit the picture i
 {
   "v": 1,
   "from": "<receiver vault hex>",
-  "card": "holzi:card:…",
+  "card": "haex:card:…",
   "thread": { "direct": "<original sender vault hex>" } | { "group": "<uuid>" },
   "delivered": ["<event id>", …],
   "read": ["<event id>", …],

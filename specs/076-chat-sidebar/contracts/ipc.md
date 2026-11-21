@@ -8,7 +8,7 @@ Extends [spec 072's contract](../../072-unified-chat/contracts/ipc.md); nothing 
 | ------------- | ------------------ | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `chat_search` | `{ text: string }` | `ChatSearchResult` | read-only; `text` is matched literally and case-insensitively with Unicode lowercase matching (R3); < 2 characters after trimming → `{ hits: [], more: false }` |
 
-Errors: the vault is locked → the usual `HolziError` for an inactive database. No new error codes.
+Errors: the vault is locked → the usual `HaexError` for an inactive database. No new error codes.
 
 **Not an action and not an MCP tool.** `chat_search` is registered with the window's commands only. It
 has no entry in `src/lib/actions/chatActions.ts`, is not in the data scopes of spec 021, and no agent can

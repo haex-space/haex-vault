@@ -3,7 +3,7 @@
 **Status**: In implementation as [`specs/009-autonomous-delegate-mode/`](../../specs/009-autonomous-delegate-mode/)
 (spec/plan/tasks reviewed and merged via PR #79). Not yet `shipped` — that status is deferred until
 the task list there is complete and validated (quickstart.md's 5 scenarios run against a real
-connected delegate). Originally written 2026-09-17 from a session that started by comparing holzi's
+connected delegate). Originally written 2026-09-17 from a session that started by comparing haex-vault's
 architecture to OpenClaw 2.0's ACP/CLI-backend model. Extends shipped `specs/007-cli-delegate/`
 rather than revising it — every acceptance scenario and functional requirement in that spec
 continues to hold exactly as shipped unless Autonomous Mode is explicitly selected.
@@ -34,8 +34,8 @@ explicit opt-in, not a replacement.
 ## 1. What this adds
 
 A second invocation mode for delegate backends (Claude Code, Codex), alongside the shipped default.
-In Autonomous Mode, native tool calls the delegate makes proceed without holzi pausing them for
-human approval, instead of holzi's live per-tool-call gate. Chosen explicitly per request by the
+In Autonomous Mode, native tool calls the delegate makes proceed without haex-vault pausing them for
+human approval, instead of haex-vault's live per-tool-call gate. Chosen explicitly per request by the
 operator — never a silent global default — mirroring how `chat.permission_mode` is
 already explicit and device-scoped rather than inherited.
 
@@ -45,18 +45,18 @@ and orthogonal — a choice available only when the selected backend is a connec
 
 ## 2. Two variants, matching the operator's "optional gateway" framing
 
-Operator statement that drove this design: agents should keep their autonomy; holzi routing calls
+Operator statement that drove this design: agents should keep their autonomy; haex-vault routing calls
 through itself is acceptable only if it is useful for testing specific permissions, otherwise skip
 it entirely. Two variants follow directly from that, both operator-selectable per request:
 
 - **Variant A — Ungated.** Spawn the delegate CLI with its own native full-autonomy flag. No
-  `--permission-prompt-tool` bridge, no `app-server` approval subscription. holzi captures only the
+  `--permission-prompt-tool` bridge, no `app-server` approval subscription. haex-vault captures only the
   delegate's final output/transcript. Zero added latency, zero added interception code path — and
   zero per-tool-call visibility beyond whatever the delegate's own transcript happens to expose.
   Confirmed 2026-09-17 against installed CLIs (Claude Code v2.1.274, Codex v0.147.0):
   - **Claude Code**: `--permission-mode bypassPermissions` (also `--dangerously-skip-permissions`,
     not separately tested). No independent OS-level sandbox flag was found in `--help` — under this
-    variant, whatever runs is not confined by anything holzi controls beyond the process's own `cwd`
+    variant, whatever runs is not confined by anything haex-vault controls beyond the process's own `cwd`
     and env.
   - **Codex** has independent approval and sandbox fields on the `thread/start` JSON-RPC request.
     Variant A keeps the `codex app-server --stdio` transport and sets
@@ -77,7 +77,7 @@ it entirely. Two variants follow directly from that, both operator-selectable pe
   (`2026-09-11-agent-tool-loop-design.md` §3) — no new data-model work.
 
 **Why keep both instead of picking one.** Variant A is "ansonsten auch ohne" exactly — zero
-overhead, as close to running the CLI yourself in a terminal as holzi can get. Variant B is "um
+overhead, as close to running the CLI yourself in a terminal as haex-vault can get. Variant B is "um
 bestimmte Berechtigungen zu testen, falls das sinnvoll wäre" — the same practical autonomy (nothing
 blocks unless it hits the deny list) plus an audit trail and a narrow safety net, at the cost of
 reusing infrastructure that adds one round-trip per tool call. Recommend B as Autonomous Mode's
@@ -86,11 +86,11 @@ default, A as an explicit further escalation — a product call, not settled her
 ## 3. What does not change
 
 - **Host isolation is non-negotiable and orthogonal to "ungated."** "Autonomous" describes only the
-  tool-call-_approval_ axis (§2): whether holzi pauses a call for a human decision. It says nothing
+  tool-call-_approval_ axis (§2): whether haex-vault pauses a call for a human decision. It says nothing
   about the tool-call-_discovery_ axis, which stays exactly as 007-cli-delegate shipped it in both
   variants, including Variant A: every invocation still gets `CLAUDE_CONFIG_DIR`/`CODEX_HOME` pointed
-  at an empty, disposable directory and a disposable `cwd`, so the delegate sees only holzi's own
-  instance — holzi's own `CLAUDE.md`/`AGENTS.md`-equivalent context, injected explicitly (spec 007
+  at an empty, disposable directory and a disposable `cwd`, so the delegate sees only haex-vault's own
+  instance — haex-vault's own `CLAUDE.md`/`AGENTS.md`-equivalent context, injected explicitly (spec 007
   FR-009/FR-010) — and never the host's own global config, hooks, plugins, or project files. Removing
   the approval bridge (Variant A) must never be implemented as "drop the isolation wrapper too" — the
   two are independent flags on the spawn, not one on/off switch, and conflating them would silently
@@ -109,12 +109,12 @@ default, A as an explicit further escalation — a product call, not settled her
 
 1. **Workspace confinement.** Partially answered 2026-09-17 for Codex, still open for Claude Code.
    Codex's `thread/start` `sandbox: "workspace-write"` and `cwd: <root>` fields give an OS-level
-   confinement primitive independent of holzi's own logic — Variant A for Codex can keep that
-   sandbox while setting `approvalPolicy: "never"`, so confinement does not have to be holzi's
+   confinement primitive independent of haex-vault's own logic — Variant A for Codex can keep that
+   sandbox while setting `approvalPolicy: "never"`, so confinement does not have to be haex-vault's
    problem alone. No equivalent flag surfaced in Claude Code's `--help` — for
    Claude Code, Variant A still has no interception point and no OS-level fallback, so a filesystem
    escape there is bounded only by whatever `cwd`/`--add-dir`-equivalent (none found) or OS-level
-   sandboxing (e.g. a container) holzi wraps around the process itself. Variant B _could_ enforce a
+   sandboxing (e.g. a container) haex-vault wraps around the process itself. Variant B _could_ enforce a
    workspace-root check inside its deny-list logic for either vendor, since it sees every write/exec
    call before approving. This gap is the strongest argument for defaulting Claude Code specifically
    to B rather than A.
@@ -122,7 +122,7 @@ default, A as an explicit further escalation — a product call, not settled her
    (a flat wall-clock ceiling, then idle-timeout plus a cost ceiling) and both rejected: no concrete
    problem motivates either yet, and the operator has run legitimate coding sessions well over an
    hour, which the first proposal would have cut short for no real benefit. The second proposal's
-   cost-ceiling half was also already flagged as unverified and non-trivial (holzi would need to
+   cost-ceiling half was also already flagged as unverified and non-trivial (haex-vault would need to
    accumulate cost itself from token usage against per-model pricing — real, ongoing maintenance
    burden, not a one-time cost). Building either against a hypothetical failure mode contradicts
    Simplicity First, and 007-cli-delegate itself already shipped with no time/cost/call-count ceiling
@@ -166,7 +166,7 @@ default, A as an explicit further escalation — a product call, not settled her
    than the canary marker. **Isolation holds under both vendors' full-autonomy flags** —
    `--permission-mode bypassPermissions` did not reintroduce host-`$HOME` discovery, and an explicit
    `CODEX_HOME` override was not bypassed by the `$HOME/.codex` default fallback. This was
-   specifically the risk flagged by the operator mid-design ("holzi darf nicht direkt den
+   specifically the risk flagged by the operator mid-design ("haex-vault darf nicht direkt den
    Host-Claude/Codex nutzen, sondern seine eigene Instanz/CLAUDE/AGENTS.md") — confirmed closed, not
    just assumed. Not covered by this spike: whether _skills_ or _plugins_ discovery (as opposed to
    settings/hooks/AGENTS.md) behaves the same way under the bypass flags — 007's own research only

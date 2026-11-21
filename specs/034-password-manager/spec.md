@@ -3,12 +3,12 @@
 **Feature Branch**: `034-password-manager`
 **Created**: 2026-10-02
 **Status**: Draft
-**Input**: holzi bekommt einen festen Passwortmanager, der Zugangsdaten und andere
+**Input**: HaexVault bekommt einen festen Passwortmanager, der Zugangsdaten und andere
 Geheimnisse in der Vault verwahrt. Vorlage ist der Passwortmanager von haex-vault 2.x (Legacy)
 (Einträge, Ordner, Tags, eigene Felder, TOTP, Passkeys als Daten, Passwortgenerator,
 Verlauf, Anhänge, Papierkorb, Import aus KeePass, Bitwarden und LastPass, Zugriff für
 Erweiterungen über Tag-Berechtigungen). Das Datenmodell wird möglichst 1:1 übernommen;
-die Oberfläche wird ein App-Fenster im Window Manager (wm) im Stil von holzi. Die
+die Oberfläche wird ein App-Fenster im Window Manager (wm) im Stil von HaexVault. Die
 Anbindung der External Bridge (Autofill, Passkey-Signieren, Browser-Erweiterung) ist
 ausdrücklich nicht Teil dieser Spec. Referenz: haex-vault 2.x @
 `8dce379d94e18fcd42c3b73686a06f984ca3f574`, `src/database/schemas/passwords.ts`,
@@ -80,7 +80,7 @@ ausdrücklich nicht Teil dieser Spec. Referenz: haex-vault 2.x @
 - Q: (Analyse) Dürfen ungültige Secrets angelegt werden? → A: Nein, das wird abgelehnt und
   fehlende Angaben bekommen Standardwerte; was per Sync oder Import ungültig ankommt, muss
   erkannt und behebbar sein.
-- Q: (Klärung) Verschiebt Löschen durch eine holzi-Funktion, Erweiterung oder einen Agenten in den
+- Q: (Klärung) Verschiebt Löschen durch eine HaexVault-Funktion, Erweiterung oder einen Agenten in den
   Papierkorb oder entfernt es endgültig? → A: In den Papierkorb, wie bei jedem Aufrufer. Endgültig
   entfernt wird erst, wenn der Nutzer einen Eintrag im Papierkorb löscht.
 - Q: (Klärung) Sind „Work“ und „work“ derselbe Tag? → A: Ja, Tagnamen sind ohne Rücksicht auf
@@ -88,8 +88,8 @@ ausdrücklich nicht Teil dieser Spec. Referenz: haex-vault 2.x @
 - Q: (Klärung) Sieht ein Aufrufer mit Freigabe für „s3“ auch die anderen Tags eines Eintrags? →
   A: Ja, er darf sie sehen, aber Tags außerhalb seines Bereichs darf er auf keinen Fall ändern
   oder löschen; sie bleiben bei jeder seiner Änderungen unverändert.
-- Q: (Klärung) Ist das Tag-Präfix „holzi:“ für holzi-Funktionen reserviert? → A: Nein, es gibt
-  keine reservierten Tags. Die Warnung vor dem Löschen beruht darauf, dass eine holzi-Funktion
+- Q: (Klärung) Ist das Tag-Präfix „haex:“ für HaexVault-Funktionen reserviert? → A: Nein, es gibt
+  keine reservierten Tags. Die Warnung vor dem Löschen beruht darauf, dass eine HaexVault-Funktion
   ihre genutzten Einträge selbst meldet.
 - Q: (Klärung) Darf ein Eintrag ohne Titel gespeichert werden? → A: Ja, auch in der Oberfläche;
   der Titel ist nicht Pflicht. Die Oberfläche zeigt dann den Platzhalter „(ohne Titel)“.
@@ -132,7 +132,7 @@ Zeitpunkt vergleichen. Das Ergebnis ist der Kern des Passwortmanagers.
 **Acceptance Scenarios**:
 
 1. **Given** die Vault ist offen, **When** der Nutzer einen Eintrag mit Titel und Passwort
-   speichert, **Then** erscheint er in der Liste und nach einem Neustart von holzi wieder.
+   speichert, **Then** erscheint er in der Liste und nach einem Neustart von HaexVault wieder.
 2. **Given** ein Eintrag mit Passwort, **When** der Nutzer ihn öffnet, **Then** ist das
    Passwort verdeckt, bis er es aufdeckt (Halten mit der Maus oder Tippen auf Mobilgeräten),
    und es wird nie in der Verlaufsliste des Tabs oder im Fenstertitel angezeigt.
@@ -210,7 +210,7 @@ setzen, im Editor ein Passwort erzeugen und prüfen, dass es die Regeln einhält
 5. **Given** der Nutzer hat ein erzeugtes Passwort übernommen, **When** er den Eintrag
    speichert, **Then** ist genau dieses Passwort gespeichert.
 6. **Given** die Auswahl lässt keine gültige Ausgabe zu (etwa Länge kleiner als die Zahl der
-   gewählten Klassen), **When** der Nutzer erzeugt, **Then** sagt holzi, was zu ändern ist,
+   gewählten Klassen), **When** der Nutzer erzeugt, **Then** sagt HaexVault, was zu ändern ist,
    und erzeugt nichts.
 
 ---
@@ -219,7 +219,7 @@ setzen, im Editor ein Passwort erzeugen und prüfen, dass es die Regeln einhält
 
 Löscht der Nutzer einen Eintrag oder Ordner, landet er im Papierkorb, aus dem er ihn
 wiederherstellt oder endgültig entfernt; löscht er etwas im Papierkorb, ist es endgültig weg.
-Nach jeder Änderung eines Eintrags legt holzi einen Verlaufsstand mit dem neuen Zustand an; die
+Nach jeder Änderung eines Eintrags legt HaexVault einen Verlaufsstand mit dem neuen Zustand an; die
 früheren Stände bleiben. Der Nutzer sieht den Verlauf eines Eintrags, vergleicht Stände und
 stellt einen früheren Stand wieder her.
 
@@ -277,22 +277,22 @@ Binärdaten gespeichert ist; Datei herunterladen und byteweise mit dem Original 
    ihre Binärdaten geben beim nächsten Öffnen den Platz frei, sobald sie mindestens sieben Tage
    ohne bekannten Verweis waren (Szenario 6).
 3. **Given** eine Datei über dem Größenlimit, **When** der Nutzer sie hinzufügen will,
-   **Then** lehnt holzi sie mit einer verständlichen Meldung ab und ändert den Eintrag nicht.
+   **Then** lehnt HaexVault sie mit einer verständlichen Meldung ab und ändert den Eintrag nicht.
 4. **Given** ein Bild, **When** der Nutzer den Anhang öffnet, **Then** sieht er eine Vorschau in
-   holzi; andere Dateien, auch PDFs, lädt er herunter.
+   HaexVault; andere Dateien, auch PDFs, lädt er herunter.
 5. **Given** ein Anhang, **When** der Nutzer ihn umbenennt, **Then** ändert sich nur der Name
    an diesem Eintrag.
 6. **Given** nicht mehr referenzierte Binärdaten, deren `orphaned_at` mindestens sieben Tage
    zurückliegt (etwa nach einer Sync-Zusammenführung oder nach dem Entfernen des letzten
-   Anhangs), **When** holzi die Vault öffnet, **Then** werden sie entfernt; eine alte Binärzeile,
+   Anhangs), **When** HaexVault die Vault öffnet, **Then** werden sie entfernt; eine alte Binärzeile,
    die erst jetzt verwaist wird, bleibt für die Karenzzeit, damit ein noch nicht eingetroffener
    Verweis eines anderen Geräts sie noch erreichen kann.
 
 ---
 
-### User Story 6 - Zugriff für Erweiterungen, Agenten und holzi-Funktionen mit Berechtigungen (Priority: P1)
+### User Story 6 - Zugriff für Erweiterungen, Agenten und HaexVault-Funktionen mit Berechtigungen (Priority: P1)
 
-Eine haextension, ein externer Agent über MCP oder eine Funktion von holzi (etwa die
+Eine haextension, ein externer Agent über MCP oder eine Funktion von HaexVault (etwa die
 Speicherverbindungen aus Spec 038) braucht Zugangsdaten aus dem Passwortmanager. Der Nutzer erlaubt
 das nicht pauschal, sondern für Einträge mit bestimmten Tags und für Lesen oder Lesen und
 Schreiben. Wer anfragt, bekommt in Listen nur Kopfdaten ohne Geheimnisse; das Geheimnis eines
@@ -327,7 +327,7 @@ anfordern (abgelehnt) und einen Eintrag schreiben wollen (abgelehnt).
 7. **Given** der eingebaute Agent im Chat, **When** er den Passwortmanager benutzt, **Then**
    kann er höchstens Kopfdaten ohne Geheimnisse sehen; kein Aktionsergebnis, keine
    Fehlermeldung und kein Eintrag im Chatverlauf enthält je ein Geheimnis.
-8. **Given** eine holzi-Funktion, die einen Eintrag selbst angelegt hat (038), **When** der
+8. **Given** eine HaexVault-Funktion, die einen Eintrag selbst angelegt hat (038), **When** der
    Nutzer ihn im Passwortmanager öffnet, **Then** sieht er ihn wie jeden anderen Eintrag und
    kann ihn ändern oder löschen.
 9. **Given** ein Eintrag im Papierkorb, der noch ein Tag aus dem Bereich einer Freigabe trägt,
@@ -339,12 +339,12 @@ anfordern (abgelehnt) und einen Eintrag schreiben wollen (abgelehnt).
 
 ### User Story 7 - Import aus anderen Passwortmanagern (Priority: P2)
 
-Ein Nutzer wechselt von KeePass, Bitwarden oder LastPass zu holzi. Er wählt die Exportdatei
+Ein Nutzer wechselt von KeePass, Bitwarden oder LastPass zu HaexVault. Er wählt die Exportdatei
 (bei KeePass die Datei der Datenbank mit Passwort oder Schlüsseldatei), sieht eine Vorschau,
-wie viele Einträge, Ordner und Anhänge gefunden wurden, und startet den Import. holzi
+wie viele Einträge, Ordner und Anhänge gefunden wurden, und startet den Import. HaexVault
 übernimmt **alles**, was die Quelle enthält: Einträge samt Ordnerstruktur, Papierkorb, Verlauf,
 Symbole, TOTP (auch ungültige), eigene Felder, Tags, Anhänge und Passkeys jedes Algorithmus. Was
-holzi kein eigenes Feld hat, kommt als eigenes Feld oder Tag mit. Danach zeigt holzi, was
+HaexVault kein eigenes Feld hat, kommt als eigenes Feld oder Tag mit. Danach zeigt HaexVault, was
 importiert wurde und wo der Nutzer von Hand nacharbeiten muss (etwa Anhänge über dem Limit).
 
 **Why this priority**: Ohne Import startet jeder Nutzer bei null und bleibt bei seinem alten
@@ -361,18 +361,18 @@ die Ordnerstruktur und je ein Passwort, TOTP-Secret und Anhang mit der Quelle ve
    Verlaufsstände da, Symbole sind gesetzt, und der Nutzer sieht die Zahl der importierten
    Einträge.
 2. **Given** ein falsches Passwort oder eine beschädigte Datei, **When** der Nutzer
-   importiert, **Then** nennt holzi den Grund und importiert nichts.
+   importiert, **Then** nennt HaexVault den Grund und importiert nichts.
 3. **Given** eine Bitwarden- oder LastPass-Exportdatei, **When** der Nutzer importiert,
    **Then** erscheinen die Einträge mit Ordnern, eigenen Feldern und TOTP.
-4. **Given** ein Eintrag der Quelle mit einem Feld, einem Typ oder einer Angabe, für die holzi
+4. **Given** ein Eintrag der Quelle mit einem Feld, einem Typ oder einer Angabe, für die HaexVault
    kein eigenes Gegenstück hat (etwa Karten- und Identitätsdaten, Auto-Type, Farben,
    Sammlungen, Favoriten), **When** der Nutzer importiert, **Then** steht die Angabe als eigenes
    Feld oder Tag am Eintrag; nichts wird still verworfen.
 5. **Given** ein Import wurde gestartet, **When** ein Fehler ihn insgesamt stoppt (Datei nicht
-   lesbar, Speicherfehler) oder der Nutzer ihn abbricht, **Then** entfernt holzi wieder alles, was
+   lesbar, Speicherfehler) oder der Nutzer ihn abbricht, **Then** entfernt HaexVault wieder alles, was
    der Import angelegt hat, und die Vault ist wie vor dem Import.
 6. **Given** ein Import hat Einträge angelegt, **When** der Nutzer ihn wiederholt, **Then**
-   fragt holzi, ob doppelte Einträge übersprungen oder angelegt werden sollen.
+   fragt HaexVault, ob doppelte Einträge übersprungen oder angelegt werden sollen.
 7. **Given** ein Eintrag der Quelle mit einem Passkey (ES256, EdDSA oder RS256), **When** der
    Nutzer importiert, **Then** erscheint der Passkey am Eintrag mit Relying Party und Nutzer, und
    sein öffentlicher Schlüssel passt zum privaten; ein Passkey mit einem anderen Algorithmus wird
@@ -381,7 +381,7 @@ die Ordnerstruktur und je ein Passwort, TOTP-Secret und Anhang mit der Quelle ve
    **Then** wird das Secret wie es ist übernommen und am Eintrag als ungültig angezeigt (ersetzen
    oder entfernen möglich), und der Bericht nennt den Eintrag.
 9. **Given** ein Anhang der Quelle über dem Limit aus FR-020, **When** der Nutzer importiert,
-   **Then** lehnt holzi diesen Anhang ab, importiert den Eintrag ohne ihn, und der Bericht nennt
+   **Then** lehnt HaexVault diesen Anhang ab, importiert den Eintrag ohne ihn, und der Bericht nennt
    Eintrag, Dateiname und Größe, damit der Nutzer ihn von Hand nachholen kann.
 10. **Given** ein Eintrag, bei dem beim Import ein Fehler auftritt (etwa ein unlesbarer
     Passkey-Schlüssel), **When** der Import weiterläuft, **Then** wird der Rest des Eintrags
@@ -419,29 +419,29 @@ gleichzeitig ändern; beide Änderungen sind nach dem Abgleich auf beiden Gerät
 
 ### Edge Cases
 
-- **Nutzer verlässt den Editor mit ungespeicherten Änderungen.** holzi fragt, ob er speichern,
+- **Nutzer verlässt den Editor mit ungespeicherten Änderungen.** HaexVault fragt, ob er speichern,
   verwerfen oder bleiben will.
 - **Ein Eintrag wird gleichzeitig auf einem anderen Gerät gelöscht**, während der Nutzer ihn
-  bearbeitet. Beim Speichern sagt holzi, dass der Eintrag gelöscht wurde, und bietet an, ihn
+  bearbeitet. Beim Speichern sagt HaexVault, dass der Eintrag gelöscht wurde, und bietet an, ihn
   neu anzulegen; nichts wird still verworfen.
 - **Ein TOTP-Secret ist ungültig** (falsches Format, unbekannter Algorithmus, Ziffernzahl oder
-  Periode außerhalb des Zulässigen). Beim Anlegen und Ändern lehnt holzi das mit einer Meldung
+  Periode außerhalb des Zulässigen). Beim Anlegen und Ändern lehnt HaexVault das mit einer Meldung
   am Feld ab; fehlende Angaben bekommen die Standardwerte. Kommt ein ungültiger Wert dennoch
   an (Sync von einem anderen Gerät, ein anderes Programm), zeigt der Eintrag statt eines Codes
-  eine Meldung und lässt zu, das Secret zu ersetzen oder zu entfernen; holzi stürzt nicht ab
+  eine Meldung und lässt zu, das Secret zu ersetzen oder zu entfernen; HaexVault stürzt nicht ab
   und verändert nichts still. Beim Import wird ein ungültiges Secret wie es ist übernommen
   und im Bericht genannt.
-- **Die Uhr eines Geräts geht falsch.** Der TOTP-Code weicht dann ab; holzi weist an der
+- **Die Uhr eines Geräts geht falsch.** Der TOTP-Code weicht dann ab; HaexVault weist an der
   Anzeige darauf hin, dass der Code von der Systemzeit abhängt.
 - **Ein Anhang ist leer, sehr groß oder hat einen ungewöhnlichen Namen** (Sonderzeichen,
-  Pfadtrenner, sehr lang). holzi behandelt den Namen als Text, nie als Pfad.
-- **Ein Ordner wird in seinen eigenen Unterordner verschoben.** holzi verbietet es.
+  Pfadtrenner, sehr lang). HaexVault behandelt den Namen als Text, nie als Pfad.
+- **Ein Ordner wird in seinen eigenen Unterordner verschoben.** HaexVault verbietet es.
 - **Ein in Benutzung befindlicher Eintrag** (etwa die Zugangsdaten einer Speicherverbindung
-  nach Spec 038) wird gelöscht. holzi warnt vorher, dass eine Funktion ihn nutzt, und
+  nach Spec 038) wird gelöscht. HaexVault warnt vorher, dass eine Funktion ihn nutzt, und
   verhindert das Löschen nicht.
 - **Der Nutzer legt zwei Tags mit gleichem Namen an** oder benennt ein Tag um in einen
-  bestehenden Namen. holzi verhindert die Doppelung.
-- **Ein importierter Passkey hat dieselbe Credential-ID wie ein vorhandener.** holzi legt ihn
+  bestehenden Namen. HaexVault verhindert die Doppelung.
+- **Ein importierter Passkey hat dieselbe Credential-ID wie ein vorhandener.** HaexVault legt ihn
   nicht doppelt an, überspringt ihn nicht still, sondern nennt ihn im Bericht.
 - **Die Vault ist groß** (mehrere tausend Einträge). Liste und Suche bleiben benutzbar.
 - **Zwei Fenster des Passwortmanagers sind offen** (Spec 030). Eine Änderung im einen
@@ -545,7 +545,7 @@ gleichzeitig ändern; beide Änderungen sind nach dem Abgleich auf beiden Gerät
   die Vault als besonderen Ordner mit fester Kennung führt; Löschen eines Elements im
   Papierkorb MUSS es endgültig entfernen, samt allem, was nur von ihm abhängt. „Papierkorb
   leeren“ MUSS eine Bestätigung verlangen. Das gilt für **jeden** Aufrufer: Löschen durch eine
-  holzi-Funktion, Erweiterung oder einen Agenten verschiebt ebenfalls nur in den Papierkorb;
+  HaexVault-Funktion, Erweiterung oder einen Agenten verschiebt ebenfalls nur in den Papierkorb;
   endgültig entfernt ein Eintrag nur dadurch, dass der Nutzer ihn **im Papierkorb** löscht.
   Einträge im Papierkorb sind für andere Aufrufer als den Nutzer nicht vorhanden (sie lesen,
   ändern und löschen sie nicht); so führt ein Aufruf von außen nie zum endgültigen Löschen.
@@ -585,7 +585,7 @@ gleichzeitig ändern; beide Änderungen sind nach dem Abgleich auf beiden Gerät
   optional Schlüsseldatei), Bitwarden-Exporten und LastPass-Exporten importieren und dabei
   **alles** übernehmen, was die Quelle enthält:
   - Einträge mit allen Feldern, Ordnerstruktur, Tags, eigenen Feldern, TOTP, Anhängen, Zeitstempeln
-    und Symbolen (Standardsymbole der Quelle als Symbol von holzi, eigene Symbole als Bild);
+    und Symbolen (Standardsymbole der Quelle als Symbol von HaexVault, eigene Symbole als Bild);
   - den **Papierkorb** der Quelle (KeePass-Papierkorb, gelöschte Einträge von Bitwarden) als
     Inhalt unseres Papierkorbs, und den **Verlauf** der Einträge (KeePass-Verlauf, Bitwarden
     `passwordHistory`) als Verlaufsstände samt ihrer Anhänge;
@@ -594,7 +594,7 @@ gleichzeitig ändern; beide Änderungen sind nach dem Abgleich auf beiden Gerät
     EdDSA, RS256); sonst bleibt er leer und der Bericht nennt den Passkey;
   - **ungültige TOTP-Secrets** wie sie sind (am Eintrag als ungültig angezeigt, FR-003);
   - alle Eintragstypen und Felder von Bitwarden (Anmeldung, Notiz, Karte, Identität, SSH-Schlüssel,
-    unbekannte Typen) und alles, wofür holzi kein eigenes Feld hat (Auto-Type, Farben, Sammlungen,
+    unbekannte Typen) und alles, wofür HaexVault kein eigenes Feld hat (Auto-Type, Farben, Sammlungen,
     Favoriten, Wiederholungsabfrage, URL-Zuordnungen und Ähnliches), als **eigene Felder** oder
     Tags am Eintrag. Nichts darf still verloren gehen.
 
@@ -611,7 +611,7 @@ gleichzeitig ändern; beide Änderungen sind nach dem Abgleich auf beiden Gerät
 **Zugriff von außen und Berechtigungen**
 
 - **FR-024**: Jeder Zugriff auf Passwortmanager-Daten (Oberfläche, Erweiterungen, externe
-  Agenten, der eingebaute Agent, holzi-Funktionen) MUSS über denselben Dienst und dessen
+  Agenten, der eingebaute Agent, HaexVault-Funktionen) MUSS über denselben Dienst und dessen
   Zugriffsprüfung gehen; kein Weg DARF die Tabellen am Passwortmanager vorbei lesen oder
   schreiben. Die Oberfläche läuft dort als Aufrufer „Nutzer“ ohne Freigabe (FR-031); alle
   Funktionen jenseits von Eintrag lesen, anlegen, ändern und löschen stehen anderen Aufrufern
@@ -652,13 +652,13 @@ gleichzeitig ändern; beide Änderungen sind nach dem Abgleich auf beiden Gerät
   weiterer Aufrufer ohne Änderung von Datenmodell oder Freigabe-Semantik andocken kann; sie
   selbst ist nicht Teil dieser Spec.
 
-**Nutzung durch holzi-Funktionen**
+**Nutzung durch HaexVault-Funktionen**
 
-- **FR-033**: holzi-Funktionen (zunächst Spec 038) MÜSSEN Einträge im Passwortmanager als
+- **FR-033**: HaexVault-Funktionen (zunächst Spec 038) MÜSSEN Einträge im Passwortmanager als
   gewöhnliche Einträge mit einem frei gewählten Tag anlegen, lesen und ändern können; es gibt
-  keine für holzi reservierten Tags oder Tagnamen. Der Nutzer MUSS sie in der Oberfläche sehen,
+  keine für HaexVault reservierten Tags oder Tagnamen. Der Nutzer MUSS sie in der Oberfläche sehen,
   ändern und löschen können.
-- **FR-034**: Das System MUSS vor dem Löschen eines Eintrags, den eine holzi-Funktion nutzt,
+- **FR-034**: Das System MUSS vor dem Löschen eines Eintrags, den eine HaexVault-Funktion nutzt,
   warnen und die Funktion nennen; das Löschen MUSS erlaubt bleiben. Welche Einträge eine
   Funktion nutzt, meldet die Funktion selbst (sie kennt ihre Verweise auf Einträge); der
   Passwortmanager erkennt das nicht an Tags oder Namen.
@@ -689,7 +689,7 @@ gleichzeitig ändern; beide Änderungen sind nach dem Abgleich auf beiden Gerät
   zu überschreiben.
 - **FR-039**: Der Passwortmanager MUSS eine App im Window Manager sein (Spec 015) mit Orten
   im Tab nach Spec 020, deren Wiederherstellung (Spec 022) nie Geheimnisse im Verlauf oder in
-  der gespeicherten Sitzung ablegt, und MUSS dem Stil der anderen holzi-Oberflächen
+  der gespeicherten Sitzung ablegt, und MUSS dem Stil der anderen HaexVault-Oberflächen
   folgen (Werkzeugleiste, große Überschrift, Listen in Boxen, ausblendbare Seitenleiste).
 - **FR-040**: Geheimnisse DÜRFEN weder in Protokolle, Fehlermeldungen, Fenstertitel, die
   Verlaufsliste der Tabs, die gespeicherte Sitzung noch in die Aktionsprotokolle des Agenten
@@ -724,7 +724,7 @@ gleichzeitig ändern; beide Änderungen sind nach dem Abgleich auf beiden Gerät
   Verwaltung in den Specs 017–019 und 021.
 - **Kopfdaten**: die Sicht eines Eintrags ohne Geheimnisse, die Listen liefern.
 - **Aufrufer**: Oberfläche des Nutzers, eingebauter Agent, Erweiterung, externer Agent oder
-  holzi-Funktion.
+  HaexVault-Funktion.
 
 ## Success Criteria _(mandatory)_
 
@@ -760,13 +760,13 @@ gleichzeitig ändern; beide Änderungen sind nach dem Abgleich auf beiden Gerät
 
 ## Assumptions
 
-- holzi hat nur einen Nutzer pro Vault; es gibt keine Freigabe von Einträgen an andere
+- HaexVault hat nur einen Nutzer pro Vault; es gibt keine Freigabe von Einträgen an andere
   Nutzer. Das Teilen mit anderen Personen ist nicht Teil dieser Spec; Dateien teilt Spec 056,
   nicht einzelne Einträge.
 - Die Vault-Verschlüsselung im Ruhezustand genügt; es gibt keine zweite Hülle oder
   Hauptpasswort des Passwortmanagers. Eine zusätzliche Sperre des Passwortmanagers nach
   Leerlauf ist nicht Teil dieser Spec.
-- Die Tabellennamen mit dem Präfix `haex_` weichen vom Muster der übrigen holzi-Tabellen ab
+- Die Tabellennamen mit dem Präfix `haex_` weichen vom Muster der übrigen HaexVault-Tabellen ab
   (zum Beispiel `chat_threads`). Das ist bewusst, damit Datenmodell und Werkzeuge mit
   haex-vault 2.x vergleichbar bleiben; der Plan prüft, dass das Präfix in haex-crdt keine
   Sonderbehandlung auslöst.
@@ -780,7 +780,7 @@ gleichzeitig ändern; beide Änderungen sind nach dem Abgleich auf beiden Gerät
   Stände je Eintrag legt der Plan fest, falls Messungen sie nötig machen.
 - Für Aufrufer von außen bestimmt Spec 021 (und 017–019), wie eine Freigabe vergeben und
   angezeigt wird. Bis dahin gibt es keinen Weg für Erweiterungen und Agenten, Freigaben zu
-  erhalten; die internen holzi-Funktionen (Spec 038) tragen ihren Bereich fest.
+  erhalten; die internen HaexVault-Funktionen (Spec 038) tragen ihren Bereich fest.
 - Die Datei- und Anhang-Aufnahme geht über den Dateidialog des Systems; Ziehen und Ablegen
   ist eine Verbesserung, keine Bedingung.
 - Beim Import werden auch der Papierkorb der Quelle und der Verlauf der Einträge übernommen. Ein

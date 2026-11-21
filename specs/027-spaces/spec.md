@@ -263,7 +263,7 @@ Repository `https://github.com/haex-space/haex-vault-legacy`, Revision
 ### User Story 1 - Einen Space anlegen und an einen Ordner binden (Priority: P1)
 
 Anna möchte einen Ordner „Familienfotos“ mit ihrer Familie teilen. Sie legt in
-holzi einen Space an, gibt ihm einen Namen, wählt einen Ordner auf ihrem Rechner
+HaexVault einen Space an, gibt ihm einen Namen, wählt einen Ordner auf ihrem Rechner
 und als Speicher den des Relays. Die Dateien im Ordner werden verschlüsselt
 hochgeladen. Auf ihrem Laptop wählt sie für denselben Space einen anderen
 Ordner, und die Fotos erscheinen dort.
@@ -300,9 +300,9 @@ Space noch Dateiinhalte.
 ### User Story 2 - Jemanden per Einladungslink einladen, und die Einladung annehmen oder verwerfen (Priority: P1)
 
 Anna lädt ihren Bruder Ben ein. Sie wählt im Space „Familienfotos“ „Mitglied
-einladen“, gibt einen Namen für ihn an und wählt „Lesen und Schreiben“. holzi
+einladen“, gibt einen Namen für ihn an und wählt „Lesen und Schreiben“. HaexVault
 erzeugt einen Einladungslink, den Anna ihm selbst schickt, etwa über einen
-Messenger. Ben öffnet ihn in holzi und sieht: Space „Familienfotos“ von Anna,
+Messenger. Ben öffnet ihn in HaexVault und sieht: Space „Familienfotos“ von Anna,
 mit seinen Rechten. Er nimmt an, wählt einen Ordner, Anna bestätigt ihn, und die
 Fotos erscheinen. Später gibt Anna einer Bekannten einen Link, die ihn
 verwirft.
@@ -332,8 +332,8 @@ erfundenem Geheimnis: A zeigt nichts an, speichert nichts und antwortet nicht.
    QR-Code) und unter den offenen Einladungen ein Eintrag „offen“ mit diesen
    Rechten; in der Mitgliederliste steht niemand Neues, und es wurde kein
    Schlüssel erzeugt oder verschickt.
-2. **Given** Ben hat den Link, **When** er ihn in holzi öffnet, **Then** zeigt
-   holzi eine Vorschau mit Name des Space, Name und Vault-Identität des Admins
+2. **Given** Ben hat den Link, **When** er ihn in HaexVault öffnet, **Then** zeigt
+   HaexVault eine Vorschau mit Name des Space, Name und Vault-Identität des Admins
    und Bens Rechten, mit „Annehmen“ und „Verwerfen“; bis dahin wurde nichts an
    Anna geschickt, und die Einladung steht auf allen Geräten von Bens Vault.
 3. **Given** die Einladung, **When** Ben „Annehmen“ wählt und einen Ordner
@@ -351,7 +351,7 @@ erfundenem Geheimnis: A zeigt nichts an, speichert nichts und antwortet nicht.
    annimmt, **Then** kennen seine anderen Geräte den Space ebenfalls, ohne dass
    Anna etwas tut; jedes Gerät bindet ihn an einen eigenen Ordner.
 6. **Given** ein Link, der schon eingelöst, abgelaufen oder zurückgezogen ist,
-   **When** jemand ihn öffnet oder annimmt, **Then** nennt holzi den Grund, und
+   **When** jemand ihn öffnet oder annimmt, **Then** nennt HaexVault den Grund, und
    es entsteht keine Mitgliedschaft.
 7. **Given** Anna erhält eine Annahme von einer Vault, die nicht die erwartete
    ist, **When** sie die Annahme prüft, **Then** kann sie die Aufnahme
@@ -363,7 +363,7 @@ erfundenem Geheimnis: A zeigt nichts an, speichert nichts und antwortet nicht.
 9. **Given** Ben ist Mitglied mit „Schreiben“, **When** er die Mitgliederliste
    öffnet, **Then** gibt es für ihn keine Möglichkeit, jemanden einzuladen.
 10. **Given** ein Einladungslink ist gefälscht oder nachträglich verändert,
-    **When** ihn jemand öffnet, **Then** weist holzi ihn vor der Vorschau ab und
+    **When** ihn jemand öffnet, **Then** weist HaexVault ihn vor der Vorschau ab und
     sendet weder eine Annahme noch andere Daten an die darin genannte Identität.
 
 ---
@@ -402,7 +402,7 @@ Dateien.
    Mitgliedern.
 5. **Given** Ben hat „Schreiben“ ohne „Löschen“, **When** er eine Datei löscht,
    die Anna angelegt hat, **Then** wird sie bei niemandem gelöscht, sie kommt
-   in Bens Ordner zurück, und holzi zeigt ihm, dass er fremde Dateien nicht
+   in Bens Ordner zurück, und HaexVault zeigt ihm, dass er fremde Dateien nicht
    löschen darf.
 6. **Given** Anna und Ben sind nie gleichzeitig online, **When** der Space ein
    Postfach am Relay und ein Speicher-Backend hat, **Then** erreichen
@@ -442,7 +442,7 @@ entschlüsseln. B und A arbeiten ohne Unterbrechung weiter.
    einem Gerät eines Mitglieds direkt Verbindung aufnimmt, **Then** gibt das
    Mitglied ihm keine Daten des Space und nimmt keine an.
 5. **Given** ein entferntes Mitglied, **When** eines seiner Geräte vom Entzug
-   erfährt, **Then** zeigt holzi den Space als „entfernt“, synchronisiert ihn
+   erfährt, **Then** zeigt HaexVault den Space als „entfernt“, synchronisiert ihn
    nicht mehr und lässt die Dateien im Ordner liegen.
 6. **Given** Annas Gerät ist beim Entfernen offline, **When** es wieder online
    ist, **Then** lädt es die neue Mitgliederliste hoch, bevor es andere
@@ -476,7 +476,7 @@ Schreiben und Löschen“ setzen: Es kann fremde Dateien löschen.
    Mitgliederliste kennt, diese Änderung (siehe FR-024 zur Grenze und zu
    Änderungen, die vorher schon angewendet waren).
 4. **Given** Anna ändert Rechte, **When** das betroffene Mitglied das nächste
-   Mal online ist, **Then** zeigt holzi ihm seine neuen Rechte.
+   Mal online ist, **Then** zeigt HaexVault ihm seine neuen Rechte.
 5. **Given** Anna selbst, **When** sie die Mitgliederliste ansieht, **Then**
    kann sie ihre eigenen Rechte nicht ändern und sich nicht entfernen.
 
@@ -486,7 +486,7 @@ Schreiben und Löschen“ setzen: Es kann fremde Dateien löschen.
 
 Ben öffnet den Space und sieht, wer dabei ist, wer der Admin ist und welche
 Rechte er selbst hat. Als Mitglied mit nur „Lesen“ legt seine Frau eine Datei in
-ihren Ordner; holzi zeigt ihr, dass diese Datei nur bei ihr liegt.
+ihren Ordner; HaexVault zeigt ihr, dass diese Datei nur bei ihr liegt.
 
 **Why this priority**: Wer nicht sieht, was er darf, wundert sich über Dateien,
 die nicht ankommen.
@@ -502,7 +502,7 @@ legen: Sie erreicht niemanden und ist als „nur lokal“ markiert.
    Namen, Vault-Identität und Fähigkeiten sowie seine eigenen Rechte
    hervorgehoben.
 2. **Given** ein Mitglied mit nur „Lesen“, **When** es eine Datei in seinen
-   Ordner legt, **Then** wird sie nicht übertragen, und holzi markiert sie als
+   Ordner legt, **Then** wird sie nicht übertragen, und HaexVault markiert sie als
    „nur lokal, keine Schreibrechte“.
 3. **Given** ein Mitglied mit nur „Lesen“, **When** es eine Datei des Space
    ändert oder löscht, **Then** erreicht die Änderung niemanden; der Ordner
@@ -596,7 +596,7 @@ in der Mitgliederliste, und eine neue Schlüsselgeneration ist entstanden.
   an, verwirft jedes Mitglied es (FR-026).
 - **Relay lässt eine unberechtigte Änderung durch**: Jedes empfangende Gerät
   prüft Unterschrift, Geräteliste, Fähigkeit und Ersteller selbst und
-  verwirft die Änderung. Sie wird nicht angewendet, und holzi vermerkt sie im
+  verwirft die Änderung. Sie wird nicht angewendet, und HaexVault vermerkt sie im
   Protokoll, ohne den Nutzer mit Fehlermeldungen zu überhäufen.
 - **Relay hält Daten zurück oder liefert Altes**: Das Relay kann Daten nicht
   fälschen, aber zurückhalten. Geräte erkennen Lücken und holen fehlende Daten
@@ -628,7 +628,7 @@ in der Mitgliederliste, und eine neue Schlüsselgeneration ist entstanden.
   Generationen verpackt ein Gerät des Admins direkt an es, sobald es die neue
   Geräteliste kennt (FR-043). Der Admin tut dafür nichts, erfährt aber, wie
   viele Geräte die Mitglieds-Vault hat (D28).
-- **Admin lädt eine Vault ein, die schon Mitglied ist**: holzi lehnt das mit
+- **Admin lädt eine Vault ein, die schon Mitglied ist**: HaexVault lehnt das mit
   dem Hinweis ab, die Rechte stattdessen zu ändern.
 - **Ein Gerät eines Mitglieds wurde nie an einen Ordner gebunden**: Es zeigt den
   Space als „noch nicht gebunden“ und lädt nichts herunter.
@@ -664,7 +664,7 @@ in der Mitgliederliste, und eine neue Schlüsselgeneration ist entstanden.
   nutzen (FR-040). Unabhängig von der Wahl MÜSSEN Geräte von Mitgliedern
   Objekte und Änderungspakete direkt austauschen können, wenn sie gleichzeitig
   online sind (FR-039).
-- **FR-004**: Beim Anlegen MUSS holzi die erste Schlüsselgeneration und die
+- **FR-004**: Beim Anlegen MUSS HaexVault die erste Schlüsselgeneration und die
   erste Mitgliederliste (nur der Admin, mit allen Fähigkeiten) erstellen und die
   Mitgliederliste an das Relay des Space hochladen, sofern die Vault des Admins
   eines eingerichtet hat (FR-040).
@@ -708,7 +708,7 @@ in der Mitgliederliste, und eine neue Schlüsselgeneration ist entstanden.
 
 **Einladen**
 
-- **FR-007**: Nur der Admin DARF einladen. holzi DARF Mitgliedern, die nicht
+- **FR-007**: Nur der Admin DARF einladen. HaexVault DARF Mitgliedern, die nicht
   Admin sind, keine Möglichkeit zum Einladen oder Weiterteilen anbieten, und
   Mitglieder MÜSSEN jede Mitgliederliste verwerfen, die nicht ein Gerät auf der
   aktuellen Geräteliste des Admins unterschrieben hat (D29).
@@ -718,14 +718,14 @@ in der Mitgliederliste, und eine neue Schlüsselgeneration ist entstanden.
   Link MUSS enthalten: Kennung und Name des Space, Vault-Identität des Admins,
   Fähigkeitsstufe, ein zufälliges Einmalgeheimnis, die Ablaufzeit, Hinweise auf
   das Relay und eine Signatur der Admin-Vault-Identität über alle diese Angaben,
-  aber keinen Schlüssel. holzi MUSS ihn als Text und als QR-Code anbieten;
+  aber keinen Schlüssel. HaexVault MUSS ihn als Text und als QR-Code anbieten;
   weitergeben MUSS der Admin ihn selbst. Das Einmalgeheimnis MUSS mindestens
   128 Bit Zufall haben. Die Signatur MUSS vor der Vorschau geprüft werden, damit
   ein gefälschter oder veränderter Link lokal abgewiesen wird und keine Annahme
   gesendet werden kann. Die Vault-Identität allein DARF NICHT genügen, um eine
-  Einladung auszulösen; holzi DARF keinen Weg anbieten, eine Einladung an eine
+  Einladung auszulösen; HaexVault DARF keinen Weg anbieten, eine Einladung an eine
   eingegebene Vault-Identität zu schicken. Die Einladung an einen Kontakt mit
-  bestätigter Visitenkarte regelt Spec 051 (FR-033 bis FR-040 dort). holzi MUSS beim Öffnen einen
+  bestätigter Visitenkarte regelt Spec 051 (FR-033 bis FR-040 dort). HaexVault MUSS beim Öffnen einen
   unlesbaren, ungültigen, abgelaufenen oder bereits eingelösten Link und einen
   Link des eigenen Space oder eines Space, in dem die eigene Vault schon
   Mitglied ist, mit einem Hinweis abweisen.
@@ -872,7 +872,7 @@ in der Mitgliederliste, und eine neue Schlüsselgeneration ist entstanden.
   widerrufenen Zugangsschlüssel abweist, bei geeigneten Anbietern höchstens 5
   Minuten (Spec 029). Schlägt der Widerruf beim
   Anbieter fehl, MUSS die Mitgliederliste trotzdem veröffentlicht werden, der
-  Admin MUSS eine bleibende Warnung sehen, und holzi MUSS den Widerruf
+  Admin MUSS eine bleibende Warnung sehen, und HaexVault MUSS den Widerruf
   wiederholen, bis der Anbieter ihn bestätigt.
 - **FR-024**: Eine Änderung MUSS angenommen werden, wenn ihr Autor in der
   Schlüsselgeneration, mit der sie verschlüsselt ist, die nötige Fähigkeit
@@ -892,7 +892,7 @@ in der Mitgliederliste, und eine neue Schlüsselgeneration ist entstanden.
 
 - **FR-025**: Ein entferntes Mitglied DARF keine Datei und keine Fassung lesen
   können, die nach dem Entzug hinzukommt oder entsteht. Was es vor dem Entzug
-  entschlüsseln konnte, behält es; holzi DARF NICHT versprechen, das zu
+  entschlüsseln konnte, behält es; HaexVault DARF NICHT versprechen, das zu
   verhindern. Sobald eines seiner Geräte vom Entzug erfährt, MUSS es den Space
   als „entfernt“ anzeigen, die Synchronisierung beenden und die Dateien im
   Ordner liegen lassen.
@@ -908,7 +908,7 @@ in der Mitgliederliste, und eine neue Schlüsselgeneration ist entstanden.
   Gruppe, die übrigen Gruppen bleiben.
 - **FR-027**: Ist die Vault des Admins nicht erreichbar oder verloren, MÜSSEN
   Mitglieder mit ihren bisherigen Rechten weiterarbeiten können. Die
-  Mitgliedschaft kann sich dann nicht ändern; holzi MUSS das nicht verhindern
+  Mitgliedschaft kann sich dann nicht ändern; HaexVault MUSS das nicht verhindern
   oder umgehen.
 
 **Dateien**
@@ -979,7 +979,7 @@ in der Mitgliederliste, und eine neue Schlüsselgeneration ist entstanden.
 
 **Anzeige**
 
-- **FR-035**: holzi MUSS eine Übersicht aller Spaces der Vault zeigen, mit Name,
+- **FR-035**: HaexVault MUSS eine Übersicht aller Spaces der Vault zeigen, mit Name,
   Rolle (Admin oder Mitglied), eigener Fähigkeitsstufe und Zustand auf diesem
   Gerät („synchronisiert“, „noch nicht gebunden“, „angehalten“, „entfernt“).
   Offene Einladungen stehen darüber.
@@ -999,7 +999,7 @@ in der Mitgliederliste, und eine neue Schlüsselgeneration ist entstanden.
   zurückziehen), Link öffnen, Annehmen, Verwerfen, Aufnahme bestätigen oder
   ablehnen, Rechte ändern, Entfernen und Verlassen MÜSSEN Aktionen im Katalog von Spec 020
   sein.
-- **FR-038**: holzi MUSS dem betroffenen Mitglied zeigen, wenn sich seine Rechte
+- **FR-038**: HaexVault MUSS dem betroffenen Mitglied zeigen, wenn sich seine Rechte
   geändert haben oder es entfernt wurde, sobald eines seiner Geräte davon
   erfährt.
 
@@ -1078,7 +1078,7 @@ in der Mitgliederliste, und eine neue Schlüsselgeneration ist entstanden.
   und die Bindung an einen lokalen Ordner; Spec 026 Relay, Postfächer, die
   Prüfung der Mitgliederliste und Speicher-Backend A.
 - Wie für eigene Geräte (Spec 025) wählt jedes Gerät den lokalen Ordner selbst.
-- Der Einladungslink kommt auf einem Weg außerhalb von holzi vom Admin zum
+- Der Einladungslink kommt auf einem Weg außerhalb von HaexVault vom Admin zum
   Eingeladenen (Kopieren, QR-Code); der Admin muss dessen Vault-Identität
   vorher nicht kennen, sie kommt mit der Annahme (FR-009). Spec 024 zeigt die
   eigene Vault-Identität weiter an, sie ist aber keine Einladeadresse mehr.
@@ -1115,7 +1115,7 @@ in der Mitgliederliste, und eine neue Schlüsselgeneration ist entstanden.
   Admins, deshalb auch nichts zu blockieren (2026-10-01). Adressbuch, Einladen
   aus dem Adressbuch und Blockieren ergänzt Spec 051 (2026-10-13).
 - Das Weitergeben des Links: Wie der Admin ihn überträgt, bestimmt er selbst.
-  holzi bietet Kopieren und einen QR-Code, keinen eigenen Versandweg.
+  HaexVault bietet Kopieren und einen QR-Code, keinen eigenen Versandweg.
 - Admin-Rolle übertragen, weder auf Wunsch noch nach Verlust, dazu mehrere
   Admins oder vergebbare Admin-Rechte (D6, D23, Entwurf §15 Punkt 3). Geht die
   Vault des Admins verloren, ist der Space eingefroren.

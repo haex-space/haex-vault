@@ -56,8 +56,8 @@ reads the catalog.
 - **Rust**: `*_tests.rs` next to every module. Pure parts need no model: template rendering against
   real template texts kept as fixtures, the three parsers, the holdback buffer, engine choice, the catalog
   gate.
-- **With a model** (ignored, env `HOLZI_TEST_GGUF` like `tests/local_inference.rs`): load, answer, cancel,
-  tool call; the 83-sentence evaluation per catalog model (`HOLZI_EVAL_ENGINE=llamacpp`).
+- **With a model** (ignored, env `HAEX_TEST_GGUF` like `tests/local_inference.rs`): load, answer, cancel,
+  tool call; the 83-sentence evaluation per catalog model (`HAEX_EVAL_ENGINE=llamacpp`).
 - **Android**: the emulator e2e (spec 043) loads Qwen3 0.6B through the new engine (T040).
 
 **Target Platform**: Linux, Windows, macOS, Android; iOS where mistralrs runs today (FR-006). A platform

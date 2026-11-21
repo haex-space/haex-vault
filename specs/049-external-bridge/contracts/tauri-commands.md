@@ -15,7 +15,7 @@ Alle Aktionen haben den Bereich `guardrails` und sind damit `agentCallable: fals
 | `settings.browserBridge.set`            | `{ enabled: boolean, port: number }`            | `browser_bridge_configure`      | speichert beides geräteeigen; startet, stoppt oder startet die Bridge neu (R14)                    |
 | `settings.browserBridge.client.update`  | `{ clientId, access, scopeTags?, defaultTag? }` | `browser_bridge_client_update`  | ändert eine gemerkte oder vorläufige Zulassung; gilt ab der nächsten Anfrage (FR-038)              |
 | `settings.browserBridge.client.revoke`  | `{ clientId }`                                  | `browser_bridge_client_revoke`  | löscht die Zulassung; `authorizationUpdate(false)` an offene Verbindungen, dann Schließen (FR-011) |
-| `settings.browserBridge.client.unblock` | `{ clientId }`                                  | `browser_bridge_client_unblock` | hebt die Sperre auf; beim nächsten Verbinden fragt holzi                                           |
+| `settings.browserBridge.client.unblock` | `{ clientId }`                                  | `browser_bridge_client_unblock` | hebt die Sperre auf; beim nächsten Verbinden fragt haex-vault                                      |
 
 Die Client-Aktionen und ihre Commands antworten mit der neuen `BridgeOverview`. Im Schema der
 Aktion fehlen `scopeTags` und `defaultTag` für `null`, weil das Aktionsschema kein `null` kennt.
@@ -194,8 +194,8 @@ Zustand, eine Zulassung, eine Sperre oder `connected` ändert.
 
 ### Command `browser_bridge_notify(title, body) -> ()`
 
-Eine Systembenachrichtigung, die zur Rückfrage führt, wenn holzi nicht nach vorn kommen konnte
-(Edge Case „holzi-Fenster minimiert“). Das Fenster schickt den Text in der Sprache des Nutzers, weil
+Eine Systembenachrichtigung, die zur Rückfrage führt, wenn haex-vault nicht nach vorn kommen konnte
+(Edge Case „haex-vault-Fenster minimiert“). Das Fenster schickt den Text in der Sprache des Nutzers, weil
 Rust keine eigenen Texte hat.
 
 ## Plattform

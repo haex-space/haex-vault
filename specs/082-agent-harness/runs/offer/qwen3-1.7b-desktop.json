@@ -236,7 +236,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Die Hausverwaltung ist eine Funktion, die in holzi verfügbar ist, um die Verwaltung von Daten oder Aufgaben zu steuern. Wenn du eine bestimmte Aktion hingegen suchst, können wir dies durch die Verwendung von `find_actions` tun. Bitte gib weitere Keywords an, um die passenden Aktionen zu finden."
+      "text": "Die Hausverwaltung ist eine Funktion, die in haex-vault verfügbar ist, um die Verwaltung von Daten oder Aufgaben zu steuern. Wenn du eine bestimmte Aktion hingegen suchst, können wir dies durch die Verwendung von `find_actions` tun. Bitte gib weitere Keywords an, um die passenden Aktionen zu finden."
     },
     {
       "id": "mail_read-de-3",
@@ -438,7 +438,7 @@
       "id": "contact-de-3",
       "result": "missed",
       "calls": [],
-      "text": "Die Frage ist nicht mit den verfügbaren Tools oder Funktionen von holzi verknüpft. Es gibt keine Funktion, die die Nummer der Hausverwaltung zurückgibt."
+      "text": "Die Frage ist nicht mit den verfügbaren Tools oder Funktionen von haex-vault verknüpft. Es gibt keine Funktion, die die Nummer der Hausverwaltung zurückgibt."
     },
     {
       "id": "password-de-1",
@@ -942,7 +942,7 @@
       "id": "mail_tidy-en-4",
       "result": "missed",
       "calls": [],
-      "text": "I cannot delete emails permanently from holzi, as it is not supported by the available tools. Please consult the holzi documentation or support for email deletion."
+      "text": "I cannot delete emails permanently from haex-vault, as it is not supported by the available tools. Please consult the haex-vault documentation or support for email deletion."
     },
     {
       "id": "password-en-1",

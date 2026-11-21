@@ -21,13 +21,13 @@ consequences reach beyond the spec:
 **Every device on the vault's current device list may read and write the whole file system of every
 other own device, unless that device switched it off.** The switch is per device, on by default, and
 stored only on that device (`haex_file_device_access_no_sync`), so no other device can turn it back
-on. A remote own device sees exactly what the serving device's file browser shows, holzi's own data
+on. A remote own device sees exactly what the serving device's file browser shows, haex-vault's own data
 included and with the same rules: read-only for the user, blocked for agents.
 
 **Devices of other vaults connect over a separate ALPN, `haex-files/1`, never over
 `haex-sync/1`.** They prove a device key on a device list signed by their vault identity, the vault
 identity must belong to a contact with a verified business card, and they reach only the roots shared
-with that identity, checked on every request; holzi's own data stays blocked for them. A serving device answers a Nostr knock only for an
+with that identity, checked on every request; haex-vault's own data stays blocked for them. A serving device answers a Nostr knock only for an
 entitled vault, so its address is not revealed to anyone else (replaced 2026-10-23, see the amendment
 below). Public iroh address discovery stays off.
 
@@ -37,9 +37,9 @@ below). Public iroh address discovery stays off.
   the vault open and the switch on. Removing it from the device list (spec 024) ends that; the switch
   limits it in advance.
 - `haex-sync/1` keeps its guarantee that only own devices exchange vault data. `haex-files/1` has
-  separate modes: an own-vault device can access the whole file system, including holzi's own data
+  separate modes: an own-vault device can access the whole file system, including haex-vault's own data
   under the read-only-for-users and blocked-for-agents rules; a contact device can access only its
-  shared roots, and holzi's own data stays blocked.
+  shared roots, and haex-vault's own data stays blocked.
 - File contents served by this feature travel only over the direct iroh connection. A shared S3,
   WebDAV or SFTP source still contains its source data at that provider, but the feature creates no
   additional copy or share ciphertext there, so revoking needs no key rotation.

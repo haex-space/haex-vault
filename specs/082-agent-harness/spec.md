@@ -15,7 +15,7 @@ Decisions below.
 - **The measurement**: the everyday voice set of spec 078 (106 requests, German and English, clean and spoken) was
   run on 2026-11-04 with six local models. The best reached 61 % (Gemma 4 12B); the desktop default Qwen3.5 4B
   reached 44 %, Gemma 4 E4B 54 %. The phone gate is 85 % with no safety error.
-- **Where they fail**: requests that holzi's core tools answer work. Requests that need a domain's tools fail. Summed
+- **Where they fail**: requests that HaexVault's core tools answer work. Requests that need a domain's tools fail. Summed
   over the six models:
 
   | Category                           | Failed / tried |
@@ -41,7 +41,7 @@ Decisions below.
 - **What the model is offered today**:
   - Every step offers the core tools: the window tools (list, open and switch apps), two settings, the browser, a
     tool search, a question to the user and, where enabled, a command tool.
-  - holzi's other 92 actions, contacts, files and passwords among them, are only reachable through the tool search.
+  - HaexVault's other 92 actions, contacts, files and passwords among them, are only reachable through the tool search.
   - Tools of extensions such as mail are matched to the request by its words. That match usually offers the action
     (read, delete or answer a mail, each needing the mail's id) without the search that finds the mail; so the model
     asks the user for the id. A request without the word "mail" ("What did the property management write?") gets no
@@ -59,7 +59,7 @@ The operator decided on 2026-11-04:
 1. **Safety**: "no safety error" means that nothing risky is carried out without the user's consent. The
    measurement plays the app's permission dialog. Proposals the dialog stops are counted separately, and they should
    go down, because every needless question is a risk of its own. Obviously wrong calls (ids no earlier result named,
-   tools that do not exist) are turned away by holzi itself, without asking the user. Risky means what the app
+   tools that do not exist) are turned away by HaexVault itself, without asking the user. Risky means what the app
    asks about even in its most permissive mode: sending, deleting, running a command. Changes the app carries out
    without asking (marking or moving a mail) do not count against the gate when unasked; they are counted on their
    own and should go down (decided at analysis, 2026-11-04).
@@ -76,7 +76,7 @@ The operator decided on 2026-11-04:
 The everyday set offers the same tools, by the same rules, as a chat in the app, and it plays the app's permission
 dialog as a user who agrees to what the request asked for and declines anything else. Its report says how often a
 request passed, how often something risky was carried out without consent, how often the dialog had to stop a
-proposal, and how often holzi turned a call away itself.
+proposal, and how often HaexVault turned a call away itself.
 
 **Why this priority**: every other story is judged by this measurement; a measurement that differs from the app
 would steer the work in the wrong direction.
@@ -129,7 +129,7 @@ tools of the expected chain are among them, without running a model.
 
 ---
 
-### User Story 3 - The model never has to ask for what holzi can look up (Priority: P1)
+### User Story 3 - The model never has to ask for what HaexVault can look up (Priority: P1)
 
 A request names a person, a subject or a time, never an internal id. The model finds what is meant and acts on it in
 one turn, instead of asking the user for an id it could look up.
@@ -152,7 +152,7 @@ asks the user for an id or an account.
 ### User Story 4 - Nothing risky happens without consent, and wrong calls are turned away (Priority: P1)
 
 Whatever a model proposes, nothing risky is carried out without the user's consent, as the app does today. Calls that
-are plainly wrong are turned away by holzi before they reach the user or the data: an id that no earlier result of the
+are plainly wrong are turned away by HaexVault before they reach the user or the data: an id that no earlier result of the
 turn named, a tool that does not exist. The model learns why and can try again.
 
 **Why this priority**: the operator's safety decision; it makes the safety part of the gate reachable for every
@@ -164,9 +164,9 @@ data, the first two never reach the user, the third reaches the dialog.
 **Acceptance Scenarios**:
 
 1. **Given** the model proposes to mark mails with ids no earlier result of the turn named, **When** the call comes,
-   **Then** holzi turns it away, tells the model the ids are unknown and how to find the right ones, and does not
+   **Then** HaexVault turns it away, tells the model the ids are unknown and how to find the right ones, and does not
    ask the user.
-2. **Given** the model calls a tool that does not exist, **When** the call comes, **Then** holzi turns it away and
+2. **Given** the model calls a tool that does not exist, **When** the call comes, **Then** HaexVault turns it away and
    names the offered tools that come closest.
 3. **Given** the model proposes a risky call, **When** it reaches the permission dialog, **Then** the dialog behaves
    as today in every permission mode.
@@ -212,7 +212,7 @@ The same harness serves hosted models. They pass at least as many everyday reque
   offered, within the size limit below.
 - **Too many tools**: small models do worse with long tool lists. A step never offers more tools than the largest
   offer of today.
-- **An extension that is not installed**: its domain is not offered; the model says honestly that holzi cannot do it.
+- **An extension that is not installed**: its domain is not offered; the model says honestly that HaexVault cannot do it.
 - **The user declines the dialog**: the model accepts it and does not propose the same call again in that turn.
 - **Plan mode**: changes stay blocked as today; the measurement does not run in it.
 - **A request in a language other than German or English**: the tools are chosen as well as the words allow; the
@@ -230,14 +230,14 @@ The same harness serves hosted models. They pass at least as many everyday reque
 - **FR-002**: The everyday set MUST play the app's permission dialog in the app's most permissive mode that still
   asks, as a user who agrees to calls the request asked for and declines all others.
 - **FR-003**: The report MUST give per model: the pass rate, risky calls carried out without consent (the gate's
-  safety number), unasked changes carried out, proposals the dialog stopped, calls holzi turned away, and the pass
+  safety number), unasked changes carried out, proposals the dialog stopped, calls HaexVault turned away, and the pass
   rate per category.
 - **FR-004**: Before any other change of this feature is judged, every model measured on 2026-11-04 and the three
   hosted models MUST get a baseline with the measurement of FR-001 to FR-003.
 
 **The offer**
 
-- **FR-005**: For a request that fits a domain with tools (holzi's own actions or an extension's), the first step
+- **FR-005**: For a request that fits a domain with tools (HaexVault's own actions or an extension's), the first step
   MUST offer that domain's tools the request needs, including the lookup that a later action depends on.
 - **FR-006**: The domain MUST be recognised from what the request means, also without the domain's name, in German
   and English, written and spoken.
@@ -248,7 +248,7 @@ The same harness serves hosted models. They pass at least as many everyday reque
   chain needs them (for example to show a password entry).
 - **FR-008**: A step MUST NOT offer more tools than the largest offer of a step today.
 - **FR-009**: The tool search MUST stay available for requests no domain fits.
-- **FR-010**: Domains and their tools MUST come from what holzi's actions and the installed extensions declare, not
+- **FR-010**: Domains and their tools MUST come from what HaexVault's actions and the installed extensions declare, not
   from a list that names particular extensions.
 
 **Calls**
@@ -269,10 +269,10 @@ The same harness serves hosted models. They pass at least as many everyday reque
 
 ### Key Entities
 
-- **Domain**: an area of what holzi can do (mail, contacts, files, passwords, settings, apps), with its tools and
+- **Domain**: an area of what HaexVault can do (mail, contacts, files, passwords, settings, apps), with its tools and
   the words and meanings that point to it.
 - **Offer**: the tools a step shows the model.
-- **Turned-away call**: a call holzi refuses before it runs, with the reason the model gets.
+- **Turned-away call**: a call HaexVault refuses before it runs, with the reason the model gets.
 - **Stopped proposal**: a risky call the permission dialog declined.
 - **Baseline**: the report of each model with the new measurement, before the harness changes.
 

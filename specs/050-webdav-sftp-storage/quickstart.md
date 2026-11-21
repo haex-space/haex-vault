@@ -58,7 +58,7 @@ Erwartet: Der Katalog aus Spec 038 (Bereich, Schlüssel, Grenzen, Zugangsdaten) 
 und SFTP dieselben Ergebnisse (SC-002), auch `list` mit einem Präfix mitten in einem Namen; Vorschläge mit
 `username`, `password`, `privateKey`, `passphrase`, `hostKey`, `fingerprint` → 3001 ohne Dialog;
 Ordner umbenennen und löschen mit einem Aufruf bei WebDAV und SFTP; Transfer innerhalb eines
-SFTP-Speichers streamt über holzi; Abbrüche hinterlassen keine Datei unter dem Zielnamen (SC-003).
+SFTP-Speichers streamt über HaexVault; Abbrüche hinterlassen keine Datei unter dem Zielnamen (SC-003).
 
 ## 5. E2E gegen SFTPGo
 
@@ -82,13 +82,13 @@ Hostschlüssel mounten → Warnung, annehmen (US4, US5); zwei Geräte (SC-007). 
 ## 6. Von Hand (SC-008)
 
 1. **Hetzner Storage Box, WebDAV**: Voreinstellung wählen, Benutzer `uXXXXX` ergänzen, Passwort, Ordner
-   `holzi-test` (fehlt → anlegen lassen). Erwartet: Test grün in < 10 s, Speicher im Dateibrowser, ein
+   `haex-test` (fehlt → anlegen lassen). Erwartet: Test grün in < 10 s, Speicher im Dateibrowser, ein
    Video von 500 MB spielt und springt (SC-006).
-2. **Hetzner Storage Box, SFTP (Port 23)**: Schlüssel in holzi erzeugen, öffentlichen Schlüssel in der
+2. **Hetzner Storage Box, SFTP (Port 23)**: Schlüssel in HaexVault erzeugen, öffentlichen Schlüssel in der
    Hetzner-Konsole hinterlegen, testen. Erwartet: Fingerabdruck stimmt mit
    docs.hetzner.com/storage/storage-box/general überein; nach Bestätigung grün.
 3. **Nextcloud**: Voreinstellung, App-Passwort. Erwartet: grün; eine im Nextcloud-Client geänderte Datei
-   erscheint in holzi mit neuer Größe.
+   erscheint in HaexVault mit neuer Größe.
 4. Auf einem zweiten Gerät nach dem Sync: alle drei Speicher ohne Eingabe nutzbar (SC-007), auch auf
    Android.
 5. Zugangsdaten in den Einstellungen ansehen: nur Verweis auf den Eintrag im Passwortmanager; dort ist

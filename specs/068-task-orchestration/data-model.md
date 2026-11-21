@@ -27,7 +27,7 @@ wählbar (012). Fehlt eine Belegung, ist die Stufe „nicht verfügbar“ (FR-01
 
 PR B ergänzt `turn_tokens_in` und `turn_tokens_out` in einer eigenen Migration an `chat_messages`,
 damit die Tokenzählung vor den Aufgaben der Orchestrierung funktioniert. PR C ergänzt die folgenden
-CRDT-Tabellen in einer eigenen Migration; jede Migration erhöht `HOLZI_TRIGGER_VERSION`.
+CRDT-Tabellen in einer eigenen Migration; jede Migration erhöht `HAEX_TRIGGER_VERSION`.
 
 ## Neue CRDT-Tabellen (PR C)
 

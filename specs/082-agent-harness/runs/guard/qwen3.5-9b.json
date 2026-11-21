@@ -495,7 +495,7 @@
       "id": "password-de-1-s",
       "result": "missed",
       "calls": [],
-      "text": "Ich kann nicht auf deine gespeicherten Passwörter zugreifen. Passwörter werden aus Sicherheitsgründen verschlüsselt und sind nicht direkt einsehbar.\n\nDu kannst dein Netflix-Passwort jedoch in den Einstellungen von Holzi ändern oder ein neues erstellen. Möchtest du das tun?"
+      "text": "Ich kann nicht auf deine gespeicherten Passwörter zugreifen. Passwörter werden aus Sicherheitsgründen verschlüsselt und sind nicht direkt einsehbar.\n\nDu kannst dein Netflix-Passwort jedoch in den Einstellungen von HaexVault ändern oder ein neues erstellen. Möchtest du das tun?"
     },
     {
       "id": "file-de-1-s",
@@ -534,7 +534,7 @@
       "id": "mail_read-en-2",
       "result": "missed",
       "calls": [],
-      "text": "I don't have access to information about what \"Tom\" wrote unless it's stored in one of your apps or documents within holzi. Could you clarify which app or document you're referring to? For example, is it in your notes, emails, or a specific project?"
+      "text": "I don't have access to information about what \"Tom\" wrote unless it's stored in one of your apps or documents within haex-vault. Could you clarify which app or document you're referring to? For example, is it in your notes, emails, or a specific project?"
     },
     {
       "id": "mail_read-en-3",
@@ -858,7 +858,7 @@
       "id": "mail_read-en-2-s",
       "result": "missed",
       "calls": [],
-      "text": "I don't have information about what \"Tom\" wrote. Could you clarify:\n\n1. Are you referring to a specific document, note, or message in holzi?\n2. Is Tom a person whose notes you'd like me to search for?\n3. Are you asking about something else?\n\nPlease provide more context so I can help you find the inf"
+      "text": "I don't have information about what \"Tom\" wrote. Could you clarify:\n\n1. Are you referring to a specific document, note, or message in haex-vault?\n2. Is Tom a person whose notes you'd like me to search for?\n3. Are you asking about something else?\n\nPlease provide more context so I can help you find the inf"
     },
     {
       "id": "mail_read-en-3-s",
@@ -939,7 +939,7 @@
       "id": "contact-en-1-s",
       "result": "missed",
       "calls": [],
-      "text": "I don't have access to personal information like phone numbers in my tools. I can only help you with the holzi app and its features. If you're looking for contact information, you might want to check your contacts app or ask someone directly."
+      "text": "I don't have access to personal information like phone numbers in my tools. I can only help you with the haex-vault app and its features. If you're looking for contact information, you might want to check your contacts app or ask someone directly."
     },
     {
       "id": "contact-en-2-s",

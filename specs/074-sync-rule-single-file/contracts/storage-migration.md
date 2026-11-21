@@ -16,7 +16,7 @@ One statement, no `--> statement-breakpoint`.
 ## Properties
 
 1. Every existing row gets `source_kind = 'folder'`; no row is lost or changed otherwise.
-2. The table is `_no_sync` (ADR 0018), so `HOLZI_TRIGGER_VERSION` stays.
+2. The table is `_no_sync` (ADR 0018), so `HAEX_TRIGGER_VERSION` stays.
 3. The migration runs once; opening the migrated vault again changes nothing.
 4. A fresh vault runs `0044`, the `0053` rename and this one, and ends with the column.
 5. `store.rs` reads and writes the column (`RULE_COLUMNS`, the insert, the update). An unknown stored value

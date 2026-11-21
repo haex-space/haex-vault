@@ -6,7 +6,7 @@
 
 ## Summary
 
-holzi spricht neben S3 auch WebDAV und SFTP. Eine Speicherverbindung bekommt ein Protokoll, ein Speicher
+haex-vault spricht neben S3 auch WebDAV und SFTP. Eine Speicherverbindung bekommt ein Protokoll, ein Speicher
 ist bei WebDAV und SFTP ein Ordner. Alles, was S3-Speicher heute können, gilt für die neuen Protokolle:
 Einstellungen mit Test vor dem Speichern, Zugangsdaten im Passwortmanager, Sync auf alle Geräte,
 Adressprüfung, Dateibrowser, Agents, Erweiterungen und später verschlüsselte Ordner. Geteilt wird nichts.
@@ -23,7 +23,7 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 - **SFTP** (R3–R5): `russh` 0.63.3 (Backend ring, ohne aws-lc-rs) und `russh-sftp` 3.0.0; eigene TCP-
   Verbindung zur geprüften Adresse; Hostschlüssel beim ersten Verbinden bestätigt, synchronisiert,
   bei Abweichung Abbruch vor der Anmeldung; Schlüssel erzeugen und einlesen über `russh::keys`.
-- **Ohne halbe Dateien** (R7): Zwischendatei `.holzi-part-<UUID>`, dann umbenennen; die Multipart-Methoden
+- **Ohne halbe Dateien** (R7): Zwischendatei `.haex-part-<UUID>`, dann umbenennen; die Multipart-Methoden
   des Traits werden zu Upload-Sitzungen (S3 Multipart, WebDAV ein gestreamter `PUT`, SFTP Schreiben an
   Stellen).
 - **Ordner** (R8): WebDAV und SFTP bilden die Markierungs-Form von S3 nach (`ordner/` in Listen), dazu
@@ -116,7 +116,7 @@ src-tauri/
 ├── Cargo.toml                               # russh, russh-sftp, quick-xml
 └── src/
     ├── identity/
-    │   ├── migrations.rs                    # Registrierung, HOLZI_TRIGGER_VERSION +1
+    │   ├── migrations.rs                    # Registrierung, HAEX_TRIGGER_VERSION +1
     │   └── migrations_storage.rs            # + STORAGE_PROTOCOLS (ALTER TABLE)
     ├── remote_storage/
     │   ├── mod.rs                           # Protocol, Location.protocol/host_key, Credentials enum,
@@ -141,7 +141,7 @@ src-tauri/
     │   ├── credentials.rs                   # Felder je Protokoll (data-model.md)
     │   ├── store.rs                         # Prüfregeln je Protokoll
     │   ├── service.rs                       # Test mit Hostschlüssel, Ordner anlegen, annehmen
-    │   ├── probe.rs                         # neue Ergebnisse, holzi-test/ aufräumen
+    │   ├── probe.rs                         # neue Ergebnisse, haex-test/ aufräumen
     │   ├── model.rs                         # ConnectionInput/View, CredentialsInput getaggt
     │   ├── commands.rs                      # stores(), neue Commands
     │   └── test_support.rs                  # Fälschung um neue Methoden ergänzt

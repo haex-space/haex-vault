@@ -1,11 +1,11 @@
 # Quickstart: Paper Notes to Editable Canvas
 
 Handtest in `https://github.com/haex-space/haextension.git` ab Revision
-`6dfb015198c99018236f5a8e958a916942ab971c`, unter `apps/haex-notes/`, gegen holzi mit Spec 055.
+`6dfb015198c99018236f5a8e958a916942ab971c`, unter `apps/haex-notes/`, gegen HaexVault mit Spec 055.
 
 ## Voraussetzungen
 
-- holzi mit Spec 055 und ein Modell, das Bilder annimmt. Lokal: Ollama mit `qwen3-vl:4b-instruct` als Modell-Server
+- HaexVault mit Spec 055 und ein Modell, das Bilder annimmt. Lokal: Ollama mit `qwen3-vl:4b-instruct` als Modell-Server
   `http://localhost:11434/v1`, am Modell „nimmt Bilder an“ gesetzt (Einrichtung:
   [055 quickstart.md](../055-extension-model-access/quickstart.md#lokales-bildmodell-einrichten-ollama)). Für den
   Schritt „Ziel außerhalb des Geräts“ zusätzlich ein Server im eigenen Netz oder in der Cloud.
@@ -37,7 +37,7 @@ Erwartet:
 1. Notizbuch öffnen, „Foto importieren“ wählen, ein Foto aufnehmen oder auswählen. Die Seite zeigt nur den Entwurf;
    das Original hängt als Anhang „Original“ an der Seite.
 2. Ein schlechtes Foto zeigt den Qualitätshinweis mit „Neu aufnehmen“ und „Trotzdem lesen“.
-3. Lesen starten. holzi fragt beim ersten Mal nach dem Modell; „Merken“ und erlauben. Der Entwurf zeigt Texte,
+3. Lesen starten. HaexVault fragt beim ersten Mal nach dem Modell; „Merken“ und erlauben. Der Entwurf zeigt Texte,
    die Tabelle mit Zeilen und Zellen und die Zeichnung als Bild; der Rechtschreibfehler ist korrigiert, Abkürzungen
    und Zeilenumbrüche sind wie auf dem Foto. Die Herkunft nennt Modell und „dieses Gerät“.
 4. Ein seitliches Foto lesen: Der Entwurf steht aufrecht, das Original ist unverändert gespeichert.
@@ -62,10 +62,10 @@ Erwartet:
 7. Speichern, schließen, neu öffnen: Ebenen, Zellen, Positionen und Herkunft sind erhalten.
 8. Als PDF exportieren, mit den Voreinstellungen und mit geändertem Format, Ausrichtung und Qualität: Die PDF zeigt
    die Seite mit Papier und Rand, keinen Anhang.
-9. Ziel außerhalb des Geräts: In holzi den Server im Netz an die erste Stelle der Rangfolge setzen und lesen. holzi
+9. Ziel außerhalb des Geräts: In HaexVault den Server im Netz an die erste Stelle der Rangfolge setzen und lesen. HaexVault
    fragt vor dem Versand mit Ziel und Ort; „ablehnen“ ergibt eine Seite mit Foto (Ebene „Foto“, zusätzlich als Anhang)
    und den Hinweis zur Ablehnung.
-10. In holzi die Freigabe widerrufen und lesen: Der Hinweis nennt das fehlende Modell; der manuelle Canvas bleibt
+10. In HaexVault die Freigabe widerrufen und lesen: Der Hinweis nennt das fehlende Modell; der manuelle Canvas bleibt
     nutzbar. Ebenso beim Abbrechen während des Lesens.
 
 ## Nachweise

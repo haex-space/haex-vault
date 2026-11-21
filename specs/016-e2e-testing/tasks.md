@@ -54,14 +54,14 @@ two P1 stories (US1 and US2) with their prerequisites are the MVP.
   conformance. A run with a scale other than 1 is marked non-conformant and reports the scale.
 - Contract between the command and the scenario files, by environment: `E2E_RUN_DIR`, `E2E_APP`,
   `E2E_CLOSE_BEHAVIOR`, `E2E_TOOLS` (JSON of resolved tool paths), `E2E_SCENARIO_TIMEOUT_MS`,
-  `E2E_TIME_SCALE` and `HOLZI_E2E_RUN` (the marker). Each is written once by `cli.ts` (T029) and read
+  `E2E_TIME_SCALE` and `HAEX_E2E_RUN` (the marker). Each is written once by `cli.ts` (T029) and read
   once by `scenario.ts` (T021).
 
 ---
 
 ## Phase 1: Setup — Stage 0, the tools reach the dev shell (FR-012)
 
-**Purpose**: haexmas/atoms#32 is merged as `d5c48d0eb6662da84086bf69a3ca041a494e2b26`; holzi still pins
+**Purpose**: haexmas/atoms#32 is merged as `d5c48d0eb6662da84086bf69a3ca041a494e2b26`; haex-vault still pins
 the older revision, so the shell has no `tauri-driver`, no `WebKitWebDriver` and no `xvfb-run`.
 
 - [x] T001 Work in `.worktrees/016-e2e-testing` with a real `pnpm install` (no symlinked
@@ -148,7 +148,7 @@ application yet.
       with `expectEnd` resolves `{ ended: true }` and without it throws an error that names the command.
 - [x] T013 [P] `scripts/e2e/lib/instance.test.ts`, pure parts only (no real tools): `buildInstanceEnv` puts
       `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`, `XDG_RUNTIME_DIR` and `HOME` inside the
-      instance root, sets `DBUS_SESSION_BUS_ADDRESS` to `disabled:` and `HOLZI_E2E_RUN` to the marker,
+      instance root, sets `DBUS_SESSION_BUS_ADDRESS` to `disabled:` and `HAEX_E2E_RUN` to the marker,
       and does not pass through the parent's `XDG_*` or `HOME` (set sentinels in the test); `prepareRoot`
       creates `data`, `config`, `cache`, `run` (mode 0700) and `home` empty and writes
       `config/gtk-3.0/settings.ini` with `gtk-application-prefer-dark-theme=true` for `dark` and `=false`
@@ -213,16 +213,16 @@ application yet.
 ## Phase 3: User Story 1 — Run the whole suite with one command, safely (Priority: P1) 🎯 MVP
 
 **Goal**: One command from the dev shell builds, runs, reports and cleans up, without a window on the
-desktop and without touching the maintainer's Holzi or its data (FR-001 to FR-005, FR-008 to FR-010).
+desktop and without touching the maintainer's HaexVault or its data (FR-001 to FR-005, FR-008 to FR-010).
 
 **Independent Test**: Run the command with the smoke scenario only. Afterwards no window appeared, no
-marked process survives, the data of a Holzi that was running at the time is unchanged, and that Holzi
+marked process survives, the data of a HaexVault that was running at the time is unchanged, and that HaexVault
 kept running.
 
 ### Tests for User Story 1 (write first)
 
 - [x] T024 [P] [US1] `scripts/e2e/lib/build.test.ts`: the target directory is `CARGO_TARGET_DIR` if set, else
-      `src-tauri/target`, and the binary `<target>/debug/holzi`; `--app` skips the build and must exist and
+      `src-tauri/target`, and the binary `<target>/debug/haex`; `--app` skips the build and must exist and
       be executable; the close behavior is `--close-behavior` if given (`closeBehaviorFrom: flag`), else
       `relaunch` for a path containing `/release/` and `exit` for `/debug/` (`closeBehaviorFrom: path`),
       else an error that says how to state it with `--close-behavior`; a build failure error carries the
@@ -259,10 +259,10 @@ kept running.
       `document.readyState` is `complete` and `location.pathname` is `/`, take a screenshot, end. No
       hook and no text is used.
 - [x] T031 [US1] Manual verification of the independent test, recorded in the "Validation record": start
-      your own Holzi (for example `pnpm tauri:dev`) and note a checksum listing of its data directory;
+      your own HaexVault (for example `pnpm tauri:dev`) and note a checksum listing of its data directory;
       run `pnpm test:e2e --grep smoke`; then check no window appeared on the desktop, no process with a
-      run marker remains (`grep -l HOLZI_E2E_RUN /proc/*/environ 2>/dev/null` prints nothing), the
-      listing is unchanged and your Holzi still runs. Repeat with Ctrl-C at a random moment, and with
+      run marker remains (`grep -l HAEX_E2E_RUN /proc/*/environ 2>/dev/null` prints nothing), the
+      listing is unchanged and your HaexVault still runs. Repeat with Ctrl-C at a random moment, and with
       `kill -9` on the runner followed by a second run: the second run's sweep reports and removes the
       leftovers, and the run passes.
 - [x] T032 [US1] Checkpoint: `pnpm check:e2e-lib`, `pnpm typecheck:scripts`, `pnpm lint`,
@@ -538,8 +538,8 @@ go to the "Validation record". Branch `016-e2e-stage4-validation`; a pull reques
       each finish in under 30 seconds and the run in under 5 minutes; the relaunch scenario is listed as
       skipped with its reason; exit status 0; with the release build by path all five run.
 - [x] T075 SC-002: 20 consecutive runs, 10 of them with `kill -9` on the runner at a random moment
-      (`sleep $((RANDOM % 25))` before the kill), with your own Holzi running throughout. After each run:
-      no marked process remains once the next run's sweep has run, no window appeared, your Holzi still
+      (`sleep $((RANDOM % 25))` before the kill), with your own HaexVault running throughout. After each run:
+      no marked process remains once the next run's sweep has run, no window appeared, your HaexVault still
       runs and its data listing is unchanged, and every run after a killed one starts normally.
 - [x] T076 Confirm the isolation of FR-006 on a real run: while a scenario runs, capture top-level
       listings of the maintainer's data, config, cache and runtime directories and home for changes
@@ -561,7 +561,7 @@ go to the "Validation record". Branch `016-e2e-stage4-validation`; a pull reques
       and fix the README.
 - [x] T080 Commit the record as `docs(specs): record the validation of the e2e suite`; open the Stage 4
       pull request after asking the operator. Committed `6a7271f`, pushed `016-e2e-stage4-validation`,
-      PR #121 opened (https://github.com/haexmas/holzi/pull/121).
+      PR #121 opened (https://github.com/haex-space/haex-vault/pull/121).
 
 ---
 
@@ -599,16 +599,16 @@ deliberately failing scenario fails the job and uploads the run directory.
       relaunch scenario skipped; a scratch commit that breaks one scenario makes the job fail and the
       artifact downloadable. Revert the scratch commit. Commit `ci: run the e2e suite on ubuntu` and
       open the Stage 5 pull request after asking the operator.
-      Done 2026-09-24, PR #135 (https://github.com/haexmas/holzi/pull/135): - Clean run (after the corepack fix, commit `b01fce2`):
-      https://github.com/haexmas/holzi/actions/runs/36005937603 — all 5 jobs pass, `End-to-end
+      Done 2026-09-24, PR #135 (https://github.com/haex-space/haex-vault/pull/135): - Clean run (after the corepack fix, commit `b01fce2`):
+      https://github.com/haex-space/haex-vault/actions/runs/36005937603 — all 5 jobs pass, `End-to-end
 suite` green, `relaunch-after-lock` reported skipped (debug build exits on close), 6 passed. - Scratch-break run (commit `e201b80`, `smoke-start.test.ts` seeded to always throw):
-      https://github.com/haexmas/holzi/actions/runs/36006711933 — `End-to-end suite` job failed
+      https://github.com/haex-space/haex-vault/actions/runs/36006711933 — `End-to-end suite` job failed
       exactly as intended: `Result: FAILED (1 failed, 1 skipped, 5 passed)`, only `smoke-start`
       failed with the seeded message, `relaunch-after-lock` still correctly reported skipped, and
       `e2e-failure-material.zip` (18084 bytes — real material, unlike the earlier build-failure
       run's empty-ish 761 bytes) was uploaded and downloadable. - Scratch commit reverted as `853f7bc`; `smoke-start.test.ts` back to its original content
       (confirmed no diff against the pre-scratch version). - One real CI-only flake observed on the run after the prettier-stabilizing commit
-      (https://github.com/haexmas/holzi/actions/runs/36008292857): `closing-page` failed with
+      (https://github.com/haex-space/haex-vault/actions/runs/36008292857): `closing-page` failed with
       `POST /session got no answer: fetch failed` — the tauri-driver-HTTP-port-before-native-driver
       race `newSessionWithRetry` already retries once (300 ms, PR #118); this time even that single
       retry lost the race, most likely because the GitHub-hosted runner is slower/more contended than
@@ -830,7 +830,7 @@ smoke`, built from a reflink copy of an earlier build cache): `passed smoke-star
   The application environment was read from `/proc`: `DISPLAY=:99` (the virtual screen),
   `GDK_BACKEND=x11`, no `WAYLAND_DISPLAY`, `HOME`, `XDG_DATA_HOME` and `XDG_RUNTIME_DIR` inside the
   instance root, `DBUS_SESSION_BUS_ADDRESS=disabled:` and the marker. A checksum listing of the
-  maintainer's data directory is identical before and after. No maintainer Holzi was running during
+  maintainer's data directory is identical before and after. No maintainer HaexVault was running during
   this check, so the concurrent-instance case and the visual no-window check were not yet covered; see
   the Stage 1 follow-up entry below, where that gap is closed.
   - Ctrl-C (SIGINT) at about 4 s: exit status 130, no process with a run marker left.
@@ -852,7 +852,7 @@ smoke`, built from a reflink copy of an earlier build cache): `passed smoke-star
 - **T031** Closed. The concurrent case the first pass lacked: the maintainer's own build (this
   worktree's embedded debug binary, run directly, not through the suite) stayed up on the real desktop
   for the whole check while `pnpm test:e2e --grep smoke` ran its own isolated instance. A checksum
-  listing of `~/.local/share/com.haex.holzi` (every file, `sha256sum`, sorted by path, hashed again) was
+  listing of `~/.local/share/space.haex.vault` (every file, `sha256sum`, sorted by path, hashed again) was
   identical before and after: `973e4eb56eb2255c5bb26c27676909d9d49cc14323a1c0cf08478302156e0630`. The
   maintainer process's pid did not change across a full pass, a SIGINT sent during the build step and a
   SIGKILL sent during the scenario step, so the two are independent process trees, not merely
@@ -865,7 +865,7 @@ smoke-start`.
   Separately, a small driver session run by hand against the real desktop (not part of the delivered
   suite, `tauri-driver` and `WebKitWebDriver` with no `xvfb-run`, capabilities pointing at the same
   embedded debug binary) took a screenshot to rule out a rendering problem: the window showed "Willkommen
-  bei Holzi", the "Instanz anlegen" control and the maintainer's real "test" instance, confirming the
+  bei HaexVault", the "Instanz anlegen" control and the maintainer's real "test" instance, confirming the
   build itself is sound independently of the isolation question. An earlier attempt to use
   `pnpm tauri:dev` for the standing instance was abandoned: its Nuxt dev server exited on its own partway
   through (unrelated to anything the suite did), which is why the embedded, dev-server-free debug build
@@ -1016,7 +1016,7 @@ Changed as a result, before the pull request was reviewed further:
   build: `nix develop --command scripts/with-nix-host-bridge.sh pnpm tauri build --no-bundle` (the
   `tauri:build` npm script forwards `--no-bundle` past the Tauri CLI to `cargo build` itself, which
   rejects it as unrecognized — bypassed by calling the raw `tauri` alias directly). Cold build: 6 m 20 s,
-  produced `src-tauri/target/release/holzi`. `pnpm test:e2e --app <that path> --grep smoke`: `passed
+  produced `src-tauri/target/release/haex`. `pnpm test:e2e --app <that path> --grep smoke`: `passed
 smoke-start`, 6.0 s, exit 0, correctly reported as "closes by relaunch, from path". No leftover marked
   process, `tauri-driver`, `WebKitWebDriver` or `Xvfb` afterward. **Result: `tauri-driver` can drive a
   release-profile binary.** T068 can proceed.
@@ -1027,7 +1027,7 @@ smoke-start`, 6.0 s, exit 0, correctly reported as "closes by relaunch, from pat
   same `-s "-screen 0 1280x800x24 -fbdir <dir>"` string `driverCommand` already builds).
   - One early run hit a real, if inconclusive, anomaly: `press('lock-instance-sidebar')` threw
     `SessionGoneError: ... 500: Session terminated without a reply` on the _first_ click, and the driver
-    log showed two distinct `holzi` process starts 4.2 s apart, before any lock action. Rerunning the
+    log showed two distinct `haex` process starts 4.2 s apart, before any lock action. Rerunning the
     same flow three more times (with and without `-fbdir`, with dense process-listing every 300 ms) never
     reproduced it — every other run showed exactly one process throughout create, unlock and open-chat.
     Best hypothesis, not confirmed: the same pre-existing `tauri-driver` native-connection race
@@ -1047,7 +1047,7 @@ smoke-start`, 6.0 s, exit 0, correctly reported as "closes by relaunch, from pat
     (unlock) screen. **Result: all three of (a), (b), (c) hold. T069 to T073 can proceed as planned; no
     FR-018 gap to report.**
   - Gotcha hit while investigating, unrelated to the actual finding: the first, crashing run left its
-    whole process group (`xvfb-run`/`Xvfb`/`tauri-driver`/`WebKitWebDriver`/the relaunched `holzi`)
+    whole process group (`xvfb-run`/`Xvfb`/`tauri-driver`/`WebKitWebDriver`/the relaunched `haex`)
     running, because the throwaway script's own top-level `catch` only logged the error and never reached
     its cleanup — a reminder that a spike script needs the same "kill the process group even on an
     unexpected throw" discipline as the real suite's `stop()`. Killed by pgid by hand; also found and
@@ -1096,7 +1096,7 @@ relaunch-after-lock`, no `--app`): `skipped`, "the build exits on close; this sc
   Full scenario suite (all seven test files — `closing-page` runs two color schemes as one file) against
   the release build, no `--grep`: all seven `passed`, 57.4 s total, no leftover marked process or
   `tauri-driver`/`WebKitWebDriver`/`Xvfb`. Stage 3 is now complete end to end (T059 to T073). Pushed as
-  `016-e2e-stage3-relaunch`, PR #119 opened (https://github.com/haexmas/holzi/pull/119) — the second half
+  `016-e2e-stage3-relaunch`, PR #119 opened (https://github.com/haex-space/haex-vault/pull/119) — the second half
   of Stage 3 (T067 to T073), following #118's first half (T059 to T066) per the split agreed there.
 
 ### Stage 4, SC-001/SC-007 (T074), 2026-09-22
@@ -1135,7 +1135,7 @@ connection closed before message completed)` (225763 lines in that one driver.lo
 ### Stage 4, SC-002 (T075), 2026-09-22
 
 - **T075** A throwaway soak-test script (not committed), run entirely inside `nix develop`: a real,
-  independent Holzi instance (the actual `~/.local/share/com.haex.holzi`, not an isolated root — under
+  independent HaexVault instance (the actual `~/.local/share/space.haex.vault`, not an isolated root — under
   `xvfb-run` on its own virtual display, never the real desktop) kept running throughout; 20 consecutive
   `pnpm test:e2e` runs against the debug build, 10 of them (a shuffled schedule) sent `SIGKILL` at a
   random 0-24 second delay.
@@ -1154,7 +1154,7 @@ connection closed before message completed)` (225763 lines in that one driver.lo
     run's leftovers (5 to 16 processes, depending on how far it got before the kill) were reported removed
     by the _next_ run's own preflight sweep (`removed N leftover process(es) of an earlier killed run`),
     confirmed by grepping each next run's own log rather than assumed; the one killed run with no
-    following run (the 20th and last) was swept explicitly by the script itself. Own Holzi's application
+    following run (the 20th and last) was swept explicitly by the script itself. Own HaexVault's application
     process survived the entire test; its data directory's listing was identical before and after; the
     real desktop's window count was unchanged (8 before, 8 after) at every checkpoint, not just at the
     end. No leftover marked process, `tauri-driver`, `WebKitWebDriver`, `Xvfb` or `xvfb-run` remained
@@ -1168,7 +1168,7 @@ connection closed before message completed)` (225763 lines in that one driver.lo
   application processes were visibly running), and after; also `pgrep -af xdg-desktop-portal` at the same
   three points. All five directory listings were identical at every checkpoint except one incidental,
   expected difference: `~/.local/share/pnpm`'s own mtime moved by a minute — from invoking the `pnpm` CLI
-  itself to run the command, not from anything the application or the suite wrote; not a Holzi isolation
+  itself to run the command, not from anything the application or the suite wrote; not a HaexVault isolation
   concern. The three real `xdg-desktop-portal`/`-gtk`/`-cosmic` processes already running (the
   maintainer's own desktop session) kept the exact same pids throughout — no new one was started by the
   run. This establishes that the captured top-level entries stayed unchanged on a real run; it does not
@@ -1377,7 +1377,7 @@ T077 (a) investigation traced the cancellation architecture before trusting it.
   FR-010 to FR-012, SC-003) is entirely unimplemented — T053 through T062 are all still `[ ]`.** Its own
   goal statement is almost the operator's sentence verbatim: _"one app process serves at most one vault
   session; opening or creating while one exists is refused."_ The gate-level primitives this phase needs
-  already exist and are unit-tested (`ensure_can_open`/`begin_session`, `HolziError::VaultAlreadyActive`/
+  already exist and are unit-tested (`ensure_can_open`/`begin_session`, `HaexError::VaultAlreadyActive`/
   `VaultClosed`, commit `b99bb68`), but `open.rs`/`create.rs` were never switched over to use them (T055
   to T057), so today a second `open_instance` call is not refused — it is served by the ad hoc cleanup
   above instead of the drain-ladder architecture trials (a)-(c) already validated.

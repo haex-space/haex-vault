@@ -391,7 +391,7 @@ already looks for saved entries; without any it always shows the dialog.
   - eject → the crypto device is locked again (`udisksctl info -b /dev/loopN` shows `CleartextDevice: '/'`)
   - A scenario of its own, `files-drives-unlock`, with the new `needs.luks` (`cryptsetup` through `sudo -n`); the LUKS image comes from `makeLockedStick` in `scripts/e2e/lib/udisks.ts`, the password through a key file.
 - [ ] T053 [US3] FR-017 check: add a test in `drives_tests.rs` that runs `files_drive_unlock` with a typed secret through a capturing `tracing` subscriber (pattern: grep `tracing_subscriber` in existing `*_tests.rs`) and asserts the secret is not in any log line; then the checks as in T036 and quickstart Linux steps 4 and 6 by hand
-  - The log test is `a_typed_password_never_reaches_the_log` in `drives_tests.rs` (the `log` capture of `crate::test_log`, as holzi logs through `log`, not `tracing`); the hand checks are open.
+  - The log test is `a_typed_password_never_reaches_the_log` in `drives_tests.rs` (the `log` capture of `crate::test_log`, as haex-vault logs through `log`, not `tracing`); the hand checks are open.
 
 **Checkpoint**: US1–US3 work on Linux.
 

@@ -48,7 +48,7 @@
 
 - [ ] CHK023 Are credentials, raw provider responses, arbitrary file paths, general tools, and shell access explicitly excluded from every task boundary? [Security, Spec FR-009, FR-011, contracts/task.md]
 - [ ] CHK024 Are remote destinations, consent expiry, denial, and cancellation requirements sufficient to prevent accidental image transfer? [Privacy, Spec FR-006, Edge Cases]
-- [ ] CHK025 Are the existing Holzi provider/model preferences and the required local Vision/OCR backend documented as validated dependencies rather than assumed capabilities? [Dependency, Spec Assumptions, Plan Technical Context]
+- [ ] CHK025 Are the existing HaexVault provider/model preferences and the required local Vision/OCR backend documented as validated dependencies rather than assumed capabilities? [Dependency, Spec Assumptions, Plan Technical Context]
 - [ ] CHK026 Does the contract identify which values are persisted, which are in-memory only, and which may cross the extension boundary? [Dependency, data-model.md, contracts/task.md]
 
 ## Notes

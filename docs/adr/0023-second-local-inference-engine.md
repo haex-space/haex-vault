@@ -5,7 +5,7 @@ Date: 2026-10-30
 
 ## Context
 
-holzi runs local models in-process through mistralrs (`llm/local`, GGUF, CPU, CUDA, Metal). Qwen3.5
+haex-vault runs local models in-process through mistralrs (`llm/local`, GGUF, CPU, CUDA, Metal). Qwen3.5
 (`general.architecture = qwen35`) and Gemma 4 (`gemma4`) cannot be loaded this way: mistralrs 0.8.1 knows
 only Llama, Qwen2, Qwen3, Qwen3MoE, Phi, Mistral3 and a few older architectures in its GGUF path, and it
 `unwrap()`s the lookup, so an unknown file used to hang the load (PR #640 now refuses it with a message).
@@ -49,7 +49,7 @@ The spike of spec 070 (PRs #654 and #666, `specs/070-llama-cpp-engine/research.m
 
 ## Consequences
 
-- holzi owns a chat-template renderer and one tool-call parser per model family. A new family needs a new
+- haex-vault owns a chat-template renderer and one tool-call parser per model family. A new family needs a new
   format and fixtures, and a model release may change its syntax; the evaluation is the acceptance test.
 - Two engines cost build time, binary size and maintenance. They stay opt-in, with one CI leg, until the
   one-or-two-engines decision.
@@ -91,7 +91,7 @@ slower than the processor, so it is not used.
 
 ## Amendment 2026-10-31: one engine (spec 070 US5)
 
-**holzi keeps one local engine, and it is llama.cpp.** The operator's rule: one engine, llama.cpp if it is
+**haex-vault keeps one local engine, and it is llama.cpp.** The operator's rule: one engine, llama.cpp if it is
 better. Spec 070 T042 measured every catalog model through both engines in release builds (`research.md`,
 "Both engines on every catalog model"):
 

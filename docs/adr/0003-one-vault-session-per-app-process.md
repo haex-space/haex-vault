@@ -5,7 +5,7 @@ Date: 2026-09-23
 
 ## Decision
 
-One Holzi process opens at most one vault for its whole lifetime. `open_instance` and
+One HaexVault process opens at most one vault for its whole lifetime. `open_instance` and
 `create_instance` both check the vault gate first, before resolving any path: if a vault is already
 active, they refuse with `VaultAlreadyActive`; if a close is under way, with `VaultClosed` (spec 013
 FR-010 to FR-012). Neither ever switches the active vault out from under a running process. The only

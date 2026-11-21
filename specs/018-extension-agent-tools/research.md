@@ -1,7 +1,7 @@
 # Research: Werkzeuge von Erweiterungen für den Agenten
 
-Stand der Quellen (2026-10-10): holzi `main` @ `1a213107`; vault-sdk `origin/main` @
-`40ea29ce5ee2c913a541e97033e9e885fa6372bb` (Release 4.2.0); holzi pinnt `haex-bundle` auf vault-sdk
+Stand der Quellen (2026-10-10): haex-vault `main` @ `1a213107`; vault-sdk `origin/main` @
+`40ea29ce5ee2c913a541e97033e9e885fa6372bb` (Release 4.2.0); haex-vault pinnt `haex-bundle` auf vault-sdk
 @ `36bf6e98f36c2362d42aa2d92c85288a3d91e775` (4.0.0; `crates/` unverändert bis 4.2.0); `rmcp =3.5.0`.
 
 **Nachprüfung (T002, 2026-10-10, `graphify update .` → 20 665 Knoten, je Abfrage Budget 1000)**:
@@ -15,7 +15,7 @@ Stand der Quellen (2026-10-10): holzi `main` @ `1a213107`; vault-sdk `origin/mai
 
 ## R1 — Transport: `rmcp` über ein Kanalpaar, das Frontend reicht JSON-RPC durch
 
-**Decision**: holzi bleibt MCP-Client mit `rmcp`. Die Verbindung zu einer Erweiterung ist ein Paar aus
+**Decision**: haex-vault bleibt MCP-Client mit `rmcp`. Die Verbindung zu einer Erweiterung ist ein Paar aus
 ungebundenen `futures::channel::mpsc`-Kanälen, das `rmcp` über `impl IntoTransport for (Sink, Stream)` (`transport/sink_stream.rs`,
 ohne eigenes Cargo-Feature) annimmt. Rust schickt Nachrichten an das Frontend per Event
 `extension-mcp-message {frame, message}`; das Frontend legt sie als Port-Nachricht
@@ -38,7 +38,7 @@ Nachrichten ohnehin als JSON-Werte durch das Frontend laufen.
 ## R2 — Keine Anfragen der Erweiterung über die Werkzeug-Verbindung (FR-015)
 
 **Decision**: Der MCP-Client meldet keine Client-Fähigkeiten (kein `sampling`, keine `roots`, keine
-`elicitation`) und beantwortet jede Anfrage der Erweiterung an holzi außer `ping` mit „method not found“. Die
+`elicitation`) und beantwortet jede Anfrage der Erweiterung an haex-vault außer `ping` mit „method not found“. Die
 MCP-Verbindung liegt in `extensions/agent_tools/`, nicht im Chat; der Chat sieht nur ein `Tool`.
 Ein Vertragstest prüft beides: dass eine Server-Anfrage (`sampling/createMessage`, `roots/list`,
 `elicitation/create`) mit Fehler endet und keine Modellschicht erreicht, und dass der Brücken-Vertrag
@@ -103,9 +103,9 @@ Anzeige. Schema-Hash im `target` — macht die Anzeige unlesbar.
 ≤ 200 Zeichen). Höchstens 32 Werkzeuge je Erweiterung. Geprüft wird an zwei Stellen:
 
 1. **Format** im Crate `haex-bundle` (`assert_valid_manifest`, vault-sdk): Struktur, Namen, Grenzen,
-   `effect`-Werte → sonst `manifest_invalid`. Neue Testvektoren `bad-tools-*.xt`. Damit lehnen holzi, das
+   `effect`-Werte → sonst `manifest_invalid`. Neue Testvektoren `bad-tools-*.xt`. Damit lehnen haex-vault, das
    Werkzeug `haex sign` und haex-vault 2.x (Legacy) dasselbe ab.
-2. **Schema-Teilmenge** in holzi (`schema_in_subset`, `action_tool.rs`): ein Werkzeug außerhalb der Teilmenge
+2. **Schema-Teilmenge** in haex-vault (`schema_in_subset`, `action_tool.rs`): ein Werkzeug außerhalb der Teilmenge
    wird nicht angeboten und in der Einstellungs-Ansicht als „nicht unterstützt“ gezeigt; die Erweiterung
    installiert trotzdem (wie `unsupported_categories` bei Berechtigungen).
 
@@ -113,13 +113,13 @@ Das Manifest ist kanonisches JSON (RFC 8785) ohne Gleitkommazahlen (`jcs.rs`); S
 ganze Zahlen enthalten. Das steht im Vertrag.
 
 **Rationale**: Format-Regeln gehören zum Bundle-Format, das alle Hosts teilen (ADR-0008); die Teilmenge ist
-eine Eigenschaft von holzis Modellanbindung.
+eine Eigenschaft von haex-vaults Modellanbindung.
 
-**Alternatives considered**: Prüfung nur in holzi — dann signiert `haex sign` Bundles, die holzi ablehnt.
+**Alternatives considered**: Prüfung nur in haex-vault — dann signiert `haex sign` Bundles, die haex-vault ablehnt.
 
 ## R6 — Passendes Angebot ohne Suche durch das Modell (FR-006, FR-007)
 
-**Decision**: Vor dem ersten Schritt bewertet holzi die Nachricht gegen jedes anbietbare Werkzeug mit einer
+**Decision**: Vor dem ersten Schritt bewertet haex-vault die Nachricht gegen jedes anbietbare Werkzeug mit einer
 gewichteten Wortüberlappung über Titel, Beschreibung und Beispielsätze: Wörter wie in `offer.rs::words`
 (inkl. Präfix ab fünf Buchstaben, 046 R15), Gewicht je Wort nach seiner Seltenheit im Bestand aller
 Werkzeugtexte (IDF), sodass „ich“, „habe“, „wie“ kaum zählen. Die Erweiterung wird zusätzlich über ihren
@@ -173,10 +173,10 @@ die Erweiterung entfernt ist.
 ## R9 — Rahmen für den Aufruf (FR-012, SC-004)
 
 **Decision**: Ein Aufruf braucht einen gemounteten Rahmen der Erweiterung im aktiven Arbeitsbereich. Gibt
-es einen (sichtbar oder minimiert), nutzt holzi seine Rahmen-Sitzung. Sonst öffnet der neue Reducer
+es einen (sichtbar oder minimiert), nutzt haex-vault seine Rahmen-Sitzung. Sonst öffnet der neue Reducer
 `openAppInBackground` die App in einem neuen, minimierten Fenster, ohne `activeWindowId` oder Fokus zu
 ändern; `singleInstance` bleibt gewahrt, weil eine vorhandene Instanz immer Vorrang hat. Rust wartet auf die
-MCP-Bereitschaft (`initialize`) mit Zeitlimit (10 s). Im kompakten Layout (Telefon) öffnet holzi einen
+MCP-Bereitschaft (`initialize`) mit Zeitlimit (10 s). Im kompakten Layout (Telefon) öffnet haex-vault einen
 Hintergrund-Tab ohne Wechsel; wie der kompakte Modus „minimiert“ abbildet, prüft eine Aufgabe in der
 Umsetzung am Code von 043/045.
 
@@ -198,7 +198,7 @@ ihm ebenfalls.
 ## R10 — Verbindung, Verfügbarkeit, Zeitlimit, Ergebnis (FR-003, FR-013)
 
 **Decision**: Das Angebot entsteht aus dem Manifest, ohne die Erweiterung zu starten. Die MCP-Verbindung
-entsteht beim ersten Aufruf je Rahmen-Sitzung und endet mit ihr; nach `initialize` holt holzi einmal
+entsteht beim ersten Aufruf je Rahmen-Sitzung und endet mit ihr; nach `initialize` holt haex-vault einmal
 `tools/list`. Ein erklärtes Werkzeug, das dort fehlt, endet mit dem Fehler `tool_unavailable`; ein
 gemeldetes, nicht erklärtes wird ignoriert. Zeitlimit je Aufruf 60 s (wie `DEFAULT_ACTION_TIMEOUT`).
 Abbruch des Turns → `RequestHandle::cancel`. Ergebnis: Textblöcke verbunden, höchstens 64 KiB, dann
@@ -226,7 +226,7 @@ ohne Fremdabhängigkeit: `initialize`, `notifications/initialized`, `ping`, `too
 `notifications/cancelled`; alles andere → „method not found“. Er prüft Eingaben gegen die Schema-Teilmenge
 (eigener kleiner Prüfer) und gibt dem Handler ein `AbortSignal`. Port-Nachrichten `haexspace:mcp` laufen
 über denselben Handler wie Ereignisse (`events.ts`), im Tauri-Modus über `listen()`.
-Übereinstimmung mit `rmcp` sichern **Mitschnitte**: holzi zeichnet in einem Rust-Test den JSON-RPC-Austausch
+Übereinstimmung mit `rmcp` sichern **Mitschnitte**: haex-vault zeichnet in einem Rust-Test den JSON-RPC-Austausch
 seines Clients mit einem In-Memory-Server auf (`contracts/mcp-port.md`, Dateien in
 `contracts/transcripts/`); vault-sdk spielt sie in vitest gegen seinen Server ab.
 
@@ -258,9 +258,9 @@ und `called` (SC-002) sowie Aufrufe von `run_command` (SC-003; `run_command` wir
 ## R15 — Phasen und Repos
 
 **Decision**: Lieferungen: **A** vault-sdk (Format-Prüfung im Crate, Typen, `sdk.tools`, Mitschnitt-Tests,
-Release); **B** holzi Manifest und Bestätigung (Pin-Erhöhung auf A, `agentTool`, Dialog, Einstellungen);
-**C** holzi Transport und Aufruf (Relay, `ExtensionTool`, Rahmen im Hintergrund, Herkunft, Verlauf,
-`byAgent`); **D** holzi Angebot und Messung (passendes Angebot, Suche, Test-Erweiterung, Eval v4); **E**
+Release); **B** haex-vault Manifest und Bestätigung (Pin-Erhöhung auf A, `agentTool`, Dialog, Einstellungen);
+**C** haex-vault Transport und Aufruf (Relay, `ExtensionTool`, Rahmen im Hintergrund, Herkunft, Verlauf,
+`byAgent`); **D** haex-vault Angebot und Messung (passendes Angebot, Suche, Test-Erweiterung, Eval v4); **E**
 ADR-0004 ändern. B setzt das gemergte A voraus (Pin auf Commit-SHA, Prinzip IV). Spec 019 (Werkzeuge in
 haex-mail usw.) setzt D voraus.
 
@@ -269,5 +269,5 @@ Abhängigkeiten über die Repos.
 
 ## R16 — Agent-Kontextdatei
 
-**Decision**: Entfällt wie in 046 (R12): `CLAUDE.md` wurde mit `c082fe89` („migrate holzi to spaex v4“)
+**Decision**: Entfällt wie in 046 (R12): `CLAUDE.md` wurde mit `c082fe89` („migrate haex-vault to spaex v4“)
 entfernt; es gibt keine Datei mit `SPECKIT`-Markern.

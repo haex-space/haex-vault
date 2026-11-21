@@ -88,7 +88,7 @@ Browser-Erweiterung) ist nicht Teil dieser Spec. Referenz: haex-vault 2.x @
 - Q: How does the user configure which input fields of a web page the browser extension fills
   with a value of the entry (the autofill aliases named in FR-001)? → A: In the tab Extra, as in
   HaexVault 2.x: one row per fillable value of the entry (user name, password, TOTP code and
-  every custom field), each holding a list of input field names. Until now holzi stored and
+  every custom field), each holding a list of input field names. Until now HaexVault stored and
   imported the aliases and handed them to the extension (spec 049), but showed them nowhere
   (operator, after haex-pass-browser missed the user name field on huggingface.co).
 
@@ -127,7 +127,7 @@ leeren und speichern.
    sind diese beiden Felder nicht zu sehen; beim Bearbeiten erscheinen sie.
 6. **Given** ein Fenster mit 360 px Breite, **When** er die Tabs benutzt, **Then** ist alles
    ohne waagerechtes Scrollen der Seite erreichbar, und eine waagerechte Wischgeste auf
-   einem Eingabefeld oder einem Code verwechselt holzi nicht mit einem Tabwechsel.
+   einem Eingabefeld oder einem Code verwechselt HaexVault nicht mit einem Tabwechsel.
 7. **Given** die Systemeinstellung „Bewegung reduzieren“, **When** er die Tabs wechselt,
    **Then** erscheint der neue Tab ohne Gleitbewegung.
 
@@ -208,7 +208,7 @@ Unterordner versuchen.
    Unterordnern und Einträgen; das Original bleibt unverändert, die Ablage bleibt gefüllt
    (mehrfaches Einfügen ist möglich). Bricht der Nutzer den Dialog ab, entsteht nichts.
 5. **Given** ein ausgeschnittener Ordner, **When** der Nutzer ihn in sich selbst oder einen
-   seiner Unterordner einfügen will, **Then** lehnt holzi ab, nennt den Grund, verschiebt
+   seiner Unterordner einfügen will, **Then** lehnt HaexVault ab, nennt den Grund, verschiebt
    nichts und lässt die Ablage gefüllt.
 6. **Given** ausgeschnittene Einträge, **When** die Liste sie zeigt, **Then** sind sie
    abgeblendet, bis sie eingefügt oder die Ablage geleert wird.
@@ -218,7 +218,7 @@ Unterordner versuchen.
    die Auswahl mit diesem Eintrag, und ein Tipp auf weitere Einträge fügt sie hinzu.
 9. **Given** ein Eintrag oder Ordner, der auf einem anderen Gerät gelöscht wurde, während er
    in der Ablage liegt, **When** der Nutzer einfügt, **Then** werden die übrigen eingefügt,
-   und holzi nennt, wie viele nicht mehr da waren.
+   und HaexVault nennt, wie viele nicht mehr da waren.
 10. **Given** ein gezogener Eintrag, der Teil einer Auswahl ist, **When** der Nutzer ihn auf
     einen Ordner, einen Teil der Brotkrumen oder „Alle Einträge“ fallen lässt, **Then** wird
     die ganze Auswahl dorthin verschoben (nicht nur der gezogene Eintrag).
@@ -266,8 +266,8 @@ Ordner gehen, einfügen; Benutzername und Passwort per Kürzel kopieren.
 ### User Story 5 - Passkeys: anlegen, benutzen, auflisten, am Eintrag verwalten (Priority: P2)
 
 Heute zeigt der Passwortmanager Passkeys nur an (aus Import oder Sync). Jetzt bietet sein
-Dienst Funktionen, mit denen ein berechtigter Aufrufer einen Passkey **anlegt** (holzi erzeugt
-das Schlüsselpaar), eine Anmeldung **bestätigt** (holzi signiert die Aufgabe der Gegenstelle
+Dienst Funktionen, mit denen ein berechtigter Aufrufer einen Passkey **anlegt** (HaexVault erzeugt
+das Schlüsselpaar), eine Anmeldung **bestätigt** (HaexVault signiert die Aufgabe der Gegenstelle
 mit dem privaten Schlüssel, der Schlüssel verlässt den Dienst nie) und Passkeys **auflistet**.
 Aufrufer sind die haextensions, externe Agenten über MCP und später die External Bridge,
 nicht ein Mensch an der Oberfläche. Ein Passkey ist immer Teil eines gewöhnlichen Eintrags;
@@ -299,7 +299,7 @@ den Passkey im Tab Extra des Eintrags sehen, umbenennen und löschen.
 3. **Given** eine Anfrage, deren Herkunft nicht zur Kennung der Gegenstelle des Passkeys
    passt, **When** der Aufrufer bestätigen will, **Then** wird abgelehnt und nichts signiert.
 4. **Given** eine Anfrage mit einer Liste ausgeschlossener Passkeys, **When** ein passender
-   schon existiert, **Then** legt holzi keinen neuen an und sagt es dem Aufrufer.
+   schon existiert, **Then** legt HaexVault keinen neuen an und sagt es dem Aufrufer.
 5. **Given** mehrere passende Passkeys an Einträgen im Bereich des Aufrufers, **When** er sie
    auflistet, **Then** erhält er Kennung, Gegenstelle, Benutzer, Spitzname, Zeiten, den
    Eintrag und ob der Passkey auffindbar ist, nie Schlüssel; er kann nach Gegenstelle und
@@ -309,7 +309,7 @@ den Passkey im Tab Extra des Eintrags sehen, umbenennen und löschen.
    sieht er sie mit Spitzname oder Gegenstellenname, Gegenstelle, Benutzer, Anlegedatum und
    zuletzt benutzt und kann sie umbenennen oder löschen.
 7. **Given** ein Passkey, **When** der Nutzer ihn löscht und bestätigt, **Then** ist er weg,
-   und holzi nennt in der Bestätigung die Gegenstelle, damit er weiß, dass er sich dort
+   und HaexVault nennt in der Bestätigung die Gegenstelle, damit er weiß, dass er sich dort
    nicht mehr mit ihm anmelden kann.
 8. **Given** ein Passkey, den zwei Geräte benutzt haben, **When** die Geräte sich über den
    Sync treffen, **Then** bleibt `signCount` auf beiden Geräten 0; ein synchronisierter
@@ -341,8 +341,8 @@ antippen, einen Anhang umbenennen.
    Eintrags (nicht zum PDF), Escape und der Schließen-Knopf schließen sie, Zoom und
    Verschieben gehen mit Tippen, Zwicken und dem Mausrad.
 3. **Given** ein Anhang ohne Vorschau (PDF, Text, anderes), **When** der Nutzer ihn antippt,
-   **Then** öffnet holzi bei Text die Anhang-Ansicht und bei PDF (ab PR B) die PDF-Ansicht;
-   bei anderen Anhängen öffnet holzi nichts in der App, sondern bietet Speichern unter an; die
+   **Then** öffnet HaexVault bei Text die Anhang-Ansicht und bei PDF (ab PR B) die PDF-Ansicht;
+   bei anderen Anhängen öffnet HaexVault nichts in der App, sondern bietet Speichern unter an; die
    Karte hat dafür auch einen eigenen Knopf.
 4. **Given** der Tab Extra im Bearbeiten, **When** der Nutzer einen Anhang umbenennt oder
    entfernt, **Then** wirkt das wie in 034 (Umbenennen und Entfernen gelten sofort, wie
@@ -362,7 +362,7 @@ Wer dieselben Zugangsdaten für mehrere Dienste braucht (ein gemeinsames Konto, 
 für mehrere Adressen), will sie nicht mehrfach pflegen. Wie in KeePass kann ein Wert eines
 Eintrags einen **Verweis** auf den Wert eines anderen Eintrags enthalten: einen Platzhalter
 wie `{$<Eintrag>:username}`, `{$<Eintrag>:password}` oder `{$<Eintrag>:extra:<Schlüssel>}`.
-Beim Anzeigen, Kopieren und Benutzen setzt holzi den Wert der Quelle ein; ändert man ihn in
+Beim Anzeigen, Kopieren und Benutzen setzt HaexVault den Wert der Quelle ein; ändert man ihn in
 der Quelle, stimmt er in allen Zielen. Der Kopier-Dialog (Story 3) setzt solche Platzhalter,
 und der Editor bietet das Einfügen eines Verweises an. Ein Passkey ist kein Text und wird
 stattdessen per Verbindung zur Quelle verwiesen.
@@ -386,7 +386,7 @@ Passwort in der Kopie überschreiben, die Quelle löschen.
 3. **Given** ein Feld im Bearbeiten, **When** der Nutzer „Verweis einfügen“ wählt, einen Eintrag
    sucht und Benutzername, Passwort oder eines seiner eigenen Felder wählt, **Then** steht der
    Verweis an der Textstelle des Cursors; tippt der Nutzer einen Platzhalter von Hand, erkennt
-   holzi ihn ebenso.
+   HaexVault ihn ebenso.
 4. **Given** ein Verweisfeld, **When** der Nutzer die Marke löscht oder das Feld überschreibt,
    **Then** wird nur dieser Teil zum eigenen Text; andere Verweise im Eintrag bleiben.
 5. **Given** eine Quelle, deren Wert selbst einen Verweis enthält, **When** das Ziel gelesen
@@ -394,12 +394,12 @@ Passwort in der Kopie überschreiben, die Quelle löschen.
    in KeePass); ein Verweis, der auf sich zurückführt (A verweist auf B, B auf A), wird beim
    Speichern abgelehnt, und kommt er dennoch an (Sync) oder ist die Kette länger als 12
    Stufen, zeigt das Feld „Verweiskreis oder zu tief“ statt eines Werts (KeePass liefert dort
-   leeren Text; holzi nie).
+   leeren Text; HaexVault nie).
 6. **Given** eine Kopie mit „Passkeys per Verweis übernehmen“, **When** ein Aufrufer über die
    Kopie bestätigt, **Then** signiert der Dienst mit dem Schlüssel der Quelle, der Zähler
    der Quelle bleibt 0, und die Kopie hat keinen eigenen Schlüssel.
 7. **Given** eine Quelle, auf die zwei Einträge verweisen, **When** der Nutzer sie endgültig
-   löscht, **Then** warnt holzi mit der Zahl der Ziele und bietet an, die Verweise in eigene
+   löscht, **Then** warnt HaexVault mit der Zahl der Ziele und bietet an, die Verweise in eigene
    Werte umzuwandeln (der Platzhalter wird durch den heutigen Wert ersetzt); Verweise von
    Passkeys fallen dabei weg, was die Warnung sagt. Abbrechen lässt alles unverändert.
 8. **Given** ein Aufrufer, dessen Freigabe das Ziel, aber nicht die Quelle deckt, **When** er
@@ -411,7 +411,7 @@ Passwort in der Kopie überschreiben, die Quelle löschen.
    Eintrag den Verweis `{$<neue Kennung>:password}` auf den importierten Eintrag; ein Verweis
    auf ein anderes Feld oder ohne eindeutigen Treffer bleibt Text und steht im Importbericht.
 10. **Given** ein Verweis in einem alten Stand des Verlaufs, **When** der Nutzer ihn
-    wiederherstellt, **Then** gilt der Platzhalter wieder; ist die Quelle weg, sagt holzi es und
+    wiederherstellt, **Then** gilt der Platzhalter wieder; ist die Quelle weg, sagt HaexVault es und
     stellt den Rest her.
 
 ---
@@ -456,8 +456,8 @@ Passwort in der Kopie überschreiben, die Quelle löschen.
   Passkeys bleibt 0 und hängt nicht an der Uhr; die Oberfläche zeigt den Nutzungszeitpunkt
   separat.
 - **Ein Passkey ohne Eintrag** (nur durch Fremddaten oder einen Import ohne Eintrag möglich;
-  holzi legt nie einen an). Er zählt für Aufrufer von außen als nicht vorhanden und wird in
-  der Oberfläche nicht angezeigt; holzi löscht ihn nicht still.
+  HaexVault legt nie einen an). Er zählt für Aufrufer von außen als nicht vorhanden und wird in
+  der Oberfläche nicht angezeigt; HaexVault löscht ihn nicht still.
 - **Ein Passkey, dessen Gegenstelle der Nutzer nicht mehr kennt.** Der Tab Extra zeigt
   trotzdem Kennung und Benutzer; löschen geht immer.
 - **Ein Bild ist sehr groß** (bis zur Anhangsgrenze von 034). Die Vorschau wird verkleinert
@@ -482,7 +482,7 @@ Passwort in der Kopie überschreiben, die Quelle löschen.
   `autocomplete` of an input on a web page); the user adds a name with Enter and removes it
   with its remove button; a name already in the row, compared without case, is not added a
   second time. A row without names means the browser extension uses its own default names; the
-  hint of the group says so and holzi does not list the extension's defaults. Aliases stored
+  hint of the group says so and HaexVault does not list the extension's defaults. Aliases stored
   for a key that no longer has a field (a custom field renamed or removed) MUST stay as their
   own row under that key until the user removes their names. In view mode only rows with names
   appear, and the group is hidden when there are none (FR-005). The aliases are stored as the
@@ -673,8 +673,8 @@ Passwort in der Kopie überschreiben, die Quelle löschen.
 - **FR-033**: **Umbenennen und Löschen** eines Passkeys MUSS dem Nutzer
   vorbehalten bleiben (wie 034 für das Löschen eines Passkeys); andere Aufrufer MÜSSEN dafür
   abgelehnt werden.
-- **FR-034**: Passkeys mit einem anderen Algorithmus als dem, den holzi beim Anlegen erzeugt
-  (Import, Sync), MÜSSEN anzeigbar, auflistbar und, wenn holzi den Algorithmus kennt,
+- **FR-034**: Passkeys mit einem anderen Algorithmus als dem, den HaexVault beim Anlegen erzeugt
+  (Import, Sync), MÜSSEN anzeigbar, auflistbar und, wenn HaexVault den Algorithmus kennt,
   bestätigbar sein; sonst lehnt Bestätigen mit einer klaren Meldung ab.
 - **FR-035**: Ein Passkey an einem Eintrag im Papierkorb MUSS für andere Aufrufer als den
   Nutzer wie nicht vorhanden sein (Auflisten, Bestätigen), wie der Eintrag selbst (034
@@ -719,7 +719,7 @@ Passwort in der Kopie überschreiben, die Quelle löschen.
   gelten, sind Benutzername, Passwort, Adresse, Notiz und die Werte eigener Felder; die
   verweisbaren Werte sind zunächst Benutzername, Passwort und eigene Felder. Weitere
   Wertarten DÜRFEN später dazukommen, ohne dass sich die Form oder die Semantik ändert.
-- **FR-045**: Beim Anzeigen, beim Kopieren in die Zwischenablage und beim Benutzen MUSS holzi
+- **FR-045**: Beim Anzeigen, beim Kopieren in die Zwischenablage und beim Benutzen MUSS HaexVault
   jeden Platzhalter durch den Wert der Quelle ersetzen; gespeichert bleibt der Platzhalter,
   nie der aufgelöste Wert. Änderungen der Quelle MÜSSEN sofort in allen Zielen wirken. Der
   Editor MUSS einen Verweis als Marke mit dem Namen der Quelle und der Art des Werts zeigen
@@ -797,10 +797,10 @@ Passwort in der Kopie überschreiben, die Quelle löschen.
   Auswahlleiste, Passkeys im Tab Extra, Anhangskarten, Lightbox) waagerechtes Scrollen der Seite,
   und jede Aktion eines Kontextmenüs ist ohne rechte Maustaste erreichbar.
 - **SC-004**: In 100 Versuchen, einen Ordner in sich oder einen Unterordner einzufügen oder
-  zu ziehen, verschiebt holzi nie etwas; in 100 Versuchen mit gelöschten Zielen geht kein
+  zu ziehen, verschiebt HaexVault nie etwas; in 100 Versuchen mit gelöschten Zielen geht kein
   Eintrag verloren.
 - **SC-005**: Eine Signatur, die der Dienst für einen angelegten Passkey erzeugt, prüft mit dem
-  öffentlichen Schlüssel erfolgreich, für jeden Algorithmus, den holzi anlegt; `signCount`
+  öffentlichen Schlüssel erfolgreich, für jeden Algorithmus, den HaexVault anlegt; `signCount`
   bleibt bei jeder Bestätigung und in jedem Sync-Szenario 0.
 - **SC-006**: In keiner Antwort, keinem Fehler, keiner Liste und keinem Protokoll des Dienstes
   steht ein privater Passkey-Schlüssel; ein Aufrufer mit einem Tag sieht, ändert und
@@ -827,10 +827,10 @@ Passwort in der Kopie überschreiben, die Quelle löschen.
 - **Verweise** sind zunächst auf Benutzername, Passwort und eigene Felder beschränkt, wie die
   Beispiele zeigen; weitere Wertarten lassen sich später ohne Änderung der Form zulassen. Der
   Aufbau gleicht dem von KeePass (Auflösen beim Lesen, bis zu 12 Stufen); anders als dort
-  erkennt holzi Kreise beim Speichern und liefert nie leeren Text.
+  erkennt HaexVault Kreise beim Speichern und liefert nie leeren Text.
 - Die **Kürzel** sind feste Voreinstellungen; das Umbelegen kommt mit dem Umbelegen der
   wm-Kürzel in einer Folge-Spec (Befehle und Tastenkürzel; Spec 020 nimmt es ausdrücklich aus). Die Auswahl der Zeile mit Pfeiltasten gilt nur im Passwortmanager.
-- Ein **Passkey ohne Eintrag** kann in der Tabelle von 034 (und in haex-vault 2.x) vorkommen; holzi
+- Ein **Passkey ohne Eintrag** kann in der Tabelle von 034 (und in haex-vault 2.x) vorkommen; HaexVault
   legt nie einen an und behandelt einen vorgefundenen als nicht vorhanden (siehe Randfälle).
 - Wer **Passkeys anlegen und bestätigen** darf, sind die Aufrufer mit Freigabe für ein Tag des
   Eintrags (Erweiterungen, externe Agenten über MCP, später die External Bridge); der

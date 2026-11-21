@@ -142,7 +142,7 @@ additive, CRDT-kompatible Migration ergänzt:
 Für freie HF-Modelle wird sie als `hf-` plus kleingeschriebener Hex-SHA-256-
 Digest der versionierten, längenpräfixierten UTF-8-Kodierung von `(repoId,
 filename)` gebildet. Die kanonische Kodierung besteht aus dem festen Präfix
-`holzi-hf-model-id-v1`, je einem Big-Endian-`u32`-Byte-Längenpräfix und den
+`haex-hf-model-id-v1`, je einem Big-Endian-`u32`-Byte-Längenpräfix und den
 jeweiligen UTF-8-Bytes von `repoId` und `filename`. Bei bereits vorhandener ID muss zusätzlich das
 persistierte Repository-/Dateiname-Paar übereinstimmen; andernfalls wird der
 Download als Konflikt abgelehnt.

@@ -181,7 +181,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I can't add the appointment because holzi has no calendar. None of the installed apps (Einstellungen, Chat, Dateien, Passwörter, Kontakte, haex-mail) or available actions can create calendar entries.\n\nIf you install a calendar extension, I can add the dentist appointment for tomorrow, Thursday, Marc"
+      "text": "I can't add the appointment because haex-vault has no calendar. None of the installed apps (Einstellungen, Chat, Dateien, Passwörter, Kontakte, haex-mail) or available actions can create calendar entries.\n\nIf you install a calendar extension, I can add the dentist appointment for tomorrow, Thursday, Marc"
     },
     {
       "id": "no_tool-en-4",
@@ -214,7 +214,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "holzi has no shopping list app. Your installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail. Where should I put milk?",
+            "question": "haex-vault has no shopping list app. Your installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail. Where should I put milk?",
             "options": [
               "Look in Dateien for an existing shopping list file",
               "Never mind"
@@ -223,7 +223,7 @@
           "ending": "ran"
         }
       ],
-      "text": "holzi has no shopping list app. Your installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail. Where should I put milk?"
+      "text": "haex-vault has no shopping list app. Your installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail. Where should I put milk?"
     }
   ],
   "requests": [

@@ -151,7 +151,7 @@
       "id": "mail_read-de-2",
       "result": "missed",
       "calls": [],
-      "text": "Es scheint, dass Sie eine Frage zur Hausverwaltung stellen möchten, aber der Begriff \"Hausverwaltung\" ist nicht klar definiert. Möglicherweise beziehen Sie sich auf die Hausverwaltung im Kontext von Holzi, die eine Mail-App ist. Wenn Sie eine Nachricht oder eine E-Mail von der Hausverwaltung beziehe"
+      "text": "Es scheint, dass Sie eine Frage zur Hausverwaltung stellen möchten, aber der Begriff \"Hausverwaltung\" ist nicht klar definiert. Möglicherweise beziehen Sie sich auf die Hausverwaltung im Kontext von HaexVault, die eine Mail-App ist. Wenn Sie eine Nachricht oder eine E-Mail von der Hausverwaltung beziehe"
     },
     {
       "id": "mail_read-de-3",
@@ -307,7 +307,7 @@
       "id": "password-de-1",
       "result": "missed",
       "calls": [],
-      "text": "Es ist nicht möglich, ein Passwort für Netflix zu ändern, da dies nicht eine Funktion von holzi ist."
+      "text": "Es ist nicht möglich, ein Passwort für Netflix zu ändern, da dies nicht eine Funktion von haex-vault ist."
     },
     {
       "id": "file-de-1",
@@ -516,7 +516,7 @@
       "id": "password-de-1-s",
       "result": "missed",
       "calls": [],
-      "text": "Es ist nicht möglich, ein Passwort für Netflix zu verändern, da dies nicht Teil der Funktionen von holzi ist. Wenn du Hilfe benötigst, kannst du mir sagen, was genau du machen möchtest."
+      "text": "Es ist nicht möglich, ein Passwort für Netflix zu verändern, da dies nicht Teil der Funktionen von haex-vault ist. Wenn du Hilfe benötigst, kannst du mir sagen, was genau du machen möchtest."
     },
     {
       "id": "file-de-1-s",

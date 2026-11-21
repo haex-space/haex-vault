@@ -6,7 +6,7 @@
 
 ## Summary
 
-holzi bekommt eine Shell nach dem Vorbild von haex-vault 2.x (Legacy): Arbeitsbereiche
+haex-vault bekommt eine Shell nach dem Vorbild von haex-vault 2.x (Legacy): Arbeitsbereiche
 enthalten Fenster, jedes Fenster enthält einen oder mehrere Tabs, jeder Tab ist
 eine App-Instanz. Chat, Einstellungen und Föderation (Platzhalter) wandern von
 Vollseiten zu Apps; die alten Routen bleiben als Redirects. Die Titelleiste
@@ -45,7 +45,7 @@ Tailwind 4, `@lucide/vue`, `@nuxtjs/i18n`
 
 **Storage**: SQLite über haex-crdt; Migration `0019_shell_layout` (drei
 CRDT-getrackte, gerätebezogene Tabellen) und ein Schlüssel in `preferences`
-(`shell.active_workspace_id`, Device-Scope); `HOLZI_TRIGGER_VERSION` 10 → 11
+(`shell.active_workspace_id`, Device-Scope); `HAEX_TRIGGER_VERSION` 10 → 11
 
 **Testing**: `cargo test` (getrennte `*_tests.rs`), neues `pnpm check:shell-state`
 (Node-Type-Stripping, Vorbild `check-chat-state.ts`), Regression `check:chat-state`,
@@ -94,7 +94,7 @@ spaex-Constitution `.spaex/constitution.md`.
 | Graphify vor neuen benannten Artefakten                                                         | ✅     | Abfragen und Ergebnisse in research.md; `preferences`, `usePreferences`, `useDevice`, `known_devices` werden wiederverwendet, Preload-Status wird verschoben                                                                                                                  |
 | `ponytail:`-Kommentar bei bewusster Vereinfachung                                               | ✅     | Geplant an R8 (Tabs bleiben gemountet), R13 (Flush best-effort) und an R2, falls der Fremdschlüssel-Spike scheitert                                                                                                                                                           |
 | Nicht-triviale Logik hinterlässt einen ausführbaren Check                                       | ✅     | `cargo test`-Invarianten, `check:shell-state`                                                                                                                                                                                                                                 |
-| Keine Rust-Anti-Muster (`unwrap` auf Eingaben, blockierender Executor, neue Crates ohne Bedarf) | ✅     | `spawn_blocking`, keine neuen Crates, Fehler als `HolziError` mit Ursache                                                                                                                                                                                                     |
+| Keine Rust-Anti-Muster (`unwrap` auf Eingaben, blockierender Executor, neue Crates ohne Bedarf) | ✅     | `spawn_blocking`, keine neuen Crates, Fehler als `HaexError` mit Ursache                                                                                                                                                                                                      |
 | Keine Selbstreferenzen von Agenten in Artefakten/Commits                                        | ✅     | Wird bei Commits eingehalten                                                                                                                                                                                                                                                  |
 | **Phasen-Disziplin** (spätere Phase nicht vor ihren Voraussetzungen)                            | ⚠️     | `plans/README.md` führt keine Shell-Phase; die Spec wurde vom Betreiber am 2026-09-21 angefordert. Planen ist erlaubt; **vor `/speckit-implement` bestätigt der Betreiber die Roadmap-Einordnung**, `plans/README.md` bekommt einen Eintrag (Aufgabe in tasks) — research R17 |
 
@@ -125,7 +125,7 @@ specs/015-workspace-shell/
 
 ```text
 src-tauri/src/
-├── identity/migrations.rs         # + 0019_shell_layout, HOLZI_TRIGGER_VERSION 10 → 11
+├── identity/migrations.rs         # + 0019_shell_layout, HAEX_TRIGGER_VERSION 10 → 11
 ├── storage/
 │   ├── mod.rs                     # + Modulzeilen
 │   ├── shell_workspaces.rs        # Arbeitsbereiche: laden, anlegen, löschen (Positionen verdichten)

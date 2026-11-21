@@ -25,18 +25,18 @@ kDrive, NAS, eigene Server)."
   Nutzung sind dieselben wie bei S3.
 - **Zugangsdaten**: bei WebDAV Benutzername und Passwort (auch ein App-Passwort des Anbieters), bei
   SFTP Benutzername und entweder ein Passwort oder ein privater Schlüssel (optional mit Passphrase).
-- **Hostschlüssel**: der öffentliche Schlüssel, mit dem sich ein SFTP-Server ausweist. holzi zeigt
+- **Hostschlüssel**: der öffentliche Schlüssel, mit dem sich ein SFTP-Server ausweist. HaexVault zeigt
   beim ersten Verbinden seinen Fingerabdruck; nach der Bestätigung des Nutzers gehört er zur
   Verbindung.
 - **Objekt**, **Schlüssel**: wie in Spec 038. Bei WebDAV und SFTP ist ein Objekt eine Datei und ein
   Schlüssel ihr Pfad relativ zum Ordner des Speichers; Teile vor einem `/` sind Unterordner.
-- **Verbindungstest**, **Bereich einer Erweiterung**, **Dialog von holzi**, **Berechtigung**: wie in
+- **Verbindungstest**, **Bereich einer Erweiterung**, **Dialog von HaexVault**, **Berechtigung**: wie in
   Spec 038 und Spec 017.
 
 ## Beziehung zu bestehenden Specs
 
-- **Grundsatz** (Spec 038): holzi spricht die Protokolle selbst und gibt sie über Berechtigungen an
-  Erweiterungen und Agents weiter; niemand außer holzi und dem Passwortmanager sieht Zugangsdaten.
+- **Grundsatz** (Spec 038): HaexVault spricht die Protokolle selbst und gibt sie über Berechtigungen an
+  Erweiterungen und Agents weiter; niemand außer HaexVault und dem Passwortmanager sieht Zugangsdaten.
   Diese Spec setzt das für WebDAV und SFTP um.
 - **Spec 038** (Speicherverbindungen): Diese Spec erweitert 038 um zwei Protokolle und hebt dort den
   Punkt „Andere Protokolle (… WebDAV, FTP)“ unter „Nicht im Umfang“ für WebDAV und SFTP auf. Alle
@@ -57,13 +57,13 @@ kDrive, NAS, eigene Server)."
 - **Teilen** (Spec 056): WebDAV- und SFTP-Speicher sind Speicher der eigenen Vault; Ordner und
   Dateien darin lassen sich wie jede Quelle des Dateibrowsers an Kontakte freigeben, wobei das
   bedienende Gerät mit dem Speicher spricht (Betreiber 2026-10-21). Die Speicher selbst und ihre
-  Zugangsdaten teilt holzi nicht.
+  Zugangsdaten teilt HaexVault nicht.
 
 ## Reihenfolge
 
 Auf Wunsch des Betreibers erst WebDAV, dann SFTP: User Stories 1 bis 3 und 6 (WebDAV-Teil) bilden die
 erste Stufe und sind allein nutzbar; User Stories 4 und 5 und der SFTP-Teil von Story 6 folgen. Die
-erste Stufe löst holzi dabei von der Annahme, dass jeder Speicher S3 spricht (FR-018), sodass SFTP
+erste Stufe löst HaexVault dabei von der Annahme, dass jeder Speicher S3 spricht (FR-018), sodass SFTP
 danach nur noch ein weiteres Protokoll ist.
 
 ## User Scenarios & Testing _(mandatory)_
@@ -72,8 +72,8 @@ danach nur noch ein weiteres Protokoll ist.
 
 Anna hat eine Hetzner Storage Box. In den Einstellungen wählt sie bei einer neuen Speicherverbindung
 das Protokoll WebDAV, nimmt die Voreinstellung „Hetzner Storage Box“, trägt ihren Benutzernamen und
-ihr Passwort ein und legt einen Speicher für den Ordner `holzi` an. holzi testet, bevor es etwas
-speichert. Fehlt der Ordner, bietet holzi an, ihn anzulegen.
+ihr Passwort ein und legt einen Speicher für den Ordner `haex` an. HaexVault testet, bevor es etwas
+speichert. Fehlt der Ordner, bietet HaexVault an, ihn anzulegen.
 
 **Why this priority**: Ohne Verbindung gibt es nichts, das Dateibrowser, Erweiterungen oder Agents
 nutzen könnten; WebDAV ist laut Betreiber das erste Protokoll.
@@ -85,21 +85,21 @@ Vault, und die Dateien auf dem Server sind unverändert.
 **Acceptance Scenarios**:
 
 1. **Given** gültige Zugangsdaten und ein erreichbarer Server, **When** Anna eine WebDAV-Verbindung mit
-   einem Speicher anlegt, **Then** testet holzi den Speicher, speichert Verbindung und Speicher erst
+   einem Speicher anlegt, **Then** testet HaexVault den Speicher, speichert Verbindung und Speicher erst
    danach, und die Zugangsdaten liegen im Passwortmanager.
 2. **Given** falsches Passwort, ein nicht erreichbarer Server, eine Adresse, unter der kein WebDAV
-   antwortet, oder fehlende Schreibrechte, **When** Anna speichern will, **Then** nennt holzi den Grund
+   antwortet, oder fehlende Schreibrechte, **When** Anna speichern will, **Then** nennt HaexVault den Grund
    verständlich und speichert nichts.
 3. **Given** der Ordner des Speichers fehlt auf dem Server, **When** der Test das feststellt, **Then**
-   meldet holzi „Ordner fehlt“ und bietet an, ihn anzulegen; erst nach Annas Bestätigung legt holzi
+   meldet HaexVault „Ordner fehlt“ und bietet an, ihn anzulegen; erst nach Annas Bestätigung legt HaexVault
    ihn an und testet erneut.
 4. **Given** eine gespeicherte WebDAV-Verbindung, **When** Anna einen zweiten Speicher (anderer Ordner)
    darauf anlegt, **Then** muss sie die Zugangsdaten nicht erneut eingeben.
 5. **Given** eine Voreinstellung (etwa Hetzner Storage Box, Nextcloud, Koofr, kDrive), **When** Anna sie
-   wählt, **Then** füllt holzi die Adresse mit dem Muster des Anbieters vor und zeigt, welchen Teil sie
+   wählt, **Then** füllt HaexVault die Adresse mit dem Muster des Anbieters vor und zeigt, welchen Teil sie
    ergänzen muss (etwa ihren Benutzernamen).
 6. **Given** eine Adresse mit `http`, **When** sie nicht im lokalen Netz oder auf dem eigenen Rechner
-   liegt, **Then** lehnt holzi sie ab; im lokalen Netz ist sie erlaubt und als unverschlüsselt
+   liegt, **Then** lehnt HaexVault sie ab; im lokalen Netz ist sie erlaubt und als unverschlüsselt
    gekennzeichnet (wie Spec 038 FR-017).
 7. **Given** ein auf dem Laptop angelegter WebDAV-Speicher, **When** der Datensync gelaufen ist,
    **Then** steht er auf dem Telefon mit Zugangsdaten bereit, ohne erneute Eingabe.
@@ -121,18 +121,18 @@ abbrechen) sowie umbenennen, verschieben, kopieren und löschen.
 
 **Acceptance Scenarios**:
 
-1. **Given** ein WebDAV-Speicher, **When** Anna ihn in der Seitenleiste wählt, **Then** zeigt holzi seine
+1. **Given** ein WebDAV-Speicher, **When** Anna ihn in der Seitenleiste wählt, **Then** zeigt HaexVault seine
    Ordner und Dateien mit Größe und Änderungszeit, auch leere Ordner.
 2. **Given** ein Video im Speicher, **When** Anna es öffnet, **Then** beginnt die Wiedergabe, ohne dass
-   holzi es ganz herunterlädt, und Springen funktioniert.
+   HaexVault es ganz herunterlädt, und Springen funktioniert.
 3. **Given** eine Datei auf dem Gerät, **When** Anna sie hochlädt und den Upload abbricht oder die
    Verbindung abreißt, **Then** liegt unter dem Zielnamen keine halbe Datei; eine dort schon vorhandene
    Datei bleibt unverändert.
 4. **Given** ein Ordner mit vielen Dateien, **When** Anna ihn umbenennt, verschiebt oder kopiert,
-   **Then** erledigt holzi das als einen Vorgang mit Fortschritt, und danach liegen alle Dateien am
+   **Then** erledigt HaexVault das als einen Vorgang mit Fortschritt, und danach liegen alle Dateien am
    neuen Ort.
 5. **Given** der Server ist nicht erreichbar oder das Passwort wurde geändert, **When** Anna den Speicher
-   öffnet, **Then** nennt holzi den Grund und verweist auf die Einstellungen des Speichers.
+   öffnet, **Then** nennt HaexVault den Grund und verweist auf die Einstellungen des Speichers.
 6. **Given** ein Agent mit Leseberechtigung für den WebDAV-Speicher, **When** er dort sucht und liest,
    **Then** gelingt das wie bei einem S3-Speicher; ohne Berechtigung ist der Speicher für ihn nicht
    erreichbar (Spec 044 FR-031a).
@@ -145,7 +145,7 @@ Die Backup-Erweiterung aus Spec 038 bekommt Berechtigung für Annas WebDAV-Speic
 listet, lädt herunter und löscht genau wie bei einem S3-Speicher, ohne zu wissen oder wissen zu müssen,
 welches Protokoll dahintersteht.
 
-**Why this priority**: Der Grundsatz „holzi spricht das Protokoll, Erweiterungen nutzen es“ ist der
+**Why this priority**: Der Grundsatz „HaexVault spricht das Protokoll, Erweiterungen nutzen es“ ist der
 Zweck der Speicher; vorhandene Erweiterungen sollen ohne Änderung auch WebDAV nutzen können.
 
 **Independent Test**: Die Test-Erweiterung aus Spec 038 läuft unverändert gegen einen S3- und einen
@@ -181,26 +181,26 @@ laut Betreiber nach WebDAV.
 
 **Independent Test**: Gegen einen lokalen SFTP-Testserver eine Verbindung mit Passwort und eine mit
 Schlüssel anlegen, den Hostschlüssel bestätigen, testen, entfernen; danach den Hostschlüssel des
-Servers austauschen und prüfen, dass holzi die Verbindung verweigert.
+Servers austauschen und prüfen, dass HaexVault die Verbindung verweigert.
 
 **Acceptance Scenarios**:
 
 1. **Given** Host, Port, Benutzername und Passwort oder privater Schlüssel, **When** Anna die Verbindung
-   zum ersten Mal testet, **Then** zeigt holzi den Fingerabdruck des Hostschlüssels und verbindet erst
+   zum ersten Mal testet, **Then** zeigt HaexVault den Fingerabdruck des Hostschlüssels und verbindet erst
    nach ihrer Bestätigung weiter; lehnt sie ab, wird nichts gespeichert.
 2. **Given** eine gespeicherte SFTP-Verbindung, **When** der Server später einen anderen Hostschlüssel
-   zeigt, **Then** bricht holzi jeden Aufruf ab, bevor Zugangsdaten gesendet werden, und zeigt am
+   zeigt, **Then** bricht HaexVault jeden Aufruf ab, bevor Zugangsdaten gesendet werden, und zeigt am
    Speicher eine deutliche Warnung. Nur Anna kann in den Einstellungen den neuen Schlüssel nach
    Vergleich des Fingerabdrucks annehmen.
 3. **Given** ein privater Schlüssel mit Passphrase, **When** Anna ihn einträgt, **Then** liegen Schlüssel
-   und Passphrase im Passwortmanager, und holzi zeigt den Schlüssel nirgends sonst im Klartext.
-4. **Given** Anna hat noch keinen Schlüssel, **When** sie „Schlüssel erzeugen“ wählt, **Then** erzeugt holzi
+   und Passphrase im Passwortmanager, und HaexVault zeigt den Schlüssel nirgends sonst im Klartext.
+4. **Given** Anna hat noch keinen Schlüssel, **When** sie „Schlüssel erzeugen“ wählt, **Then** erzeugt HaexVault
    ein neues Schlüsselpaar und zeigt den öffentlichen Schlüssel zum Kopieren, damit sie ihn beim Anbieter
-   hinterlegen kann; der private Schlüssel verlässt holzi nie (auch nicht in die Oberfläche) und liegt nach
+   hinterlegen kann; der private Schlüssel verlässt HaexVault nie (auch nicht in die Oberfläche) und liegt nach
    dem Speichern der Verbindung im Passwortmanager.
 5. **Given** falsche Zugangsdaten, ein nicht erreichbarer Host, ein fehlender Ordner oder fehlende
-   Rechte, **When** Anna speichern will, **Then** nennt holzi den Grund und speichert nichts; beim
-   fehlenden Ordner bietet holzi wie in US1 an, ihn anzulegen.
+   Rechte, **When** Anna speichern will, **Then** nennt HaexVault den Grund und speichert nichts; beim
+   fehlenden Ordner bietet HaexVault wie in US1 an, ihn anzulegen.
 6. **Given** eine SFTP-Verbindung auf dem Laptop, **When** der Datensync gelaufen ist, **Then** steht sie
    auf dem Telefon mit Zugangsdaten und bestätigtem Hostschlüssel bereit.
 
@@ -220,7 +220,7 @@ liefern dieselben Ergebnisse wie gegen S3 und WebDAV.
 1. **Given** ein SFTP-Speicher, **When** Anna oder ein Agent oder eine Erweiterung ihn nutzt, **Then**
    gelten alle Szenarien von US2 und US3 unverändert.
 2. **Given** ein Kopiervorgang innerhalb eines SFTP-Speichers, **When** der Server kein Kopieren beim
-   Server anbietet, **Then** kopiert holzi über sich selbst, mit Fortschritt und ohne halbe Datei am
+   Server anbietet, **Then** kopiert HaexVault über sich selbst, mit Fortschritt und ohne halbe Datei am
    Ziel.
 
 ---
@@ -229,8 +229,8 @@ liefern dieselben Ergebnisse wie gegen S3 und WebDAV.
 
 Eine Erweiterung bietet an, einen neuen Speicher einzurichten, und schlägt Protokoll, Name, Anbieter,
 Adresse bzw. Host und Port sowie Ordner vor, oder einen neuen Ordner auf einer schon verbundenen
-Verbindung. Wie in Spec 038 User Story 3 bestätigt Anna im Dialog von holzi und gibt Zugangsdaten nur
-im Fenster von holzi über der ganzen App ein; bei SFTP bestätigt sie dort auch den Hostschlüssel.
+Verbindung. Wie in Spec 038 User Story 3 bestätigt Anna im Dialog von HaexVault und gibt Zugangsdaten nur
+im Fenster von HaexVault über der ganzen App ein; bei SFTP bestätigt sie dort auch den Hostschlüssel.
 
 **Why this priority**: Gleichstand mit S3 (Wunsch des Betreibers); Anna kann denselben Speicher auch in
 den Einstellungen anlegen und freigeben.
@@ -243,13 +243,13 @@ wird abgelehnt, ohne dass ein Dialog erscheint.
 **Acceptance Scenarios**:
 
 1. **Given** ein Vorschlag für einen WebDAV- oder SFTP-Speicher, **When** Anna bestätigt, Zugangsdaten
-   eingibt und der Test gelingt, **Then** legt holzi Verbindung und Speicher an, erteilt der
+   eingibt und der Test gelingt, **Then** legt HaexVault Verbindung und Speicher an, erteilt der
    Erweiterung „Lesen und Schreiben“ dafür und gibt ihr die Kennung zurück.
 2. **Given** ein Vorschlag mit eigener Adresse oder eigenem Host, **When** die Erweiterung keine
-   Berechtigung `remoteStorage` mit der Aktion `add` für diesen Host hat, **Then** fragt holzi nach
+   Berechtigung `remoteStorage` mit der Aktion `add` für diesen Host hat, **Then** fragt HaexVault nach
    Spec 017 oder lehnt ab (wie Spec 038 FR-009b).
 3. **Given** ein Vorschlag enthält Zugangsdaten, einen privaten Schlüssel oder einen Hostschlüssel bzw.
-   Fingerabdruck, **When** holzi den Aufruf erhält, **Then** lehnt holzi ihn ab, bevor ein Dialog
+   Fingerabdruck, **When** HaexVault den Aufruf erhält, **Then** lehnt HaexVault ihn ab, bevor ein Dialog
    erscheint; den Hostschlüssel bestätigt nur Anna anhand dessen, was der Server zeigt.
 4. **Given** Abbruch oder gescheiterter Test, **When** der Vorgang endet, **Then** wird nichts angelegt,
    und die Erweiterung erfährt nur den Abbruch (wie Spec 038 FR-013b).
@@ -272,11 +272,11 @@ SFTP-Speicher und liefern dieselben Ergebnisse wie gegen S3.
 1. **Given** ein WebDAV- oder SFTP-Speicher und Spec 048 ist gebaut, **When** Anna dort einen
    verschlüsselten Ordner anlegt und nutzt, **Then** gelten alle Szenarien von Spec 048 unverändert.
 2. **Given** zwei Geräte schreiben gleichzeitig in denselben verschlüsselten Ordner, **When** beide
-   fertig sind, **Then** erkennt holzi den Konflikt wie bei S3 (Spec 048 FR-021).
+   fertig sind, **Then** erkennt HaexVault den Konflikt wie bei S3 (Spec 048 FR-021).
 
 ### Edge Cases
 
-- **Server folgt nur mit Weiterleitung**: holzi folgt keiner Weiterleitung (wie Spec 038); der Test
+- **Server folgt nur mit Weiterleitung**: HaexVault folgt keiner Weiterleitung (wie Spec 038); der Test
   meldet „Adresse antwortet nicht als WebDAV“ und nennt, dass der Server auf eine andere Adresse
   verweist, ohne Teile der Adresse zu nennen, die Zugangsdaten enthalten könnten.
 - **Selbst signiertes Zertifikat** (etwa ein NAS im Heimnetz): wird wie in Spec 038 abgelehnt; im
@@ -286,26 +286,26 @@ SFTP-Speicher und liefern dieselben Ergebnisse wie gegen S3.
   gilt der synchronisierte Schlüssel).
 - **Hostschlüssel kommt vor der Verbindung oder den Zugangsdaten an** (Sync noch nicht fertig): wie
   Spec 038 „wird synchronisiert“.
-- **Abgebrochener Upload hinterlässt eine Zwischendatei** (etwa nach Absturz): holzi blendet seine
+- **Abgebrochener Upload hinterlässt eine Zwischendatei** (etwa nach Absturz): HaexVault blendet seine
   Zwischendateien im Dateibrowser und für Erweiterungen aus und entfernt solche, die älter als 24
   Stunden sind, wenn es sie sieht.
 - **Leere Ordner nach dem Löschen**: Löscht eine Erweiterung die letzte Datei eines Unterordners in
-  ihrem Bereich, entfernt holzi die dadurch leeren Unterordner in ihrem Bereich, damit ihr Bereich sich
-  wie bei S3 verhält; außerhalb ihres Bereichs entfernt holzi nichts.
+  ihrem Bereich, entfernt HaexVault die dadurch leeren Unterordner in ihrem Bereich, damit ihr Bereich sich
+  wie bei S3 verhält; außerhalb ihres Bereichs entfernt HaexVault nichts.
 - **Namen, die der Server nicht speichern kann** (zu lange Teile, Zeichen, die das Dateisystem des
-  Servers verbietet, Groß-/Kleinschreibung, die der Server gleich behandelt): holzi lehnt einen solchen
+  Servers verbietet, Groß-/Kleinschreibung, die der Server gleich behandelt): HaexVault lehnt einen solchen
   Schlüssel einer Erweiterung mit dem Fehler für ungültige Schlüssel ab, statt eine andere Datei zu
-  treffen; im Dateibrowser nennt holzi den Grund.
+  treffen; im Dateibrowser nennt HaexVault den Grund.
 - **Sehr viele Dateien in einem Ordner oder sehr tiefe Ordner**: Auflisten hält dieselben Grenzen wie
   bei S3 ein (Spec 038, Spec 044); ein Server, der Auflisten über alle Ebenen verweigert, wird Ordner
   für Ordner gelesen.
-- **Server ohne Teilbereichs-Lesen** (Video springen): holzi meldet das einmal, spielt ab, sobald genug
+- **Server ohne Teilbereichs-Lesen** (Video springen): HaexVault meldet das einmal, spielt ab, sobald genug
   gelesen ist, und funktioniert weiter.
-- **Server, der beim Kopieren oder Verschieben nicht überschreibt**: holzi erreicht dasselbe Ergebnis
+- **Server, der beim Kopieren oder Verschieben nicht überschreibt**: HaexVault erreicht dasselbe Ergebnis
   wie bei S3 (das Ziel wird ersetzt), ohne dass das Ziel zwischendurch fehlt oder halb ist, soweit der
-  Server das zulässt; sonst meldet holzi den Fehler, bevor etwas verloren geht.
+  Server das zulässt; sonst meldet HaexVault den Fehler, bevor etwas verloren geht.
 - **Kontingent beim Anbieter erschöpft**: Hochladen scheitert mit einem eigenen verständlichen Fehler,
-  soweit der Server ein volles Kontingent erkennen lässt (WebDAV meldet es; bei SFTP fragt holzi nach
+  soweit der Server ein volles Kontingent erkennen lässt (WebDAV meldet es; bei SFTP fragt HaexVault nach
   einem gescheiterten Schreiben den freien Platz ab, wenn der Server das anbietet), sonst mit dem
   Netzwerkfehler; keine halbe Datei bleibt zurück.
 - **Gleichzeitige Änderung derselben Datei von außen** (etwa per Nextcloud-Client): Es gilt, was zuletzt
@@ -324,26 +324,26 @@ SFTP-Speicher und liefern dieselben Ergebnisse wie gegen S3.
   Benutzername mit Passwort oder privatem Schlüssel (optional mit Passphrase) bestehen.
 - **FR-003**: Ein WebDAV- oder SFTP-Speicher MUSS aus einem Namen und einem Ordnerpfad unter seiner
   Verbindung bestehen; der Wurzelordner ist erlaubt. Mehrere Speicher DÜRFEN sich eine Verbindung
-  teilen. Zwei Speicher derselben Verbindung, deren Ordner ineinander liegen, MUSS holzi beim Anlegen
+  teilen. Zwei Speicher derselben Verbindung, deren Ordner ineinander liegen, MUSS HaexVault beim Anlegen
   als Warnung nennen.
-- **FR-004**: holzi MUSS Voreinstellungen für verbreitete Anbieter anbieten, mindestens Hetzner Storage
+- **FR-004**: HaexVault MUSS Voreinstellungen für verbreitete Anbieter anbieten, mindestens Hetzner Storage
   Box (WebDAV und SFTP), Nextcloud, Koofr und Infomaniak kDrive (WebDAV), sowie „Anderer Server“ für
   jedes Protokoll. Eine Voreinstellung füllt nur Felder vor; der Nutzer kann alles ändern.
 - **FR-005**: Vor dem ersten Speichern und nach jeder Änderung von Adresse, Host, Port, Zugangsdaten
-  oder Ordner MUSS holzi den Verbindungstest von Spec 038 (FR-003 dort) ausführen: ein eigenes
+  oder Ordner MUSS HaexVault den Verbindungstest von Spec 038 (FR-003 dort) ausführen: ein eigenes
   Testobjekt im Ordner schreiben, lesen, auflisten und löschen. Die Gründe für ein Scheitern MÜSSEN
   zusätzlich „Adresse antwortet nicht als WebDAV“, „Ordner fehlt“ und „Hostschlüssel unbekannt oder
   geändert“ umfassen.
-- **FR-006**: Meldet der Test „Ordner fehlt“, MUSS holzi anbieten, den Ordner anzulegen, und DARF ihn
-  nur nach Bestätigung des Nutzers anlegen. holzi DARF beim Anbieter sonst keine Ordner außerhalb
+- **FR-006**: Meldet der Test „Ordner fehlt“, MUSS HaexVault anbieten, den Ordner anzulegen, und DARF ihn
+  nur nach Bestätigung des Nutzers anlegen. HaexVault DARF beim Anbieter sonst keine Ordner außerhalb
   seiner eigenen Test- und Zwischendateien anlegen oder löschen, außer auf eine Aktion des Nutzers oder
   einer berechtigten Erweiterung in ihrem Bereich.
 - **FR-007**: Alle Zugangsdaten der neuen Protokolle (Passwort, privater Schlüssel, Passphrase) MÜSSEN
   im Passwortmanager liegen und DÜRFEN sonst nirgends in lesbarer Form gespeichert werden (wie Spec
   038 FR-005). Der Nutzer darf auch einen vorhandenen Eintrag wählen (Spec 052).
-- **FR-008**: holzi MUSS auf Wunsch ein SSH-Schlüsselpaar erzeugen, den öffentlichen Schlüssel zum
+- **FR-008**: HaexVault MUSS auf Wunsch ein SSH-Schlüsselpaar erzeugen, den öffentlichen Schlüssel zum
   Kopieren anzeigen und den privaten Schlüssel beim Speichern der Verbindung im Passwortmanager ablegen;
-  bis dahin DARF der erzeugte private Schlüssel nur im Prozess von holzi liegen, nie in der Oberfläche
+  bis dahin DARF der erzeugte private Schlüssel nur im Prozess von HaexVault liegen, nie in der Oberfläche
   und nie auf der Festplatte. Ein vorhandener
   privater Schlüssel MUSS sich einfügen oder aus einer Datei einlesen lassen.
 - **FR-009**: Verbindungen, Speicher und bestätigte Hostschlüssel MÜSSEN Vault-Daten sein und mit dem
@@ -356,16 +356,16 @@ SFTP-Speicher und liefern dieselben Ergebnisse wie gegen S3.
 - **FR-011**: Für WebDAV MÜSSEN die Regeln von Spec 038 FR-017 gelten: Zertifikate werden geprüft,
   `http` nur im lokalen Netz oder auf dem eigenen Rechner und als unverschlüsselt gekennzeichnet,
   Link-Local-Adressen nie, Prüfung der Adresse vor jedem Aufruf, Verbindung genau zur geprüften
-  Adresse, ein beim Festlegen öffentlicher Endpunkt nie zu einer lokalen Adresse. holzi DARF keiner
+  Adresse, ein beim Festlegen öffentlicher Endpunkt nie zu einer lokalen Adresse. HaexVault DARF keiner
   Weiterleitung folgen.
 - **FR-012**: Für SFTP MÜSSEN dieselben Regeln zu Adressen gelten (lokal oder öffentlich festgelegt,
   Link-Local nie, Prüfung vor jedem Aufruf, Verbindung genau zur geprüften Adresse). Statt eines
-  Zertifikats MUSS holzi den Hostschlüssel prüfen: beim ersten Verbinden den Fingerabdruck zeigen und
+  Zertifikats MUSS HaexVault den Hostschlüssel prüfen: beim ersten Verbinden den Fingerabdruck zeigen und
   erst nach Bestätigung des Nutzers Zugangsdaten senden; bei einem anderen als dem bestätigten Schlüssel
   jeden Aufruf abbrechen, bevor Zugangsdaten gesendet werden. Einen neuen Hostschlüssel DARF nur der
-  Nutzer in holzi annehmen, nie eine Erweiterung oder ein Agent.
+  Nutzer in HaexVault annehmen, nie eine Erweiterung oder ein Agent.
 - **FR-013**: Jeder Aufruf bei einem WebDAV- oder SFTP-Server MUSS dieselben Zeitgrenzen einhalten wie
-  bei S3 (Spec 038, Spec 044); kein Aufruf DARF holzi blockieren.
+  bei S3 (Spec 038, Spec 044); kein Aufruf DARF HaexVault blockieren.
 - **FR-014**: WebDAV MUSS sich mit Benutzername und Passwort anmelden können, wie es verbreitete Server
   verlangen; ein Passwort DARF nie über `http` zu einem öffentlichen Endpunkt gehen (folgt aus FR-011).
 
@@ -391,7 +391,7 @@ SFTP-Speicher und liefern dieselben Ergebnisse wie gegen S3.
   Zugangsdaten, privatem Schlüssel, Passphrase, Hostschlüssel oder Fingerabdruck MUSS abgelehnt werden,
   bevor ein Dialog erscheint. Die Aktion `add` hat bei WebDAV den Host der Adresse, bei SFTP Host und
   Port als Ziel.
-- **FR-018**: holzi MUSS für jede Verbindung das Protokoll verwenden, das zu ihr gehört, in allen
+- **FR-018**: HaexVault MUSS für jede Verbindung das Protokoll verwenden, das zu ihr gehört, in allen
   Teilen, die Speicher nutzen (Einstellungen, Test, Dateibrowser, Übertragungen, Suche, Agents,
   Erweiterungen, verschlüsselte Ordner). Kein Teil DARF annehmen, dass ein Speicher S3 spricht, außer
   den S3-spezifischen Einstellungen.
@@ -403,10 +403,10 @@ SFTP-Speicher und liefern dieselben Ergebnisse wie gegen S3.
 - **FR-021**: Fehler der Server MÜSSEN als dieselben wenigen Fehlerarten ankommen wie bei S3 (nicht
   gefunden, Zugang abgelehnt, Netzwerkfehler, Grenze überschritten, ungültiger Schlüssel), ergänzt um
   „Hostschlüssel geändert“ für die Einstellungen und den Dateibrowser.
-- **FR-022**: holzi MUSS seine Zwischendateien (Uploads, Kopien) im Dateibrowser, für Agents und für
+- **FR-022**: HaexVault MUSS seine Zwischendateien (Uploads, Kopien) im Dateibrowser, für Agents und für
   Erweiterungen ausblenden und Zwischendateien, die älter als 24 Stunden sind, entfernen, wenn es sie
   beim Auflisten sieht.
-- **FR-023**: Alle Funktionen MÜSSEN auf allen Plattformen von holzi gleich arbeiten, auch auf Android
+- **FR-023**: Alle Funktionen MÜSSEN auf allen Plattformen von HaexVault gleich arbeiten, auch auf Android
   und iOS (wie Spec 038 FR-016).
 
 **Verschlüsselte Ordner**
@@ -425,7 +425,7 @@ SFTP-Speicher und liefern dieselben Ergebnisse wie gegen S3.
   Berechtigungen der Art `remoteStorage`. Testergebnis je Gerät, nicht synchronisiert.
 - **Zugangsdaten** (Eintrag im Passwortmanager): bei WebDAV Benutzername und Passwort; bei SFTP
   Benutzername und Passwort oder privater Schlüssel mit optionaler Passphrase.
-- **Zwischendatei**: eine Datei, die holzi beim Hochladen oder Kopieren vorübergehend anlegt und nach
+- **Zwischendatei**: eine Datei, die HaexVault beim Hochladen oder Kopieren vorübergehend anlegt und nach
   Erfolg unter den Zielnamen bringt; an ihrem Namen erkennbar, wird nicht gespeichert.
 
 ## Success Criteria _(mandatory)_
@@ -439,7 +439,7 @@ SFTP-Speicher und liefern dieselben Ergebnisse wie gegen S3.
   Zugangsdaten) besteht für WebDAV- und SFTP-Speicher zu 100 % mit denselben Ergebnissen wie für S3.
 - **SC-003**: In 100 % der geprüften Abbrüche (Upload, Kopieren, Verschieben, Verbindung reißt ab) liegt
   unter dem Zielnamen keine halbe Datei, und eine vorhandene Datei ist unverändert.
-- **SC-004**: In 100 % der Fälle mit geändertem Hostschlüssel sendet holzi keine Zugangsdaten an den
+- **SC-004**: In 100 % der Fälle mit geändertem Hostschlüssel sendet HaexVault keine Zugangsdaten an den
   Server.
 - **SC-005**: In 100 % der geprüften Fälle (Antworten, Fehlermeldungen, Log, Passwort-Funktionen)
   erreichen Erweiterungen und Agents keine Passwörter, privaten Schlüssel oder Passphrasen.
@@ -454,7 +454,7 @@ SFTP-Speicher und liefern dieselben Ergebnisse wie gegen S3.
 
 ## Assumptions
 
-- Ein Speicher ist ein Ordner auf dem Server; holzi legt ihn nur nach Bestätigung an (FR-006) und
+- Ein Speicher ist ein Ordner auf dem Server; HaexVault legt ihn nur nach Bestätigung an (FR-006) und
   löscht ihn nie beim Entfernen des Speichers.
 - **WebDAV** meint WebDAV nach dem verbreiteten Standard mit Anmeldung über Benutzername und Passwort.
   Anbieter-eigene Erweiterungen (etwa Hochladen in Stücken bei Nextcloud) und Anmeldung über den

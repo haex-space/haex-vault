@@ -164,7 +164,7 @@
             "question": "Wie soll ich weitermachen, nachdem die Suche nach „Mietvertrag“ abgelehnt wurde?",
             "options": [
               "Du nennst mir den Ordner oder Speicherort, in dem der Mietvertrag liegt",
-              "In holzi nach einer passenden Aktion zum Suchen von Dateien suchen",
+              "In haex-vault nach einer passenden Aktion zum Suchen von Dateien suchen",
               "Nichts weiter tun"
             ]
           },
@@ -325,7 +325,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "I couldn't find a shopping list in holzi. Where should I put milk?",
+            "question": "I couldn't find a shopping list in haex-vault. Where should I put milk?",
             "options": [
               "Create a new shopping list",
               "Add it to a conversation in Chat",
@@ -336,7 +336,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I couldn't find a shopping list in holzi. Where should I put milk?"
+      "text": "I couldn't find a shopping list in haex-vault. Where should I put milk?"
     },
     {
       "id": "mail_reply-en-1-s",

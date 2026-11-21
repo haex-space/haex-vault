@@ -65,12 +65,12 @@ und ein gelöschtes Fenster keine Tabs zurücklässt:
 - Alle drei Tabellen behalten außerdem den Fremdschlüssel aus ADR-0001 auf
   `known_devices(vault_device_uuid) ON DELETE CASCADE`.
 
-**Warum erst prüfen**: haex-crdt ist die Bibliothek, über die holzi seine SQLite-Vault
+**Warum erst prüfen**: haex-crdt ist die Bibliothek, über die haex-vault seine SQLite-Vault
 synchronisiert. Sie schreibt jede `CREATE TABLE` beim Migrieren um (fügt die
 versteckten Sync-Spalten hinzu, installiert Trigger) und schaltet beim Einspielen
 von Sync-Daten die Fremdschlüsselprüfung vorübergehend aus (laut ADR-0001).
 Belegt ist bisher nur der Fall „Fremdschlüssel auf die Primärschlüsselspalte einer
-Tabelle“ (`REFERENCES known_devices(vault_device_uuid)` in allen holzi-Migrationen,
+Tabelle“ (`REFERENCES known_devices(vault_device_uuid)` in allen haex-vault-Migrationen,
 ein Beispiel in den haex-crdt-Tests des gepinnten Rev `b8c9c6c…`). Ob das
 Umschreiben einen Fremdschlüssel auf eine `UNIQUE`-Spalte unverändert lässt, habe
 ich nicht geprüft.
@@ -93,7 +93,7 @@ gesichert.
 ## R3. Migration und Trigger-Version
 
 **Decision**: Eine neue Migration `0019_shell_layout` legt die drei Tabellen und
-Indizes an. `HOLZI_TRIGGER_VERSION` wird von 10 auf 11 angehoben; der
+Indizes an. `HAEX_TRIGGER_VERSION` wird von 10 auf 11 angehoben; der
 Doc-Kommentar bekommt die Zeile
 `- 11: 0019_shell_layout introduced three new CRDT-tracked tables`.
 
@@ -110,7 +110,7 @@ der PR-Review es nicht überrascht.
 gemerged (zuletzt PR #133) und dort in 0018/Version 10 aufgegangen — keine
 offene Konkurrenz mehr um `0019`/11. Für Spec 014 existiert noch kein Branch
 (Implementierung startet erst nach 015); `0019_shell_layout` und
-`HOLZI_TRIGGER_VERSION = 11` sind damit zum Zeitpunkt der Implementierung von
+`HAEX_TRIGGER_VERSION = 11` sind damit zum Zeitpunkt der Implementierung von
 015 frei. Sollte 014 vor 015 mergen, nummeriert 015 beim Rebase neu (reiner
 Merge-Handgriff, siehe oben).
 
@@ -135,7 +135,7 @@ nach `state_utils` ist naheliegend, aber kein Teil dieses Features
 **Decision**: Sechs Commands (Vertrag in `contracts/tauri-commands.md`), gleiches
 Muster wie `preferences_commands`: `active_database` → `spawn_blocking` →
 `db.with_connection`, Mehrfachschreibvorgänge in `conn.unchecked_transaction()`.
-Verstöße gegen Invarianten → `HolziError::InvalidInput { reason }`, fehlender Vault →
+Verstöße gegen Invarianten → `HaexError::InvalidInput { reason }`, fehlender Vault →
 `NoActiveInstance`. Eingaben werden validiert:
 
 - Arbeitsbereiche haben **keinen Namen**: keine Spalte, kein Umbenennen. Die

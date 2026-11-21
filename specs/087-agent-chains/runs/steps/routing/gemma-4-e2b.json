@@ -179,7 +179,7 @@
       "id": "mail_reply-de-1",
       "result": "missed",
       "calls": [],
-      "text": "Ich kann keine Nachrichten direkt senden. Möchtest du, dass ich etwas in deinen Kontakten suche oder eine andere Aktion in holzi ausführe?"
+      "text": "Ich kann keine Nachrichten direkt senden. Möchtest du, dass ich etwas in deinen Kontakten suche oder eine andere Aktion in haex-vault ausführe?"
     },
     {
       "id": "mail_reply-de-2",
@@ -265,7 +265,7 @@
       "id": "mail_reply-de-1-s",
       "result": "missed",
       "calls": [],
-      "text": "Ich kann diese Nachricht nicht direkt an Anna senden. Möchtest du, dass ich eine Nachricht in einer bestimmten Anwendung öffne oder eine Aktion in holzi ausführe?"
+      "text": "Ich kann diese Nachricht nicht direkt an Anna senden. Möchtest du, dass ich eine Nachricht in einer bestimmten Anwendung öffne oder eine Aktion in haex-vault ausführe?"
     },
     {
       "id": "mail_tidy-de-1-s",

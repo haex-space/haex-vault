@@ -14,7 +14,7 @@ exist (spec 090 follow-ups #984 and #986)."
 ## Background
 
 - **Spec 090 built the header and moved two apps into it.** The header bar of a window belongs to its app; the app hands
-  holzi a description of its controls and holzi draws them, collapses them when the window is narrow and keeps the
+  HaexVault a description of its controls and HaexVault draws them, collapses them when the window is narrow and keeps the
   window buttons. Settings and the file browser were the pilots. Contacts, passwords, chat, the marketplace and the
   other system apps were left "to follow one by one in their own specs" (spec 090, Decisions 6).
 - **These four apps still carry a first row of their own** under the title row of the window, so each loses the height

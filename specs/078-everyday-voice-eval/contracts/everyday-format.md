@@ -225,12 +225,12 @@ is the format of spec 078's runs.
 
 ## Environment of the measurement (`tests/model_tool_eval.rs`, test `measure_everyday_voice`)
 
-| Variable                                                                                           | Meaning                                           |
-| -------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| `HOLZI_EVAL_ENGINE=llamacpp` + `HOLZI_TEST_GGUF`                                                   | A local model file through llama.cpp              |
-| `HOLZI_TEST_GGUF` (no engine)                                                                      | A local model file through mistralrs              |
-| `HOLZI_EVAL_PROVIDER=anthropic` + `HOLZI_EVAL_MODEL` + `ANTHROPIC_API_KEY`                         | Cloud with a key                                  |
-| `HOLZI_EVAL_PROVIDER=openai` + `HOLZI_EVAL_BASE_URL` + `HOLZI_EVAL_MODEL` (+ `HOLZI_EVAL_API_KEY`) | A server speaking the OpenAI chat format          |
-| `HOLZI_EVAL_PROVIDER=claude-cli` + `HOLZI_EVAL_MODEL` + `HOLZI_EVAL_WORKDIR`                       | The subscription through `claude -p`              |
-| `HOLZI_LLAMACPP_GPU_LAYERS`, `HOLZI_LLAMACPP_CONTEXT`                                              | llama.cpp layers on the GPU and context in tokens |
-| `HOLZI_EVAL_MACHINE`                                                                               | Free text for the report                          |
+| Variable                                                                                       | Meaning                                           |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `HAEX_EVAL_ENGINE=llamacpp` + `HAEX_TEST_GGUF`                                                 | A local model file through llama.cpp              |
+| `HAEX_TEST_GGUF` (no engine)                                                                   | A local model file through mistralrs              |
+| `HAEX_EVAL_PROVIDER=anthropic` + `HAEX_EVAL_MODEL` + `ANTHROPIC_API_KEY`                       | Cloud with a key                                  |
+| `HAEX_EVAL_PROVIDER=openai` + `HAEX_EVAL_BASE_URL` + `HAEX_EVAL_MODEL` (+ `HAEX_EVAL_API_KEY`) | A server speaking the OpenAI chat format          |
+| `HAEX_EVAL_PROVIDER=claude-cli` + `HAEX_EVAL_MODEL` + `HAEX_EVAL_WORKDIR`                      | The subscription through `claude -p`              |
+| `HAEX_LLAMACPP_GPU_LAYERS`, `HAEX_LLAMACPP_CONTEXT`                                            | llama.cpp layers on the GPU and context in tokens |
+| `HAEX_EVAL_MACHINE`                                                                            | Free text for the report                          |

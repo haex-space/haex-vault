@@ -1,7 +1,7 @@
 # Contract: Android intents and native commands
 
-Everything Android-only goes through the `holzi-android` plugin (`src-tauri/plugins/holzi-android`, ADR 0010). The core calls
-it through `HolziAndroid` methods; `other.rs` holds a no-op for every other platform.
+Everything Android-only goes through the `haex-android` plugin (`src-tauri/plugins/haex-android`, ADR 0010). The core calls
+it through `HaexAndroid` methods; `other.rs` holds a no-op for every other platform.
 
 ## Screen commands (FR-008)
 

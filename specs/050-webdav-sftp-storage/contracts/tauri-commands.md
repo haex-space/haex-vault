@@ -40,7 +40,7 @@ sonst Fehler
 (auch: falsche Passphrase), ist `invalid credentials` vor jedem Test.
 
 `ConnectionInput` und `StorageInput` haben zusätzlich `createFolder?: boolean` (Standard `false`): Findet
-der Test den Ordner eines WebDAV- oder SFTP-Speichers nicht, legt holzi ihn nur dann an und testet erneut
+der Test den Ordner eines WebDAV- oder SFTP-Speichers nicht, legt haex-vault ihn nur dann an und testet erneut
 (FR-006). `StorageView` hat in der Antwort von `storage_save` `warning?: "nestedFolder"` (FR-003). Fehler
 `StorageInvalid` nennen bei WebDAV und SFTP das Feld `folder` statt `bucket` und bei Benutzername und
 Passwort das Feld `login`.

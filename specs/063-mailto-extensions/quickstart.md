@@ -12,13 +12,13 @@ eine E-Mail-Adresse hat, und haex-mail (neue Version) oder die Testextension `ma
    Schreib-Dialog mit der Adresse; nichts ist gesendet (FR-003, FR-015). Auswahl schließen ohne Wahl: nichts.
 4. **System wählen**: „Mit dem System öffnen“: das Mail-Programm des Systems geht auf.
 5. **Deaktivieren**: die Extension deaktivieren: der Knopf öffnet wieder ohne Auswahl (FR-012).
-6. **Link von außen (Android)**: im Browser oder in einer anderen App auf einen `mailto:`-Link tippen, holzi
+6. **Link von außen (Android)**: im Browser oder in einer anderen App auf einen `mailto:`-Link tippen, HaexVault
    als Programm wählen: der Dialog mit „Mail“ und „Link kopieren“, nie „Mit dem System öffnen“; „Mail“
    zeigt Empfänger, Kopie, Betreff und Text (FR-017, FR-018).
 7. **Gesperrt**: dasselbe bei gesperrter Vault: nach dem Entsperren erscheint der Dialog. Zwei Links kurz
    nacheinander: es erscheint der zweite.
 8. **Link von außen (Linux)**: `xdg-open 'mailto:ben@example.org?subject=Hallo%20Welt'` mit installiertem
-   Paket: holzi geht auf und zeigt den Dialog.
+   Paket: HaexVault geht auf und zeigt den Dialog.
 9. **Kaputte Links**: `mailto:a@b?subject=x%0d%0aBcc:c@d` und ein Link mit 51 Empfängern: der Dialog sagt, dass
    der Link nicht gelesen werden kann, und zeigt keine Zeilen.
-10. **Kein Standard**: nach dem Start von holzi ist das Standard-Mailprogramm des Systems unverändert (FR-016).
+10. **Kein Standard**: nach dem Start von HaexVault ist das Standard-Mailprogramm des Systems unverändert (FR-016).

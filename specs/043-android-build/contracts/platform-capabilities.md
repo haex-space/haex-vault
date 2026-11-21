@@ -24,7 +24,7 @@ platform_capabilities() -> PlatformCapabilities
   `blocking_pick_folder`); der Zweig für die andere Plattform antwortet dann aus der Tabelle.
 - Fehlende Fähigkeit:
   - Erweiterungs-Bridge: `ExtensionErrorCode::NotAvailable` (8001), wie heute.
-  - Commands der Oberfläche: `HolziError::NotAvailable` mit dem Text „Auf diesem Gerät nicht
+  - Commands der Oberfläche: `HaexError::NotAvailable` mit dem Text „Auf diesem Gerät nicht
     verfügbar“ (i18n-Schlüssel `errors.notAvailable`).
   - Delegates: `AdapterError::Unavailable` mit Grund `platform` (nicht „nicht installiert“).
 

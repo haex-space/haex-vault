@@ -3,7 +3,7 @@
 ## Unit tests (no model)
 
 ```bash
-cargo test --manifest-path src-tauri/Cargo.toml --lib --config 'profile.dev.package.holzi.debug=0' -j 1 \
+cargo test --manifest-path src-tauri/Cargo.toml --lib --config 'profile.dev.package.haex.debug=0' -j 1 \
   -- chat::tools chat::turn chat::eval
 pnpm check:agent-actions
 ```
@@ -20,16 +20,16 @@ In the 10 GB scope. They cover:
 ## The everyday set
 
 ```bash
-HOLZI_EVAL_ENGINE=llamacpp HOLZI_TEST_GGUF=<models>/<model>.gguf HOLZI_EVAL_PROFILE=desktop \
+HAEX_EVAL_ENGINE=llamacpp HAEX_TEST_GGUF=<models>/<model>.gguf HAEX_EVAL_PROFILE=desktop \
   cargo test --manifest-path src-tauri/Cargo.toml --features llm-llamacpp-cuda,everyday-eval \
   --test model_tool_eval -- --ignored --nocapture measure_everyday_voice
 ```
 
-- `HOLZI_EVAL_PROFILE=phone` for the phone model (no command tool). The report lands in
+- `HAEX_EVAL_PROFILE=phone` for the phone model (no command tool). The report lands in
   `src-tauri/target/eval/everyday-<model>-<profile>.json`, one file per profile.
-- `HOLZI_EVAL_ROUTING=off` measures without the routing call (the baseline and the hosted comparison).
-- haex-mail's tools run under the app's names (`x_haexmail_<tool>`). `HOLZI_EVAL_MAIL_NAME=thunderbird` with
-  `HOLZI_EVAL_MAIL_TITLE=Thunderbird` runs them under an extension name that says nothing about mail.
+- `HAEX_EVAL_ROUTING=off` measures without the routing call (the baseline and the hosted comparison).
+- haex-mail's tools run under the app's names (`x_haexmail_<tool>`). `HAEX_EVAL_MAIL_NAME=thunderbird` with
+  `HAEX_EVAL_MAIL_TITLE=Thunderbird` runs them under an extension name that says nothing about mail.
 - Hosted models through the subscription as in spec 078's quickstart.
 
 Compare `pass`, `executedUnasked`, `stopped`, `turnedAway`, `askedForId` and the categories with the baseline in

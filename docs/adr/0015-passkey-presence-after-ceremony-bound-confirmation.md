@@ -10,7 +10,7 @@ presence (UP) and user verification (UV), under the conditions below. Everything
 else ADR-0009 says about the passkey service stays.
 
 - **One confirmation per ceremony.** UP is set only after the user confirmed in
-  holzi's window this one request: this client, this relying party, this origin
+  haex-vault's window this one request: this client, this relying party, this origin
   and this challenge (the window shows the SHA-256 of the challenge). The
   confirmation is consumed by that request alone; it is never remembered, never
   reused and never granted ahead.
@@ -18,7 +18,7 @@ else ADR-0009 says about the passkey service stays.
   requires it (`userVerification: "required"`) and the user re-entered the vault
   password in that confirmation. The password is checked against the vault file
   the same way a passphrase change checks it, and kept nowhere. For `"preferred"`
-  and `"discouraged"` holzi asks no password and sets UP alone.
+  and `"discouraged"` haex-vault asks no password and sets UP alone.
 - **The claim cannot come from outside.** The service takes the presence as a Rust
   type (`UserPresence`: `None`, `Present`, `Verified`) that cannot be deserialized.
   Only the caller that showed the confirmation creates it; today that is the
@@ -31,7 +31,7 @@ else ADR-0009 says about the passkey service stays.
 
 ## Consequences
 
-- Relying parties that require user presence or verification accept holzi's
+- Relying parties that require user presence or verification accept haex-vault's
   passkeys through the browser extension.
 - The confirmation is a modal question per sign-in; there is no "remember".
 - A future caller that wants to claim presence needs its own ceremony-bound

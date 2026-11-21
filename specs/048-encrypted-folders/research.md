@@ -1,6 +1,6 @@
 # Research: Verschlüsselte Ordner in Speichern (048)
 
-Stand 2026-10-10. Zitate aus holzi beziehen sich auf den Stand von `main` bei `43b481d4`; Zitate aus
+Stand 2026-10-10. Zitate aus haex-vault beziehen sich auf den Stand von `main` bei `43b481d4`; Zitate aus
 haex-vault 2.x (Legacy) auf Repository `https://github.com/haex-space/haex-vault-legacy`, Revision
 `8dce379d94e18fcd42c3b73686a06f984ca3f574`, Pfade unter `src-tauri/src/file_sync/`.
 
@@ -8,11 +8,11 @@ haex-vault 2.x (Legacy) auf Repository `https://github.com/haex-space/haex-vault
 
 - **Decision**: Der Schlüssel, der Ordnerschlüssel verpackt (KEK), wird mit HKDF-SHA256 aus dem
   **Inhaltsschlüssel der Vault** (`sync::content_keys`, Bereich „vault“) abgeleitet, Info
-  `holzi/encrypted-folder/kek/v1`. Der Kopf eines Ordners nennt die `key_id` der Generation, mit der er
+  `haex/encrypted-folder/kek/v1`. Der Kopf eines Ordners nennt die `key_id` der Generation, mit der er
   verpackt ist. Neue Ordner nutzen `current_key`, Leser suchen die Generation über `key_id` in allen
   Generationen des Geräts (`vault_content_keys_no_sync`, wie `envelopes::held_keys`, ohne Grenze).
   `listening_keys` taugt dafür nicht: es liefert für die Presence nur bis zu `limit` Generationen je
-  Richtung und keine `key_id`. holzi löscht heute keine Generation aus `vault_content_keys_no_sync`;
+  Richtung und keine `key_id`. haex-vault löscht heute keine Generation aus `vault_content_keys_no_sync`;
   ein späteres Aufräumen alter Generationen MUSS Ordner berücksichtigen, die noch mit ihnen verpackt
   sind (sonst werden sie unlesbar).
 - **Rationale**:
@@ -26,8 +26,8 @@ haex-vault 2.x (Legacy) auf Repository `https://github.com/haex-space/haex-vault
     Verbinden bekommt ein neues Gerät alle Generationen (`src-tauri/src/sync/link/host.rs:199-235`).
   - Nach D30 sind Inhaltsschlüssel gewöhnliche, wiederherstellbare Vault-Daten; ein Backup der Vault
     reicht also, um verschlüsselte Ordner zu lesen.
-  - Eigene HKDF-Info trennt die Verwendung von den vorhandenen (`holzi/vault-identity/v1`,
-    `holzi/device-name/v1`, `holzi/presence/v1`, `holzi/link/*`).
+  - Eigene HKDF-Info trennt die Verwendung von den vorhandenen (`haex/vault-identity/v1`,
+    `haex/device-name/v1`, `haex/presence/v1`, `haex/link/*`).
 - **Folge für die Spec**: Die Annahme „gemeinsames Geheimnis der Vault“ ist damit erfüllt, aber mit
   Generationen: Entfernt der Nutzer ein Gerät, entsteht eine neue Generation (D22). Bestehende Ordner
   bleiben über ihre alte Generation lesbar; ein entferntes Gerät, das einen Ordnerschlüssel schon
@@ -45,7 +45,7 @@ haex-vault 2.x (Legacy) auf Repository `https://github.com/haex-space/haex-vault
   `src-tauri/Cargo.toml:123`), HKDF-SHA256 aus `hkdf 0.13` und `sha2 0.11`, Zufall über
   `keys::random_bytes` (`src-tauri/src/sync/keys.rs:27`), `zeroize` für Schlüssel. Keine neue
   Krypto-Abhängigkeit; Prüfsumme des Klartexts als SHA-256 statt BLAKE3.
-- **Rationale**: Dieselben Bausteine nutzt holzi schon für Gerätenamen
+- **Rationale**: Dieselben Bausteine nutzt haex-vault schon für Gerätenamen
   (`src-tauri/src/sync/content_keys_names.rs:18-59`, XChaCha20-Poly1305 unter einem HKDF-Unterschlüssel
   mit AAD). Keine Abhängigkeit, die `aws-lc-rs` bringt. 24-Byte-Nonces erlauben zufällige Nonces ohne
   Zähler über Geräte hinweg.
@@ -54,7 +54,7 @@ haex-vault 2.x (Legacy) auf Repository `https://github.com/haex-space/haex-vault
   liefert); `age` oder `rage` (kein Lesen von Teilbereichen, eigenes Kopfformat ohne
   Schlüsselhierarchie).
 
-## R3 — Was holzi von haex-vault 2.x übernimmt und was nicht
+## R3 — Was haex-vault von haex-vault 2.x übernimmt und was nicht
 
 Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als Angreifer:
 
@@ -71,7 +71,7 @@ Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als 
 | Kein Lesen von Teilbereichen; ganze Datei in eine Temp-Datei (`provider.rs:436-466`)                                                     | Blockgenaue Teilbereiche (R5)                                                           |
 | „Testvektor“ vergleicht mit sich selbst (`crypto/tests.rs:2483-2510`)                                                                    | Echte Testvektoren mit festen Schlüsseln und Nonces (FR-042, SC-010)                    |
 
-- **Decision**: holzi übernimmt das Modell (Umschlag mit Kopf, Blöcke, zufällige Objektnamen,
+- **Decision**: haex-vault übernimmt das Modell (Umschlag mit Kopf, Blöcke, zufällige Objektnamen,
   verschlüsselte Begleitdateien, Schlüssel je Datei), nicht den Code und nicht das Format. Das Format
   heißt `HXEF` v1 und ist in [contracts/format.md](./contracts/format.md) beschrieben; es ist nicht mit
   `HXFE` von haex-vault 2.x kompatibel (das wäre nur mit allen Lücken zu haben).
@@ -85,7 +85,7 @@ Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als 
 - **Decision**: 64 KiB Klartext je Block (65 552 Byte verschlüsselt). Gelesen wird in Fenstern von bis
   zu 8 MiB je Anfrage beim Anbieter.
 - **Rationale**: Der Medienserver liest in 256 KiB (`files/media/server.rs:25`), der PDF-Viewer und
-  der Textviewer in kleinen Bereichen (`storage_source.rs:417`). Mit 1 MiB je Block müsste holzi bei
+  der Textviewer in kleinen Bereichen (`storage_source.rs:417`). Mit 1 MiB je Block müsste haex-vault bei
   jeder kleinen Anfrage bis zu 1 MiB laden und entschlüsseln. Mehraufwand 16 Byte je 64 KiB = 0,024 %
   (SC-005: ≤ 1 %). Die Teile eines mehrteiligen Uploads (8 MiB, `transfer/remote.rs:32`) schneiden den
   verschlüsselten Strom ohne Rücksicht auf Blockgrenzen (128 Blöcke sind 8 MiB + 2 048 Byte); das ist
@@ -110,7 +110,7 @@ Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als 
     höchstens 32 gleichzeitigen `get` laden.
   - Zwischenspeicher in der Tabelle `encrypted_folder_entries_no_sync` (SQLCipher, nicht
     synchronisiert): je Begleitdatei Objektname, ETag und der entschlüsselte Eintrag. Beim nächsten
-    Öffnen lädt holzi nur Begleitdateien, deren ETag neu ist oder fehlt; verschwundene fallen raus.
+    Öffnen lädt haex-vault nur Begleitdateien, deren ETag neu ist oder fehlt; verschwundene fallen raus.
   - Ein verschlüsselter Ordner wird beim ersten Öffnen ganz geladen (alle Ebenen), weil seine Objekte
     flach liegen; Navigation darin braucht danach keine Anfrage mehr.
 - **Rationale**: Bei 50 ms je Anfrage und 32 parallel dauern 1 000 Begleitdateien etwa 1,6 s, 10 000
@@ -134,7 +134,7 @@ Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als 
     Inhaltsobjekt und alte Begleitdatei löschen (FR-017). Ein Leser, der die alte Begleitdatei hat,
     liest das alte Inhaltsobjekt ganz oder bekommt „nicht gefunden“ und lädt neu.
   - Verwaiste Inhaltsobjekte (kein Verweis aus einer Begleitdatei) und überholte Begleitdateien löscht
-    holzi beim Öffnen eines Ordners, wenn ihre Änderungszeit beim Anbieter älter als 24 Stunden ist.
+    haex-vault beim Öffnen eines Ordners, wenn ihre Änderungszeit beim Anbieter älter als 24 Stunden ist.
 - **Rationale**: Anbieter wie S3 kennen keine Transaktionen über mehrere Objekte; die Reihenfolge
   „neu schreiben, dann alt löschen“ verliert nie Daten, und `base` erkennt gleichzeitiges Schreiben ohne
   bedingte Schreibvorgänge.
@@ -147,7 +147,7 @@ Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als 
   im Elternordner. `StorageFiles::list` erkennt ihn an der Endung, lädt seine Köpfe parallel (je ein
   kleines `get`), entschlüsselt die Namen und zeigt ihn als Ordner mit Schloss. Köpfe kommen in den
   Zwischenspeicher `encrypted_folder_heads_no_sync` (Objektname, ETag, Name, Zustand).
-- **Rationale**: Ohne Endung müsste holzi für jeden Unterordner eines Speichers nachsehen, ob er einen
+- **Rationale**: Ohne Endung müsste haex-vault für jeden Unterordner eines Speichers nachsehen, ob er einen
   Kopf hat. Die Endung verrät nur, dass es einen verschlüsselten Ordner gibt; das erlaubt die Spec
   (Annahmen).
 - **Alternatives considered**: `HEAD` auf jeden Unterordner (eine Anfrage je Ordner bei jedem Auflisten);
@@ -198,7 +198,7 @@ Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als 
 
 - **Decision**: 048 baut keine eigene Android-Öffnung. Sobald 044 „Mit System-App öffnen“ auf Android
   liefert (heute `Unsupported`, `browser_commands.rs:537-543`), nutzt es einen `FileProvider` im Plugin
-  `holzi-android` mit `FLAG_GRANT_READ_URI_PERMISSION` für genau eine `content://`-URI; 048 verlangt nur,
+  `haex-android` mit `FLAG_GRANT_READ_URI_PERMISSION` für genau eine `content://`-URI; 048 verlangt nur,
   dass die Kopie im privaten Cache bleibt (FR-028a). Bis dahin zeigt der Dateibrowser die Aktion auf
   Android nicht an.
 - **Alternatives considered**: Kopie nach Downloads (für jede App lesbar, widerspricht FR-028a);
@@ -221,11 +221,11 @@ Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als 
     Art beim Entladen oder Neuladen des Frames der Erweiterung vergessen (`forget`), nicht erst am Ende
     des Prozesses.
 - **Erreichen des Ordners**: Eine Erweiterung kennt nur ihren Bereich und kann keinen Ordner finden.
-  Neu im vault-sdk: `extension_encrypted_folder_choose(storageId)` öffnet in holzi eine Auswahl der
+  Neu im vault-sdk: `extension_encrypted_folder_choose(storageId)` öffnet in haex-vault eine Auswahl der
   verschlüsselten Ordner dieses Speichers (nur mit `remoteStorage` für ihn) und stellt dabei die Frage
   nach FR-036; zurück kommt eine Ordner-Kennung. Mit ihr arbeiten `…_list`, `…_download`, `…_upload`,
   `…_delete` relativ zum Ordner ([contracts/bridge.md](./contracts/bridge.md)).
-- **Rationale**: Die Frage kommt vom Nutzer aus holzis Fenster; die Erweiterung lernt ohne Antwort
+- **Rationale**: Die Frage kommt vom Nutzer aus haex-vaults Fenster; die Erweiterung lernt ohne Antwort
   nichts (FR-039).
 - **Alternatives considered**: Pfade im ganzen Speicher für Erweiterungen (bricht 038 FR-010 weit über
   verschlüsselte Ordner hinaus).
@@ -244,7 +244,7 @@ Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als 
     die `assistant_message_id` des Turns (`chat/turn/mod.rs:81-100`), bei externen Agents die
     MCP-Sitzung (021).
   - **Lokal oder Cloud** aus `ProviderKind` (`storage/providers.rs:44-58`): `Local` = lokal; `ApiKey`
-    und `CliDelegate` = Cloud, auch bei einer Basis-URL auf `localhost` (holzi weiß nicht, was dahinter
+    und `CliDelegate` = Cloud, auch bei einer Basis-URL auf `localhost` (haex-vault weiß nicht, was dahinter
     läuft); externe Agents = Cloud.
 - **Folge für die Reihenfolge**: Die Agent-Lieferung von 048 kommt nach 044 PR G.
 
@@ -293,7 +293,7 @@ Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als 
   So bleibt die Kennung stabil, wenn ein Ordner auf dem Gerät verschoben wird, und Freigaben für
   Agents und Erweiterungen (`<storage_id>/<folder_id>`) gelten weiter.
 - Zeilen im Zwischenspeicher (`encrypted_folder_*_no_sync`) zu Ordnern, deren Kopf beim Laden fehlt,
-  löscht holzi; für Gerätekennungen läuft `cache::remove_storage` nie.
+  löscht haex-vault; für Gerätekennungen läuft `cache::remove_storage` nie.
 - **Alternatives considered**: eine Kennung je Elternordner (verliert Zwischenspeicher und Freigaben
   beim Verschieben); eine je Ordner-Kennung (kollidiert mit Kopien desselben Ordners).
 
@@ -334,7 +334,7 @@ Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als 
 - **Decision**:
   - **Erweiterungen**: `touches_denied` / `authorize_by` in `extensions/fs/mod.rs:213-277` prüfen
     zusätzlich, ob ein Pfadteil des aufgelösten Pfads `format::is_folder_prefix` erfüllt; solche Pfade
-    sind wie holzis eigene Daten gesperrt (Lesen, Schreiben, Löschen, Beobachten, Dialoge). `read_dir`
+    sind wie haex-vaults eigene Daten gesperrt (Lesen, Schreiben, Löschen, Beobachten, Dialoge). `read_dir`
     (`ops.rs:115-131`) lässt sie in Listen weg.
   - **Agents**: `files/access.rs` `check()` (`:77`) behandelt `Target::Device` in einem verschlüsselten
     Ordner wie gesperrt; `visible_to` (`:150`) lässt rohe `.hxef`-Verzeichnisse weg. Die Dateiaktionen
@@ -349,13 +349,13 @@ Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als 
   Erweiterung ohne Dateizugriff käme so an Gerätedaten).
 - **Agents**: ein Gerätepfad in einen verschlüsselten Ordner wird zum Speicher `device:<wurzel>`, der
   der Freigabe „Dateien des Geräts“ folgt; ein Aufruf mischt solche Pfade nie mit gewöhnlichen (die
-  Speicher-Sicht des Geräts ginge an der Prüfung von holzis eigenen Daten vorbei). Unter Windows
+  Speicher-Sicht des Geräts ginge an der Prüfung von haex-vaults eigenen Daten vorbei). Unter Windows
   erreichen Agents diese Ordner noch nicht.
 
 ## R19 — Fremde Dateien
 
 - **Decision**: Unter einem verschlüsselten Ordner gilt alles als fremd, was nicht `h`, `m/<26>`,
-  `c/<26>` oder eine Teil-Datei von holzi ist. Das Laden (`load.rs`) übergeht fremde Dateien und zählt
+  `c/<26>` oder eine Teil-Datei von haex-vault ist. Das Laden (`load.rs`) übergeht fremde Dateien und zählt
   sie; das Aufräumen (`cleanup.rs`) löscht sie nie; das Löschen des ganzen Ordners nennt ihre Zahl in
   der Rückfrage und löscht sie mit. Die Regel kommt in `docs/formats/encrypted-folder-v1.md` und gilt
   auch im Speicher (etwa für Dateien, die jemand über die Weboberfläche des Anbieters hochlädt).

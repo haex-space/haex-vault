@@ -8,14 +8,14 @@
 
 Eine Speicherverbindung verweist schon heute über `credentials_item_id` auf einen Eintrag des
 Passwortmanagers; neu ist, dass dieser Eintrag auch ein vorhandener des Nutzers sein kann, und dass die
-von holzi angelegten Einträge ein Tag tragen. Es gibt **keine Schemaänderung** und keine neue
+von haex-vault angelegten Einträge ein Tag tragen. Es gibt **keine Schemaänderung** und keine neue
 Abhängigkeit.
 
 Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](./research.md)):
 
 - **Wahl als Eingabeform** (R1): `CredentialsInput` bekommt die Form `entry { itemId }`. Sie gilt im
   Verbindungsformular und im Fenster für Speichervorschläge von Erweiterungen (`StorageAnswer.credentials`)
-  gleichermaßen; eine Erweiterung kann sie nicht senden, weil nur holzis Fenster `storage_dialog_resolve`
+  gleichermaßen; eine Erweiterung kann sie nicht senden, weil nur haex-vaults Fenster `storage_dialog_resolve`
   aufruft.
 - **Eine Zuordnungsregel** (R2): Aus dem Eintrag werden die Zugangsdaten an einer einzigen Stelle
   gebildet, `credentials::from_item`, herausgelöst aus `credentials::read`. Lesen, „passt der Eintrag?“
@@ -24,8 +24,8 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
   Metadaten (Titel, Benutzername, Adresse, Tag, Eigentümer) der passenden Einträge; die Suche läuft im
   Fenster über diese Liste.
 - **Tag** (R4): `haex-cloud-storage`. Neue Einträge tragen es von Anfang an; beim Öffnen der Vault holt
-  holzi es für vorhandene eigene Einträge nach; ein gewählter Eintrag bekommt es beim Verknüpfen, geschrieben
-  als `Caller::User`, weil der Nutzer ihn im Fenster von holzi gewählt hat (beantwortet die offene Frage
+  haex-vault es für vorhandene eigene Einträge nach; ein gewählter Eintrag bekommt es beim Verknüpfen, geschrieben
+  als `Caller::User`, weil der Nutzer ihn im Fenster von haex-vault gewählt hat (beantwortet die offene Frage
   der Checkliste: `Internal` bekommt keine Schreibrechte an fremden Einträgen).
 - **Zustand prüft die Passung** (R5): „neue Zugangsdaten nötig“ gilt auch, wenn der Eintrag da ist, aber
   Werte fehlen (FR-010); `state_in` bekommt dafür das Protokoll.

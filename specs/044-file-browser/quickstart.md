@@ -7,27 +7,27 @@ zeigt.
 ## 0. Testordner
 
 ```sh
-mkdir -p /tmp/holzi-files/{a,b}
-printf 'Hallo\n' > /tmp/holzi-files/notiz.txt
-cp <ein PDF> /tmp/holzi-files/brief.pdf
-cp <ein PNG/JPEG mit EXIF-Drehung> /tmp/holzi-files/a/foto.jpg
-cp <ein MP3> /tmp/holzi-files/a/lied.mp3
-cp <ein MP4 mit mindestens 4 GB> /tmp/holzi-files/b/film.mp4
-ln -s /tmp/holzi-files /tmp/holzi-files/a/schleife
+mkdir -p /tmp/haex-files/{a,b}
+printf 'Hallo\n' > /tmp/haex-files/notiz.txt
+cp <ein PDF> /tmp/haex-files/brief.pdf
+cp <ein PNG/JPEG mit EXIF-Drehung> /tmp/haex-files/a/foto.jpg
+cp <ein MP3> /tmp/haex-files/a/lied.mp3
+cp <ein MP4 mit mindestens 4 GB> /tmp/haex-files/b/film.mp4
+ln -s /tmp/haex-files /tmp/haex-files/a/schleife
 ```
 
 ## 1. Ansehen (US1)
 
-1. Dateibrowser öffnen, `/tmp/holzi-files` ansteuern; Liste und Raster wechseln. Das Foto steht im
+1. Dateibrowser öffnen, `/tmp/haex-files` ansteuern; Liste und Raster wechseln. Das Foto steht im
    Raster aufrecht.
 2. `notiz.txt`, `brief.pdf` (blättern, zoomen) und `foto.jpg` (zoomen, weiter) öffnen.
-3. In einem Terminal `touch /tmp/holzi-files/neu.txt`: erscheint ohne Neuladen.
-4. Zweiten Tab in `a/` öffnen, holzi beenden, mit Sitzung wieder öffnen: beide Tabs stehen richtig.
+3. In einem Terminal `touch /tmp/haex-files/neu.txt`: erscheint ohne Neuladen.
+4. Zweiten Tab in `a/` öffnen, HaexVault beenden, mit Sitzung wieder öffnen: beide Tabs stehen richtig.
 
 ## 2. Abspielen (US2, SC-002, SC-003)
 
 1. `film.mp4` öffnen: startet in unter 2 s; an drei Stellen springen.
-2. Speicherbedarf von holzi beobachten (`ps -o rss`): wächst um weniger als 100 MB.
+2. Speicherbedarf von HaexVault beobachten (`ps -o rss`): wächst um weniger als 100 MB.
 3. `lied.mp3` öffnen: startet sofort.
 4. Tab schließen, die zuvor kopierte Freigabe-URL mit `curl -I` abfragen: `404`.
 5. Windows, macOS und Android prüft die CI mit der Plattform-Probe (tasks.md T007, T041); von Hand nur,
@@ -44,7 +44,7 @@ ln -s /tmp/holzi-files /tmp/holzi-files/a/schleife
 
 ## 4. Suchen (US4)
 
-1. In `/tmp/holzi-files` nach `noitz` suchen: findet `notiz2.txt`.
+1. In `/tmp/haex-files` nach `noitz` suchen: findet `notiz2.txt`.
 2. Filter „Bilder“ und „letztes Jahr“: nur passende Treffer.
 3. Die Suche endet trotz `schleife`.
 4. Ab `/` suchen: `/proc`, `/sys`, eingehängte USB-Laufwerke kommen nicht vor.
@@ -63,11 +63,11 @@ Voraussetzung: RustFS lokal wie in Spec 038 Quickstart §5, ein Speicher in den 
 
 Im Chat mit einem Anthropic-Modell (nimmt Bilder an) und Freigabestufe „Auto“:
 
-1. „Suche brief.pdf unter /tmp/holzi-files und fasse ihn zusammen“: keine Rückfrage, Antwort aus dem PDF.
+1. „Suche brief.pdf unter /tmp/haex-files und fasse ihn zusammen“: keine Rückfrage, Antwort aus dem PDF.
 2. „Was ist auf foto.jpg?“: das Modell beschreibt das Bild.
 3. „Zeig mir film.mp4“: Dateibrowser öffnet sich mit dem Video.
 4. „Verschiebe notiz2.txt nach b/“: Rückfrage (Risky).
-5. „Lies die Vault-Datei von holzi“: Ablehnung `files_blocked`, kein Inhalt.
+5. „Lies die Vault-Datei von HaexVault“: Ablehnung `files_blocked`, kein Inhalt.
 6. „Liste den Speicher <Name> auf“: Rückfrage zur Speicher-Berechtigung; „Lesen erlauben“; erneut
    fragen: keine Rückfrage mehr. „Kopiere notiz2.txt dorthin“: abgelehnt (nur Lesen).
 7. Mit einem lokalen Modell (nimmt keine Bilder an) Schritt 2: Hinweis statt Bild.

@@ -117,7 +117,7 @@ together, US2 scenario 6); a UNIQUE index on message ids (halts sync on conflict
 
 ## R5 Sender verification and the carried card
 
-**Decision**: Every rumor carries the sender's **current signed Visitenkarte** (`holzi:card:` text,
+**Decision**: Every rumor carries the sender's **current signed Visitenkarte** (`haex:card:` text,
 ~0.5–2 KiB). The receiver:
 
 1. unwraps; drops if the wrap id was seen;
@@ -337,7 +337,7 @@ file to every own device, 25 MiB limit; too heavy for 100 MB files); plain files
 **new** table `chat_peer_messages` instead of `chat_messages`: agent messages keep their LLM roles and
 validation (storage/chat_messages.rs:112-151), and spec 068 can change them without touching contact
 messages. Details in [data-model.md](./data-model.md). Migration `0049_chat_contacts`;
-`HOLZI_TRIGGER_VERSION` 30 → 31 (new CRDT tables and columns, migrations.rs:121).
+`HAEX_TRIGGER_VERSION` 30 → 31 (new CRDT tables and columns, migrations.rs:121).
 
 **Alternatives considered**: one message table with nullable sender and LLM columns (role validation
 and 068 rework would entangle both kinds); a separate conversation table (two lists to merge, two

@@ -23,7 +23,7 @@ id, and the sync, the access rules (spec 021) and the window all reach entries t
 4. A new type ships with a migration (a `kind` value alone is not enough). The sync handshake of spec
    024 (FR-029) refuses a peer whose migration count or trigger version differs, and an old build
    cannot open a vault with a migration it does not know, so no old device ever receives an entry it
-   cannot show. The window's "needs a newer holzi" notice for an unknown `kind` is a second layer, not
+   cannot show. The window's "needs a newer haex-vault" notice for an unknown `kind` is a second layer, not
    the guard.
 5. The tables that hand-list the satellites (`trash::purge_item`, `copy.rs`) name every new table, since
    the sync applies a remote delete without foreign keys.

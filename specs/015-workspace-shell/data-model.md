@@ -74,7 +74,7 @@ einen nicht (mehr) vorhandenen Arbeitsbereich, gilt der erste nach `position`;
 | I9  | Höchstens 500 Fenster je Gerät (Schutz vor Fehlverhalten, keine UI-Regel)                                                                                   | –              |
 
 Kopie/Adoption (FR-024, SC-006): Ein kopierter Vault auf einem neuen Gerät bekommt
-eine neue `vault_device_uuid` (`HolziBootstrap`); alle Abfragen filtern danach, die
+eine neue `vault_device_uuid` (`HaexBootstrap`); alle Abfragen filtern danach, die
 Zeilen des Quellgeräts sind unsichtbar, und `shell_load_layout` legt einen
 Standard-Arbeitsbereich an.
 

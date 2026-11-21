@@ -102,18 +102,18 @@ Frontend speichert sie dann einmal ohne Historien (jeder Tab nur mit seinem
 aktuellen Ort) und protokolliert das, statt endlos zu wiederholen.
 
 **Beim Laden** (FR-012, Spec 015 FR-025): Ist das JSON ungültig, hat es eine
-andere `version` oder fehlen Pflichtfelder, startet holzi leer und
+andere `version` oder fehlen Pflichtfelder, startet haex-vault leer und
 protokolliert den Fehler. Unbekannte Apps, doppelte Einzelinstanzen und
 Fenster außerhalb des sichtbaren Bereichs behandelt `hydrate` wie bisher. Eine
 einzelne ungültige Historie (leer, mehr als 50 Einträge, `index` außerhalb,
-Ort ohne führendes `/`) ersetzt holzi durch eine frische Historie am Start-Ort
+Ort ohne führendes `/`) ersetzt haex-vault durch eine frische Historie am Start-Ort
 der App, ohne die übrige Sitzung zu verwerfen. Orte, die es nicht mehr gibt,
 behandelt Spec 020 beim Anzeigen (Hinweis, Startansicht, Überspringen
 gelöschter Unterhaltungen).
 
 ## Wartungsaufgaben
 
-Tabelle `holzi_maintenance_no_sync` (Migration 0020), eine Zeile je offener
+Tabelle `haex_maintenance_no_sync` (Migration 0020), eine Zeile je offener
 Aufgabe.
 
 | Spalte | Typ                | Regel                                          |

@@ -25,7 +25,7 @@ wurden deshalb zusätzlich direkt im Code geprüft. Ergebnis:
   `scripts/check-vue-templates.ts` (Farbprüfung, R9).
 - **Kein Kandidat**: Kategorien-Register, Seitenleiste, Kopf mit Zurück,
   Farbschema-Anwendung. Es gibt kein Farbschema-Handling und keine
-  Seitenleiste in holzi.
+  Seitenleiste in haex-vault.
 - **Geräteliste** (R12): `storage/known_devices.rs` und `device/commands.rs`
   werden erweitert; es gibt dort nur Lesen des eigenen Geräts und Umbenennen.
 - Zur späteren manuellen Prüfung vermerkt: Abfragen gegen einen veralteten
@@ -326,7 +326,7 @@ Schnitte vor.
   „Unbenanntes Gerät“ und der Markierung „Dieses Gerät“. Kein Umbenennen hier:
   der eigene Name steht in „Allgemein“. Geladen beim Öffnen der Kategorie.
 - **Nicht in 023** (Betreiberentscheidung beim Plan-Review): „zuletzt online“
-  und die Live-Aktualisierung. holzi hat noch keinen Sync-Transport
+  und die Live-Aktualisierung. haex-vault hat noch keinen Sync-Transport
   (`plans/README.md`: der Zwei-Geräte-Sync ist eine eigene Etappe nach dem MVP),
   also weder Verbindungen, deren Zeitpunkt sich messen ließe, noch ein
   Ereignis, wenn Änderungen anderer Geräte ankommen. Ein Lebenszeichen über
@@ -353,7 +353,7 @@ abgelehnt).
   `isDark`, `resolveAppAlias`, `tabTitleFor`, und dass
   jeder
   i18n-Schlüssel des Registers in `de.json` und `en.json` existiert (FR-020;
-  holzi schaltet die Sprache zur Laufzeit nicht um, eine manuelle Prüfung auf
+  haex-vault schaltet die Sprache zur Laufzeit nicht um, eine manuelle Prüfung auf
   Englisch ist deshalb nicht möglich).
 - **Erweitert `scripts/check-vue-templates.ts`**: Sperrliste für Palettenfarben;
   die neuen Aktionen laufen durch die vorhandene Prüfung auf direkte Schreibzugriffe.
@@ -370,7 +370,7 @@ abgelehnt).
   sind deutsch, die Standardsprache. Nicht automatisiert: S16 (Download aus dem Netz), S18
   (Zeitmessung), die Übernahme alter Gerätewerte in S21 (Rust-Tests in
   `maintenance_tests.rs`). Entfallen (Betreiberentscheidung 2026-09-27): S13a
-  mit einer kopierten Vault auf einer zweiten Installation, weil holzi noch
+  mit einer kopierten Vault auf einer zweiten Installation, weil haex-vault noch
   keine Föderation hat und die Kopie nur die Tabellenzeilen zeigt, die die
   Rust-Tests schon abdecken; S14, weil es einen Build vor dieser Spec braucht
   und `check-wm-geometry.ts` das Verwerfen eines Tabs unbekannter App prüft.

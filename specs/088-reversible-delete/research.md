@@ -7,7 +7,7 @@
 - **Rationale**: the guard is synchronous and knows nothing of the model; the check is a model call, and
   `plan_calls` is already async. Placing it after the guard means a proposal with invented ids or a missing argument
   is turned away first, without a model call (spec edge case). Placing it before the dialog means the user is never
-  asked about a proposal holzi then replaces.
+  asked about a proposal haex-vault then replaces.
 - **Alternatives considered**: inside `guard::turn_away` (would make the guard async and give it a model: rejected,
   the guard stays a pure function); after a declined dialog (rejected by the operator: a decline never starts another
   action).

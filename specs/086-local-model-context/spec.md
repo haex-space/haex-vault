@@ -46,7 +46,7 @@ I load any local model and it has the context the model was trained for, up to 1
 
 For a model on this device I set the context length (Auto, or a fixed number) and the KV cache type (standard, 8-bit, 4-bit). The settings show what the model was trained for, what this device allows and what is in effect now. I try Qwen3 with 128k and an 8-bit cache, look at what it does, and set it back.
 
-**Why this priority**: People install any model and test settings. A fixed target that cannot be changed makes holzi the wrong tool for that, and some models only reach 128k with a smaller cache.
+**Why this priority**: People install any model and test settings. A fixed target that cannot be changed makes HaexVault the wrong tool for that, and some models only reach 128k with a smaller cache.
 
 **Independent Test**: In the settings of a local model choose 65536 and an 8-bit cache; the page shows the model's training limit, the context the device allows with that cache and, once the model is loaded again, the context in effect. Choose Auto; the default is back.
 
@@ -64,7 +64,7 @@ For a model on this device I set the context length (Auto, or a fixed number) an
 
 ### User Story 3 - A conversation that outgrows its context goes on (Priority: P1)
 
-A conversation, its tool results and the page I just read use up the context. holzi shrinks what it can without loss of meaning first, and when that is not enough it summarises the older messages. I see a line in the history saying older messages were summarised, I can still read them, and the agent goes on with what it knew.
+A conversation, its tool results and the page I just read use up the context. HaexVault shrinks what it can without loss of meaning first, and when that is not enough it summarises the older messages. I see a line in the history saying older messages were summarised, I can still read them, and the agent goes on with what it knew.
 
 **Why this priority**: Whatever the size of the context, a long task reaches it. Today the next message then fails.
 

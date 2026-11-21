@@ -7,7 +7,7 @@
 ([`2026-09-28-sync-architecture.md`](../../docs/plans/2026-09-28-sync-architecture.md),
 §9 mit §5.4, §10.3, §11 und §13). Erweiterungen erklären in ihrem Manifest mit
 einem einheitlichen Schema, was sich teilen lässt: einzelne Einträge (ein
-Kalendereintrag) oder ganze Sammlungen (ein Kalender). holzi prüft diese
+Kalendereintrag) oder ganze Sammlungen (ein Kalender). HaexVault prüft diese
 Erklärung bei Installation und Update, bietet einen eigenen Teilen-Dialog an,
 vergibt Rechte je Person, berechnet selbst, welche Einträge zu einer Freigabe
 gehören, und schützt beim Senden und beim Empfangen, dass nur diese Einträge
@@ -69,7 +69,7 @@ Synchronisierung oder Rechten in Berührung.
   Kalendereintrag). **Zugehörige Einträge**: alle Einträge, die über die im
   Freigabetyp erklärten Fremdschlüssel von der Wurzel aus erreichbar sind (die
   Termine eines Kalenders, deren Teilnehmer und Erinnerungen).
-- **Ersteller**: die Vault-Identität, die einen Eintrag angelegt hat. holzi
+- **Ersteller**: die Vault-Identität, die einen Eintrag angelegt hat. HaexVault
   setzt sie beim Anlegen, und sie ändert sich danach nie.
 - **Fähigkeiten**: drei aufeinander aufbauende Stufen **Lesen**, **Schreiben**
   und **Löschen**, je Empfänger genau eine: Schreiben umfasst Lesen, Löschen
@@ -95,7 +95,7 @@ Synchronisierung oder Rechten in Berührung.
 - **Spec 024** (Vault-Identität, Geräteschlüssel, Geräteliste und Sync
   zwischen eigenen Geräten): liefert Vault-Identität, Geräteliste mit
   Hauptgeräten und verknüpften Geräten, unterschriebene Änderungen mit echtem
-  Autor, das Führen des Erstellers durch holzi und die feste Liste, welche
+  Autor, das Führen des Erstellers durch HaexVault und die feste Liste, welche
   Daten die Vault überhaupt verlassen dürfen, einschließlich der
   Nur-direkt-Daten (nur noch der private Schlüssel der Vault-Identität, D30).
   Empfangene Datenfreigaben und die empfangenen Inhaltsschlüssel erreichen die
@@ -122,7 +122,7 @@ Synchronisierung oder Rechten in Berührung.
   alle Anfragen einer Erweiterung kommen von dort. Diese Spec ergänzt das
   Manifest um Freigabetypen und die Brücke um zwei Anfragen: den Teilen-Dialog
   öffnen und den Freigabestatus eigener Einträge lesen. Die Tabellen einer
-  Erweiterung mit Präfix, die synchronisiert werden, gibt es in holzi noch
+  Erweiterung mit Präfix, die synchronisiert werden, gibt es in HaexVault noch
   nicht (Entwurf §15 Punkt 10); diese Spec setzt sie voraus.
 - **Spec 021** (Rechte für Agenten): Diese Spec gibt Agenten keinen Weg, eine
   Datenfreigabe anzulegen oder Rechte zu ändern (siehe Assumptions).
@@ -136,12 +136,12 @@ Synchronisierung oder Rechten in Berührung.
   Nutzer vergeben, über Datenfreigaben.
 - Q: Was lässt sich als Datenfreigabe teilen, und wer legt das fest? → A:
   Einzelne Einträge und ganze Sammlungen (D4). Erweiterungen erklären das mit
-  einem einheitlichen Schema, das holzi für jede Erweiterung gleich prüfen kann.
+  einem einheitlichen Schema, das HaexVault für jede Erweiterung gleich prüfen kann.
 - Q: Wer verwaltet eine Datenfreigabe? → A: Der Eigentümer, also wer sie
   angelegt hat, ist ihr einziger Admin (D6). Nur er lädt ein, vergibt, ändert
   und entzieht Fähigkeiten und entfernt Empfänger.
 - Q: Darf ein Empfänger weiterteilen? → A: Nein (D7). Nur der Eigentümer lädt
-  ein. Dass ein Empfänger Inhalte kopiert und selbst neu teilt, verhindert holzi
+  ein. Dass ein Empfänger Inhalte kopiert und selbst neu teilt, verhindert HaexVault
   nicht; das ist nicht im Umfang.
 - Q: Werden die Schlüssel einer Datenfreigabe wie in haex-vault 2.x mit MLS
   verwaltet? → A: Nein (D13). MLS braucht eine feste Reihenfolge, die zu einer
@@ -194,7 +194,7 @@ Die Autorin einer Kalender-Erweiterung möchte, dass Nutzer einzelne Termine und
 ganze Kalender teilen können. Sie trägt in das Manifest zwei Freigabetypen ein,
 „Kalender“ und „Kalendereintrag“, jeweils mit Wurzeltabelle, Beschriftungsfeld
 und zugehörigen Tabellen. Code für Schlüssel, Synchronisierung oder Rechte
-schreibt sie nicht. holzi prüft die Erklärung bei der Installation und lehnt
+schreibt sie nicht. HaexVault prüft die Erklärung bei der Installation und lehnt
 Erweiterungen ab, die über fremde Tabellen teilen wollen.
 
 **Why this priority**: Ohne geprüfte Erklärung gibt es nichts zu teilen. Die
@@ -216,14 +216,14 @@ installiert.
    Namen, und nach der Bestätigung ist die Erweiterung installiert.
 2. **Given** eine Erweiterung, deren Freigabetyp eine Tabelle außerhalb ihres
    Präfixes nennt (eine Kerntabelle oder eine Tabelle einer anderen
-   Erweiterung), **When** der Nutzer sie installieren will, **Then** lehnt holzi
+   Erweiterung), **When** der Nutzer sie installieren will, **Then** lehnt HaexVault
    die ganze Erweiterung ab und nennt die Tabelle.
 3. **Given** eine Erweiterung, deren Fremdschlüssel aus einer eigenen Tabelle in
    eine fremde zeigt, **When** der Nutzer sie installieren will, **Then** lehnt
-   holzi sie ab und nennt die Verbindung.
+   HaexVault sie ab und nennt die Verbindung.
 4. **Given** eine Erweiterung, die eine nicht synchronisierte Tabelle in einen
    Freigabetyp aufnimmt, **When** der Nutzer sie installieren will, **Then**
-   lehnt holzi sie ab.
+   lehnt HaexVault sie ab.
 5. **Given** eine installierte Erweiterung mit bestehenden Datenfreigaben,
    **When** ein Update eine unzulässige Erklärung mitbringt, **Then** wird das
    Update abgelehnt, und die installierte Version bleibt mit ihren Daten und
@@ -235,7 +235,7 @@ installiert.
 
 Anna möchte ihrem Kollegen Ben einen einzelnen Termin zeigen und ihrer Familie
 den ganzen Kalender „Familie“. In der Kalender-Erweiterung wählt sie beim Termin
-„Teilen“. Es öffnet sich der Teilen-Dialog von holzi, nicht einer der
+„Teilen“. Es öffnet sich der Teilen-Dialog von HaexVault, nicht einer der
 Erweiterung. Er zeigt den Titel des Termins, Anna erzeugt für Ben
 einen Einladungslink, schickt ihn ihm selbst und lässt es bei „Lesen“. Den Kalender „Familie“ teilt sie
 mit ihrem Mann Carl mit „Schreiben“. Trägt sie danach einen neuen
@@ -256,11 +256,11 @@ Vault erreicht eine der beiden.
 
 1. **Given** ein Termin in einer Erweiterung mit dem Freigabetyp
    „Kalendereintrag“, **When** die Erweiterung das Teilen anfragt, **Then**
-   öffnet holzi seinen Teilen-Dialog mit Titel des Termins, Name des
+   öffnet HaexVault seinen Teilen-Dialog mit Titel des Termins, Name des
    Freigabetyps, Name der Erweiterung und den bisherigen Empfängern.
 2. **Given** der Teilen-Dialog, **When** Anna einen Namen für den Empfänger
    angibt, eine Fähigkeitsstufe wählt und bestätigt, **Then** besteht die
-   Datenfreigabe, und holzi zeigt einen Einladungslink ohne Schlüssel (Text und
+   Datenfreigabe, und HaexVault zeigt einen Einladungslink ohne Schlüssel (Text und
    QR-Code), den Anna selbst weitergibt; die Einladung steht als „offen“ in der
    Übersicht. Mitgliederliste und Schlüsselgeneration ändern sich erst, wenn
    Anna die Annahme bestätigt hat (FR-010).
@@ -270,11 +270,11 @@ Vault erreicht eine der beiden.
 4. **Given** Anna verschiebt einen Termin aus „Familie“ in einen nicht geteilten
    Kalender, **When** die Änderung Carl erreicht, **Then** verschwindet der
    Termin aus Carls Kopie, und bei Anna bleibt er erhalten.
-5. **Given** eine Datenfreigabe, **When** holzi Änderungspakete für sie
+5. **Given** eine Datenfreigabe, **When** HaexVault Änderungspakete für sie
    verschickt, **Then** enthalten sie nur Wurzel und zugehörige Einträge aus
    den erklärten Tabellen und nie Geheimnisse der Vault.
 6. **Given** die Erweiterung fragt nach dem Stand eines eigenen Eintrags,
-   **When** holzi antwortet, **Then** erfährt sie, ob er geteilt ist, und sonst
+   **When** HaexVault antwortet, **Then** erfährt sie, ob er geteilt ist, und sonst
    nichts: keine Schlüssel, keine Mitgliederliste, keine Rechte anderer.
 
 ---
@@ -299,7 +299,7 @@ Erweiterung öffnen: Sie nennt die Erweiterung und bietet die Installation an.
 
 **Acceptance Scenarios**:
 
-1. **Given** eine Einladung, **When** Carl sie öffnet, **Then** zeigt holzi den
+1. **Given** eine Einladung, **When** Carl sie öffnet, **Then** zeigt HaexVault den
    Namen und die Vault-Identität des Eigentümers, Erweiterung, Freigabetyp,
    Beschriftung der Wurzel und die angebotenen Fähigkeiten, und bis zur Annahme
    wird nichts aus der Freigabe gespeichert.
@@ -342,7 +342,7 @@ setzt aber das Lesen aus US2 und US3 voraus.
 **Independent Test**: Eine Liste mit zwei Empfängern teilen, einer mit
 Schreiben, einer ohne. Der mit Schreiben legt einen Eintrag an und ändert einen
 fremden; beide Änderungen erreichen Eigentümer und anderen Empfänger. Der ohne
-Schreiben versucht dasselbe; holzi lehnt es in seiner Vault ab, und nichts davon
+Schreiben versucht dasselbe; HaexVault lehnt es in seiner Vault ab, und nichts davon
 verlässt sie.
 
 **Acceptance Scenarios**:
@@ -358,10 +358,10 @@ verlässt sie.
    ist.
 4. **Given** Dana hat nur Lesen, **When** ihre Erweiterung einen Eintrag der
    geteilten Liste ändern oder einen neuen darunter anlegen will, **Then** lehnt
-   holzi das in Danas Vault ab, und die Erweiterung erhält einen Fehler.
+   HaexVault das in Danas Vault ab, und die Erweiterung erhält einen Fehler.
 5. **Given** Carl hat Schreiben, aber nicht Löschen, **When** er einen eigenen
    Eintrag löscht, **Then** wird er bei allen gelöscht; **When** er einen von
-   Anna angelegten Eintrag löschen will, **Then** lehnt holzi das ab.
+   Anna angelegten Eintrag löschen will, **Then** lehnt HaexVault das ab.
 6. **Given** jemand verändert den Ersteller eines Eintrags, **When** die
    Änderung eintrifft, **Then** lehnen alle Beteiligten sie ab.
 
@@ -401,7 +401,7 @@ anderen Empfänger Schreiben entziehen: Seine eigene Vault lehnt danach jede
    ändern will, **Then** lehnt seine eigene Vault das ab (FR-029); für Änderungen, die
    gleichzeitig mit der Rückstufung entstanden sind, gilt FR-034.
 6. **Given** ein Empfänger will die Rechte eines anderen ändern oder jemanden
-   einladen, **When** er es versucht, **Then** bietet holzi das nicht an, weil
+   einladen, **When** er es versucht, **Then** bietet HaexVault das nicht an, weil
    nur der Eigentümer Rechte vergibt.
 
 ---
@@ -410,7 +410,7 @@ anderen Empfänger Schreiben entziehen: Seine eigene Vault lehnt danach jede
 
 Dana braucht die Einkaufsliste nicht mehr und tritt aus der Freigabe aus. Die
 Liste verschwindet aus ihrer Vault auf allen ihren Geräten, bei Anna bleibt sie
-unberührt. Später deinstalliert Anna die Kalender-Erweiterung; holzi zeigt
+unberührt. Später deinstalliert Anna die Kalender-Erweiterung; HaexVault zeigt
 vorher, welche Datenfreigaben dadurch enden.
 
 **Why this priority**: Seltener als Teilen und Entziehen, aber ohne sauberes
@@ -480,7 +480,7 @@ angezeigter ursprünglicher Autorin.
   das anzeigen können (FR-018).
 - Ein Empfänger mit Schreiben hängt einen Eintrag an eine Wurzel außerhalb der
   Freigabe um (verschiebt ihn in einen eigenen Kalender). Die Änderung wäre
-  danach nicht mehr von der Wurzel aus erreichbar; holzi lehnt sie schon in
+  danach nicht mehr von der Wurzel aus erreichbar; HaexVault lehnt sie schon in
   seiner Vault ab (FR-029). Kopieren bleibt möglich.
 - Der Eigentümer löscht die Wurzel, oder ein Empfänger mit dem Recht dazu löscht
   sie. Die Löschung erreicht alle Beteiligten, und die Datenfreigabe endet für
@@ -536,7 +536,7 @@ angezeigter ursprünglicher Autorin.
 - Eine Einladung trifft ein, während die Erweiterung gerade deinstalliert wird,
   oder für einen Freigabetyp, den die installierte Version nicht kennt. Sie
   bleibt offen wie bei fehlender Erweiterung (FR-020).
-- Der Eigentümer teilt einen Eintrag mit sich selbst. holzi bietet das nicht an;
+- Der Eigentümer teilt einen Eintrag mit sich selbst. HaexVault bietet das nicht an;
   die eigenen Geräte teilen die ganze Vault ohnehin (Spec 024).
 
 ## Requirements _(mandatory)_
@@ -553,11 +553,11 @@ angezeigter ursprünglicher Autorin.
   übergeordnete Tabelle zeigt; optional je zugehöriger Tabelle den Freigabetyp
   derselben Erweiterung, dessen zugehörige Einträge mitkommen (die Termine eines
   Kalenders bringen ihre Teilnehmer und Erinnerungen mit). Tabellennamen sind
-  logisch; holzi ordnet sie den Tabellen mit dem Präfix der Erweiterung zu. Das
+  logisch; HaexVault ordnet sie den Tabellen mit dem Präfix der Erweiterung zu. Das
   konkrete Format im Manifest legt der Plan fest.
-- **FR-002**: holzi MUSS die Erklärung bei jeder Installation und jedem Update
+- **FR-002**: HaexVault MUSS die Erklärung bei jeder Installation und jedem Update
   prüfen, bevor die Erweiterung verwendet werden kann, gegen das Schema, das die
-  Erweiterung danach hat. holzi MUSS die ganze Erweiterung ablehnen, wenn:
+  Erweiterung danach hat. HaexVault MUSS die ganze Erweiterung ablehnen, wenn:
   (a) eine Wurzel- oder zugehörige Tabelle außerhalb des eigenen Präfixes
   liegt; (b) ein Fremdschlüssel auf eine Tabelle außerhalb des eigenen Präfixes
   zeigt; (c) eine genannte Tabelle nicht synchronisiert wird oder als nur
@@ -574,7 +574,7 @@ angezeigter ursprünglicher Autorin.
 - **FR-004**: Der Bestätigungsdialog bei Installation und Update (ADR-0004) MUSS
   die erklärten Freigabetypen mit Namen zeigen. Ein Update, das Freigabetypen
   hinzufügt, braucht eine neue Bestätigung wie jede neue Berechtigung.
-- **FR-005**: Für jede Tabelle, die in einem Freigabetyp vorkommt, MUSS holzi
+- **FR-005**: Für jede Tabelle, die in einem Freigabetyp vorkommt, MUSS HaexVault
   beim Anlegen eines Eintrags den Ersteller auf die Vault-Identität der
   schreibenden Vault setzen. Die Erweiterung DARF den Ersteller weder setzen
   noch ändern. Einträge, die schon bestehen, wenn eine Tabelle teilbar wird,
@@ -585,7 +585,7 @@ angezeigter ursprünglicher Autorin.
 
 **Teilen**
 
-- **FR-007**: Den Teilen-Dialog MUSS holzi selbst anzeigen. Eine Erweiterung
+- **FR-007**: Den Teilen-Dialog MUSS HaexVault selbst anzeigen. Eine Erweiterung
   DARF ihn nur anfragen, für einen Eintrag der Wurzeltabelle eines ihrer
   Freigabetypen. Eine Datenfreigabe entsteht oder ändert sich nur durch eine
   Bestätigung des Nutzers in diesem Dialog oder in der Unteransicht
@@ -602,7 +602,7 @@ angezeigter ursprünglicher Autorin.
   Inhaltsschlüssel je Gerät verschlüsselt werden (FR-043), erfährt der
   Eigentümer, wie viele Geräte ein Empfänger hat; das wird hingenommen (D28).
 - **FR-010**: Bestätigt der Eigentümer im Teilen-Dialog einen neuen Empfänger,
-  MUSS holzi: die Datenfreigabe anlegen, falls es sie noch nicht gibt; die
+  MUSS HaexVault: die Datenfreigabe anlegen, falls es sie noch nicht gibt; die
   Einladung mit Namen, Fähigkeitsstufe, Einmalgeheimnis, Ablaufzeit und Stand
   „offen“ speichern; und den Einladungslink ohne Schlüssel zeigen, den der
   Eigentümer selbst weitergibt (Spec 027 FR-008). Kein Recht und kein
@@ -623,7 +623,7 @@ angezeigter ursprünglicher Autorin.
   Mitglieder nicht.
 - **FR-011**: Ein neu hinzugefügter Empfänger MUSS nach der Annahme den ganzen
   aktuellen Stand der Datenfreigabe erhalten, nicht nur die Änderungen nach
-  seiner Einladung. Dafür MUSS holzi ihm zusätzlich die Inhaltsschlüssel aller
+  seiner Einladung. Dafür MUSS HaexVault ihm zusätzlich die Inhaltsschlüssel aller
   älteren Schlüsselgenerationen verschlüsselt an jedes seiner Geräte geben
   (FR-043),
   sodass er auch Änderungen von vor seiner Einladung lesen kann.
@@ -647,10 +647,10 @@ angezeigter ursprünglicher Autorin.
   und Empfänger entfernen (D6). Für ihn handeln darf jedes Gerät auf der
   aktuellen Geräteliste seiner Vault, auch ein verknüpftes Gerät; es
   unterschreibt mit seinem Geräteschlüssel (D29). Für Einträge, die zu einer empfangenen
-  Datenfreigabe gehören, DARF holzi keinen Teilen-Dialog öffnen; eine solche
+  Datenfreigabe gehören, DARF HaexVault keinen Teilen-Dialog öffnen; eine solche
   Anfrage der Erweiterung wird mit einem Hinweis abgelehnt (D7). Das gilt auch
   für Einträge, die der Empfänger selbst in der Freigabe angelegt hat.
-- **FR-015**: holzi MUSS in der Einstellungskategorie „Föderation“ (Spec 023)
+- **FR-015**: HaexVault MUSS in der Einstellungskategorie „Föderation“ (Spec 023)
   eine Unteransicht „Datenfreigaben“ anbieten, die alle Datenfreigaben zeigt:
   die eigenen mit Empfängern, Fähigkeiten und dem Stand jeder Einladung
   (offen, angenommen, abgelehnt, abgelaufen, zurückgezogen), die empfangenen mit Eigentümer und eigenen
@@ -697,7 +697,7 @@ angezeigter ursprünglicher Autorin.
   Spec 027 FR-008 prüfen und erst danach eine Vorschau zeigen: Name und
   Vault-Identität des Eigentümers, Erweiterung, Freigabetyp, Beschriftung der
   Wurzel und angebotene Fähigkeiten; dabei geht nichts an den Eigentümer.
-  Einen gefälschten oder veränderten Link MUSS holzi lokal abweisen und darf
+  Einen gefälschten oder veränderten Link MUSS HaexVault lokal abweisen und darf
   keine Annahme senden.
   Der Empfänger MUSS annehmen oder verwerfen können. Die Annahme ist eine
   Antwort an den Eigentümer mit dem Einmalgeheimnis, unterschrieben vom
@@ -718,7 +718,7 @@ angezeigter ursprünglicher Autorin.
   dieselbe Erweiterung gilt nur eine mit gleichem öffentlichem Schlüssel und
   Namen.
 - **FR-021**: Nach der Annahme MÜSSEN die Daten in den Tabellen derselben
-  Erweiterung in der Vault des Empfängers landen. holzi MUSS festhalten, welche
+  Erweiterung in der Vault des Empfängers landen. HaexVault MUSS festhalten, welche
   Einträge zu welcher empfangenen Datenfreigabe gehören.
 - **FR-022**: Empfangene Daten und die empfangenen Inhaltsschlüssel MÜSSEN auf
   alle Geräte des Empfängers gelangen, über den Sync zwischen eigenen Geräten
@@ -748,10 +748,10 @@ angezeigter ursprünglicher Autorin.
   angewendet werden. Eine Momentaufnahme wird dagegen je vollständiger
   Transaktionsgruppe geprüft (Spec 024): Eine unzulässige Änderung verwirft
   ihre ganze Gruppe, die übrigen Gruppen werden angewendet; eine Gruppe wird
-  nie teilweise angewendet. holzi MUSS
+  nie teilweise angewendet. HaexVault MUSS
   jede Ablehnung protokollieren und mit den folgenden Paketen weitermachen.
 - **FR-025**: Enthält ein Paket Tabellen oder Spalten des Freigabetyps, die die
-  installierte Version der Erweiterung noch nicht kennt, MUSS holzi es
+  installierte Version der Erweiterung noch nicht kennt, MUSS HaexVault es
   zurückhalten statt es zu verwerfen, und die Freigabe MUSS auf ein Update der
   Erweiterung hinweisen. Nach dem Update wird es angewendet.
 - **FR-026**: Der Empfänger MUSS eine Einladung verwerfen und aus einer
@@ -773,7 +773,7 @@ angezeigter ursprünglicher Autorin.
 - **FR-028**: Löschen: Schreiben MUSS das Löschen eigener Einträge (Ersteller
   ist die eigene Vault-Identität) erlauben; fremde Einträge zu löschen MUSS die
   Fähigkeit Löschen erfordern. Der Eigentümer darf alles löschen.
-- **FR-029**: holzi MUSS in der Vault des Empfängers jede Änderung an Einträgen
+- **FR-029**: HaexVault MUSS in der Vault des Empfängers jede Änderung an Einträgen
   einer empfangenen Freigabe ablehnen, die die eigenen Fähigkeiten nicht
   erlauben, bevor sie gespeichert wird: Ändern und Anlegen ohne Schreiben,
   Löschen nach FR-028, Umhängen eines Eintrags aus der Freigabe heraus. Die
@@ -792,7 +792,7 @@ angezeigter ursprünglicher Autorin.
 **Entzug**
 
 - **FR-032**: Der Eigentümer MUSS Fähigkeiten eines Empfängers jederzeit ändern
-  und Empfänger entfernen können. Dabei MUSS holzi eine neue Mitgliederliste auf
+  und Empfänger entfernen können. Dabei MUSS HaexVault eine neue Mitgliederliste auf
   das Relay laden, sodass es den Empfänger sofort nach den neuen Rechten
   behandelt, und eine neue Schlüsselgeneration anlegen, die nur an die
   verbliebenen Empfänger geht, an jedes ihrer Geräte (wie bei jeder Änderung
@@ -943,7 +943,7 @@ angezeigter ursprünglicher Autorin.
 
 ## Assumptions
 
-- holzi hat noch keine Tabellen, die einer Erweiterung gehören, ihr Präfix
+- HaexVault hat noch keine Tabellen, die einer Erweiterung gehören, ihr Präfix
   tragen und synchronisiert werden (Entwurf §15 Punkt 10). Diese Spec setzt sie
   voraus, ebenso den Erweiterungs-Host mit Manifest, Bestätigung bei der
   Installation und einer Prüfstelle für Anfragen (geplante Spec 017, ADR-0004).
@@ -956,9 +956,9 @@ angezeigter ursprünglicher Autorin.
   Postfach, Mitgliederliste und die Prüfung der Geräteliste. Spec 027 liefert den Einladungslink samt Antworten und die direkte
   Verbindung zwischen Mitgliedern.
 - Das konkrete Format der Erklärung im Manifest und die Anfragen der Erweiterung
-  an holzi legt der Plan fest. Beides berührt auch die Repositories `vault-sdk`
+  an HaexVault legt der Plan fest. Beides berührt auch die Repositories `vault-sdk`
   und `haextension`; Verweise darauf werden mit vollem Commit-SHA angegeben.
-- Eigentümer und Empfänger nutzen holzi und dieselbe Erweiterung (gleicher
+- Eigentümer und Empfänger nutzen HaexVault und dieselbe Erweiterung (gleicher
   öffentlicher Schlüssel und Name), nicht zwingend dieselbe Version.
 - Personen werden über einen Einladungslink eingeladen, den der Eigentümer
   selbst weitergibt, oder aus dem Adressbuch (Spec 051). Den Namen in der
@@ -988,7 +988,7 @@ angezeigter ursprünglicher Autorin.
 - Ein Rotieren der Vault-Identität (D26).
 - Rechte feiner als je Datenfreigabe (je Eintrag oder Feld) und Gruppen als
   Empfänger.
-- Teilen mit Personen ohne holzi, öffentliche Links.
+- Teilen mit Personen ohne HaexVault, öffentliche Links.
 - Verbergen der Teilnehmer vor dem Relay (D9), nachträgliches Neuverschlüsseln
   alter Daten und Schutz nach einer Kompromittierung.
 - MLS (D13).

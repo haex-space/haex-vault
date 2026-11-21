@@ -84,7 +84,7 @@ outside it, since an unsupported model is not documented to ignore the
 field gracefully. Claude Code's `--effort` flag is sent unconditionally
 whenever the user picked a level, relying on Claude Code's own documented
 per-model fallback ("Unsupported levels fall back to highest supported
-level at or below the requested one") rather than holzi maintaining a
+level at or below the requested one") rather than haex-vault maintaining a
 second copy of Claude Code's model/level table. A per-attachment size cap
 (5 MB image / 32 MB PDF / 5 MB text, mirroring Anthropic's own Messages API
 limits) and a 5-attachments-per-message cap, enforced both at attach time
@@ -99,7 +99,7 @@ invocation's own tool-call count, discarded when the stream ends.
 
 _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
-Evaluated against the holzi Constitution (`.specify/memory/constitution.md`,
+Evaluated against the haex-vault Constitution (`.specify/memory/constitution.md`,
 hard-pinned from haex-hive, revision `336eaf1e`):
 
 | Principle                                               | Status | Rationale                                                                                                                                                                                                           |
@@ -110,7 +110,7 @@ hard-pinned from haex-hive, revision `336eaf1e`):
 | IV. Cross-Repo References Pin Immutable Revisions       | ✓ PASS | No new external harness content. `base64` is a new _direct_ Cargo dependency, but not new external content — already resolved transitively (see Technical Context), same pattern this file already uses for `sha2`. |
 | V. External Sources Are Opt-in Per Project              | ✓ PASS | N/A.                                                                                                                                                                                                                |
 | VI. Self-Modifying Instructions Are Always Review-Gated | ✓ PASS | This spec/plan land through normal PR review like any other feature.                                                                                                                                                |
-| VII. Relay Unavailability Never Blocks Local Work       | ✓ PASS | Effort levels, sub-agent tracking, and attachment reading are all local computation/subprocess/HTTP-adapter concerns, independent of holzi's sync relay.                                                            |
+| VII. Relay Unavailability Never Blocks Local Work       | ✓ PASS | Effort levels, sub-agent tracking, and attachment reading are all local computation/subprocess/HTTP-adapter concerns, independent of haex-vault's sync relay.                                                       |
 | VIII. No Concealment Instructions in Agent Output       | ✓ PASS | The agent-activity indicator's entire purpose is _more_ visibility into delegate behavior, not less; no hidden behavior introduced.                                                                                 |
 
 **Result**: All gates PASS. No Complexity Tracking entry needed.

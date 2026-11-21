@@ -55,7 +55,7 @@ Node 22.19 für die Prüfskripte
 direktes `url`. RS256 wird nicht signiert, deshalb **kein** `rsa` zur Laufzeit (R8).
 
 **Storage**: Migration `0026_passwords_refs` (geplant als `0024`; Spec 017 hat `0024` und `0025` zuerst belegt): eine CRDT-Tabelle
-(`haex_passwords_passkey_links`), `HOLZI_TRIGGER_VERSION`
+(`haex_passwords_passkey_links`), `HAEX_TRIGGER_VERSION`
 15 → 16. Keine Änderung vorhandener Tabellen. Details in [data-model.md](./data-model.md).
 
 **Testing**: Rust — Einheitstests in `*_tests.rs` (`references`, `webauthn`, `copy`,

@@ -1,6 +1,6 @@
 # Contracts: Tauri Commands & Events (CLI Delegate Backend)
 
-Alle Kommandos sind async, laufen im Tauri-`invoke_handler` und geben `Result<T, HolziError>`
+Alle Kommandos sind async, laufen im Tauri-`invoke_handler` und geben `Result<T, HaexError>`
 zurück. `snake_case` ↔ `camelCase` per `#[serde(rename_all = "camelCase")]`, unverändert.
 
 ## Neue Commands
@@ -42,7 +42,7 @@ ursprünglich angenommen ein einheitlicher "Kindprozess gibt URL aus"-Flow):
 
 **Fehler**:
 
-- `HolziError::InvalidInput` wenn der Kindprozess (`claude setup-token`/`codex login --device-auth`)
+- `HaexError::InvalidInput` wenn der Kindprozess (`claude setup-token`/`codex login --device-auth`)
   nicht startet (Binary fehlt) — spec.md FR-008-artige Behandlung, aber am Setup- statt am Chat-Pfad.
 - Ein Fehlschlag beim Extrahieren der URL (unerwartetes CLI-Output-Format) liefert `InvalidInput` mit
   einer erklärenden `reason`; es wird keine Provider-Zeile angelegt oder verändert.
@@ -69,7 +69,7 @@ und Stelle statt eine zweite Zeile anzulegen (das bedient auch FR-014: reconnect
 Command-Paar, keine separate "reconnect"-Route). Dieselbe Upsert-Semantik gilt für `codex`, dort aber
 bereits am Ende von `connect_cli_delegate` selbst, da kein zweiter Command existiert.
 
-**Fehler**: `HolziError::InvalidInput` wenn kein Flow für `claude` aussteht (z. B. doppelter Aufruf,
+**Fehler**: `HaexError::InvalidInput` wenn kein Flow für `claude` aussteht (z. B. doppelter Aufruf,
 abgelaufener/bereits beendeter Prozess, **oder der Hintergrund-Task hat den Flow bereits automatisch
 abgeschlossen** — in diesem Fall hat das Frontend das `success`-Event bereits erhalten oder erhält es
 kurz danach; bei erfolgreichem Provider-Upsert ist das ein `success`-Event, bei einem Upsert-Fehler ein

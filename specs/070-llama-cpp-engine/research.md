@@ -9,7 +9,7 @@ prompt, on the development machine: RTX A2000 8 GB laptop GPU, 24 threads, Linux
 ## Verdict
 
 llama.cpp through `llama-cpp-2` **loads Qwen3.5 and Gemma 4, is faster than mistralrs on Qwen3 4B, needs
-less VRAM, and with a prototype chat-template renderer and tool-call parser it calls holzi's tools at
+less VRAM, and with a prototype chat-template renderer and tool-call parser it calls haex-vault's tools at
 least as well as mistralrs** (spec 032 evaluation: 55 against 52 of 83 sentences with Qwen3 4B, 60 with
 Qwen3.5). It builds for `aarch64-linux-android`. The renderer and parsers are not part of the binding;
 they would be ours to build and keep. iOS could not be tested here, and the Android run on an emulator did
@@ -54,7 +54,7 @@ not happen (see Build).
 
 ## Evaluation of spec 032 (SC-002)
 
-`src-tauri/tests/model_tool_eval.rs` with `HOLZI_EVAL_ENGINE=llamacpp`, through the prototype
+`src-tauri/tests/model_tool_eval.rs` with `HAEX_EVAL_ENGINE=llamacpp`, through the prototype
 `LlamaCppSpikeAdapter` (`llamacpp_spike_adapter.rs`: the file's own Jinja template through `minijinja`,
 thinking split off, `<tool_call>` blocks read as JSON or XML, greedy decoding). The example set is now
 **83 sentences** (set version 5), not the 30 the spec first named. All three runs on the GPU, deterministic,
@@ -89,7 +89,7 @@ one run each. mistralrs was measured again on the same machine because the figur
   card. A cold build took 15 min. R1 below replaces this with a static link.
 - **Android**: `llama-cpp-2` builds for `aarch64-linux-android` with NDK 28.2 in 1.5 min (isolated crate,
   NDK clang set through `CC_aarch64_linux_android`). It was not run on a device or emulator. The check
-  through the whole holzi crate failed earlier, in `aws-lc-sys` (host gcc instead of the NDK compiler),
+  through the whole haex-vault crate failed earlier, in `aws-lc-sys` (host gcc instead of the NDK compiler),
   which is unrelated to llama.cpp but shows the cross-build environment needs the same variables.
 - **iOS**: not buildable on this Linux machine; the sys crate's `build.rs` has no iOS-specific branch.
 - **Android run on an emulator: not done.** The x86_64 probe build and the emulator were started, then the
@@ -134,7 +134,7 @@ development machine with the CUDA build and Qwen3 4B and Qwen3.5 4B (both Q4_K_M
 `llm::engine::load_local` reads `general.architecture` from the file and picks the engine: every
 architecture mistralrs knows stays with mistralrs, the rest goes to llama.cpp where it is compiled in, and
 otherwise the load fails at once with a message. With the CUDA build on the development machine,
-`HOLZI_TEST_GGUF` set to the Qwen3 4B file loads through mistralrs and the Qwen3.5 4B file through
+`HAEX_TEST_GGUF` set to the Qwen3 4B file loads through mistralrs and the Qwen3.5 4B file through
 llama.cpp, and both answer (`load_local_picks_the_engine_from_the_file_and_answers`).
 
 The catalog carries an `architecture` per entry, used only as a gate (FR-007): `entries()` hides a model no
@@ -153,7 +153,7 @@ GPU), a quiet machine (load about 3), one run each, greedy decoding:
   on the CPU too; ggml with the AVX2 baseline of R3, threads = physical cores, still with OpenMP, which
   R3's last paragraph drops);
 - the 83 sentences of spec 032 (set version 5) on the GPU, `model_tool_eval`;
-- the speed with `measures_the_speed` (now also through mistralrs, `HOLZI_TEST_ENGINE=mistralrs`): a prompt
+- the speed with `measures_the_speed` (now also through mistralrs, `HAEX_TEST_ENGINE=mistralrs`): a prompt
   of about 560 tokens, 128 new tokens, the second of two rounds. mistralrs provides no completion-token count
   in its `Done` frame, so the benchmark reports Delta chunks/s for it. A chunk can contain multiple tokens
   after UTF-8 buffering, so its chunk rate cannot be compared with llama.cpp tokens/s.
@@ -312,7 +312,7 @@ spike's one example:
 - Tool results belong in the model turn that made the calls. The current template reads OpenAI-style `tool`
   messages, older ones only `tool_responses` on the assistant message; the format sends the merged shape,
   which both read (llama.cpp does the same for older templates).
-- llama.cpp holds the model to the syntax with a lazy grammar once `<|tool_call>` appears; holzi has no
+- llama.cpp holds the model to the syntax with a lazy grammar once `<|tool_call>` appears; haex-vault has no
   grammar, so the reader also takes what the model may write without one: quoted keys, bare words as strings,
   calls without braces.
 
@@ -327,7 +327,7 @@ Question: does `llama_rs_fit_params` give a safe GPU layer count, or does the en
 
 > **Addendum 2026-11-04 (spec 079)**: the desktops now build `common` after all, for speculative decoding
 > with the MTP drafter (`specs/079-mtp-speculative/plan.md`, Primary Dependencies). Android and iOS still build
-> without it. The memory plan below stays holzi's own.
+> without it. The memory plan below stays haex-vault's own.
 
 **Decision: the engine plans itself (`llm/llamacpp/memory.rs`).** `fit_params` sits behind the `common`
 feature of the binding, which builds a second library (`libcommon`) into every platform, Android and iOS
@@ -375,18 +375,18 @@ $CUDA_LIBRARY_PATH/lib64/
 Build with `CUDAARCHS=86` (this card; without it ggml compiles every architecture) and `cmake` on `PATH`. The
 feature `llm-llamacpp-cuda` no longer enables `dynamic-link`.
 
-| Check                                                         | Result                                                                         |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Isolated probe crate (`llama-cpp-2` with `cuda`), debug build | 5 min 23 s; dynamic dependencies: only `libcuda.so.1` (and libgomp, libstdc++) |
-| Probe run                                                     | finds the RTX A2000 (7893 MiB), `max_devices` 16                               |
-| holzi `--features llm-cuda,llm-llamacpp-cuda`, test build     | 9 min 14 s from a reflinked cache                                              |
-| llama.cpp and mistralrs CUDA tests in **one process**         | both pass; Qwen3 4B 65.2 t/s (llama.cpp) and 54.2 t/s (mistralrs)              |
+| Check                                                          | Result                                                                         |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Isolated probe crate (`llama-cpp-2` with `cuda`), debug build  | 5 min 23 s; dynamic dependencies: only `libcuda.so.1` (and libgomp, libstdc++) |
+| Probe run                                                      | finds the RTX A2000 (7893 MiB), `max_devices` 16                               |
+| haex-vault `--features llm-cuda,llm-llamacpp-cuda`, test build | 9 min 14 s from a reflinked cache                                              |
+| llama.cpp and mistralrs CUDA tests in **one process**          | both pass; Qwen3 4B 65.2 t/s (llama.cpp) and 54.2 t/s (mistralrs)              |
 
 - A first run of the two-engine test failed with "cudaMalloc failed: out of memory" and a mistralrs "device
   mismatch": another process (the dev app) held 4.6 GB of the 8 GB card. After it was closed the run passed,
   so the failure was memory, not the static link.
 - A binary that links cudart statically needs no `libcudart.so` at run time, but still needs the driver. A
-  plain binary has to find `libcuda.so.1` itself; holzi's `build.rs` adds the rpath for the app (and the host
+  plain binary has to find `libcuda.so.1` itself; haex-vault's `build.rs` adds the rpath for the app (and the host
   bridge script covers the rest), a standalone probe needs `LD_LIBRARY_PATH` set to the host's driver directory.
 - **What it does not show**: Windows (the crate reads `CUDA_PATH` there, with a different layout), more than one
   card or architecture, and a release build for all GPU architectures (`CUDAARCHS` choice, build time, binary

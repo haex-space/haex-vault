@@ -136,7 +136,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "In holzi gibt es keine Einkaufslisten-App. Wo soll ich „Milch“ notieren?",
+            "question": "In haex-vault gibt es keine Einkaufslisten-App. Wo soll ich „Milch“ notieren?",
             "options": [
               "Als Textdatei „Einkaufsliste“ in Dateien",
               "Als Mail an mich selbst über haex-mail",
@@ -146,7 +146,7 @@
           "ending": "ran"
         }
       ],
-      "text": "In holzi gibt es keine Einkaufslisten-App. Wo soll ich „Milch“ notieren?"
+      "text": "In haex-vault gibt es keine Einkaufslisten-App. Wo soll ich „Milch“ notieren?"
     },
     {
       "id": "no_tool-en-4",

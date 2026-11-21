@@ -13,7 +13,7 @@ Alt+Pfeil und System-Zurück wirken nach festen Zielregeln. Jede Bedienung der
 Shell, des Chats und der Einstellungen läuft über einen beschriebenen
 Aktionskatalog (JSON-Schema-Eingaben, Bereiche, Wirkungsart, Aufrufer), der
 Spec 021 den Zugang für Agenten ohne Umbau erlaubt; Leitplanken sind für Agenten
-gesperrt. Inhalte in Tabs (haextensions) können holzis Navigation nicht
+gesperrt. Inhalte in Tabs (haextensions) können haex-vaults Navigation nicht
 verändern.
 
 Technischer Ansatz (Begründungen in [research.md](./research.md)):
@@ -93,7 +93,7 @@ spaex-Constitution `.spaex/constitution.md`.
 | VII Relay-Ausfall blockiert lokale Arbeit nicht                            | ✅     | Rein lokal                                                                                                                                                                                                                           |
 | VIII Keine Verheimlichung in Agent-Ausgaben                                | ✅     | –                                                                                                                                                                                                                                    |
 | Workflow: speckit-Stufen, PR auf `main`, Conventional Commits, kein Squash | ✅     | specify → plan → tasks → implement; Topic-Branch im Worktree                                                                                                                                                                         |
-| ADR bei prinzipienrelevanter Entscheidung                                  | ✅     | Keine für 020; die Richtung „externer Agent → holzi“ bekommt ADR-0005 mit Spec 021 (R16)                                                                                                                                             |
+| ADR bei prinzipienrelevanter Entscheidung                                  | ✅     | Keine für 020; die Richtung „externer Agent → haex-vault“ bekommt ADR-0005 mit Spec 021 (R16)                                                                                                                                        |
 | Test-Code in separaten Dateien                                             | ✅     | `scripts/check-wm-navigation.ts`                                                                                                                                                                                                     |
 | Worktree je Änderung                                                       | ✅     | `.worktrees/020-tab-navigation`                                                                                                                                                                                                      |
 | 500-LoC-Grenze                                                             | ⚠️     | Neue Dateien bleiben unter 500 Zeilen (`ChatApp.vue` 484, `stores/windowManager.ts` 485). `HuggingFaceModelManagement.vue` lag schon vorher bei 582 Zeilen; 020 tauscht dort nur Aufrufe aus (jetzt 580) — siehe Complexity Tracking |

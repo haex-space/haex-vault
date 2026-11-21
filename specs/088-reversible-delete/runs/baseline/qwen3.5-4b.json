@@ -418,7 +418,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich habe keine Funktion, um einen Wecker einzustellen. Dafür benötige ich ein externes Tool oder eine App, die nicht in holzi integriert ist.\n\nKönntest du mir sagen, welche App du für Wecker nutzen möchtest? Oder möchtest du eine andere Funktion in holzi?"
+      "text": "Ich habe keine Funktion, um einen Wecker einzustellen. Dafür benötige ich ein externes Tool oder eine App, die nicht in haex-vault integriert ist.\n\nKönntest du mir sagen, welche App du für Wecker nutzen möchtest? Oder möchtest du eine andere Funktion in haex-vault?"
     },
     {
       "id": "no_tool-de-4",

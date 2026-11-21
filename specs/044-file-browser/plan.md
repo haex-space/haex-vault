@@ -6,10 +6,10 @@
 
 ## Summary
 
-holzi bekommt einen eingebauten Dateibrowser für das ganze Dateisystem des Geräts und die S3-Speicher
+haex-vault bekommt einen eingebauten Dateibrowser für das ganze Dateisystem des Geräts und die S3-Speicher
 aus Spec 038: ansehen, abspielen, verwalten, suchen. Agents lesen das Gerät mit der Berechtigung
 „Dateien des Geräts“, Speicher nur mit Berechtigung je Speicher; Schreiben läuft zusätzlich über die
-Freigabestufe; die eigenen Daten von holzi bleiben für Agents gesperrt. Grundlage ist das Design
+Freigabestufe; die eigenen Daten von haex-vault bleiben für Agents gesperrt. Grundlage ist das Design
 [`docs/plans/2026-10-07-file-browser-design.md`](../../docs/plans/2026-10-07-file-browser-design.md).
 
 Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](./research.md)):
@@ -23,18 +23,18 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
   Kopieren.
 - **Suche** (R6): `walkdir` mit `same_file_system`, ohne Links, `frizbee` für Tippfehler, Treffer über
   einen `Channel`, abbrechbar.
-- **Vorschaubilder** (R7): `image` + `fast_image_resize` in Rust, Cache im Cache-Verzeichnis von holzi.
+- **Vorschaubilder** (R7): `image` + `fast_image_resize` in Rust, Cache im Cache-Verzeichnis von haex-vault.
 - **Agents** (R1, R2, R8, R14): Definitionen im TS-Katalog mit `runner: 'native'`, Ausführung in Rust
   über `NativeActionTool` (ADR 0011); Text aus PDF (`pdf-extract`), xlsx/ods (`calamine`) und docx/odt
   (ZIP + XML); Bilder als Bildblöcke im `tool_result`, nur für Modelle, die Bilder annehmen; neue Tabelle
   `agent_file_permissions`.
-- **Android** (R11): `MANAGE_EXTERNAL_STORAGE` mit zwei Befehlen im Plugin `holzi-android`; Beobachten wie
+- **Android** (R11): `MANAGE_EXTERNAL_STORAGE` mit zwei Befehlen im Plugin `haex-android`; Beobachten wie
   auf dem Desktop (`notify` über inotify), dazu Neuladen beim Zurückkehren.
 
 ## Technical Context
 
 **Language/Version**: Rust (MSRV 1.95, Edition 2021, Tauri 2); TypeScript (strict), Vue 3.5, Nuxt 4.5
-(SPA); Kotlin im Plugin `holzi-android`
+(SPA); Kotlin im Plugin `haex-android`
 
 **Primary Dependencies**: neu in Rust: `walkdir` 2.5, `frizbee` 0.13, `image` 0.25 (nur jpeg/png/webp/gif),
 `fast_image_resize` 6.1, `pdf-extract` 0.12, `calamine` 0.36, `zip` 8, `quick-xml` 0.41, `trash` 5.2
@@ -136,7 +136,7 @@ src-tauri/src/
 ├── chat/tools/{mod,native_action}.rs, chat/action_commands.rs   # ToolResult.images, NativeActionTool
 ├── adapters/request.rs             # Bildblöcke im tool_result
 ├── identity/migrations_agent_files.rs   # 0029
-└── plugins/holzi-android/          # all_files_access_status, request_all_files_access
+└── plugins/haex-android/          # all_files_access_status, request_all_files_access
 
 src/
 ├── components/apps/FilesApp.vue
@@ -152,7 +152,7 @@ src-tauri/gen/android/...           # Manifest, network_security_config.xml
 ```
 
 **Structure Decision**: Der Dateizugriff liegt in `src-tauri/src/files/`, nicht unter `extensions/`,
-weil holzi ihn selbst nutzt und Erweiterungen und Agents nur Verbraucher sind (wie `remote_storage` in
+weil haex-vault ihn selbst nutzt und Erweiterungen und Agents nur Verbraucher sind (wie `remote_storage` in
 038).
 
 ## Lieferungen

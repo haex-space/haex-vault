@@ -33,7 +33,7 @@
 
 - The spec deliberately names the haex-vault 2.x reference revision and source files in **Input**
   so that planning can reproduce the source format. Those are references, not implementation
-  choices for holzi.
+  choices for HaexVault.
 - FR-002 requires opening the file "the way haex-vault 2.x does it" without naming the encryption
   library. The concrete parameters (SQLCipher 4 defaults, key = vault password) belong in
   research.md for `/speckit-plan`.

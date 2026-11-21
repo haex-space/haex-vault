@@ -367,7 +367,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "Ein Taxi kann ich in holzi nicht direkt bestellen. Wie soll ich weitermachen?",
+            "question": "Ein Taxi kann ich in haex-vault nicht direkt bestellen. Wie soll ich weitermachen?",
             "options": [
               "Im Web nach einem Taxi-Anbieter in meiner Nähe suchen",
               "Im Web nach einer Taxi-App oder Taxi-Website für den Bahnhof suchen",
@@ -377,7 +377,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ein Taxi kann ich in holzi nicht direkt bestellen. Wie soll ich weitermachen?"
+      "text": "Ein Taxi kann ich in haex-vault nicht direkt bestellen. Wie soll ich weitermachen?"
     },
     {
       "id": "no_tool-en-1",
@@ -405,7 +405,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "holzi can't book a table directly. How would you like to proceed?",
+            "question": "haex-vault can't book a table directly. How would you like to proceed?",
             "options": [
               "Search the web for restaurants with tables available tonight",
               "Open haex-mail to write a reservation request to a restaurant",
@@ -416,7 +416,7 @@
           "ending": "ran"
         }
       ],
-      "text": "holzi can't book a table directly. How would you like to proceed?"
+      "text": "haex-vault can't book a table directly. How would you like to proceed?"
     },
     {
       "id": "no_tool-de-2",
@@ -456,7 +456,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I can't turn up the heating: holzi has no action or app for heating or smart home control. It only offers Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail."
+      "text": "I can't turn up the heating: haex-vault has no action or app for heating or smart home control. It only offers Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail."
     },
     {
       "id": "no_tool-de-3",
@@ -477,7 +477,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "In holzi gibt es keine Funktion, die direkt eine Überweisung ausführt. Wie möchtest du die 50 Euro an Bernd überweisen?",
+            "question": "In haex-vault gibt es keine Funktion, die direkt eine Überweisung ausführt. Wie möchtest du die 50 Euro an Bernd überweisen?",
             "options": [
               "Die Website meiner Bank öffnen (bitte Adresse nennen)",
               "Kontakte öffnen und Bernds Daten nachsehen",
@@ -488,7 +488,7 @@
           "ending": "ran"
         }
       ],
-      "text": "In holzi gibt es keine Funktion, die direkt eine Überweisung ausführt. Wie möchtest du die 50 Euro an Bernd überweisen?"
+      "text": "In haex-vault gibt es keine Funktion, die direkt eine Überweisung ausführt. Wie möchtest du die 50 Euro an Bernd überweisen?"
     },
     {
       "id": "no_tool-en-3",
@@ -516,7 +516,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "holzi has no built-in way to order a pizza. How should I go on?",
+            "question": "haex-vault has no built-in way to order a pizza. How should I go on?",
             "options": [
               "Search the web for pizza delivery near me",
               "Open a specific delivery website (tell me which one)",
@@ -526,7 +526,7 @@
           "ending": "ran"
         }
       ],
-      "text": "holzi has no built-in way to order a pizza. How should I go on?"
+      "text": "haex-vault has no built-in way to order a pizza. How should I go on?"
     }
   ],
   "requests": [

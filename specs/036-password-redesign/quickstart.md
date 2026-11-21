@@ -58,7 +58,7 @@ CARGO_BUILD_JOBS=4 CARGO_TARGET_DIR=$PWD/src-tauri/target/e2e-build nix develop 
 for s in passwords-basic passwords-narrow-window passwords-session-restore \
          passwords-sync-two-devices passwords-tabs passwords-organize passwords-references \
          passwords-passkeys passwords-attachments; do
-  nix develop --command pnpm test:e2e --app $PWD/src-tauri/target/e2e-build/debug/holzi --grep $s
+  nix develop --command pnpm test:e2e --app $PWD/src-tauri/target/e2e-build/debug/haex --grep $s
 done
 ```
 

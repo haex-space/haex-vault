@@ -2,7 +2,7 @@
 
 **Feature**: [../spec.md](../spec.md) | **Research**: R1, R2, R14
 
-Für Android, iOS und Clients, die nur HTTP sprechen. holzi ist Ressourcen- und
+Für Android, iOS und Clients, die nur HTTP sprechen. haex-vault ist Ressourcen- und
 Autorisierungsserver nach der MCP-Autorisierung.
 
 ## Endpunkte (nur Loopback, Port `mcp.http_port`)
@@ -13,7 +13,7 @@ Autorisierungsserver nach der MCP-Autorisierung.
 | `GET /.well-known/oauth-protected-resource`   | Metadaten der Ressource                                                                                                                                          |
 | `GET /.well-known/oauth-authorization-server` | Metadaten des Autorisierungsservers                                                                                                                              |
 | `POST /oauth/register`                        | Dynamische Client-Registrierung; legt noch keinen Agenten an                                                                                                     |
-| `GET /oauth/authorize`                        | Löst den Registrierungsdialog im holzi-Fenster aus; die Seite zeigt nur „In holzi bestätigen“ und wartet                                                         |
+| `GET /oauth/authorize`                        | Löst den Registrierungsdialog im haex-vault-Fenster aus; die Seite zeigt nur „In haex-vault bestätigen“ und wartet                                               |
 | `GET /oauth/authorize/wait?id=…`              | Dieselbe Seite lädt sich ohne Skript jede Sekunde hierüber neu; nach der Entscheidung `302` zur `redirect_uri` mit `code` oder `error=access_denied` und `state` |
 | `POST /oauth/token`                           | `authorization_code` mit PKCE (S256 Pflicht) und `refresh_token`                                                                                                 |
 

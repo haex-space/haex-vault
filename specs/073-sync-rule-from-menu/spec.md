@@ -20,7 +20,7 @@ Möglichkeit, Sync-Regeln anlegen zu können."
 ## Relationship to existing specs
 
 - **Spec 044** (file browser): extends the context menus (FR-017 to FR-023) by one entry. No change to
-  sources, transfers or the protection of holzi's own data (FR-037).
+  sources, transfers or the protection of HaexVault's own data (FR-037).
 - **Spec 061** (sync rules): the entry opens the existing sync rule dialog. Rules, their places, the
   dialog's checks and the sync rule list do not change. FR-002 (which folders may be a place) decides where
   the entry is offered.
@@ -107,18 +107,18 @@ save.
 
 ### User Story 4 - No entry where the entry cannot be a place (Priority: P2)
 
-Clara browses holzi's own data and a folder a contact shared with her. Neither may be a place of a rule
+Clara browses HaexVault's own data and a folder a contact shared with her. Neither may be a place of a rule
 (spec 061 FR-002). The menu does not offer "Sync-Regel erstellen …" there, so she never opens a dialog that
 cannot succeed.
 
 **Why this priority**: Without it the entry would lead into a dead end; but it adds nothing to the main flow.
 
-**Independent Test**: Open the context menu in holzi's own places and in a received share; the entry is
+**Independent Test**: Open the context menu in HaexVault's own places and in a received share; the entry is
 absent. Open it on a selection of several entries; the entry is absent.
 
 **Acceptance Scenarios**:
 
-1. **Given** a folder or a file inside one of holzi's own places or inside a share received from another
+1. **Given** a folder or a file inside one of HaexVault's own places or inside a share received from another
    vault, **When** the menu opens on an entry or on the empty area, **Then** it does not offer the entry.
 2. **Given** a selection of several entries, **When** the menu opens, **Then** it does not offer the entry.
 3. **Given** a folder or a file of any other source (this device, another own device, a cloud storage, an
@@ -148,7 +148,7 @@ absent. Open it on a selection of several entries; the entry is absent.
 - **FR-003**: Choosing the entry MUST open the sync rule dialog of spec 061 with that folder or file as
   source place and no target. All other fields MUST have the dialog's defaults.
 - **FR-004**: The menu MUST NOT offer the entry for a selection of several entries, or for a folder or file
-  that spec 061 FR-002 excludes as a place: holzi's own data, a share received from another vault, and a
+  that spec 061 FR-002 excludes as a place: HaexVault's own data, a share received from another vault, and a
   locked encrypted folder.
 - **FR-004a**: The entry for a file entry MUST work only once spec 074 is in place. Until then the menu does
   not offer it for files.
@@ -175,7 +175,7 @@ absent. Open it on a selection of several entries; the entry is absent.
 - **SC-001**: A user reaches the sync rule dialog with the source filled in with two actions from any
   folder that may be a place (open the context menu, choose the entry), without opening the sync rule list.
 - **SC-002**: In every folder that may be a place, 100% of single-folder and open-folder context menus
-  offer the entry; in holzi's own places and in received shares, 0% do.
+  offer the entry; in HaexVault's own places and in received shares, 0% do.
 - **SC-003**: A rule created from the menu is the same as one created from the list with the same inputs:
   same checks, same rejections, same saved values.
 - **SC-004**: The existing sync rule E2E scenarios of spec 061 and the file browser's menu scenarios of
@@ -183,7 +183,7 @@ absent. Open it on a selection of several entries; the entry is absent.
 
 ## Assumptions
 
-- The menu entry is hidden, not greyed out, where it does not apply, as "Freigeben" is for holzi's own
+- The menu entry is hidden, not greyed out, where it does not apply, as "Freigeben" is for HaexVault's own
   data (spec 056).
 - The confirmation after saving is a short, non-blocking message, like the other confirmations of the
   file browser.

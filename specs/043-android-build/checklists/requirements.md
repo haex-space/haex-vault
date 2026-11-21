@@ -1,4 +1,4 @@
-# Specification Quality Checklist: holzi für Android
+# Specification Quality Checklist: HaexVault für Android
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-10-07
@@ -37,7 +37,7 @@
   überlassen.
 - Bekannte Befunde für den Plan (aus einem `cargo check` für `aarch64-linux-android` am
   2026-10-07): Nur `lettre` (API von `rustls-platform-verifier` auf Android) und zwei
-  Desktop-Funktionen in holzi (blockierende Ordnerauswahl, Schreibtisch-Ordner) brechen;
+  Desktop-Funktionen in HaexVault (blockierende Ordnerauswahl, Schreibtisch-Ordner) brechen;
   SQLCipher, haex-crdt, mistralrs, iroh und nostr übersetzen. Gelinkt und auf einem Gerät
   gestartet wurde noch nichts.
 - Offene Fragen für den Plan: Initialisierung der Zertifikatsprüfung auf Android (FR-024),

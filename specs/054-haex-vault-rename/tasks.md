@@ -147,9 +147,9 @@ Worktree `.worktrees/054-s6-texts`, Branch `054-s6-texts`, nach S5.
 
 Worktree `.worktrees/054-s7-docs`, Branch `054-s7-docs`, nach S6.
 
-- [ ] T054 [US1] Text in `specs/` ersetzen (268 Dateien, 2869 Treffer), **außer** `specs/054-haex-vault-rename/`; das Verzeichnis `specs/032-model-operates-holzi/` behält seinen Namen (FR-018), seine Dateien folgen der Regel; Satzformen mit Hilfsskript (T005) und Stichprobe von mindestens fünf Specs (u. a. 034, 037, 038, 043, 051) auf Lesbarkeit: kein „haex-vault wird durch haex-vault abgelöst“, Verweise auf „Spec 018 von holzi“ lauten „von haex-vault“
-- [ ] T055 [P] [US1] `docs/` (25 Dateien: `docs/adr/*.md`, `docs/plans/*.md`, `docs/design/founding.md`, `docs/reviews/*.md`) und `plans/` (3 Dateien): Text ersetzen wie T054; Verweise `docs/…` und `specs/…` mit den Bildlinks prüfen (`python3 scripts/ci/check-docs.py`)
-- [ ] T056 [US1] Prüfen und PR: `git grep -n -i holzi -- . ':!specs/054-haex-vault-rename' ':!.spaex' ':!.specify/memory/constitution.md'` zeigt nur die zwei Hinweissätze und den Pfad 032; `python3 scripts/ci/check-docs.py`, `nix develop --command pnpm exec prettier --check specs docs plans`; PR „docs: rename holzi to haex-vault in specs and docs“
+- [x] T054 [US1] Text in `specs/` ersetzen (268 Dateien, 2869 Treffer), **außer** `specs/054-haex-vault-rename/`; das Verzeichnis `specs/032-model-operates-holzi/` behält seinen Namen (FR-018), seine Dateien folgen der Regel; Satzformen mit Hilfsskript (T005) und Stichprobe von mindestens fünf Specs (u. a. 034, 037, 038, 043, 051) auf Lesbarkeit: kein „haex-vault wird durch haex-vault abgelöst“, Verweise auf „Spec 018 von holzi“ lauten „von haex-vault“
+- [x] T055 [P] [US1] `docs/` (25 Dateien: `docs/adr/*.md`, `docs/plans/*.md`, `docs/design/founding.md`, `docs/reviews/*.md`) und `plans/` (3 Dateien): Text ersetzen wie T054; Verweise `docs/…` und `specs/…` mit den Bildlinks prüfen (`python3 scripts/ci/check-docs.py`)
+- [x] T056 [US1] Prüfen und PR: `git grep -n -i holzi -- . ':!specs/054-haex-vault-rename' ':!.spaex' ':!.specify/memory/constitution.md'` zeigt nur die zwei Hinweissätze und den Pfad 032; `python3 scripts/ci/check-docs.py`, `nix develop --command pnpm exec prettier --check specs docs plans`; PR „docs: rename holzi to haex-vault in specs and docs“
 
 ### S8 — Die Prüfung des alten Namens ([contracts/old-name-gate.md](contracts/old-name-gate.md))
 

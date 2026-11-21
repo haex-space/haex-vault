@@ -1,4 +1,4 @@
-# Implementation Plan: holzi für Android
+# Implementation Plan: haex-vault für Android
 
 **Branch**: `043-android-build` | **Date**: 2026-10-07 | **Spec**: [spec.md](./spec.md)
 
@@ -6,9 +6,9 @@
 
 ## Summary
 
-holzi läuft als Android-App auf echten Telefonen: derselbe Rust-Kern und dieselbe Oberfläche wie
+haex-vault läuft als Android-App auf echten Telefonen: derselbe Rust-Kern und dieselbe Oberfläche wie
 am Desktop, dazu eine kleine lokale Plugin-Crate für alles, was nur Android hat. Der Kern
-übersetzt schon fast vollständig für Android (nur `lettre` und zwei Desktop-Aufrufe in holzi
+übersetzt schon fast vollständig für Android (nur `lettre` und zwei Desktop-Aufrufe in haex-vault
 brechen); die Arbeit liegt in der Plattform-Anbindung, in Dateiflüssen ohne Pfade, im
 Prozessmodell, in der e2e-Suite auf dem Emulator und in der CI.
 
@@ -16,7 +16,7 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 
 - **Android-Projekt und Plugin-Crate** (R1): `src-tauri/gen/android` wird eingecheckt; Kotlin,
   Manifest-Berechtigungen, Keep-Regeln und Gradle-Abhängigkeiten liegen in
-  `src-tauri/plugins/holzi-android/`, damit ein Neuerzeugen des Gerüsts nichts verliert.
+  `src-tauri/plugins/haex-android/`, damit ein Neuerzeugen des Gerüsts nichts verliert.
 - **Zertifikate** (R2): `rustls-platform-verifier` wird beim Start über `ndk-context` und `jni`
   initialisiert (System-Zertifikatsspeicher); `lettre` bekommt einen Patch (Fork mit fester
   Revision plus Upstream-PR), der auf Android `Verifier::new` statt `new_with_extra_roots`
@@ -58,7 +58,7 @@ wry (Fork `haexmas/wry@47037dd`), rustls-platform-verifier 0.7.1, reqwest 0.13.5
 haex-crdt `928d06a`, mistralrs 0.8.1, candle, cpal 0.18.2, sysinfo 0.39.6, iroh, nostr-sdk.
 **Neu**: Rust `jni` 0.22 und `ndk-context` 0.1 (nur Android); `lettre` per Patch aus
 `haexmas/lettre` (feste Revision); Gradle `org.rustls:rustls-platform-verifier` aus dem
-eingecheckten Maven-Repo `src-tauri/plugins/holzi-android/android/maven/` (Version wie
+eingecheckten Maven-Repo `src-tauri/plugins/haex-android/android/maven/` (Version wie
 `rustls-platform-verifier-android` im Lockfile), `androidx.core` (Insets, schon im Gerüst);
 e2e: chromedriver (Chrome for Testing, passend zur WebView), `iroh-relay` (Testrechner).
 
@@ -99,7 +99,7 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 | II. Keine lokalen absoluten Pfade           | `gen/android` enthält nur relative Pfade (Gerüst); `local.properties` (SDK-Pfad) ist durch die `.gitignore` des Gerüsts ausgeschlossen; SDK-Pfade kommen aus `ANDROID_HOME`.                                                                                                       | erfüllt  |
 | III. Identität geräteunabhängig             | Tresor-Identität und Gerätekennung bleiben wie in Spec 024; die Tresordatei-Übernahme behält die Vault-Identität und erzeugt pro Installation eine neue Gerätekennung (R8).                                                                                                        | erfüllt  |
 | IV. Feste Revisionen                        | `lettre`-Fork und wry-Fork mit voller Commit-SHA in `[patch.crates-io]`; Gradle-Artefakt mit fester Version; GitHub-Actions mit festen Versionen wie die vorhandenen Jobs.                                                                                                         | erfüllt  |
-| V. Externe Quellen nur per Allowlist        | Keine neue Harness-Quelle; die Build-Umgebung kommt aus `haexmas/atoms` @ `b662c6205d6a1ebd7fac588291f82ea8e78c3d52`, Pfade `holzi/.devshell/packages.nix`, `holzi/.devshell/rust-toolchain.toml` und `holzi/nix-packages.json` (in holzi mit PR #308 ausgeliefert).               | erfüllt  |
+| V. Externe Quellen nur per Allowlist        | Keine neue Harness-Quelle; die Build-Umgebung kommt aus `haexmas/atoms` @ `b662c6205d6a1ebd7fac588291f82ea8e78c3d52`, Pfade `haex/.devshell/packages.nix`, `haex/.devshell/rust-toolchain.toml` und `haex/nix-packages.json` (in haex-vault mit PR #308 ausgeliefert).             | erfüllt  |
 | VI. Selbständernde Anweisungen per Review   | Keine Änderung an Constitution, Skills oder Berechtigungen; Branch-Schutz (neuer Pflicht-Check) ändert die Person, die das Repo betreut, selbst.                                                                                                                                   | erfüllt  |
 | VII. Relay-Ausfall blockiert nie lokal      | Tresor, Passwortmanager und lokale Modelle laufen ohne Netz (Edge Case „ohne Netz“); e2e-Dienste laufen lokal.                                                                                                                                                                     | erfüllt  |
 | VIII. Keine Verschleierung                  | nicht berührt                                                                                                                                                                                                                                                                      | erfüllt  |
@@ -154,10 +154,10 @@ specs/043-android-build/
 src-tauri/
 ├── Cargo.toml                         # jni, ndk-context (android); [patch.crates-io] lettre
 ├── gen/android/                       # neu eingecheckt (tauri android init), MainActivity unverändert
-├── plugins/holzi-android/             # neu: lokale Plugin-Crate
+├── plugins/haex-android/             # neu: lokale Plugin-Crate
 │   ├── Cargo.toml, build.rs           # tauri_plugin::Builder … .android_path("android")
 │   ├── src/lib.rs, src/mobile.rs      # Rust-Seite; Desktop: no-op
-│   └── android/                       # Kotlin: HolziAndroidPlugin.kt, Manifest, proguard, build.gradle.kts
+│   └── android/                       # Kotlin: HaexAndroidPlugin.kt, Manifest, proguard, build.gradle.kts
 └── src/
     ├── lib.rs                         # Plugin anmelden, Verifier-Init, RunEvent::Exit/Resumed
     ├── platform/                      # neu: Fähigkeitstabelle, Command platform_capabilities
@@ -178,7 +178,7 @@ src/
 ├── composables/useDeviceCapabilities.ts # neu: Fähigkeiten aus dem Kern
 ├── composables/usePickedFile.ts       # neu: Dialog → gewählte Datei
 ├── plugins/actions.client.ts          # Zurück-Geste über Fähigkeiten statt User-Agent
-├── components/wm/Desktop.vue          # Ränder über --holzi-inset-*
+├── components/wm/Desktop.vue          # Ränder über --haex-inset-*
 ├── pages/index.vue + components/onboarding/ImportVaultSheet.vue  # Tresordatei öffnen
 ├── components/settings/ScreenCaptureSetting.vue                  # neu
 └── components/{passwords,chat,extensions,settings,models}/…      # Dateiflüsse, Bestätigungsschritt
@@ -196,7 +196,7 @@ nuxt.config.ts, tauri.conf.json        # TAURI_DEV_HOST, devCsp, Android-Bundle
 ```
 
 **Structure Decision**: Ein Projekt wie bisher; neu sind nur die Plugin-Crate unter
-`src-tauri/plugins/holzi-android/` (eigene Crate, weil Tauri Kotlin-Code nur über Plugins
+`src-tauri/plugins/haex-android/` (eigene Crate, weil Tauri Kotlin-Code nur über Plugins
 sauber einbindet) und das eingecheckte Gerüst `src-tauri/gen/android/`. Alles andere sind
 Module im vorhandenen Kern und der vorhandenen Oberfläche.
 

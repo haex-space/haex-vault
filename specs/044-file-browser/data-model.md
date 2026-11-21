@@ -43,7 +43,7 @@ erhöht.
 
 ### Vorschaubild-Cache
 
-- Ort: `<AppCache>/files-thumbnails/`; liegt in den eigenen Orten von holzi und ist damit für Agents
+- Ort: `<AppCache>/files-thumbnails/`; liegt in den eigenen Orten von haex-vault und ist damit für Agents
   gesperrt und nie synchronisiert.
 - Datei: `<hex(sha256(quelle ‖ pfad ‖ größe ‖ änderungszeit))>.jpg`, längste Kante 320 px.
 - Merkzeichen `<hash>.broken` (leer) für Bilder, die nicht dekodiert werden konnten; ändert sich
@@ -69,7 +69,7 @@ erhöht.
 | `hidden`      | bool           | Punkt-Datei bzw. Attribut unter Windows                        |
 | `symlink`     | bool           | nur Gerät                                                      |
 | `no_access`   | bool           | Rechte des Systems fehlen                                      |
-| `holzi_owned` | bool           | liegt in den eigenen Orten von holzi (FR-037: nur lesen)       |
+| `haex_owned`  | bool           | liegt in den eigenen Orten von haex-vault (FR-037: nur lesen)  |
 
 ### `MediaGrant` (Freigabe-URL, FR-016)
 

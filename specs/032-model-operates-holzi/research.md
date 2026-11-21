@@ -1,4 +1,4 @@
-# Research: Modell bedient holzi über die Aktionen
+# Research: Modell bedient haex-vault über die Aktionen
 
 **Spec**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md) | **Stand**: 2026-09-30
 
@@ -168,7 +168,7 @@ Code `forbidden_for_agents` ab, und `set_agent_actions` enthält sie nicht.
   (`tool_round.rs:plan_calls`) allein reicht nicht.
 - Wort-Treffer zwischen dem (deutschen) Nutzersatz und den (englischen)
   Beschreibungen sind unzuverlässig („mach es dunkler“ trifft „color scheme“
-  nicht). Holzi soll deshalb nicht raten, was der Nutzer will.
+  nicht). HaexVault soll deshalb nicht raten, was der Nutzer will.
 
 **Entscheidung**: Ein einziges Verfahren für alle Modelle, lokal und Cloud.
 
@@ -252,7 +252,7 @@ Template | SelfTest }`; `None` heißt „unbekannt“.
 - **Keine Migration**, aber alle Struct-Literale anpassen (`..Default::default()`).
 
 **Verworfen**: eigene Tabelle/Spalte (Migration und Trigger-Version
-`HOLZI_TRIGGER_VERSION` 13 → 14 ohne Not); Wert nur im Speicher (verliert das
+`HAEX_TRIGGER_VERSION` 13 → 14 ohne Not); Wert nur im Speicher (verliert das
 Ergebnis bei jedem Start, Selbsttest liefe immer wieder).
 
 ## R8 — Vorlagenprüfung bei lokalen Modellen (FR-018a)
@@ -280,7 +280,7 @@ pipeline-intern).
 
 **Befund**: Kein Test ruft heute ein echtes Modell mit Werkzeugen
 (`tests/local_inference.rs` setzt `tools: Vec::new()`, ist `#[ignore]` und
-braucht `HOLZI_TEST_GGUF`). `LocalModel::load` und `stream_chat` laufen ohne
+braucht `HAEX_TEST_GGUF`). `LocalModel::load` und `stream_chat` laufen ohne
 Tresor. mistralrs bietet `set_deterministic_sampler`,
 `set_sampler_temperature`, `set_tool_choice` und `set_constraint` (Regex,
 Lark, JSON-Schema, Llguidance).
@@ -313,7 +313,7 @@ Einstiege:
   wechselt, schreibt das Ergebnis über `set_tool_use`, sendet
   `model-tool-use-updated`.
 - **Vollständiger Messlauf**: `tests/model_tool_eval.rs`, `#[ignore]`, liest
-  `HOLZI_TEST_GGUF` (lokal) oder `HOLZI_EVAL_PROVIDER` + Schlüssel aus der
+  `HAEX_TEST_GGUF` (lokal) oder `HAEX_EVAL_PROVIDER` + Schlüssel aus der
   Umgebung (Cloud), schreibt den Bericht nach `target/eval/<modell>.json`.
   Kein Tresor nötig (FR-022). Schlüssel stehen nie im Repository.
 
@@ -329,7 +329,7 @@ der Lauf in der App ohne es arbeitet — siehe R10).
 ## R10 — Constrained Decoding bleibt außerhalb dieser Spec
 
 **Befund**: mistralrs kann Werkzeugaufrufe per Grammatik erzwingen
-(`set_constraint`, `set_tool_choice`), holzi nutzt das bisher nicht. Die
+(`set_constraint`, `set_tool_choice`), haex-vault nutzt das bisher nicht. Die
 Aufgabenliste aus Spec 003 (T014) versprach `set_tool_choice`, im Code ist es
 nicht zu finden.
 
@@ -457,7 +457,7 @@ messbar ohne Schlüssel). Der Katalogeintrag von Qwen3-4B trägt `tool_use: supp
 ## R18 — Anweisung zu den Werkzeugen (Systemprompt)
 
 Jeder Zug mit Werkzeugen trägt einen kurzen englischen Text (`chat/tools/prompt.rs`):
-holzi mit den Werkzeugen bedienen, ein Werkzeug aufrufen statt zu beschreiben, mit
+haex-vault mit den Werkzeugen bedienen, ein Werkzeug aufrufen statt zu beschreiben, mit
 `find_actions` suchen, wenn keines passt, in der Sprache des Nutzers antworten. Derselbe
 Text für jedes Modell; ein Zug ohne Werkzeuge bekommt ihn nicht, ein Zug ohne Suche eine
 Fassung ohne den Suchsatz (Review von #198). Der Messlauf und der Selbsttest senden ihn

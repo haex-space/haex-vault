@@ -5,7 +5,7 @@ Date: 2026-09-13
 
 ## Decision
 
-Holzi uses Qwen3 as its default local model family:
+HaexVault uses Qwen3 as its default local model family:
 
 | Target                 | Preset     | Quantization | Purpose                                                 |
 | ---------------------- | ---------- | ------------ | ------------------------------------------------------- |
@@ -21,7 +21,7 @@ Android.
 
 ## Rationale
 
-Qwen3 gives Holzi one model family across platforms while allowing the model
+Qwen3 gives HaexVault one model family across platforms while allowing the model
 size to follow the device budget. The 0.6B profile is useful for validating
 the tool boundary, but is not the preferred general-purpose mobile assistant.
 The 1.7B profile is the mobile default because it leaves more capacity for
@@ -47,6 +47,6 @@ mandatory for the host CLI tool.
 
 The desktop preset is Qwen3.5-4B Q4_K_M, the same family one generation on. It reaches 60 of the 83
 sentences of the spec 032 tool evaluation, against 55 for Qwen3-4B through the same engine, and loads
-only through llama.cpp, which is holzi's local engine since spec 070 (ADR-0023). The phone presets stay
+only through llama.cpp, which is haex-vault's local engine since spec 070 (ADR-0023). The phone presets stay
 Qwen3-1.7B and Qwen3-0.6B, now through llama.cpp as well; Qwen3.5 has no phone size in the catalog. A
 build or processor without llama.cpp does not list Qwen3.5 and suggests by fit from the Qwen3 entries.

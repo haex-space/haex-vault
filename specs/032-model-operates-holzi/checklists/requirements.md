@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Modell bedient holzi über die Aktionen
+# Specification Quality Checklist: Modell bedient HaexVault über die Aktionen
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-09-30

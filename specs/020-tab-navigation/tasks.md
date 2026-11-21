@@ -149,7 +149,7 @@ description: 'Task list for spec 020-tab-navigation'
 
 ## Phase 6: User Story 8 - Inhalte in Tabs verändern die Navigation nicht (Priority: P1)
 
-**Goal**: Embedded documents (haextensions) cannot change holzi's navigation
+**Goal**: Embedded documents (haextensions) cannot change haex-vault's navigation
 
 **Independent Test**: quickstart M13, M21, M22; SC-009
 

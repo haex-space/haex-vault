@@ -7,9 +7,9 @@
 ## Summary
 
 Eine Extension meldet sich im Manifest mit einem neuen Block `openers` an („kann `mail.compose` öffnen“).
-holzi liest einen E-Mail-Link (`mailto:`, RFC 6068) an einer einzigen Stelle in Rust in eine
+haex-vault liest einen E-Mail-Link (`mailto:`, RFC 6068) an einer einzigen Stelle in Rust in eine
 **Öffnen-Anfrage** (Empfänger, Kopie, Blindkopie, Betreff, Text, mit Grenzen) und gibt sie nur auf Wahl des
-Nutzers an die gewählte Extension: holzi hält die Anfrage im Speicher, öffnet das Fenster der Extension (oder
+Nutzers an die gewählte Extension: haex-vault hält die Anfrage im Speicher, öffnet das Fenster der Extension (oder
 holt es nach vorn), und die Extension holt sie über eine Bridge-Methode ab. Der Mail-Knopf im Adressbuch
 bekommt ein Menü, sobald es einen Öffner gibt; ohne Öffner bleibt er, wie er ist. Ein Link von außen kommt
 über den Deep-Link-Weg aus Spec 060 (Schema `mailto` zusätzlich zu `haex-vault`) und zeigt einen Dialog mit
@@ -29,10 +29,10 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
   sonst öffnet er wie heute beim System.
 - **Von außen** (R5, R6): Schema `mailto` in der Deep-Link-Konfiguration (Desktop und Android), Eingang in
   `useDeepLink` und im Posteingang zwischen Prozessen, Speicher `mailInbox` (der neueste Link ersetzt den
-  wartenden), Dialog `MailLinkDialog.vue` in `[instance].vue`. holzi macht sich nie selbst zum Standard.
+  wartenden), Dialog `MailLinkDialog.vue` in `[instance].vue`. haex-vault macht sich nie selbst zum Standard.
 - **Schleifenschutz** (R7): bei einem Link von außen gibt es „Mit dem System öffnen“ nie (Klärung 2026-10-28).
 - **Über drei Repos** (R8): `vault-sdk` (Prüfung und Typen), `haextension` (haex-mail meldet sich an und
-  öffnet seinen Schreib-Dialog), holzi (alles andere).
+  öffnet seinen Schreib-Dialog), haex-vault (alles andere).
 
 ## Technical Context
 
@@ -41,7 +41,7 @@ Rust (`crates/haex-bundle`) und TypeScript; in `haextension` Nuxt (haex-mail).
 
 **Primary Dependencies**: vorhanden `percent-encoding` 2.3, `tauri-plugin-deep-link` 2.6.2 (Spec 060),
 `haex-bundle` (Rev 280cebf63eba72422d1ddd62e1edeb5ad7e7d3cc, später die neue), shadcn-Dropdown und
-`UiDrawerModal`; keine neue Abhängigkeit in holzi.
+`UiDrawerModal`; keine neue Abhängigkeit in haex-vault.
 
 **Storage**: keine. Anmeldungen kommen aus dem gespeicherten Manifest der Bündel, Anfragen leben nur im
 Speicher (FR-017: nie auf Dauer).
@@ -144,7 +144,7 @@ zweiten Schema statt eines zweiten Wegs.
 
 1. **Spike** (R5, zuerst): Android nimmt `ACTION_SENDTO` an? Was schreibt der Windows-Installer für
    `mailto`? Ergebnis entscheidet über Umfang der Registrierung, nicht über den Rest.
-2. **Anmeldung** (Geschichte 3): Manifest-Block, Prüfung im `vault-sdk`, Lesen und Anzeigen in holzi.
+2. **Anmeldung** (Geschichte 3): Manifest-Block, Prüfung im `vault-sdk`, Lesen und Anzeigen in haex-vault.
 3. **Link und Übergabe** (Geschichte 1): Parser, Anfrage, Bridge, Mail-Knopf-Menü; haex-mail öffnet.
 4. **Von außen** (Geschichte 2): Schema, Eingang, Speicher, Dialog.
 5. **E2E und Aufräumen**: Szenarien, `quickstart.md` von Hand.

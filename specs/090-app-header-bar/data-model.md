@@ -5,7 +5,7 @@ set it (research R5). Type names carry the `WmHeader` prefix (feedback: ts-rs na
 
 ## WmHeaderDescription
 
-What an app hands holzi for its window's header (FR-007). It belongs to one tab and replaces the previous one whole.
+What an app hands haex-vault for its window's header (FR-007). It belongs to one tab and replaces the previous one whole.
 
 | Field    | Type                  | Notes                                                                                                                                       |
 | -------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |

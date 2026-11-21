@@ -6,7 +6,7 @@ Quelle für alle Angaben zu haex-vault 2.x: `haex-space/haex-vault-legacy` @
 
 ## R1 Öffnen der Vault-Datei
 
-**Decision**: holzi kopiert die gewählte Datei und, falls vorhanden, `<datei>-wal` in ein
+**Decision**: haex-vault kopiert die gewählte Datei und, falls vorhanden, `<datei>-wal` in ein
 eigenes temporäres Verzeichnis (`tempfile::TempDir`, wird beim Verlassen des Gültigkeitsbereichs
 gelöscht) und öffnet dort die Kopie mit einer eigenen `haex_crdt::rusqlite::Connection`
 (kein `haex_crdt::Database::open`). Danach `PRAGMA key` mit dem Vault-Passwort und als Erstes
@@ -16,7 +16,7 @@ eine Probeabfrage auf `sqlite_master`.
 
 - haex-vault 2.x öffnet mit `conn.pragma_update(None, "key", password)` und setzt sonst keine
   `cipher_*`-Pragmas (`src-tauri/src/database/core/init.rs:35`, `create.rs:81`). Das ist SQLCipher 4
-  mit Standardwerten (haex-vault 2.x bündelt SQLCipher 4.14.0 über libsqlite3-sys 0.38.2). holzi
+  mit Standardwerten (haex-vault 2.x bündelt SQLCipher 4.14.0 über libsqlite3-sys 0.38.2). haex-vault
   bündelt dieselbe Version: haex-crdt @ `928d06a` zieht rusqlite 0.40.2 mit
   `bundled-sqlcipher-vendored-openssl` (`src-tauri/Cargo.lock:8361`, `:5289`). Gleiche Bibliothek,
   gleiche Standardwerte, kein Kompatibilitätsmodus nötig.
@@ -26,7 +26,7 @@ eine Probeabfrage auf `sqlite_master`.
   Nur eine Kopie erfüllt beides aus FR-003: Quelle unverändert und WAL-Stand eingelesen. Die
   Kopien sind weiter mit dem Vault-Passwort verschlüsselt (auch die WAL-Seiten), es liegt also
   kein Klartext im temporären Verzeichnis.
-- `Database::open` würde holzis Migrationen, Trigger und die Dateisperre auf die fremde Datei
+- `Database::open` würde haex-vaults Migrationen, Trigger und die Dateisperre auf die fremde Datei
   anwenden; ein roher Connection ist der kleinste korrekte Weg. `src-tauri/clippy.toml` verbietet
   nur `Database::with_connection`.
 - Kopieren statt `std::fs::read` in den Speicher: Die Vault kann durch Base64-Anhänge groß sein;
@@ -53,7 +53,7 @@ eine Probeabfrage auf `sqlite_master`.
 | Pflichttabelle oder Pflichtspalte fehlt                                                                           | `PRAGMA table_info` gegen R5        | `unsupported_format`             |
 
 **Rationale**: Eine SQLCipher-Datei besteht ohne Schlüssel aus Salt und Zufallsdaten. Falsches
-Passwort und fremde verschlüsselte Datei sehen gleich aus (Spec, Clarifications). holzi selbst
+Passwort und fremde verschlüsselte Datei sehen gleich aus (Spec, Clarifications). haex-vault selbst
 erkennt den falschen Schlüssel ebenfalls an `SQLITE_NOTADB` (`instances/open.rs:196-200`).
 `wrong_credentials` passt nicht, weil sein Text die Schlüsseldatei von KeePass nennt.
 
@@ -76,7 +76,7 @@ für drei Quellen wegen einer.
 ## R4 Was das gemeinsame Importmodell zusätzlich tragen muss
 
 Das Modell (`import/mod.rs:112-209`) und `apply.rs` verlieren heute, was die bisherigen Quellen
-nicht hatten. Die Tabellen von holzi haben alle Spalten (`identity/migrations_passwords.rs`).
+nicht hatten. Die Tabellen von haex-vault haben alle Spalten (`identity/migrations_passwords.rs`).
 
 | Lücke                          | Heute                                                      | Änderung                                                                                                                                                                                                                       |
 | ------------------------------ | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -102,19 +102,19 @@ nicht nur für die neue Quelle.
 `ON DELETE CASCADE`) und `presets`.
 
 **Voreinstellungen und „Standard“**: `presets::save` nimmt einer anderen Voreinstellung das
-Standard-Kennzeichen. Eine importierte Voreinstellung wird nur Standard, wenn holzi noch keine
+Standard-Kennzeichen. Eine importierte Voreinstellung wird nur Standard, wenn haex-vault noch keine
 Standard-Voreinstellung hat; vorhandene Namen werden übersprungen (FR-013). Zeitstempel der
 Quelle gehen dabei verloren (`save` nimmt immer `now`); das ist für Einstellungen hinnehmbar und
 steht nicht im Bericht.
 
 ## R5 Aufbau der Quelle und Abbildung
 
-Die Tabellen von haex-vault 2.x entsprechen Spalte für Spalte denen von holzi (034 hat sie
+Die Tabellen von haex-vault 2.x entsprechen Spalte für Spalte denen von haex-vault (034 hat sie
 übernommen), bis auf:
 
-- `haex_passwords_binaries.data` ist Base64-Text (Standardalphabet mit Padding), holzi speichert
+- `haex_passwords_binaries.data` ist Base64-Text (Standardalphabet mit Padding), haex-vault speichert
   BLOB. `hash` ist SHA-256 der dekodierten Bytes als Hex in Kleinbuchstaben
-  (`src/utils/passwords/binaries.ts:18-39`); holzi rechnet den Hash beim Schreiben ohnehin neu.
+  (`src/utils/passwords/binaries.ts:18-39`); haex-vault rechnet den Hash beim Schreiben ohnehin neu.
 - Zur Laufzeit hängt die CRDT-Schicht `haex_hlc`, `haex_column_hlcs`, `haex_column_sigs` an
   (`src-tauri/src/crdt/trigger.rs:18-27`). Sie sind bekannt und werden ignoriert (FR-015). Der
   Leser fragt Spalten immer mit Namen ab, nie `SELECT *`.
@@ -139,7 +139,7 @@ Edge Cases).
 
 Drei Formen von `snapshot_data` existieren (`src/utils/passwords/snapshots.ts:9-22`, KeePass-Import
 `import/keepass.vue:410-465`, externe Anfragen `useCoreExternalRequestHandlers/passwords.ts:322-344`).
-**Decision**: In `SnapshotData` von holzi (`passwords/snapshots.rs:50-71`, camelCase, `#[serde(default)]`,
+**Decision**: In `SnapshotData` von haex-vault (`passwords/snapshots.rs:50-71`, camelCase, `#[serde(default)]`,
 liest laut Moduldoku haex-vault-2.x-Stände) deserialisieren; unbekannte Felder wie `tags` werden
 ignoriert. `attachments` kommen maßgeblich aus `haex_passwords_snapshot_binaries`, weil der
 KeePass-Import von haex-vault 2.x sie nur dort ablegt; `write_state` füllt `data.attachments` ohnehin
@@ -148,7 +148,7 @@ Stand fehlt, `HistoryUnreadable` im Bericht.
 
 ## R8 Symbole
 
-holzi nutzt Iconify-Namen mit Doppelpunkt (`lucide:key-round`, `src/lib/passwords/icons.ts`) und
+haex-vault nutzt Iconify-Namen mit Doppelpunkt (`lucide:key-round`, `src/lib/passwords/icons.ts`) und
 zeigt Unbekanntes als Standardsymbol (`resolveIcon`, `:134-147`). haex-vault 2.x speichert `i-lucide-*`,
 `mdi:*` aus seinem Symbolwähler (69 Namen, `editor/iconPicker.vue:101-181`), Kurznamen der alten
 Erweiterung und `binary:<hash>`.
@@ -162,19 +162,19 @@ ein `icon`-Feld zeigt (`binaries.ts:65-82`); fehlende Bilder sind also zu erwart
 ## R9 Zeitstempel und Werte
 
 - Zeitstempel kommen gemischt als `YYYY-MM-DD HH:MM:SS` (SQLite, UTC) und ISO mit `Z`.
-  `holzi_time` (`import/mod.rs:237`) über `parse_iso_millis` akzeptiert beides.
+  `haex_time` (`import/mod.rs:237`) über `parse_iso_millis` akzeptiert beides.
 - `expires_at` ist ein Datum `YYYY-MM-DD`; unverändert übernehmen, wie der KeePass-Parser.
 - `otp_digits`/`otp_period`/`otp_algorithm` können trotz Standardwert NULL sein; `check_otp`
   und `otp_columns` setzen die Standardwerte, ungültige Werte bleiben wie sie sind (034 FR-023).
 - Eigene Felder haben keine Reihenfolge-Spalte; haex-vault 2.x schreibt sie bei jedem Speichern neu
   in Anzeigereihenfolge. Lesen mit `ORDER BY rowid`.
-- Tags in haex-vault 2.x sind case-sensitiv eindeutig; holzi faltet Namen (`tags.rs:39-55`). Fallen
+- Tags in haex-vault 2.x sind case-sensitiv eindeutig; haex-vault faltet Namen (`tags.rs:39-55`). Fallen
   zwei zusammen → `TagMerged` im Bericht.
 
 ## R10 Vault-Passwort im Speicher
 
 `Credentials.password` ist `Zeroizing<String>`. `rusqlite` baut aus `pragma_update` intern einen
-SQL-Text, der nicht genullt wird. Das tut holzi beim Öffnen der eigenen Vault ebenso; der Leser
+SQL-Text, der nicht genullt wird. Das tut haex-vault beim Öffnen der eigenen Vault ebenso; der Leser
 übernimmt das mit einem `ponytail:`-Kommentar (Grenze: Klartext-Kopie im freigegebenen Speicher
 bis zur Wiederverwendung; Ausbau: `sqlite3_key_v2` über `ffi` mit Zeroizing-Puffer).
 

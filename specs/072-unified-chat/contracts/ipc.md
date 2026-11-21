@@ -1,7 +1,7 @@
 # Contract: commands, events and actions between the window and the core
 
 Types are exported with ts-rs to `src/types/bindings/` (data-model.md, "Frontend types"). Errors are
-`HolziError` codes; texts come from i18n (`chat.error.*`). Agent conversations keep their existing
+`HaexError` codes; texts come from i18n (`chat.error.*`). Agent conversations keep their existing
 commands (`send_message`, `list_threads`, …; useChat.ts).
 
 ## Commands (Tauri)
@@ -43,7 +43,7 @@ commands (`send_message`, `list_threads`, …; useChat.ts).
 | `chat-send-confirm-request`      | `{ requestId, agent, threadTitle, recipients[], text, attachments[] }`            | 120 s timeout → refused                                                                                                                          |
 | `files-agent-permission-request` | existing, new kind `contactChats`                                                 | R16                                                                                                                                              |
 | `chat-notification-open`         | `{ threadId }`                                                                    | a tap on a chat notification: open the chat at `/contact/<threadId>` (FR-023)                                                                    |
-| `chat-notification-in-app`       | `{ threadId, title, body? }`                                                      | the system showed none (Android: permission refused): holzi shows it as a message                                                                |
+| `chat-notification-in-app`       | `{ threadId, title, body? }`                                                      | the system showed none (Android: permission refused): haex-vault shows it as a message                                                           |
 
 ## Window actions (`src/lib/actions/chatActions.ts`)
 

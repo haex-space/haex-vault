@@ -24,7 +24,7 @@ After a frontend change to a composable that runs in the Node sandboxes (`useWmH
 cd src-tauri
 env -u CC -u CXX -u AR CARGO_PROFILE_DEV_DEBUG=line-tables-only CARGO_INCREMENTAL=0 \
   systemd-run --user --scope -q -p MemoryMax=10G -p MemorySwapMax=0 \
-  cargo test -j 1 --config 'profile.dev.package.holzi.debug=0' --lib -- extensions::bridge::header
+  cargo test -j 1 --config 'profile.dev.package.haex.debug=0' --lib -- extensions::bridge::header
 cd .. && sed -i -E "s/[[:space:]]+$//" src/types/bindings/*.ts     # ts-rs leaves trailing spaces
 git status --short src/types/bindings                              # only the new WmHeader* files
 ```

@@ -160,7 +160,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "In holzi gibt es keine Kalender-App, in der ich den Zahnarzttermin morgen (Donnerstag, 19.03.2026) um 10:00 Uhr eintragen könnte. Wie möchtest du vorgehen?",
+            "question": "In haex-vault gibt es keine Kalender-App, in der ich den Zahnarzttermin morgen (Donnerstag, 19.03.2026) um 10:00 Uhr eintragen könnte. Wie möchtest du vorgehen?",
             "options": [
               "Kalender-Erweiterung noch einmal mit anderen Stichwörtern suchen",
               "Eine Mail mit dem Termin an mich selbst vorbereiten (haex-mail öffnen)",
@@ -170,7 +170,7 @@
           "ending": "ran"
         }
       ],
-      "text": "In holzi gibt es keine Kalender-App, in der ich den Zahnarzttermin morgen (Donnerstag, 19.03.2026) um 10:00 Uhr eintragen könnte. Wie möchtest du vorgehen?"
+      "text": "In haex-vault gibt es keine Kalender-App, in der ich den Zahnarzttermin morgen (Donnerstag, 19.03.2026) um 10:00 Uhr eintragen könnte. Wie möchtest du vorgehen?"
     },
     {
       "id": "no_tool-de-4",
@@ -198,7 +198,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "Ich finde in holzi keine Einkaufslisten-Funktion. Wie soll ich vorgehen?",
+            "question": "Ich finde in haex-vault keine Einkaufslisten-Funktion. Wie soll ich vorgehen?",
             "options": [
               "Eine Datei „Einkaufsliste“ in Dateien suchen und Milch dort ergänzen",
               "Eine neue Einkaufsliste als Datei anlegen",
@@ -209,7 +209,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich finde in holzi keine Einkaufslisten-Funktion. Wie soll ich vorgehen?"
+      "text": "Ich finde in haex-vault keine Einkaufslisten-Funktion. Wie soll ich vorgehen?"
     },
     {
       "id": "file-de-1-s",
@@ -271,7 +271,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I can't add the dentist appointment, because holzi has no calendar app or calendar action. The installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail, and none of them can create calendar events. You'll need to add it to your calendar outside holzi: Thursday, 2026-03-19 "
+      "text": "I can't add the dentist appointment, because haex-vault has no calendar app or calendar action. The installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail, and none of them can create calendar events. You'll need to add it to your calendar outside haex-vault: Thursday, 2026-03-19 "
     },
     {
       "id": "no_tool-en-4",
@@ -299,7 +299,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "I couldn't find a shopping list app in holzi. How would you like me to handle \"milk\"?",
+            "question": "I couldn't find a shopping list app in haex-vault. How would you like me to handle \"milk\"?",
             "options": [
               "Create a text file called Shopping list with \"Milk\" in Dateien",
               "Send myself an email reminder to buy milk via haex-mail",
@@ -309,7 +309,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I couldn't find a shopping list app in holzi. How would you like me to handle \"milk\"?"
+      "text": "I couldn't find a shopping list app in haex-vault. How would you like me to handle \"milk\"?"
     }
   ],
   "requests": [

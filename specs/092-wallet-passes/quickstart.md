@@ -26,7 +26,7 @@ cargo test --manifest-path src-tauri/Cargo.toml --test passwords_sync
    path with a seeded code marker: the marker is nowhere (SC-004).
 4. `cargo test --manifest-path src-tauri/Cargo.toml --lib passwords::snapshots`: a stand without version reads as 1, a version-2 stand with a pass block round-trips,
    restore does not move or re-link.
-5. A newer-build entry (unknown `kind`) in a test vault shows the "needs a newer holzi" notice and cannot be edited.
+5. A newer-build entry (unknown `kind`) in a test vault shows the "needs a newer HaexVault" notice and cannot be edited.
 
 ## Slice B: pass core (US2, US4)
 

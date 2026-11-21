@@ -58,7 +58,7 @@ through `hyper` (dev dependency, already present).
 **Storage**:
 
 - New CRDT table `haex_marketplaces` (migration `0048_marketplaces`, `0047` was taken by spec 065;
-  `HOLZI_TRIGGER_VERSION` + 1). No secret in the table.
+  `HAEX_TRIGGER_VERSION` + 1). No secret in the table.
 - The memory slot for the downloaded bundle is only memory in the `AppState`, at most one bundle.
 - Image cache (icons) only in memory, per session.
 

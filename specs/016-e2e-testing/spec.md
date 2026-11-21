@@ -6,10 +6,10 @@
 
 **Status**: Draft
 
-**Input**: User description: "A developer can run automated tests that start the real, built Holzi
+**Input**: User description: "A developer can run automated tests that start the real, built HaexVault
 application with its embedded interface, drive it the way a user does and observe what it does, on a
 Linux development machine, without opening a window on the developer's desktop and without touching
-the developer's own Holzi data. The first scenarios check the vault-close promises of spec 013:
+the developer's own HaexVault data. The first scenarios check the vault-close promises of spec 013:
 pressing the lock control ends the process within seconds, a reply that is still streaming is
 cancelled, the window shows only a spinner while it closes, and a relaunch brings the app back.
 Writing further scenarios must be short, failures must leave enough to diagnose them, and the tools
@@ -34,7 +34,7 @@ be delivered and used on its own.
 A maintainer inside the development shell types one command. The suite prepares the application
 under test, gives it a virtual screen, runs every scenario, prints a result per scenario and ends
 with a status a script can use. It leaves nothing behind, shows nothing on the maintainer's screen and
-does not touch the maintainer's own Holzi data or a Holzi they have open at the time.
+does not touch the maintainer's own HaexVault data or a HaexVault they have open at the time.
 
 **Why this priority**: Without a trustworthy way to run the real application, no scenario is worth
 writing. A run that opens windows, leaves processes or damages real data would be avoided, and then
@@ -42,7 +42,7 @@ the whole feature is unused.
 
 **Independent Test**: Run the command with one trivial scenario (start the application, see the
 start screen, end it). Then check the machine: no window appeared, no process of the run survives, the
-maintainer's own Holzi data is byte-for-byte unchanged, and a Holzi the maintainer had open kept
+maintainer's own HaexVault data is byte-for-byte unchanged, and a HaexVault the maintainer had open kept
 running.
 
 **Acceptance Scenarios**:
@@ -55,8 +55,8 @@ running.
 3. **Given** a run that is interrupted (Ctrl-C), that hits a time limit, or that has a failing
    scenario, **When** it ends, **Then** no process the run started (application, driver, virtual screen,
    stand-in provider) is left, and an immediate second run works.
-4. **Given** the maintainer has their own Holzi running with real data, **When** the suite runs and
-   ends, **Then** that Holzi is still running and its data is unchanged.
+4. **Given** the maintainer has their own HaexVault running with real data, **When** the suite runs and
+   ends, **Then** that HaexVault is still running and its data is unchanged.
 
 ---
 
@@ -185,7 +185,7 @@ failing scenario uploads its kept material.
 
 ### Edge Cases
 
-- The maintainer has their own Holzi (for example a development instance) running: the suite must
+- The maintainer has their own HaexVault (for example a development instance) running: the suite must
   neither attach to it, nor stop it, nor match it by name. It identifies its own processes exactly.
 - A network port the suite would use is already taken, or a run killed earlier left a process behind
   that holds a resource: the next run must not hang; it picks free ports and reports or removes what
@@ -233,13 +233,13 @@ failing scenario uploads its kept material.
 
 - **FR-006**: Every scenario MUST start the application with data, configuration, cache, runtime and
   home locations of its own, empty at the start and removed at the end, including the models directory,
-  and MUST NOT use the maintainer's desktop session bus. The maintainer's own Holzi
+  and MUST NOT use the maintainer's desktop session bus. The maintainer's own HaexVault
   data MUST NOT be read or written.
 - **FR-007**: A scenario MUST NOT depend on the internet. It uses local stand-ins for every external
   service and needs no credentials, and it downloads nothing.
 - **FR-008**: However a run ends (all passed, a failure, a time limit or an interrupt), no process the
   run started MAY remain. The suite MUST identify its processes exactly and MUST NOT stop or attach to
-  any other process, including another Holzi.
+  any other process, including another HaexVault.
 - **FR-009**: The suite MUST choose network ports that are free at the moment of use, and a leftover
   from an earlier killed run MUST NOT make a later run hang.
 - **FR-010**: Scenarios MUST be independent: a fresh instance for each, any order, and a failure in
@@ -318,7 +318,7 @@ failing scenario uploads its kept material.
   reason) to the end with no manual step, in under 5 minutes not counting the build. Given a release
   build by path, the same command runs all five.
 - **SC-002**: Across 20 consecutive runs, including 10 that are killed at random points, no process
-  started by the suite is left behind, no window ever appears on the desktop, the data of a Holzi
+  started by the suite is left behind, no window ever appears on the desktop, the data of a HaexVault
   running at the time is unchanged in every run, and every run after a killed one starts normally.
 - **SC-003**: Breaking each spec 013 promise on purpose (the stream is not cancelled, the page is not
   replaced, the process does not end) makes the scenario that covers it fail in 100% of the trials,
@@ -355,7 +355,7 @@ failing scenario uploads its kept material.
 - The driver must match the web view version, and only the driver binary may enter the development
   shell, never the web view library itself, because that would displace the host's library the
   application links. The tools and the check needed a change to the shared atoms (`haexmas/atoms`:
-  `nix-devshell-base` 0.7.0 and `holzi` 0.6.0), merged as `haexmas/atoms#32` and pinned in holzi's
+  `nix-devshell-base` 0.7.0 and `haex` 0.6.0), merged as `haexmas/atoms#32` and pinned in HaexVault's
   `.spaex/manifest.json`.
 - The stand-in provider needs no change to the application: an API-key provider of the Anthropic kind
   accepts any base address, so a local server that lists one model and streams replies can play it.

@@ -13,7 +13,7 @@ Abgestimmter Entwurf: [`docs/plans/2026-10-08-agent-choice-prompt-design.md`](..
 ## Beziehung zu bestehenden Specs
 
 - [`032-model-operates-holzi`](../032-model-operates-holzi/spec.md): Der eingebaute Agent bedient
-  holzi über Aktionen. Diese Spec ergänzt zwei Dinge: Aktionen können statt eines Fehlers „Auswahl
+  HaexVault über Aktionen. Diese Spec ergänzt zwei Dinge: Aktionen können statt eines Fehlers „Auswahl
   nötig“ mit Kandidaten melden, und der Agent kann den Nutzer selbst etwas fragen. FR-006 (Fehler ohne
   interne Details an das Modell) gilt weiter; „Auswahl nötig“ ist kein Fehler im Sinne von FR-006,
   sondern trägt nur Kandidaten, die der Nutzer ohnehin sehen darf. Die Freigabe-Regeln FR-007 bis
@@ -140,7 +140,7 @@ gewählte umgesetzt wird.
 - **Mehrere Rückfragen in einem Turn** (zwei Aktionen eines Schritts brauchen beide eine Auswahl):
   Sie erscheinen nacheinander, die älteste zuerst.
 - **Externe Agenten** (über MCP): bekommen „Auswahl nötig“ mit den Kandidaten als Ergebnis und
-  entscheiden selbst; holzi zeigt für sie keine Rückfrage an.
+  entscheiden selbst; HaexVault zeigt für sie keine Rückfrage an.
 - **Eine gültige App-ID**: wirkt wie bisher, ohne Suche und ohne Rückfrage.
 
 ## Requirements _(mandatory)_

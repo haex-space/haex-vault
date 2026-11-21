@@ -17,7 +17,7 @@ as part of the ongoing alignment with haex-vault 2.x's look.
 | 6   | Vault name?                                  | Dropped: no screen would show it. Can be added later as one more vault preference key.                                                               |
 | 7   | Changing the vault password?                 | Current password, new password, repetition. Applies to this device only.                                                                             |
 | 8   | Workspace background?                        | One image for all workspaces, stored as a vault preference (synced), with a remove action.                                                           |
-| 9   | Backward compatibility?                      | None: holzi has no users yet. Old paths and keys are replaced, not aliased.                                                                          |
+| 9   | Backward compatibility?                      | None: haex-vault has no users yet. Old paths and keys are replaced, not aliased.                                                                     |
 | 10  | Agent access to the password?                | An agent can never change it, but it can open the password view (`wm.app.open` with `at`).                                                           |
 
 ## Structure
@@ -50,7 +50,7 @@ scenarios get the new paths.
 
 Ported from haex-vault 2.x (`src-tauri/src/database/maintenance.rs`, `change_vault_password`):
 
-1. Verify the current passphrase by opening a second, read-only connection with it (holzi does not
+1. Verify the current passphrase by opening a second, read-only connection with it (haex-vault does not
    keep the passphrase in memory; pattern: `passwords/import/legacy_haex_vault/open.rs`).
 2. Under `Database::with_connection` (haex-crdt holds one connection behind a mutex, so sync and
    every other access wait): `wal_checkpoint(TRUNCATE)` → `journal_mode=DELETE` (SQLCipher `rekey`

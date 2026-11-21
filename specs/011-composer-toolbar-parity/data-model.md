@@ -23,7 +23,7 @@ pub enum EffortLevel { Low, Medium, High, XHigh, Max }
   `EXACT_CAPABILITIES` array.
 - `claude_delegate_levels() -> &'static [EffortLevel]`: always the full
   5-value set — Claude Code self-clamps per model (research.md §1), so
-  holzi does not gate this by model id at all.
+  haex-vault does not gate this by model id at all.
 - `clamp(requested: EffortLevel, supported: &[EffortLevel]) -> Option<EffortLevel>`:
   `Some(requested)` if directly supported; otherwise the next lower
   supported level; `None` if `supported` is empty. Used by `request.rs`
@@ -136,7 +136,7 @@ pub struct Attachment {
 }
 ```
 
-- `classify_attachment(path: &Path) -> Result<AttachmentInfo, HolziError>`:
+- `classify_attachment(path: &Path) -> Result<AttachmentInfo, HaexError>`:
   extension-based `AttachmentKind` + media type detection, a `stat()` size
   check against the per-kind caps (research.md §4: 5 MB image / 32 MB
   document / 5 MB text), independent of which backend is active — this is
@@ -148,7 +148,7 @@ pub struct Attachment {
   delegate (`ProviderKind::CliDelegate`, adapter `"claude"`) for every
   `AttachmentKind`; `false` for `ProviderKind::Local` and the Codex delegate
   (research.md §3) regardless of kind.
-- `read_attachment_content(path: &Path, kind: AttachmentKind) -> Result<Attachment, HolziError>`:
+- `read_attachment_content(path: &Path, kind: AttachmentKind) -> Result<Attachment, HaexError>`:
   re-stats and re-reads the file at send time (FR-018 — a file can vanish
   between attach and send), base64-irrelevant at this layer (returns raw
   bytes; each adapter encodes to whatever its wire format needs).

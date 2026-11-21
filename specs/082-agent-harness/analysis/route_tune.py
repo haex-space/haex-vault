@@ -1,4 +1,4 @@
-"""Routing accuracy with the prompt holzi sends (spec 082 T047): the domains of `domains.json` and one
+"""Routing accuracy with the prompt haex-vault sends (spec 082 T047): the domains of `domains.json` and one
 domain per extension, described by its tool titles, built as `chat/tools/route.rs` builds them. Tunes
 on the development set only; `--final` adds the everyday set once, after the descriptions are fixed.
 Usage:
@@ -21,7 +21,7 @@ titles = [t["title"]["en"].lower() for t in mail["tools"]]
 domains.append(("x_mail", "mail", f'{mail["title"]}: {", ".join(titles)}'))
 domains = [(k, n, OVERRIDES.get(n, d)) for k, n, d in domains]
 
-PROMPT = ("Which area of the app holzi does the user's request need? Areas:\n"
+PROMPT = ("Which area of the app haex-vault does the user's request need? Areas:\n"
           + "".join(f"{name}: {description}\n" for _, name, description in domains)
           + "none: anything else: general knowledge, arithmetic, the time, small talk\n"
           + "Answer with one area name, or two if the request could mean either, comma-separated, "

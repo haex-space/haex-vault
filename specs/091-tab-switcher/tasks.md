@@ -190,7 +190,7 @@ three tabs, press the number, pick another tile: that tab shows, the overview is
       the action contract stays, a declined confirmation is `failed` with the message `declined by user` from
       `confirmed()` in `src/stores/wmLayoutHandlers.ts`, and the overlay shows no toast for exactly that outcome); with two tabs closing one closes
       the overlay and the button becomes a "+"; the window never closes (FR-012), also when other tabs closed while a guard's confirmation waited: the last-tab
-      check runs after the confirmation (an option of the overlay's close call that only holzi's own UI passes; the
+      check runs after the confirmation (an option of the overlay's close call that only haex-vault's own UI passes; the
       action's outcome for every other caller stays); extend `tab-switcher.test.ts` (part 3): close two of five
       tabs, the number shows 3; close the active tab, another becomes active (neighbour, as `wm.tab.close` decides) and
       the overlay stays; close down to one, the overlay closes, the "+" shows; a tab with a close guard asks first
@@ -242,7 +242,7 @@ three tabs, press the number, pick another tile: that tab shows, the overview is
 - [ ] T034 Set the spec's status to `Implemented` and list the merged PRs (spec, Part A, Part B) in a short note at the
       end of `spec.md`
 - [ ] T035 After both specs are merged: amend `specs/090-app-header-bar/spec.md` where it says the window buttons are the
-      one part of the header that belongs to holzi (Decision 1, FR-002, Key Entities, the window-buttons entity) so it
+      one part of the header that belongs to haex-vault (Decision 1, FR-002, Key Entities, the window-buttons entity) so it
       names the tab button of spec 091 as a second one, and note in 090's plan that the header's slot holds both
       (spec 091 Assumptions)
 

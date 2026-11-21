@@ -42,7 +42,7 @@ top of `main`.
 | --- | -------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | 1   | Phase 1, Phase 2, Phase 3 (US2), Phase 4 (US3, host side): T001–T032 | permission kind, ALPN, verification, channel, lifecycle, revoke watcher |
 | 2   | Phase 6 (US4), Phase 7 (US5): T046–T057                              | lobbies, join codes, admission of non-contacts, rate limiting, ADR 0016 |
-| 3   | Phase 5 (US1): T033–T045                                             | invitations, holzi's invitation prompt, opening the extension           |
+| 3   | Phase 5 (US1): T033–T045                                             | invitations, haex-vault's invitation prompt, opening the extension      |
 | 4   | Phase 8, Phase 10: T058–T070, T080–T087                              | bridge methods and events, frame queue, texts, contract, fixture, E2E   |
 | SDK | Phase 9: T071–T079 (in `haex-space/vault-sdk`)                       | `client.peers`; may start after PR 1 against contracts/sdk.md           |
 
@@ -81,7 +81,7 @@ devices, the peers module skeleton and the multi-vault test support. Every story
 
 - [x] T009 `EXT_PEER_ALPN = b"haex-ext-peer/1"` next to `SYNC_ALPN` in `src-tauri/src/sync/wire.rs`; `Domain::ExtPeerAuth` with tag `haex-ext-peer-auth/v1` in `src-tauri/src/sync/signing.rs`; test in `src-tauri/src/sync/signing_tests.rs` that a `DeviceAuth` signature does not verify as `ExtPeerAuth`
 - [x] T010 Extra protocol handlers in a new `src-tauri/src/sync/endpoint_protocols.rs`: a list of `(alpn, handler)` that `SyncNode::bind` (`src-tauri/src/sync/endpoint.rs:167`) registers on its `Router` beside `SYNC_ALPN`, and `SyncNode::dial_alpn(addr, alpn) -> Result<Connection, NodeError>` after the pattern of `dial_link` (adds the address to the `MemoryLookup`); `endpoint.rs` grows only by the hand-over (documented 500-LoC exception)
-- [x] T011 [P] Tests in `src-tauri/src/sync/endpoint_protocols_tests.rs`: a dummy handler on a second ALPN accepts a dial; `holzi-sync/1` still works beside it; an ALPN nobody registered is refused
+- [x] T011 [P] Tests in `src-tauri/src/sync/endpoint_protocols_tests.rs`: a dummy handler on a second ALPN accepts a dial; `haex-sync/1` still works beside it; an ALPN nobody registered is refused
 - [x] T012 Build the `haex-ext-peer/1` handler in `src-tauri/src/sync/service.rs` (`run`, before `SyncNode::bind`) from the app's `ExtensionHost`, `VaultDb`, window emitter and the session tracker; clear `ExtensionHost.peers` when the session's `CancellationToken` fires
 
 ### Verifying a foreign device
@@ -144,7 +144,7 @@ revoking A's permission, disabling A or closing A's last frame closes A's channe
 - [x] T029 [US3] `PeerState::end_all(extension_id)` in `src-tauri/src/extensions/peers/state.rs`: close channels with `Close`, drop lobbies, send `Withdraw` for open outgoing invitations and drop incoming ones with their prompts
 - [x] T030 [US3] Call `host.peers.end_all(id)` beside `host.shells.end_all` in `src-tauri/src/extensions/commands/frames.rs` (last frame closed), `src-tauri/src/extensions/commands/manage.rs` (removed, disabled), `src-tauri/src/extensions/commands/dev.rs` (development version unloaded) and `src-tauri/src/extensions/registry/lifecycle.rs` (`stopped_here`, other device disabled or removed)
 - [x] T031 [US3] Watcher in a new `src-tauri/src/extensions/peers/watch.rs`: subscribes to `AppState::vault_changes()` (`src-tauri/src/vault_events.rs:42`); on `permissions::store::TABLES` re-evaluates `peers`/`connect` for every extension with open state and calls `end_all` when it is denied; on `haex_contacts_blocked_vaults` and `haex_contacts_cards` closes channels whose remote vault is now blocked or no longer a contact; a lagged receiver re-checks everything; started where `extensions::registry::lifecycle::start_for_active_instance` starts (`src-tauri/src/extensions/registry/lifecycle.rs:282`)
-- [x] T032 [US3] Delivery only to frames of the bound extension: every emit in `src-tauri/src/extensions/peers/` goes through `emit_to_frames(…, extension_id, …)`; no `peers:*` content to holzi's window (FR-005)
+- [x] T032 [US3] Delivery only to frames of the bound extension: every emit in `src-tauri/src/extensions/peers/` goes through `emit_to_frames(…, extension_id, …)`; no `peers:*` content to haex-vault's window (FR-005)
 
 **Checkpoint (end of PR 1)**: run `nix develop --command scripts/with-nix-host-bridge.sh cargo test -j 4 --manifest-path src-tauri/Cargo.toml --lib`, `nix develop --command pnpm lint:rust` and `nix develop --command pnpm format:check`; open PR 1.
 
@@ -195,11 +195,11 @@ revoking A's permission, disabling A or closing A's last frame closes A's channe
 
 ## Phase 5: User Story 1 - Einen Kontakt einladen und verbunden werden (Priority: P1) (PR 3)
 
-**Goal**: An extension invites a contact; holzi asks the user on every reachable device of the
+**Goal**: An extension invites a contact; haex-vault asks the user on every reachable device of the
 contact; the first acceptance wins and becomes a channel; the inviter gets exactly one status.
 
 **Independent Test**: Vault A and vault B (two devices, cards exchanged). A invites B; both B devices
-show holzi's prompt and no B frame gets anything; accepting on one device yields one channel, the
+show haex-vault's prompt and no B frame gets anything; accepting on one device yields one channel, the
 other prompt disappears, A gets `accepted`.
 
 ### Tests for User Story 1
@@ -213,7 +213,7 @@ other prompt disappears, A gets `accepted`.
 - [x] T036 [US1] Addresses of a contact in `src-tauri/src/extensions/peers/invite.rs`: `EndpointAddr` per device of the stored card (`endpoint_id`, `iroh_relay`, `src-tauri/src/contacts/card/format.rs:43`), dialled in parallel through `SyncNode::dial_alpn` with 10 s each; a device not reachable counts as `Unreachable` (research R5, no knocking yet)
 - [x] T037 [US1] Inviting side in `src-tauri/src/extensions/peers/invite.rs`: `OutgoingInvite` per data-model.md (`expires_at` = now + 5 min, payload "JSON ≤ 4 KiB"), `Invite` on each connection after `foreign_auth::dial`, first `InviteReply::Accepted` → `InviteConfirm` and the channel, `Withdraw` and close to all others; final status exactly once per FR-018; `cancel(invite)`
 - [x] T038 [US1] Invited side in `src-tauri/src/extensions/peers/admission.rs` and `invite.rs`: accept `Invite` only from `Contact` (else close without reply); `NotInstalled` when the extension is missing, disabled or `peers` is denied; keep the connection open while asking; limits "4 offene je fremder Vault, 16 insgesamt" (data-model.md); answer `Accepted`/`Declined`; open the channel only after `InviteConfirm`; on `Withdraw`, expiry or connection end → prompt gone
-- [x] T039 [US1] Invitation prompt in a new `src-tauri/src/extensions/peers/prompt.rs`: contact name from holzi's address book through `ContactsService` (`Caller::Internal { feature: "extensionPeers" }`), never sent to the extension; with an open frame of the extension emit `extension-peer-invitation { inviteId, extensionId, extensionName, contactName }`; otherwise `Desktop::show_notification` (`src-tauri/src/extensions/host.rs:42`) with buttons `accept`/`decline` independent of the extension's `notifications` permission (FR-014, FR-015); `Body` → window prompt and raise; `ShownNotification::close` and `extension-peer-invitation-gone` when the invitation goes
+- [x] T039 [US1] Invitation prompt in a new `src-tauri/src/extensions/peers/prompt.rs`: contact name from haex-vault's address book through `ContactsService` (`Caller::Internal { feature: "extensionPeers" }`), never sent to the extension; with an open frame of the extension emit `extension-peer-invitation { inviteId, extensionId, extensionName, contactName }`; otherwise `Desktop::show_notification` (`src-tauri/src/extensions/host.rs:42`) with buttons `accept`/`decline` independent of the extension's `notifications` permission (FR-014, FR-015); `Body` → window prompt and raise; `ShownNotification::close` and `extension-peer-invitation-gone` when the invitation goes
 - [x] T040 [US1] Command `extension_peer_invitation_answer { inviteId, accept } -> { result: "open" | "gone" }` in a new `src-tauri/src/extensions/commands/peers.rs`, registered in `src-tauri/src/lib.rs`; ts-rs types `ExtensionPeerInvitation`, `ExtensionPeerInvitationGone` exported to `src/types/bindings/` (check `ls src/types/bindings/<Name>.ts` first)
 - [x] T041 [US1] Opening after acceptance in `src-tauri/src/extensions/peers/state.rs` and `src-tauri/src/extensions/commands/frames.rs`: without an open frame emit `extension-notification-click { extensionId }` (opens the extension through `windowManager.showExtension`, `src/stores/windowManager.ts:321`) and keep `PendingOpen`; `extension_frame_open` (`src-tauri/src/extensions/commands/frames.rs:38`) sends the waiting `peers:channel-opened` to the new frame; after 60 s without a frame close the channel with `closed`
 - [x] T042 [US1] `peers:channel-opened { channelId, origin: "invitation", inviteId, from: { contactId?, name }, payload }` and `peers:invite-status { inviteId, status, channelId?, hint? }` built in `src-tauri/src/extensions/peers/invite.rs` exactly as contracts/bridge.md; `from.name` is the card name of the other side
@@ -237,7 +237,7 @@ side is Rust; no bridge method exists yet (PR 4).
   contact, which the invitation needs for its devices); the `FakeDesktop` of
   `notifications_tests.rs` moved to `extensions/fake_desktop.rs` and gained `specs`, `forbid` and
   `wait_shown`, so the notification tests of this PR use it; `Frames` got `emit_window` for events to
-  holzi's window; `ContactsService::get` with `Caller::Internal` gives the prompt its contact name
+  haex-vault's window; `ContactsService::get` with `Caller::Internal` gives the prompt its contact name
   (no new service method). Reused as patterns: `PermissionRequestDialog.vue` and
   `stores/extensionPermissions.ts` (dialog and store), `lib/extensions/queue.ts` (not reused: it is
   typed on permission questions and keyed by their content), `Joining`/`admit_join` (handing the
@@ -398,7 +398,7 @@ Weak<SyncNode>)`, set by `attach` from the sync service and cleared by `PeerStat
   second app-state type is needed, and a weak node cannot keep the session from draining.
   `peers.session()` answers `None` (`network_unavailable`) without a session. The dial side
   needs `PeerContext.db.device_id()` for permission lookups, so no field was added.
-- **`JoinReply::Accepted { lobby_id }`**: the code carries only holzi's random key, but
+- **`JoinReply::Accepted { lobby_id }`**: the code carries only haex-vault's random key, but
   `extension_peers_join` answers `{ channelId, lobbyId }`; the host names its `lobbyId` in the
   reply. The joiner accepts it only if it is a well-formed lobby id.
 - **T049 (join code)**: `JoinCode.secret` is `Zeroizing`, `Debug` prints nothing, and `parse`
@@ -489,7 +489,7 @@ and show the permission text. Each task carries the story whose method or text i
 - [x] T067 [US2] Command `extension_peers_frame_overflow` in `src-tauri/src/extensions/commands/peers.rs`, registered in `src-tauri/src/lib.rs`: closes the channel with `lost` on both sides (FR-038)
 - [x] T068 [P] [US3] Permission texts: kind `peers` in the install dialog and permission list (`src/components/extensions/InstallDialog.vue`, `src/components/extensions/PermissionSummary.vue`) and the runtime question (`src/components/extensions/PermissionRequestDialog.vue`): "Verbindungen zu derselben Erweiterung auf Geräten anderer Vaults öffnen. Mitspieler können bei direkter Verbindung die Netzwerkadresse dieses Geräts sehen." (FR-003); keys `extensions.permissions.peers.*` in `src/i18n/locales/de.json` and `en.json`; check `src-tauri/src/extensions/commands/permission_list.rs` names the kind
 - [x] T069 [US1] Test extension `src-tauri/tests/fixtures/extension_e2e/peers/` (`manifest.json` with `peers` and `contacts`, `index.html`, `main.js`, `build.sh`, `SOURCE.md` like `model-jobs/`): invite, lobby, join, send counters, timestamps for SC-004, shows every `peers:*` event; bundled with the released vault-sdk that contains `client.peers` (needs T079); built and signed by `src-tauri/tests/extension_e2e_fixtures.rs` into `src-tauri/tests/fixtures/extension_e2e/peers.xt`
-- [x] T070 [US3] Bridge contract in `specs/017-extension-host/contracts/bridge.md`: method rows for `extension_peers_*` and rows for the `peers:*` events in "Meldungen holzi → Erweiterung", linking to `specs/057-extension-peer-channels/contracts/bridge.md`
+- [x] T070 [US3] Bridge contract in `specs/017-extension-host/contracts/bridge.md`: method rows for `extension_peers_*` and rows for the `peers:*` events in "Meldungen haex-vault → Erweiterung", linking to `specs/057-extension-peer-channels/contracts/bridge.md`
 
 **Checkpoint**: `cargo test … --test extension_bridge_contract`, `nix develop --command pnpm check:extensions`, `nix develop --command pnpm typecheck`.
 
@@ -517,7 +517,7 @@ release.
   `src/composables/useExtensionFrame.ts`, `src/lib/extensions/permissionScope.ts`,
   `PermissionSummary.vue`, the i18n files, `scripts/e2e/lib/scenario.ts` and `group-plan.ts` (a group
   can ask for its own iroh relay: `irohRelay: true`), 017's `bridge.md` and `spec.md`, `plans/README.md`.
-- **Lost on both sides (T067)**: contracts/bridge.md says holzi tells both sides `lost`. The wire
+- **Lost on both sides (T067)**: contracts/bridge.md says haex-vault tells both sides `lost`. The wire
   had only `Close { reason: Closed }`, and a `Close` on the stream can be read before the close of
   the connection and say `closed`. A channel that ends as `lost` now sends no `Close`; it closes the
   connection with its own code (`LOST_CODE`), which `end_reason` reads as `lost`. This also changes
@@ -554,7 +554,7 @@ release.
   killed device ending the channel as `timeout` 35 s later. Not covered in the scene: the
   decline paths, expiry, notifications with buttons (the prompt is the window's), Android. T081 is
   partial: the scene runs through the group's iroh relay (`irohRelay: true`) and passes with
-  and without `HOLZI_E2E_SYNC_LOOPBACK=1`, but nothing in the scene proves that the datagrams took
+  and without `HAEX_E2E_SYNC_LOOPBACK=1`, but nothing in the scene proves that the datagrams took
   the relay path; `max_datagram_size >= 1024` is checked implicitly because a channel does not
   open below it. No platform exclusion was added.
 - **Environment of the E2E run**: the scene was run here only after a temporary local bypass of
@@ -601,15 +601,15 @@ the contacts API of `feat(contacts): read the host's address book (#71)`.
 - [x] T075 vault-sdk: `PeersAPI` in a new `src/api/peers.ts` with `inviteAsync`, `cancelInviteAsync`, `openLobbyAsync`, `closeLobbyAsync`, `joinAsync`, `removeAsync`, `sendAsync` (bytes as `{"$bytes"}`, `reliable` default false), `closeAsync`, `on(type, handler)` decoding `peers:message.data` from Base64; constants `MAX_FAST_BYTES = 1024`, `MAX_RELIABLE_BYTES = 65536`, `MAX_PAYLOAD_BYTES = 4096`; `PeerError` mapping `reason` to the names of contracts/sdk.md
 - [x] T076 vault-sdk: wire `client.peers` in `src/client.ts` and export the API and types from `src/index.ts`
 - [x] T077 [P] vault-sdk: tests in `src/api/__tests__/peers.test.ts` (request names and parameters, Base64 round trip of `data`, error mapping per reason, events decoded)
-- [x] T078 vault-sdk: README section on `client.peers` (invitation accepted only in holzi's prompt, no accept/decline in the SDK, lobbies, size limits)
-- [x] T079 vault-sdk: PR against `main` of `haex-space/vault-sdk`, released by release-please; holzi T069 and haex-doom pin the released version
+- [x] T078 vault-sdk: README section on `client.peers` (invitation accepted only in haex-vault's prompt, no accept/decline in the SDK, lobbies, size limits)
+- [x] T079 vault-sdk: PR against `main` of `haex-space/vault-sdk`, released by release-please; haex-vault T069 and haex-doom pin the released version
 
 ---
 
 ## Phase 10: Polish & Cross-Cutting Concerns (PR 4)
 
-- [x] T080 [P] E2E scene `scripts/e2e/scenarios/extension-peers.test.ts` with two users with own vaults (`scripts/e2e/lib/group.ts`), cards exchanged, the `peers` fixture installed: invite → holzi's prompt → accept → channel → messages → close; contacts-only lobby with a non-contact refused; public lobby joined by the non-contact
-- [ ] T081 [P] E2E relay and idle: the same scene with `HOLZI_E2E_SYNC_LOOPBACK=1` on one device so the channel runs through the scene's iroh relay (SC-005, `max_datagram_size ≥ 1024` on the relay path); cutting one device's network yields `timeout` within 30 s on the other (FR-039); add the scene to `scripts/e2e/platform-exclusions.ts` only where a platform cannot run it, with the reason. The current scenario exercises the configured relay but still lacks a transport-path assertion.
+- [x] T080 [P] E2E scene `scripts/e2e/scenarios/extension-peers.test.ts` with two users with own vaults (`scripts/e2e/lib/group.ts`), cards exchanged, the `peers` fixture installed: invite → haex-vault's prompt → accept → channel → messages → close; contacts-only lobby with a non-contact refused; public lobby joined by the non-contact
+- [ ] T081 [P] E2E relay and idle: the same scene with `HAEX_E2E_SYNC_LOOPBACK=1` on one device so the channel runs through the scene's iroh relay (SC-005, `max_datagram_size ≥ 1024` on the relay path); cutting one device's network yields `timeout` within 30 s on the other (FR-039); add the scene to `scripts/e2e/platform-exclusions.ts` only where a platform cannot run it, with the reason. The current scenario exercises the configured relay but still lacks a transport-path assertion.
 - [x] T082 [P] Docs: `CONTEXT.md` entries from T005 checked against the final names; `plans/README.md` row updated per merged PR; `specs/017-extension-host/spec.md` "Beziehung"/follow-up list points to 057
 - [x] T083 Size and structure: every new or touched hand-written file ≤ 500 LoC (`extensions/peers/*`, `sync/foreign_auth.rs`); `sync/endpoint.rs` grows only by the handler hand-over
 - [x] T084 Security pass: grep the new code for logging of payloads, message data, secrets or addresses (FR-042, FR-043); secrets in `Zeroizing`; no `unwrap`/`expect` on wire input
@@ -667,7 +667,7 @@ Task: "T043 [P] [US1] Dialog src/components/extensions/PeerInvitationDialog.vue"
 ### Incremental Delivery
 
 1. PR 2 (US4, US5): lobbies and join codes; ADR 0016 accepted.
-2. PR 3 (US1): invitations with holzi's prompt.
+2. PR 3 (US1): invitations with haex-vault's prompt.
 3. vault-sdk release with `client.peers`.
 4. PR 4 (Phase 8 + Phase 10): bridge, frame queue, texts, fixture, E2E and the hand check; haex-doom
    can build against it.

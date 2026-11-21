@@ -8,12 +8,12 @@
 
 haex-mail erklärt 15 Werkzeuge im signierten Manifest und stellt sie über den MCP-Baustein des vault-sdk
 bereit (018). Dazu kommen dauerhafte Regeln mit eigener Oberfläche in den Einstellungen. Drei Mail-Funktionen
-fehlen dem Host und werden in holzi und vault-sdk ergänzt. Die Arbeit liegt in drei Repositories und ist in
+fehlen dem Host und werden in haex-vault und vault-sdk ergänzt. Die Arbeit liegt in drei Repositories und ist in
 drei Etappen geschnitten, jede mit eigenem Pull Request (FR-034).
 
 Technischer Ansatz (Begründungen in [research.md](./research.md)):
 
-- **Etappen** (R1): E1 vault-sdk veröffentlicht den MCP-Baustein; E2a holzi bekommt drei Bridge-Methoden,
+- **Etappen** (R1): E1 vault-sdk veröffentlicht den MCP-Baustein; E2a haex-vault bekommt drei Bridge-Methoden,
   E2b vault-sdk die Gegenstücke; E3 haex-mail.
 - **Host** (R2–R4): `extension_mail_search` (Kriterienobjekt, UIDs, höchstens 1000), `extension_mail_create_mailbox`
   (`created`-Flag), `extension_mail_delete_messages` (nur mit `UIDPLUS`, nur die genannten UIDs). Berechtigung
@@ -36,27 +36,27 @@ Technischer Ansatz (Begründungen in [research.md](./research.md)):
 **Language/Version**: Rust (Edition des Crates `src-tauri`) für E2a; TypeScript (strict) für E1, E2b, E3; Vue 3.5,
 Nuxt 4 (SPA) in haex-mail
 
-**Primary Dependencies**: vorhanden — `async-imap`, `imap-proto`, `mail-parser`, `tokio` (holzi);
+**Primary Dependencies**: vorhanden — `async-imap`, `imap-proto`, `mail-parser`, `tokio` (haex-vault);
 `drizzle-orm`, `drizzle-kit`, Pinia, vue-i18n, vitest (haex-mail); keine neue Laufzeitabhängigkeit
 
 **Storage**: Erweiterungs-DB von haex-mail: neue Tabelle `rules`, neue Spalte `mailboxes.rules_uid_through`
-([data-model.md](./data-model.md)); holzi und vault-sdk ohne Speicheränderung
+([data-model.md](./data-model.md)); haex-vault und vault-sdk ohne Speicheränderung
 
 **Testing**: `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --lib mail` (neue Fälle in
 `extensions/mail/mail_tests.rs`, Testserver `test_server.rs` erweitert), `bridge/allowlist.rs`-Test; vault-sdk:
 vitest `src/api/__tests__/mail.test.ts`; haex-mail: vitest (`lib/rules.test.ts`, `tools/*.test.ts`,
 Manifest-Test); Modellprüfung `cargo test --manifest-path src-tauri/Cargo.toml --test model_tool_eval -- --ignored --nocapture`
 
-**Target Platform**: wie 018: Linux, macOS, Windows, Android, iOS. haex-mail läuft in holzi als Rahmen (iframe)
+**Target Platform**: wie 018: Linux, macOS, Windows, Android, iOS. haex-mail läuft in haex-vault als Rahmen (iframe)
 
-**Project Type**: Desktop- und Mobil-App (Tauri, holzi), Bibliothek (vault-sdk), Erweiterung (haex-mail, Nuxt)
+**Project Type**: Desktop- und Mobil-App (Tauri, haex-vault), Bibliothek (vault-sdk), Erweiterung (haex-mail, Nuxt)
 
 **Performance Goals**: `find_messages` mit Suche über einen Ordner von 10 000 Mails und eine Seite von 25
 Umschlägen in ≤ 5 s bei erreichbarem Server; `list_mailboxes` für 3 Konten in ≤ 5 s; ein lesender Aufruf bei
 geschlossenem haex-mail ≤ 3 s langsamer als bei offenem (SC-009); Regelauswertung für 50 neue Mails mit 20
 Regeln in ≤ 50 ms (ohne Serveraufruf)
 
-**Constraints**: Schema nur `type`, `description`, `properties`, `required`, `items`, `enum` (holzi
+**Constraints**: Schema nur `type`, `description`, `properties`, `required`, `items`, `enum` (haex-vault
 `schema_in_subset`); Ergebnis eines Werkzeugs ≤ 64 KiB; höchstens 1000 Umschläge je `fetch_envelopes`;
 höchstens 100 Mails je Aufruf der ändernden Werkzeuge; 60 s je Host-Aufruf; Dateien < 500 Zeilen;
 Rust-Tests in `*_tests.rs`; Regeln laufen nur bei geladenem haex-mail (Clarification 2026-10-20)
@@ -77,7 +77,7 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 | VI. Selbstverändernde Anweisungen nur mit Review | Besteht. Die Änderung am Marker in `CLAUDE.md` (Speckit-Verweis auf diesen Plan) ist Teil des Pull Requests dieser Spec; Skills, Berechtigungen und Constitution bleiben unverändert.                                                                                                                                                   |
 | VII. Relay ist nie Voraussetzung                 | Besteht. Regeln und Werkzeuge nutzen nur lokale Daten und die Mailserver des Nutzers, kein Relay.                                                                                                                                                                                                                                       |
 | VIII. Keine verdeckten Anweisungen               | Besteht. Werkzeuge liefern Mailtext als Daten; die Spec verbietet, dass Mailtext Wirkungsart oder Freigabe ändert (US1/4). Beschreibungen im Manifest enthalten keine versteckten Anweisungen an Dritte.                                                                                                                                |
-| Arbeitsweise                                     | Pull Request je Etappe aus einem Themen-Branch, Rebase- oder Merge-Commit, Conventional Commits. Spec 019 in holzi deckt E2a und die Verträge ab; E1, E2b, E3 laufen in vault-sdk und haextension.                                                                                                                                      |
+| Arbeitsweise                                     | Pull Request je Etappe aus einem Themen-Branch, Rebase- oder Merge-Commit, Conventional Commits. Spec 019 in haex-vault deckt E2a und die Verträge ab; E1, E2b, E3 laufen in vault-sdk und haextension.                                                                                                                                 |
 
 ### Prüfung gegen die spaex-Constitution (`.spaex/constitution.md`)
 
@@ -116,7 +116,7 @@ specs/019-haex-mail-agent-tools/
 ### Source Code
 
 ```text
-# E2a — holzi (dieses Repository)
+# E2a — haex-vault (dieses Repository)
 src-tauri/src/extensions/mail/
 ├── commands.rs          # + search, create_mailbox, delete_messages
 ├── imap.rs              # unverändert bis auf `pub(super)`-Zugriff auf `with_session!` und `imap_err`
@@ -149,20 +149,20 @@ app/pages/settings.vue               # + Abschnitt „Regeln“
 app/locales/{de,en}.json             # + Texte
 ```
 
-**Structure Decision**: Ein Plan in holzi, weil holzi die Spec-Verzeichnisse führt und die Host-Seite hier
+**Structure Decision**: Ein Plan in haex-vault, weil haex-vault die Spec-Verzeichnisse führt und die Host-Seite hier
 liegt. Die beiden anderen Repositories führen eigene Pull Requests und verweisen auf diese Spec; eine
 gemeinsame Aufgabenliste (`tasks.md`) markiert je Aufgabe das Repository (wie 018).
 
 ## Etappen
 
-| Etappe | Repository  | Inhalt                                                                                                                                                                                                               | Abhängigkeit                                                                 |
-| ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| E1     | vault-sdk   | **erledigt**: Release 4.6.0 (`74a8ff96…`), MCP-Baustein aus PR #64                                                                                                                                                   | keine                                                                        |
-| E2a    | holzi       | **erledigt**: drei Bridge-Methoden, Testserver, Tests, Verträge (haex-space/haex-vault, Merge `a1f3ae20b6538cdddb66b2c718ccf0660c04d68e`, PR #507)                                                                   | keine                                                                        |
-| E2b    | vault-sdk   | **erledigt**: drei Methoden und Typen, Tests (haex-space/vault-sdk, Commit `3dde451472376ee7bcd834b690431e712b01743d`, PR #78), veröffentlicht als Release 4.7.0 (Commit `ccdaadd06e9a0dd3bd392a31e45f3f0d99ac4f2e`) | E1 veröffentlicht; Namen aus E2a festgelegt                                  |
-| E3     | haextension | Manifest, Migration, Regeln, Werkzeuge, Oberfläche; SDK anheben                                                                                                                                                      | E1 und E2b veröffentlicht, E2a in der holzi-Version, gegen die getestet wird |
+| Etappe | Repository  | Inhalt                                                                                                                                                                                                               | Abhängigkeit                                                                      |
+| ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| E1     | vault-sdk   | **erledigt**: Release 4.6.0 (`74a8ff96…`), MCP-Baustein aus PR #64                                                                                                                                                   | keine                                                                             |
+| E2a    | haex-vault  | **erledigt**: drei Bridge-Methoden, Testserver, Tests, Verträge (haex-space/haex-vault, Merge `a1f3ae20b6538cdddb66b2c718ccf0660c04d68e`, PR #507)                                                                   | keine                                                                             |
+| E2b    | vault-sdk   | **erledigt**: drei Methoden und Typen, Tests (haex-space/vault-sdk, Commit `3dde451472376ee7bcd834b690431e712b01743d`, PR #78), veröffentlicht als Release 4.7.0 (Commit `ccdaadd06e9a0dd3bd392a31e45f3f0d99ac4f2e`) | E1 veröffentlicht; Namen aus E2a festgelegt                                       |
+| E3     | haextension | Manifest, Migration, Regeln, Werkzeuge, Oberfläche; SDK anheben                                                                                                                                                      | E1 und E2b veröffentlicht, E2a in der haex-vault-Version, gegen die getestet wird |
 
-E2a und E2b gelten erst zusammen. Tests von E3 laufen gegen eine holzi-Version aus E2a (Entwicklungsmodus
+E2a und E2b gelten erst zusammen. Tests von E3 laufen gegen eine haex-vault-Version aus E2a (Entwicklungsmodus
 von haex-mail, `haex dev`).
 
 ## Risiken

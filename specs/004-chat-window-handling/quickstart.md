@@ -2,7 +2,7 @@
 
 ## Voraussetzungen
 
-- Holzi mit einer geöffneten Vault starten.
+- HaexVault mit einer geöffneten Vault starten.
 - Mindestens ein lokales Modell installiert haben.
 - Für Reasoning einen Adapter bzw. ein lokales Modell verwenden, das
   `reasoning`-Deltas liefert.

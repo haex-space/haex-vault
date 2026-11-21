@@ -172,7 +172,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "Es gibt keine Kalender-App in holzi. Wie soll ich den Zahnarzttermin morgen (19.03.2026) um 10:00 Uhr festhalten?",
+            "question": "Es gibt keine Kalender-App in haex-vault. Wie soll ich den Zahnarzttermin morgen (19.03.2026) um 10:00 Uhr festhalten?",
             "options": [
               "haex-mail öffnen, um dort nach einer Kalenderfunktion zu schauen",
               "Einen Online-Kalender im Browser öffnen",
@@ -183,7 +183,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Es gibt keine Kalender-App in holzi. Wie soll ich den Zahnarzttermin morgen (19.03.2026) um 10:00 Uhr festhalten?"
+      "text": "Es gibt keine Kalender-App in haex-vault. Wie soll ich den Zahnarzttermin morgen (19.03.2026) um 10:00 Uhr festhalten?"
     },
     {
       "id": "no_tool-de-4",
@@ -282,7 +282,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I can't add the dentist appointment, because holzi has no calendar action and no calendar app installed. The only apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail. If you'd like, I can open one of them, for example haex-mail to write yourself a reminder."
+      "text": "I can't add the dentist appointment, because haex-vault has no calendar action and no calendar app installed. The only apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail. If you'd like, I can open one of them, for example haex-mail to write yourself a reminder."
     },
     {
       "id": "no_tool-en-4",
@@ -303,7 +303,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "There's no shopping list app in holzi. Where should I put \"milk\"?",
+            "question": "There's no shopping list app in haex-vault. Where should I put \"milk\"?",
             "options": [
               "Save it in a text file in Dateien",
               "Send it to myself with haex-mail",
@@ -314,7 +314,7 @@
           "ending": "ran"
         }
       ],
-      "text": "There's no shopping list app in holzi. Where should I put \"milk\"?"
+      "text": "There's no shopping list app in haex-vault. Where should I put \"milk\"?"
     },
     {
       "id": "mail_read-en-2-s",

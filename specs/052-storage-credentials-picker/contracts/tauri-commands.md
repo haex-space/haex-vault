@@ -18,7 +18,7 @@ type CredentialsCandidate = {
   username: string // bei S3 die Access-Key-ID; nie das Geheimnis
   url: string | null
   tagged: boolean // trägt das Cloud-Speicher-Tag
-  owned: boolean // von holzi angelegt (Eigentümer `storage`)
+  owned: boolean // von haex-vault angelegt (Eigentümer `storage`)
 }
 ```
 
@@ -33,7 +33,7 @@ Schreibweise. Die Suche macht das Fenster.
 | `storage_list`              | `ConnectionView` ergänzt um `credentialsEntry?: { id, title, owned }`; `credentials` ist `missing` auch bei vorhandenem, aber unpassendem Eintrag (FR-010).                                                                                                                                                                                                                                                                                   |
 | `storage_connection_save`   | `ConnectionInput.credentials` darf `{ kind: 'entry', itemId }` sein (alle Protokolle). Der Eintrag muss für den internen Aufrufer lesbar sein und für das Protokoll passen, sonst `StorageCredentialsUnavailable` (Zustand `missing`, auch wenn der Eintrag da ist, aber Werte fehlen). Getestet wird mit den Werten des Eintrags; erst danach wird die Verknüpfung gesetzt und der Eintrag getaggt. Ein Fehltest speichert und taggt nichts. |
 | `storage_dialog_resolve`    | `StorageAnswer::Confirm.credentials` darf dieselbe Form `entry` tragen (US4); die Erweiterung erfährt weder Kennung noch Titel.                                                                                                                                                                                                                                                                                                               |
-| `storage_connection_remove` | unverändert im Vertrag; ein gewählter Eintrag bleibt, ein von holzi angelegter geht, wenn keine Verbindung ihn nutzt.                                                                                                                                                                                                                                                                                                                         |
+| `storage_connection_remove` | unverändert im Vertrag; ein gewählter Eintrag bleibt, ein von haex-vault angelegter geht, wenn keine Verbindung ihn nutzt.                                                                                                                                                                                                                                                                                                                    |
 
 `CredentialsInput` (ergänzt, getaggt nach `kind`):
 

@@ -15,9 +15,9 @@ haex-vault://contact/<base64url(postcard(ShareEnvelope))>
   Byte-Modus, Fehlerkorrektur M, nur wenn `text.len() <= 2048` (FR-019).
 - Obergrenze des Textes: `MAX_SHARE_TEXT = 16 384` Zeichen. Größer: der Dialog meldet „zu groß“ und
   nennt, was sich abwählen lässt; der Dienst gibt keinen abgeschnittenen Text aus.
-- Einlesen nimmt außerdem `holzi:card:…` an (bisheriger Kartentext, FR-020). Intern wird er zu einem
+- Einlesen nimmt außerdem `haex:card:…` an (bisheriger Kartentext, FR-020). Intern wird er zu einem
   Umschlag ohne Angaben und mit der Karte; er behält Spec 051 FR-012 (siehe unten „Alte Karte“).
-  Spec 054 benennt das Präfix `holzi:card:` später um; das Schema des neuen Formats trägt den neuen
+  Spec 054 benennt das Präfix `haex:card:` später um; das Schema des neuen Formats trägt den neuen
   Namen von Anfang an.
 
 ## Umschlag
@@ -38,7 +38,7 @@ struct ShareValue { kind: String, label: String, value: String }
 ```
 
 Der Umschlag selbst trägt **keine** Unterschrift. Seine Angaben haben keinen Echtheitsnachweis
-(Annahmen der Spec). Nur `card` ist beweisend, und nur für die holzi-Adressen.
+(Annahmen der Spec). Nur `card` ist beweisend, und nur für die haex-vault-Adressen.
 
 Nicht im Umschlag: Foto, Gruppen, Abgleichsziele, Herkunft, Abgleichsstand (FR-026), Kennungen der
 Angaben, Positionen.
@@ -67,16 +67,16 @@ Umschlag, unbekannte Version, Grenzen verletzt, ungültige Karte.
 - Die eigene Vault: Karte mit `vault` = eigene Identität wird abgewiesen (`CardOwn`).
 - Aus der Karte werden nur `vault`, `devices` und `nostr_relays` verwendet. `card.values` und
   `card.name` bleiben unbenutzt (FR-023).
-- Eigener Kontakt (Bauen): holzi unterschreibt pro Teilen eine frische Karte mit nur den gewählten
+- Eigener Kontakt (Bauen): haex-vault unterschreibt pro Teilen eine frische Karte mit nur den gewählten
   Geräten und Relays, `values` leer, `name` wie im Umschlag; `issued_at` = jetzt, `list_generation` wie
   die wirksame Geräteliste. Kein Speichern der frischen Karte.
 - Fremder Kontakt (Bauen): die neueste gespeicherte Karte der Vault des Kontakts, Bytes unverändert.
-  Der Dialog zeigt dazu die Zeile „holzi-Adressen (bestätigt)“ mit dem Hinweis aus FR-013.
+  Der Dialog zeigt dazu die Zeile „haex-vault-Adressen (bestätigt)“ mit dem Hinweis aus FR-013.
 
-## Alte Karte (`holzi:card:`)
+## Alte Karte (`haex:card:`)
 
 Wird als Umschlag mit `values = []`, `name = card.name`, `card = Some(bytes)` gelesen. Die Vorschau
-bietet für die holzi-Adressen eines vorhandenen Kontakts zusätzlich „Ersetzen“ an, das Spec 051 FR-012
+bietet für die haex-vault-Adressen eines vorhandenen Kontakts zusätzlich „Ersetzen“ an, das Spec 051 FR-012
 umsetzt: eine neuere Karte ersetzt die gespeicherten Karten dieser Vault, eine ältere ändert nichts
 (`CardOlder`). Bei einer Weitergabe im neuen Format gibt es „Ersetzen“ nie (FR-025). Die Angaben
 (`card.values`) einer alten Karte übernimmt die Vorschau weiter als Angaben.
@@ -94,7 +94,7 @@ eingebaut.
 
 ## Fehler
 
-Alle Fehler des Einlesens sind `HolziError`-Varianten mit stabilen Codes für die Oberfläche:
+Alle Fehler des Einlesens sind `HaexError`-Varianten mit stabilen Codes für die Oberfläche:
 `ShareInvalid { reason }` (Form, Version, Grenzen), `CardInvalid { reason }` (Unterschrift, Format der
 Karte), `CardOwn`, `CardOlder` (nur alte Karte), `ShareTooLarge` (Bauen) und `SharePreviewStale` (das
 Ziel hat sich seit der Vorschau geändert). Die Oberfläche zeigt für jede einen Hinweistext; bei

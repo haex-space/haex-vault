@@ -513,7 +513,7 @@ Neuer Worktree. **Vor dem Start diese Stufe feinplanen** (Tests und Zeilen), nac
 
 ### Task 12: Chat nutzt den Slot, lädt aber nichts
 
-- `load_model_inner`, lokaler Zweig (`model_loading.rs`, `else`-Zweig ab "#[cfg(feature = "llm-cpu")]"): statt `resolve_local_model_metadata`/`load_local_model_from_metadata` den Slot lesen. Ist `slot.model_id == model_id`: `session = slot.clone()` (der `Arc<dyn ProviderAdapter>` wird geteilt, kein zweiter Motor). Sonst `HolziError::InvalidInput { reason: "local model is not active" }`.
+- `load_model_inner`, lokaler Zweig (`model_loading.rs`, `else`-Zweig ab "#[cfg(feature = "llm-cpu")]"): statt `resolve_local_model_metadata`/`load_local_model_from_metadata` den Slot lesen. Ist `slot.model_id == model_id`: `session = slot.clone()` (der `Arc<dyn ProviderAdapter>` wird geteilt, kein zweiter Motor). Sonst `HaexError::InvalidInput { reason: "local model is not active" }`.
 - Die Tool-Prüfung im Hintergrund (`spawn_tool_use_check`) läuft weiter nur beim Laden in den Slot, nicht bei jedem Chat-Wechsel auf das lokale Modell.
 - `load_local_session` (Modellaufträge, spec 055 FR-033) bleibt unverändert. Falls das Job-Modell dem aktiven entspricht, könnte es den Slot teilen; das ist bewusst nicht Teil dieser Stufe.
 - Test: Chat wählt das aktive lokale Modell → `session.adapter` ist derselbe `Arc` wie im Slot (`Arc::ptr_eq`); wählt ein anderes lokales Modell → Fehler; wählt ein API-Modell → Slot unverändert.

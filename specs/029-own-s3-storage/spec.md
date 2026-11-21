@@ -35,7 +35,7 @@ Zugangsschlüssel erzeugen kann), lässt sich für einen Space nicht verbinden
   D32).
 - **Speicher-Backend B**: der eigene S3-kompatible Speicher eines Nutzers; Thema
   dieser Spec. Das Relay ist an Dateien hier nicht beteiligt (D32).
-- **Passwortmanager**: fester Bestandteil von holzi, der Geheimnisse wie
+- **Passwortmanager**: fester Bestandteil von HaexVault, der Geheimnisse wie
   S3-Zugangsdaten und Zugangsschlüssel in der Vault verwahrt; Erweiterungen mit
   Berechtigung dürfen ihn nutzen. Er wird in der Spec 034 festgelegt;
   diese Spec legt nur fest, welche Geheimnisse dort liegen (D32).
@@ -188,7 +188,7 @@ Zugangsschlüssel erzeugen kann), lässt sich für einen Space nicht verbinden
 
 Eine Nutzerin legt einen Space für ihre Familie an und möchte die Fotos nicht
 auf dem Speicher des Relays ablegen, sondern bei ihrem eigenen Anbieter. Sie gibt
-Endpunkt, Region und ihre Hauptzugangsdaten ein. holzi prüft den Anbieter, legt
+Endpunkt, Region und ihre Hauptzugangsdaten ein. HaexVault prüft den Anbieter, legt
 einen Bucket für den Space an, schaltet die Versionierung ein und erzeugt die
 beiden Zugangsschlüssel. Ab dann liegen die Objekte des Space in ihrem Bucket.
 
@@ -205,14 +205,14 @@ Datei im Space landet als Objekt in diesem Bucket, nicht auf dem Relay.
 
 1. **Given** die Nutzerin ist Admin eines Space, **When** sie in der
    Detailansicht des Space „Eigenen Speicher verbinden“ wählt und Endpunkt, Region und Hauptzugangsdaten eingibt, **Then**
-   führt holzi die Eignungsprüfung durch, bevor irgendetwas angelegt oder
+   führt HaexVault die Eignungsprüfung durch, bevor irgendetwas angelegt oder
    gespeichert wird.
 2. **Given** die Eignungsprüfung ist bestanden, **When** die Nutzerin bestätigt,
-   **Then** legt holzi einen Bucket an, dessen Name den Namen des Space nicht
+   **Then** legt HaexVault einen Bucket an, dessen Name den Namen des Space nicht
    verrät, schaltet die Versionierung und die Aufbewahrungsfrist ein, erzeugt
    beide Zugangsschlüssel und zeigt den Space als „Speicher: eigener S3“.
 3. **Given** die Hauptzugangsdaten sind falsch oder der Endpunkt ist nicht
-   erreichbar, **When** die Prüfung läuft, **Then** nennt holzi den Grund
+   erreichbar, **When** die Prüfung läuft, **Then** nennt HaexVault den Grund
    verständlich, speichert keine Zugangsdaten und legt nichts an.
 4. **Given** die Nutzerin hat schon eine Speicherverbindung gespeichert, **When**
    sie einen weiteren Space anlegt, **Then** kann sie diese Verbindung wählen,
@@ -271,7 +271,7 @@ und keinen Klartext.
 
 ### User Story 3 - Entzug erneuert die Zugangsschlüssel (Priority: P1)
 
-Der Admin entfernt ein Mitglied aus dem Space. holzi erneuert sofort den
+Der Admin entfernt ein Mitglied aus dem Space. HaexVault erneuert sofort den
 Zugangsschlüssel, den das Mitglied hatte, und widerruft den alten beim Anbieter;
 erst danach veröffentlicht es die neue Mitgliederliste und gibt den neuen
 Schlüssel allen verbleibenden Mitgliedern mit derselben Fähigkeit. Der alte
@@ -288,7 +288,7 @@ zurückstufen: Es kann nicht mehr hochladen, aber weiter lesen.
 **Acceptance Scenarios**:
 
 1. **Given** der Admin entfernt ein Mitglied, **When** er das Entfernen
-   bestätigt, **Then** erzeugt holzi in einem Vorgang eine neue Generation des
+   bestätigt, **Then** erzeugt HaexVault in einem Vorgang eine neue Generation des
    Zugangsschlüssels, den das Mitglied hatte, widerruft die alte Generation beim
    Anbieter, veröffentlicht danach die neue Mitgliederliste und gibt die neue
    Generation allen verbleibenden Mitgliedern mit dieser Art (FR-018).
@@ -323,7 +323,7 @@ zurückstufen: Es kann nicht mehr hochladen, aber weiter lesen.
 
 Ein Mitglied mit Schreibrecht löscht mit seinem Zugangsschlüssel direkt im
 Bucket Objekte, die andere hochgeladen haben, am Dateiindex vorbei. Die
-Einträge im Dateiindex bestehen weiter. holzi bemerkt auf einem Gerät des Admins,
+Einträge im Dateiindex bestehen weiter. HaexVault bemerkt auf einem Gerät des Admins,
 dass Objekte fehlen, und holt sie aus den älteren Versionen des Buckets zurück.
 
 **Why this priority**: Das ist die Absicherung gegen die Grenze von S3. Sie ist
@@ -346,15 +346,15 @@ für alle Mitglieder wieder lesbar.
    stimmt, verwendet es nicht, und ein Gerät des Admins stellt die passende ältere
    Version wieder her.
 3. **Given** ein Mitglied hat eine Datei rechtmäßig gelöscht (Spec 027), **When**
-   das zugehörige Objekt aufgeräumt wird, **Then** stellt holzi es nicht wieder
+   das zugehörige Objekt aufgeräumt wird, **Then** stellt HaexVault es nicht wieder
    her.
 4. **Given** die Aufbewahrungsfrist eines gelöschten Objekts ist abgelaufen,
    **When** der Admin die betroffene Datei wiederherstellen will, **Then** meldet
-   holzi, dass keine ältere Version mehr vorhanden ist, und nennt die Datei als
+   HaexVault, dass keine ältere Version mehr vorhanden ist, und nennt die Datei als
    verloren, sofern kein Gerät sie noch hat.
 5. **Given** der Admin öffnet die Speicherangaben des Space, **When** er die
    Aufbewahrungsfrist ändert, **Then** gilt die neue Frist für den Bucket, und
-   holzi zeigt, dass Löschungen nur innerhalb dieser Frist rückgängig zu machen
+   HaexVault zeigt, dass Löschungen nur innerhalb dieser Frist rückgängig zu machen
    sind.
 
 ---
@@ -363,7 +363,7 @@ für alle Mitglieder wieder lesbar.
 
 Ein Nutzer betreibt einen S3-kompatiblen Speicher, der Versionierung kann, aber
 keine auf einen Bucket beschränkten Schlüssel ausstellt. Er will ihn für einen
-Space verbinden. holzi prüft den Anbieter, nennt ihm das fehlende Kriterium und
+Space verbinden. HaexVault prüft den Anbieter, nennt ihm das fehlende Kriterium und
 lehnt die Verbindung ab, ohne etwas anzulegen oder zu speichern. Für den Space
 wählt er einen anderen Anbieter oder den Speicher des Relays; für seine eigenen
 Ordner kann er den Anbieter weiter nutzen (User Story 6).
@@ -382,19 +382,19 @@ der Space nutzt weiter seinen bisherigen Speicher.
 
 1. **Given** die Eignungsprüfung stellt fest, dass der Anbieter keine
    eingeschränkten Zugangsschlüssel erzeugen kann (FR-004 e), **When** sie das
-   Ergebnis zeigt, **Then** lautet es „ungeeignet“, holzi nennt genau dieses
+   Ergebnis zeigt, **Then** lautet es „ungeeignet“, HaexVault nennt genau dieses
    Kriterium verständlich und bietet keinen anderen Zugriffsweg an.
 2. **Given** der Schlüssel „Lesen und Schreiben“ könnte ältere Versionen löschen
    oder die Versionierung ändern (FR-004 f), **When** die Prüfung das feststellt,
-   **Then** ist der Anbieter ungeeignet, und holzi erklärt, dass gelöschte
+   **Then** ist der Anbieter ungeeignet, und HaexVault erklärt, dass gelöschte
    Objekte sonst nicht sicher zurückzuholen wären.
 3. **Given** der Anbieter weist einen widerrufenen Testschlüssel nicht innerhalb
    von 5 Minuten ab (FR-004 g), **When** die Prüfung endet, **Then** ist er
-   ungeeignet, und holzi nennt die Frist, die er überschritten hat.
-4. **Given** mehrere Kriterien fehlen, **When** holzi das Ergebnis zeigt,
+   ungeeignet, und HaexVault nennt die Frist, die er überschritten hat.
+4. **Given** mehrere Kriterien fehlen, **When** HaexVault das Ergebnis zeigt,
    **Then** nennt es jedes fehlende Kriterium einzeln (FR-005).
 5. **Given** die Prüfung endet mit „ungeeignet“, **When** der Admin das Ergebnis
-   schließt, **Then** hat holzi keine Zugangsdaten gespeichert und beim Anbieter
+   schließt, **Then** hat HaexVault keine Zugangsdaten gespeichert und beim Anbieter
    nichts angelegt oder entfernt alles, was die Prüfung angelegt hat (FR-007), und
    der Space behält seinen bisherigen Speicher.
 
@@ -422,7 +422,7 @@ obwohl beide seit dem Ablegen nie gleichzeitig online waren.
 
 1. **Given** der Nutzer hat eigene synchronisierte Ordner, **When** er in den
    Einstellungen unter „Föderation“ → „Ordner“ den eigenen Speicher dafür
-   verbindet, **Then** legt holzi einen Bucket für die eigenen Ordner an und
+   verbindet, **Then** legt HaexVault einen Bucket für die eigenen Ordner an und
    nutzt ihn von allen eigenen Geräten aus.
 2. **Given** dieselbe Einrichtung, **When** ein weiteres eigenes Gerät auf der
    Geräteliste der Vault synchronisiert, **Then** erhält es die
@@ -430,7 +430,7 @@ obwohl beide seit dem Ablegen nie gleichzeitig online waren.
    (Spec 024), direkt oder über das eigene Postfach, und greift ohne weitere
    Eingabe zu (FR-033).
 3. **Given** der Anbieter kann keine Versionierung, **When** der Nutzer ihn für
-   die eigenen Ordner verbindet, **Then** warnt holzi, dass gelöschte Objekte
+   die eigenen Ordner verbindet, **Then** warnt HaexVault, dass gelöschte Objekte
    nicht wiederherstellbar sind, erlaubt die Einrichtung aber.
 4. **Given** der Anbieter kann keine eingeschränkten Zugangsschlüssel, **When**
    der Nutzer ihn für die eigenen Ordner verbindet, **Then** ist das kein
@@ -442,7 +442,7 @@ obwohl beide seit dem Ablegen nie gleichzeitig online waren.
 ### User Story 7 - Bucket aufgeben und Zugangsdaten aufräumen (Priority: P2)
 
 Die Admin zieht einen Space von ihrem eigenen Speicher weg (User Story 8) oder
-nutzt ihn nicht mehr für ihre eigenen Ordner. holzi widerruft alle
+nutzt ihn nicht mehr für ihre eigenen Ordner. HaexVault widerruft alle
 Zugangsschlüssel dieses Buckets beim Anbieter und fragt, ob der Bucket samt aller
 älteren Versionen gelöscht werden soll. Braucht keiner ihrer Spaces und nicht ihre
 eigenen Ordner die Speicherverbindung mehr, kann sie sie entfernen; danach liegen
@@ -454,7 +454,7 @@ der Vault liegen, ein unnötiges Risiko. Das Aufräumen gehört zur Sicherheit,
 auch wenn es selten vorkommt.
 
 **Independent Test**: Die eigenen Ordner vom eigenen Speicher auf direkte
-Übertragung zurückstellen: holzi fragt nach dem Bucket; mit „Bucket löschen“ ist
+Übertragung zurückstellen: HaexVault fragt nach dem Bucket; mit „Bucket löschen“ ist
 er weg, ohne bleibt er bestehen. Danach die Speicherverbindung entfernen: Keine
 Vault-Datei der eigenen Geräte enthält noch die Hauptzugangsdaten. Für einen
 Space dasselbe nach einem Umzug nach User Story 8: Beide Zugangsschlüssel werden
@@ -463,20 +463,20 @@ vom Anbieter abgelehnt.
 **Acceptance Scenarios**:
 
 1. **Given** ein Space oder die eigenen Ordner hören auf, einen Bucket zu nutzen,
-   **When** das wirksam ist, **Then** widerruft holzi alle Generationen aller
+   **When** das wirksam ist, **Then** widerruft HaexVault alle Generationen aller
    Zugangsschlüssel dieses Buckets beim Anbieter.
-2. **Given** dieselbe Lage, **When** holzi nach dem Bucket fragt, **Then** kann
+2. **Given** dieselbe Lage, **When** HaexVault nach dem Bucket fragt, **Then** kann
    die Admin wählen, ihn samt aller älteren Versionen zu löschen oder ihn zu
    behalten; Standard ist Behalten.
 3. **Given** die Admin will eine Speicherverbindung entfernen, **When** noch ein
-   Space oder die eigenen Ordner sie nutzen, **Then** verhindert holzi das und
+   Space oder die eigenen Ordner sie nutzen, **Then** verhindert HaexVault das und
    nennt, wer sie noch nutzt.
 4. **Given** eine Speicherverbindung wird entfernt, **When** das Entfernen
    wirksam ist, **Then** enthält keine Vault-Datei eines eigenen Geräts mehr die
    Hauptzugangsdaten; ein Löschvermerk des Syncs trägt höchstens die Kennung des
    Eintrags.
 5. **Given** der Widerruf beim Anbieter scheitert (etwa ohne Netz), **When** die
-   Admin den Bucket aufgibt, **Then** merkt holzi sich den ausstehenden Widerruf,
+   Admin den Bucket aufgibt, **Then** merkt HaexVault sich den ausstehenden Widerruf,
    versucht ihn erneut, sobald der Anbieter erreichbar ist, und zeigt ihn als
    offen an, bis er gelungen ist.
 
@@ -485,7 +485,7 @@ vom Anbieter abgelehnt.
 ### User Story 8 - Speicher eines Space wechseln (Priority: P3)
 
 Ein Admin hat einen Space auf dem Speicher des Relays angelegt und möchte ihn in
-seinen eigenen S3-Speicher umziehen, oder umgekehrt. holzi kopiert alle Objekte,
+seinen eigenen S3-Speicher umziehen, oder umgekehrt. HaexVault kopiert alle Objekte,
 auf die der Dateiindex verweist, in den neuen Speicher, schaltet den Space erst
 danach um und räumt den alten Speicher auf.
 
@@ -505,8 +505,8 @@ Relays enthält keine Objekte des Space mehr. Dasselbe in die andere Richtung.
    Einträge verweisen.
 2. **Given** das Kopieren läuft, **When** Mitglieder den Space nutzen, **Then**
    lesen und schreiben sie weiter im bisherigen Speicher; neue Objekte kopiert
-   holzi ebenfalls mit.
-3. **Given** alle Objekte sind kopiert und geprüft, **When** holzi umschaltet,
+   HaexVault ebenfalls mit.
+3. **Given** alle Objekte sind kopiert und geprüft, **When** HaexVault umschaltet,
    **Then** nutzen alle Mitglieder ab da den neuen Speicher, und der alte wird
    aufgeräumt (Backend A: Objekte gelöscht; Backend B: Zugangsschlüssel
    widerrufen, Bucket nach Wahl des Admins).
@@ -526,9 +526,9 @@ Relays enthält keine Objekte des Space mehr. Dasselbe in die andere Richtung.
   Aufräumen entfernt), aber keine Datei fälschen.
 - **Mitglied wird während eines Downloads entfernt**: Die laufende Übertragung
   darf mit dem Widerruf scheitern.
-- **Anbieter ohne Versionierung**: Für einen Space mit Mitgliedern lehnt holzi
+- **Anbieter ohne Versionierung**: Für einen Space mit Mitgliedern lehnt HaexVault
   die Einrichtung ab und nennt den Grund (FR-006). Für die eigenen Ordner warnt
-  holzi nur (User Story 6).
+  HaexVault nur (User Story 6).
 - **Anbieter erfüllt nur einen Teil der Kriterien**: Es gibt keine Zwischenstufe
   (D25). Fehlt ein Kriterium aus FR-004, ist er für Spaces ungeeignet; der Admin
   wählt einen anderen Anbieter, Backend A oder „nur direkte Übertragung“ (Spec
@@ -542,12 +542,12 @@ Relays enthält keine Objekte des Space mehr. Dasselbe in die andere Richtung.
 - **Hauptzugangsdaten werden beim Anbieter widerrufen oder laufen ab**: Die
   Zugangsschlüssel der Mitglieder gelten weiter, solange der Anbieter sie nicht
   mitwiderruft. Erneuerung, Wiederherstellung und Aufräumen scheitern jedoch;
-  holzi zeigt dem Admin, dass neue Hauptzugangsdaten nötig sind.
-- **Bucket wird außerhalb von holzi gelöscht**: Die Geräte erkennen, dass der
+  HaexVault zeigt dem Admin, dass neue Hauptzugangsdaten nötig sind.
+- **Bucket wird außerhalb von HaexVault gelöscht**: Die Geräte erkennen, dass der
   Bucket fehlt, und zeigen den Speicher des Space als nicht verfügbar. Der Admin
   kann einen neuen Bucket einrichten; Geräte mit Schreibrecht laden die Objekte
   hoch, die sie noch haben. Dateien, deren Objekt kein Gerät mehr hat, meldet
-  holzi als verloren.
+  HaexVault als verloren.
 - **Admin offline**: Mit Zugangsschlüsseln arbeiten die Mitglieder ohne den
   Admin weiter. Rechteänderungen und Erneuerungen gibt es ohnehin nur von einem
   Gerät des Admins aus, ebenso Wiederherstellung und Aufräumen (FR-025).
@@ -556,24 +556,24 @@ Relays enthält keine Objekte des Space mehr. Dasselbe in die andere Richtung.
   Generation; das Gerät des Admins, das die niedrigere sieht, widerruft sie
   (FR-019). Kein Zugangsschlüssel bleibt gültig, ohne dass er in der Vault des
   Admins verzeichnet ist.
-- **Ein Mitglied lädt Datenmüll hoch** und treibt die Kosten: holzi kann das
+- **Ein Mitglied lädt Datenmüll hoch** und treibt die Kosten: HaexVault kann das
   nicht verhindern. Nicht referenzierte Objekte räumt ein Gerät des Admins auf
   (FR-040); der Admin kann
   das Mitglied zurückstufen oder entfernen. Wenn der Anbieter den Verbrauch
-  meldet, zeigt holzi ihn an (FR-036).
+  meldet, zeigt HaexVault ihn an (FR-036).
 - **Anbieter-Kontingent erschöpft**: Hochladen scheitert mit einer Meldung, die
   auf den Speicher des Space verweist; die Datei bleibt lokal und wird später
   erneut versucht.
 - **Gerät des Admins wird gestohlen**: Das Gerät hat die Hauptzugangsdaten und
   die Zugangsschlüssel aus dem Passwortmanager. Nachdem ein Hauptgerät es von
-  der Geräteliste entfernt hat (Spec 024), bekommt es nichts Neues mehr. holzi
+  der Geräteliste entfernt hat (Spec 024), bekommt es nichts Neues mehr. HaexVault
   ändert dabei keine Hauptzugangsdaten und keine Zugangsschlüssel automatisch
   (Spec 024 FR-026): Ob sie als kompromittiert gelten und beim Anbieter ersetzt
   werden, entscheidet der Admin; die Erneuerung von Hand bietet FR-020. War das gestohlene Gerät ein Hauptgerät und ist die Passphrase
   bekannt, ist die Vault verloren (Spec 024); das kann diese Spec nicht abfangen.
 - **Ein Mitglied entfernt ein Gerät von seiner Geräteliste** (Spec 024, etwa ein
   verlorenes Gerät): Neue Umschläge gehen nur noch an die verbleibenden Geräte
-  (D28). Den Zugangsschlüssel erneuert holzi dafür nicht automatisch; ob das
+  (D28). Den Zugangsschlüssel erneuert HaexVault dafür nicht automatisch; ob das
   Mitglied oder der Admin ihn als kompromittiert betrachtet, entscheiden sie
   selbst (FR-020).
 - **Neues Mitglied, während eine Erneuerung aussteht**: Es erhält die höchste
@@ -583,7 +583,7 @@ Relays enthält keine Objekte des Space mehr. Dasselbe in die andere Richtung.
   Hauptzugangsdaten und Zugangsschlüssel (D30), und verwaltet den Speicher
   weiter. Ohne Wiederherstellung ist der Space eingefroren (Entwurf §15,
   offene Frage 3). Die Zugangsschlüssel gelten weiter, bis der Nutzer sie beim
-  Anbieter selbst widerruft; holzi kann sie ohne die Admin-Vault nicht mehr
+  Anbieter selbst widerruft; HaexVault kann sie ohne die Admin-Vault nicht mehr
   verwalten.
 
 ## Requirements _(mandatory)_
@@ -596,19 +596,19 @@ Relays enthält keine Objekte des Space mehr. Dasselbe in die andere Richtung.
   Speicher verbinden können, beim Anlegen des Space oder später (dann mit
   Wechsel nach FR-037). Mitglieder ohne Admin-Rolle DÜRFEN den Speicher NICHT
   festlegen oder ändern.
-- **FR-002**: Zum Verbinden MUSS holzi Endpunkt, Region und die
+- **FR-002**: Zum Verbinden MUSS HaexVault Endpunkt, Region und die
   Hauptzugangsdaten abfragen, dazu, wenn der Anbieter es braucht, die Angabe, wie
-  Buckets adressiert werden. Für die Anbieter aus FR-008 SOLL holzi Endpunkt und
+  Buckets adressiert werden. Für die Anbieter aus FR-008 SOLL HaexVault Endpunkt und
   Adressierung vorbelegen.
 - **FR-003**: Eine gespeicherte Speicherverbindung MUSS für weitere Spaces und
   die eigenen Ordner wiederverwendbar sein, ohne die Zugangsdaten erneut
   einzugeben.
 - **FR-004**: Vor dem Speichern der Zugangsdaten als aktive Verbindung MUSS
-  holzi die Eignungsprüfung durchführen. Die Prüfung DARF dafür eindeutig
+  HaexVault die Eignungsprüfung durchführen. Die Prüfung DARF dafür eindeutig
   markierte, temporäre Testressourcen (etwa einen Test-Bucket und Testschlüssel)
   anlegen oder, wenn der Anbieter es unterstützt, Dry-Run-Prüfungen verwenden.
   Jede angelegte Testressource MUSS vor dem Ergebnis entfernt werden; schlägt
-  die Bereinigung fehl, MUSS holzi eine verschlüsselte, dauerhaft gespeicherte
+  die Bereinigung fehl, MUSS HaexVault eine verschlüsselte, dauerhaft gespeicherte
   Bereinigungsaufgabe mit Wiederholungsstatus anlegen, darf die Verbindung nicht
   als geeignet freigeben und darf die Zugangsdaten nicht verteilen. Die Prüfung
   MUSS mindestens prüfen, ob (a) die Zugangsdaten gültig sind und der Endpunkt
@@ -628,16 +628,16 @@ Relays enthält keine Objekte des Space mehr. Dasselbe in die andere Richtung.
   erfüllt) oder **ungeeignet** (mindestens eine Eigenschaft aus FR-004 fehlt).
   Eine Zwischenstufe gibt es nicht (D25). Bei „ungeeignet“ MUSS jede nicht
   erfüllte Eigenschaft einzeln und verständlich benannt werden.
-- **FR-006**: Für einen Space DARF holzi nur einen Anbieter mit dem Ergebnis
+- **FR-006**: Für einen Space DARF HaexVault nur einen Anbieter mit dem Ergebnis
   „geeignet“ einrichten. Einen ungeeigneten Anbieter, etwa ohne Versionierung,
-  DARF holzi NICHT verbinden, und es DARF keinen anderen Zugriffsweg anbieten
+  DARF HaexVault NICHT verbinden, und es DARF keinen anderen Zugriffsweg anbieten
   (D25). Für die eigenen Ordner (FR-031) gilt die Prüfung nach FR-032; fehlende
-  Versionierung meldet holzi dort nur als Warnung.
+  Versionierung meldet HaexVault dort nur als Warnung.
 - **FR-007**: Scheitert die Prüfung oder die Einrichtung, DÜRFEN weder
   Zugangsdaten in der Vault noch halb angelegte Buckets oder Zugangsschlüssel
-  beim Anbieter zurückbleiben; was holzi schon angelegt hat, MUSS es wieder
+  beim Anbieter zurückbleiben; was HaexVault schon angelegt hat, MUSS es wieder
   entfernen.
-- **FR-008**: holzi MUSS in v1 mindestens diese Anbieter nachweislich
+- **FR-008**: HaexVault MUSS in v1 mindestens diese Anbieter nachweislich
   unterstützen: RustFS und AWS S3. Beide sind nach den Kriterien aus FR-004 geprüft und getestet.
   Erfüllt einer von ihnen ein Kriterium nicht, ist er ungeeignet und lässt sich für Spaces nicht
   verbinden (FR-006); der Betreiber entscheidet dann neu über den Umfang von v1. Cloudflare R2,
@@ -651,11 +651,11 @@ Relays enthält keine Objekte des Space mehr. Dasselbe in die andere Richtung.
   Bucket teilen, auch nicht bei derselben Speicherverbindung.
 - **FR-010**: Der Name des Buckets DARF weder Namen noch Kennung des Space noch
   Hinweise auf seine Mitglieder enthalten.
-- **FR-011**: Bei der Einrichtung MUSS holzi die Versionierung des Buckets
+- **FR-011**: Bei der Einrichtung MUSS HaexVault die Versionierung des Buckets
   einschalten und eine Aufbewahrungsfrist für ältere Versionen setzen. Die
   Standardfrist ist 30 Tage; der Admin DARF sie ändern.
 - **FR-012**: Der Bucket DARF NICHT öffentlich lesbar oder beschreibbar sein;
-  holzi MUSS öffentlichen Zugriff bei der Einrichtung ausschließen, wenn der
+  HaexVault MUSS öffentlichen Zugriff bei der Einrichtung ausschließen, wenn der
   Anbieter das erlaubt.
 - **FR-013**: Ein Gerät des Admins MUSS, wenn es online ist, mindestens einmal
   am Tag und bei jedem Öffnen des Space prüfen, ob die Versionierung noch
@@ -664,12 +664,12 @@ Relays enthält keine Objekte des Space mehr. Dasselbe in die andere Richtung.
 
 **Zugangsschlüssel und Verteilung**
 
-- **FR-014**: holzi MUSS bei der Einrichtung je Space
+- **FR-014**: HaexVault MUSS bei der Einrichtung je Space
   zwei Zugangsschlüssel erzeugen, die nur für dessen Bucket gelten: „nur Lesen“
   (Objekte lesen und auflisten) und „Lesen und Schreiben“ (zusätzlich Objekte
   hochladen und löschen, nicht aber ältere Versionen löschen und keine
   Bucket-Einstellungen ändern).
-- **FR-015**: holzi MUSS jedem Mitglied genau den Zugangsschlüssel geben, den
+- **FR-015**: HaexVault MUSS jedem Mitglied genau den Zugangsschlüssel geben, den
   seine Fähigkeit braucht: „nur Lesen“ für Lesen, „Lesen und Schreiben“ für
   Schreiben oder Löschen. Ein Mitglied mit Lesen DARF den Schlüssel „Lesen und
   Schreiben“ NICHT entschlüsseln können.
@@ -692,13 +692,13 @@ Relays enthält keine Objekte des Space mehr. Dasselbe in die andere Richtung.
 **Erneuern bei Entzug**
 
 - **FR-018**: Entfernt der Admin ein Mitglied oder nimmt ihm eine Fähigkeit,
-  MUSS holzi den betroffenen Zugangsschlüssel in einem Vorgang und in dieser
+  MUSS HaexVault den betroffenen Zugangsschlüssel in einem Vorgang und in dieser
   Reihenfolge erneuern: neue Generation beim Anbieter erzeugen, die vorherige
   Generation beim Anbieter widerrufen, erst danach die neue Mitgliederliste
   veröffentlichen (Spec 027) und die neue Generation an alle verbleibenden
   Mitglieder mit dieser Art verteilen. Welcher Schlüssel betroffen ist, folgt aus
   FR-015. Das Erneuern des Inhaltsschlüssels (Spec 027) geschieht unabhängig
-  davon. Bis der Anbieter den Widerruf bestätigt, MUSS holzi die bisherige
+  davon. Bis der Anbieter den Widerruf bestätigt, MUSS HaexVault die bisherige
   Mitgliederliste unverändert lassen und darf die neue Generation nicht
   verteilen.
 - **FR-019**: Beim Anbieter DARF je Art höchstens die höchste Generation
@@ -710,10 +710,10 @@ Relays enthält keine Objekte des Space mehr. Dasselbe in die andere Richtung.
   MUSS es die aktuelle Generation des passenden Schlüssels erhalten, ohne dass ein
   Zugangsschlüssel erneuert wird. Die neue Schlüsselgeneration des
   Inhaltsschlüssels nach Spec 027 bleibt davon unberührt.
-- **FR-022**: Scheitert ein Widerruf beim Anbieter, MUSS holzi ihn als offen
+- **FR-022**: Scheitert ein Widerruf beim Anbieter, MUSS HaexVault ihn als offen
   festhalten, erneut versuchen, bis der Anbieter ihn bestätigt, und dem Admin bis
   dahin eine bleibende Warnung zeigen, dass der alte Zugangsschlüssel noch gilt.
-  Scheitert der Widerruf beim Entfernen oder Zurückstufen (FR-018), MUSS holzi
+  Scheitert der Widerruf beim Entfernen oder Zurückstufen (FR-018), MUSS HaexVault
   die bisherige Mitgliederliste beibehalten und darf die neue Mitgliederliste
   oder neue Zugangsschlüssel nicht veröffentlichen beziehungsweise verteilen;
   das Relay darf nicht als Ersatz für den Anbieter-Widerruf gelten. Der offene
@@ -764,7 +764,7 @@ Relays enthält keine Objekte des Space mehr. Dasselbe in die andere Richtung.
   Version wiederherstellen und dem Admin die betroffenen Dateien nennen.
 - **FR-030**: Objekte, deren Einträge rechtmäßig gelöscht oder ersetzt wurden
   (Spec 025 und 027), DÜRFEN NICHT wiederhergestellt werden. Ist keine passende
-  ältere Version mehr vorhanden, MUSS holzi die Datei als verloren melden, sofern
+  ältere Version mehr vorhanden, MUSS HaexVault die Datei als verloren melden, sofern
   kein Gerät das Objekt noch hat.
 - **FR-040**: Alte Objekte (ersetzte Versionen einer Datei, gelöschte Dateien)
   und nicht referenzierte Objekte MUSS bei Backend B ein Gerät des Admins mit den
@@ -799,19 +799,19 @@ Relays enthält keine Objekte des Space mehr. Dasselbe in die andere Richtung.
   Admin-Vault sehen.
 - **FR-034**: Hört ein Space oder hören die eigenen Ordner auf, einen Bucket zu
   nutzen (Wechsel nach FR-037, Rückkehr der eigenen Ordner zur direkten
-  Übertragung), MUSS holzi alle Generationen aller Zugangsschlüssel dieses
+  Übertragung), MUSS HaexVault alle Generationen aller Zugangsschlüssel dieses
   Buckets widerrufen und den Admin fragen, ob der Bucket samt älterer Versionen
   gelöscht werden soll; Standard ist Behalten. Dasselbe MUSS gelten, wenn eine
   spätere Spec das Auflösen eines Space einführt (Spec 027 schließt es aus).
 - **FR-035**: Der Admin MUSS eine Speicherverbindung entfernen können, sobald
-  kein Space und nicht die eigenen Ordner sie mehr nutzen; vorher MUSS holzi das
+  kein Space und nicht die eigenen Ordner sie mehr nutzen; vorher MUSS HaexVault das
   verhindern und die Nutzer der Verbindung nennen. Nach dem Entfernen DÜRFEN die
   Hauptzugangsdaten in keiner Vault-Datei eines eigenen Geräts bleiben; ein
   Löschvermerk des Syncs DARF nur die Kennung des Eintrags tragen.
 
 **Verbrauch**
 
-- **FR-036**: holzi KANN dem Admin den belegten Speicher eines Space anzeigen,
+- **FR-036**: HaexVault KANN dem Admin den belegten Speicher eines Space anzeigen,
   getrennt nach aktuellen und älteren Versionen, wenn der Anbieter diese Angaben
   liefert.
 
@@ -828,7 +828,7 @@ Relays enthält keine Objekte des Space mehr. Dasselbe in die andere Richtung.
   weiter nutzen können; ein abgebrochener Umzug MUSS sich fortsetzen lassen, ohne
   schon kopierte Objekte erneut zu übertragen. Der Umzug darf erst nach dem
   Schreibbarriere- und Delta-Abgleich als abgeschlossen gelten.
-- **FR-039**: Nach dem Umschalten MUSS holzi den alten Speicher aufräumen:
+- **FR-039**: Nach dem Umschalten MUSS HaexVault den alten Speicher aufräumen:
   Objekte auf Backend A löschen, bei Backend B die Zugangsschlüssel widerrufen und
   den Bucket nach Wahl des Admins löschen oder behalten (wie FR-034).
 

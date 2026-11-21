@@ -29,7 +29,7 @@ display_name(file) -> String
   entstehen (FR-016). Pfade im app-eigenen Speicher sind erlaubt: die privaten Ordner der App und
   ihr eigener Download-Ordner im geteilten Speicher (`getExternalFilesDir(DIRECTORY_DOWNLOADS)`,
   seit Android 11 für andere Apps gesperrt). Dort legt die e2e-Suite ihre Testdateien ab, denn der
-  private Speicher ist für den Dateibrowser holzis eigener Ort und nur lesbar (Spec 044 FR-037).
+  private Speicher ist für den Dateibrowser haex-vaults eigener Ort und nur lesbar (Spec 044 FR-037).
 - Fehler: `Unreadable` (Anbieter liefert nichts, Berechtigung entzogen, Cloud-Datei offline),
   `NotEnoughSpace` (beim Kopieren und Speichern, aus `ENOSPC`).
 - Größengrenzen prüfen die Abläufe an den Metadaten, wo der Anbieter eine echte Datei liefert, und
@@ -80,7 +80,7 @@ unverändert).
 - Die Dateidialoge der Erweiterungen liefern gewählte Dateien. Ein Pfad (Desktop) folgt weiter den
   Regeln aus Spec 017 (geschützte Orte, Freigabe für genau diesen Rahmen). Eine Adresse
   (`content://`, Android) bekommt der Rahmen als Dokument freigegeben: Er gibt sie bei
-  `readFile`, `writeFile`, `exists` und `check` an, holzi liest und schreibt über das Datei-Plugin,
+  `readFile`, `writeFile`, `exists` und `check` an, haex-vault liest und schreibt über das Datei-Plugin,
   und einen Pfad erfährt die Erweiterung nie. Die Freigabe endet mit dem Rahmen.
 - `files::picked` nimmt einen `dyn Opener` (`impl Opener + ?Sized`), damit die Umgebung der
   Erweiterungen ihn hält; die Tests vertreten den Dokumentanbieter durch einen Ordner

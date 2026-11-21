@@ -232,7 +232,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich kann in holzi nicht direkt nach einer \"Steuererklärung\" suchen, da ich nur auf Dateien und E-Mails zugreifen kann.\n\nMeinten Sie vielleicht:\n1.  **Nach einer Datei** mit dem Namen \"Steuererklärung\" suchen?\n2.  **Nach einer E-Mail** mit dem Betreff oder Inhalt \"Steuererklärung\" suchen?\n\nBitte präz"
+      "text": "Ich kann in haex-vault nicht direkt nach einer \"Steuererklärung\" suchen, da ich nur auf Dateien und E-Mails zugreifen kann.\n\nMeinten Sie vielleicht:\n1.  **Nach einer Datei** mit dem Namen \"Steuererklärung\" suchen?\n2.  **Nach einer E-Mail** mit dem Betreff oder Inhalt \"Steuererklärung\" suchen?\n\nBitte präz"
     },
     {
       "id": "mail_read-de-2-s",
@@ -385,7 +385,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich kann in holzi nicht direkt nach einer \"Steuererklärung\" suchen, da die gefundenen Aktionen sich auf E-Mail-Regeln und Ordner beziehen.\n\nMeinten Sie vielleicht, Sie möchten eine E-Mail mit dem Betreff oder Inhalt \"Steuererklärung\" finden? Wenn ja, müsste ich wissen, wo ich suchen soll (z.B. in Ih"
+      "text": "Ich kann in haex-vault nicht direkt nach einer \"Steuererklärung\" suchen, da die gefundenen Aktionen sich auf E-Mail-Regeln und Ordner beziehen.\n\nMeinten Sie vielleicht, Sie möchten eine E-Mail mit dem Betreff oder Inhalt \"Steuererklärung\" finden? Wenn ja, müsste ich wissen, wo ich suchen soll (z.B. in Ih"
     },
     {
       "id": "mail_read-en-2",
@@ -494,7 +494,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I cannot find any specific action related to \"tom right\" in holzi. Could you clarify what you mean? Are you asking about a message, a conversation, or something else?"
+      "text": "I cannot find any specific action related to \"tom right\" in haex-vault. Could you clarify what you mean? Are you asking about a message, a conversation, or something else?"
     },
     {
       "id": "mail_reply-en-1-s",

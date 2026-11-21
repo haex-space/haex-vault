@@ -1,10 +1,10 @@
 # Vertrag: Darstellungsdatei (Export/Import)
 
-Dateiendung `.holzi-appearance.json`, UTF-8, höchstens 16 KiB.
+Dateiendung `.haex-appearance.json`, UTF-8, höchstens 16 KiB.
 
 ```json
 {
-  "format": "holzi-appearance",
+  "format": "haex-appearance",
   "v": 1,
   "colorScheme": "system",
   "appearance": {
@@ -27,7 +27,7 @@ bricht den Import ab; die Meldung nennt die erste Ursache (Schlüssel, nicht den
 | Fall                                             | Meldungsschlüssel                                 |
 | ------------------------------------------------ | ------------------------------------------------- |
 | größer als 16 KiB oder kein JSON                 | `settings.appearance.import.notJson`              |
-| `format` ≠ `holzi-appearance`                    | `settings.appearance.import.notAppearance`        |
+| `format` ≠ `haex-appearance`                     | `settings.appearance.import.notAppearance`        |
 | `v` oder `appearance.v` unbekannt                | `settings.appearance.import.version`              |
 | `colorScheme` nicht `light`, `dark`, `system`    | `settings.appearance.import.field` (mit Feldname) |
 | Farbangabe weder gültiges `preset` noch `custom` | `settings.appearance.import.field`                |

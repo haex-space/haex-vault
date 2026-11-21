@@ -11,7 +11,7 @@ nicht, und verschobene Zeiten würden von Abos mit `since` weggefiltert und von 
 `created_at_lower_limit` (NIP-11) abgewiesen (research R7). Server: die eingestellten Nostr-Relays
 (FR-008).
 
-**Abos und Größen**: Abos setzen kein `since` (den Zeitfilter eines Abos, NIP-01). holzi sendet kein
+**Abos und Größen**: Abos setzen kein `since` (den Zeitfilter eines Abos, NIP-01). haex-vault sendet kein
 Ereignis über 16 KiB und verwirft empfangene Ereignisse über 16 KiB, bevor es sie entschlüsselt;
 Präsenzmeldungen sind unter 1 KiB. Je Gerät höchstens eine Präsenzmeldung pro Minute, außer bei einer
 Adressänderung. Frisch ist eine Meldung, wenn ihr `ts` höchstens 150 s alt und höchstens 30 s in der
@@ -20,7 +20,7 @@ Zukunft liegt.
 ## Präsenzmeldung (inneres Ereignis Art 24100)
 
 - Empfänger (`p`-Tag): `mb_pk` aus `mb_sk = HKDF-SHA256(ikm = inhaltsschlüssel der höchsten
-Generation, info = "holzi/presence/v1" ‖ tag_u32)`, `tag` = Tage seit 1970 (UTC). `tag_u32` ist
+Generation, info = "haex/presence/v1" ‖ tag_u32)`, `tag` = Tage seit 1970 (UTC). `tag_u32` ist
   die unsigned 32-bit Darstellung von `tag` in Big-Endian-Reihenfolge; sie wird ohne Textkodierung
   direkt an die UTF-8-Bytes des Info-Präfixes angehängt.
 - Inhalt (JSON):
@@ -66,7 +66,7 @@ Generation, info = "holzi/presence/v1" ‖ tag_u32)`, `tag` = Tage seit 1970 (UT
 
 - Empfänger: `mb_pk` wie oben (die Kopie hat den Inhaltsschlüssel aus der kopierten Datei).
 - Inhalt: `{v, device, endpoint, vault_device_uuid, name, requested_at, sig, iroh_relay?, addrs?}`;
-  `sig` = Schnorr des Geräteschlüssels über `holzi-admission/v1 ‖ lp(device) ‖ lp(endpoint) ‖
+  `sig` = Schnorr des Geräteschlüssels über `haex-admission/v1 ‖ lp(device) ‖ lp(endpoint) ‖
 lp(vault_device_uuid) ‖ lp(name) ‖ requested_at` (`requested_at` als 8 Byte Big-Endian).
   `vault_device_uuid` ist die Knoten-ID der Kopie: Die Geräteliste nennt ein Gerät damit, und die
   Änderungen aus der Wartezeit tragen sie. `iroh_relay` und `addrs` sagen, wo die Kopie gerade
@@ -84,11 +84,11 @@ lp(vault_device_uuid) ‖ lp(name) ‖ requested_at` (`requested_at` als 8 Byte 
 
 ## Treffpunkt beim Verknüpfen (inneres Ereignis Art 24102)
 
-- Empfänger: `rv_pk` aus `rv_sk = HKDF-SHA256(ikm = code, info = "holzi/link/rendezvous/v1")`.
+- Empfänger: `rv_pk` aus `rv_sk = HKDF-SHA256(ikm = code, info = "haex/link/rendezvous/v1")`.
 - Absender: die neue Installation mit ihrem frisch erzeugten Geräteschlüssel.
 - Inhalt: `{v, endpoint, iroh_relay, addrs, ts}`.
 - Das Hauptgerät abonniert `#p = rv_pk`, solange der Code gilt, und wählt die Installation über
-  `holzi-link/1` an (contracts/sync-protocol.md). Mehr als eine Meldung für denselben Code: nur die
+  `haex-link/1` an (contracts/sync-protocol.md). Mehr als eine Meldung für denselben Code: nur die
   erste wird verfolgt.
 
 ## Metadaten, die ein Nostr-Relay sieht (D9)

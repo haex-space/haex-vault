@@ -20,7 +20,7 @@ und die Migrationstests für 0020 (frische und aktualisierte Vault).
 
 ## 2. Manuelle Szenarien
 
-Mit `pnpm tauri:dev` (oder `tauri:dev:cuda`). „Neu öffnen“ heißt: holzi
+Mit `pnpm tauri:dev` (oder `tauri:dev:cuda`). „Neu öffnen“ heißt: HaexVault
 beenden und die Vault erneut öffnen, oder sperren und entsperren.
 
 | Nr. | Schritte                                                                                                                                                                               | Erwartet                                                                                                                                                             | Deckt           |
@@ -36,13 +36,13 @@ beenden und die Vault erneut öffnen, oder sperren und entsperren.
 | S9  | Vault, die mit dem Stand vor 022 eine Sitzung gespeichert hat (z. B. `main` vor dem Merge), mit 022 öffnen.                                                                            | Leer. Siehe Prüfung P1.                                                                                                                                              | US5, FR-009     |
 | S10 | Mit Deep-Link starten (`/workspace/<vault>?open=system.settings`), Einstellung aus.                                                                                                    | Nur die Einstellungen offen.                                                                                                                                         | US1 AS4, FR-014 |
 | S11 | Wie S10, Einstellung an und gespeicherte Sitzung vorhanden.                                                                                                                            | Wiederhergestellte Sitzung plus die Einstellungen.                                                                                                                   | FR-014          |
-| S12 | Einstellung an, Fenster öffnen, holzi hart beenden (`kill -9`). Neu öffnen.                                                                                                            | Sitzung kommt zurück, höchstens die letzte halbe Sekunde fehlt.                                                                                                      | Edge Case       |
+| S12 | Einstellung an, Fenster öffnen, HaexVault hart beenden (`kill -9`). Neu öffnen.                                                                                                        | Sitzung kommt zurück, höchstens die letzte halbe Sekunde fehlt.                                                                                                      | Edge Case       |
 | S13 | Zeit vom Klick auf „Entsperren“ bis zum Arbeitsbereich mit S9 (einmalige Bereinigung) und danach ohne Bereinigung vergleichen.                                                         | Unterschied höchstens eine Sekunde.                                                                                                                                  | SC-006          |
 | S14 | Einstellung an. Im Chat Unterhaltung A, dann B öffnen, neu öffnen. Im wiederhergestellten Chat-Tab A über die Seitenleiste löschen, dann Zurück drücken.                               | Der Eintrag von A wird übersprungen (Spec 020), der Tab bleibt nutzbar.                                                                                              | Edge Case       |
 
 ### P1: Vault-Datei untersuchen (SC-003, FR-010, FR-011)
 
-Nach S5 und nach S9, bei beendetem holzi, die Vault mit `sqlcipher` und der
+Nach S5 und nach S9, bei beendetem HaexVault, die Vault mit `sqlcipher` und der
 Passphrase öffnen:
 
 ```sql
@@ -50,7 +50,7 @@ PRAGMA key = '<passphrase>';
 SELECT name FROM sqlite_master WHERE name IN ('workspaces','shell_windows','shell_window_tabs');  -- leer
 SELECT count(*) FROM wm_sessions_no_sync;              -- 0 nach S5 für dieses Gerät
 SELECT count(*) FROM preferences WHERE key = 'shell.active_workspace_id';  -- 0
-SELECT * FROM holzi_maintenance_no_sync;               -- leer
+SELECT * FROM haex_maintenance_no_sync;               -- leer
 SELECT table_name, row_pks FROM haex_deleted_rows
  WHERE table_name IN ('workspaces','shell_windows','shell_window_tabs','preferences');
 -- nur Kennungen, keine App-Namen, keine Positionen

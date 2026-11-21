@@ -41,7 +41,7 @@ only, so the branch is dispatched by hand before the merge)
 opening.
 
 **Constraints**: Creating a rule from the list works as before (FR-010); the same checks, rejections and saved values as
-the list's dialog (SC-003); no change to sources, transfers, or the protection of holzi's own data (spec 044 FR-037)
+the list's dialog (SC-003); no change to sources, transfers, or the protection of haex-vault's own data (spec 044 FR-037)
 
 **Scale/Scope**: 7 existing frontend files change (`menus.ts`, `registry.ts`, `syncRules.ts`, `useFilesManage.ts`,
 `useFilesFolderFacts.ts`, `Panel.vue`, `SyncRuleDialog.vue`), the two locale files, two check scripts, one E2E scenario.

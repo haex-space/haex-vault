@@ -60,7 +60,7 @@ artifacts; Conventional Commits without agent attribution.
 
 ### Implementation
 
-- [ ] T012 Migration with the next free number in src-tauri/src/identity/migrations_meetings.rs (columns + tables of data-model.md), registered in src-tauri/src/identity/migrations.rs, `HOLZI_TRIGGER_VERSION` +1
+- [ ] T012 Migration with the next free number in src-tauri/src/identity/migrations_meetings.rs (columns + tables of data-model.md), registered in src-tauri/src/identity/migrations.rs, `HAEX_TRIGGER_VERSION` +1
 - [ ] T013 Storage in src-tauri/src/meetings/{participants.rs,entries.rs} and meeting rows in src-tauri/src/meetings/mod.rs; ids per the derived-id pattern of src-tauri/src/contacts/ids.rs
 - [ ] T014 Speaker embedding wrapper over sherpa in src-tauri/src/meetings/cluster.rs (`embed(&CanonicalPcm) -> Embedding`), on a dedicated thread
 

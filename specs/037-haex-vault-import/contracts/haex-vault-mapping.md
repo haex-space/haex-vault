@@ -6,17 +6,17 @@ Quelle `legacyhaexvault`. Alle Abfragen nennen Spalten beim Namen.
 
 ## Einträge (`haex_passwords_item_details` → `ImportItem`)
 
-| Quelle                                         | Ziel               | Regel                                                                       |
-| ---------------------------------------------- | ------------------ | --------------------------------------------------------------------------- |
-| `title`, `username`, `password`, `url`, `note` | gleichnamig        | unverändert; leerer Text bleibt leer                                        |
-| `icon`                                         | `icon`             | siehe „Symbole“                                                             |
-| `color`                                        | `color`            | unverändert                                                                 |
-| `otp_secret`                                   | `otp_raw`          | unverändert; `check_otp` prüft, ungültig → `TotpInvalid`, Wert bleibt       |
-| `otp_digits`, `otp_period`, `otp_algorithm`    | gleichnamig        | NULL bleibt NULL (Standardwerte setzt der Schreiber)                        |
-| `expires_at`                                   | `expires_at`       | `YYYY-MM-DD` unverändert; anderes Format über `holzi_time`, dann Datumsteil |
-| `autofill_aliases`                             | `autofill_aliases` | JSON-Text parsen; kein Objekt → NULL und `UnknownSourceData`                |
-| `created_at`, `updated_at`                     | gleichnamig        | `holzi_time` (versteht `YYYY-MM-DD HH:MM:SS` und ISO)                       |
-| `id`                                           | —                  | nur zum Verknüpfen innerhalb des Lesens; holzi vergibt neue Kennungen       |
+| Quelle                                         | Ziel               | Regel                                                                      |
+| ---------------------------------------------- | ------------------ | -------------------------------------------------------------------------- |
+| `title`, `username`, `password`, `url`, `note` | gleichnamig        | unverändert; leerer Text bleibt leer                                       |
+| `icon`                                         | `icon`             | siehe „Symbole“                                                            |
+| `color`                                        | `color`            | unverändert                                                                |
+| `otp_secret`                                   | `otp_raw`          | unverändert; `check_otp` prüft, ungültig → `TotpInvalid`, Wert bleibt      |
+| `otp_digits`, `otp_period`, `otp_algorithm`    | gleichnamig        | NULL bleibt NULL (Standardwerte setzt der Schreiber)                       |
+| `expires_at`                                   | `expires_at`       | `YYYY-MM-DD` unverändert; anderes Format über `haex_time`, dann Datumsteil |
+| `autofill_aliases`                             | `autofill_aliases` | JSON-Text parsen; kein Objekt → NULL und `UnknownSourceData`               |
+| `created_at`, `updated_at`                     | gleichnamig        | `haex_time` (versteht `YYYY-MM-DD HH:MM:SS` und ISO)                       |
+| `id`                                           | —                  | nur zum Verknüpfen innerhalb des Lesens; haex-vault vergibt neue Kennungen |
 
 ## Eigene Felder (`haex_passwords_item_key_values`)
 
@@ -51,7 +51,7 @@ color, sort_order }`; `name` NULL → leerer Text.
 
 - `snapshot_data` → `SnapshotData` (camelCase, fehlende Felder → Standard, unbekannte ignoriert).
   Nicht lesbar → Stand entfällt, `HistoryUnreadable`.
-- `ImportState { modified_at: modified_at ?? created_at (holzi_time), data, attachments }`.
+- `ImportState { modified_at: modified_at ?? created_at (haex_time), data, attachments }`.
 - `attachments` aus `snapshot_binaries` des Stands (Regeln wie Anhänge); die Liste in der JSON wird
   nicht benutzt.
 - Reihenfolge: nach `modified_at ?? created_at` aufsteigend.
@@ -61,7 +61,7 @@ color, sort_order }`; `name` NULL → leerer Text.
 Alle Spalten 1:1: `credential_id`, `relying_party_id`, `relying_party_name`, `user_handle`,
 `user_name`, `user_display_name`, `private_key`, `public_key`, `algorithm`, `sign_count`,
 `is_discoverable` (0/1 → bool), `icon` (Regel „Symbole“, nur Namen), `color`, `nickname`,
-`created_at`, `last_used_at` (beide `holzi_time`). Base64-Werte bleiben Text wie in der Quelle.
+`created_at`, `last_used_at` (beide `haex_time`). Base64-Werte bleiben Text wie in der Quelle.
 `item_id` gesetzt → an `ImportItem.passkeys` des Eintrags; NULL oder unbekannt →
 `ImportModel.passkeys`.
 
@@ -75,7 +75,7 @@ Alle Spalten 1:1: `credential_id`, `relying_party_id`, `relying_party_name`, `us
 
 | Wert der Quelle                               | Ziel                                                                           |
 | --------------------------------------------- | ------------------------------------------------------------------------------ |
-| NULL                                          | kein Symbol (holzi zeigt sein Standardsymbol)                                  |
+| NULL                                          | kein Symbol (haex-vault zeigt sein Standardsymbol)                             |
 | `binary:<hash>`, Zeile vorhanden              | `IconRef::Custom(bytes)`                                                       |
 | `binary:<hash>`, Zeile fehlt                  | kein Symbol, `IconNotMapped`                                                   |
 | `i-lucide-<name>`                             | `IconRef::Standard("lucide:<name>")`, wenn in der Tabelle; sonst wie unbekannt |

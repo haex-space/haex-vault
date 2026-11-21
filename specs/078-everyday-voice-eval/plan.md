@@ -109,7 +109,7 @@ src-tauri/src/chat/tools/
 
 Removed from the worktree before the first commit (research R9): `llm/llamacpp/formats/lfm2.rs`,
 `lfm2_tests.rs`, their registration in `formats/mod.rs`, the `{% generation %}` stripping in
-`llm/llamacpp/template.rs`, and `HOLZI_LLAMACPP_CPU_OVERRIDE` in `llm/llamacpp/model.rs`.
+`llm/llamacpp/template.rs`, and `HAEX_LLAMACPP_CPU_OVERRIDE` in `llm/llamacpp/model.rs`.
 
 **Structure Decision**: a sibling module of spec 032's eval inside `chat/eval/`, so it reuses the offer and
 prompt functions through the crate and keeps spec 032's set, runner and in-app self-test unchanged.

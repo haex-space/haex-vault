@@ -2,7 +2,7 @@
 
 Stand der geprüften Quellen (Constitution IV: Repository, voller Commit, Pfad):
 
-- holzi: Commit `1b02229c` (Basis dieses Branchs), `src-tauri/src/extensions/mail/`,
+- haex-vault: Commit `1b02229c` (Basis dieses Branchs), `src-tauri/src/extensions/mail/`,
   `src-tauri/src/extensions/bridge/allowlist.rs`, `src-tauri/src/chat/tools/action_tool.rs`.
 - haex-space/haextension, Commit `e2622baefd4c4b1c0e93e6cbe53bc6feff8751f5`, `apps/haex-mail/`.
 - haex-space/vault-sdk: Der MCP-Baustein ist seit Release 4.6.0 (Commit
@@ -14,11 +14,11 @@ Stand der geprüften Quellen (Constitution IV: Repository, voller Commit, Pfad):
 ## R1: Lieferung in drei Etappen, Reihenfolge
 
 **Entscheidung**: E1 (vault-sdk veröffentlicht den MCP-Baustein) ist erledigt: Release 4.6.0. E2 besteht aus zwei unabhängigen Teilen:
-holzi bekommt drei Bridge-Methoden, vault-sdk bekommt die Gegenstücke. E3 ist haex-mail und hängt an der
+haex-vault bekommt drei Bridge-Methoden, vault-sdk bekommt die Gegenstücke. E3 ist haex-mail und hängt an der
 veröffentlichten Version aus E1 und E2b.
 
-**Begründung**: Der MCP-Baustein ist fertig und gegen holzis Mitschnitte geprüft (`cf2dbcb8` auf dem
-Branch, nicht auf `main`). E2a (holzi) hat keine Abhängigkeit zum SDK und lässt sich mit dem Testserver
+**Begründung**: Der MCP-Baustein ist fertig und gegen haex-vaults Mitschnitte geprüft (`cf2dbcb8` auf dem
+Branch, nicht auf `main`). E2a (haex-vault) hat keine Abhängigkeit zum SDK und lässt sich mit dem Testserver
 prüfen. E2b ist reiner TypeScript-Code. haex-mail braucht beides in einer Version, denn `sdk.tools` und
 die drei Methoden kommen aus derselben Bibliothek.
 
@@ -214,7 +214,7 @@ Erweiterung statt nach Einzelwerkzeug), nicht für diese Spec.
 
 **Entscheidung**:
 
-- holzi: neue Fälle in `extensions/mail/mail_tests.rs` gegen den erweiterten Testserver (`test_server.rs`
+- haex-vault: neue Fälle in `extensions/mail/mail_tests.rs` gegen den erweiterten Testserver (`test_server.rs`
   lernt `SEARCH` mit Kriterien, `CREATE`, `UID STORE \Deleted`, `UID EXPUNGE`), Eintrag in
   `bridge/allowlist.rs` samt dortigem Test, Zeilen in `specs/017-extension-host/contracts/bridge.md`.
 - vault-sdk: `src/api/__tests__/mail.test.ts` (vorhanden, wird um die drei Methoden erweitert); Bundle- und
@@ -231,11 +231,11 @@ Erweiterung statt nach Einzelwerkzeug), nicht für diese Spec.
 ## R14: Graphify-Abfrage vor neuen Artefakten
 
 Vor dem Entwurf neuer benannter Artefakte wurden die Graphen beider Repositories abgefragt
-(`graphify query` in holzi und haextension; die Graphen sind Schnappschüsse der Hauptcheckouts).
+(`graphify query` in haex-vault und haextension; die Graphen sind Schnappschüsse der Hauptcheckouts).
 
 | Neues Artefakt                                                        | Abgefragt                                  | Ergebnis                                                                                                       | Entscheidung                                                                                                                                                                                         |
 | --------------------------------------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `imap::search`, `create_mailbox`, `delete_messages` (holzi)           | IMAP-Suche in der Mail-Erweiterung         | Kein Kandidat; `imap.rs` hat nur `uid_search` als Hilfe für `FetchRange` (`uid_set`), keinen Weg mit Kriterien | neu, in `imap.rs` neben `move_messages` (selbes Anmelden/Abmelden-Muster `with_session!`, selbe Prüfungen `check_mailbox`)                                                                           |
+| `imap::search`, `create_mailbox`, `delete_messages` (haex-vault)      | IMAP-Suche in der Mail-Erweiterung         | Kein Kandidat; `imap.rs` hat nur `uid_search` als Hilfe für `FetchRange` (`uid_set`), keinen Weg mit Kriterien | neu, in `imap.rs` neben `move_messages` (selbes Anmelden/Abmelden-Muster `with_session!`, selbe Prüfungen `check_mailbox`)                                                                           |
 | `lib/rules.ts`, `stores/rules.ts`, `stores/mail/rules.ts` (haex-mail) | Regeln für eingehende Mails                | Kein Kandidat; es gibt nur Schema, Manifest und `AccountImportList.vue`                                        | neu; nutzt vorhandene `senderText`, `isMessageUnread`, `isMessageFlagged` (`lib/mail.ts`) und `assignRoles` (`lib/mailboxRoles.ts`) statt Parallelversionen                                          |
 | `app/tools/*`, `plugins/agent-tools.client.ts`                        | Registrierung von Werkzeug-Handlern        | Kein Kandidat (haex-notes, haex-files haben ebenfalls keine)                                                   | neu; die Handler rufen Stores und `buildReplyContextAsync`, `importAccountAsync`, `htmlToText`, `listImportableVaultAccountsAsync` auf                                                               |
 | `RulesSection.vue`, `RuleDialog.vue`                                  | Listen- und Dialogmuster der Einstellungen | Muster in `pages/settings.vue` und `AccountImportList.vue`                                                     | neu, nach dem Muster der Konten; kein gemeinsamer Baustein, weil Bedingungs- und Aktionszeilen nur hier vorkommen (Constitution: keine Abstraktion für zwei ähnliche Dinge ohne gleiche Invarianten) |

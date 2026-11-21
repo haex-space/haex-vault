@@ -23,7 +23,7 @@ the same day. The decisions are below.
 - **Extensions have no such place at all**: an extension runs in a sandboxed frame inside the content area (spec 017).
   It cannot reach the header, and it cannot be given a frame there without a second frame per window. Its own first row
   costs the same height as a system app's.
-- **The protocol is shared**: extensions talk to holzi over the protocol of the vault SDK that haex-vault 2.x speaks
+- **The protocol is shared**: extensions talk to HaexVault over the protocol of the vault SDK that haex-vault 2.x speaks
   too (spec 017, ADR-0004). A new message must be additive: an extension that sends it must keep working in
   haex-vault 2.x, which ignores it.
 - **The path bar already collapses**, but by the width of the screen, not of the window (spec 044, `max-md`). A window
@@ -34,42 +34,42 @@ the same day. The decisions are below.
 The operator decided on 2026-11-11:
 
 1. **The whole header bar belongs to the app.** The tab strip leaves the header. The app decides what the bar shows;
-   holzi keeps only the window buttons.
+   HaexVault keeps only the window buttons.
 2. **Tabs stay in the model.** Session restore, the tab actions (`wm.tab.*`), history and the mouse side buttons keep
    working. A window shows only its active tab. Where a user switches tabs by hand comes in spec 091 (the direction, decided on 2026-11-11: a host-owned
    button next to the window buttons, a "+" with one tab and the number of open tabs with two or more, opening a tile
    overview of the tabs, like a mobile browser); until then, a window with several tabs has no visible tab strip.
    This gap is known and accepted.
-3. **Declarative, rendered by holzi.** An app (or extension) hands holzi a description of its header controls; holzi
+3. **Declarative, rendered by HaexVault.** An app (or extension) hands HaexVault a description of its header controls; HaexVault
    draws them with its own building blocks and sends events back. There is no second frame for extensions. A free-form
    frame slot is not part of this spec.
 4. **One description for both kinds of app.** System apps and extensions use the same description; only how they hand it
    over and receive events differs. Extensions are never worse off than system apps.
 5. **The app decides how its header collapses.** As the window gets narrower, each control collapses by what the app
    said about it: the order, and the form (into one side panel, to its icon only, narrower, or not at all while
-   avoidable). The side panel works like the path bar of the file browser does for the folders above the open one. holzi
+   avoidable). The side panel works like the path bar of the file browser does for the folders above the open one. HaexVault
    only guarantees that nothing is cut off and that the window buttons stay.
 6. **Pilot**: this spec ships the mechanism, the extension interface, Settings and the file browser. Contacts,
    passwords, chat, marketplace and the other system apps follow one by one in their own specs.
-7. **No backward compatibility**: holzi has no users yet (as in the specs before). The first row of Settings and of the
+7. **No backward compatibility**: HaexVault has no users yet (as in the specs before). The first row of Settings and of the
    file browser goes away; there is no setting to bring it back.
 
 ## Clarifications
 
 ### Session 2026-11-11
 
-- Q: How is the start area kept visible on a narrow window? → A: It is not limited by holzi. Every control says for
+- Q: How is the start area kept visible on a narrow window? → A: It is not limited by HaexVault. Every control says for
   itself how and in which order it collapses (order, and form: `overflow`, `icon`, `shrink` or `keep`), across all three
-  areas; holzi's safety net is that nothing is cut off and the window buttons and the overflow menu stay visible.
-- Q: When does a search field tell the extension about typing? → A: On every change, merged by holzi to the latest text
+  areas; HaexVault's safety net is that nothing is cut off and the window buttons and the overflow menu stay visible.
+- Q: When does a search field tell the extension about typing? → A: On every change, merged by HaexVault to the latest text
   at most about every 100 ms, at once on Enter and on losing focus (FR-012).
 - Q: What does the file browser's header show with two panels? → A: Only the sidebar button and the switch for two
   panels; each panel keeps its own bar (spec 062), so no control appears twice (FR-026). (Plan, 2026-11-11: the first
   wording had the header follow the focused panel, which showed that panel's controls twice.)
 - Q: Which icons may an extension show in the header? → A: Only icons it ships itself (a file of its own signed
   bundle, or an inline picture in a development version), each at most 256 KiB, with no limit on how many or on their total, because the files ship in the bundle and
-  nothing is loaded from outside; never a name from holzi's icon set, a URL or markup (FR-009, FR-022). (Operator, 2026-11-11; replaces
-  the plan's first idea of a closed list of holzi icons.)
+  nothing is loaded from outside; never a name from HaexVault's icon set, a URL or markup (FR-009, FR-022). (Operator, 2026-11-11; replaces
+  the plan's first idea of a closed list of HaexVault icons.)
 - Q: Do header controls get keyboard shortcuts in this spec? → A: No. They are operable by keyboard (FR-006); a shortcut
   such as "focus the header search" is a follow-up spec. Existing shortcuts of Settings and the file browser stay.
 
@@ -133,7 +133,7 @@ the menu.
 4. **Given** a button with text that is to keep its icon, **When** space runs short, **Then** it loses the text, keeps
    the icon and the accessible name, and its tooltip shows the text.
 5. **Given** controls the app marked to stay, **When** space runs short, **Then** the others collapse first; only when
-   nothing else is left to collapse and the rest still does not fit, holzi collapses them too, so that nothing is cut
+   nothing else is left to collapse and the rest still does not fit, HaexVault collapses them too, so that nothing is cut
    off.
 6. **Given** any width, **When** the user looks at the header, **Then** the window buttons (on a compact window: the
    close button) are visible, and so is the menu button while something is inside.
@@ -145,11 +145,11 @@ the menu.
 ### User Story 3 - An extension puts controls in the header (Priority: P1)
 
 The author of an extension describes a few controls for the header (a toggle for its sidebar, a search, a menu with
-actions). holzi draws them in the header of the extension's window. When the user uses one, the extension is told and
+actions). HaexVault draws them in the header of the extension's window. When the user uses one, the extension is told and
 reacts, changes what it shows or sends an updated description.
 
 **Why this priority**: this is the point of the spec for extensions: the first row costs them height today and cannot
-look like the rest of holzi.
+look like the rest of HaexVault.
 
 **Independent Test**: a reference extension sends a description with every kind of control; check that each appears,
 that its events arrive, that sending a new description changes the header and that a second send does not flicker or
@@ -232,7 +232,7 @@ with `wm.tab.activate`, back with a side button, close one with `wm.tab.close`.
 The header is part of the window frame, outside the sandbox of an extension. A buggy or hostile extension cannot make
 it show anything but plain controls, cannot make it flood the window, and cannot reach another window's header.
 
-**Why this priority**: an extension that could draw there could imitate holzi's own buttons or hide the window buttons.
+**Why this priority**: an extension that could draw there could imitate HaexVault's own buttons or hide the window buttons.
 
 **Independent Test**: send forged, oversized and malformed descriptions from a test frame; the header stays as it was,
 the window buttons stay in place and nothing throws.
@@ -243,12 +243,12 @@ the window buttons stay in place and nothing throws.
 2. **Given** a description over the limits (too many controls, too long a text, too large in all), with a missing
    accessible name, with the same identifier twice or in the wrong shape, **When** it arrives, **Then** it is dropped as
    a whole, the previous one stays, and the extension's developer console says why (spec 017, US12).
-3. **Given** a control type holzi does not know, **When** it arrives in an otherwise valid description, **Then** that
+3. **Given** a control type HaexVault does not know, **When** it arrives in an otherwise valid description, **Then** that
    control is left out and the rest is shown.
 4. **Given** a frame of one tab, **When** it sends a description or an event for another tab, **Then** it changes
    nothing outside its own tab.
 5. **Given** any description, **When** shown, **Then** the window buttons are neither hidden, covered nor moved.
-6. **Given** an extension's icon that is not a file of its own bundle, a name from holzi's icon set, a URL, a file over
+6. **Given** an extension's icon that is not a file of its own bundle, a name from HaexVault's icon set, a URL, a file over
    the size limit or a type that is not a picture, **When** the description
    arrives, **Then** it is refused as a whole like any other violation (FR-021) and the previous header stays.
 7. **Given** a picture in SVG form, **When** shown, **Then** it is drawn as an image only: no script in it runs and it
@@ -274,7 +274,7 @@ the window buttons stay in place and nothing throws.
   `overflow`; the description is not rejected.
 - **The same order twice**: controls with the same order collapse from the far side of the end area inward first, then
   the middle, then the start area.
-- **An app that marks everything `keep`**: nothing collapses by the app's choice; when space runs out holzi collapses
+- **An app that marks everything `keep`**: nothing collapses by the app's choice; when space runs out HaexVault collapses
   them anyway (FR-014), in the order of a control that says nothing.
 - **A very long title in the middle**: cut with an ellipsis; the full text is the window's accessible name and a
   tooltip.
@@ -284,7 +284,7 @@ the window buttons stay in place and nothing throws.
 - **Many icons**: an extension may use as many icons as it has controls and menu entries; the same file on several
   controls is read and sent once.
 - **A one-colour icon in a dark scheme**: drawn as it is unless the control asks for the primary colour; the extension
-  decides, holzi does not guess.
+  decides, HaexVault does not guess.
 - **Dark and light scheme, accent colour, window hint** (spec 035): the header follows them like the rest of the window;
   the focused window's hint still shows.
 - **Right-to-left text** in a title or a field: the order of areas follows the layout direction.
@@ -301,7 +301,7 @@ the window buttons stay in place and nothing throws.
 
 - **FR-001**: A window's title row MUST be one header bar made of a start area, a middle area that takes the free space,
   an end area and the window buttons, in that order, and MUST NOT contain the tab strip or the tab-list menu.
-- **FR-002**: The window buttons MUST stay on the far end, belong to holzi and not to the app, and keep the rules of
+- **FR-002**: The window buttons MUST stay on the far end, belong to HaexVault and not to the app, and keep the rules of
   spec 015 (a compact window shows only the close button). Closing still runs every close guard.
 - **FR-003**: Every free part of the header MUST move the window on drag and toggle maximize on double-click where the
   window allows it today (spec 015); controls in the header MUST NOT start a drag.
@@ -324,9 +324,9 @@ the window buttons stay in place and nothing throws.
   goes there; it may be editable, turning into a text field with the whole path as in spec 044), **title** (a text) and **separator**. More types MAY be added later without breaking an app that does not
   use them.
 - **FR-009**: Every control except a title and a separator MUST carry an accessible name (`label`), also when it shows
-  text; a control without one MUST be rejected (FR-021). A system app names its icons from the set holzi ships. An extension shows only icons it ships
+  text; a control without one MUST be rejected (FR-021). A system app names its icons from the set HaexVault ships. An extension shows only icons it ships
   itself: a picture file of its own bundle, or (for a development version, which has no stored bundle) a picture given
-  inline (an installed extension MUST NOT hand over an inline picture); it MUST NOT name an icon from holzi's set, point to a URL or hand over markup. A picture is a small image
+  inline (an installed extension MUST NOT hand over an inline picture); it MUST NOT name an icon from HaexVault's set, point to a URL or hand over markup. A picture is a small image
   (PNG, JPEG, WebP, GIF or SVG), at most a few hundred kilobytes each (FR-022); a control MAY ask for its picture to be
   drawn in the primary colour, so that a one-colour icon follows the theme. A system app's icon is always drawn in the
   primary colour (amended 2026-11-12), and a toggle shows its state by its label and `aria-pressed`, not by a pressed
@@ -344,7 +344,7 @@ the window buttons stay in place and nothing throws.
 - **FR-012**: Using a control MUST tell the app: a button was clicked, a toggle was switched (with its new state), a
   search was typed in (with the text) or submitted, a menu entry or a choice was selected (with which), a breadcrumb
   segment was picked (with which). Each event names the control. A search field MUST report every change of its text,
-  but holzi MUST merge quick changes so that the app gets the latest text at most about every 100 ms, and at once on
+  but HaexVault MUST merge quick changes so that the app gets the latest text at most about every 100 ms, and at once on
   Enter and when the field loses focus; the app does not debounce itself. A disabled control, and a disabled menu entry,
   MUST NOT send an event.
 - **FR-013**: A search field MUST keep what the user typed between descriptions. A new description changes it only when
@@ -354,9 +354,9 @@ the window buttons stay in place and nothing throws.
 **Narrow windows**
 
 - **FR-014**: When the header's controls do not fit, the header MUST collapse them one at a time in the order and form
-  the app gave (FR-011), controls marked `keep` last. holzi MUST NOT hide or reorder anything for its own reasons
+  the app gave (FR-011), controls marked `keep` last. HaexVault MUST NOT hide or reorder anything for its own reasons
   except as the safety net: the window buttons and the overflow menu button (while it holds something) MUST always be
-  visible, and when only `keep` controls are left and still do not fit, holzi MUST collapse them into the menu too, so
+  visible, and when only `keep` controls are left and still do not fit, HaexVault MUST collapse them into the menu too, so
   that no control is ever cut off or overlaps another.
 - **FR-015**: The menu MUST show each moved control with its name and state and MUST act exactly as the control does in
   the row. It MUST be usable by keyboard and MUST show only while at least one control is inside.
@@ -409,20 +409,20 @@ the window buttons stay in place and nothing throws.
 
 **Texts and tests**
 
-- **FR-030**: Texts that holzi adds MUST be in German and English in step. An app's own control texts come from the app.
+- **FR-030**: Texts that HaexVault adds MUST be in German and English in step. An app's own control texts come from the app.
 - **FR-031**: The E2E scenarios that refer to the removed first rows, the tab strip or the tab-list menu MUST be moved to
   the header, and a scenario MUST cover an extension's header end to end.
 
 ### Key Entities
 
-- **Header description**: what an app hands holzi for its window's header: three ordered lists of controls (start,
+- **Header description**: what an app hands HaexVault for its window's header: three ordered lists of controls (start,
   middle, end). It belongs to one tab and replaces the previous one whole.
 - **Control**: one entry of the catalog (button, toggle, search, menu, choice, breadcrumb, title, separator) with an
   identifier, an accessible name where it has no text, its state and how it collapses (order and form, FR-011).
-- **Header event**: what holzi tells the app when a control is used: the control's identifier, what happened, and the
+- **Header event**: what HaexVault tells the app when a control is used: the control's identifier, what happened, and the
   value where there is one.
 - **Overflow menu**: the menu button that holds the controls that did not fit, shown only while it holds one.
-- **Window buttons**: minimize, maximize or restore, close; the one part of the header that belongs to holzi.
+- **Window buttons**: minimize, maximize or restore, close; the one part of the header that belongs to HaexVault.
 
 ## Success Criteria _(mandatory)_
 
@@ -443,7 +443,7 @@ the window buttons stay in place and nothing throws.
   for about 100 ms.
 - **SC-007**: A window with several tabs comes back after a restart with every tab, location, history and the active tab
   as before, in 100 % of the restore scenarios of spec 022.
-- **SC-008**: A user who knows COSMIC Settings finds the sidebar button and the search of holzi's Settings where they are
+- **SC-008**: A user who knows COSMIC Settings finds the sidebar button and the search of HaexVault's Settings where they are
   there, without being told (checked by the operator by hand).
 
 ## Assumptions
@@ -451,7 +451,7 @@ the window buttons stay in place and nothing throws.
 - The operator reviews the pilots by hand for look and feel (the COSMIC reference screenshot is the model for Settings);
   an automated test cannot judge it.
 - A change in the vault SDK (the two additions of FR-018) is needed; the SDK is a separate repository and its change is
-  made and published there. holzi works without the SDK change (an extension simply has no header yet).
+  made and published there. HaexVault works without the SDK change (an extension simply has no header yet).
 - Spec 091 builds the way to switch tabs by hand (a button beside the window buttons and a tile overview, see Decision
   2). This spec leaves the hooks (the tab model and actions) as they are and keeps the room beside the window buttons
   free for that button.

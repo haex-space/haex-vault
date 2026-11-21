@@ -6,9 +6,9 @@ Prüfpfade für die Umsetzung. Voraussetzungen und Befehle wie in den Speicher-S
 ## 1. Automatische Prüfungen (nur die berührten Ziele, `-j 4`)
 
 ```sh
-cargo test -j 4 -p holzi --lib remote_storage::credentials
-cargo test -j 4 -p holzi --lib remote_storage::service_link
-cargo test -j 4 -p holzi --test passwords_owner --test passwords_access
+cargo test -j 4 -p haex --lib remote_storage::credentials
+cargo test -j 4 -p haex --lib remote_storage::service_link
+cargo test -j 4 -p haex --test passwords_owner --test passwords_access
 node --test scripts/check-storage-credentials.ts
 ```
 
@@ -37,9 +37,9 @@ Das Szenario deckt US1 bis US3 ab:
 
 ## 3. Manuell (Telefon und Fenster für Erweiterungen)
 
-- Android-Emulator (`holzi-emulator`): Auswahl bedienbar, Liste scrollt, Tastatur verdeckt das Suchfeld
+- Android-Emulator (`haex-emulator`): Auswahl bedienbar, Liste scrollt, Tastatur verdeckt das Suchfeld
   nicht (FR-015).
-- Test-Erweiterung `extension-storage`: „Speicher hinzufügen“ ohne Zugangsdaten → im Fenster von holzi
+- Test-Erweiterung `extension-storage`: „Speicher hinzufügen“ ohne Zugangsdaten → im Fenster von HaexVault
   „Eintrag aus dem Passwortmanager“ wählen → Speicher angelegt, die Erweiterung sieht keine Kennung (US4).
 
 ## 4. Nach dem Öffnen einer älteren Vault

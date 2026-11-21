@@ -1,6 +1,6 @@
 # Device-scoped data uses sync-tracked tables with a `vault_device_uuid` FK
 
-Holzi vaults sync via CRDT across a small set of devices belonging to one
+HaexVault vaults sync via CRDT across a small set of devices belonging to one
 operator. Data that is _scoped to a specific device_ (which model this
 device auto-loads, which GGUFs are installed on which laptop, later
 preferences like UI theme) needs to be distinguishable from vault-wide
@@ -18,7 +18,7 @@ device-local settings. The observed bug in the pre-ADR
 `device_downloaded_models_no_sync` was exactly this: the copy target
 believed it had every GGUF the source had.
 
-The `HolziBootstrap` hook already mints a fresh `vault_device_uuid` on
+The `HaexBootstrap` hook already mints a fresh `vault_device_uuid` on
 first-open on a new device (via the `installation_uuid` lookup), so
 gating device-scoped rows on `vault_device_uuid` is automatically
 copy-safe — the adopted device queries under its new UUID and finds no
@@ -69,7 +69,7 @@ ON DELETE CASCADE`. No `_no_sync` suffix.
 
 ## Consequences
 
-- `HolziBootstrap` grows an idempotent `INSERT OR IGNORE` for the
+- `HaexBootstrap` grows an idempotent `INSERT OR IGNORE` for the
   sentinel row on every open.
 - Storage wrappers listing devices filter `WHERE vault_device_uuid !=
 '00000000-0000-0000-0000-000000000000'`.

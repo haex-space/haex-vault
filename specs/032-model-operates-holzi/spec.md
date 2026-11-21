@@ -1,4 +1,4 @@
-# Feature Specification: Modell bedient holzi über die Aktionen
+# Feature Specification: Modell bedient HaexVault über die Aktionen
 
 **Feature Branch**: `032-model-operates-holzi`
 
@@ -6,10 +6,10 @@
 
 **Status**: Draft
 
-**Input**: Nutzer sollen holzi im Chat in natürlicher Sprache bedienen können —
+**Input**: Nutzer sollen HaexVault im Chat in natürlicher Sprache bedienen können —
 mit einem lokalen Modell (z. B. Qwen3) ebenso wie mit einem Cloud-Modell
 (z. B. Claude per API-Key): Einstellungen lesen und ändern, Apps und Tabs
-öffnen. Holzi baut dafür **keinen eigenen Agenten**; es ist nur die Brücke
+öffnen. HaexVault baut dafür **keinen eigenen Agenten**; es ist nur die Brücke
 zwischen dem vorhandenen Werkzeug-Ablauf im Chat (Spec 003) und den
 vorhandenen Aktionen des Window Managers (Spec 020), ergänzt um die
 Vorkehrungen, die kleine lokale Modelle dafür brauchen.
@@ -17,7 +17,7 @@ Vorkehrungen, die kleine lokale Modelle dafür brauchen.
 ## Beziehung zu bestehenden Specs
 
 - [`003-agent-tool-loop`](../003-agent-tool-loop/spec.md) liefert den Ablauf
-  „Modell ruft Werkzeug, holzi führt aus“ samt Freigabe (Manuell / Auto /
+  „Modell ruft Werkzeug, HaexVault führt aus“ samt Freigabe (Manuell / Auto /
   Plan), Wiederholungen, Abbruch und Rundengrenze. Diese Spec ändert diesen
   Ablauf nicht, sie gibt ihm Werkzeuge: bisher kennt das Modell nur einen
   einzigen, der beliebige Befehle auf dem Rechner ausführt.
@@ -35,16 +35,16 @@ Vorkehrungen, die kleine lokale Modelle dafür brauchen.
   führt den Fähigkeiten-Eintrag je Modell; er wird um die Fähigkeit
   „Werkzeugnutzung“ erweitert.
 - **Nicht Teil dieser Spec**: die haextension-Laufzeit und Werkzeuge aus
-  haextensions (017–019), holzi als MCP-Server für externe Agenten mit
+  haextensions (017–019), HaexVault als MCP-Server für externe Agenten mit
   Anmeldung und Berechtigungen je Agent (021), und weitere Cloud-Anbieter
   neben dem vorhandenen (eigene Spec). Sobald Aktionen aus haextensions
   existieren, sollen sie ohne Änderung an dieser Spec im Chat erscheinen
   (siehe Annahmen).
 - **CLI-Delegates (Claude Code, Codex; Specs 007/009)** bekommen in dieser
-  Spec **keine** holzi-Werkzeuge: sie führen ihren eigenen Ablauf mit eigenen
+  Spec **keine** HaexVault-Werkzeuge: sie führen ihren eigenen Ablauf mit eigenen
   Werkzeugen aus. Sie bleiben bewusst erhalten, weil sie Nutzern ein
-  vorhandenes Abo im holzi-Chat ohne eigenen API-Key erschließen; mit
-  Spec 021 sollen sie holzi über MCP bedienen können (siehe Annahmen).
+  vorhandenes Abo im HaexVault-Chat ohne eigenen API-Key erschließen; mit
+  Spec 021 sollen sie HaexVault über MCP bedienen können (siehe Annahmen).
   Bis dahin zeigt der Chat bei einem Delegate einen Hinweis (US4, FR-023).
 - **Download- und Sync-Steuerung (Datenvolumen)**: Große Downloads (Modelle)
   und die Dateisynchronisation pausieren zu können, um auf Mobilgeräten das
@@ -58,11 +58,11 @@ Vorkehrungen, die kleine lokale Modelle dafür brauchen.
 ### Session 2026-09-30
 
 - Q: Soll der Nutzer besonders geschützt oder informiert werden, wenn ein
-  Cloud-Modell über Lese-Aktionen Informationen aus holzi zu sehen bekommt?
+  Cloud-Modell über Lese-Aktionen Informationen aus HaexVault zu sehen bekommt?
   → A: Nein, kein zusätzlicher Hinweis und keine „nur lokal“-Kennzeichnung;
   dass Chat-Inhalte an den gewählten Anbieter gehen, ist dem Nutzer klar,
   und die Verlaufszeilen (FR-005) zeigen, was übermittelt wurde.
-- Q: Soll der Nutzer das Bedienen von holzi durch ein Modell im Chat komplett
+- Q: Soll der Nutzer das Bedienen von HaexVault durch ein Modell im Chat komplett
   abschalten können (eigener Schalter, unabhängig vom Freigabe-Modus)?
   → A: Nein, kein eigener Schalter; die Steuerung läuft allein über die
   Freigabe-Modi (Manuell / Auto / Plan), Standard bleibt „immer fragen“.
@@ -70,7 +70,7 @@ Vorkehrungen, die kleine lokale Modelle dafür brauchen.
   erfragt werden? → A: Nein, sie gelten wie jede ändernde Aktion. Eine
   allgemeine Steuerung für große Downloads und Dateisync auf Mobilgeräten
   (pausieren, Datenvolumen schonen) kommt mit einer eigenen Spec.
-- Q: Wie entscheidet holzi, welche Werkzeuge ein Modell in einer Antwort
+- Q: Wie entscheidet HaexVault, welche Werkzeuge ein Modell in einer Antwort
   sieht? → A: Nicht anhand des Nutzertextes. Jedes Modell, lokal wie Cloud,
   bekommt dasselbe feste Kernangebot der häufigsten Aktionen plus ein
   Suchwerkzeug und findet alles Weitere selbst; eine einheitliche Obergrenze
@@ -79,7 +79,7 @@ Vorkehrungen, die kleine lokale Modelle dafür brauchen.
   Delegate) nach einem App-Neustart erneut erscheinen? → A: Ja, sie erscheinen
   einmal je Unterhaltung und Zustand, solange die App läuft.
 - Q: Gelten für lokale und Cloud-Modelle dieselben Werkzeuge und dasselbe
-  Muster? → A: Ja. Jedes Modell, bei dem holzi den Ablauf fährt, bekommt
+  Muster? → A: Ja. Jedes Modell, bei dem HaexVault den Ablauf fährt, bekommt
   dieselben Werkzeuge auf demselben Weg; es gibt keinen Sonderweg je Anbieter.
 
 ### Session 2026-11-03
@@ -91,7 +91,7 @@ Vorkehrungen, die kleine lokale Modelle dafür brauchen.
 
 ## User Scenarios & Testing _(mandatory)_
 
-### User Story 1 - Holzi per Chat bedienen: lesen und navigieren (Priority: P1)
+### User Story 1 - HaexVault per Chat bedienen: lesen und navigieren (Priority: P1)
 
 Ein Nutzer schreibt im Chat „Öffne die Sync-Einstellungen“, „Welche Tabs sind
 gerade offen?“ oder „Welches Farbschema ist eingestellt?“. Das Modell führt
@@ -101,7 +101,7 @@ tatsächlichen Ergebnis statt mit einer Anleitung, was der Nutzer selbst
 klicken müsste.
 
 **Why this priority**: Das ist die Kernfähigkeit. Sie ist ohne Risiko für
-Nutzerdaten (Lesen und Öffnen) und zeigt sofort den Wert: holzi lässt sich
+Nutzerdaten (Lesen und Öffnen) und zeigt sofort den Wert: HaexVault lässt sich
 sprechen statt klicken. Alles Weitere baut darauf auf.
 
 **Independent Test**: Mit einem Cloud-Modell und mit einem lokalen Modell je
@@ -113,7 +113,7 @@ Verlauf ist sichtbar, welche Aktionen das Modell ausgelöst hat.
 
 1. **Given** ein Chat mit einem werkzeugfähigen Modell, **When** der Nutzer
    bittet, eine bestimmte App bzw. einen bestimmten Einstellungsbereich zu
-   öffnen, **Then** öffnet holzi genau das — mit derselben Wirkung wie der
+   öffnen, **Then** öffnet HaexVault genau das — mit derselben Wirkung wie der
    Klick — und das Modell bestätigt es in seiner Antwort.
 2. **Given** ein Chat mit einem werkzeugfähigen Modell, **When** der Nutzer
    nach einem Zustand fragt (offene Tabs und Fenster, eine Einstellung),
@@ -131,7 +131,7 @@ Verlauf ist sichtbar, welche Aktionen das Modell ausgelöst hat.
 5. **Given** eine Aktion schlägt fehl (unbekannte Eingabe, Ziel nicht
    gefunden, App nicht verfügbar), **When** das Modell das Ergebnis erhält,
    **Then** bekommt es eine verständliche Fehlermeldung, kann die Eingabe
-   korrigieren oder dem Nutzer den Grund erklären, und holzi bleibt stabil.
+   korrigieren oder dem Nutzer den Grund erklären, und HaexVault bleibt stabil.
 
 ---
 
@@ -147,7 +147,7 @@ das Modell nie ändern — auch nicht mit Zustimmung im Chat.
 
 **Why this priority**: Ohne diese Story wäre US1 nur halb nutzbar (kein
 Ändern) oder unsicher (Ändern ohne Kontrolle). Sie ist die Bedingung dafür,
-dass holzi Modelle überhaupt an Einstellungen lassen kann.
+dass HaexVault Modelle überhaupt an Einstellungen lassen kann.
 
 **Independent Test**: In jedem der drei Modi je eine lesende, eine ändernde
 und eine zerstörende Aktion per Chat anfordern und prüfen, ob sie wie in der
@@ -158,7 +158,7 @@ dass sie abgelehnt wird.
 **Acceptance Scenarios**:
 
 1. **Given** Modus „Manuell“, **When** das Modell irgendeine Aktion
-   auslösen will, **Then** fragt holzi den Nutzer vorher mit klarer Angabe,
+   auslösen will, **Then** fragt HaexVault den Nutzer vorher mit klarer Angabe,
    welche Aktion mit welchen Eingaben laufen soll; ohne Zustimmung geschieht
    nichts.
 2. **Given** Modus „Plan“, **When** das Modell eine ändernde oder
@@ -186,7 +186,7 @@ Jedes Modell — lokal oder Cloud — bekommt in jedem Schritt einer Antwort
 dasselbe kleine, feste Kernangebot an Werkzeugen (die häufigsten Aktionen)
 plus ein Suchwerkzeug. Braucht es etwas anderes („Stelle auf das dunkle
 Farbschema um“), sucht es danach; die gefundenen Werkzeuge stehen ihm ab dem
-nächsten Schritt derselben Antwort zur Verfügung. Holzi rät nicht aus dem
+nächsten Schritt derselben Antwort zur Verfügung. HaexVault rät nicht aus dem
 Text des Nutzers, was gebraucht wird: das Modell formuliert die Suche selbst.
 Das Angebot bleibt damit für kleine Modelle überschaubar, sieht für alle
 Modelle gleich aus und wächst nicht mit der Zahl der Aktionen, auch nicht,
@@ -208,7 +208,7 @@ Schritt angeboten wird und (d) das Modell es aufrufen kann.
 **Acceptance Scenarios**:
 
 1. **Given** mehr Aktionen, als gleichzeitig angeboten werden sollen,
-   **When** eine Antwort beginnt, **Then** bietet holzi jedem Modell dasselbe
+   **When** eine Antwort beginnt, **Then** bietet HaexVault jedem Modell dasselbe
    feste Kernangebot an (höchstens die festgelegte Anzahl, einschließlich
    Suchwerkzeug), unabhängig von Anbieter, Modell und Nutzertext.
 2. **Given** eine Bitte, deren Aktion nicht im Kernangebot ist, **When** das
@@ -220,7 +220,7 @@ Schritt angeboten wird und (d) das Modell es aufrufen kann.
    oder ein Suchergebnis entsteht, **Then** sind sie nie enthalten.
 4. **Given** eine Suche ohne passende Aktion, **When** das Modell das Ergebnis
    erhält, **Then** bekommt es eine eindeutige Antwort „keine passende
-   Aktion“ und kann dem Nutzer erklären, dass holzi das nicht kann.
+   Aktion“ und kann dem Nutzer erklären, dass HaexVault das nicht kann.
 5. **Given** ein leistungsstarkes Cloud-Modell, **When** der Nutzer eine
    Frage stellt, **Then** gelten dasselbe Verfahren und dieselbe Obergrenze
    wie für ein kleines lokales Modell.
@@ -231,10 +231,10 @@ Schritt angeboten wird und (d) das Modell es aufrufen kann.
 
 Jedes Modell hat im Fähigkeiten-Eintrag einen Wert „Werkzeugnutzung“. Ein
 Nutzer, der ein Modell ohne Werkzeugunterstützung (oder ein nicht
-verlässliches) gewählt hat — auch ein frisch heruntergeladenes, das holzi
-beim ersten Einsatz selbst prüft —, kann trotzdem normal chatten; holzi bietet diesem
+verlässliches) gewählt hat — auch ein frisch heruntergeladenes, das HaexVault
+beim ersten Einsatz selbst prüft —, kann trotzdem normal chatten; HaexVault bietet diesem
 Modell keine Werkzeuge an und sagt dem Nutzer knapp, warum das Bedienen von
-holzi im Chat mit diesem Modell nicht geht und welche Modelle es können.
+HaexVault im Chat mit diesem Modell nicht geht und welche Modelle es können.
 
 **Why this priority**: Verhindert kaputte oder verwirrende Antworten
 (Modell „behauptet“, etwas getan zu haben), wenn ein Modell Werkzeuge nicht
@@ -252,11 +252,11 @@ Werkzeuge werden angeboten.
    Nutzer eine Bedienfrage stellt, **Then** werden Werkzeuge angeboten.
 2. **Given** ein Modell mit „Werkzeugnutzung: nicht unterstützt“, **When**
    der Nutzer chattet, **Then** werden keine Werkzeuge angeboten und der
-   Nutzer erhält einen knappen Hinweis, dass dieses Modell holzi nicht
+   Nutzer erhält einen knappen Hinweis, dass dieses Modell HaexVault nicht
    bedienen kann.
 3. **Given** ein Modell, dessen Werkzeugunterstützung noch nicht bekannt ist
    (z. B. frisch heruntergeladen), **When** der Nutzer chattet, **Then**
-   bietet holzi Werkzeuge an und weist den Nutzer knapp darauf hin, dass die
+   bietet HaexVault Werkzeuge an und weist den Nutzer knapp darauf hin, dass die
    Bedienung mit diesem Modell unzuverlässig sein kann.
 4. **Given** das Modell wird im laufenden Chat gewechselt, **When** die
    nächste Antwort beginnt, **Then** gilt der Wert des neu gewählten
@@ -267,10 +267,10 @@ Werkzeuge werden angeboten.
    lokal Hinterlegtem.
 6. **Given** ein lokales Modell, dessen Vorlage keine Werkzeuge vorsieht,
    **When** es zum ersten Mal für den Chat gewählt wird, **Then** erkennt
-   holzi das ohne Test und führt das Modell als „nicht unterstützt“.
+   HaexVault das ohne Test und führt das Modell als „nicht unterstützt“.
 7. **Given** ein lokales Modell mit unbekannter Werkzeugunterstützung,
    dessen Vorlage Werkzeuge grundsätzlich vorsieht, **When** es zum ersten
-   Mal für den Chat gewählt wird, **Then** startet holzi im Hintergrund einen
+   Mal für den Chat gewählt wird, **Then** startet HaexVault im Hintergrund einen
    kurzen Selbsttest mit wenigen Sätzen aus dem Beispielsatz-Satz (US5)
    ohne dass eine Aktion ausgeführt wird; der Chat ist währenddessen sofort nutzbar (mit dem
    Hinweis aus Szenario 3), und nach Abschluss wechselt der Wert auf
@@ -282,10 +282,10 @@ Werkzeuge werden angeboten.
    oder der Beispielsatz-Satz grundlegend, wird der Test einmal neu
    durchgeführt.
 9. **Given** der Nutzer hat einen CLI-Delegate (Claude Code oder Codex) als
-   Modell im Chat gewählt, **When** er eine Bitte zur Bedienung von holzi
-   stellt, **Then** bietet holzi diesem Delegate keine Werkzeuge an und
+   Modell im Chat gewählt, **When** er eine Bitte zur Bedienung von HaexVault
+   stellt, **Then** bietet HaexVault diesem Delegate keine Werkzeuge an und
    zeigt einmalig je Unterhaltung den knappen Hinweis, dass dieses Modell
-   mit eigenen Werkzeugen arbeitet und holzi noch nicht bedienen kann; der
+   mit eigenen Werkzeugen arbeitet und HaexVault noch nicht bedienen kann; der
    Chat mit dem Delegate funktioniert ansonsten unverändert (Freigabe und
    Verlauf wie in den Specs 007/009).
 
@@ -293,7 +293,7 @@ Werkzeuge werden angeboten.
 
 ### User Story 5 - Zuverlässigkeit je Modell messen (Priority: P3)
 
-Wer holzi pflegt (oder ein Modell für die Empfehlungsliste prüft), führt einen
+Wer HaexVault pflegt (oder ein Modell für die Empfehlungsliste prüft), führt einen
 kleinen, festen Satz von Beispielsätzen gegen ein gewähltes Modell aus und
 erhält eine Auswertung, wie zuverlässig das Modell daraus die richtigen
 Aktionen mit gültigen Eingaben macht. Damit lässt sich belegen, welche
@@ -448,7 +448,7 @@ hintereinander zeigt nur geringe Abweichung.
   Ergebnis des Selbsttests (FR-018b); sonst „unbekannt“.
 - **FR-016**: Für ein Modell „nicht unterstützt“ MUSS das System keine
   Werkzeuge anbieten, den Chat aber uneingeschränkt als normalen Chat
-  betreiben und einmalig je Unterhaltung kurz erklären, warum holzi damit
+  betreiben und einmalig je Unterhaltung kurz erklären, warum HaexVault damit
   nicht bedient werden kann.
 - **FR-017**: Für „unbekannt“ MUSS das System Werkzeuge anbieten und den
   Nutzer einmalig je Unterhaltung knapp darauf hinweisen, dass die Bedienung
@@ -489,9 +489,9 @@ hintereinander zeigt nur geringe Abweichung.
 **CLI-Delegates**
 
 - **FR-023**: Ist ein CLI-Delegate (Claude Code, Codex) als Modell gewählt,
-  MUSS das System ihm keine holzi-Werkzeuge anbieten, den bestehenden
+  MUSS das System ihm keine HaexVault-Werkzeuge anbieten, den bestehenden
   Ablauf der Specs 007/009 unverändert lassen und den Nutzer einmalig je
-  Unterhaltung knapp darauf hinweisen, dass dieses Modell holzi noch nicht
+  Unterhaltung knapp darauf hinweisen, dass dieses Modell HaexVault noch nicht
   bedienen kann. Für Delegates entfällt die Fähigkeit „Werkzeugnutzung“
   (kein Selbsttest, kein Wert „unbekannt“, kein Unzuverlässigkeits-Hinweis
   nach FR-017).
@@ -507,7 +507,7 @@ hintereinander zeigt nur geringe Abweichung.
 
 ### Key Entities
 
-- **Aktion**: Benannte Bedienung von holzi aus Spec 020 mit Eingabeschema,
+- **Aktion**: Benannte Bedienung von HaexVault aus Spec 020 mit Eingabeschema,
   Wirkungsart (lesen / ändern / zerstörend), Bereich und Kennzeichen „durch
   Agenten aufrufbar“. Hier Quelle der Werkzeuge des Modells.
 - **Werkzeug-Angebot**: Die Aktionen, die einem Modell in einem Schritt
@@ -558,7 +558,7 @@ hintereinander zeigt nur geringe Abweichung.
   zweiten Schritt zur Verfügung (im Kernangebot oder nach einer Suche), mit
   höchstens einem zusätzlichen Schritt.
 - **SC-006**: Mit einem Modell „Werkzeugnutzung: nicht unterstützt“ oder
-  mit einem CLI-Delegate werden in 100 % der Antworten keine holzi-Werkzeuge
+  mit einem CLI-Delegate werden in 100 % der Antworten keine HaexVault-Werkzeuge
   angeboten, und der Chat antwortet weiterhin normal; bei einem Delegate
   erscheint der Hinweis aus FR-023 genau einmal je Unterhaltung.
 - **SC-007**: Der Nutzer sieht in 100 % der Fälle im Verlauf, welche
@@ -573,7 +573,7 @@ hintereinander zeigt nur geringe Abweichung.
 
 ## Assumptions
 
-- Der eingebaute Agent ist der Chat von holzi, der bereits Werkzeuge
+- Der eingebaute Agent ist der Chat von HaexVault, der bereits Werkzeuge
   aufrufen kann (Spec 003). Externe Agenten (Claude Code, Codex als
   Delegate; MCP) sind nicht Teil dieser Spec; ihre Anbindung folgt mit
   Spec 021.
@@ -586,18 +586,18 @@ hintereinander zeigt nur geringe Abweichung.
   Der Chat selbst geht dafür nicht über das MCP-Protokoll, sondern ruft die
   Aktionen im Prozess auf; damit kann 021 ohne Umbau darauf aufsetzen. Das
   Werkzeug-Angebot (FR-011) und die Fähigkeit „Werkzeugnutzung“ gelten
-  für Modelle, bei denen holzi den Werkzeug-Ablauf selbst fährt: lokale
+  für Modelle, bei denen HaexVault den Werkzeug-Ablauf selbst fährt: lokale
   Modelle und Anbieter mit API-Key (z. B. Claude per Schlüssel). Externe
   Agenten bringen ihr Modell mit und erhalten in 021 die vollständige Liste
   gemäß ihren Berechtigungen.
 - CLI-Delegates (Claude Code, Codex; Specs 007/009) bleiben erhalten. Ihr
-  Wert liegt darin, ein vorhandenes Abo im holzi-Chat ohne eigenen API-Key
+  Wert liegt darin, ein vorhandenes Abo im HaexVault-Chat ohne eigenen API-Key
   zu nutzen; das ist mit reinem MCP-Zugang von außen nicht gegeben. Sobald
-  Spec 021 holzi als MCP-Server bereitstellt, sollen Delegates damit holzi
+  Spec 021 HaexVault als MCP-Server bereitstellt, sollen Delegates damit HaexVault
   im Chatfenster bedienen können — das ist der Grund, sie zu behalten und
   nicht zu entfernen. Ob sie langfristig bleiben, wird nach 021 anhand der
   Nutzung entschieden, nicht in dieser Spec.
-- Es gibt keinen eigenen Schalter, der das Bedienen von holzi durch ein
+- Es gibt keinen eigenen Schalter, der das Bedienen von HaexVault durch ein
   Modell abschaltet (Klärung 2026-09-30). Wer es nicht will, nutzt den
   Modus „Manuell“ (Standard, fragt bei allem nach); ein Schalter kann später
   ergänzt werden, wenn er gebraucht wird.

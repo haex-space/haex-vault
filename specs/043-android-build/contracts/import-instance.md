@@ -27,20 +27,20 @@ import_instance(file: PickedFile, passphrase: String) -> InstanceInfo
    und `sync::genesis::run_after_open(.., allow_genesis = false)` wie beim Öffnen.
 5. Den Fingerabdruck der Vault-Identität (SHA-256 des öffentlichen Schlüssels der
    Vault-Identität) mit den Begleitdateien `<name>.db.vault-id` der anderen Tresore dieser
-   Installation vergleichen. Gleich → `AlreadyOnThisDevice`. Die Begleitdatei schreibt holzi
+   Installation vergleichen. Gleich → `AlreadyOnThisDevice`. Die Begleitdatei schreibt haex-vault
    bei jedem Anlegen, Öffnen und Übernehmen; ein Tresor, der seit dem Update nicht geöffnet
    wurde, hat noch keine und wird erst nach seinem nächsten Öffnen erkannt.
 6. Marker entfernen, veröffentlichen, Sitzungsdienste starten wie in `open.rs:143-168`.
 
 ## Fehler
 
-| Fehler                | Wann                                          | Oberfläche                                             |
-| --------------------- | --------------------------------------------- | ------------------------------------------------------ |
-| `WrongPassphrase`     | Entsperren scheitert mit SQLITE_NOTADB        | „Passwort falsch oder keine Tresordatei von holzi“     |
-| `NotAVault`           | Datei ist SQLite, aber ohne holzi-Kennzeichen | „Das ist keine Tresordatei von holzi“                  |
-| `AlreadyOnThisDevice` | Schritt 5                                     | „Diesen Tresor gibt es auf diesem Gerät schon: <Name>“ |
-| `NotEnoughSpace`      | Schritt 3                                     | „Nicht genug freier Speicher“                          |
-| `Unreadable`          | gewählte Datei nicht lesbar                   | „Die Datei lässt sich nicht lesen“                     |
+| Fehler                | Wann                                               | Oberfläche                                              |
+| --------------------- | -------------------------------------------------- | ------------------------------------------------------- |
+| `WrongPassphrase`     | Entsperren scheitert mit SQLITE_NOTADB             | „Passwort falsch oder keine Tresordatei von haex-vault“ |
+| `NotAVault`           | Datei ist SQLite, aber ohne haex-vault-Kennzeichen | „Das ist keine Tresordatei von haex-vault“              |
+| `AlreadyOnThisDevice` | Schritt 5                                          | „Diesen Tresor gibt es auf diesem Gerät schon: <Name>“  |
+| `NotEnoughSpace`      | Schritt 3                                          | „Nicht genug freier Speicher“                           |
+| `Unreadable`          | gewählte Datei nicht lesbar                        | „Die Datei lässt sich nicht lesen“                      |
 
 Jeder Fehler nach Schritt 2 baut vollständig zurück: `.db`, `.db.pending`, `.db.lock`,
 `.db-wal`, `.db-shm`, `.db.vault-id`, `.tmp`. Die gewählte Datei wird nur gelesen. Derselbe Rückbau-Helfer

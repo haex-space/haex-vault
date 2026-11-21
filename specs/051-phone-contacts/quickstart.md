@@ -6,7 +6,7 @@ Schritte M1–M7 sind von Hand auf echter Hardware.
 ## Voraussetzungen
 
 - devShell (`nix develop`), `corepack pnpm install` in der Worktree.
-- Android: `holzi-emulator -no-window -no-snapshot-save` im Hintergrund, `ANDROID_SERIAL=emulator-5554`.
+- Android: `haex-emulator -no-window -no-snapshot-save` im Hintergrund, `ANDROID_SERIAL=emulator-5554`.
 - Zwei Vaults für Visitenkarten (zwei Desktop-Instanzen oder Desktop + Emulator).
 
 ## Automatisch
@@ -57,11 +57,11 @@ räumt seine Roh-Kontakte am Ende wieder ab (`pm clear` löscht sie nicht).
 
 - **M1** Telefon mit Google-Konto (≥ 300 Kontakte) und SIM-Kontakten: Abgleich einschalten, Übersicht
   plausibel, unsichere Paare entscheiden; Dauer < 60 s bei 2.000 Kontakten (SC-001).
-- **M2** Kontakt in der Kontakte-App des Telefons ändern, holzi in den Vordergrund holen: Änderung
-  < 5 s sichtbar (SC-002). Danach in holzi ändern: steht in Google Kontakte im Browser.
+- **M2** Kontakt in der Kontakte-App des Telefons ändern, HaexVault in den Vordergrund holen: Änderung
+  < 5 s sichtbar (SC-002). Danach in HaexVault ändern: steht in Google Kontakte im Browser.
 - **M3** Messenger (Signal, WhatsApp) auf dem Telefon: Personen erscheinen nicht doppelt; Änderungen
   landen im Google-Roh-Kontakt, nicht im Messenger-Konto.
-- **M4** Firmenkonto (Exchange) oder anderes nur lesbares Konto: Änderung aus holzi bleibt in holzi,
+- **M4** Firmenkonto (Exchange) oder anderes nur lesbares Konto: Änderung aus HaexVault bleibt in HaexVault,
   Hinweis am Kontakt (FR-025).
 - **M5** Google-Konto vom Telefon entfernen: keine Löschung im Adressbuch, Abgleich hält an (FR-026).
 - **M6** Zweites Telefon mit demselben Google-Konto: keine Doppel (SC-005).

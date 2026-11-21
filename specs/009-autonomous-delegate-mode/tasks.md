@@ -97,7 +97,7 @@ quickstart.md.
 - [x] T004 [P] Add migration `0017_chat_messages_add_autonomy_mode` in
       `src-tauri/src/identity/migrations.rs` (pattern: `0014_chat_messages_tool_columns` at
       migrations.rs:280-292): `ALTER TABLE chat_messages ADD COLUMN autonomy_mode TEXT;` and bump
-      `HOLZI_TRIGGER_VERSION` (migrations.rs:59, currently `8`) to `9` per the doc comment convention
+      `HAEX_TRIGGER_VERSION` (migrations.rs:59, currently `8`) to `9` per the doc comment convention
       at migrations.rs:20 (data-model.md's Decision B).
 - [x] T005 [P] Extend `SendMessageArgs` in `src-tauri/src/chat/commands.rs:50-66` with
       `autonomy_mode: Option<AutonomyMode>` (wire name `autonomyMode` via the struct's existing
@@ -189,7 +189,7 @@ something else.
 - [x] T015 [P] [US1] Integration test: stub `claude`/`codex` binaries that reject the `Ungated`-mode
       flag/field the way an older installed version would (unknown-option stderr for Claude; an RPC
       error response for Codex), request `Ungated` mode, and confirm `send_message` returns the
-      exact `HolziError::InvalidInput` envelope from contracts/tauri-commands.md, including the
+      exact `HaexError::InvalidInput` envelope from contracts/tauri-commands.md, including the
       required vendor and mode — not a silent fallback to `Standard` and not a generic spawn-failure
       message (spec FR-013/SC-006 edge case; exercises T009's classifier end-to-end).
 - [x] T016 [P] [US1] Integration test: force the `cli_delegate.deny_rules` preference read to fail
@@ -239,8 +239,8 @@ something else.
       through T009's `classify_autonomy_spawn_error` before falling through to the existing generic
       error path; on a match, return `AdapterError::Unavailable` with the exact
       `autonomy mode '<mode>' is unavailable for '<vendor>': <detail>` reason so the existing provider
-      mapping produces contracts/tauri-commands.md's `HolziError::InvalidInput` envelope. Do not add a
-      `HolziError` variant or regenerate bindings for this internal classification.
+      mapping produces contracts/tauri-commands.md's `HaexError::InvalidInput` envelope. Do not add a
+      `HaexError` variant or regenerate bindings for this internal classification.
 
 **Checkpoint**: User Story 1 fully functional and independently testable — both new modes suppress
 approval for both vendors without weakening host isolation, an unsupported CLI version fails
@@ -266,7 +266,7 @@ honestly, and `standard` is regression-free.
 ### Implementation for User Story 2
 
 - [ ] T025 [US2] Apply migration `0017` (T004); run the full `cargo test --lib` suite to confirm the
-      `HOLZI_TRIGGER_VERSION` bump doesn't break existing CRDT sync/migration tests.
+      `HAEX_TRIGGER_VERSION` bump doesn't break existing CRDT sync/migration tests.
 - [x] T026 [US2] Wherever 007 already persists `cli_delegate:claude`/`cli_delegate:codex`
       `tool_source` rows and the delegate's final assistant message (the turn-persistence path a
       delegate invocation's `AdapterStream` feeds into): also set the new `autonomy_mode` column

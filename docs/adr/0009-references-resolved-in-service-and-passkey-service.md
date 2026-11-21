@@ -38,7 +38,7 @@ and deletes).
 
 - A passkey always belongs to an entry and follows that entry's tags and trash
   state. A passkey without an entry (only possible through foreign
-  data) counts as not there and is never created by holzi.
+  data) counts as not there and is never created by haex-vault.
 - The private key never leaves the service: no answer, error, log or history
   carries it.
 - The origin of a request is checked against the relying party id (the host is

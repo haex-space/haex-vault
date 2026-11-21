@@ -60,14 +60,14 @@ Paths follow [`plan.md → Project Structure`](./plan.md).
 
 - [ ] **T011** [-] Add `haex-crdt` as a git dependency in `src-tauri/Cargo.toml`, pinned to `1c069ef0ea19143af2748f40fc41cba05c94dbe1`, and commit the resolved lockfile. Verify a minimal `Database::open(DatabaseConfig)` compiles with `DatabaseConfig::bootstrap`.
 - [ ] **T012** [-] Implement `src-tauri/src/instances/paths.rs` mirroring [`haex-vault 2.x paths.rs`](../../../../haex-vault-legacy/src-tauri/src/database/paths.rs): `get_instance_path(name)`, `get_instances_directory()` — resolves against `BaseDirectory::AppLocalData`, creates directory if missing.
-- [ ] **T013** [-] Implement `src-tauri/src/error.rs` with the `HolziError` enum per [`contracts/tauri-commands.md`](./contracts/tauri-commands.md). Add `#[derive(TS)]` and export.
+- [ ] **T013** [-] Implement `src-tauri/src/error.rs` with the `HaexError` enum per [`contracts/tauri-commands.md`](./contracts/tauri-commands.md). Add `#[derive(TS)]` and export.
 - [ ] **T014** [-] Implement `src-tauri/src/state.rs`: `AppState { active_instance: Mutex<Option<ActiveInstanceHandle>> }`. `ActiveInstanceHandle` holds the `haex-crdt` handle and shutdown senders for the Nostr relay + iroh peer. Register in `main.rs::manage`.
 - [ ] **T015** [-] Implement `src-tauri/src/instances/events.rs::emit_instance_list_changed(app, reason, affected)` and wire the AppHandle plumbing.
 - [ ] **T016** [-] Implement `src-tauri/src/instances/list.rs::list_instances` per contract. Treat the database mtime as the persisted `lastAccess` value, sort by it desc, and filter out `.trash/`, hidden files, and pending Genesis files. `#[tauri::command]` registered in `main.rs`. Add coverage that a successful `open_instance` mtime refresh changes list ordering.
 - [ ] **T017** [-] Implement `src-tauri/src/instances/crud.rs::close_instance` per contract, including `AppHandle` event emission. Idempotent. `#[tauri::command]` registered. `open_instance` reuses the same shutdown path while holding the state lock for an atomic switch.
 - [ ] **T018** [-] Wire up frontend `src/composables/useInstance.ts` skeleton: exposes `openAsync`, `createAsync`, `pairRestoredAsync`, `closeAsync`, `importAsync`, `trashAsync`. Each wraps a single `invoke(...)` and re-throws typed errors.
 - [ ] **T019** [-] Fill `src/stores/instances.ts` (Pinia): `instances` ref, `activeInstance` ref, `syncAsync()` calling `list_instances`, event listener for `instance-list-changed` calling `syncAsync()`. Test with Vitest that a fake emitted event triggers a re-sync.
-- [ ] **T020** [-] Implement `src/app.vue`: root with `<UiSonner />` (toast provider) and `<NuxtPage />`. Add `useHead({ title: 'Holzi' })`. Register the i18n locale switcher plumbing (UI element deferred to a later spec).
+- [ ] **T020** [-] Implement `src/app.vue`: root with `<UiSonner />` (toast provider) and `<NuxtPage />`. Add `useHead({ title: 'Haex' })`. Register the i18n locale switcher plumbing (UI element deferred to a later spec).
 
 **Checkpoint**: Phase 2 complete → backend can list, close instances; frontend store loads and reacts to backend events; app.vue renders. Ready for user-story work.
 
@@ -90,7 +90,7 @@ Paths follow [`plan.md → Project Structure`](./plan.md).
 
 ### Implementation for US4
 
-- [ ] **T025** [US4] Implement `src-tauri/src/instances/crud.rs::open_instance` per contract. Under the state lock, validate the requested instance and SQLCipher credentials before changing any current active runtime; on validation failure, preserve the existing runtime and `AppState.active_instance` unchanged. Pass a `DatabaseBootstrap` implementation to `Database::open`; it reuses or inserts the `known_devices` row keyed by the installation UUID and returns its vault-device UUID for HLC. The installation UUID remains the immutable row identity and is carried in CRDT `row_pks`. Start the requested SQLCipher/relay/iroh runtime as a private candidate while the old runtime remains active; close the old runtime and publish the candidate only after every startup step succeeds. On candidate startup failure, stop only candidate services, drop its handle, and retain the old runtime and `AppState.active_instance`. Permit deletion only after an explicit discard action or conclusive validation that the file is not a holzi instance. Preserve typed open failures so the frontend can distinguish `NotFound`, `WrongPassphrase`, storage, and compatibility failures. Add tests for active-instance preservation on validation failure and forced partial startup failure.
+- [ ] **T025** [US4] Implement `src-tauri/src/instances/crud.rs::open_instance` per contract. Under the state lock, validate the requested instance and SQLCipher credentials before changing any current active runtime; on validation failure, preserve the existing runtime and `AppState.active_instance` unchanged. Pass a `DatabaseBootstrap` implementation to `Database::open`; it reuses or inserts the `known_devices` row keyed by the installation UUID and returns its vault-device UUID for HLC. The installation UUID remains the immutable row identity and is carried in CRDT `row_pks`. Start the requested SQLCipher/relay/iroh runtime as a private candidate while the old runtime remains active; close the old runtime and publish the candidate only after every startup step succeeds. On candidate startup failure, stop only candidate services, drop its handle, and retain the old runtime and `AppState.active_instance`. Permit deletion only after an explicit discard action or conclusive validation that the file is not a haex-vault instance. Preserve typed open failures so the frontend can distinguish `NotFound`, `WrongPassphrase`, storage, and compatibility failures. Add tests for active-instance preservation on validation failure and forced partial startup failure.
 - [ ] **T026** [US4] Implement `src/pages/index.vue` landing shell with `<UiLogo />`, welcome text, version footer via `useAppVersion` composable, and slots for CTAs + list.
 - [ ] **T027** [P] [US4] Implement `src/components/onboarding/InstancesList.vue`: iterates `useInstancesStore().instances`, renders each with alias + `formatRelativeTime(lastAccess)`, click emits `select(name)`. Empty state hides (FR-004).
 - [ ] **T028** [P] [US4] Implement `src/components/onboarding/UnlockSheet.vue`: `<UiSheet>` with masked passphrase field, submit button, inline error area. On submit calls `useInstance.openAsync(name, passphrase)`.
@@ -116,13 +116,13 @@ Paths follow [`plan.md → Project Structure`](./plan.md).
 
 ### Implementation for US1
 
-- [ ] **T035** [US1] Implement `src-tauri/src/instances/crud.rs::create_instance` per contract — Genesis branch only in this task (Join in later phases). Enforces `NameConflict`, `InvalidName`, `WeakPassphrase`, `InstanceAlreadyActive`. Calls `Database::open` with a `haex_crdt::DatabaseConfig` whose `DatabaseBootstrap` atomically creates the vault identity and self-`known_devices` row; then performs Holzi-owned Genesis initialization: generate fresh Nostr and iroh identities, write the Genesis `peer_instances` self-record, create and store the `ActiveInstanceHandle`, start the relay and iroh peer, and complete runtime activation before returning the active instance.
+- [ ] **T035** [US1] Implement `src-tauri/src/instances/crud.rs::create_instance` per contract — Genesis branch only in this task (Join in later phases). Enforces `NameConflict`, `InvalidName`, `WeakPassphrase`, `InstanceAlreadyActive`. Calls `Database::open` with a `haex_crdt::DatabaseConfig` whose `DatabaseBootstrap` atomically creates the vault identity and self-`known_devices` row; then performs haex-vault-owned Genesis initialization: generate fresh Nostr and iroh identities, write the Genesis `peer_instances` self-record, create and store the `ActiveInstanceHandle`, start the relay and iroh peer, and complete runtime activation before returning the active instance.
 - [ ] **T036** [US1] Implement startup orphan-cleanup in `src-tauri/src/main.rs::setup`: on boot, scan `instances/` for incomplete Genesis markers and delete both the marker and sibling `.db`. Also clean up any `.db.importing` files left over by an interrupted `import_instance_file`. Emit `instance-list-changed { reason: 'startup-cleanup' }`.
 - [ ] **T037** [P] [US1] Implement `src/components/onboarding/CreateSheet.vue`: `<UiSheet>` with a Genesis form, name field, two passphrase fields with match check, and submit button. On submit call `useInstance.createAsync(...)`.
 - [ ] **T040** [P] [US1] Add Anlegen CTA to `pages/index.vue` as the first primary button; wire to open CreateSheet.
 - [ ] **T041** [P] [US1] i18n: `onboarding.create.title`, `onboarding.create.name`, `onboarding.create.passphrase`, `onboarding.create.passphraseConfirm`, `onboarding.create.submit`, `errors.nameConflict`, `errors.invalidName`, `errors.weakPassphrase`.
 
-**Checkpoint**: US1 + US4 shipped → holzi has a working walking-skeleton for a single device.
+**Checkpoint**: US1 + US4 shipped → haex-vault has a working walking-skeleton for a single device.
 
 ---
 
@@ -130,7 +130,7 @@ Paths follow [`plan.md → Project Structure`](./plan.md).
 
 **Goal**: Verbinden CTA opens the Connect sheet; scanning/pasting a valid pairing token from a parent device creates a new instance, co-signs the pairing transcript, syncs `haex-crdt`, navigates to federation view.
 
-**Independent Test**: With a second real holzi instance acting as parent (or a mocked pairing server for CI), Verbinden a fresh install and observe the `peer_instances` registry contains both devices on both sides.
+**Independent Test**: With a second real haex-vault instance acting as parent (or a mocked pairing server for CI), Verbinden a fresh install and observe the `peer_instances` registry contains both devices on both sides.
 
 ### Tests for US2
 
@@ -151,7 +151,7 @@ Paths follow [`plan.md → Project Structure`](./plan.md).
 - [ ] **T050** [P] [US2] i18n: `onboarding.connect.title`, `onboarding.connect.scan`, `onboarding.connect.cameraPermission`, `onboarding.connect.cameraUnavailable`, `onboarding.connect.token`, `onboarding.connect.submit`, `errors.pairingTokenInvalid`.
 - [ ] **T050a** [P] [US2] Add `html5-qrcode` (^2.3.8, matching haex-vault 2.x) to `package.json`. Tauri camera-permission configuration: on Android add `<uses-permission android:name="android.permission.CAMERA" />` to `src-tauri/gen/android/app/src/main/AndroidManifest.xml` and wire the WebView's `PermissionRequest` handler to auto-grant `RESOURCE_VIDEO_CAPTURE` after the OS runtime prompt is accepted; on iOS add `NSCameraUsageDescription` to `Info.plist`. Desktop (Linux/macOS/Windows) uses standard WebRTC — no extra config.
 
-**Checkpoint**: US1 + US2 + US4 shipped → holzi v1 walking-skeleton fully reachable via UI. Two devices can be paired end-to-end from a fresh install.
+**Checkpoint**: US1 + US2 + US4 shipped → haex-vault v1 walking-skeleton fully reachable via UI. Two devices can be paired end-to-end from a fresh install.
 
 ---
 

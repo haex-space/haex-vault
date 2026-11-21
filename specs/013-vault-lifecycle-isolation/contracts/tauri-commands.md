@@ -46,7 +46,7 @@ pub async fn close_instance(app: AppHandle) -> Result<()>;
 ```
 
 (The gate is reached through `app.state::<VaultGate>()` inside `start_close`, not injected as its own
-parameter; `Result<T>` is the crate's own alias for `Result<T, HolziError>`.)
+parameter; `Result<T>` is the crate's own alias for `Result<T, HaexError>`.)
 
 | Aspect         | Before                                                             | After                                                                 |
 | -------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------- |

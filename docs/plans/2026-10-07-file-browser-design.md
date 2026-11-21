@@ -6,7 +6,7 @@ haex-files is obsolete and no reference.
 
 ## Context
 
-holzi gets a built-in file browser for the whole file system of the device and for the S3
+haex-vault gets a built-in file browser for the whole file system of the device and for the S3
 storages of [spec 038](../../specs/038-storage-connections/spec.md). It is the base for later
 work agreed in the same session:
 
@@ -20,16 +20,16 @@ work agreed in the same session:
 
 ## Decisions
 
-| #   | Question                        | Decision                                                                                                                                                                                                                                                                                                                                                         |
-| --- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Built-in or extension?          | Built-in app, next to Chat, Passwords and Settings.                                                                                                                                                                                                                                                                                                              |
-| 2   | Agent access                    | Agents (built-in chat agent, external agents over MCP) may list, search and read the whole file system. Writing goes through the approval gate. holzi's own data (vault files, keys, config, bundles) stays blocked for agents. Accepted risk: with a cloud model, whatever the agent reads leaves the device, and a crafted file can steer it to read `~/.ssh`. |
-| 3   | What the user can do            | A file manager: browse, view and play, create folder, rename, copy, move, delete, drag & drop from the system into holzi.                                                                                                                                                                                                                                        |
-| 4   | Sources in v1                   | This device and the S3 storages of spec 038. Other own devices come later.                                                                                                                                                                                                                                                                                       |
-| 5   | Search                          | Live walk from the current folder, no index. Name (fuzzy), type, size, date. An index comes with the embeddings spec.                                                                                                                                                                                                                                            |
-| 6   | Formats the webview can't play  | Info view with "open with system app". PDF through pdf.js (WebKitGTK shows no PDFs). No ffmpeg, no HEIC conversion.                                                                                                                                                                                                                                              |
-| 7   | Android file access             | `MANAGE_EXTERNAL_STORAGE` ("all files access"): real paths, one code path with desktop. Play Store is out of scope ([spec 043](../../specs/043-android-build/spec.md)). haex-vault 2.x's SAF/content-URI path is not taken.                                                                                                                                      |
-| 8   | How content reaches the webview | A loopback HTTP server with opaque tokens (haex-vault 2.x `media_server`). Not `asset://`, not a custom scheme: WebKitGTK's GStreamer backend refuses custom schemes for media and `asset://` has no range support.                                                                                                                                              |
+| #   | Question                        | Decision                                                                                                                                                                                                                                                                                                                                                              |
+| --- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Built-in or extension?          | Built-in app, next to Chat, Passwords and Settings.                                                                                                                                                                                                                                                                                                                   |
+| 2   | Agent access                    | Agents (built-in chat agent, external agents over MCP) may list, search and read the whole file system. Writing goes through the approval gate. haex-vault's own data (vault files, keys, config, bundles) stays blocked for agents. Accepted risk: with a cloud model, whatever the agent reads leaves the device, and a crafted file can steer it to read `~/.ssh`. |
+| 3   | What the user can do            | A file manager: browse, view and play, create folder, rename, copy, move, delete, drag & drop from the system into haex-vault.                                                                                                                                                                                                                                        |
+| 4   | Sources in v1                   | This device and the S3 storages of spec 038. Other own devices come later.                                                                                                                                                                                                                                                                                            |
+| 5   | Search                          | Live walk from the current folder, no index. Name (fuzzy), type, size, date. An index comes with the embeddings spec.                                                                                                                                                                                                                                                 |
+| 6   | Formats the webview can't play  | Info view with "open with system app". PDF through pdf.js (WebKitGTK shows no PDFs). No ffmpeg, no HEIC conversion.                                                                                                                                                                                                                                                   |
+| 7   | Android file access             | `MANAGE_EXTERNAL_STORAGE` ("all files access"): real paths, one code path with desktop. Play Store is out of scope ([spec 043](../../specs/043-android-build/spec.md)). haex-vault 2.x's SAF/content-URI path is not taken.                                                                                                                                           |
+| 8   | How content reaches the webview | A loopback HTTP server with opaque tokens (haex-vault 2.x `media_server`). Not `asset://`, not a custom scheme: WebKitGTK's GStreamer backend refuses custom schemes for media and `asset://` has no range support.                                                                                                                                                   |
 
 ## Architecture
 
@@ -40,7 +40,7 @@ work agreed in the same session:
   its entrance, as in [ADR 0007](../adr/0007-secrets-in-vault-db-protected-by-grants.md):
   `User` (window), `BuiltinAgent` (chat), `McpAgent(id)` (spec 021).
 - **Block check** (`files/access.rs`, a pure module like `passwords/access.rs`): always on the
-  real target after resolving `..` and symlinks. holzi's own data is blocked for agents; the user
+  real target after resolving `..` and symlinks. haex-vault's own data is blocked for agents; the user
   sees it read-only.
 - **Sources** behind a `FileSource` trait: `LocalSource` (device file system, Android with real
   paths) and `S3Source` (storages of 038; folders are key prefixes; credentials stay in Rust).
@@ -86,8 +86,8 @@ short ADR of its own.
 - **Change**: copy and move work across sources (local → S3 upload, S3 → local download), streamed
   with progress events and cancellable, listed in a transfer bar. Name clash: replace, keep both,
   or skip, with "apply to all". Delete: system trash on desktop (`trash` crate); on Android and on
-  S3 permanent after confirmation. Cut/copy/paste inside holzi. Drag & drop from the system into
-  holzi; dragging out of holzi needs a plugin and comes later.
+  S3 permanent after confirmation. Cut/copy/paste inside haex-vault. Drag & drop from the system into
+  haex-vault; dragging out of haex-vault needs a plugin and comes later.
 - **Search**: typing starts `files_search` from the current folder; hits arrive as events; new
   input cancels the old search. Filters for type (image, video, audio, document, text), size and
   date apply to search results and to the open folder. On S3 the search walks prefix by prefix and
@@ -98,7 +98,7 @@ short ADR of its own.
 - **No OS permission** on an entry: lock icon, "no access" on open; no crash, no error flood.
 - **Android without all-files access**: explanation and a button to the system settings instead of
   the list; checked again on return.
-- **Blocked holzi data via an agent**: tool error `files_blocked` with the reason, never content.
+- **Blocked haex-vault data via an agent**: tool error `files_blocked` with the reason, never content.
 - **Open folder disappears**: jump to the nearest existing parent with a notice. **Drive removed**:
   gone from the sidebar, transfers to it abort with the reason.
 - **Symlinks** are marked and followed on open; search does **not** follow them (no loops).
@@ -141,6 +141,6 @@ Repository `https://github.com/haex-space/haex-vault-legacy`, local checkout at 
 - `src/composables/useFileSearch.ts`: breadth-first search with a generation counter for cancel.
 - `docs/plans/2026-06-03-unified-media-playback-and-filebrowser-refactor-design.md`: the Linux
   playback bug, the "never fully into RAM" rule, and why `useFileBrowser.ts` (1567 lines) had to be
-  split; holzi keeps the logic in Rust instead.
+  split; haex-vault keeps the logic in Rust instead.
 - `docs/plans/2026-06-16-file-sync-in-file-browser-design.md`: sync badges in the browser, input
   for spec 045.

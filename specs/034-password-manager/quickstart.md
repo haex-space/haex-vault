@@ -3,7 +3,7 @@
 **Spec**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md)
 
 Validierungsleitfaden, kein Bauplan. Jeder Abschnitt nennt Voraussetzung, Aufruf und
-erwartetes Ergebnis. Rust-Aufrufe brauchen die Umgebung aus dem Memory „cargo in holzi
+erwartetes Ergebnis. Rust-Aufrufe brauchen die Umgebung aus dem Memory „cargo in HaexVault
 worktrees“ (`nix develop`, Host-Bridge, `-j 4` und nur gezielte Testziele); im Worktree gilt
 ein echtes `pnpm install` (kein Symlink auf `node_modules`). Beispieldateien und Geheimnisse in
 Tests sind erfunden; echte Passwörter gehören nie in Fixtures (Constitution I).
@@ -32,7 +32,7 @@ ein Geheimnis oder eine Notiz berücksichtigt.
 ## 2. Datenmodell und Migration (FR-036, FR-037)
 
 `cargo test … migrations` und `--test vault_upgrade`: Eine frische Vault und eine Vault vor
-`0022` haben danach alle zwölf Tabellen und die Trigger (`HOLZI_TRIGGER_VERSION` 14); die
+`0022` haben danach alle zwölf Tabellen und die Trigger (`HAEX_TRIGGER_VERSION` 14); die
 Spalten entsprechen [data-model.md](./data-model.md), `binaries.data` ist `BLOB`, kein
 UNIQUE auf Tagname, Credential-ID und Tag-Paar.
 
@@ -49,7 +49,7 @@ Algorithmus gilt als 6, 30, `SHA1`.
 Manuell (`pnpm tauri:dev`, Vault öffnen, App „Passwörter“ aus dem Starter):
 
 1. Eintrag mit Titel, Benutzername, Passwort und TOTP-Secret `JBSWY3DPEHPK3PXP` anlegen.
-   Erwartet: in der Liste, nach Neustart von holzi wieder da, Passwort verdeckt.
+   Erwartet: in der Liste, nach Neustart von HaexVault wieder da, Passwort verdeckt.
 2. Eintrag öffnen: Code mit Restzeit wechselt ohne Zutun; „Kopieren“ beim Code und beim
    Passwort; nach der eingestellten Zeit ist die Zwischenablage leer (Wert vorher in ein
    Textfeld einfügbar). Einstellung auf 15 s stellen: gilt ohne Speichern-Knopf.
@@ -114,7 +114,7 @@ im Test erzeugt):
 - Zahl der Einträge und Ordner stimmt mit der Quelle, **der Papierkorb inbegriffen** (SC-010);
   nichts geht still verloren: jede Quelleinheit ist importiert, als Doppeltes übersprungen oder hat
   eine Zeile im Bericht.
-- Papierkorb (KeePass, Bitwarden `deletedDate`) liegt im Papierkorb von holzi, Verlauf (KeePass,
+- Papierkorb (KeePass, Bitwarden `deletedDate`) liegt im Papierkorb von HaexVault, Verlauf (KeePass,
   `passwordHistory`) steht als Verlaufsstände mit den Zeiten der Quelle da, Symbole sind gesetzt
   (Standardsymbol als Name, eigenes als Bild), Karten-, Identitäts- und SSH-Angaben und alles ohne
   eigenes Feld stehen als eigene Felder oder Tags am Eintrag.
@@ -151,7 +151,7 @@ sind (Handshake, Spec 024).
 
 Fenster auf 360 px verkleinern: Seitenleiste als Überlagerung, kein waagerechtes Scrollen,
 alle Aktionen erreichbar. Sitzungswiederherstellung einschalten, Passwortmanager mit
-aufgedecktem Passwort offen lassen, holzi neu starten: der Tab kommt mit Ort und Verlauf
+aufgedecktem Passwort offen lassen, HaexVault neu starten: der Tab kommt mit Ort und Verlauf
 zurück, das Passwort ist verdeckt, die gespeicherte Sitzung enthält keinen Wert
 (`check-passwords-routes.ts` prüft die Stichprobe gegen `snapshotSession`).
 

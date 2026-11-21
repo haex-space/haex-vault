@@ -39,11 +39,11 @@ Stage 1 only (spec Scope): files, contacts and cloud storage keep their per-agen
 
 **Primary Dependencies**: none new. Existing: `grant_rows`/`grants` (rights shape and checks), the CRDT write path and
 `haex_deleted_rows` markers, `vault_events` (`core.vault_changes`), the task-local `AgentTask`, `ts-rs` bindings,
-holzi's own settings components in `src/components/settings/` (`SettingsGroup`, `SettingsRow`, `SettingsOptionRow`,
+haex-vault's own settings components in `src/components/settings/` (`SettingsGroup`, `SettingsRow`, `SettingsOptionRow`,
 `SettingsSelect`, `SettingsMultiSelect`) and `AgentsRightsInset`.
 
 **Storage**: three new CRDT tables in migration `0054_agent_profiles` (next free number after
-`0053_sync_rules_source_target`), `HOLZI_TRIGGER_VERSION` 34 to 35. Existing tables `haex_mcp_agents`,
+`0053_sync_rules_source_target`), `HAEX_TRIGGER_VERSION` 34 to 35. Existing tables `haex_mcp_agents`,
 `haex_mcp_agent_grants` stay; the grant rows stop being read (R8).
 
 **Testing**: `cargo test --lib -- agent_profiles mcp_server agent_browser grant_rows`, migration tests next to
@@ -153,7 +153,7 @@ src-tauri/src/
 │   ├── commands.rs                  # Tauri commands (contracts/)
 │   └── *_tests.rs
 ├── identity/
-│   ├── migrations.rs                # register 0054, bump HOLZI_TRIGGER_VERSION to 35
+│   ├── migrations.rs                # register 0054, bump HAEX_TRIGGER_VERSION to 35
 │   ├── migrations_agent_profiles.rs # new: the three tables
 │   └── migrations_legacy_names.rs   # only if another branch took 0054
 ├── mcp_server/

@@ -388,7 +388,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich habe keine Aktion gefunden, um einen Wecker einzustellen. Holzi bietet keine integrierte Weckerfunktion.\n\nIch kann dir jedoch sagen, dass du den Wecker auf deinem Gerät manuell über die Einstellungen einrichten musst. Möchtest du, dass ich dir helfe, die Einstellungen zu öffnen, um den Wecker do"
+      "text": "Ich habe keine Aktion gefunden, um einen Wecker einzustellen. HaexVault bietet keine integrierte Weckerfunktion.\n\nIch kann dir jedoch sagen, dass du den Wecker auf deinem Gerät manuell über die Einstellungen einrichten musst. Möchtest du, dass ich dir helfe, die Einstellungen zu öffnen, um den Wecker do"
     },
     {
       "id": "no_tool-de-4",
@@ -558,7 +558,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich habe keine direkte Möglichkeit, einen Wecker in holzi einzustellen. Ich kann dir jedoch helfen, die Einstellungen zu öffnen, um dort einen Wecker zu setzen. Möchtest du, dass ich die Einstellungen öffne?"
+      "text": "Ich habe keine direkte Möglichkeit, einen Wecker in haex-vault einzustellen. Ich kann dir jedoch helfen, die Einstellungen zu öffnen, um dort einen Wecker zu setzen. Möchtest du, dass ich die Einstellungen öffne?"
     },
     {
       "id": "mail_read-en-2",

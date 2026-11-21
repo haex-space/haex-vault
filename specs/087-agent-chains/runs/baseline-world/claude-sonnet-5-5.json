@@ -160,18 +160,18 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "Es gibt keine Kalender-App in holzi. Wie soll ich mit dem Zahnarzttermin morgen (19.03.2026) um 10:00 Uhr verfahren?",
+            "question": "Es gibt keine Kalender-App in haex-vault. Wie soll ich mit dem Zahnarzttermin morgen (19.03.2026) um 10:00 Uhr verfahren?",
             "options": [
               "Im Web-Kalender öffnen (z. B. Google Kalender oder Outlook)",
               "haex-mail öffnen, um dort nach einer Kalenderfunktion zu schauen",
-              "Nach weiteren Kalender-Funktionen in holzi suchen",
+              "Nach weiteren Kalender-Funktionen in haex-vault suchen",
               "Abbrechen"
             ]
           },
           "ending": "ran"
         }
       ],
-      "text": "Es gibt keine Kalender-App in holzi. Wie soll ich mit dem Zahnarzttermin morgen (19.03.2026) um 10:00 Uhr verfahren?"
+      "text": "Es gibt keine Kalender-App in haex-vault. Wie soll ich mit dem Zahnarzttermin morgen (19.03.2026) um 10:00 Uhr verfahren?"
     },
     {
       "id": "no_tool-de-4",
@@ -199,7 +199,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "In holzi gibt es keine Einkaufslisten-App. Wo soll ich die Milch notieren?",
+            "question": "In haex-vault gibt es keine Einkaufslisten-App. Wo soll ich die Milch notieren?",
             "options": [
               "Als Textdatei in Dateien anlegen",
               "Im Chat als Notiz festhalten",
@@ -209,7 +209,7 @@
           "ending": "ran"
         }
       ],
-      "text": "In holzi gibt es keine Einkaufslisten-App. Wo soll ich die Milch notieren?"
+      "text": "In haex-vault gibt es keine Einkaufslisten-App. Wo soll ich die Milch notieren?"
     },
     {
       "id": "no_tool-en-3",
@@ -238,7 +238,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "holzi has no calendar app or calendar action, so I can't add the dentist appointment (tomorrow, Thursday 2026-03-19, 10:00) to a calendar. How would you like to proceed?",
+            "question": "haex-vault has no calendar app or calendar action, so I can't add the dentist appointment (tomorrow, Thursday 2026-03-19, 10:00) to a calendar. How would you like to proceed?",
             "options": [
               "Draft an email to myself in haex-mail as a reminder for the appointment",
               "Open haex-mail so I can handle it there",
@@ -248,7 +248,7 @@
           "ending": "ran"
         }
       ],
-      "text": "holzi has no calendar app or calendar action, so I can't add the dentist appointment (tomorrow, Thursday 2026-03-19, 10:00) to a calendar. How would you like to proceed?"
+      "text": "haex-vault has no calendar app or calendar action, so I can't add the dentist appointment (tomorrow, Thursday 2026-03-19, 10:00) to a calendar. How would you like to proceed?"
     },
     {
       "id": "no_tool-en-4",
@@ -276,7 +276,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "I couldn't find a shopping list in holzi. How would you like me to note the milk?",
+            "question": "I couldn't find a shopping list in haex-vault. How would you like me to note the milk?",
             "options": [
               "Add \"Milk\" to a text file in Dateien (Files)",
               "Send myself a note with haex-mail",
@@ -286,7 +286,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I couldn't find a shopping list in holzi. How would you like me to note the milk?"
+      "text": "I couldn't find a shopping list in haex-vault. How would you like me to note the milk?"
     }
   ],
   "requests": [

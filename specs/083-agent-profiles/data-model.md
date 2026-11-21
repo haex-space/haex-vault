@@ -6,7 +6,7 @@
 
 No `vault_device_uuid`, no UNIQUE besides the primary key (a conflict halts the sync), no cascading foreign key
 (deletes are explicit CRDT deletes in the same write, so each leaves its marker; `passwords/trash.rs` is the
-precedent). `HOLZI_TRIGGER_VERSION` 34 to 35, with a line in its history comment.
+precedent). `HAEX_TRIGGER_VERSION` 34 to 35, with a line in its history comment.
 
 | Table                        | Column        | Type                     | Meaning                                                                        |
 | ---------------------------- | ------------- | ------------------------ | ------------------------------------------------------------------------------ |
@@ -162,7 +162,7 @@ removal, and the removal's tombstone expires after 90 days, so no check against 
 insert, and a removal deletes the row that holds the membership (matched by subject and profile, whatever its id), which every
 device applies as an ordinary delete. Adding checks for the membership by subject and profile too, so a legacy row is never
 doubled. The migration adds the non-unique index `haex_agent_profile_members_subject` (SQL cannot compute a UUIDv5) and
-nothing else. The active profile starts as "Standard". `HOLZI_TRIGGER_VERSION` rises to 37, so a device on an older version is refused by the
+nothing else. The active profile starts as "Standard". `HAEX_TRIGGER_VERSION` rises to 37, so a device on an older version is refused by the
 sync handshake, as for any schema change.
 
 ## The reset

@@ -6,7 +6,7 @@ Date: 2026-09-30
 ## Decision
 
 Every agent-callable action of the window manager and the settings (specs 020
-and 023) is offered to the models that holzi's own chat drives: local models
+and 023) is offered to the models that haex-vault's own chat drives: local models
 and providers reached with an API key. There is one definition per action and
 two entrances to it.
 

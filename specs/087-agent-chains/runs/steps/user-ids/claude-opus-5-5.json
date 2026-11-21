@@ -131,7 +131,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "In holzi gibt es keine Einkaufsliste. Wie soll ich „Milch“ notieren?",
+            "question": "In haex-vault gibt es keine Einkaufsliste. Wie soll ich „Milch“ notieren?",
             "options": [
               "Eine Einkaufsliste als Datei in „Dateien“ anlegen und Milch eintragen",
               "Ich nenne dir den Namen der Datei mit meiner Einkaufsliste",
@@ -141,7 +141,7 @@
           "ending": "ran"
         }
       ],
-      "text": "In holzi gibt es keine Einkaufsliste. Wie soll ich „Milch“ notieren?"
+      "text": "In haex-vault gibt es keine Einkaufsliste. Wie soll ich „Milch“ notieren?"
     },
     {
       "id": "no_tool-en-3",
@@ -175,7 +175,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "There is no calendar in holzi. How should I handle the dentist appointment on Thursday, 2026-03-19 at 10:00?",
+            "question": "There is no calendar in haex-vault. How should I handle the dentist appointment on Thursday, 2026-03-19 at 10:00?",
             "options": [
               "Write myself a reminder email with haex-mail",
               "Open a web calendar (e.g. Google Calendar) in the browser",
@@ -185,7 +185,7 @@
           "ending": "ran"
         }
       ],
-      "text": "There is no calendar in holzi. How should I handle the dentist appointment on Thursday, 2026-03-19 at 10:00?"
+      "text": "There is no calendar in haex-vault. How should I handle the dentist appointment on Thursday, 2026-03-19 at 10:00?"
     },
     {
       "id": "no_tool-en-4",

@@ -191,7 +191,7 @@ existiert schon einmal; eine zweite Liste müsste sie an fünf Stellen duplizier
 
 **Decision**: `src/components/chat/ChoicePrompt.vue` nach `PermissionPrompt.vue`: `UiDrawerModal`,
 Frage, `ShadcnRadioGroup` mit `ShadcnRadioGroupItem` je Kandidat (haex-ui, eingeführt mit
-haex-space/haextension#75; holzi stellt in PR #337 alle Radio-Stellen darauf um), Option „Etwas anderes …“
+haex-space/haextension#75; haex-vault stellt in PR #337 alle Radio-Stellen darauf um), Option „Etwas anderes …“
 als weiteres Item mit `UiInput`, Footer mit `UiButton` „Abbrechen“ (outline) und „Bestätigen“. Schließen des Dialogs =
 Abbrechen der Rückfrage (nicht des Turns). Antwort über die Aktion `chat.choice.answer`
 (`chatActions.ts`, Scope `guardrails` wie `chat.approval.decide`) → `invoke('respond_choice', ...)`.
@@ -209,7 +209,7 @@ i18n unter `chat.choice.*`.
 
 ## R12 — Agent-Kontextdatei
 
-**Decision**: Entfällt. `CLAUDE.md` wurde mit `c082fe89` („migrate holzi to spaex v4“) entfernt; es gibt
+**Decision**: Entfällt. `CLAUDE.md` wurde mit `c082fe89` („migrate haex-vault to spaex v4“) entfernt; es gibt
 keine Datei mit `SPECKIT`-Markern.
 
 ## R13 — Kernangebot: `wm.apps.list` raus, `ask_user` rein (beim Umsetzen entschieden)
@@ -274,12 +274,12 @@ und nie Ids wie App-Ids oder UUIDs zu zeigen; das gilt auch für Unterhaltungen,
 Listen. Damit der Agent eine Erweiterung stattdessen beschreiben kann, gibt `wm.apps.list` die
 Beschreibung aus ihrem Manifest mit (`description`, nur wenn vorhanden; System-Apps haben keine).
 
-## R18 — `run_command` ist kein Ausweg für holzi-Daten (beim Testen gefunden)
+## R18 — `run_command` ist kein Ausweg für haex-vault-Daten (beim Testen gefunden)
 
 Auf „Wie viele ungelesene Mails habe ich?“ wollte Qwen3-4B `run_command` mit dem erfundenen Befehl
 `mail count unread` ausführen; nur die Freigabe hielt es auf. An die Daten einer Erweiterung kommt der
 Agent erst mit den geplanten Specs 018 (Werkzeuge über MCP) und 019 (Werkzeuge in den haextensions).
 Bis dahin grenzt die Beschreibung von `run_command` (`chat/tools/cli.rs`) das Werkzeug ein: nur wenn
 der Nutzer etwas auf dem Gerät ausführen lassen will, es erreicht Programme und Dateien des Geräts,
-nicht holzis Apps oder Erweiterungen oder deren Daten, und nie einen erfundenen Befehl. Das Eval-Set
+nicht haex-vaults Apps oder Erweiterungen oder deren Daten, und nie einen erfundenen Befehl. Das Eval-Set
 bietet `run_command` nicht an; ob das Modell der Beschreibung folgt, zeigt nur der Test in der App.

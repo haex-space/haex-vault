@@ -6,12 +6,12 @@
 
 **Status**: Draft
 
-**Input**: User description: "Speicherverbindungen (S3) in holzi und ihre Weitergabe an
-Erweiterungen. Grundsatz des Betreibers: holzi spricht die Protokolle selbst (IMAP, SMTP, S3, ICS …)
+**Input**: User description: "Speicherverbindungen (S3) in HaexVault und ihre Weitergabe an
+Erweiterungen. Grundsatz des Betreibers: HaexVault spricht die Protokolle selbst (IMAP, SMTP, S3, ICS …)
 und reicht sie über Berechtigungen an Erweiterungen weiter; Erweiterungen bekommen nie Zugangsdaten.
 Diese Spec definiert die Speicherverbindungen, die der Dateibrowser und Spec 056 nutzen. Umfang:
 Verbindungen anlegen, ändern, prüfen, entfernen (Zugangsdaten im Passwortmanager 034); ein S3-Client in
-holzi; Erweiterungen erreichen eine Verbindung nur mit Berechtigung je Speicher und unter einem eigenen
+HaexVault; Erweiterungen erreichen eine Verbindung nur mit Berechtigung je Speicher und unter einem eigenen
 Schlüsselpräfix (Spec 017 T106, die neun Funktionen `extension_remote_storage_*` des vault-sdk)."
 
 ## Begriffe
@@ -21,19 +21,19 @@ Schlüsselpräfix (Spec 017 T106, die neun Funktionen `extension_remote_storage_
 - **Speicher**: ein Bucket auf einer Speicherverbindung, mit einem Namen, den der Nutzer vergibt.
   Ihn sieht eine Erweiterung als „Backend“ des vault-sdk. Eine Speicherverbindung kann mehrere
   Speicher tragen.
-- **Verbindungstest**: die Prüfung, ob holzi mit den Zugangsdaten den Endpunkt erreicht und im Bucket
+- **Verbindungstest**: die Prüfung, ob HaexVault mit den Zugangsdaten den Endpunkt erreicht und im Bucket
   eines Speichers auflisten, schreiben, lesen und löschen kann. Eine weitergehende S3-Eignungsprüfung
   ist nicht Teil dieser Spec.
 - **Bereich einer Erweiterung**: der Teil eines Speichers, den eine Erweiterung sieht: alle Objekte
   unter einem Schlüsselpräfix, das nur ihr gehört. Die Erweiterung sieht die Schlüssel ohne dieses
   Präfix.
-- **Erweiterung**, **Berechtigung** (Zustand erteilt, verweigert, fragen), **Dialog von holzi**: wie in
+- **Erweiterung**, **Berechtigung** (Zustand erteilt, verweigert, fragen), **Dialog von HaexVault**: wie in
   Spec 017.
 - **Passwortmanager**: Spec 034. Er verwahrt die Zugangsdaten der Speicherverbindungen.
 
 ## Beziehung zu bestehenden Specs
 
-- **Grundsatz**: holzi spricht die Protokolle selbst (IMAP, SMTP, S3, ICS …) und gibt sie über
+- **Grundsatz**: HaexVault spricht die Protokolle selbst (IMAP, SMTP, S3, ICS …) und gibt sie über
   Berechtigungen an Erweiterungen weiter. Eine Erweiterung bekommt nie Zugangsdaten, nur das, was ihre
   Berechtigung erlaubt. Diese Spec setzt das für S3 um.
 - **Spec 017** (Erweiterungs-Host): Diese Spec erfüllt T106, User Story 10 (Szenarien 2 bis 4) und
@@ -55,11 +55,11 @@ Schlüsselpräfix (Spec 017 T106, die neun Funktionen `extension_remote_storage_
 - Q: Gilt eine Speicherverbindung vault-weit oder nur auf einem Gerät? → A: Vault-weit: Sie liegt
   im Passwortmanager und kommt mit dem Datensync auf alle eigenen Geräte.
 - Q: Darf eine Erweiterung einen Speicher anlegen, ändern, prüfen oder entfernen? → A: Ja, aber jedes
-  Mal nur nach Bestätigung in einem Dialog von holzi (Spec 017 FR-055).
+  Mal nur nach Bestätigung in einem Dialog von HaexVault (Spec 017 FR-055).
 - Q: Wer gibt die Zugangsdaten ein, wenn eine Erweiterung einen Speicher vorschlägt? → A: Nur der
-  Nutzer, in holzi. Zugangsdaten werden ausschließlich in den Einstellungen oder im Dialog von holzi
+  Nutzer, in HaexVault. Zugangsdaten werden ausschließlich in den Einstellungen oder im Dialog von HaexVault
   angelegt und geändert und landen direkt im Passwortmanager (Review 2026-10-06: beim Anstoß durch
-  eine Erweiterung im Fenster von holzi über der ganzen App, nicht im Dialog über dem Tab, FR-013a).
+  eine Erweiterung im Fenster von HaexVault über der ganzen App, nicht im Dialog über dem Tab, FR-013a).
   Eine Erweiterung kann einen neuen
   Anbieter oder Bucket anstoßen und dafür Name, Anbieter, Endpunkt, Region und Bucket vorschlagen,
   aber keine Zugangsdaten; ein Aufruf mit Zugangsdaten wird abgelehnt.
@@ -69,14 +69,14 @@ Schlüsselpräfix (Spec 017 T106, die neun Funktionen `extension_remote_storage_
 
 ## User Scenarios & Testing _(mandatory)_
 
-### User Story 1 - Eigenen Speicher in holzi verbinden (Priority: P1)
+### User Story 1 - Eigenen Speicher in HaexVault verbinden (Priority: P1)
 
-Anna hat einen Bucket bei einem S3-kompatiblen Anbieter. In den Einstellungen von holzi legt sie eine
+Anna hat einen Bucket bei einem S3-kompatiblen Anbieter. In den Einstellungen von HaexVault legt sie eine
 Speicherverbindung an (Endpunkt, Region, Zugangsdaten) und darauf einen Speicher für ihren Bucket.
-holzi testet die Verbindung, bevor es etwas speichert, und zeigt das Ergebnis. Sie kann den Speicher
+HaexVault testet die Verbindung, bevor es etwas speichert, und zeigt das Ergebnis. Sie kann den Speicher
 später umbenennen, die Zugangsdaten erneuern, erneut testen und ihn entfernen.
 
-**Why this priority**: Ohne Speicher gibt es nichts, das holzi an Erweiterungen weitergeben könnte,
+**Why this priority**: Ohne Speicher gibt es nichts, das HaexVault an Erweiterungen weitergeben könnte,
 und Spec 056 braucht dieselben Speicherverbindungen als mögliche Dateiquellen.
 
 **Independent Test**: Gegen einen lokalen S3-kompatiblen Testserver eine Verbindung und einen Speicher
@@ -86,17 +86,17 @@ mehr in der Vault.
 **Acceptance Scenarios**:
 
 1. **Given** gültige Zugangsdaten und ein erreichbarer Endpunkt, **When** Anna eine Verbindung mit
-   einem Speicher anlegt, **Then** testet holzi den Speicher, speichert Verbindung und Speicher erst
+   einem Speicher anlegt, **Then** testet HaexVault den Speicher, speichert Verbindung und Speicher erst
    danach, und die Zugangsdaten liegen im Passwortmanager.
 2. **Given** falsche Zugangsdaten, ein nicht erreichbarer Endpunkt oder ein fehlender Bucket, **When**
-   Anna speichern will, **Then** nennt holzi den Grund verständlich und speichert nichts.
+   Anna speichern will, **Then** nennt HaexVault den Grund verständlich und speichert nichts.
 3. **Given** eine gespeicherte Verbindung, **When** Anna einen zweiten Speicher (anderer Bucket) darauf
    anlegt, **Then** muss sie die Zugangsdaten nicht erneut eingeben.
 4. **Given** ein gespeicherter Speicher, **When** Anna ihn öffnet, **Then** sieht sie Name, Anbieter,
    Endpunkt, Region und Bucket, aber nie das Geheimnis der Zugangsdaten im Klartext ohne eigene
    Aktion (wie bei Passwörtern in 034).
 5. **Given** eine Verbindung mit zwei Speichern, **When** Anna die Verbindung entfernen will, **Then**
-   nennt holzi die Speicher und die Erweiterungen mit Berechtigung darauf, und nach Bestätigung sind
+   nennt HaexVault die Speicher und die Erweiterungen mit Berechtigung darauf, und nach Bestätigung sind
    Verbindung, Speicher, Zugangsdaten und diese Berechtigungen weg. Die Objekte beim Anbieter bleiben.
 
 ---
@@ -107,7 +107,7 @@ Eine Backup-Erweiterung lädt Dateien in Annas Speicher hoch, listet sie auf, l�
 löscht alte. Sie sieht nur ihren eigenen Bereich in diesem Speicher und keinen anderen Speicher, und
 sie erfährt nie die Zugangsdaten.
 
-**Why this priority**: Das ist der Zweck von T106: das Protokoll in holzi, die Nutzung in der
+**Why this priority**: Das ist der Zweck von T106: das Protokoll in HaexVault, die Nutzung in der
 Erweiterung.
 
 **Independent Test**: Eine Test-Erweiterung mit Berechtigung „Lesen und Schreiben“ für einen Speicher
@@ -130,14 +130,14 @@ erreichbar.
    `*`), jeweils nur mit Kennung, Name des Speichers, Name des Anbieters und Name des Buckets, nie mit
    Endpunkt, Region oder Zugangsdaten, und kann sie als Auswahl anbieten.
 5. **Given** eine Erweiterung ohne Leseberechtigung für S3-Speicher, **When** sie die Speicher
-   auflistet, **Then** fragt holzi nach Spec 017, wenn eine solche Berechtigung im Zustand „fragen“
+   auflistet, **Then** fragt HaexVault nach Spec 017, wenn eine solche Berechtigung im Zustand „fragen“
    ist, und lehnt sonst ab; sie erhält nie Namen (Review 2026-10-06: keine leere Liste, wie
    `contracts/bridge.md`).
-6. **Given** ein Speicher im Zustand „fragen“, **When** die Erweiterung ihn nutzt, **Then** fragt holzi
+6. **Given** ein Speicher im Zustand „fragen“, **When** die Erweiterung ihn nutzt, **Then** fragt HaexVault
    wie bei jeder Berechtigung (Spec 017), und eine Verweigerung beendet den Aufruf.
 7. **Given** ein Objekt, das größer ist als die Grenzwerte der Erweiterung erlauben, **When** sie es
    hoch- oder herunterladen will, **Then** wird der Aufruf mit einem eigenen Fehler abgelehnt, und
-   holzi bleibt stabil.
+   HaexVault bleibt stabil.
 
 ---
 
@@ -145,11 +145,11 @@ erreichbar.
 
 Eine Erweiterung bietet an, einen neuen Anbieter oder Bucket einzurichten. Sie ruft dazu die Funktion
 des SDK auf und schlägt Name, Anbieter, Endpunkt, Region und Bucket vor, oder einen neuen Bucket auf
-einem schon verbundenen Anbieter. holzi öffnet seinen eigenen Dialog; dort prüft Anna die Angaben und
-bestätigt. Die Zugangsdaten gibt sie danach in einem Fenster von holzi über der ganzen App ein, nie im
-Tab der Erweiterung (Review 2026-10-06). holzi testet, legt die Zugangsdaten direkt im Passwortmanager ab
+einem schon verbundenen Anbieter. HaexVault öffnet seinen eigenen Dialog; dort prüft Anna die Angaben und
+bestätigt. Die Zugangsdaten gibt sie danach in einem Fenster von HaexVault über der ganzen App ein, nie im
+Tab der Erweiterung (Review 2026-10-06). HaexVault testet, legt die Zugangsdaten direkt im Passwortmanager ab
 und gibt der Erweiterung danach eine Berechtigung für genau diesen Speicher. Ändern, Testen und
-Entfernen durch eine Erweiterung laufen ebenso über einen Dialog von holzi.
+Entfernen durch eine Erweiterung laufen ebenso über einen Dialog von HaexVault.
 
 **Why this priority**: Komfort für Erweiterungen, die einen eigenen Speicher brauchen; Anna kann
 denselben Speicher auch in den Einstellungen anlegen (US1) und freigeben.
@@ -162,27 +162,27 @@ abgelehnt, ohne dass ein Dialog erscheint.
 **Acceptance Scenarios**:
 
 1. **Given** eine Erweiterung ruft „Speicher hinzufügen“ mit Name, Anbieter, Endpunkt, Region und
-   Bucket auf, **When** Anna im Dialog von holzi bestätigt und die Zugangsdaten im Fenster von holzi
+   Bucket auf, **When** Anna im Dialog von HaexVault bestätigt und die Zugangsdaten im Fenster von HaexVault
    über der ganzen App eingibt, **Then** testet
-   holzi den Speicher (wie US1), legt die Zugangsdaten im Passwortmanager ab, legt Verbindung und
+   HaexVault den Speicher (wie US1), legt die Zugangsdaten im Passwortmanager ab, legt Verbindung und
    Speicher an, erteilt der Erweiterung „Lesen und Schreiben“ dafür und gibt ihr die Kennung des
    Speichers zurück.
 2. **Given** eine Erweiterung schlägt einen neuen Bucket auf einem schon verbundenen Anbieter vor,
-   **When** Anna bestätigt, **Then** nutzt holzi die vorhandenen Zugangsdaten, ohne dass Anna sie neu
+   **When** Anna bestätigt, **Then** nutzt HaexVault die vorhandenen Zugangsdaten, ohne dass Anna sie neu
    eingibt.
 3. **Given** derselbe Aufruf, **When** Anna abbricht oder der Test scheitert, **Then** wird nichts
    angelegt, und die Erweiterung erhält einen Fehler ohne Zugangsdaten.
-4. **Given** eine Erweiterung schickt Zugangsdaten mit (beim Hinzufügen oder Ändern), **When** holzi
-   den Aufruf erhält, **Then** lehnt holzi ihn ab, bevor ein Dialog erscheint, und speichert nichts.
+4. **Given** eine Erweiterung schickt Zugangsdaten mit (beim Hinzufügen oder Ändern), **When** HaexVault
+   den Aufruf erhält, **Then** lehnt HaexVault ihn ab, bevor ein Dialog erscheint, und speichert nichts.
 5. **Given** ein Speicher, **When** eine Erweiterung ihn ändern (Name, Bucket), testen oder entfernen
    will, **Then** geht das nur mit einer Berechtigung „Lesen und Schreiben“ für diesen Speicher und
-   nur nach Bestätigung im Dialog von holzi; neue Zugangsdaten gibt Anna danach im Fenster von holzi
+   nur nach Bestätigung im Dialog von HaexVault; neue Zugangsdaten gibt Anna danach im Fenster von HaexVault
    über der ganzen App ein.
 6. **Given** eine Erweiterung entfernt einen Speicher, den auch andere Erweiterungen nutzen, **When**
    der Dialog erscheint, **Then** nennt er diese Erweiterungen.
 7. **Given** die Zugangsdaten eines Speichers, **When** eine Erweiterung irgendeine Funktion nutzt,
    auch die Passwort-Funktionen mit einer Freigabe für `*`, **Then** erreicht sie die Zugangsdaten nie
-   (gilt für von holzi angelegte Einträge; für einen vom Nutzer gewählten Eintrag gelten dessen
+   (gilt für von HaexVault angelegte Einträge; für einen vom Nutzer gewählten Eintrag gelten dessen
    Freigaben, Spec 052).
 
 ---
@@ -204,24 +204,24 @@ auf Gerät 2 testen und von einer Erweiterung dort hochladen lassen.
    Gerät 2 mit Zugangsdaten bereit, ohne erneute Eingabe.
 2. **Given** ein auf Gerät 1 entfernter Speicher, **When** der Sync gelaufen ist, **Then** ist er auf
    Gerät 2 weg, mit seinen Zugangsdaten und den Berechtigungen dafür.
-3. **Given** holzi auf Android oder iOS, **When** eine Erweiterung einen Speicher nutzt, **Then** geht
+3. **Given** HaexVault auf Android oder iOS, **When** eine Erweiterung einen Speicher nutzt, **Then** geht
    das wie am Desktop.
 
 ### Edge Cases
 
 - **Zugangsdaten beim Anbieter widerrufen oder abgelaufen**: Aufrufe der Erweiterung scheitern mit
-  einem Fehler „Zugang abgelehnt“, ohne Details der Zugangsdaten; in den Einstellungen zeigt holzi
+  einem Fehler „Zugang abgelehnt“, ohne Details der Zugangsdaten; in den Einstellungen zeigt HaexVault
   am Speicher, dass neue Zugangsdaten nötig sind.
-- **Anbieter nicht erreichbar**: Aufruf scheitert mit einem Netzwerkfehler; holzi bleibt stabil, kein
+- **Anbieter nicht erreichbar**: Aufruf scheitert mit einem Netzwerkfehler; HaexVault bleibt stabil, kein
   Aufruf hängt länger als die Laufzeitgrenze der Erweiterung.
 - **Bucket wird beim Anbieter gelöscht**: Aufrufe scheitern mit „nicht gefunden“; der Speicher bleibt,
   bis Anna ihn entfernt.
 - **Schlüssel einer Erweiterung, der aus ihrem Bereich führt** (`..`, führendes `/`, leere Teile,
-  Steuerzeichen, zu lang): wird abgelehnt, bevor holzi den Anbieter fragt.
+  Steuerzeichen, zu lang): wird abgelehnt, bevor HaexVault den Anbieter fragt.
 - **Sehr viele Objekte im Bereich**: Auflisten liefert höchstens so viele Objekte, wie die Grenzwerte
   der Erweiterung erlauben; gibt es mehr, scheitert der Aufruf mit einem eigenen Fehler, der auf ein
   engeres Präfix hinweist.
-- **Verbindung kommt vor ihren Zugangsdaten an** (Sync noch nicht fertig): holzi zeigt am Speicher „wird
+- **Verbindung kommt vor ihren Zugangsdaten an** (Sync noch nicht fertig): HaexVault zeigt am Speicher „wird
   synchronisiert“, nicht „neue Zugangsdaten nötig“; Aufrufe einer Erweiterung scheitern bis dahin mit
   dem Netzwerkfehler.
 - **Dieselbe Verbindung, zweites Gerät ändert gleichzeitig**: Es gilt die zuletzt synchronisierte
@@ -237,18 +237,18 @@ auf Gerät 2 testen und von einer Erweiterung dort hochladen lassen.
 
 **Speicherverbindungen und Speicher**
 
-- **FR-001**: Der Nutzer MUSS in den Einstellungen von holzi Speicherverbindungen zu S3-kompatiblen
+- **FR-001**: Der Nutzer MUSS in den Einstellungen von HaexVault Speicherverbindungen zu S3-kompatiblen
   Anbietern anlegen, ändern und entfernen können: Endpunkt, Region, Adressierung und Zugangsdaten
   (Zugangsschlüssel und Geheimnis, optional ein Sitzungstoken).
 - **FR-002**: Der Nutzer MUSS auf einer Verbindung Speicher anlegen, umbenennen und entfernen können:
   je Speicher ein Name und ein Bucket. Mehrere Speicher DÜRFEN sich eine Verbindung teilen; die
   Zugangsdaten werden dann nicht erneut eingegeben.
 - **FR-003**: Vor dem ersten Speichern und nach jeder Änderung der Zugangsdaten, des Endpunkts, der
-  Region, der Adressierung oder des Buckets (Region und Adressierung: Review 2026-10-06) MUSS holzi den Verbindungstest ausführen. Schlägt er fehl, MUSS holzi den Grund
+  Region, der Adressierung oder des Buckets (Region und Adressierung: Review 2026-10-06) MUSS HaexVault den Verbindungstest ausführen. Schlägt er fehl, MUSS HaexVault den Grund
   verständlich nennen (Zugangsdaten falsch, Endpunkt nicht erreichbar, Bucket fehlt, Recht fehlt)
   und DARF nichts speichern. Ein Test DARF beim Anbieter nichts außer seinem eigenen Testobjekt
   zurücklassen, und das nur, wenn der Anbieter das Löschen verweigert oder nicht mehr erreichbar ist;
-  dann nennt holzi den Schlüssel des Objekts (SC-004).
+  dann nennt HaexVault den Schlüssel des Objekts (SC-004).
 - **FR-004**: Der Nutzer MUSS einen gespeicherten Speicher jederzeit erneut testen können.
 - **FR-005**: Die Zugangsdaten MÜSSEN im Passwortmanager (034) liegen und DÜRFEN sonst nirgends in
   lesbarer Form gespeichert werden. Das Geheimnis zeigt nur der Passwortmanager auf eine eigene Aktion
@@ -257,14 +257,14 @@ auf Gerät 2 testen und von einer Erweiterung dort hochladen lassen.
   für ihn gelten die Freigaben des Passwortmanagers wie für jeden Eintrag.
 - **FR-006**: Speicherverbindungen und Speicher MÜSSEN Vault-Daten sein und mit dem Datensync (Spec 024)
   auf alle eigenen Geräte gelangen.
-- **FR-007**: Beim Entfernen einer Verbindung oder eines Speichers MUSS holzi vorher die betroffenen
+- **FR-007**: Beim Entfernen einer Verbindung oder eines Speichers MUSS HaexVault vorher die betroffenen
   Speicher und die Erweiterungen mit Berechtigung darauf nennen. Danach MÜSSEN die Zugangsdaten (wenn
   keine Verbindung sie mehr nutzt) und alle Berechtigungen für die betroffenen Speicher entfernt sein.
-  Objekte und Buckets beim Anbieter DARF holzi dabei NICHT löschen.
+  Objekte und Buckets beim Anbieter DARF HaexVault dabei NICHT löschen.
 
 **Weitergabe an Erweiterungen**
 
-- **FR-008**: holzi MUSS die neun Funktionen `extension_remote_storage_*` des vault-sdk anbieten:
+- **FR-008**: HaexVault MUSS die neun Funktionen `extension_remote_storage_*` des vault-sdk anbieten:
   Speicher auflisten, hinzufügen, ändern, testen, entfernen sowie Objekte hochladen, herunterladen,
   auflisten und löschen. Ein Speicher der SDK-Funktionen ist ein Speicher dieser Spec.
 - **FR-009**: Eine Erweiterung MUSS für einen Speicher eine Berechtigung der Art `remoteStorage`
@@ -275,9 +275,9 @@ auf Gerät 2 testen und von einer Erweiterung dort hochladen lassen.
 - **FR-009b** (Betreiber 2026-10-06): Schlägt eine Erweiterung beim Hinzufügen einen eigenen Endpunkt
   vor (nicht `sameProviderAs`), MUSS sie dafür eine Berechtigung `remoteStorage` mit der Aktion `add`
   und dem Host des Endpunkts (`host:port`, `host` für alle Ports oder `*`) als Ziel haben; im Zustand
-  „fragen“ fragt holzi nach Spec 017 und nennt dabei den Host. Mit dieser Berechtigung darf der
+  „fragen“ fragt HaexVault nach Spec 017 und nennt dabei den Host. Mit dieser Berechtigung darf der
   Endpunkt auch im lokalen Netz oder auf dem eigenen Rechner liegen und dort `http` nutzen (FR-017).
-  Die Bestätigung im Dialog und die Zugangsdaten im Fenster von holzi bleiben nötig (FR-013a);
+  Die Bestätigung im Dialog und die Zugangsdaten im Fenster von HaexVault bleiben nötig (FR-013a);
   „Lesen und Schreiben“ deckt `add` nicht. Ein Vorschlag für AWS nur mit Region gilt als eigener
   Endpunkt mit dem Host `s3.<region>.amazonaws.com` (Betreiber in #285, Review von PR D).
 - **FR-009a**: Die Liste der Speicher für eine Erweiterung MUSS je Speicher nur Kennung, Art (`s3`),
@@ -290,26 +290,26 @@ auf Gerät 2 testen und von einer Erweiterung dort hochladen lassen.
   Erweiterung mit demselben Herausgeberschlüssel und Namen (Review 2026-10-06). Die Erweiterung sieht
   und nennt Schlüssel ohne dieses Präfix. Kein Aufruf DARF ein Objekt außerhalb ihres Bereichs auflisten, lesen, schreiben
   oder löschen.
-- **FR-011**: holzi MUSS jeden Schlüssel einer Erweiterung vor dem Aufruf beim Anbieter prüfen und
+- **FR-011**: HaexVault MUSS jeden Schlüssel einer Erweiterung vor dem Aufruf beim Anbieter prüfen und
   Schlüssel ablehnen, die aus dem Bereich führen oder ungültig sind (`..`, führendes `/`, leere Teile,
   Steuerzeichen, mehr als die Längengrenze des Anbieters zusammen mit dem Präfix).
 - **FR-012**: Eine Erweiterung DARF Zugangsdaten nie erreichen: weder in Antworten der Speicher-
   Funktionen noch in Fehlermeldungen noch über die Passwort-Funktionen (Spec 017 US10), auch nicht
   mit einer Freigabe für alle Einträge.
 - **FR-013**: Hinzufügen, Ändern, Testen und Entfernen eines Speichers durch eine Erweiterung MUSS jedes
-  Mal eine Bestätigung in einem Dialog von holzi verlangen (Spec 017 FR-055). Ändern, Testen und
+  Mal eine Bestätigung in einem Dialog von HaexVault verlangen (Spec 017 FR-055). Ändern, Testen und
   Entfernen MÜSSEN zusätzlich eine Berechtigung „Lesen und Schreiben“ für diesen Speicher verlangen.
   Ein bestätigtes Hinzufügen MUSS der Erweiterung „Lesen und Schreiben“ für den neuen Speicher
   erteilen.
-- **FR-013a**: Zugangsdaten DÜRFEN nur in holzi angelegt und geändert werden: in den Einstellungen
-  (FR-001) oder, wenn eine Erweiterung es anstößt, in einem Fenster von holzi über der ganzen App, das
-  holzi erst nach der Bestätigung im Dialog öffnet. Felder für Zugangsdaten DÜRFEN nie im Bereich des
+- **FR-013a**: Zugangsdaten DÜRFEN nur in HaexVault angelegt und geändert werden: in den Einstellungen
+  (FR-001) oder, wenn eine Erweiterung es anstößt, in einem Fenster von HaexVault über der ganzen App, das
+  HaexVault erst nach der Bestätigung im Dialog öffnet. Felder für Zugangsdaten DÜRFEN nie im Bereich des
   Tabs einer Erweiterung erscheinen, auch nicht im Dialog über dem Tab, weil eine Erweiterung dort ein
-  gleich aussehendes Formular zeichnen könnte (Review 2026-10-06). holzi MUSS sie direkt im
+  gleich aussehendes Formular zeichnen könnte (Review 2026-10-06). HaexVault MUSS sie direkt im
   Passwortmanager ablegen. Eine Erweiterung DARF beim Hinzufügen nur Name, Anbieter, Endpunkt, Region
   und Bucket vorschlagen, oder einen neuen Bucket auf einer vorhandenen Verbindung; ein Aufruf, der
   Zugangsdaten enthält, MUSS abgelehnt werden, bevor ein Dialog erscheint.
-- **FR-013b**: Scheitert der Test von Zugangsdaten, die der Nutzer im Fenster von holzi eingegeben hat,
+- **FR-013b**: Scheitert der Test von Zugangsdaten, die der Nutzer im Fenster von HaexVault eingegeben hat,
   MUSS dieses Fenster offen bleiben, den Grund so nennen wie die Einstellungen (FR-003) und Korrektur
   oder Abbruch erlauben; gespeichert wird nichts. Die Erweiterung MUSS so lange warten und erfährt nur
   das Ende: den Speicher oder den Abbruch (1002), nie den Grund eines gescheiterten Versuchs
@@ -319,18 +319,18 @@ auf Gerät 2 testen und von einer Erweiterung dort hochladen lassen.
 - **FR-015**: Fehler beim Anbieter MÜSSEN als wenige verständliche Fehlerarten bei der Erweiterung
   ankommen (nicht gefunden, Zugang abgelehnt, Netzwerkfehler, Grenze überschritten), ohne Endpunkt-
   Details, die Zugangsdaten enthalten könnten.
-- **FR-016**: Die Funktionen MÜSSEN auf allen Plattformen von holzi gleich arbeiten, auch auf Android
+- **FR-016**: Die Funktionen MÜSSEN auf allen Plattformen von HaexVault gleich arbeiten, auch auf Android
   und iOS.
 
-**Protokoll in holzi**
+**Protokoll in HaexVault**
 
-- **FR-017**: holzi MUSS das S3-Protokoll selbst sprechen; eine Erweiterung erreicht den Anbieter nur
-  über holzi. Verschlüsselte Verbindungen zum Anbieter MÜSSEN die Zertifikate prüfen; unverschlüsselte
+- **FR-017**: HaexVault MUSS das S3-Protokoll selbst sprechen; eine Erweiterung erreicht den Anbieter nur
+  über HaexVault. Verschlüsselte Verbindungen zum Anbieter MÜSSEN die Zertifikate prüfen; unverschlüsselte
   Endpunkte (`http`) DÜRFEN nur für Adressen im lokalen Netz oder auf dem eigenen Rechner erlaubt sein
   und MÜSSEN im Dialog als unverschlüsselt gekennzeichnet sein. Einen Endpunkt im lokalen Netz oder auf
-  dem eigenen Rechner DARF der Nutzer in holzi eingeben oder eine Erweiterung vorschlagen, die dafür die
+  dem eigenen Rechner DARF der Nutzer in HaexVault eingeben oder eine Erweiterung vorschlagen, die dafür die
   Berechtigung `remoteStorage` mit der Aktion `add` für diesen Host hat (FR-009b); Link-Local-Adressen
-  (auch der Metadatendienst `169.254.169.254`) DÜRFEN nie erreicht werden. holzi MUSS die Adresse vor
+  (auch der Metadatendienst `169.254.169.254`) DÜRFEN nie erreicht werden. HaexVault MUSS die Adresse vor
   jedem Aufruf prüfen, genau die geprüfte Adresse verbinden und einen Endpunkt, der beim Festlegen
   öffentlich war, nie zu einer lokalen Adresse verbinden (Review 2026-10-06, Betreiber 2026-10-06,
   research R8).
@@ -358,9 +358,9 @@ auf Gerät 2 testen und von einer Erweiterung dort hochladen lassen.
 - **SC-003**: In 100 % der Fälle eines Prüfkatalogs aus Schlüsseln, die aus dem Bereich führen sollen,
   erreicht eine Erweiterung kein Objekt außerhalb ihres Bereichs.
 - **SC-004**: Ein gescheiterter Verbindungstest hinterlässt in 100 % der Fälle keine Zugangsdaten in der
-  Vault. Sein Testobjekt löscht holzi auch nach einem gescheiterten Schritt; verweigert der Anbieter das
+  Vault. Sein Testobjekt löscht HaexVault auch nach einem gescheiterten Schritt; verweigert der Anbieter das
   Löschen oder ist er nicht mehr erreichbar, nennt das Ergebnis den Schlüssel des liegengebliebenen
-  Objekts (`holzi-test/<UUID>`), damit der Nutzer es selbst entfernen kann.
+  Objekts (`haex-test/<UUID>`), damit der Nutzer es selbst entfernen kann.
 - **SC-005**: Ein auf einem Gerät angelegter Speicher ist nach dem Sync auf einem zweiten Gerät ohne
   erneute Eingabe nutzbar.
 - **SC-006**: Die neun Funktionen arbeiten nachweislich mit RustFS (selbst betrieben, auch im Test).
@@ -368,7 +368,7 @@ auf Gerät 2 testen und von einer Erweiterung dort hochladen lassen.
 
 ## Assumptions
 
-- Ein **Speicher** ist ein vorhandener Bucket; holzi legt in dieser Spec keine Buckets an und löscht
+- Ein **Speicher** ist ein vorhandener Bucket; HaexVault legt in dieser Spec keine Buckets an und löscht
   keine. Das Anlegen von Buckets gehört zu einer späteren, eigenständigen S3-Verwaltung.
 - Der **Verbindungstest** schreibt, liest, listet und löscht ein eigenes kleines Testobjekt im Bucket;
   Versionierung und eingeschränkte Zugangsschlüssel prüft eine spätere, eigenständige S3-Verwaltung.
@@ -387,9 +387,9 @@ auf Gerät 2 testen und von einer Erweiterung dort hochladen lassen.
 ## Nicht im Umfang
 
 - Spaces, Space-Buckets, Zugangsschlüssel je Space und eine weitergehende S3-Eignungsprüfung.
-- Ein Dateibrowser oder Dateizugriff von holzi auf einem Speicher (Specs 044 und 056); eigene
+- Ein Dateibrowser oder Dateizugriff von HaexVault auf einem Speicher (Specs 044 und 056); eigene
   Dateisync-Regeln bleiben ein späteres Vorhaben.
 - Andere Protokolle (IMAP, SMTP, ICS, FTP). Sie folgen demselben Grundsatz in eigenen Specs. WebDAV und
   SFTP baut Spec 050 ([`050-webdav-sftp-storage`](../050-webdav-sftp-storage/spec.md)).
-- Verschlüsselung der Objekte durch holzi; was eine Erweiterung hochlädt, liegt beim Anbieter so, wie
+- Verschlüsselung der Objekte durch HaexVault; was eine Erweiterung hochlädt, liegt beim Anbieter so, wie
   sie es schickt.

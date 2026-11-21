@@ -19,9 +19,9 @@
 
 ### Session 2026-10-21
 
-- Q: Worüber läuft die Erkennung? → A: Über die Modellaufträge von Spec 055 (vault-sdk `models.runAsync`, ab 4.7.1). haex-notes beschreibt den Auftrag „Seitenerkennung“ mit eigener Anweisung und eigenem Format; holzi wählt das freigegebene Modell, fragt vor dem Versand außerhalb des Geräts und verwirft kaputte Ausgabe. Die feste Aufgabe aus Spec 047 und die Profile entfallen.
+- Q: Worüber läuft die Erkennung? → A: Über die Modellaufträge von Spec 055 (vault-sdk `models.runAsync`, ab 4.7.1). haex-notes beschreibt den Auftrag „Seitenerkennung“ mit eigener Anweisung und eigenem Format; HaexVault wählt das freigegebene Modell, fragt vor dem Versand außerhalb des Geräts und verwirft kaputte Ausgabe. Die feste Aufgabe aus Spec 047 und die Profile entfallen.
 - Q: Was passiert mit einem Drehhinweis des Modells? → A: haex-notes dreht die Arbeitskopie um den gemeldeten Winkel und liest einmal neu; das Original bleibt unverändert. Zusätzlich kann der Schüler das Foto vor dem Lesen selbst drehen.
-- Q: Welche Ausgabe gilt als unbrauchbar? → A: Was holzi verwirft (leer, Schleife, Schriftwechsel, falsches Format), liefert gar kein Ergebnis; die Seite enthält dann nur das Original. haex-notes übergeht zusätzlich einzelne Regionen ohne Inhalt.
+- Q: Welche Ausgabe gilt als unbrauchbar? → A: Was HaexVault verwirft (leer, Schleife, Schriftwechsel, falsches Format), liefert gar kein Ergebnis; die Seite enthält dann nur das Original. haex-notes übergeht zusätzlich einzelne Regionen ohne Inhalt.
 - Q: Wie liest man eine schlecht erkannte Stelle neu? → A: Der Schüler zieht auf der Seite ein Rechteck über die Stelle und macht davon ein Nahfoto. Es läuft durch denselben Auftrag; das Ergebnis wird in das Rechteck eingepasst und ersetzt die erzeugten Elemente, die ganz darin liegen. Ein ganzes Blatt erneut zu lesen und alte und neue Regionen einander zuzuordnen, entfällt: auf einem neuen Foto stimmen Lage und Zuschnitt nicht mehr überein.
 
 ### Session 2026-10-26
@@ -50,7 +50,7 @@ Ein Schüler fotografiert seine handschriftlichen Unterrichtsnotizen und importi
 2. **Given** ein Foto mit Text, Zeichnungen, Tabellen und einer durchgestrichenen Textstelle, **When** die Aufbereitung abgeschlossen ist, **Then** werden Text, Tabellen als Zeilen und Zellen sowie visuelle Inhalte als getrennt bearbeitbare Bereiche dargestellt.
 3. **Given** ein Foto mit schlechter Perspektive oder ungleichmäßiger Beleuchtung, **When** die Aufbereitung startet, **Then** wird es soweit möglich entzerrt und lesbarer gemacht, ein neuer Aufnahmeversuch vorgeschlagen und das unveränderte Original trotzdem erhalten.
 4. **Given** ein seitlich oder kopfüber fotografiertes Blatt, **When** die Aufbereitung läuft, **Then** wird die Seite aufrecht ausgewertet und der Entwurf aufrecht angelegt; das Original bleibt, wie es aufgenommen wurde.
-5. **Given** der Nutzer hat in holzi kein passendes Modell freigegeben oder die Übertragung abgelehnt, **When** die Aufbereitung startet, **Then** entsteht eine Seite mit dem Original, und haex-notes sagt verständlich, warum nichts erkannt wurde.
+5. **Given** der Nutzer hat in HaexVault kein passendes Modell freigegeben oder die Übertragung abgelehnt, **When** die Aufbereitung startet, **Then** entsteht eine Seite mit dem Original, und haex-notes sagt verständlich, warum nichts erkannt wurde.
 
 ### User Story 2 - Entfällt
 
@@ -125,7 +125,7 @@ Ein Schüler ändert nach dem Import die Vorlage (blanko, kariert, liniert, Line
 - Einzelne Wörter oder Symbole sind nicht lesbar. Der Schüler korrigiert sie im Entwurf; es wird kein Prüfhinweis erzeugt. Ist die ganze Ausgabe unbrauchbar, enthält die Seite nur das Original.
 - Durchgestrichener Text kann nicht sicher von einer gültigen Ergänzung unterschieden werden. Das Modell soll nichts erfinden; der Schüler entfernt Überflüssiges selbst.
 - Das Foto liegt seitlich oder kopfüber. Die Seite wird aufrecht ausgewertet (Drehhinweis des Modells oder Drehen durch den Schüler); das Original bleibt unverändert.
-- Der Nutzer hat in holzi kein Modell mit Bildern freigegeben, lehnt die Übertragung ab oder bricht ab. Das Original bleibt als Seite, und der Schüler kann manuell weiterarbeiten.
+- Der Nutzer hat in HaexVault kein Modell mit Bildern freigegeben, lehnt die Übertragung ab oder bricht ab. Das Original bleibt als Seite, und der Schüler kann manuell weiterarbeiten.
 - Zeichnungen, Tabellen und Text werden falsch klassifiziert. Der Schüler muss die betroffenen Bereiche weiterhin als bearbeitbare Inhalte korrigieren können.
 - Die Verarbeitung schlägt fehl oder ist vorübergehend nicht verfügbar. Das Originalbild muss trotzdem als Canvas-Inhalt gespeichert werden können.
 - Das Nahfoto zeigt mehr oder etwas anderes als die Stelle unter dem Rechteck. Das Ergebnis wird trotzdem in das Rechteck eingepasst; der Schüler nimmt es zurück oder verschiebt die Elemente.
@@ -142,7 +142,7 @@ Ein Schüler ändert nach dem Import die Vorlage (blanko, kariert, liniert, Line
 - **FR-002**: haex-notes MUST eine lokale Arbeitskopie hinsichtlich Zuschnitt, Perspektive und Lesbarkeit aufbereiten, ohne das Originalbild zu überschreiben. Bei erkannten Qualitätsproblemen MUSS die Anwendung einen neuen Aufnahmeversuch vorschlagen und die best-effort-Verarbeitung dennoch ermöglichen.
 - **FR-003**: Das System MUST erkannte Inhalte nach ihrer Rolle unterscheiden können, mindestens zwischen Text und visuellen Inhalten wie Zeichnungen oder Diagrammen.
 - **FR-004**: Das System MUST erkannten Text mit seiner Position auf der Seite in einen bearbeitbaren Entwurf übernehmen.
-- **FR-005**: Das System MUST unbrauchbare Erkennung verwerfen: Eine Ausgabe, die holzi als leer, Schleife, Schriftwechsel oder formatwidrig verwirft, erzeugt keinen Inhalt, und die Seite zeigt nur das Foto (FR-025). Einzelne Regionen ohne Inhalt werden übergangen.
+- **FR-005**: Das System MUST unbrauchbare Erkennung verwerfen: Eine Ausgabe, die HaexVault als leer, Schleife, Schriftwechsel oder formatwidrig verwirft, erzeugt keinen Inhalt, und die Seite zeigt nur das Foto (FR-025). Einzelne Regionen ohne Inhalt werden übergangen.
 - **FR-006**: Das System MUST Rechtschreibung und eindeutige Lesefehler direkt korrigieren, ohne einen separaten Prüfhinweis oder eine Vorschlagsliste zu erzeugen. Abkürzungen, Wortwahl und Zeilenumbrüche dürfen dabei nicht verändert werden.
 - **FR-007**: Das System MUST die unveränderte Originaldarstellung als Anhang der Seite erhalten, auch wenn die Interpretation eines Bereichs verworfen wird. Sie ist keine Ebene der Seite (FR-022).
 - **FR-008**: Das System MUST die Auswahl einer handschriftlichen Darstellung für bereinigten Text ermöglichen. Die Darstellung dient der Präsentation; der zugrunde liegende Inhalt bleibt bearbeitbarer Text.
@@ -152,11 +152,11 @@ Ein Schüler ändert nach dem Import die Vorlage (blanko, kariert, liniert, Line
 - **FR-012**: Das System MUST den Entwurf mit allen Text-, Bild-, Tabellen- und Sichtbarkeitsinformationen speichern und wiederherstellen können.
 - **FR-013**: Das System MUST den sichtbaren Canvas-Zustand als PDF exportieren können.
 - **FR-014**: Das System MUST ohne persönliche Schreibproben oder ein persönliches Handschriftprofil funktionieren. Eine individuelle Handschriftanpassung ist nicht Bestandteil dieser ersten Ausbaustufe.
-- **FR-015**: Eine Verarbeitung außerhalb des eigenen Geräts MUST NOT stillschweigend erfolgen. Die Einwilligung mit Anzeige des Ziels fragt holzi vor dem ersten Versand ab (Spec 055); haex-notes zeigt nach der Erkennung an, welches Modell an welchem Ort gelesen hat.
+- **FR-015**: Eine Verarbeitung außerhalb des eigenen Geräts MUST NOT stillschweigend erfolgen. Die Einwilligung mit Anzeige des Ziels fragt HaexVault vor dem ersten Versand ab (Spec 055); haex-notes zeigt nach der Erkennung an, welches Modell an welchem Ort gelesen hat.
 - **FR-016**: Das System MUST bei nicht verfügbarer oder fehlgeschlagener automatischer Verarbeitung den manuellen Zugriff auf das Originalbild und das Erstellen eines bearbeitbaren Canvas ermöglichen; das Foto steht dann sichtbar auf der Seite (FR-025).
-- **FR-017**: Die automatische Aufbereitung MUST als Modellauftrag über holzi laufen (Spec 055). haex-notes darf weder einen konkreten Anbieter noch ein Modell noch Zugangsdaten voraussetzen.
-- **FR-018**: Der Auftrag „Seitenerkennung“ MUST aus zwei Schritten bestehen: Lesen der Seite in ein Format mit Regionen (Art Text, Bild oder Tabelle; Position; Text; Zeilen und Zellen; Drehhinweis) und Korrektur der gelesenen Texte. haex-notes übernimmt nur ein Ergebnis, das holzi gegen dieses Format geprüft hat; freier Modelltext wird nie als Seite gedeutet.
-- **FR-019**: Modellwahl, Aufwand und Einwilligung MUST in holzi liegen (Spec 055). Die Seite speichert als Herkunft nur Modellname, Ort und Zeitpunkt der Erkennung, niemals Adresse oder Zugangsdaten.
+- **FR-017**: Die automatische Aufbereitung MUST als Modellauftrag über HaexVault laufen (Spec 055). haex-notes darf weder einen konkreten Anbieter noch ein Modell noch Zugangsdaten voraussetzen.
+- **FR-018**: Der Auftrag „Seitenerkennung“ MUST aus zwei Schritten bestehen: Lesen der Seite in ein Format mit Regionen (Art Text, Bild oder Tabelle; Position; Text; Zeilen und Zellen; Drehhinweis) und Korrektur der gelesenen Texte. haex-notes übernimmt nur ein Ergebnis, das HaexVault gegen dieses Format geprüft hat; freier Modelltext wird nie als Seite gedeutet.
+- **FR-019**: Modellwahl, Aufwand und Einwilligung MUST in HaexVault liegen (Spec 055). Die Seite speichert als Herkunft nur Modellname, Ort und Zeitpunkt der Erkennung, niemals Adresse oder Zugangsdaten.
 - **FR-020**: Das System MUST ein seitlich oder kopfüber aufgenommenes Foto aufrecht auswerten. Meldet das Modell einen Drehwinkel, dreht haex-notes die Arbeitskopie und liest einmal neu; der Schüler kann das Foto vor dem Lesen auch selbst drehen. Das Original wird nie gedreht gespeichert.
 - **FR-021**: Das System MUST auf einer Seite aus einem Foto das Nachlesen einer Stelle über ein Nahfoto ermöglichen: Der Schüler wählt die Stelle als Rechteck auf der Seite, das Nahfoto läuft durch denselben Auftrag „Seitenerkennung“, und das Ergebnis ersetzt die erzeugten Elemente, die ganz im Rechteck liegen. Eigene Ergänzungen und das Original bleiben unverändert. Das Ersetzen ist ein Undo-Schritt; ein Fehler oder Abbruch ändert die Seite nicht.
 - **FR-022**: Jede Seite MUST eine Liste von Anhängen haben. Ein Anhang ist eine Datei mit Namen, Typ und Größe; das Original eines importierten Fotos ist der Anhang der Art „Original“ und liegt unverändert, ungedreht und in voller Auflösung dort. Anhänge liegen nicht als Ebene oder Element auf der Seite, tauchen nicht in der Seitenliste auf und zählen nicht als Seite.
@@ -182,7 +182,7 @@ Ein Schüler ändert nach dem Import die Vorlage (blanko, kariert, liniert, Line
 - **Visuelles Objekt**: Eine Zeichnung, ein Diagramm, eine Tabelle oder ein anderer nicht als Text behandelter Bereich, der unabhängig im Canvas bearbeitet werden kann.
 - **Canvas-Entwurf**: Die zusammengesetzte, speicherbare Seite aus Textbereichen, visuellen Objekten, Papier und Seitenrand und Sichtbarkeitseinstellungen; Anhänge hängen an ihr, gehören aber nicht zu ihrem Inhalt.
 - **Tabelle**: Ein Bereich aus Zeilen und Zellen mit Text, auch leeren Zellen, der als Ganzes verschoben und in seinen Zellen bearbeitet wird.
-- **Seitenerkennungsauftrag**: Der Modellauftrag, den haex-notes an holzi gibt (Anweisung und Format je Schritt, das Foto); er existiert nur während der Erkennung.
+- **Seitenerkennungsauftrag**: Der Modellauftrag, den haex-notes an HaexVault gibt (Anweisung und Format je Schritt, das Foto); er existiert nur während der Erkennung.
 - **Nahaufnahme**: Ein zusätzliches Foto einer Stelle der Seite mit dem Rechteck, das es ersetzt hat, und der Herkunft seiner Erkennung.
 - **Herkunft**: Modellname, Ort (dieses Gerät, eigenes Netz, Cloud) und Zeitpunkt der Erkennung einer Seite.
 
@@ -192,8 +192,8 @@ Ein Schüler ändert nach dem Import die Vorlage (blanko, kariert, liniert, Line
 - Automatische Umwandlung von Zeichnungen in vollständig editierbare Vektorgrafiken.
 - Vollautomatische inhaltliche Verbesserung über Rechtschreibung und eindeutige Lesefehler hinaus; insbesondere darf die Anwendung keine Inhalte erfinden, löschen oder umformulieren.
 - Zwangsbindung an einen bestimmten Cloud-Anbieter oder ein bestimmtes KI-Modell.
-- Eine direkte LLM-/OCR-Integration in haex-notes neben den Modellaufträgen von holzi.
-- Der Betrieb eines Schul-Servers und die Auswahl des konkreten Modells (Einstellung in holzi, Spec 055).
+- Eine direkte LLM-/OCR-Integration in haex-notes neben den Modellaufträgen von HaexVault.
+- Der Betrieb eines Schul-Servers und die Auswahl des konkreten Modells (Einstellung in HaexVault, Spec 055).
 
 ## Success Criteria _(mandatory)_
 
@@ -211,11 +211,11 @@ Ein Schüler ändert nach dem Import die Vorlage (blanko, kariert, liniert, Line
 
 ## Assumptions
 
-- Die erste Version erhält Bilder über den Dateiauswahldialog der plattformunabhängigen holzi-Runtime; eine verfügbare Kamera kann zusätzlich unterstützt werden. Eine zusätzliche Scanner- oder Tafel-App ist nicht erforderlich.
+- Die erste Version erhält Bilder über den Dateiauswahldialog der plattformunabhängigen HaexVault-Runtime; eine verfügbare Kamera kann zusätzlich unterstützt werden. Eine zusätzliche Scanner- oder Tafel-App ist nicht erforderlich.
 - Der Schüler bearbeitet automatisch erzeugte Inhalte selbst. Die Anwendung stellt einen korrigierbaren Entwurf bereit, keine verbindliche Transkription.
 - Bilder werden einzeln verarbeitet und jeweils einer Notizseite zugeordnet; Batch- und Mehrseitenimport sind nicht Teil der ersten Ausbaustufe.
 - Die Auswahl und Lizenzierung der verfügbaren Handschrift-Darstellungen wird vor der Veröffentlichung separat geprüft.
-- Wo die Erkennung läuft, entscheidet der Nutzer in holzi: lokal (ein Bildmodell über Ollama auf demselben Gerät, Spec 055 research R8), auf einem Server im eigenen Netz oder in der Cloud. Qualität geht vor Offline.
+- Wo die Erkennung läuft, entscheidet der Nutzer in HaexVault: lokal (ein Bildmodell über Ollama auf demselben Gerät, Spec 055 research R8), auf einem Server im eigenen Netz oder in der Cloud. Qualität geht vor Offline.
 - Für die Erkennung braucht es ein Modell, das Bilder annimmt. Gemessen: `qwen3-vl:4b-instruct` über Ollama liest eine Seite auf einer 8-GB-Grafikkarte in 12–18 s; ein reines Textmodell kann nur den Korrekturschritt übernehmen.
-- haex-notes nutzt vault-sdk ab 4.7.1 (`models.runAsync`; die Wiederholung nach der Antwort des Nutzers auf eine Frage von holzi).
+- haex-notes nutzt vault-sdk ab 4.7.1 (`models.runAsync`; die Wiederholung nach der Antwort des Nutzers auf eine Frage von HaexVault).
 - Der aktuelle haex-notes-Canvas wird als Zielumgebung verwendet, ohne dadurch eine bestimmte Erkennungs- oder KI-Technologie festzuschreiben.

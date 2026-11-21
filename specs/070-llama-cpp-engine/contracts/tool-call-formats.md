@@ -9,7 +9,7 @@ three formats were seen in the spike (`research.md`); the examples are real mode
 | Item             | Meaning                                                                                                          |
 | ---------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `fingerprint`    | True when the template text carries this format's marks (below). Checked in the order Gemma 4, Qwen XML, Hermes. |
-| `shape_messages` | Turns holzi's flat history (`ChatRole::ToolCall` rows, `ToolResult` rows) into what the template reads.          |
+| `shape_messages` | Turns haex-vault's flat history (`ChatRole::ToolCall` rows, `ToolResult` rows) into what the template reads.     |
 | `marker`         | The string a call block starts with; text from its first character on is held back while streaming.              |
 | `parse`          | Splits the finished text into `reasoning`, `content` and `calls`.                                                |
 

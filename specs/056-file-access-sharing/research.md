@@ -15,10 +15,10 @@ Gerät, ein `StorageFiles` über `LocalStore` (`files/encrypted/device.rs:32`, `
 **Rationale**: So entschlüsselt das bedienende Gerät verschlüsselte Ordner und spricht selbst mit
 S3/WebDAV/SFTP (FR-012, FR-015, FR-043): Weder Chiffrat noch Zugangsdaten noch Schlüssel verlassen
 es. Eine einzige Ausführungsschicht deckt Gerät, Speicher und verschlüsselte Ordner ab; die Sperre der
-eigenen Daten von holzi (`OwnPlaces`, `files/local/places.rs:25`) und `has_raw_part`
+eigenen Daten von haex-vault (`OwnPlaces`, `files/local/places.rs:25`) und `has_raw_part`
 (`files/encrypted/device.rs:128`) gelten an derselben Stelle.
 
-**Eigene Daten von holzi** (Betreiber 2026-10-22): Für `Mode::OwnDevice` gelten dieselben Regeln wie
+**Eigene Daten von haex-vault** (Betreiber 2026-10-22): Für `Mode::OwnDevice` gelten dieselben Regeln wie
 im lokalen Dateibrowser — sichtbar, nur lesend (`access::check` mit dem Aufrufer „Nutzer“ ergibt
 `ReadOnly`, `files/access.rs:106`), für Agents gesperrt (`access::agent`, `:153`); der Aufrufer des
 anfragenden Geräts wird dafür mitgeschickt (`User` oder `Agent`). Für `Mode::Contact` sind sie immer
@@ -102,7 +102,7 @@ Spec.
 
 **Decision** (angepasst 2026-10-23): `SyncNode::bind_with` und `Protocols` (Spec 057,
 `sync/endpoint_protocols.rs`) registrieren `FILES_ALPN = b"haex-files/1"` (`sync/wire.rs`,
-Namensschema von Spec 054 wie `haex-ext-peer/1`) neben `holzi-sync/1`. Der Handler
+Namensschema von Spec 054 wie `haex-ext-peer/1`) neben `haex-sync/1`. Der Handler
 `FilesProtocol` bekommt `NodeTasks` (Tracker und Cancel-Token der Sitzung) und startet jede Verbindung
 auf dem Tracker, wie `PeerProtocol` (`extensions/peers/admission.rs`), damit Sperren laufende Anfragen
 beendet (FR-044). Ausgehend: `SyncNode::dial_alpn(addr, FILES_ALPN)`. `sync::service::run` baut die
@@ -133,7 +133,7 @@ und verschlüsselten Ordnern gelten deren Upload-Wege. `StorageError` und `Files
 `Conflict`; die Transfers bilden `Conflict` auf ihre Konfliktfrage ab (`Hooks.ask`, Ersetzen / Beide
 behalten, FR-021): „Ersetzen“ wiederholt ohne Versionsstand, „Beide behalten“ lädt unter freiem Namen.
 
-**Rationale**: Bearbeiten in holzi ist nicht im Umfang (044); Fremdschreiben trifft also Transfers und
+**Rationale**: Bearbeiten in haex-vault ist nicht im Umfang (044); Fremdschreiben trifft also Transfers und
 Agents. Die Prüfung am Ende des Hochladens deckt das Fenster ab, in dem die Datei übertragen wird.
 `ponytail:` Zwischen Konfliktfrage und `begin_upload` bleibt ein kurzes Fenster ohne Prüfung; die
 Aufrüstung wäre ein Versionsstand im Trait selbst.
@@ -218,7 +218,7 @@ werden Geräte von Kontakten nicht angewählt (FR-029). Neue Typnamen mit Präfi
 ## R14 ADR
 
 **Decision**: ADR 0015 „Datei-Zugriff zwischen eigenen Geräten“ hält das akzeptierte Risiko fest
-(Spec Assumptions), dazu, dass `haex-files/1` fremde Vaults zulässt, `holzi-sync/1` nicht.
+(Spec Assumptions), dazu, dass `haex-files/1` fremde Vaults zulässt, `haex-sync/1` nicht.
 
 ## R16 Live-Aktualisierung
 

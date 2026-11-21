@@ -58,10 +58,10 @@ directly instead of `app-server --stdio`. Rejected — 007-cli-delegate already 
 per-call approval (design doc §8.2), unlike `codex exec`'s closed-stdin auto-reject behavior; nothing
 about `ungated` changes that architectural choice, it only changes two fields in the same
 already-open session's start params. Also considered: Codex's own `approvalsReviewer: "auto_review"`
-(an automatic reviewing subagent) as the mechanism for `gated-permissive` instead of holzi's own deny
-list. Rejected per the spec clarification: the operator explicitly wants holzi's own, small,
+(an automatic reviewing subagent) as the mechanism for `gated-permissive` instead of haex-vault's own deny
+list. Rejected per the spec clarification: the operator explicitly wants haex-vault's own, small,
 inspectable deny list as an _additional_ filter over the delegate's own judgment, not a second
-AI-driven reviewer whose logic holzi does not control or see.
+AI-driven reviewer whose logic haex-vault does not control or see.
 
 ## 3. Per-vendor Deny Rule evaluability — the FileChange path gap
 

@@ -65,13 +65,13 @@ that no longer exist. Commit it together with T008 (`store.rs`).
       side `b`, a run and a run item on side `b` → after `0053` read the rows with the **new** column names and assert
       equal counts per table, `sourceToTarget`, the state numbers in `source_*`/`target_*`, the pending deletion and the run
       item on `target`; a pending deletion on `a` ends on `source`; a `side` value `x` stays `x`; a fresh vault has the
-      new columns and no `place_a_source`, `a_size`; opening the migrated vault a second time with `holzi_migration_source()` succeeds and
+      new columns and no `place_a_source`, `a_size`; opening the migrated vault a second time with `haex_migration_source()` succeeds and
       changes nothing (the migration runs once); the rows keep their order: assert the `seq` of the run items and the primary keys of
       the state and pending rows before and after. (Reader and zero-step tests come in Phase 4.)
 - [x] T004 Create `src-tauri/src/identity/migrations_sync_rules_source_target.rs` with the constant
       `SYNC_RULES_SOURCE_TARGET_0053`: the eleven statements of [contracts/storage-migration.md](./contracts/storage-migration.md),
       separated by `--> statement-breakpoint`, with a module doc in the style of `migrations_sync_rules_decrypt.rs`
-      (spec 075, tables are `_no_sync`, `HOLZI_TRIGGER_VERSION` stays).
+      (spec 075, tables are `_no_sync`, `HAEX_TRIGGER_VERSION` stays).
 - [x] T005 Register it: in `src-tauri/src/identity/mod.rs` add `mod migrations_sync_rules_source_target;` and
       `#[cfg(test)] mod migrations_sync_rules_source_target_tests;` next to the `migrations_sync_rules` lines (72–75); in
       `src-tauri/src/identity/migrations.rs` add the `use` and an
@@ -187,7 +187,7 @@ and a plan of 0 steps for a rule that had nothing to do.
       `with_connection` is not enough: first look at how `file_sync/store_tests.rs` gets its `Query` (`vault()` from
       `remote_storage::test_support`, `VaultDb`) and use the same access. The pre-0053 vault is made by opening once with
       `migration_source_before("0053_sync_rules_source_target")`, filling with `fill_before_0053` (T006), and reopening with
-      `holzi_migration_source()`, as the 0046 test does. If `vault()` cannot start from an older migration source, put this test in
+      `haex_migration_source()`, as the 0046 test does. If `vault()` cannot start from an older migration source, put this test in
       `migrations_sync_rules_source_target_tests.rs` and read through a `Reader` of its `Database`.
 - [x] T028 [US2] In the test module of T027 (same access to the vault): a rule whose files are equal on both sides, with the state rows read after `0053`, gives a
       plan with no step (`plan::build(&Inputs)` with matching listings and the migrated state; FR-005, SC-003 "plans 0 steps"). Build the

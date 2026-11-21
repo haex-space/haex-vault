@@ -55,4 +55,4 @@ the call is parsed, so its time includes writing the call.
 
 Per run: the median of `later_chunk_ms` over the steps that start with text (SC-001, SC-002) and, separately, over
 those that start with a tool call; the share of prompt tokens reused; and whether the cache was on
-(`HOLZI_LLAMACPP_PROMPT_CACHE`).
+(`HAEX_LLAMACPP_PROMPT_CACHE`).

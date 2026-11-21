@@ -160,7 +160,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "Es gibt keine Kalender-App in holzi. Wie soll ich den Zahnarzttermin morgen (Donnerstag, 19.03.2026) um 10:00 Uhr festhalten?",
+            "question": "Es gibt keine Kalender-App in haex-vault. Wie soll ich den Zahnarzttermin morgen (Donnerstag, 19.03.2026) um 10:00 Uhr festhalten?",
             "options": [
               "Online-Kalender im Browser öffnen, damit du den Termin dort einträgst",
               "haex-mail öffnen",
@@ -170,7 +170,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Es gibt keine Kalender-App in holzi. Wie soll ich den Zahnarzttermin morgen (Donnerstag, 19.03.2026) um 10:00 Uhr festhalten?"
+      "text": "Es gibt keine Kalender-App in haex-vault. Wie soll ich den Zahnarzttermin morgen (Donnerstag, 19.03.2026) um 10:00 Uhr festhalten?"
     },
     {
       "id": "no_tool-de-4",
@@ -198,7 +198,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "In holzi habe ich keine App für Einkaufslisten gefunden. Wo soll ich „Milch“ festhalten?",
+            "question": "In haex-vault habe ich keine App für Einkaufslisten gefunden. Wo soll ich „Milch“ festhalten?",
             "options": [
               "Als Textdatei in Dateien anlegen oder ergänzen",
               "Die App Dateien öffnen, damit du es selbst eintragen kannst",
@@ -208,7 +208,7 @@
           "ending": "ran"
         }
       ],
-      "text": "In holzi habe ich keine App für Einkaufslisten gefunden. Wo soll ich „Milch“ festhalten?"
+      "text": "In haex-vault habe ich keine App für Einkaufslisten gefunden. Wo soll ich „Milch“ festhalten?"
     },
     {
       "id": "clarify-en-3",
@@ -261,7 +261,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I can't add that. holzi has no calendar app or calendar action. The installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail. If you like, I can draft a mail to yourself in haex-mail as a reminder for the dentist appointment tomorrow, Thursday, 2026-03-19, at 10:00."
+      "text": "I can't add that. haex-vault has no calendar app or calendar action. The installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail. If you like, I can draft a mail to yourself in haex-mail as a reminder for the dentist appointment tomorrow, Thursday, 2026-03-19, at 10:00."
     },
     {
       "id": "no_tool-en-4",
@@ -289,7 +289,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "I couldn't find a shopping list app or a tool for adding items in holzi. How would you like to handle \"milk\"?",
+            "question": "I couldn't find a shopping list app or a tool for adding items in haex-vault. How would you like to handle \"milk\"?",
             "options": [
               "Look for an existing shopping list file in Dateien",
               "Open Chat so you can keep the note there",
@@ -300,7 +300,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I couldn't find a shopping list app or a tool for adding items in holzi. How would you like to handle \"milk\"?"
+      "text": "I couldn't find a shopping list app or a tool for adding items in haex-vault. How would you like to handle \"milk\"?"
     }
   ],
   "requests": [

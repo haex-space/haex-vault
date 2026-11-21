@@ -1,6 +1,6 @@
 # Contracts: Tauri Commands & Events (Agent Tool Loop)
 
-Alle Kommandos sind async, laufen im Tauri-`invoke_handler` und geben `Result<T, HolziError>`
+Alle Kommandos sind async, laufen im Tauri-`invoke_handler` und geben `Result<T, HaexError>`
 zurück. Rust-`snake_case` wird beim JSON-Payload zu `camelCase` per
 `#[serde(rename_all = "camelCase")]` — bestehende Konvention, unverändert.
 
@@ -43,7 +43,7 @@ zum `tool-permission-request`-Event unten.
 
 **Fehler**:
 
-- `HolziError::InvalidInput` wenn `requestId` keiner offenen Anfrage entspricht (bereits
+- `HaexError::InvalidInput` wenn `requestId` keiner offenen Anfrage entspricht (bereits
   beantwortet, oder der Turn wurde inzwischen abgebrochen). Aufgelöste IDs werden als Tombstone
   behalten: eine späte Antwort auf eine durch Cancellation aufgelöste ID ist erfolgreich und wird
   als No-op behandelt; `InvalidInput` gilt nur für eine niemals bekannte ID.

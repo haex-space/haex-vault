@@ -22,22 +22,22 @@ The decisions are below.
   shortcuts of spec 020 (Alt+Arrow) walk the history of the active tab, and no shortcut switches tabs; the window
   overview (spec 015) lists windows, not tabs.
 - **The pattern**: mobile browsers show one button with the number of open tabs, and a tap shows every tab as a tile
-  to pick from. A window of holzi has the same two needs (few tabs, little room), and on a phone this is how people
+  to pick from. A window of HaexVault has the same two needs (few tabs, little room), and on a phone this is how people
   already switch tabs.
 - **What the apps already look like**: the launcher shows every app as a tile (two columns on a compact window, three
   otherwise), with an attention dot and a disabled tile with its reason for an extension that cannot open here. A list
   of apps stops working when people install 30 to 50 extensions; a scrolling grid does, as in COSMIC's app library,
   which shows the apps as large icons with their name below and scrolls when they do not fit.
 - **What cannot be shown**: a picture of a tab's content. An extension runs in a sandboxed frame of another origin
-  whose pixels the window cannot read (spec 017), holzi ships no screenshot tool, and a tab that was never opened has
+  whose pixels the window cannot read (spec 017), HaexVault ships no screenshot tool, and a tab that was never opened has
   no content to show (tabs mount on first use). A mobile browser has previews because it is the rendering engine;
-  holzi is not.
+  HaexVault is not.
 
 ## Decisions
 
 The operator decided on 2026-11-11:
 
-1. **One button, owned by holzi.** It stands beside the window buttons, is not part of an app's header description,
+1. **One button, owned by HaexVault.** It stands beside the window buttons, is not part of an app's header description,
    and never moves into the overflow menu of spec 090. The app keeps the whole header bar to itself.
 2. **Its two faces.** A window with one tab shows a "+". A window with two or more tabs shows a button with the
    number of its open tabs instead.
@@ -51,7 +51,7 @@ The operator decided on 2026-11-11:
    preview (the open tabs shown scaled down) is a later step of its own.
 6. **Tabs stay a per-window thing.** The tab overview shows the tabs of one window. Moving a tab to another window,
    reordering and groups are not part of this spec.
-7. **No backward compatibility**: holzi has no users yet. The tab strip of spec 015 is not coming back in any form.
+7. **No backward compatibility**: HaexVault has no users yet. The tab strip of spec 015 is not coming back in any form.
 
 ## Clarifications
 
@@ -185,7 +185,7 @@ tab overview, the tile shows it; show that tab, the mark goes.
 
 The button and the tab overview are fully operable without a mouse. On a phone the tiles are large enough to hit.
 
-**Why this priority**: holzi runs on Android and is used with the keyboard; the tab overview must not be a mouse-only thing.
+**Why this priority**: HaexVault runs on Android and is used with the keyboard; the tab overview must not be a mouse-only thing.
 
 **Independent Test**: with the keyboard alone, reach the button, open the tab overview, move to a tile, choose it, and
 close another tab; on a compact window the tiles are touch-sized.
@@ -262,7 +262,7 @@ at every scroll position.
 
 **The button**
 
-- **FR-001**: Every window MUST show one tab button beside its window buttons. It MUST belong to holzi, not to the app,
+- **FR-001**: Every window MUST show one tab button beside its window buttons. It MUST belong to HaexVault, not to the app,
   MUST NOT be part of an app's header description, and MUST NOT move into the overflow menu of spec 090 (it counts
   with the window buttons as the fixed part of the header row). Like the window buttons it MUST NOT start a window drag
   or toggle maximize: it stops `pointerdown` and `dblclick`, so a quick double press does not maximize the window. It
@@ -338,7 +338,7 @@ at every scroll position.
 
 **Texts and tests**
 
-- **FR-020**: Texts that holzi adds MUST be in German and English in step.
+- **FR-020**: Texts that HaexVault adds MUST be in German and English in step.
 - **FR-021**: E2E scenarios MUST cover opening a second tab from the "+", switching from the tab overview, closing from the
   tab overview down to one tab, the attention mark, and the launcher's scrolling grid with the fixed strip.
 
@@ -385,8 +385,8 @@ at every scroll position.
   (`wm/Launcher.vue`) by extracting the grid of app tiles into a component both use, which is the existing candidate
   to extend rather than a third variant. The launcher keeps its drawer, its pinning to the dock and its assistant and
   lock tiles and also scrolls its app tiles (Clarifications, FR-022).
-- This spec amends spec 090: 090 calls the window buttons "the one part of the header that belongs to holzi" (its
-  Decision 1 and Key Entities). The tab button is a second part that holzi owns, beside them. Once both specs are
+- This spec amends spec 090: 090 calls the window buttons "the one part of the header that belongs to HaexVault" (its
+  Decision 1 and Key Entities). The tab button is a second part that HaexVault owns, beside them. Once both specs are
   merged, 090's text is changed to say so (tasks.md, T035).
 - No new dependency is needed: a scrolling grid needs none.
 - Groups like COSMIC's app library (a bar below the grid with Library, Office, System and "+ Group", with editing and

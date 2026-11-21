@@ -93,7 +93,7 @@ lässt es zu (er kann per Sync ankommen) und kennzeichnet ihn (`status: missing`
 ## Verlauf
 
 `snapshots.rs` speichert die rohen Spalten; ein Platzhalter bleibt Platzhalter. Beim
-Wiederherstellen gilt der Platzhalter wieder; fehlt die Quelle, meldet holzi es
+Wiederherstellen gilt der Platzhalter wieder; fehlt die Quelle, meldet haex-vault es
 (`status: missing`) und stellt den Rest her.
 
 ## KeePass-Import (R13)

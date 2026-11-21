@@ -12,7 +12,7 @@ pnpm test:e2e --platform android [--shard i/n] [--grep <muster>]
 - `--shard i/n` verteilt nach der zuletzt gemessenen Dauer (`artifacts/e2e-durations.json`,
   Fallback: alphabetisch reihum) und gilt für beide Plattformen.
 - Voraussetzungen (Preflight): `adb` mit genau einem verbundenen Emulator oder
-  `ANDROID_SERIAL`, installiertes Debug-APK (`com.haex.holzi`, debuggable), `chromedriver`
+  `ANDROID_SERIAL`, installiertes Debug-APK (`space.haex.vault`, debuggable), `chromedriver`
   passend zur WebView-Hauptversion, `iroh-relay`. Fehlt etwas, bricht der Preflight mit dem
   Namen des Fehlenden ab.
 
@@ -20,25 +20,25 @@ pnpm test:e2e --platform android [--shard i/n] [--grep <muster>]
 
 | Operation         | Umsetzung                                                                                                |
 | ----------------- | -------------------------------------------------------------------------------------------------------- |
-| `newData`         | `pm clear com.haex.holzi`; Bildschirmschutz aus (Geräte-Einstellung nach dem ersten Entsperren)          |
+| `newData`         | `pm clear space.haex.vault`; Bildschirmschutz aus (Geräte-Einstellung nach dem ersten Entsperren)        |
 | `copyVaultFile`   | Quelle gestoppt; `adb exec-out run-as … tar c` bzw. Linux-Datei → `adb exec-in run-as … sh -c 'cat > …'` |
 | `keep`            | App-Daten per `run-as` als Tar in die Fehlerunterlagen                                                   |
 | `dispose`         | `pm clear`                                                                                               |
-| `start`           | `am start -W -n com.haex.holzi/.MainActivity`, warten auf `webview_devtools_remote_<pid>`, Sitzung       |
+| `start`           | `am start -W -n space.haex.vault/.MainActivity`, warten auf `webview_devtools_remote_<pid>`, Sitzung     |
 | `stop`            | `input keyevent KEYCODE_HOME`, `am kill`, sonst `am force-stop`                                          |
 | `kill`            | `am force-stop`                                                                                          |
-| `alive`           | `adb shell pidof com.haex.holzi` (synchron)                                                              |
+| `alive`           | `adb shell pidof space.haex.vault` (synchron)                                                            |
 | `screenshot`      | chromedriver `GET /screenshot`                                                                           |
 | Fenster schließen | Aufgabe entfernen (`am stack remove` bzw. `cmd activity` je nach API), Ende innerhalb der Frist prüfen   |
 
 Sitzung: `POST /session` an chromedriver mit
-`{ "goog:chromeOptions": { "androidPackage": "com.haex.holzi", "androidDeviceSerial": <serial>,
+`{ "goog:chromeOptions": { "androidPackage": "space.haex.vault", "androidDeviceSerial": <serial>,
 "androidUseRunningApp": true } }`. URLs: `tauri://localhost` → `http://tauri.localhost`,
-`holzi-ext://localhost` → `http://holzi-ext.localhost`.
+`haex-ext://localhost` → `http://haex-ext.localhost`.
 
 Dienste: Alle Geräte benutzen `127.0.0.1:P` für einen Dienst auf dem Testrechner. Auf einem
 Emulator mit `su` (Google-APIs-Image) leitet seine Firewall `127.0.0.1:P` über das
-Emulator-Netz an `10.0.2.2:P` weiter (eigene NAT-Ketten `holzi_e2e_out`/`holzi_e2e_post`, im
+Emulator-Netz an `10.0.2.2:P` weiter (eigene NAT-Ketten `haex_e2e_out`/`haex_e2e_post`, im
 Preflight eingerichtet, `E2E_ANDROID_REDIRECT=1`); `adb reverse` trug den Sync-Verkehr über
 dieselbe adb-Verbindung wie chromedriver, und ein großer Sync ließ adb den Emulator verlieren
 („device offline“). Vor den Szenarien prüft der Lauf bis 30 s, ob das Gerät einen Wegwerf-Server
@@ -98,7 +98,7 @@ Abdeckungsrechnung der Desktop-Fälle.
   (sie meldete 540 statt 360 CSS-Pixel).
 - Fenster schließen: `cmd activity stack remove <taskId>` (wie Wegwischen aus den letzten Apps).
 - Navigation: `location.replace` statt einer Navigation des Treibers. Die WebView von Android legt
-  für eine Treiber-Navigation einen Verlaufseintrag an, den holzi selbst nie hat; `history.back()`
+  für eine Treiber-Navigation einen Verlaufseintrag an, den haex-vault selbst nie hat; `history.back()`
   hätte ihn in `tab-content-isolation` erreicht.
 - Prozessende im Hintergrund: `kill -9` als die App selbst (`run-as`) nach `KEYCODE_HOME`;
   `am kill` beendet einen gerade erst in den Hintergrund gegangenen Prozess nicht.
@@ -134,7 +134,7 @@ Abdeckungsrechnung der Desktop-Fälle.
   einem erzwungenen Ende hielte das andere Gerät die Sitzung über den Relay bis zur Leerlaufzeit
   (etwa 45 s) und wiese den neuen Prozess so lange als Duplikat ab.
 - Die Linux-Geräte eines Android-Laufs binden ihren Sync-Endpunkt nur an Loopback
-  (`HOLZI_E2E_SYNC_LOOPBACK=1`, nur Debug-Builds, `sync::endpoint::app_bind_addr`): Das Netz des
+  (`HAEX_E2E_SYNC_LOOPBACK=1`, nur Debug-Builds, `sync::endpoint::app_bind_addr`): Das Netz des
   Emulators verlor nach einem Bündel großer UDP-Pakete den direkten Weg ganz (beobachtet beim
   Übertragen des Tresors in `sync-indirect`), und die Verbindung wich nicht auf den Relay aus. So
   läuft alles zwischen Telefon und Linux über den iroh-Relay des Szenarios.
@@ -145,7 +145,7 @@ Abdeckungsrechnung der Desktop-Fälle.
   Benachrichtigungsberechtigung vorab (`instance.phone.allowNotifications`: `pm grant`, oder als
   „abgelehnt, nicht mehr fragen“ markiert, weil ein Entzug den Prozess beendet) und liest die
   gezeigten Benachrichtigungen (`notificationTitles`, aus `dumpsys notification`). Abgelehnt:
-  Meldung in holzi, keine Systembenachrichtigung; erlaubt: Systembenachrichtigung, keine Meldung.
+  Meldung in haex-vault, keine Systembenachrichtigung; erlaubt: Systembenachrichtigung, keine Meldung.
 - `android-not-available` prüft zusätzlich über die Probe-Erweiterung: freier Pfad, Ordnerdialog und
   Ordnerbeobachtung antworten 8001 (Gegenfall von `extension-files`).
 - `sync-relay-return` hält während der Pause auch den iroh-Relay der Gruppe an (`g.irohRelay`, nur in
@@ -187,7 +187,7 @@ Abdeckungsrechnung der Desktop-Fälle.
 - Auf dem CI-Emulator kam eine Zurück-Taste mehrfach nicht an (Befund vom 16.10.2026 aus den
   Fehlerunterlagen: Im logcat des Fensters gab es keinen einzigen Aktivitätswechsel, obwohl das
   Szenario alle drei Sekunden drückte; lokal besteht dasselbe Szenario fünf von fünf Läufen).
-- `android-all-files`: Zurück aus den Systemeinstellungen ist Sache des Systems, nicht holzis. Nach
+- `android-all-files`: Zurück aus den Systemeinstellungen ist Sache des Systems, nicht haex-vaults. Nach
   zwei Tastendrücken kommt das Szenario über den Task der App zurück (`bringToFront`, `am start`,
   wie beim Antippen unter den letzten Apps). Der Schritt nennt den Weg; die Fehlermeldung nennt die
   Aktivität im Vordergrund (`frontDetail`).

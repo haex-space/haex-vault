@@ -51,7 +51,7 @@
 - [ ] T024 [US2] Implement preflight capability checks in `src-tauri/src/agent_tasks/runner.rs` and `src-tauri/src/agent_tasks/profile.rs`, rejecting unsupported image/OCR/structured-output combinations before constructing a provider request.
 - [ ] T025 [US2] Add the structured provider request path in `src-tauri/src/agent_tasks/provider.rs`, reusing `ProviderAdapter` and the existing session/model selection while adding image attachments, schema-constrained instructions, task timeout, and no general tool registry.
 - [ ] T026 [US2] Map adapter output into the versioned paper-note result and populate actual model, harness, profile, mode, task version, and optional destination provenance in `src-tauri/src/agent_tasks/runner.rs`.
-- [ ] T027 [US2] Expose task-profile selection through the existing Holzi model/harness preferences so changing the configured profile takes effect for haex-notes without rebuilding the extension or migrating its canvas data.
+- [ ] T027 [US2] Expose task-profile selection through the existing HaexVault model/harness preferences so changing the configured profile takes effect for haex-notes without rebuilding the extension or migrating its canvas data.
 - [ ] T028 [US2] Add a local Vision/OCR-capable adapter capability fixture and document that the existing text-only local Qwen profile is rejected until an attachment-capable local backend is configured in `specs/047-structured-agent-tasks/research.md` and `specs/047-structured-agent-tasks/quickstart.md`.
 
 ## Phase 5: User Story 3 — Privacy, consent, cancellation, and failure safety
@@ -65,7 +65,7 @@
 
 ### Implementation
 
-- [ ] T033 [US3] Implement remote consent gating and destination reporting in `src-tauri/src/agent_tasks/profile.rs` and `src-tauri/src/agent_tasks/bridge.rs`; return an opaque consent request ID, expose `agent_task_consent_resolve` only to Holzi's own window, and require explicit approval before any remote adapter receives image bytes.
+- [ ] T033 [US3] Implement remote consent gating and destination reporting in `src-tauri/src/agent_tasks/profile.rs` and `src-tauri/src/agent_tasks/bridge.rs`; return an opaque consent request ID, expose `agent_task_consent_resolve` only to HaexVault's own window, and require explicit approval before any remote adapter receives image bytes.
 - [ ] T034 [US3] Enforce local-only execution for local profiles and remove any implicit fallback path in `src-tauri/src/agent_tasks/runner.rs` and the provider selection layer.
 - [ ] T035 [US3] Apply the bounded task timeout and cooperative cancellation token to provider execution, and translate all cancellation/timeout outcomes into the contract’s structured completion errors.
 - [ ] T036 [US3] Add lifecycle hooks that cancel tasks when their originating frame, extension, or vault is closed, without deleting or rewriting extension-owned input data.
@@ -82,7 +82,7 @@
 1. Phase 1 establishes the module boundary and the versioned contract.
 2. Phase 2 is the shared foundation and must complete before any user-story implementation.
 3. Phase 3 delivers a deterministic end-to-end fixture path and is independently testable without a model.
-4. Phase 4 replaces the fixture execution path with the selected Holzi provider/model/harness and adds explicit capability checks.
+4. Phase 4 replaces the fixture execution path with the selected HaexVault provider/model/harness and adds explicit capability checks.
 5. Phase 5 hardens the path against data exfiltration, implicit fallback, cancellation, and lifecycle changes.
 6. Phase 6 verifies the integrated contract and prepares the downstream haex-notes adapter.
 

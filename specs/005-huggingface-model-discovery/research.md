@@ -60,7 +60,7 @@ Registrierung zusätzlich durch den bestehenden lokalen Loadpfad validiert.
 
 **Alternatives considered**:
 
-- Alle Hugging-Face-Dateien anbieten: würde Downloads erzeugen, die Holzi nicht
+- Alle Hugging-Face-Dateien anbieten: würde Downloads erzeugen, die HaexVault nicht
   verwenden kann.
 - Nach Dateiname statt Metadaten filtern: Dateiendung und Hub-Dateityp werden
   gemeinsam geprüft; reine Namensheuristik wäre zu schwach.
@@ -174,7 +174,7 @@ serverunabhängig und pfadsicher erzeugt bzw. validiert.
 **Decision**: Die Modellverwaltung prüft beim Öffnen und über eine explizite
 Aktualisieren-Aktion die gespeicherten öffentlichen HF-Refs installierter
 Modelle. Liefert Hugging Face eine andere Commit-SHA als die gespeicherte,
-zeigt Holzi einen Update-Hinweis mit alter und neuer SHA und bietet die
+zeigt HaexVault einen Update-Hinweis mit alter und neuer SHA und bietet die
 Installation dieser Revision an. Die bestehende Datei wird erst nach einem
 erfolgreichen atomaren Download ersetzt.
 

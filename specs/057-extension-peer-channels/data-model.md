@@ -8,7 +8,7 @@ Karten (`haex_contacts_cards`, `haex_contacts_blocked_vaults`), Gerätelisten (`
 
 Der Zustand liegt in `ExtensionHost.peers: PeerState` (`extensions/peers/state.rs`), je Erweiterung
 über `extension_id` (UUID der Registrierung) zugeordnet. Kennungen an die Erweiterung sind zufällige
-UUIDv4 als Text; holzi prüft bei jedem Aufruf, dass die Kennung zur aufrufenden Erweiterung gehört
+UUIDv4 als Text; haex-vault prüft bei jedem Aufruf, dass die Kennung zur aufrufenden Erweiterung gehört
 (FR-006).
 
 ## Erweiterungsidentität auf dem Draht
@@ -29,7 +29,7 @@ der Entwicklermodus auf diesem Gerät an ist (wie `dispatch::is_enabled`).
 | `card_name`     | Name von der Visitenkarte der Gegenseite, falls Kontakt |
 
 `trust` wird einmal im Handshake bestimmt. Wird die Vault später blockiert oder ihre Karte gelöscht,
-schließt holzi offene Kanäle zu ihr (research R12).
+schließt haex-vault offene Kanäle zu ihr (research R12).
 
 ## Kanal (`Channel`)
 
@@ -108,7 +108,7 @@ Ende der Verbindung; Abfrage und Benachrichtigung verschwinden (FR-015).
 Ein angenommener Kanal, dessen Erweiterung noch keinen Rahmen hat: `channel`, die wartenden Meldungen
 (zuerst `peers:channel-opened`, danach die Nachrichten des Kanals, höchstens 256). Geht hinaus, sobald ein
 Rahmen der Erweiterung seine erste Anmeldung meldet (`extension_frame_reloaded`); nach 60 s ohne Rahmen
-schließt holzi den Kanal mit `closed` (research R9).
+schließt haex-vault den Kanal mit `closed` (research R9).
 
 ## Drosselung (`Throttle`)
 

@@ -5,11 +5,11 @@ Implements FR-001, FR-002, FR-004, FR-005. Component: `src/components/wm/TabButt
 
 ## Where
 
-Inside the window-button group of the header (spec 090's fixed end part), before the minimize button. Owned by holzi:
+Inside the window-button group of the header (spec 090's fixed end part), before the minimize button. Owned by haex-vault:
 not part of a `WmHeaderDescription`, not collapsible into the header's overflow menu. The header's layout function
 measures the group as one fixed width, so no change to `headerLayout.ts` is needed, provided the measurement takes the
 whole slot and is repeated when the button's width changes (T019). This spec amends spec 090's "the window buttons are the
-one part of the header that belongs to holzi": the tab button is a second one (T035).
+one part of the header that belongs to haex-vault": the tab button is a second one (T035).
 
 ## Faces
 

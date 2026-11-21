@@ -175,7 +175,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I couldn't add the dentist appointment for tomorrow, Thursday, March 19 at 10:00, because holzi has no calendar. The installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail, and none of them can store appointments. If a calendar extension is installed, I can add the appoi"
+      "text": "I couldn't add the dentist appointment for tomorrow, Thursday, March 19 at 10:00, because haex-vault has no calendar. The installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail, and none of them can store appointments. If a calendar extension is installed, I can add the appoi"
     },
     {
       "id": "no_tool-en-4",
@@ -216,7 +216,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "I couldn't find a shopping list in holzi. None of the installed apps (Einstellungen, Chat, Dateien, Passwörter, Kontakte, haex-mail) offers one. Where should I put milk?",
+            "question": "I couldn't find a shopping list in haex-vault. None of the installed apps (Einstellungen, Chat, Dateien, Passwörter, Kontakte, haex-mail) offers one. Where should I put milk?",
             "options": [
               "Look for a shopping list file in Dateien",
               "Show me the apps so I can pick one",
@@ -226,7 +226,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I couldn't find a shopping list in holzi. None of the installed apps (Einstellungen, Chat, Dateien, Passwörter, Kontakte, haex-mail) offers one. Where should I put milk?"
+      "text": "I couldn't find a shopping list in haex-vault. None of the installed apps (Einstellungen, Chat, Dateien, Passwörter, Kontakte, haex-mail) offers one. Where should I put milk?"
     }
   ],
   "requests": [

@@ -46,7 +46,7 @@ Bilder, Downloads. `StorageSource`: Id und Name des Speichers aus 038.
 
 `TransferEvent`: `progress { items, bytes }`, `conflict { name }`, `done`, `cancelled`,
 `failed { code, message }`. Fehler-Codes vor dem Start: `exists`, `intoItself`, `noSpace`,
-`holziOwned`, `noAccess`, `notFound`.
+`haexOwned`, `noAccess`, `notFound`.
 
 ## Suche
 

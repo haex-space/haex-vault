@@ -61,17 +61,17 @@ change it:
   without `before` today in 6 failures; the tool's schema describes both bounds.
 - **Decision**: the clock line also names yesterday's and tomorrow's dates and says that a day runs from its date to
   the next one. Measured on the chain set (a day other than yesterday) first.
-- **Rationale**: the models get dates right; they miss the end. A line holzi writes holds for every extension with a
+- **Rationale**: the models get dates right; they miss the end. A line haex-vault writes holds for every extension with a
   date range.
 - **Alternatives considered**: filling in `before` when only `since` is sent; rejected, "since Monday" means no end,
-  and holzi cannot tell the two apart. Changing haex-mail's description; rejected, the fixture stays pinned.
+  and haex-vault cannot tell the two apart. Changing haex-mail's description; rejected, the fixture stays pinned.
 - **Outcome** (T019, T020): a sentence alone on where a day ends did not get the target models to send the end;
   showing yesterday's search with both dates did ("A search for one day needs both bounds, its date as the start and
   the next date as the end: yesterday is … to …"). Kept; results.md "Step: a day's bounds".
 
 ## R5 Values in the wrong form (FR-007 to FR-009)
 
-- **Decision**: before the guard, holzi turns a value into the type the tool's schema declares when the meaning is
+- **Decision**: before the guard, haex-vault turns a value into the type the tool's schema declares when the meaning is
   unique: `"true"`/`"false"` (any case) into a yes/no, a decimal number written as text into a number. Anything
   else stays as sent, and the tool's own check answers. The dialog and the stored call show the turned value.
 - **Rationale**: deterministic, cheap, testable without a model; it helps every model with the same habit.
@@ -111,7 +111,7 @@ change it:
   Hausverwaltung?" and "What did Tom write?" go to files, "Antworte Anna …" to chat, one spoken request to no area.
   Gemma 4 E4B routes the same requests to mail. Each of these requests names a person and a verb, not an area.
 - **The operator's correction**: "Antworte Anna" may as well be meant for a chat as for a mail. Pushing such requests
-  toward mail would tune holzi to one extension and break the day an extension holds chats with people. The lever must
+  toward mail would tune haex-vault to one extension and break the day an extension holds chats with people. The lever must
   be general.
 - **Decision**: three candidates, each for every area, measured in this order:
   1. **Routing to every area that may hold it**: the routing prompt says that a request naming only a person or a
@@ -120,12 +120,12 @@ change it:
      (`analysis/routeset.json`), where a request is right when every area that can hold the answer is among the
      routed ones.
   2. **Looking in the next area**: one instruction sentence: when a search in one offered area finds nothing, search
-     the other offered areas before saying that nothing was found (FR-018). It holds for holzi's areas and every
+     the other offered areas before saying that nothing was found (FR-018). It holds for haex-vault's areas and every
      extension and needs no knowledge of either. Measured (results.md "Step: a search that finds nothing"), it goes
      to routed turns only: hosted models, which do not route, searched on where nothing could be found and failed
      refusals with it (Sonnet 5.5 101 → 95), while the local models gained (Qwen3.5 4B 80 → 86).
-  3. **Domain descriptions** of holzi's areas that say what they hold, not what they are for ("the user's own
-     conversations with holzi" for chat), so that a person-only request does not land in an area that holds nothing
+  3. **Domain descriptions** of haex-vault's areas that say what they hold, not what they are for ("the user's own
+     conversations with haex-vault" for chat), so that a person-only request does not land in an area that holds nothing
      from people. Tuned on the same development sets.
 - **Rationale**: 1 and 3 decide what is offered, 2 what the model does with an offer that has more than one area; none
   of them names mail. The world (R12) must answer the conversations truthfully first, or a model sent to chat is told
@@ -136,13 +136,13 @@ change it:
 
 ## R12 The measuring world answers every reading tool (FR-016)
 
-- **Finding**: `FixtureWorld::answer` answers 7 of holzi's 31 reading tools; the other 24 (among them
+- **Finding**: `FixtureWorld::answer` answers 7 of haex-vault's 31 reading tools; the other 24 (among them
   `chat_conversations_list`, `chat_messages_list`, `files_read`, `files_stat`, `files_sources`, `wm_state_get`,
   `syncRules_list`, `settings_models_list`, `browser_tabs_list`) fall through to `{"ok": true}`. A model that looks
   in the wrong area is told neither that nothing is there nor what is there, so the measurement cannot tell a model
   that recovers from one that does not.
 - **Decision**: the world answers each of them from its data, in the shape of the real tool and limited to the
-  fields the sets need: the conversations (two with holzi; conversations with contacts stay hidden from agents until spec 072's grant, FR-070), a conversation's messages without
+  fields the sets need: the conversations (two with haex-vault; conversations with contacts stay hidden from agents until spec 072's grant, FR-070), a conversation's messages without
   their text (as the real tool answers an agent), the device's file source, a known file's details, the open window,
   the installed models and this device; empty lists for sync rules, shares and agent tabs; an error for an unknown
   id or path. Changing tools keep answering a plain success, since the sets judge them by the call. The new answers
@@ -151,7 +151,7 @@ change it:
   what it was told; a truthful "nothing here" is what lets a model look in the next area (R11.2).
 - **Two changing answers were too kind, and the file search too strict** (found in the chain set's first run on this
   world): `wm_app_open` answered success for any name ("office", "haex-chat"), so a model believed it had opened a
-  file in an app that does not exist; it now opens an app by its id, its title or the word of a holzi id, or by a
+  file in an app that does not exist; it now opens an app by its id, its title or the word of a haex-vault id, or by a
   name that holds one of those, as `src/lib/wm/appMatch.ts` decides in short, and answers an error otherwise. The
   file search matched the query as one piece, so "Anna Geburtstag" missed `/Fotos/2026/Geburtstag Anna/…`; it now
   needs every word in any order, as the password search already did; the real search matches names loosely too.
@@ -170,7 +170,7 @@ change it:
 
 - **Finding**: 29 of the chain set's 35 requests are mail, 6 passwords; the routing development set of spec 082 has
   every area but checks only routing.
-- **Decision**: the chain set gains requests for contacts, files, passwords, settings and holzi's conversations, and
+- **Decision**: the chain set gains requests for contacts, files, passwords, settings and haex-vault's conversations, and
   requests that name only a person or a thing; at least a third of the set is not mail. They use what the everyday set
   does not ask about (other people, files and settings).
 - **Rationale**: wording tuned on a mail-heavy set would be tuned to mail (Decision 7).
@@ -183,7 +183,7 @@ change it:
   word of the user's message counts only when it looks like an id.
 - **Decision**: only a word that holds a digit or one of `-`, `_`, `.`, `:`, `@`, `/`, `#` counts (`msg-42`, `12345`,
   `x@y.de`, `#77`); quotes and punctuation around it are dropped. Tool results count as before.
-- **Rationale**: holzi's and the extensions' ids are made by programs, not words; a name is something to look up.
+- **Rationale**: haex-vault's and the extensions' ids are made by programs, not words; a name is something to look up.
   The scoring (`ids.rs`) already counts only results, so it does not change.
 - **Alternatives considered**: no user words at all; rejected, a user may paste an id from elsewhere (spec 082 FR-011).
 
@@ -209,7 +209,7 @@ change it:
 - **Candidates**:
   1. **Order**: in a routed offer, a tool whose effect is final comes after the tools of the same domain that change
      without deleting.
-  2. **A sentence holzi adds to every final tool**: it cannot be undone; use it only when the user asks for a final
+  2. **A sentence haex-vault adds to every final tool**: it cannot be undone; use it only when the user asks for a final
      delete.
   3. **After a declined final call**: the answer says that a reversible way (moving to the trash) may be what was
      meant, if the step offers one.

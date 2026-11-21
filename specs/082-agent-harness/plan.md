@@ -17,7 +17,7 @@ The work comes in two halves.
      Qwen3.5 4B, 92 % for Gemma 4 E4B, about 0.1 s).
    - **The offer**: the first step offers that domain's tools, its lookups always included, and no window tools
      unless they are needed.
-   - **Guard**: holzi turns away ids nobody found and unknown tools, and every error answer says what to do next.
+   - **Guard**: haex-vault turns away ids nobody found and unknown tools, and every error answer says what to do next.
 
 ## Technical Context
 
@@ -44,7 +44,7 @@ The work comes in two halves.
 
 **Constraints**:
 
-- Builds in the 10 GB memory scope with `-j 1` (lib tests with `--config 'profile.dev.package.holzi.debug=0'`).
+- Builds in the 10 GB memory scope with `-j 1` (lib tests with `--config 'profile.dev.package.haex.debug=0'`).
 - The CUDA build for the measurements per spec 078's quickstart.
 - The everyday set's 106 requests are the yardstick: nothing is tuned on them (research R3).
 

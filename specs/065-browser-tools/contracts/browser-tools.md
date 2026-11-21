@@ -38,22 +38,22 @@ festen Kernangebot), für externe Agenten in `tools/list`, wenn ihre Rechtegrupp
 `browser.open` nutzt den zuletzt benutzten Agenten-Tab; `browser.tabs.open` erstellt einen neuen
 Tab. Jede Navigation, einschließlich Linkfolgen und direktem Öffnen, gilt als ändernd, weil auch
 eine GET-Anfrage den Zustand der Website ändern kann.
-`tab` ist eine von holzi vergebene kurze Kennung je Sitzung (`t1`, `t2`, …), nie eine Kennung des
+`tab` ist eine von haex-vault vergebene kurze Kennung je Sitzung (`t1`, `t2`, …), nie eine Kennung des
 Browsers.
 
 `browser.credentials.create` speichert den erzeugten Eintrag erst nach ausdrücklicher Freigabe.
-Lehnt der Nutzer ab, liefert das Werkzeug `user_declined` und holzi leert sowohl das Passwortfeld
+Lehnt der Nutzer ab, liefert das Werkzeug `user_declined` und haex-vault leert sowohl das Passwortfeld
 als auch das Wiederholungsfeld. Ohne die Stufe „Lesen und Schreiben“ der Passwort-Rechte lautet der Fehler
-`no_write_rights`, bevor holzi etwas erzeugt; ist das Element kein Passwortfeld,
+`no_write_rights`, bevor haex-vault etwas erzeugt; ist das Element kein Passwortfeld,
 `not_password_field`. Als Wiederholungsfeld gilt das nächste Passwortfeld desselben Formulars
-nach dem genannten, wenn es leer ist oder von holzi stammt; ein altes Passwort davor bleibt
+nach dem genannten, wenn es leer ist oder von haex-vault stammt; ein altes Passwort davor bleibt
 unberührt.
 
 `browser.entry.fill` fragt bei jedem Aufruf (R7a). Der Nutzer wählt den Eintrag und die Zuordnung
 in der Rückfrage; der Agent bekommt nur `filled` mit den Nummern der gefüllten Elemente, nie
 Eintrag, Feldnamen des Eintrags oder Werte. Passt kein Feld, lautet die Antwort `nothing_mapped`. Felder in
 Rahmen einer Website, die der Agent bedienen darf (etwa die Kartenfelder eines Zahlungsanbieters),
-füllt holzi mit; ihre Elemente haben für den Agenten keine Nummern, die Antwort zählt sie als
+füllt haex-vault mit; ihre Elemente haben für den Agenten keine Nummern, die Antwort zählt sie als
 `in_frames`. Rahmen anderer Websites bleiben leer.
 
 ## Seite
@@ -178,7 +178,7 @@ the pixels of a region image.
 
 **Errors**: `key_not_allowed` and `focus_in_frame` (the focus is in a frame, whose website is not known to the page; FR-049), `view_changed` and `no_view` (FR-058), `fullscreen_refused`
 as a note on the next result (FR-055). All of them leave the page untouched except
-`fullscreen_refused`, which reports what holzi did.
+`fullscreen_refused`, which reports what haex-vault did.
 
 **Offer** (FR-063): the built-in agent gets `browser.page.screenshot`, `browser.click_at`,
 `browser.drag` and the position form of `browser.hover` only when its model accepts images; the

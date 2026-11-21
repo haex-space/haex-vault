@@ -1,7 +1,7 @@
 # Data Model: One chat for the agent and for contacts
 
 Migration `0049_chat_contacts` in `src-tauri/src/identity/migrations_chat_contacts.rs` (tests in
-`migrations_chat_contacts_tests.rs`), `HOLZI_TRIGGER_VERSION` 30 → 31. Tables without `_no_sync` are
+`migrations_chat_contacts_tests.rs`), `HAEX_TRIGGER_VERSION` 30 → 31. Tables without `_no_sync` are
 CRDT-synced to all own devices (spec 024); the CRDT columns are added by the transformer and are not
 written in the SQL. No UNIQUE constraints on synced tables; uniqueness comes from derived ids
 (`chat::ids`, UUIDv5 under a fixed `CHAT_NS`). All times are Unix milliseconds.

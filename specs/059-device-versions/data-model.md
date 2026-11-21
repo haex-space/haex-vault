@@ -7,7 +7,7 @@ Migration `0040_device_peer_schema` (gleichzeitig der Migrationsstand 40 im Verg
 | Spalte           | Typ          | Regeln                                                                       |
 | ---------------- | ------------ | ---------------------------------------------------------------------------- |
 | `peer_protocol`  | INTEGER NULL | `SchemaVersion.protocol` des Geräts, wie es sich zuletzt im Handshake nannte |
-| `peer_migration` | INTEGER NULL | `SchemaVersion.holzi_migration`                                              |
+| `peer_migration` | INTEGER NULL | `SchemaVersion.haex_migration`                                               |
 | `peer_trigger`   | INTEGER NULL | `SchemaVersion.crdt_trigger`                                                 |
 
 ```sql
@@ -26,11 +26,11 @@ Regeln:
   nur dann; ein unbekannter Endpunkt legt keine Zeile an.
 - Das Schreiben ersetzt nur diese drei Spalten; `last_seen`, `endpoint_addr` und `problem` bleiben.
 - Die Zeile eines entfernten Geräts wird wie bisher gelöscht (`removal.rs`).
-- Keine CRDT-Tabelle, kein Eintrag in der Änderungsverfolgung, `HOLZI_TRIGGER_VERSION` bleibt 27.
+- Keine CRDT-Tabelle, kein Eintrag in der Änderungsverfolgung, `HAEX_TRIGGER_VERSION` bleibt 27.
 
 ## `SchemaVersion` (Wire, `wire.rs`)
 
-Unverändert: `{ protocol: u32, holzi_migration: u32, crdt_trigger: u32 }`. `protocol` kommt aus
+Unverändert: `{ protocol: u32, haex_migration: u32, crdt_trigger: u32 }`. `protocol` kommt aus
 `PROTOCOL_VERSION`, die jetzt 2 ist.
 
 ## `VaultDevice` (Befehl `list_vault_devices`, `device_view.rs`)
@@ -38,10 +38,10 @@ Unverändert: `{ protocol: u32, holzi_migration: u32, crdt_trigger: u32 }`. `pro
 Neu: `schema: DeviceSchema | null`.
 
 ```text
-DeviceSchema { protocol: number, holziMigration: number, crdtTrigger: number }
+DeviceSchema { protocol: number, haexMigration: number, crdtTrigger: number }
 ```
 
-- Bei `isCurrent` der Stand des laufenden holzi (`local_schema()`), nie `null`.
+- Bei `isCurrent` der Stand des laufenden haex-vault (`local_schema()`), nie `null`.
 - Bei anderen Geräten der gespeicherte Stand oder `null`.
 - Die TS-Typen entstehen über ts-rs nach `src/types/bindings/` (`DeviceSchema.ts`, `VaultDevice.ts`).
 

@@ -100,7 +100,7 @@ attempt still behave as before.
 
 - [x] T008 [US3] In `src-tauri/Cargo.toml` add `zeroize` 1.x as a direct dependency with the `serde`
       feature. Verify with `cargo metadata` that it still resolves to 1.9.0 and that the
-      `Cargo.lock` diff is only holzi's own dependency list and `zeroize` listing `serde` (no new
+      `Cargo.lock` diff is only haex-vault's own dependency list and `zeroize` listing `serde` (no new
       package). Commit
       `build(deps): depend on zeroize directly`.
 - [x] T009 [US3] Create `src-tauri/src/instances/passphrase.rs` (declare it in `src-tauri/src/instances/mod.rs`): a
@@ -123,7 +123,7 @@ attempt still behave as before.
 - [x] T013 [US3] Review every use of the passphrase for leaks (FR-015): a case-insensitive `rg`
       search for passphrase over `src-tauri/src`, checking `log::`, `format!`, `to_string`,
       `Display` and error construction. Record "no leak found" or the fixes made in the Baseline
-      section. Errors such as `HolziError::WrongPassphrase` must stay fieldless.
+      section. Errors such as `HaexError::WrongPassphrase` must stay fieldless.
 - [x] T014 [US3] Regenerate the bindings (see the format notes at the top) and confirm `src/types/bindings/OpenInstanceArgs.ts`
       and `CreateInstanceArgs.ts` are unchanged (still `string`). Any other diff is investigated,
       not committed blindly.
@@ -194,7 +194,7 @@ the wrapper over the Tauri mock runtime; the app behaves exactly as before.
       `token()`, `spawn(fut)` and `spawn_blocking(f)` (both tracked; `spawn` uses
       `TaskTracker::spawn_on` with `tauri::async_runtime::handle().inner()` so tasks run on Tauri's
       runtime, registers the abort handle and prunes finished handles), `run(fut)` (races the future
-      against the token and returns `Err(HolziError::VaultClosed)` when the token wins), and a way to
+      against the token and returns `Err(HaexError::VaultClosed)` when the token wins), and a way to
       hand out a tracker token. Also `ClosePolicy` (`Relaunch` | `Exit`) and `close_policy()` (debug
       builds return `Exit` until T048 says otherwise). Keep every new file under 500 lines.
 - [x] T023 Create `src-tauri/src/vault_gate/drain.rs`: the ladder from research R5 (fire the token, wait up to
@@ -211,7 +211,7 @@ the wrapper over the Tauri mock runtime; the app behaves exactly as before.
 - [x] T025 Create `src-tauri/src/vault_gate/invoke.rs`: `APP_SCOPED_COMMANDS` (the list confirmed in T017) and
       `VaultGate::wrap`, returning a closure `Fn(Invoke<R>) -> bool`. It reads the name with
       `invoke.message.command()`; in `Closing` and not allow-listed it calls
-      `invoke.resolver.reject(HolziError::VaultClosed)` and returns `true`, otherwise it calls the
+      `invoke.resolver.reject(HaexError::VaultClosed)` and returns `true`, otherwise it calls the
       inner handler.
 - [x] T026 Add `VaultClosed` and `VaultAlreadyActive` to `src-tauri/src/error.rs` (fieldless; messages "The
       vault is closed" and "A vault is already open in this app process"). Do not remove
@@ -457,7 +457,7 @@ creating while one exists is refused.
 - [x] T061 [US2] Run quickstart scenario 4 and record it in the Validation record.
 - [x] T062 [US2] **Checkpoint Stage 4**: full CI parity. Commit
       `refactor(instances): one vault session per app process`. Committed `60e8d72`, pushed
-      `013-single-vault-session`, PR #123 opened (https://github.com/haexmas/holzi/pull/123).
+      `013-single-vault-session`, PR #123 opened (https://github.com/haex-space/haex-vault/pull/123).
 
 ---
 
@@ -508,7 +508,7 @@ vault list, and a startup cleanup that never deletes another process's work in p
       inside a 3 s window, ceiling "adds up to one poll interval of latency", upgrade path "none
       needed". Declare `lock_retry_tests.rs` with the `#[path]` idiom.
 - [x] T069 [US4] Use it in `src-tauri/src/instances/open.rs`: attempts that fail with
-      `HolziError::VaultAlreadyOpenElsewhere` are retried for up to 3 s, polling with an async sleep
+      `HaexError::VaultAlreadyOpenElsewhere` are retried for up to 3 s, polling with an async sleep
       between blocking attempts so a close can interrupt, then the error is returned.
 - [x] T070 [US4] Implement `PublicationLock` in `src-tauri/src/models/paths.rs`: the guard returned by
       `acquire_model_publication_lock`, taking `(app, slug, cancellation token)`. It holds the
@@ -611,7 +611,7 @@ for test-only helpers, and keeping the already-merged file's diff empty.
 **Goal**: The `SqlCipherKey` copy inside haex-crdt is erased on drop. It lives in another repository
 and does not block Stages 1 to 6.
 
-**Independent test**: the haex-crdt tests pass, and holzi builds and passes its suite against the
+**Independent test**: the haex-crdt tests pass, and haex-vault builds and passes its suite against the
 pinned commit.
 
 - [x] T083 [US3] In the haex-crdt repository (separate; the operator allows any available `gh`
@@ -623,11 +623,11 @@ pinned commit.
       `Zeroizing`'s own `Clone`, which itself clones into a new erasing buffer, satisfying "clone into
       another `Zeroizing`" without removing the trait — avoids the `vault_config.rs` fallout the task
       text expected). Two new tests: `sql_cipher_key_erases_on_drop` (the same compile-time
-      `ZeroizeOnDrop` assertion holzi's own `Passphrase` type uses) and
+      `ZeroizeOnDrop` assertion haex-vault's own `Passphrase` type uses) and
       `sql_cipher_key_clone_is_an_independent_erasing_copy`. Merged as
       [haexmas/haex-crdt#30](https://github.com/haexmas/haex-crdt/pull/30), commit
       `ed230d2c3f58c1b10710b6025ea0ce6c20b8d009`.
-- [x] T084 [US3] In holzi's `src-tauri/Cargo.toml` bump the `haex-crdt` `rev` to that full SHA (constitution:
+- [x] T084 [US3] In haex-vault's `src-tauri/Cargo.toml` bump the `haex-crdt` `rev` to that full SHA (constitution:
       immutable references), run `cargo update -p haex-crdt`, and confirm the `Cargo.lock` diff is only
       that entry. Fix compile fallout, most likely in `src-tauri/src/instances/vault_config.rs` if `Clone` was
       removed.
@@ -647,7 +647,7 @@ haex-crdt` on its own pulled in unrelated version churn across the lockfile (`wi
       scenario 5 was not re-walked live again: T081 (this same day) already verified it live end to end
       against a real debug binary, and this bump only changes `SqlCipherKey`'s internal representation
       inside haex-crdt (still redacted, still erasing, identical `as_str()`/`Clone` behavior from
-      holzi's side) — nothing scenario 5 checks changed shape.
+      haex-vault's side) — nothing scenario 5 checks changed shape.
 - [x] T086 [US3] **Checkpoint Stage 7**: commit `build(deps): pin haex-crdt with an erasing SqlCipherKey`.
 
 ---
@@ -711,7 +711,7 @@ haex-crdt` on its own pulled in unrelated version churn across the lockfile (`wi
   changes (T070, T071) and the presence lock with the gated cleanup (T072, T073) only need Phase 3
   and can start earlier.
 - **Stage 6** needs T047 (sandbox).
-- **Stage 7** is independent of holzi's stages; only T084 to T086 need the upstream commit.
+- **Stage 7** is independent of haex-vault's stages; only T084 to T086 need the upstream commit.
 - Tasks touching `src-tauri/src/vault_gate/mod.rs`, `src-tauri/src/instances/open.rs`, `src-tauri/src/lib.rs` or
   `scripts/check-vault-lifecycle.ts` are sequential with each other.
 
@@ -788,7 +788,7 @@ _Filled in during T003, T004, T013, T036, T058 and T088._
   available `gh` account may be used, restoring the previously active one afterwards.
 - Passphrase leak review (T013, 2026-09-21): no leak found. The value appears only in the
   `Passphrase` type, `vault_config`, the two open and create tasks and the `pragma_update` call.
-  `Debug` is redacted, `HolziError::WrongPassphrase` is fieldless and `WeakPassphrase` carries only
+  `Debug` is redacted, `HaexError::WrongPassphrase` is fieldless and `WeakPassphrase` carries only
   the length rule. The only logging in `src-tauri/src/instances` prints event errors and file
   paths. rusqlite quotes and escapes the `PRAGMA key` value, so a SQLite error text cannot echo it.
   Residual copies stay as documented in research R7: the SQL text inside rusqlite, the IPC body and
@@ -894,7 +894,7 @@ product bug). Covered, through the **real `open_instance`/`create_instance` Taur
   (`vault-a`, `vault-b`, `vault-c`) — the backend side of the cross-process visibility T075's re-sync
   relies on.
 
-No leftover `tauri-driver`/`Xvfb`/`holzi` process after the run (checked with `ps aux`).
+No leftover `tauri-driver`/`Xvfb`/`haex` process after the run (checked with `ps aux`).
 
 Originally scoped down here: steps 2, 5 and 6 were reasoned to already be covered by existing
 unit/integration tests and left unverified live, with reasoning recorded. A CodeRabbit review of PR
@@ -1055,7 +1055,7 @@ deliberately never launches through `tauri:dev`). `close_policy()` was temporari
 `Relaunch` in a debug build through a scratch env-var check, removed again immediately after: both
 runs unlocked a scratch vault, reached the chat page, and pressed the sidebar lock control.
 
-Outcome, identical both times: the relaunched `target/debug/holzi` starts within milliseconds (a new
+Outcome, identical both times: the relaunched `target/debug/haex` starts within milliseconds (a new
 pid, a fresh GTK/MESA init line in the log) — the app's own `tauri::process::restart()` works — but
 `cargo run`'s exit then makes the `tauri dev` watcher itself exit right after
 (`XVFB-RUN-WRAPPER-EXIT-CODE: 0`, confirmed by wrapping the invocation so its real exit code is

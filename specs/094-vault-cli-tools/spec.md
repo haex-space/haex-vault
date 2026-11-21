@@ -8,22 +8,22 @@
 
 **Input**: User description: "Each vault gets its own installation of the CLI tools that the delegate backends run
 (Claude Code `claude`, Codex `codex`), inside the vault folder, and its own HOME inside the vault folder. The user installs
-a tool once before first use and updates it later, both from the UI. holzi must not depend on tools of the host and must
+a tool once before first use and updates it later, both from the UI. HaexVault must not depend on tools of the host and must
 leave as few traces as possible when used on a foreign computer." (operator, 2026-11-16, while scoping the Abacus AI CLI
 as a third delegate, which becomes spec 096 on top of this one.)
 
 ## Background
 
-- **Today the delegates run the host's tools.** Spec 007 spawns `claude` and `codex` from the host `PATH`. holzi ships
+- **Today the delegates run the host's tools.** Spec 007 spawns `claude` and `codex` from the host `PATH`. HaexVault ships
   neither. The provider row's `base_url` holds the binary name or a path. A missing binary ends in "not installed or not on
-  PATH" with an `npm install -g` hint. holzi never checks a version, and updating is the host owner's business.
+  PATH" with an `npm install -g` hint. HaexVault never checks a version, and updating is the host owner's business.
 - **Today a delegate run still touches the host.** The per-run config folder and working folder come from the operating
   system's temp folder, and `HOME` is not set, so everything a tool writes outside its config-folder variable (caches, logs,
   history, a second dotfile) lands in the real home folder of whoever is logged in.
-- **Today records about vault activity can land in device-wide files.** holzi's file log (switched on in debug builds only)
+- **Today records about vault activity can land in device-wide files.** HaexVault's file log (switched on in debug builds only)
   writes to `<AppLocalData>/logs/`, one file for the whole device, not into a vault's folder. Which lines about a vault, a tool
   or a delegate run reach it has not been checked.
-- **What the operator wants.** On a computer that is not theirs, holzi must work without anything installed there and must
+- **What the operator wants.** On a computer that is not theirs, HaexVault must work without anything installed there and must
   leave nothing behind outside the vault's own folder. The rule behind it, stated by the operator on 2026-11-16:
   everything that concerns a vault lands in that vault's folder. The tools live in the vault folder (spec 084) next to everything else
   of the vault, which also lets them be covered by the encryption of vault subfolders later.
@@ -35,7 +35,7 @@ as a third delegate, which becomes spec 096 on top of this one.)
 - Q: Where does a delegate process's home lie? → A: In `<vault folder>/home/`, a subfolder of its own, not the vault
   folder's root: the root keeps holding only SQLite and bookkeeping files (spec 084 FR-002) and the home can be encrypted
   later with the other subfolders (operator).
-- Q: Which version does "update" install? → A: Only versions on holzi's tested-version list, always the newest
+- Q: Which version does "update" install? → A: Only versions on HaexVault's tested-version list, always the newest
   one; the user cannot pick another version in the UI, and "go back" (FR-022) covers a new version that does not work
   (operator, clarified 2026-11-16; the backend command still accepts a listed version, used by tests and the quickstart).
 - Q: Must isolation rest on environment variables? → A: No. A child process's environment is private to that child, but
@@ -57,7 +57,7 @@ as a third delegate, which becomes spec 096 on top of this one.)
 - Q: How is a damaged installation detected? → A: By the program's file size, recorded at install and compared at each
   start; no hash is read at start (operator).
 - Q: Is the measurement of device-wide files part of this spec? → A: Yes, as a task: a series is run and every
-  device-wide file holzi writes is searched; hits outside the files this feature touches become follow-ups (operator).
+  device-wide file HaexVault writes is searched; hits outside the files this feature touches become follow-ups (operator).
 - Q: Does an install ask for confirmation before it downloads? → A: No. The install starts at once; the download size and
   the space it takes in the vault are shown as text next to the action, and it can be cancelled at any time (operator).
 - Q: What happens to a delegate request that is running when the vault is closed? → A: It is stopped and ends as
@@ -203,17 +203,17 @@ architecture, and break an installed tool's file; open both in the UI.
 - Several vaults each hold their own copy: this is wanted; each vault shows its own state and nothing is shared between
   them outside the vault folders.
 - The vault folder is on a path where running downloaded programs is not allowed (for example a mount without execute
-  permission): the tool is shown as not runnable with that reason, and holzi does not copy it elsewhere on the host to
+  permission): the tool is shown as not runnable with that reason, and HaexVault does not copy it elsewhere on the host to
   work around it.
 - The tool's version is older than the oldest entry of the tested-version list: the backend says so and offers the update;
-  a version newer than the list (a vault from a newer holzi) is shown as untested and still started.
+  a version newer than the list (a vault from a newer HaexVault) is shown as untested and still started.
 - The user is offline when they open the update: the update offers the listed versions without any network need; only the
   download itself needs the network.
 - A tool is missing that a stored delegate provider row still refers to (a copied vault, a removal that failed half way):
   the row of that provider shows "not installed", offers the install and the removal, and the connection comes back to
   use with the install.
 - The first run with a new version fails because of the version itself (for example a changed protocol): it does not
-  confirm, the previous version is still there, and the user can go back; holzi does not decide that for them (FR-022).
+  confirm, the previous version is still there, and the user can go back; HaexVault does not decide that for them (FR-022).
 
 ## Requirements _(mandatory)_
 
@@ -225,15 +225,15 @@ architecture, and break an installed tool's file; open both in the UI.
   itself is never used as a home.
 - **FR-002**: The paths of FR-001 MUST be resolved by the one function that resolves the vault's paths (spec 084 FR-003);
   no other module builds them.
-- **FR-003**: holzi MUST NOT look for a delegate tool on the host: no `PATH` lookup, no fixed host location, no fallback to a
+- **FR-003**: HaexVault MUST NOT look for a delegate tool on the host: no `PATH` lookup, no fixed host location, no fallback to a
   host copy when the vault has none. A provider row no longer carries a binary name or path.
 - **FR-004**: For every supported vendor the user MUST be able to install, update, see the installed version of, and remove
   the tool, for the current vault, from the UI. When a delegate backend is chosen or connected while its tool is missing,
   the install is offered there.
-- **FR-005**: holzi MUST download and unpack the tools itself, with nothing on the host but holzi: no Node, no npm, no
+- **FR-005**: HaexVault MUST download and unpack the tools itself, with nothing on the host but HaexVault: no Node, no npm, no
   shell script. The download MUST show progress and be cancellable, and a failure MUST name its reason (offline, server
   error, not enough space, integrity).
-- **FR-006**: holzi MUST verify what it downloaded against integrity information (checksum or signature) for that exact
+- **FR-006**: HaexVault MUST verify what it downloaded against integrity information (checksum or signature) for that exact
   version before anything of it is run, and MUST refuse a mismatch. Each entry of the tested-version list (FR-009) carries
   that information, so the check does not depend on the vendor's server at install time; where the vendor itself publishes a
   checksum or signature, the entry's value MUST have been taken from or checked against it. If neither can be established
@@ -241,18 +241,18 @@ architecture, and break an installed tool's file; open both in the UI.
   risks).
 - **FR-007**: An install or update MUST be complete or absent: it is prepared aside, verified, and only then made the
   installed version. An interrupted attempt MUST leave the previous state intact and be cleared at the next start.
-- **FR-008**: holzi MUST NOT install or update a tool without the user's action, and MUST keep each tool's own
+- **FR-008**: HaexVault MUST NOT install or update a tool without the user's action, and MUST keep each tool's own
   self-update switched off.
-- **FR-009**: holzi MUST keep, per vendor, a list of the versions it has tested with its adapter. An install and an update
+- **FR-009**: HaexVault MUST keep, per vendor, a list of the versions it has tested with its adapter. An install and an update
   MUST only install a version of that list: from the UI always the newest one (the command accepts another listed version
   for tests and the quickstart; the UI offers none). "A newer version is
-  available" means a newer entry in the list; holzi does not ask the vendor for its latest version. A tool installed in a
-  version that is not on the list (for example a vault from a newer holzi) is shown with that fact and is still started.
+  available" means a newer entry in the list; HaexVault does not ask the vendor for its latest version. A tool installed in a
+  version that is not on the list (for example a vault from a newer HaexVault) is shown with that fact and is still started.
 - **FR-010**: An update or a removal MUST NOT disturb a delegate request or a connect flow that is already using the
   tool (a removal is refused while one runs); a changed version applies to what starts afterwards. Closing the vault is
   the exception: it stops every running delegate process of the vault, which ends as cancelled, and no process started
   from the vault folder outlives the open vault.
-- **FR-011**: Every process holzi starts for a delegate (a request, a connect flow, a version query) MUST be contained so
+- **FR-011**: Every process HaexVault starts for a delegate (a request, a connect flow, a version query) MUST be contained so
   that it neither reads nor writes host state outside the vault folder, as far as the platform and the tool allow. The
   containment MUST change only what the tool needs relocated, MUST leave alone what the tool needs from the host (such as
   proxy and certificate settings, `PATH`, locale), and MUST NOT depend on the host having left any setting unused. The
@@ -260,7 +260,7 @@ architecture, and break an installed tool's file; open both in the UI.
   folder, not in the host's temp folder, and be removed when the run ends.
 - **FR-012**: Using, installing, updating or removing a delegate tool MUST NOT create or change any file outside the vault's
   folder (extends spec 007 FR-003 and SC-004 to the tools themselves).
-- **FR-013**: Before a tool is started holzi MUST check that its installation fits this device's operating system and
+- **FR-013**: Before a tool is started HaexVault MUST check that its installation fits this device's operating system and
   architecture and is complete (every file present, the program's size equal to the one recorded at install). If not, the
   backend MUST show "reinstall" and the tool MUST NOT be started. Damage that keeps the size (a changed byte) is not
   detected at start; a start that fails is reported as "not runnable" with the system's reason.
@@ -276,8 +276,8 @@ architecture, and break an installed tool's file; open both in the UI.
 - **FR-018**: The installation MUST NOT sync to other devices; each device installs for itself (spec 084: files of a vault
   folder never sync).
 - **FR-019**: Everything about a vault's tool and delegate activity MUST land in that vault's folder: the tools, the home
-  folder, the per-run folders, and every record of what happened (a tool's own logs and history, holzi's log of an install,
-  an update, a connect flow or a run). No device-wide file (holzi's own log included) may contain the vault's name, the
+  folder, the per-run folders, and every record of what happened (a tool's own logs and history, HaexVault's log of an install,
+  an update, a connect flow or a run). No device-wide file (HaexVault's own log included) may contain the vault's name, the
   tool a vault uses, or what a run did; a device-wide file may only carry what holds true for every vault alike. Records of a
   vault's tool activity live in a subfolder of the vault's folder, so that they too can be encrypted later.
 - **FR-020**: Starting a tool MUST go through one containment interface that decides how a process is contained and
@@ -286,7 +286,7 @@ architecture, and break an installed tool's file; open both in the UI.
   changing the install, update, removal or run logic.
 - **FR-021**: The Settings page MUST show each installed tool's isolation level, and a version MUST enter the
   tested-version list only after a containment measurement (the files it creates, writes or removes outside the vault
-  folder, on the platforms holzi runs it on) showed no residue other than those listed under Assumptions.
+  folder, on the platforms HaexVault runs it on) showed no residue other than those listed under Assumptions.
 - **FR-022**: Every newly started request MUST resolve to the highest complete version of its tool. A request already
   running MUST keep the version it selected at start. A second update MUST be refused while the current version is
   unconfirmed; the user must first confirm it with a normally ended run or revert it. An update MUST also be refused
@@ -299,7 +299,7 @@ architecture, and break an installed tool's file; open both in the UI.
   stop by the user, a missing login or a network error does not confirm). On confirmation the older versions MUST be
   deleted once no active run uses them; cleanup MUST be retried after those runs end and at the next vault open if a
   program still cannot be deleted. While the newest version is unconfirmed and an older one exists, the user MUST be able to go back to the
-  older one, which deletes the newest. holzi MUST NOT switch to an older version by itself at run time.
+  older one, which deletes the newest. HaexVault MUST NOT switch to an older version by itself at run time.
 
 ### Key Entities
 
@@ -310,11 +310,11 @@ architecture, and break an installed tool's file; open both in the UI.
   folders while a run lasts.
 - **Vendor definition**: The data that describes a vendor: where each tested version comes from, which platforms it exists
   for, its integrity information, and the home- and config-variables the tool needs.
-- **Tested-version list**: Per vendor, the versions holzi has tested with its adapter, newest first; it is what an install
+- **Tested-version list**: Per vendor, the versions HaexVault has tested with its adapter, newest first; it is what an install
   or update chooses from.
 - **Isolation level**: What the containment of one tool's processes guarantees on this platform, `best effort` (the
   base layer redirects what it can and the residue is measured and listed) or `enforced` (an OS sandbox blocks it).
-- **Integrity information**: What lets holzi tell the vendor's real file from a changed one (checksum, signature).
+- **Integrity information**: What lets HaexVault tell the vendor's real file from a changed one (checksum, signature).
 
 ## Success Criteria _(mandatory)_
 
@@ -327,14 +327,14 @@ architecture, and break an installed tool's file; open both in the UI.
 - **SC-003**: A file listing of the host's home, temp and config folders taken before and after install, connect, request,
   stop, update and removal shows no new or changed file outside the vault's folder, apart from the listed residuals
   (Assumptions).
-- **SC-004**: Killing holzi at each step of an install and of an update, one run per step, always ends in either the
+- **SC-004**: Killing HaexVault at each step of an install and of an update, one run per step, always ends in either the
   complete previous or the complete new version after the next start, and never in a version that starts but is incomplete.
 - **SC-005**: A download whose content was changed is not run in 100% of test cases, and the user sees the integrity reason.
 - **SC-006**: After removing a vault, no file of its tools or home folder is left on the device.
 - **SC-007**: A test double of a third vendor can be added by a vendor definition and an adapter alone, without a change to
   the manager's install, update, removal or path logic.
 - **SC-008**: An update started while a delegate request runs lets that request finish normally in 100% of test cases.
-- **SC-009**: After the same series, a text search of every device-wide file holzi writes (its log included, in a build with
+- **SC-009**: After the same series, a text search of every device-wide file HaexVault writes (its log included, in a build with
   logging on) for the vault's name, the tool's name and the text of a request finds nothing, while the vault's own folder
   holds the records of the series.
 - **SC-010**: In 100% of states where a tool is installed, the Settings page shows its isolation level, and with the
@@ -349,7 +349,7 @@ architecture, and break an installed tool's file; open both in the UI.
 - Builds on spec 084 (vault folders, one path function, files never sync, removal removes the folder) and spec 007
   (delegate adapters, isolation, approval bridge). The adapters keep their behaviour; only where the tool comes from and
   where the process's folders lie changes.
-- holzi has no users yet, so there is no migration: delegate provider rows that exist only on the operator's devices are set
+- HaexVault has no users yet, so there is no migration: delegate provider rows that exist only on the operator's devices are set
   up again, and no legacy `PATH` fallback or binary-path override is kept. An override can be added later if asked for.
 - Each vault holding its own copy is wanted by the operator and its disk cost is accepted; no shared cache is used.
 - The operator's rule, "everything that concerns a vault lands in that vault's folder", holds for the whole app. This spec
@@ -358,13 +358,13 @@ architecture, and break an installed tool's file; open both in the UI.
   own unless it is a one-line fix inside the files this feature touches.
 - **Listed residuals** (measured 2026-11-16, accepted for this spec, to become literal zero with the OS sandbox):
   Claude Code's per-session inbox socket in the system temp folder (`/tmp/cc-socks-<uid>/<pid>.sock`: removed at exit,
-  its folder stays), and, only where the vault folder's path is too long for a Unix socket address, holzi's own approval
+  its folder stays), and, only where the vault folder's path is too long for a Unix socket address, HaexVault's own approval
   socket in the system temp folder under a random name (removed at the end of the run). Neither carries a vault name or
   any content.
 - For Claude Code and Codex the only way to relocate their configuration and state is an environment variable of the
   tool (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`); neither has a flag for it (Codex can move only its logs and SQLite
   files with `-c`). The base layer therefore sets those variables for the child process alone and nowhere else.
-- The OS sandbox (Linux namespaces set up by holzi itself rather than a host program, macOS Seatbelt) is a later spec;
+- The OS sandbox (Linux namespaces set up by HaexVault itself rather than a host program, macOS Seatbelt) is a later spec;
   Windows has no comparable unprivileged mechanism and stays `best effort`. A container runtime is not used.
 - The operator wants the debug log to be switchable at runtime in release builds, so that a user with a problem can switch it
   on and attach the log to a ticket (2026-11-16). That is a spec of its own, not part of this one. This spec only fixes the
@@ -387,7 +387,7 @@ tool's relocation is possible without an environment variable of the tool itself
 that remain are the two listed residuals; each tool's own update can be switched off (`DISABLE_UPDATES=1`;
 `-c check_for_update_on_startup=false`). Still open:
 
-- **What reaches device-wide files today.** holzi's file log (`<AppLocalData>/logs/`, debug builds) was not read for vault
+- **What reaches device-wide files today.** HaexVault's file log (`<AppLocalData>/logs/`, debug builds) was not read for vault
   names, tool names or request text, and the webview's own stores in the data folder (`storage`, `localstorage`,
   `WebKitCache`, `cookies`) were not checked for vault-specific content. FR-019 and SC-009 need a measured baseline, and
   a way to keep tool and delegate records out of the device-wide log (for example by routing them to a per-vault record).
@@ -398,12 +398,12 @@ that remain are the two listed residuals; each tool's own update can be switched
   operator accepted listing it as a residual (Assumptions) and showing the isolation level.
 - **Where programs may be run from.** A vault folder on a mount without execute permission, or a folder an endpoint
   scanner blocks, can stop a tool from starting; the state must be reported clearly (see Edge Cases).
-- **Are the vendors' terms satisfied** by holzi downloading their official program on the user's behalf into the user's own
+- **Are the vendors' terms satisfied** by HaexVault downloading their official program on the user's behalf into the user's own
   vault? The spec assumes the same position as spec 007's accepted risk for driving the raw CLIs, and does not resolve it.
 - **Who keeps the tested-version list current, and how a version gets onto it.** The approval protocols of both tools are
   verified only against single versions (spec 007 research). Entering a version needs a repeatable check (the protocol
   smoke test of spec 007 research §1, plus the containment measurement of FR-021) and its recorded integrity information;
-  a release of holzi is needed to ship a new entry. The maintainer script of `tasks.md` automates the checks; whether CI
+  a release of HaexVault is needed to ship a new entry. The maintainer script of `tasks.md` automates the checks; whether CI
   runs them against the real vendors is not decided.
 - **Platforms not measured.** All measurements ran on Linux x86-64. macOS and Windows behaviour of the containment
   (temp folder, account folders, executable bit) and the downloaded programs there is assumed from vendor documentation

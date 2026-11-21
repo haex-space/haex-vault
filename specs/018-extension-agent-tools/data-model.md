@@ -16,7 +16,7 @@ Vertrag: [contracts/manifest-tools.md](./contracts/manifest-tools.md).
 Höchstens 32 Einträge. Fehlt `tools`, hat die Erweiterung keine Werkzeuge.
 
 Rust: `extensions/bundle/manifest.rs` → `Manifest.tools: Vec<ManifestTool>`; `from_verified`,
-`from_dev_file`, `from_stored` lesen das Feld. Ein Werkzeug außerhalb der Schema-Teilmenge holzis bekommt
+`from_dev_file`, `from_stored` lesen das Feld. Ein Werkzeug außerhalb der Schema-Teilmenge haex-vaults bekommt
 `supported: false` (R5).
 
 ## Berechtigung `agentTool` (Tabelle `extension_permissions`, bestehend)
@@ -50,7 +50,7 @@ neue Zeile, die alte fällt mit `apply_declarations` weg. Entwicklungsversionen:
   Modell (`x_<slug>_<tool>`, R8), effektive Freigabe (`granted`/`ask`), Entwicklungsversion.
   Entsteht aus Manifest + Berechtigungen beim Laden der Vault und bei `extensions-changed`.
 - **`ExtensionTool`** (`impl Tool`): `source() = "haextension"`, `origin() = Some(ToolOrigin)`,
-  `risk_class()` aus der Wirkungsart (`read` → `Safe`, `change` → `Change` (holzis `ActionEffect::Write`),
+  `risk_class()` aus der Wirkungsart (`read` → `Safe`, `change` → `Change` (haex-vaults `ActionEffect::Write`),
   `destructive` → `Risky`); `always_ask()` = Status `ask`; `execute` über die MCP-Verbindung.
 - **`McpLink`** je Rahmen-Sitzung: `rmcp`-Client über Kanalpaar, Zustand
   `connecting → ready(tools/list) → closed`; Zähler laufender Aufrufe (für `byAgent`, R11).

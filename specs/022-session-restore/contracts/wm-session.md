@@ -4,7 +4,7 @@
 
 Alle Befehle laufen im Vault-Gate wie die übrigen (`gate.wrap` in
 `src-tauri/src/lib.rs`), ermitteln die Gerätekennung selbst
-(`current_device_uuid`) und liefern `HolziError` im Fehlerfall. Wire-Typen
+(`current_device_uuid`) und liefern `HaexError` im Fehlerfall. Wire-Typen
 werden per ts-rs nach `src/types/bindings/` exportiert. Sie ersetzen die sechs
 Befehle aus Spec 015 (`wm_load_layout`, `wm_create_workspace`,
 `wm_delete_workspace`, `wm_set_active_workspace`, `wm_save_windows`,
@@ -36,8 +36,8 @@ Liest Gerätewert und Vault-Wert von `wm.session_restore` und den geltenden Wert
 
 ### `wm_session_save(args: { session: unknown }) -> { saved: boolean }`
 
-- Prüft: gültiges JSON-Objekt (sonst `HolziError::InvalidInput`), serialisiert
-  höchstens 4 MiB (sonst `HolziError::SessionTooLarge { bytes }`; das Frontend
+- Prüft: gültiges JSON-Objekt (sonst `HaexError::InvalidInput`), serialisiert
+  höchstens 4 MiB (sonst `HaexError::SessionTooLarge { bytes }`; das Frontend
   versucht es dann einmal ohne Historien, data-model.md „Größe“).
 - Gilt die Einstellung nicht, schreibt es nichts und gibt `saved: false` zurück
   (ein verspätetes Speichern nach dem Ausschalten legt nichts an).
@@ -52,7 +52,7 @@ erfolgreichem Öffnen, vor der ersten Anfrage des Frontends:
 1. `PRAGMA secure_delete = ON` (research R6).
 2. `DELETE FROM preferences WHERE key = 'shell.active_workspace_id'` (alle
    Geräte, idempotent, research R5).
-3. Steht `vacuum_after_legacy_wm_drop` in `holzi_maintenance_no_sync`:
+3. Steht `vacuum_after_legacy_wm_drop` in `haex_maintenance_no_sync`:
    `VACUUM`, `PRAGMA wal_checkpoint(TRUNCATE)`, dann die Zeile löschen.
 
 Jeder Schritt protokolliert Fehler und lässt das Öffnen weiterlaufen (FR-012).

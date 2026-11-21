@@ -51,7 +51,7 @@ Entscheidung zu Geheimnissen in [ADR-0020](../../docs/adr/0020-spoken-secrets-by
   `reveal_for_speech`, nur lokale Stimme.
 - **Oberfläche** (R14): schwebende Anzeige in `Desktop.vue`, Tray-Symbol (`tray-icon`), Kachel im
   Launcher, Steuer-Eintrag im Dock.
-- **Android** (R15): Kotlin-Vordergrund-Dienst im Plugin `holzi-android`.
+- **Android** (R15): Kotlin-Vordergrund-Dienst im Plugin `haex-android`.
 
 ## Technical Context
 
@@ -72,7 +72,7 @@ Entscheidung zu Geheimnissen in [ADR-0020](../../docs/adr/0020-spoken-secrets-by
 
 **Storage**: Migration mit der nächsten freien Nummer: `chat_threads.origin` und die Tabelle
 `voice_transcript_entries` (vollständige Mitschrift, CRDT);
-`HOLZI_TRIGGER_VERSION` 29 → 30. Eine zweite Migration in PR K: `haex_tts_voices`,
+`HAEX_TRIGGER_VERSION` 29 → 30. Eine zweite Migration in PR K: `haex_tts_voices`,
 `haex_tts_voices_binaries` (CRDT) und `haex_tts_models_no_sync`, Trigger-Version +1.
 Geräteeinstellungen `assistant.*` ([data-model.md](./data-model.md)).
 Modelle unter `<AppLocalData>/models/<id>/`.
@@ -239,7 +239,7 @@ src-tauri/src/
 ├── passwords/service/speech.rs   # reveal_for_speech
 └── identity/migrations*.rs       # chat_threads.origin
 
-src-tauri/plugins/holzi-android/android/src/main/java/space/haex/holzi/android/AssistantService.kt
+src-tauri/plugins/haex-android/android/src/main/java/space/haex/vault/android/AssistantService.kt
 src-tauri/tests/assistant_conversation.rs, assistant_secret_contract.rs,
                 assistant_wakeword_eval.rs, assistant_echo_eval.rs
 
@@ -272,7 +272,7 @@ hier landet nur das fertige Modell über den Katalog.
 | E   | Mündliche Freigaben, Rückfragen und Vorschläge, Fortschrittsansage, Aufgaben im Hintergrund, offene Fragen, aktives Ende                                                                                                                                                  | US3, US4     | `assistant/{approval,choice,conversation}`, `chat/approvals.rs` |
 | F   | Geheimnisse vorlesen: Werkzeug, `SpokenConsent`, `reveal_for_speech`, Buchstabieren, Vertragstest; ADR-0020 accepted                                                                                                                                                      | US6          | `assistant/{secret,spell}`, `passwords/service/speech.rs`       |
 | G   | Echo-Unterdrückung, freies Dazwischenreden, Kopfhörer, Messung je Plattform, `docs/voice-assistant-platforms.md`                                                                                                                                                          | US2 (FR-016) | `assistant/echo.rs`, `audio/mixer.rs`                           |
-| H   | Android-Vordergrund-Dienst, Benachrichtigung, Audio-Fokus; iOS nur Vordergrund; Android-e2e                                                                                                                                                                               | US9          | Plugin `holzi-android`, `assistant/mod.rs`                      |
+| H   | Android-Vordergrund-Dienst, Benachrichtigung, Audio-Fokus; iOS nur Vordergrund; Android-e2e                                                                                                                                                                               | US9          | Plugin `haex-android`, `assistant/mod.rs`                       |
 | I   | Eigenes Wake Word: Einsprechen, Prüfung, Probephase; Spike Vorlagen gegen offene Erkennung                                                                                                                                                                                | US7          | `assistant/wakeword/{templates,enroll}`, Einstellungen          |
 | K   | Eigene Stimmen: nachbilden mit Einwilligung, Sync, Modelle importieren; Spike Modellarten ohne espeak-ng                                                                                                                                                                  | US8 (eigene) | `tts/{clone,import}.rs`, Einstellungen                          |
 | J   | Externer Sprachdienst mit Anzeige und Rückfall                                                                                                                                                                                                                            | US8 (extern) | `tts/external.rs`, Anbieter-Einstellungen                       |

@@ -36,7 +36,7 @@ The llama.cpp engine keeps one context per loaded model instead of one per answe
 - `cargo test --lib`: the prefix match, the checkpoint choice, the stamp of the user messages, a model job that
   never reuses, the report fields.
 - Ignored tests with the real files in a new `src-tauri/tests/prompt_cache_eval.rs` (spike, equality, speed).
-- `measure_everyday_voice` with and without `HOLZI_LLAMACPP_PROMPT_CACHE=off` (SC-003, SC-004).
+- `measure_everyday_voice` with and without `HAEX_LLAMACPP_PROMPT_CACHE=off` (SC-003, SC-004).
 
 **Target Platform**: desktop (Linux, Windows, macOS) and Android, wherever the llama.cpp engine runs.
 
@@ -108,7 +108,7 @@ src-tauri/src/chat/turn/step.rs, model_jobs/runner.rs   # ignore the new chunk; 
 src-tauri/src/chat/tools/prompt.rs        # system_prompt without the clock; the stamp of every user message
 src-tauri/src/chat/send.rs                # one call in history_to_messages
 src-tauri/src/chat/eval/everyday/{runner,scoring,report}.rs   # per-step first chunk, reused tokens
-src-tauri/tests/model_tool_eval.rs        # HOLZI_LLAMACPP_PROMPT_CACHE
+src-tauri/tests/model_tool_eval.rs        # HAEX_LLAMACPP_PROMPT_CACHE
 src-tauri/tests/prompt_cache_eval.rs      # new: spike, equality, US1/US2 timing
 ```
 

@@ -12,13 +12,13 @@ Begründung: [research.md](../research.md) R6–R8. Gilt für `extension_databas
   (`<64 Hex>__<name>__`) einer nicht installierten Erweiterung bekommt dieselbe Antwort wie eine fremde Tabelle
   ohne Berechtigung (FR-062); die Anfrage an den Nutzer zeigt dann „nicht installiert“ und bietet nur
   „Verweigern“. Hat die aufrufende Erweiterung eine Berechtigung auf das Präfix einer nicht installierten
-  Erweiterung (auch nach „Entfernen, Daten behalten“), antwortet holzi wie bei einer nicht vorhandenen Tabelle
+  Erweiterung (auch nach „Entfernen, Daten behalten“), antwortet haex-vault wie bei einer nicht vorhandenen Tabelle
   (US6 Szenario 5): 2000 `no such table: <name>`.
 - **Kerntabelle**: alles andere, einschließlich `sqlite_*`, `haex_*`, `pragma_*`-Funktionen.
 
 ## Laufzeit
 
-### Vorprüfung (holzi)
+### Vorprüfung (haex-vault)
 
 | Regel                                                                                                                             | Ergebnis bei Verstoß              |
 | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
@@ -70,7 +70,7 @@ Lehnt der Authorizer etwas ab, was die Vorprüfung durchgelassen hat: 1000 „Fo
 - Ergebnis-Anweisungen (`SELECT`, `RETURNING`) über `query_map`, sonst `execute`.
 - Ergebnis `{rows, columns, rowsAffected, lastInsertId}`; Sync-Spalten entfernt.
 - „Tabelle fehlt“ hat eine Schreibweise: `no such table: <name>`, klein und ohne `main.`, ob SQLite sie meldet
-  oder holzi die Tabellen einer nicht installierten Erweiterung verbirgt.
+  oder haex-vault die Tabellen einer nicht installierten Erweiterung verbirgt.
 - Werte: BLOB → Base64-Text; INTEGER → Zahl; REAL NaN/Inf → `null`. Parameter: Zahl, Text, `null`,
   Wahrheitswert → 0/1, `{"$bytes": b64}` → BLOB, Array/Objekt → JSON-Text.
 - Grenzen: Zeilen und Bytes im Callback, Laufzeit über Fortschritts-Callback (`SQLITE_INTERRUPT`),

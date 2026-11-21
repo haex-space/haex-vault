@@ -18,7 +18,7 @@ Erwartet: alle grün. Der Handshake-Test deckt ab, dass beide Seiten nach `Accep
 
 1. Zwei Geräte derselben Vault auf demselben Stand starten. Einstellungen → Föderation → Geräte: bei beiden
    Zeilen stehen Sync-Protokoll, Vault-Schema, Änderungsverfolgung; nichts ist markiert.
-2. Auf einem Gerät holzi auf einen älteren Stand zurücksetzen (anderer Checkout) und starten. Auf dem neuen Gerät
+2. Auf einem Gerät HaexVault auf einen älteren Stand zurücksetzen (anderer Checkout) und starten. Auf dem neuen Gerät
    erscheint die rote Versionsmeldung, und die Werte des alten sind markiert: kleiner bei Vault-Schema.
 3. Auf dem alten Gerät sieht die Liste (alter Stand kennt die Werte noch nicht) nur die Meldung; nach dem
    Aktualisieren zeigt sie beide Stände.

@@ -13,7 +13,7 @@ Spec 057 gives extensions channels to the same extension on other vaults (first 
 mode of haex-doom). Invitations stay contacts-only. But the operator decided that a host may open a
 **public lobby**: anyone who holds its join code may join, also a person who is not in the address
 book (Clarifications 2026-10-22 of specs 057 and haex-doom). That needs connections from devices whose
-vault identity holzi cannot vouch for.
+vault identity haex-vault cannot vouch for.
 
 ## Decision
 
@@ -30,7 +30,7 @@ Bounds that hold for every such connection:
   or it is closed. The proof is an HMAC over the handshake nonces with a 128-bit secret that only the
   join code carries; wrong, unknown and closed codes get one uniform answer.
 - It reaches nothing but that one channel: no vault data (`haex-sync/1` still refuses foreign vaults),
-  no files (`haex-files/1` still requires a contact), no other extension, no holzi function.
+  no files (`haex-files/1` still requires a contact), no other extension, no haex-vault function.
 - Blocked vaults are refused in every case.
 - Admission is rate-limited: few unadmitted connections at once, a cap on new unverified connections per
   time window, and a cooldown per endpoint after failed joins.

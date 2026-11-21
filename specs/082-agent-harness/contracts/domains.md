@@ -29,7 +29,7 @@ export interface AgentDomain {
 ## The routing call (`chat/tools/route.rs`)
 
 - **Request**:
-  - System message: "Which area of the app holzi does the user's request need? Areas:", one line `<name>: <description>`
+  - System message: "Which area of the app haex-vault does the user's request need? Areas:", one line `<name>: <description>`
     per installed domain, `none: anything else: general knowledge, arithmetic, the time, small talk`, and "Answer
     with one area name, or two if the request could mean either, comma-separated, nothing else."
   - User message: the user's text.

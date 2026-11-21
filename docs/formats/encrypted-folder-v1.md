@@ -44,12 +44,12 @@ Buckets) unter `P = E + base32(fid) + ".hxef/"`:
 | Begleitdatei  | `P + "m/" + base32(sid)` | je Fassung eines Eintrags         |
 | Inhaltsobjekt | `P + "c/" + base32(oid)` | je Fassung oder Kopie einer Datei |
 
-Sonst schreibt holzi nichts unter `P`. Content-Type aller Objekte ist `application/octet-stream`;
-holzi setzt keine eigenen Metadaten. Was ein anderes Programm dort ablegt, ist eine fremde Datei
+Sonst schreibt haex-vault nichts unter `P`. Content-Type aller Objekte ist `application/octet-stream`;
+haex-vault setzt keine eigenen Metadaten. Was ein anderes Programm dort ablegt, ist eine fremde Datei
 (siehe Regeln).
 
 Als verschlüsselter Ordner gilt nur ein Präfix aus genau 26 Zeichen Base32 (Kleinbuchstaben) und
-`.hxef/`. Einen gewöhnlichen Ordner oder eine Datei mit einem Namen dieser Form legt holzi nicht an
+`.hxef/`. Einen gewöhnlichen Ordner oder eine Datei mit einem Namen dieser Form legt haex-vault nicht an
 (Fehler `invalidName`), damit er nicht als beschädigter verschlüsselter Ordner erscheint.
 
 `oid` ist der Objektname eines Inhaltsobjekts, `cid` (im Kopf des Inhaltsobjekts) die Kennung seines
@@ -150,7 +150,7 @@ Begleitdatei ungültig, ein neues Feld braucht eine neue Formatversion):
   `oid` im Zielordner kopieren, dann eine neue Begleitdatei mit neuer `entry`, `content` = neue `oid`,
   `cid` wie im Original und `dek` unter `K_wrap` des Zielordners neu verpackt.
 - **Aufräumen**: Begleitdateien, die eine andere als `base` hat, und Inhaltsobjekte ohne Verweis
-  löscht holzi, wenn ihre Änderungszeit beim Anbieter älter als 24 Stunden ist. Gibt es im Ordner
+  löscht haex-vault, wenn ihre Änderungszeit beim Anbieter älter als 24 Stunden ist. Gibt es im Ordner
   eine Begleitdatei, die sich nicht öffnen lässt, bleiben alle Inhaltsobjekte liegen, weil sie auf
   eines davon zeigen kann.
 - **Löschen eines Eintrags**: Inhaltsobjekte und Begleitdateien aller Nachkommen, zuletzt die eigene.
@@ -159,8 +159,8 @@ Begleitdatei ungültig, ein neues Feld braucht eine neue Formatversion):
 - **Löschen des Ordners**: alle Objekte unter `P`, der Kopf zuletzt, fremde Dateien eingeschlossen.
 - **Fremde Dateien** (etwa Konfliktkopien eines Sync-Programms oder über die Weboberfläche des
   Anbieters hochgeladene Dateien): jedes Objekt unter `P`, das nicht `h`, `m/` + 26 Zeichen Base32,
-  `c/` + 26 Zeichen Base32 oder eine Teil-Datei von holzi ist. Ordner-Markierungen (Namen mit `/` am
-  Ende) zählen nicht. Fremde Dateien sind keine Einträge; holzi zählt sie, nennt ihre Zahl für den
+  `c/` + 26 Zeichen Base32 oder eine Teil-Datei von haex-vault ist. Ordner-Markierungen (Namen mit `/` am
+  Ende) zählen nicht. Fremde Dateien sind keine Einträge; haex-vault zählt sie, nennt ihre Zahl für den
   Ordner selbst, löscht sie beim Aufräumen nie und nur mit dem ganzen Ordner.
 
 ## Testvektoren

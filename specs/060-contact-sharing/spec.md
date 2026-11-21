@@ -15,7 +15,7 @@ seinem Adressbuch teilt.“
 
 ## Begriffe
 
-- **Kontakt**, **Angabe**, **Art einer Angabe**, **Visitenkarte**, **holzi-Adressen**, **bestätigt**,
+- **Kontakt**, **Angabe**, **Art einer Angabe**, **Visitenkarte**, **HaexVault-Adressen**, **bestätigt**,
   **unbestätigt**, **blockierte Vault**: wie in Spec 051. Eine **Angabe** ist eine Zeile eines Kontakts
   (Telefonnummer, E-Mail-Adresse, Anschrift, Webseite, Messenger-Kennung, Ereignis wie ein Geburtstag,
   Beziehung, eigene Angabe oder eine Angabe unbekannter Art).
@@ -27,16 +27,16 @@ seinem Adressbuch teilt.“
   Er ist für jeden Kontakt derselbe, auch für den Ich-Kontakt.
 - **Weitergabe**: das Ergebnis des Teilen-Dialogs, ein Text („Umschlag“), den der Nutzer als Link, über
   die Zwischenablage oder als QR-Code weitergibt. Er trägt den Namen, die gewählten Angaben und, wenn
-  gewählt, die holzi-Adressen mit ihrem Echtheitsnachweis.
+  gewählt, die HaexVault-Adressen mit ihrem Echtheitsnachweis.
 - **Link**: die Textform der Weitergabe, ein Deep Link der App. Der QR-Code und die Zwischenablage
   enthalten genau denselben Text. Ein Tippen auf den Link in einer anderen App oder ein Scannen des
-  QR-Codes mit der Kamera des Systems öffnet holzi mit der Vorschau.
-- **Echtheitsnachweis der holzi-Adressen**: der mit der Vault-Identität des Kontakts unterschriebene
+  QR-Codes mit der Kamera des Systems öffnet HaexVault mit der Vorschau.
+- **Echtheitsnachweis der HaexVault-Adressen**: der mit der Vault-Identität des Kontakts unterschriebene
   Teil einer Weitergabe, der belegt, dass Vault-Identität, Geräte und Nostr-Relays zusammengehören.
-  Intern ist das die Visitenkarte aus Spec 051. In der Oberfläche heißt die Zeile dazu „holzi-Adressen
+  Intern ist das die Visitenkarte aus Spec 051. In der Oberfläche heißt die Zeile dazu „HaexVault-Adressen
   (bestätigt)“; das Wort „Karte“ erscheint dort nicht.
 - **Eingelesene Weitergabe**: eine Weitergabe, die der Empfänger über Link, Zwischenablage oder Kamera
-  in holzi öffnet.
+  in HaexVault öffnet.
 
 ## Beziehung zu bestehenden Specs
 
@@ -46,7 +46,7 @@ seinem Adressbuch teilt.“
   (Karte einlesen, Vorschau, neuer oder vorhandener Kontakt) gilt auch für die Weitergabe dieser Spec.
   **FR-015a** verliert den Punkt „Inhalt der eigenen Visitenkarte“. **FR-013** und **FR-014** gelten
   unverändert; FR-014 gilt auch für den Ich-Kontakt. **FR-012** („eine neuere Karte ersetzt die
-  bestätigten Adressen“) gilt weiter für eine Visitenkarte im Format `holzi:card:` und für die anderen
+  bestätigten Adressen“) gilt weiter für eine Visitenkarte im Format `haex:card:` und für die anderen
   Wege dort, **nicht** für eine Weitergabe dieser Spec: Eine Weitergabe entfernt und ersetzt an einem
   vorhandenen Kontakt nie etwas von selbst (FR-024a bis FR-025).
 - **Spec 020 und 051 FR-030** (Aktionen und Agent-Freigaben): Ein Agent kann einen Kontakt nur über eine
@@ -54,7 +54,7 @@ seinem Adressbuch teilt.“
   FR-032).
 - **Spec 054** (Umbenennung in haex-vault): Das Schema des Deep Links trägt von Anfang an den neuen
   Namen (`haex-vault://`), damit 054 es nicht mehr umbenennen muss. Die bisherige Visitenkarte
-  (`holzi:card:`) benennt 054 weiterhin um. `haex-vault://` ist nicht das Schema `haexvault://` der
+  (`haex:card:`) benennt 054 weiterhin um. `haex-vault://` ist nicht das Schema `haexvault://` der
   Legacy-App (haex-vault 2.x), beide unterscheiden sich im Bindestrich.
 - **Spec 056** (Dateifreigaben): Eine Dateifreigabe geht nur an Kontakte mit bestätigter fremder
   Vault-Identität. Der Ich-Kontakt hat keine; er wird dort nie als Empfänger angeboten.
@@ -69,14 +69,14 @@ seinem Adressbuch teilt.“
 ### Session 2026-10-26 (Brainstorming mit dem Betreiber)
 
 - Q: Über welchen Weg kommt ein geteilter Kontakt beim Empfänger an? → A: In dieser Spec über Link,
-  Zwischenablage und QR-Code. Direktversand an einen holzi-Kontakt gibt es erst mit der Messenger-Spec;
+  Zwischenablage und QR-Code. Direktversand an einen HaexVault-Kontakt gibt es erst mit der Messenger-Spec;
   dort ist die Weitergabe der Anhang.
-- Q: Was geschieht mit den holzi-Adressen eines fremden Kontakts, den der Nutzer weitergibt? → A: Die
+- Q: Was geschieht mit den HaexVault-Adressen eines fremden Kontakts, den der Nutzer weitergibt? → A: Die
   ursprüngliche, vom Kontakt unterschriebene Karte geht unverändert mit, damit der Empfänger die Adressen
   selbst prüfen kann. Sie lässt sich nur als Ganzes mitschicken oder weglassen (eine Checkbox), denn jede
   Änderung bräche die Unterschrift. Alle anderen Angaben sind einzeln abwählbar.
 - Q: Gilt dieselbe Auswahl für den eigenen Kontakt? → A: Ja, derselbe Teilen-Dialog. Beim Ich-Kontakt
-  unterschreibt holzi pro Teilen eine frische Karte; dadurch sind Geräte (iroh) und Nostr-Relays einzeln
+  unterschreibt HaexVault pro Teilen eine frische Karte; dadurch sind Geräte (iroh) und Nostr-Relays einzeln
   abwählbar.
 - Q: Was ist vorgewählt, und wird die Auswahl gemerkt? → A: Alles ist vorgewählt, jede Zeile lässt sich
   abwählen. Die Auswahl wird nicht gespeichert; beim nächsten Teilen ist wieder alles gewählt.
@@ -95,22 +95,22 @@ seinem Adressbuch teilt.“
 - Q: Darf eine Weitergabe einen vorhandenen Kontakt überschreiben oder verkleinern? → A: Nie. Was am
   vorhandenen Kontakt steht, bleibt, auch wenn die Weitergabe es nicht enthält (eine Handynummer
   verschwindet nicht, nur weil jemand den Kontakt mit einer E-Mail-Adresse teilt). Für jede neue Angabe
-  fragt holzi, ob sie hinzugefügt oder ein vorhandener Wert damit aktualisiert werden soll; Standard ist
+  fragt HaexVault, ob sie hinzugefügt oder ein vorhandener Wert damit aktualisiert werden soll; Standard ist
   Hinzufügen. Es gehen keine Angaben verloren.
-- Q: Gilt das auch für holzi-Adressen? → A: Ja. Eine Weitergabe entfernt oder ersetzt keine bestätigten
+- Q: Gilt das auch für HaexVault-Adressen? → A: Ja. Eine Weitergabe entfernt oder ersetzt keine bestätigten
   Adressen eines Kontakts, auch nicht durch eine neuere Karte derselben Vault; sie fügt neue Geräte und
   Relays nur hinzu. Die bestätigte Vault-Identität eines vorhandenen Kontakts ersetzt eine Weitergabe nie,
-  weil an ihr Zugriffsrechte hängen. Veraltete Adressen räumt später ein eigener Weg auf, auf dem holzi
+  weil an ihr Zugriffsrechte hängen. Veraltete Adressen räumt später ein eigener Weg auf, auf dem HaexVault
   die aktuellen Adressen vom Kontakt selbst erfährt (Spec 051 FR-012, Weg „Geräteliste“); der ist nicht
   Teil dieser Spec.
-- Q: Darf der Nutzer beim Einlesen auch einzelne Angaben ablehnen, auch holzi-Adressen? → A: Ja. Jede
-  neue Angabe lässt sich ablehnen („Nicht übernehmen“), und holzi-Adressen zählen wie alle anderen
-  Angaben. Weil eine unterschriebene Karte unteilbar ist, gilt die Wahl für die holzi-Adressen einer
-  Karte als Ganzes. Vor dem Speichern prüft holzi jede Karte: gültige Unterschrift der Vault, die sie
+- Q: Darf der Nutzer beim Einlesen auch einzelne Angaben ablehnen, auch HaexVault-Adressen? → A: Ja. Jede
+  neue Angabe lässt sich ablehnen („Nicht übernehmen“), und HaexVault-Adressen zählen wie alle anderen
+  Angaben. Weil eine unterschriebene Karte unteilbar ist, gilt die Wahl für die HaexVault-Adressen einer
+  Karte als Ganzes. Vor dem Speichern prüft HaexVault jede Karte: gültige Unterschrift der Vault, die sie
   nennt, und ihre Kennung ist aus ihrem unterschriebenen Inhalt abgeleitet.
 - Q: Lassen sich Kontakte ohne iroh- und Nostr-Adressen teilen (zum Beispiel ein Handykontakt, der kein
-  holzi nutzt)? → A: Ja, genauso wie jeder andere. Eine Weitergabe ohne Karte ist der Normalfall für
-  solche Kontakte und kein Fehler. Nur eine mitgeschickte, aber veränderte Karte weist holzi ab.
+  HaexVault nutzt)? → A: Ja, genauso wie jeder andere. Eine Weitergabe ohne Karte ist der Normalfall für
+  solche Kontakte und kein Fehler. Nur eine mitgeschickte, aber veränderte Karte weist HaexVault ab.
 - Q: Dürfen Agenten Kontakte teilen? → A: Ja, aber als zerstörerische Aktion: Jeder Aufruf braucht die
   Bestätigung des Nutzers, der dabei sieht und ändern kann, was weitergegeben wird.
 
@@ -127,7 +127,7 @@ seinem Adressbuch teilt.“
   „Ich“ ist nur Anzeige der Oberfläche.
 - Q: Was ist der „Link“, und ist er derselbe Text wie der QR-Code? → A: Ja, derselbe Text: Link, Zwischen-
   ablage und QR-Code enthalten genau dieselbe Weitergabe. Der Link ist ein Deep Link: Ein Tippen darauf
-  oder ein Scannen des QR-Codes mit der Kamera des Systems öffnet holzi mit der Vorschau.
+  oder ein Scannen des QR-Codes mit der Kamera des Systems öffnet HaexVault mit der Vorschau.
 - Q: Geht das Foto eines Kontakts mit in die Weitergabe? → A: Nein. Das Foto bleibt, wie es ist, und
   wird niemals über Link, Zwischenablage oder QR-Code weitergegeben. Erst das Teilen eines Kontakts im
   Chat (spätere Messenger-Spec) nimmt es in voller Größe mit.
@@ -159,7 +159,7 @@ Kontakt auf einem zweiten Gerät derselben Vault wiederfinden. Löschen ist nirg
 4. **Given** ein zweites Gerät derselben Vault, **When** es synchronisiert hat, **Then** zeigt es
    denselben einen Ich-Kontakt mit denselben Angaben, nicht zwei.
 5. **Given** der Ich-Kontakt, **When** der Nutzer, ein Agent, eine Erweiterung oder der Abgleich mit dem
-   Telefon versucht, ihn zu löschen, **Then** lehnt holzi das ab, und die Oberfläche bietet Löschen für
+   Telefon versucht, ihn zu löschen, **Then** lehnt HaexVault das ab, und die Oberfläche bietet Löschen für
    ihn gar nicht erst an.
 6. **Given** ein Android-Gerät mit eingeschaltetem Abgleich, **When** der Abgleich läuft, **Then** wird der
    Ich-Kontakt nicht ins Telefon-Adressbuch geschrieben, und kein Telefonkontakt wird ihm zugeordnet.
@@ -174,7 +174,7 @@ Kontakt auf einem zweiten Gerät derselben Vault wiederfinden. Löschen ist nirg
 Der Nutzer wählt bei „Ich“ „Teilen“. Der Dialog zeigt alle Angaben mit Checkboxen: Anzeigename, Spitzname,
 Telefonnummern,
 E-Mail-Adressen, Anschriften, Geburtstag, Webseiten, Messenger-Kennungen, Organisation, Notiz und die
-holzi-Adressen, also jedes Gerät mit seiner iroh-Adresse und jedes Nostr-Relay. Alles ist angehakt, der
+HaexVault-Adressen, also jedes Gerät mit seiner iroh-Adresse und jedes Nostr-Relay. Alles ist angehakt, der
 Nutzer wählt ab, was er nicht weitergeben will, und bekommt darunter Link, QR-Code und eine
 Kopieren-Schaltfläche.
 
@@ -194,7 +194,7 @@ ankommen.
    enthält die Weitergabe diese beiden Angaben nicht, und der Link und der QR-Code ändern sich mit der
    Auswahl.
 3. **Given** ein Gerät der Vault mit iroh-Adresse und zwei Nostr-Relays, **When** der Dialog für „Ich“
-   offen ist, **Then** stehen unter „holzi-Adressen“ das Gerät und jedes Relay als eigene Zeilen, jede
+   offen ist, **Then** stehen unter „HaexVault-Adressen“ das Gerät und jedes Relay als eigene Zeilen, jede
    einzeln abwählbar; die Vault-Identität ist immer dabei und nicht abwählbar.
 4. **Given** der Nutzer hat im Dialog etwas abgewählt und ihn geschlossen, **When** er ihn wieder öffnet,
    **Then** ist wieder alles angehakt.
@@ -202,7 +202,7 @@ ankommen.
    der Empfänger als Namen die `npub` der eigenen Vault-Identität.
 6. **Given** ein verknüpftes Gerät, das das Vault-Geheimnis nicht hält und deshalb nicht unterschreiben
    kann, **When** der Nutzer „Ich“ teilt, **Then** sagt der Dialog, dass auf diesem Gerät keine
-   holzi-Adressen mitgehen können, und die Weitergabe enthält nur Namen und gewählte Angaben.
+   HaexVault-Adressen mitgehen können, und die Weitergabe enthält nur Namen und gewählte Angaben.
 7. **Given** der Nutzer wählt alles ab, was sich abwählen lässt, und der Name ist leer, **When** der
    Dialog das Ergebnis zeigen soll, **Then** zeigt er einen Hinweis, dass nichts zum Weitergeben übrig
    ist, statt eines leeren Links.
@@ -213,47 +213,47 @@ ankommen.
 
 Der Nutzer öffnet einen beliebigen Kontakt aus seinem Adressbuch, etwa einen Handwerker, und wählt
 „Teilen“. Es öffnet sich derselbe Dialog wie bei „Ich“. Alle Angaben des Kontakts sind angehakt und
-einzeln abwählbar. Hat der Kontakt bestätigte holzi-Adressen, steht dort eine zusätzliche Zeile „holzi-
+einzeln abwählbar. Hat der Kontakt bestätigte HaexVault-Adressen, steht dort eine zusätzliche Zeile „HaexVault-
 Adressen (bestätigt)“, die den ursprünglichen, vom Kontakt unterschriebenen Nachweis mitschickt.
 
 **Why this priority**: Der Nutzer wollte ausdrücklich, dass jeder Kontakt gleich teilbar ist. Ein
 zweiter, anderer Ablauf für fremde Kontakte wäre für ihn schwer zu verstehen.
 
-**Independent Test**: Einen Kontakt mit Telefonnummer, E-Mail-Adresse, Notiz und bestätigten holzi-
+**Independent Test**: Einen Kontakt mit Telefonnummer, E-Mail-Adresse, Notiz und bestätigten HaexVault-
 Adressen teilen, die Notiz und die E-Mail-Adresse abwählen, in einer zweiten Vault einlesen und prüfen,
-dass Notiz und E-Mail-Adresse fehlen, die holzi-Adressen aber als bestätigt ankommen.
+dass Notiz und E-Mail-Adresse fehlen, die HaexVault-Adressen aber als bestätigt ankommen.
 
 **Acceptance Scenarios**:
 
 1. **Given** ein Kontakt aus dem Adressbuch, **When** der Nutzer in dessen Menü „Teilen“ wählt, **Then**
    öffnet derselbe Teilen-Dialog wie bei „Ich“, mit allen Angaben des Kontakts, alle angehakt.
-2. **Given** ein Kontakt mit bestätigten holzi-Adressen, **When** der Dialog offen ist, **Then** zeigt er
-   genau eine Zeile „holzi-Adressen (bestätigt)“ mit dem Hinweis, dass der ursprüngliche Nachweis
+2. **Given** ein Kontakt mit bestätigten HaexVault-Adressen, **When** der Dialog offen ist, **Then** zeigt er
+   genau eine Zeile „HaexVault-Adressen (bestätigt)“ mit dem Hinweis, dass der ursprüngliche Nachweis
    unverändert mitgeht und auch die Angaben enthält, die der Kontakt damals selbst freigegeben hat;
    Geräte und Relays sind hier nicht einzeln abwählbar.
-3. **Given** ein Kontakt ohne bestätigte holzi-Adressen, **When** der Dialog offen ist, **Then** fehlt
+3. **Given** ein Kontakt ohne bestätigte HaexVault-Adressen, **When** der Dialog offen ist, **Then** fehlt
    diese Zeile.
-4. **Given** der Nutzer wählt „holzi-Adressen (bestätigt)“ ab, **When** er die Weitergabe einliest,
+4. **Given** der Nutzer wählt „HaexVault-Adressen (bestätigt)“ ab, **When** er die Weitergabe einliest,
    **Then** kommen Name und gewählte Angaben ohne Vault-Identität, Geräte und Relays an.
-5. **Given** ein Kontakt, der von Hand eingetragene (unbestätigte) holzi-Adressen hat, **When** der Dialog
+5. **Given** ein Kontakt, der von Hand eingetragene (unbestätigte) HaexVault-Adressen hat, **When** der Dialog
    offen ist, **Then** erscheinen sie als gewöhnliche Zeilen, einzeln abwählbar, und kommen beim
    Empfänger als unbestätigt an.
 6. **Given** ein Kontakt ohne Vorname und Nachname mit bestätigter Vault-Identität, **When** der Nutzer
    teilt, **Then** zeigt der Empfänger als Namen die `npub` dieser Vault-Identität.
-7. **Given** ein Kontakt mit einer Angabe einer Art, die diese holzi-Version nicht kennt, **When** der
+7. **Given** ein Kontakt mit einer Angabe einer Art, die diese HaexVault-Version nicht kennt, **When** der
    Dialog offen ist, **Then** erscheint sie als Zeile mit Bezeichnung und Wert und geht unverändert mit,
    wenn sie angehakt bleibt (Spec 051 FR-007).
-8. **Given** ein Kontakt, der vom Telefon stammt und keine holzi-Adressen hat (kein holzi-Nutzer),
-   **When** der Nutzer ihn teilt, **Then** funktioniert das genauso: derselbe Dialog ohne die Zeile „holzi-
+8. **Given** ein Kontakt, der vom Telefon stammt und keine HaexVault-Adressen hat (kein HaexVault-Nutzer),
+   **When** der Nutzer ihn teilt, **Then** funktioniert das genauso: derselbe Dialog ohne die Zeile „HaexVault-
    Adressen (bestätigt)“, eine Weitergabe ohne Karte, und beim Empfänger weist die Vorschau darauf hin,
-   dass der Kontakt nicht über holzi erreichbar ist. Das ist kein Fehler.
+   dass der Kontakt nicht über HaexVault erreichbar ist. Das ist kein Fehler.
 
 ---
 
 ### User Story 4 - Eine geteilte Weitergabe einlesen, ohne etwas zu verlieren (Priority: P1)
 
-Der Empfänger öffnet einen Link, fügt Text aus der Zwischenablage ein oder scannt einen QR-Code. holzi
-prüft die Weitergabe und zeigt eine Vorschau mit Namen, Angaben und holzi-Adressen, mit „bestätigt“ oder
+Der Empfänger öffnet einen Link, fügt Text aus der Zwischenablage ein oder scannt einen QR-Code. HaexVault
+prüft die Weitergabe und zeigt eine Vorschau mit Namen, Angaben und HaexVault-Adressen, mit „bestätigt“ oder
 „unbestätigt“ gekennzeichnet. Erst nach der Wahl des Nutzers wird gespeichert: als neuer Kontakt oder
 zu einem vorhandenen. Kommt die Weitergabe zu einem vorhandenen Kontakt, bleibt dort alles erhalten, was
 steht. Für jede neue Angabe entscheidet der Nutzer, ob sie hinzukommt (Standard) oder einen vorhandenen
@@ -268,11 +268,11 @@ Handynummer um eine Weitergabe nur mit E-Mail-Adresse ergänzen und prüfen, das
 
 **Acceptance Scenarios**:
 
-1. **Given** eine gültige Weitergabe, **When** der Nutzer sie einliest, **Then** zeigt holzi eine
+1. **Given** eine gültige Weitergabe, **When** der Nutzer sie einliest, **Then** zeigt HaexVault eine
    Vorschau, ohne etwas zu speichern; bis zur Wahl des Nutzers entsteht kein Kontakt und ändert sich
    keiner.
 2. **Given** die Vorschau, **When** der Nutzer „Neuer Kontakt“ wählt, **Then** entsteht ein Kontakt mit
-   dem Namen und den Angaben der Weitergabe; sind holzi-Adressen mit gültigem Nachweis dabei, sind sie
+   dem Namen und den Angaben der Weitergabe; sind HaexVault-Adressen mit gültigem Nachweis dabei, sind sie
    bestätigt.
 3. **Given** ein vorhandener Kontakt mit einer Handynummer und eine Weitergabe desselben Menschen von
    jemand anderem, die nur eine E-Mail-Adresse trägt, **When** der Nutzer „Zu vorhandenem hinzufügen“
@@ -285,20 +285,20 @@ Handynummer um eine Weitergabe nur mit E-Mail-Adresse ergänzen und prüfen, das
    jede neue Angabe ihre eigene Wahl, und ein einziger Bestätigen-Klick mit den Standardwerten fügt alles
    hinzu.
 6. **Given** eine Weitergabe, deren Angaben der Kontakt schon mit gleicher Art und gleichem Wert hat,
-   **When** die Vorschau sie zeigt, **Then** fragt holzi dazu nichts und legt nichts doppelt an.
+   **When** die Vorschau sie zeigt, **Then** fragt HaexVault dazu nichts und legt nichts doppelt an.
 7. **Given** ein vorhandener Kontakt mit dem Nachnamen „Müller“ und eine Weitergabe mit dem Nachnamen
    „Mueller“, **When** die Vorschau das Feld zeigt, **Then** steht dort die Wahl „Behalten“ (vorgewählt)
    oder „Aktualisieren“; ist das Feld am Kontakt leer, wird es ohne Frage gefüllt.
 8. **Given** eine Weitergabe ohne Vault-Identität, die eine Telefonnummer oder E-Mail-Adresse trägt, die
    schon bei einem vorhandenen Kontakt steht, **When** der Nutzer einliest, **Then** nennt die Vorschau
-   diesen Kontakt als Hinweis, ohne ihn vorzuwählen; holzi fügt nie von selbst zusammen.
+   diesen Kontakt als Hinweis, ohne ihn vorzuwählen; HaexVault fügt nie von selbst zusammen.
 9. **Given** die Vault-Identität der Weitergabe steht schon bei einem anderen Kontakt bestätigt, **When**
    der Nutzer einliest, **Then** bietet die Vorschau nur an, zu diesem Kontakt hinzuzufügen, statt einen
    zweiten Kontakt mit derselben Vault-Identität anzulegen (Spec 051 FR-013).
 10. **Given** ein vorhandener Kontakt mit bestätigter Vault-Identität A und eine Weitergabe mit einer
-    Karte der Vault-Identität B, **When** der Nutzer einliest, **Then** ersetzt holzi die bestätigte
+    Karte der Vault-Identität B, **When** der Nutzer einliest, **Then** ersetzt HaexVault die bestätigte
     Identität A in keinem Fall; die Vorschau weist darauf hin, und B kommt nur in einen neuen Kontakt.
-11. **Given** ein vorhandener Kontakt mit bestätigten holzi-Adressen und eine Weitergabe mit einer Karte
+11. **Given** ein vorhandener Kontakt mit bestätigten HaexVault-Adressen und eine Weitergabe mit einer Karte
     derselben Vault, die weniger Geräte trägt, **When** der Nutzer hinzufügt, **Then** bleiben alle
     bisherigen bestätigten Adressen erhalten.
 12. **Given** ein vorhandener Kontakt, dessen gespeicherte Adressen veraltet sind (der Kontakt hat seine
@@ -306,36 +306,36 @@ Handynummer um eine Weitergabe nur mit E-Mail-Adresse ergänzen und prüfen, das
     mit einer neueren Karte derselben Vault, **When** der Nutzer hinzufügt, **Then** stehen die neuen
     Geräte und Relays neben den alten, und der Kontakt ist wieder erreichbar; keine alte Adresse geht
     verloren.
-13. **Given** eine Weitergabe mit neuen holzi-Adressen für einen vorhandenen Kontakt, **When** der
-    Nutzer in der Vorschau „Nicht übernehmen“ wählt, **Then** bleiben die holzi-Adressen des Kontakts
+13. **Given** eine Weitergabe mit neuen HaexVault-Adressen für einen vorhandenen Kontakt, **When** der
+    Nutzer in der Vorschau „Nicht übernehmen“ wählt, **Then** bleiben die HaexVault-Adressen des Kontakts
     unverändert, und die übrigen Angaben der Weitergabe werden nach ihrer eigenen Wahl übernommen.
-14. **Given** eine Weitergabe ohne Karte (der Kontakt ist kein holzi-Nutzer), **When** der Nutzer
+14. **Given** eine Weitergabe ohne Karte (der Kontakt ist kein HaexVault-Nutzer), **When** der Nutzer
     einliest, **Then** funktioniert alles wie oben, und die Vorschau zeigt, dass der Kontakt nicht über
-    holzi erreichbar ist.
+    HaexVault erreichbar ist.
 15. **Given** eine Weitergabe mit einer mitgeschickten, aber veränderten oder ungültig unterschriebenen
-    Karte, **When** der Nutzer einliest, **Then** weist holzi sie mit einem Hinweis ab und speichert
+    Karte, **When** der Nutzer einliest, **Then** weist HaexVault sie mit einem Hinweis ab und speichert
     nichts.
-16. **Given** die Weitergabe der eigenen Vault, **When** der Nutzer sie einliest, **Then** weist holzi sie
+16. **Given** die Weitergabe der eigenen Vault, **When** der Nutzer sie einliest, **Then** weist HaexVault sie
     mit einem Hinweis ab (wie bei der eigenen Karte in Spec 051 FR-011).
-17. **Given** eine Visitenkarte im Format `holzi:card:` (zum Beispiel aus einer Einladung), **When** der
-    Nutzer sie einliest, **Then** liest holzi sie weiter wie bisher (Spec 051).
+17. **Given** eine Visitenkarte im Format `haex:card:` (zum Beispiel aus einer Einladung), **When** der
+    Nutzer sie einliest, **Then** liest HaexVault sie weiter wie bisher (Spec 051).
 18. **Given** ein Kontakt mit Foto, **When** der Nutzer ihn teilt und die Weitergabe einliest, **Then**
     trägt die Weitergabe kein Foto, und der Empfänger bekommt den Kontakt ohne Foto.
 19. **Given** eine gespeicherte Karte, deren Zeile nicht zu ihrem Inhalt passt (die Unterschrift stimmt
     nicht, die Kennung ist nicht aus dem Inhalt abgeleitet oder die Zeile ordnet sie einer anderen Vault
-    zu), **When** holzi Adressen eines Kontakts braucht, **Then** verwendet es diese Zeile nicht und
+    zu), **When** HaexVault Adressen eines Kontakts braucht, **Then** verwendet es diese Zeile nicht und
     liefert keine Adressen daraus.
 20. **Given** ein Link der Weitergabe in einer Nachricht oder Mail und eine geöffnete Vault, **When** der
-    Nutzer darauf tippt, **Then** kommt holzi in den Vordergrund und zeigt die Vorschau; es ist noch
+    Nutzer darauf tippt, **Then** kommt HaexVault in den Vordergrund und zeigt die Vorschau; es ist noch
     nichts gespeichert.
-21. **Given** derselbe Link, aber holzi ist beendet oder die Vault gesperrt, **When** der Nutzer darauf
-    tippt, **Then** startet holzi, verlangt das Entsperren und zeigt danach die Vorschau zu genau diesem
+21. **Given** derselbe Link, aber HaexVault ist beendet oder die Vault gesperrt, **When** der Nutzer darauf
+    tippt, **Then** startet HaexVault, verlangt das Entsperren und zeigt danach die Vorschau zu genau diesem
     Link.
 22. **Given** der QR-Code einer Weitergabe auf dem Bildschirm eines anderen Geräts, **When** der Nutzer ihn
-    mit der Kamera des Systems scannt und den Hinweis antippt, **Then** öffnet sich holzi mit der
+    mit der Kamera des Systems scannt und den Hinweis antippt, **Then** öffnet sich HaexVault mit der
     Vorschau, wie bei einem Link.
 23. **Given** ein Link mit beschädigtem oder abgeschnittenem Inhalt, **When** der Nutzer darauf tippt,
-    **Then** öffnet holzi mit einem Hinweis, dass der Link ungültig ist, und speichert nichts.
+    **Then** öffnet HaexVault mit einem Hinweis, dass der Link ungültig ist, und speichert nichts.
 24. **Given** der Kontakt Alice mit bestätigter `npub` und eine Weitergabe von Bob mit einer Karte
     derselben `npub`, **When** die Vorschau erscheint, **Then** steht dort die Kurzform der `npub` und
     „passt zur Vault dieses Kontakts“, und die neuen Adressen lassen sich zu Alice hinzufügen.
@@ -352,7 +352,7 @@ Handynummer um eine Weitergabe nur mit E-Mail-Adresse ergänzen und prüfen, das
 
 Der Nutzer bittet den eingebauten Agenten im Chat oder einen externen Agenten: „Gib mir den Kontakt von
 Ben zum Weiterschicken.“ Der Agent ruft die Aktion zum Teilen auf. Weil dabei Daten die Vault verlassen
-und nicht zurückzuholen sind, gilt sie als zerstörerisch: holzi zeigt dem Nutzer denselben Teilen-Dialog
+und nicht zurückzuholen sind, gilt sie als zerstörerisch: HaexVault zeigt dem Nutzer denselben Teilen-Dialog
 mit dem, was der Agent weitergeben will, und der Agent bekommt den Text erst, wenn der Nutzer bestätigt.
 
 **Why this priority**: Ein Agent soll im Gespräch mit Kontakten umgehen können, ohne dass er Daten
@@ -364,17 +364,17 @@ und ablehnen, und in jedem Fall prüfen, was der Agent zurückbekommt.
 **Acceptance Scenarios**:
 
 1. **Given** ein Agent mit der Freigabe „Kontakte lesen“, **When** er einen Kontakt teilen will, **Then**
-   zeigt holzi dem Nutzer den Teilen-Dialog für diesen Kontakt, und der Agent hat bis zur Bestätigung
+   zeigt HaexVault dem Nutzer den Teilen-Dialog für diesen Kontakt, und der Agent hat bis zur Bestätigung
    nichts bekommen.
 2. **Given** der Dialog aus der Agent-Anfrage, **When** der Nutzer eine Telefonnummer abwählt und
    bestätigt, **Then** bekommt der Agent einen Text ohne diese Telefonnummer.
 3. **Given** der Dialog aus der Agent-Anfrage, **When** der Nutzer ablehnt, **Then** bekommt der Agent
    eine Ablehnung ohne Inhalt des Kontakts.
 4. **Given** ein Agent, der dem Nutzer schon früher einen Kontakt zum Teilen vorgelegt hat und bestätigt
-   bekam, **When** er die Aktion erneut aufruft, **Then** fragt holzi erneut; es gibt keine dauerhafte
+   bekam, **When** er die Aktion erneut aufruft, **Then** fragt HaexVault erneut; es gibt keine dauerhafte
    Erlaubnis für diese Aktion.
 5. **Given** ein Agent ohne die Freigabe „Kontakte lesen“, **When** er die Aktion aufruft, **Then**
-   lehnt holzi ab, ohne zu verraten, ob es den Kontakt gibt (Spec 051 FR-031).
+   lehnt HaexVault ab, ohne zu verraten, ob es den Kontakt gibt (Spec 051 FR-031).
 6. **Given** eine Erweiterung, **When** sie versucht, einen Kontakt zu teilen, **Then** gibt es dafür
    keine Schnittstelle (Spec 051 FR-029).
 
@@ -389,7 +389,7 @@ und ablehnen, und in jedem Fall prüfen, was der Agent zurückbekommt.
 - Die Weitergabe überschreitet auch die Höchstgröße für Link und Zwischenablage (zum Beispiel durch
   sehr viele Angaben oder eine sehr lange Notiz): Der Dialog nennt den Grund und was sich abwählen lässt, und gibt keinen abgeschnittenen Text aus.
 - Der Nutzer wählt bei „Ich“ ein Gerät und alle Relays ab: Die Weitergabe trägt nur die Vault-Identität
-  und die gewählten Angaben. Der Empfänger kann den Nutzer so nicht über holzi erreichen, und der Dialog
+  und die gewählten Angaben. Der Empfänger kann den Nutzer so nicht über HaexVault erreichen, und der Dialog
   weist darauf hin.
 - Der Nutzer teilt einen Kontakt, dessen Originalkarte älter ist als die aktuelle Geräteliste des
   Kontakts: Die Weitergabe trägt die gespeicherte Karte unverändert. Beim Empfänger entfernt sie nie
@@ -406,8 +406,8 @@ und ablehnen, und in jedem Fall prüfen, was der Agent zurückbekommt.
   Der Nutzer wählt, welcher ersetzt wird; ohne diese Wahl bleibt es beim Hinzufügen.
 - Der Nutzer bestätigt die Vorschau mit den Standardwerten: Alles Neue wird hinzugefügt, nichts ersetzt,
   nichts entfernt.
-- Ein Kontakt hat keine holzi-Adressen (Handykontakt, kein holzi-Nutzer): Er lässt sich vollständig teilen
-  und einlesen; es fehlt nur der Weg, ihn über holzi zu erreichen.
+- Ein Kontakt hat keine HaexVault-Adressen (Handykontakt, kein HaexVault-Nutzer): Er lässt sich vollständig teilen
+  und einlesen; es fehlt nur der Weg, ihn über HaexVault zu erreichen.
 - Ein Agent ruft die Aktion zum Teilen auf, während der Nutzer das Fenster nicht offen hat oder nicht
   antwortet: Die Aktion wartet auf die Bestätigung oder läuft ab; der Agent bekommt nie Inhalte ohne
   sie.
@@ -416,19 +416,19 @@ und ablehnen, und in jedem Fall prüfen, was der Agent zurückbekommt.
 - Ein Kontakt hat weder Namensteile noch eine Vault-Identität: Der Name geht leer mit, und der Empfänger
   leitet ihn nach den Regeln aus Spec 051 aus Telefonnummer oder E-Mail-Adresse ab, falls die angehakt
   sind.
-- Der Nutzer liest eine Weitergabe ein, deren Name leer ist und die keine Angaben trägt: holzi zeigt
+- Der Nutzer liest eine Weitergabe ein, deren Name leer ist und die keine Angaben trägt: HaexVault zeigt
   einen Hinweis und speichert nichts.
 - Eine andere App kürzt einen langen Link beim Anzeigen oder Weitergeben: Der Link ist dann ungültig
   (Szenario 23), das Einfügen aus der Zwischenablage mit dem vollständigen Text funktioniert weiter.
-- Der Nutzer tippt auf einen Link, während holzi eine andere Abfrage zeigt (etwa die Bestätigung einer
+- Der Nutzer tippt auf einen Link, während HaexVault eine andere Abfrage zeigt (etwa die Bestätigung einer
   Agent-Anfrage): Die Vorschau erscheint danach oder darüber, ohne die Abfrage zu verwerfen; keine Abfrage
   wird dadurch bestätigt.
-- Ein Umschlag aus einer neueren holzi-Version mit unbekannter Versionsnummer: holzi weist ihn mit einem
+- Ein Umschlag aus einer neueren HaexVault-Version mit unbekannter Versionsnummer: HaexVault weist ihn mit einem
   Hinweis ab, ohne etwas zu speichern.
 - Die Weitergabe trägt eine Angabe einer Art, die der Empfänger nicht kennt: Sie bleibt unverändert und
   wird schreibgeschützt angezeigt (Spec 051 FR-007).
 - Eine blockierte Vault (Spec 051 FR-039): Die Weitergabe eines Kontakts, dessen Nachweis eine blockierte
-  Vault-Identität nennt, behandelt holzi wie eine Visitenkarte dieser Vault.
+  Vault-Identität nennt, behandelt HaexVault wie eine Visitenkarte dieser Vault.
 - Gruppen, Abgleichsziele und Herkunft eines geteilten Kontakts gehen nicht mit, denn sie gehören dem
   Absender.
 
@@ -458,17 +458,17 @@ und ablehnen, und in jedem Fall prüfen, was der Agent zurückbekommt.
 - **FR-004**: Der Ich-Kontakt MUSS in der ungefilterten Kontaktliste ganz oben stehen, unabhängig von
   Sortierung und Gruppierung.
 - **FR-005**: Der Nutzer MUSS im Ich-Kontakt alle Angaben pflegen können, die jeder Kontakt haben kann
-  (Spec 051 FR-003), einschließlich Foto und Notiz. Die holzi-Adressen der eigenen Vault (Vault-
-  Identität, Geräte, Nostr-Relays) MUSS der Editor schreibgeschützt anzeigen; holzi DARF sie nicht als
+  (Spec 051 FR-003), einschließlich Foto und Notiz. Die HaexVault-Adressen der eigenen Vault (Vault-
+  Identität, Geräte, Nostr-Relays) MUSS der Editor schreibgeschützt anzeigen; HaexVault DARF sie nicht als
   Angaben im Kontakt speichern.
 - **FR-006**: Der Ich-Kontakt DARF NICHT ins Telefon-Adressbuch geschrieben werden, kein Abgleich DARF ihn
   verändern, und er DARF keine Abgleichsziele haben (Spec 051 FR-014).
-- **FR-007**: holzi DARF den Ich-Kontakt nirgends als Empfänger anbieten, in dem ein Kontakt mit
+- **FR-007**: HaexVault DARF den Ich-Kontakt nirgends als Empfänger anbieten, in dem ein Kontakt mit
   bestätigter fremder Vault-Identität gebraucht wird (zum Beispiel für Dateifreigaben).
 
 **Der Teilen-Dialog**
 
-- **FR-008**: holzi MUSS bei jedem Kontakt, auch beim Ich-Kontakt, die Aktion „Teilen“ anbieten. Sie MUSS
+- **FR-008**: HaexVault MUSS bei jedem Kontakt, auch beim Ich-Kontakt, die Aktion „Teilen“ anbieten. Sie MUSS
   für jeden Kontakt denselben Dialog öffnen.
 - **FR-009**: Der Dialog MUSS jede Angabe des Kontakts als eigene Zeile mit Checkbox zeigen: Anzeigename,
   Spitzname, Telefon-
@@ -478,52 +478,52 @@ und ablehnen, und in jedem Fall prüfen, was der Agent zurückbekommt.
   sein. Der Dialog MUSS „Alle“ und „Keine“ anbieten. Das Foto DARF nicht in der Weitergabe sein und
   keine Zeile haben; ein Hinweis MUSS sagen, dass Fotos nicht per Link, Zwischenablage oder QR-Code
   weitergegeben werden.
-- **FR-010**: holzi DARF die Auswahl des Dialogs NICHT speichern. Jedes Öffnen beginnt mit allem
+- **FR-010**: HaexVault DARF die Auswahl des Dialogs NICHT speichern. Jedes Öffnen beginnt mit allem
   gewählt.
-- **FR-011**: Der Name des Kontakts MUSS immer mitgehen und DARF nicht abwählbar sein. Als Name MUSS holzi
+- **FR-011**: Der Name des Kontakts MUSS immer mitgehen und DARF nicht abwählbar sein. Als Name MUSS HaexVault
   die Namensteile des Kontakts verwenden; fehlen sie, die `npub` seiner Vault-Identität (beim
   Ich-Kontakt die eigene); gibt es auch diese nicht, MUSS der Name leer bleiben. Anzeigename, Spitzname,
   Organisation, Telefonnummer und E-Mail-Adresse DÜRFEN nicht als Namens-Ersatz dienen; Anzeigename und
   Spitzname MÜSSEN aber als eigene, abwählbare Angaben teilbar sein.
-- **FR-012**: Beim Ich-Kontakt MUSS der Dialog die holzi-Adressen der eigenen Vault zeigen: jedes Gerät
+- **FR-012**: Beim Ich-Kontakt MUSS der Dialog die HaexVault-Adressen der eigenen Vault zeigen: jedes Gerät
   mit seiner iroh-Adresse und jedes Nostr-Relay als eigene, abwählbare Zeile. Wenn eine Karte mitgeht,
-  MUSS die Vault-Identität darin immer mitgehen. holzi MUSS dafür bei jedem Teilen eine frisch unterschriebene
+  MUSS die Vault-Identität darin immer mitgehen. HaexVault MUSS dafür bei jedem Teilen eine frisch unterschriebene
   Karte erzeugen, die nur die gewählten Geräte und Relays enthält und keine Angaben des Kontakts. Kann das
   Gerät nicht unterschreiben, MUSS die Karte mitsamt Identität entfallen und FR-016 den Nutzer informieren.
-- **FR-013**: Bei einem fremden Kontakt mit bestätigten holzi-Adressen MUSS der Dialog genau eine Zeile
-  „holzi-Adressen (bestätigt)“ zeigen. Ist sie gewählt, MUSS holzi die ursprüngliche, vom Kontakt
+- **FR-013**: Bei einem fremden Kontakt mit bestätigten HaexVault-Adressen MUSS der Dialog genau eine Zeile
+  „HaexVault-Adressen (bestätigt)“ zeigen. Ist sie gewählt, MUSS HaexVault die ursprüngliche, vom Kontakt
   unterschriebene Karte unverändert mitschicken. Die Zeile MUSS darauf hinweisen, dass die Karte auch die
   Angaben enthält, die der Kontakt selbst dafür freigegeben hat, und dass Geräte und Relays nur
-  gemeinsam mitgehen. Hat der Kontakt keine bestätigten holzi-Adressen, MUSS die Zeile fehlen.
-- **FR-014**: Von Hand eingetragene, unbestätigte holzi-Adressen eines Kontakts MÜSSEN im Dialog als
+  gemeinsam mitgehen. Hat der Kontakt keine bestätigten HaexVault-Adressen, MUSS die Zeile fehlen.
+- **FR-014**: Von Hand eingetragene, unbestätigte HaexVault-Adressen eines Kontakts MÜSSEN im Dialog als
   gewöhnliche Zeilen erscheinen und beim Empfänger als unbestätigt ankommen.
 - **FR-015**: Die Weitergabe DARF nichts enthalten, was der Nutzer abgewählt hat. Ausgenommen sind die
-  Angaben im ursprünglichen Nachweis eines fremden Kontakts (FR-013), die der Empfänger-Teil von holzi
+  Angaben im ursprünglichen Nachweis eines fremden Kontakts (FR-013), die der Empfänger-Teil von HaexVault
   nicht übernimmt (FR-023).
 - **FR-016**: Kann ein Gerät keine Karte unterschreiben, weil es das Vault-Geheimnis nicht hält, MUSS der
-  Dialog beim Ich-Kontakt sagen, dass auf diesem Gerät keine holzi-Adressen mitgehen können, und die
-  Weitergabe ohne sie erzeugen. holzi DARF sie nicht stillschweigend weglassen.
+  Dialog beim Ich-Kontakt sagen, dass auf diesem Gerät keine HaexVault-Adressen mitgehen können, und die
+  Weitergabe ohne sie erzeugen. HaexVault DARF sie nicht stillschweigend weglassen.
 - **FR-017**: Gibt es nach der Auswahl nichts Weiterzugebendes (leerer Name, keine Angabe, keine
   Adressen), MUSS der Dialog das mit einem Hinweis sagen und keinen Link und keinen QR-Code zeigen.
-- **FR-017a**: Ein Kontakt ohne holzi-Adressen (etwa vom Telefon, ohne holzi-Nutzer) MUSS sich genauso
-  teilen lassen wie jeder andere. Die Weitergabe trägt dann keine Karte, der Dialog zeigt die Zeile „holzi-
+- **FR-017a**: Ein Kontakt ohne HaexVault-Adressen (etwa vom Telefon, ohne HaexVault-Nutzer) MUSS sich genauso
+  teilen lassen wie jeder andere. Die Weitergabe trägt dann keine Karte, der Dialog zeigt die Zeile „HaexVault-
   Adressen (bestätigt)“ nicht, und die Vorschau beim Empfänger MUSS darauf hinweisen, dass der Kontakt
-  nicht über holzi erreichbar ist. Eine fehlende Karte DARF nie ein Fehler sein.
+  nicht über HaexVault erreichbar ist. Eine fehlende Karte DARF nie ein Fehler sein.
 
 **Das Format der Weitergabe**
 
 - **FR-018**: Die Weitergabe MUSS ein Text in Form eines Deep Links der App sein, mit dem Schema
   `haex-vault://` (dem Namen der App nach Spec 054). Als Link, über die
-  Zwischenablage und, wenn er passt, als QR-Code MUSS holzi immer genau denselben Text ausgeben. Er MUSS
+  Zwischenablage und, wenn er passt, als QR-Code MUSS HaexVault immer genau denselben Text ausgeben. Er MUSS
   eine Versionsnummer, den Namen, die gewählten Angaben und optional eine unterschriebene Karte tragen
-  und sich am Anfang von der bisherigen Visitenkarte (`holzi:card:`) unterscheiden.
-- **FR-018a**: Öffnet der Nutzer einen Link der Weitergabe außerhalb von holzi (Tippen in einer anderen
-  App, Scannen des QR-Codes mit der Kamera des Systems), MUSS das Betriebssystem holzi starten oder in den
-  Vordergrund holen und holzi MUSS die Vorschau nach FR-021 zeigen. Das Öffnen eines Links DARF nichts
+  und sich am Anfang von der bisherigen Visitenkarte (`haex:card:`) unterscheiden.
+- **FR-018a**: Öffnet der Nutzer einen Link der Weitergabe außerhalb von HaexVault (Tippen in einer anderen
+  App, Scannen des QR-Codes mit der Kamera des Systems), MUSS das Betriebssystem HaexVault starten oder in den
+  Vordergrund holen und HaexVault MUSS die Vorschau nach FR-021 zeigen. Das Öffnen eines Links DARF nichts
   speichern und nichts ändern, nur die Vorschau zeigen. Ist die Vault gesperrt oder noch nicht geöffnet,
-  MUSS holzi die Vorschau nach dem Entsperren zeigen; der Link darf dabei nicht verloren gehen. Das gilt
-  auf allen Plattformen, auf denen holzi läuft (Android und Desktop). Läuft auf dem Desktop schon ein Prozess
-  mit geöffneter Vault (holzi nutzt je Vault einen Prozess), MUSS der Link in diesem Prozess erscheinen und
+  MUSS HaexVault die Vorschau nach dem Entsperren zeigen; der Link darf dabei nicht verloren gehen. Das gilt
+  auf allen Plattformen, auf denen HaexVault läuft (Android und Desktop). Läuft auf dem Desktop schon ein Prozess
+  mit geöffneter Vault (HaexVault nutzt je Vault einen Prozess), MUSS der Link in diesem Prozess erscheinen und
   das Fenster nach vorn kommen, statt einen zweiten Prozess zu öffnen, in dem die Vault nicht noch einmal zu
   öffnen wäre. Läuft keiner, MUSS der neue Prozess den Link halten, bis der Nutzer eine Vault geöffnet hat.
   Laufen mehrere Vaults, MUSS die Vorschau den Namen der Vault nennen, in die gespeichert würde.
@@ -531,14 +531,14 @@ und ablehnen, und in jedem Fall prüfen, was der Agent zurückbekommt.
   passt; sonst MUSS er den Hinweis „zu groß für QR“ zeigen. Link und Zwischenablage MÜSSEN darüber hinaus
   funktionieren, bis zu einer Höchstgröße, die der Plan festlegt. Wird sie überschritten, MUSS der
   Dialog den Grund nennen und darauf hinweisen, was sich abwählen lässt.
-- **FR-020**: holzi MUSS Visitenkarten im Format `holzi:card:` weiter einlesen können (Einladungen und
+- **FR-020**: HaexVault MUSS Visitenkarten im Format `haex:card:` weiter einlesen können (Einladungen und
   andere Stellen, die sie verwenden). Der Teilen-Dialog MUSS nur noch das neue Format erzeugen.
 
 **Einlesen**
 
-- **FR-021**: holzi MUSS eine Weitergabe als Link (auch durch Tippen, FR-018a), über die
-  Zwischenablage und per Kamera als QR-Code einlesen können und vor dem Speichern eine Vorschau mit Namen, Angaben und holzi-Adressen zeigen. Die
-  Vorschau MUSS bestätigte und unbestätigte holzi-Adressen unterscheiden. holzi DARF vor der Wahl des
+- **FR-021**: HaexVault MUSS eine Weitergabe als Link (auch durch Tippen, FR-018a), über die
+  Zwischenablage und per Kamera als QR-Code einlesen können und vor dem Speichern eine Vorschau mit Namen, Angaben und HaexVault-Adressen zeigen. Die
+  Vorschau MUSS bestätigte und unbestätigte HaexVault-Adressen unterscheiden. HaexVault DARF vor der Wahl des
   Nutzers nichts speichern.
 - **FR-021a**: Trägt die Weitergabe eine gültige Karte, MUSS die Vorschau die Kurzform der `npub` der
   Vault-Identität zeigen. Gehört die Karte zu einem vorhandenen Kontakt mit bestätigter Vault-Identität
@@ -546,12 +546,12 @@ und ablehnen, und in jedem Fall prüfen, was der Agent zurückbekommt.
   Vault-Identität erstmals bestätigen (neuer Kontakt oder vorhandener Kontakt ohne bestätigte Identität),
   MUSS die Vorschau darauf hinweisen, dass „bestätigt“ nur belegt, dass die Adressen zu dieser Vault
   gehören, nicht, wer die Person ist. Eine eigene zusätzliche Rückfrage gibt es nicht.
-- **FR-022**: Trägt die Weitergabe eine Karte, MUSS holzi deren Unterschrift prüfen. Eine mitgeschickte,
-  aber ungültige, veränderte oder zur eigenen Vault gehörende Karte MUSS holzi mit einem Hinweis
+- **FR-022**: Trägt die Weitergabe eine Karte, MUSS HaexVault deren Unterschrift prüfen. Eine mitgeschickte,
+  aber ungültige, veränderte oder zur eigenen Vault gehörende Karte MUSS HaexVault mit einem Hinweis
   abweisen und die ganze Weitergabe nicht speichern. Dasselbe gilt für einen Umschlag mit unbekannter
-  Version, einen beschädigten oder zu großen Umschlag. Eine Weitergabe ohne Karte MUSS holzi dagegen
+  Version, einen beschädigten oder zu großen Umschlag. Eine Weitergabe ohne Karte MUSS HaexVault dagegen
   einlesen (FR-017a).
-- **FR-023**: Aus einer Karte in einer Weitergabe MUSS holzi nur Vault-Identität, Geräte und Nostr-Relays
+- **FR-023**: Aus einer Karte in einer Weitergabe MUSS HaexVault nur Vault-Identität, Geräte und Nostr-Relays
   übernehmen, nie ihre Angaben. Die Angaben des Kontakts MÜSSEN aus der Weitergabe selbst stammen und
   als gewöhnliche, unbestätigte Angaben ankommen; die Herkunft MUSS wie bei einem Kontakt aus einer
   Visitenkarte gesetzt sein.
@@ -559,7 +559,7 @@ und ablehnen, und in jedem Fall prüfen, was der Agent zurückbekommt.
   vorhandenen Kontakt (Spec 051 FR-011). Hat die Weitergabe dieselbe Vault-Identität wie ein
   vorhandener Kontakt, MUSS die Vorschau diesen Kontakt vorwählen (Spec 051 FR-013). Hat ein vorhandener
   Kontakt dieselbe Telefonnummer oder E-Mail-Adresse, MUSS die Vorschau ihn als Hinweis nennen, ohne ihn
-  vorzuwählen. Den Ich-Kontakt DARF die Vorschau nicht als Ziel zum Hinzufügen anbieten. holzi DARF nie
+  vorzuwählen. Den Ich-Kontakt DARF die Vorschau nicht als Ziel zum Hinzufügen anbieten. HaexVault DARF nie
   von selbst zusammenführen.
 - **FR-024a**: Eine Weitergabe DARF an einem vorhandenen Kontakt nichts löschen, ersetzen oder kürzen, es
   sei denn, der Nutzer hat es für genau diese Angabe gewählt. Was am Kontakt steht und in der
@@ -569,33 +569,33 @@ und ablehnen, und in jedem Fall prüfen, was der Agent zurückbekommt.
   Wert hat, MUSS die Vorschau eine eigene Wahl zeigen: „Hinzufügen“ (vorgewählt), „Aktualisieren“ oder
   „Nicht übernehmen“. „Aktualisieren“ ersetzt einen vorhandenen Wert derselben Art; hat der Kontakt mehrere, wählt der
   Nutzer den zu ersetzenden, und hat er keinen, bietet die Vorschau nur „Hinzufügen“ an. Eine Angabe,
-  die der Kontakt schon mit gleicher Art und gleichem Wert hat, MUSS holzi ohne Frage und ohne
+  die der Kontakt schon mit gleicher Art und gleichem Wert hat, MUSS HaexVault ohne Frage und ohne
   Duplikat übergehen. Mit den Standardwerten fügt ein einziger Bestätigen-Klick alles Neue hinzu.
 - **FR-024c**: Für Felder, die ein Kontakt nur einmal hat (Namensteile, Anzeigename, Spitzname, Organisation,
   Position, Notiz),
-  MUSS holzi ein leeres Feld ohne Frage füllen. Ist es belegt und weicht der Wert der Weitergabe
+  MUSS HaexVault ein leeres Feld ohne Frage füllen. Ist es belegt und weicht der Wert der Weitergabe
   ab, MUSS die Vorschau „Behalten“ (vorgewählt) oder „Aktualisieren“ anbieten.
 - **FR-024d**: Die Vorschau für ein vorhandenes Ziel MUSS eine undurchsichtige Revision des Zielkontakts
   ausgeben. `contacts_share_accept` MUSS diese Revision zurückgeben und die Annahme ablehnen, wenn sich
-  der Zielkontakt seit der Vorschau geändert hat; holzi MUSS dann eine frische Vorschau liefern und darf
+  der Zielkontakt seit der Vorschau geändert hat; HaexVault MUSS dann eine frische Vorschau liefern und darf
   nichts schreiben. Die separate Prüfung, ob ein `value_id` zum Zielkontakt gehört, bleibt zusätzlich nötig.
-- **FR-025**: Eine Weitergabe DARF bestätigte holzi-Adressen eines vorhandenen Kontakts nie entfernen,
+- **FR-025**: Eine Weitergabe DARF bestätigte HaexVault-Adressen eines vorhandenen Kontakts nie entfernen,
   ersetzen oder verkürzen, auch nicht durch eine neuere Karte derselben Vault. Neue Geräte und Relays
   einer gültig unterschriebenen Karte derselben Vault-Identität MUSS die Vorschau als eine Angabe
-  „holzi-Adressen (bestätigt)“ mit den neuen Geräten und Relays zeigen: „Hinzufügen“ (vorgewählt) oder
-  „Nicht übernehmen“; „Aktualisieren“ gibt es für holzi-Adressen nicht. Die Wahl gilt für die
+  „HaexVault-Adressen (bestätigt)“ mit den neuen Geräten und Relays zeigen: „Hinzufügen“ (vorgewählt) oder
+  „Nicht übernehmen“; „Aktualisieren“ gibt es für HaexVault-Adressen nicht. Die Wahl gilt für die
   Adressen einer Karte als Ganzes, denn die unterschriebene Karte ist unteilbar. Ein Gerät oder Relay,
-  das der Kontakt schon hat, MUSS holzi ohne Frage übergehen. Die bestätigte
+  das der Kontakt schon hat, MUSS HaexVault ohne Frage übergehen. Die bestätigte
   Vault-Identität eines vorhandenen Kontakts DARF eine Weitergabe nie ersetzen, auch nicht auf Wunsch des
   Nutzers, denn an ihr hängen Zugriffsrechte (Spec 056); eine abweichende Vault-Identität kommt nur in
   einen neuen Kontakt. Spec 051 FR-013 (eine bestätigte Vault-Identität steht nur bei einem Kontakt) und
   FR-039 (blockierte Vaults) gelten auch hier. Das Entfernen veralteter Adressen gehört nicht zu dieser
-  Spec; Spec 051 FR-012 gilt weiter für Karten im Format `holzi:card:`.
-- **FR-025a**: holzi MUSS jede Karte prüfen, bevor es ihre Adressen speichert, und bei jeder
+  Spec; Spec 051 FR-012 gilt weiter für Karten im Format `haex:card:`.
+- **FR-025a**: HaexVault MUSS jede Karte prüfen, bevor es ihre Adressen speichert, und bei jeder
   Verwendung gespeicherter Adressen erneut: Format und Grenzen, die Unterschrift gegen die Vault-
   Identität, die die Karte selbst nennt, und dass ihre gespeicherte Kennung aus ihrem unterschriebenen
   Inhalt abgeleitet ist und der Vault-Zuordnung der Zeile entspricht. Eine Karte oder gespeicherte
-  Zeile, die das nicht besteht, DARF holzi weder speichern noch für Adressen verwenden. Eine Karte,
+  Zeile, die das nicht besteht, DARF HaexVault weder speichern noch für Adressen verwenden. Eine Karte,
   deren Prüfung scheitert, DARF auch keine andere Angabe der Weitergabe ins Adressbuch bringen
   (FR-022).
 - **FR-026**: Foto, Gruppen, Abgleichsziele, Herkunft und Abgleichsstand eines Kontakts DÜRFEN NICHT in
@@ -606,9 +606,9 @@ und ablehnen, und in jedem Fall prüfen, was der Agent zurückbekommt.
 - **FR-027**: Der Einstellungsblock für die eigene Visitenkarte (Wahl des eigenen Kontakts und der
   Angaben auf der Karte), die Seite „Eigene Visitenkarte“ und die zugehörigen Vault-Einstellungen MÜSSEN
   entfallen. Die Kategorie „Kontakte“ in den Einstellungen behält den Abgleich und die Liste der
-  blockierten Vaults. Eine Migration vorhandener Wahlen entfällt, holzi hat noch keine Nutzer.
+  blockierten Vaults. Eine Migration vorhandener Wahlen entfällt, HaexVault hat noch keine Nutzer.
 - **FR-028**: Ändern sich Geräteliste oder Nostr-Relays der Vault, MUSS die gespeicherte eigene Karte
-  weiter erneuert werden, soweit andere Teile von holzi sie brauchen (Spec 051 FR-010). Der Teilen-Dialog
+  weiter erneuert werden, soweit andere Teile von HaexVault sie brauchen (Spec 051 FR-010). Der Teilen-Dialog
   hängt nicht von ihr ab.
 
 **Teilen durch Agenten**
@@ -616,7 +616,7 @@ und ablehnen, und in jedem Fall prüfen, was der Agent zurückbekommt.
 - **FR-029**: Agenten (der eingebaute Agent und externe Agenten über den MCP-Server) MÜSSEN einen
   Kontakt, auch den Ich-Kontakt, über eine Aktion teilen können. Sie MUSS die Wirkung `destructive`
   haben (Spec 020), weil Daten die Vault verlassen und nicht zurückzuholen sind. Voraussetzung ist die
-  Freigabe „Kontakte lesen“ (Spec 051 FR-030); ohne sie lehnt holzi ab, ohne zu verraten, ob der Kontakt
+  Freigabe „Kontakte lesen“ (Spec 051 FR-030); ohne sie lehnt HaexVault ab, ohne zu verraten, ob der Kontakt
   existiert (Spec 051 FR-031).
 - **FR-030**: Jeder Aufruf der Aktion MUSS der Nutzer einzeln bestätigen. Es DARF keine dauerhafte
   Erlaubnis („immer erlauben“) für diese Aktion geben, auch nicht für einen Agenten, der Kontakte lesen
@@ -639,12 +639,12 @@ und ablehnen, und in jedem Fall prüfen, was der Agent zurückbekommt.
   Nicht gespeichert; er entsteht pro Teilen neu.
 - **Einlese-Entscheidung**: die Wahl des Nutzers je neuer Angabe beim Hinzufügen zu einem vorhandenen
   Kontakt: „Hinzufügen“ (Standard), „Aktualisieren“ oder „Nicht übernehmen“ (bei einfeldigen Angaben
-  „Behalten“ oder „Aktualisieren“, bei holzi-Adressen „Hinzufügen“ oder „Nicht übernehmen“). Lebt nur
+  „Behalten“ oder „Aktualisieren“, bei HaexVault-Adressen „Hinzufügen“ oder „Nicht übernehmen“). Lebt nur
   in der Vorschau.
 - **Teilen-Anfrage eines Agenten**: ein Aufruf der zerstörerischen Aktion zum Teilen mit Kontakt und
   optionalem Auswahlvorschlag; wartet auf die Bestätigung des Nutzers und liefert danach die Weitergabe
   oder eine Ablehnung.
-- **Karte (Echtheitsnachweis der holzi-Adressen)**: wie in Spec 051 die unterschriebene Selbstauskunft
+- **Karte (Echtheitsnachweis der HaexVault-Adressen)**: wie in Spec 051 die unterschriebene Selbstauskunft
   einer Vault. Hier mit gewählten Geräten und Relays frisch unterschrieben (Ich-Kontakt) oder unverändert
   aus dem Adressbuch (fremder Kontakt).
 
@@ -663,13 +663,13 @@ und ablehnen, und in jedem Fall prüfen, was der Agent zurückbekommt.
 - **SC-005**: Ohne Wahl des Nutzers legt das Einlesen in 100 % der Fälle keinen Kontakt an und ändert
   keinen.
 - **SC-005a**: Beim Hinzufügen zu einem vorhandenen Kontakt geht in 100 % der Fälle keine Angabe verloren,
-  außer einer, für die der Nutzer „Aktualisieren“ gewählt hat; bestätigte holzi-Adressen und die bestätigte
+  außer einer, für die der Nutzer „Aktualisieren“ gewählt hat; bestätigte HaexVault-Adressen und die bestätigte
   Vault-Identität eines vorhandenen Kontakts ändert eine Weitergabe in keinem Fall.
-- **SC-005b**: Jeder Kontakt ohne holzi-Adressen lässt sich teilen und einlesen; kein solcher Kontakt
+- **SC-005b**: Jeder Kontakt ohne HaexVault-Adressen lässt sich teilen und einlesen; kein solcher Kontakt
   scheitert an einer fehlenden Karte.
 - **SC-006**: In 100 % der Fälle mit bekannter Vault-Identität sieht der Empfänger einen nichtleeren
   Namen, auch wenn der Absender keine Namensteile gespeichert hat.
-- **SC-007**: Jede Weitergabe mit Karte, deren Unterschrift nicht stimmt, weist holzi in 100 % der Fälle
+- **SC-007**: Jede Weitergabe mit Karte, deren Unterschrift nicht stimmt, weist HaexVault in 100 % der Fälle
   ab; kein Kontakt entsteht.
 - **SC-008**: Jede Vault hat nach beliebig vielen Starts und Syncs auf jedem Gerät genau einen
   Ich-Kontakt, und kein Weg im Programm löscht ihn.
@@ -682,9 +682,9 @@ und ablehnen, und in jedem Fall prüfen, was der Agent zurückbekommt.
 
 ## Assumptions
 
-- Die Weitergabe ist unverschlüsselt. Wer den Text hat, kann ihn lesen und weitergeben. holzi verhindert
+- Die Weitergabe ist unverschlüsselt. Wer den Text hat, kann ihn lesen und weitergeben. HaexVault verhindert
   die Weitergabe von Inhalten nicht, denn geteilte Daten gehören dem Empfänger.
-- Angaben in einer Weitergabe haben keinen Echtheitsnachweis; nur die holzi-Adressen haben ihn, durch die
+- Angaben in einer Weitergabe haben keinen Echtheitsnachweis; nur die HaexVault-Adressen haben ihn, durch die
   Unterschrift der Karte.
 - Die Notiz eines Kontakts ist wie alle anderen Zeilen vorgewählt, auf ausdrücklichen Wunsch („default
   sollte alles angewählt sein“). Der Dialog zeigt den Inhalt jeder Zeile.
@@ -698,11 +698,11 @@ und ablehnen, und in jedem Fall prüfen, was der Agent zurückbekommt.
   Spec 051.
 - „Aktualisieren“ ist eine bewusste Wahl des Nutzers; dass dabei ein vorhandener Wert verschwindet, ist
   gewollt und kein Verlust im Sinne von FR-024a. Vorgewählt ist immer die Wahl, die nichts entfernt.
-- Wie holzi die bestätigten Adressen eines Kontakts speichert, wenn eine Weitergabe neue Geräte oder
+- Wie HaexVault die bestätigten Adressen eines Kontakts speichert, wenn eine Weitergabe neue Geräte oder
   Relays bringt, ohne die bisherigen zu entfernen, legt der Plan fest (die Karte selbst ist
   unterschrieben und lässt sich nicht verändern).
 - Veraltete Adressen bleiben nach einer Weitergabe stehen. Beim Verbinden mit einem Gerät des Kontakts
-  prüft holzi heute dessen Geräteliste, speichert sie aber nicht in den Adressen des Kontakts. Das
+  prüft HaexVault heute dessen Geräteliste, speichert sie aber nicht in den Adressen des Kontakts. Das
   Auffrischen der Adressen aus dem Kontakt selbst, mit Löschen der überholten, ist ein eigenes Vorhaben
   (Spec 051 FR-012, Weg „Geräteliste“).
 - Der Ich-Kontakt gilt für die ganze Vault, nicht je Gerät; alle eigenen Geräte teilen dieselbe Person.
@@ -721,17 +721,17 @@ und ablehnen, und in jedem Fall prüfen, was der Agent zurückbekommt.
 
 ## Nicht im Umfang
 
-- Direktversand eines Kontakts an einen anderen holzi-Kontakt (Zustellung zwischen Vaults, Posteingang,
+- Direktversand eines Kontakts an einen anderen HaexVault-Kontakt (Zustellung zwischen Vaults, Posteingang,
   Annehmen-Abfrage): geht in die spätere Messenger-Spec auf.
 - Export und Import von vCard-Dateien (`.vcf`) und CardDAV-Abgleich: ein späteres, eigenes Ziel des
   Teilen-Dialogs.
 - Verschlüsselung oder Ablaufdatum einer Weitergabe.
-- Ein Link, der für Personen ohne holzi eine Webseite oder einen Store öffnet (Web-Links über https).
+- Ein Link, der für Personen ohne HaexVault eine Webseite oder einen Store öffnet (Web-Links über https).
 - Das Teilen mehrerer Kontakte auf einmal oder ganzer Gruppen.
 - Ein Ich-Profil im Telefon-Adressbuch.
 - Teilen von Kontakten durch Erweiterungen sowie Einlesen einer Weitergabe durch Agenten.
 - Das Foto eines Kontakts in der Weitergabe: Es geht erst mit dem Teilen im Chat (spätere Messenger-Spec)
   in voller Größe mit.
 - Das Nachverfolgen, wem ein Kontakt weitergegeben wurde, und das Zurückrufen einer Weitergabe.
-- Das automatische Auffrischen der holzi-Adressen eines Kontakts aus dem Kontakt selbst beim Verbinden
+- Das automatische Auffrischen der HaexVault-Adressen eines Kontakts aus dem Kontakt selbst beim Verbinden
   und das Entfernen überholter Adressen (Spec 051 FR-012, Weg „Geräteliste“): ein eigenes Vorhaben.

@@ -17,7 +17,7 @@ DOMAINS = {
     "sync": "rules that sync folders with other devices",
     "none": "anything else: general knowledge, arithmetic, the time, small talk",
 }
-PROMPT = ("Which area of the app holzi does the user's request need? Areas:\n" +
+PROMPT = ("Which area of the app haex-vault does the user's request need? Areas:\n" +
           "\n".join(f"{k}: {v}" for k, v in DOMAINS.items()) +
           "\nAnswer with one area name, or two if the request could mean either, comma-separated, nothing else.")
 PREFIX_TO_DOMAIN = {"wm": "apps", "settings": "settings", "browser": "web", "files": "files", "contacts": "contacts",

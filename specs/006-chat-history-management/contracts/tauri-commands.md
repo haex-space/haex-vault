@@ -1,6 +1,6 @@
 # Contracts: Chat-Historie verwalten
 
-Alle neuen Commands liefern `Result<T, HolziError>`. Rust-Felder werden wie
+Alle neuen Commands liefern `Result<T, HaexError>`. Rust-Felder werden wie
 bisher als `camelCase` serialisiert. Backend-Fehler liefern strukturierte,
 sprachneutrale Codes; die sichtbaren Texte kommen aus der i18n-Schicht.
 

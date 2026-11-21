@@ -1,6 +1,6 @@
 # Contract: Bridge-Methoden `extension_remote_storage_*`
 
-Die neun Methoden des vault-sdk (`src/api/remoteStorage.ts`), in holzi in
+Die neun Methoden des vault-sdk (`src/api/remoteStorage.ts`), in haex-vault in
 `src-tauri/src/extensions/remote_storage.rs`, registriert in `bridge/dispatch.rs` (aus der Liste `LATER`
 entfernt). Fehlercodes wie in Spec 017 (`contracts/bridge.md`). „Lesen“/„Lesen und Schreiben“ =
 Berechtigung der Art `remoteStorage` mit dem Speicher (`backendId`) oder `*` als Ziel; ohne passende
@@ -21,12 +21,12 @@ Berechtigung 1004 für eine Berechtigung im Zustand „fragen“, sonst 1002 (wi
 ## Regeln
 
 - **Zugangsdaten nie über die Bridge** (FR-012, FR-013a): enthält `config` eines der Felder
-  `accessKeyId`, `secretAccessKey`, `sessionToken`, antwortet holzi 3001 `credentials are entered in
-holzi`, bevor ein Dialog erscheint. Keine Antwort und keine Fehlermeldung enthält Endpunkt, Region,
+  `accessKeyId`, `secretAccessKey`, `sessionToken`, antwortet haex-vault 3001 `credentials are entered in
+haex-vault`, bevor ein Dialog erscheint. Keine Antwort und keine Fehlermeldung enthält Endpunkt, Region,
   Zugangsdaten, Kopfzeilen oder Antworttext des Anbieters.
 - **Hinzufügen mit `sameProviderAs`** (Review 2026-10-06): Endpunkt, Region und Adressierung kommen aus
   der Verbindung des genannten Speichers; `config` trägt dann nur `bucket`. Enthält `config` daneben
-  `endpoint`, `region` oder `pathStyle`, antwortet holzi 3001, bevor ein Dialog erscheint. Ohne
+  `endpoint`, `region` oder `pathStyle`, antwortet haex-vault 3001, bevor ein Dialog erscheint. Ohne
   `sameProviderAs` ist `region` Pflicht (sonst 3001).
 - **Vorgeschlagener Endpunkt** (FR-009b, FR-017, R8, Betreiber 2026-10-06): braucht die Berechtigung
   `remoteStorage`/`add` mit dem Host des Endpunkts (`host:port`, `host` oder `*`; eine IPv6-Adresse als
@@ -44,7 +44,7 @@ holzi`, bevor ein Dialog erscheint. Keine Antwort und keine Fehlermeldung enthä
   Ziel; ohne sie 1004 im Zustand „fragen“ (die Rückfrage nennt diesen Host), sonst 1002, jeweils vor dem
   Dialog. Eine Region, die keinen solchen Host ergibt (nur Kleinbuchstaben, Ziffern, `-`), → 3001.
 - **Bereich** (FR-010, R4): jeder `key` und `prefix` wird nach R5 geprüft (sonst 3001) und mit
-  `holzi-ext/<vault_id>/<extension_id>/` versehen; Schlüssel in Antworten ohne dieses Präfix.
+  `haex-ext/<vault_id>/<extension_id>/` versehen; Schlüssel in Antworten ohne dieses Präfix.
 - **Unbekannter oder nicht gedeckter Speicher**: 1001 für einen unbekannten, 1004/1002 für einen nicht
   gedeckten (eine Erweiterung ohne Leseberechtigung erfährt nicht, ob es ihn gibt: auch hier 1004/1002,
   nie 1001).
@@ -54,10 +54,10 @@ holzi`, bevor ein Dialog erscheint. Keine Antwort und keine Fehlermeldung enthä
 - **Fehler beim Anbieter** (R7): 1001 `not found`; 2002 `{kind: "accessDenied"}`; 2002 `{kind:
 "network"}`.
 - **Dialog** (R6): Der Dialog über dem Tab fragt nur nach Bestätigung und enthält nie Felder für
-  Zugangsdaten; die gibt der Nutzer nur im Fenster von holzi über der ganzen App ein (Review 2026-10-06).
+  Zugangsdaten; die gibt der Nutzer nur im Fenster von haex-vault über der ganzen App ein (Review 2026-10-06).
   Abbruch in einem der beiden, Ablauf (300 s) oder Schließen des Rahmens → 1002 `cancelled by the user`;
   ein gescheiterter Test → 2002 mit `kind`, nichts angelegt.
 - **Plattformen**: auf allen Plattformen gleich (FR-016); kein `cfg(desktop)`.
-- **Entwicklerversionen** (R4, Review 2026-10-06): eigener Bereich `holzi-ext-dev/<vault_id>/<dev_extension_id>/`
+- **Entwicklerversionen** (R4, Review 2026-10-06): eigener Bereich `haex-ext-dev/<vault_id>/<dev_extension_id>/`
   aus der geräteeigenen `dev_extension_id`, nie der Bereich der installierten Erweiterung mit demselben
   Herausgeberschlüssel und Namen; sie sehen deren Objekte nicht.

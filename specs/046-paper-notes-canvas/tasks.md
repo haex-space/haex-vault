@@ -9,7 +9,7 @@ description: 'Task list for Paper Notes to Editable Canvas'
 **Implementation target**: `https://github.com/haex-space/haextension.git` at revision
 `6dfb015198c99018236f5a8e958a916942ab971c`, under `apps/haex-notes/`
 
-**Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/page-job.md, quickstart.md; holzi with
+**Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/page-job.md, quickstart.md; haex-vault with
 spec 055 and vault-sdk 4.7.1
 
 **Tests**: Included; the project constitution requires runnable checks for non-trivial logic. Tests stay in separate
@@ -61,7 +61,7 @@ spec 055 and vault-sdk 4.7.1
 ## Phase 3: User Story 1 - Photo to a clean draft (P1) 🎯 MVP
 
 **Goal**: A photo becomes a page with the original on a locked layer and a draft of texts, tables and image crops,
-read through holzi; every failure leaves a usable page with the original.
+read through haex-vault; every failure leaves a usable page with the original.
 
 **Independent Test**: With a fake `runPageJob` that returns the fixture result, importing a fixture photo creates a
 page with the original layer and one text, one table and one image element at the expected places; with each error
@@ -87,7 +87,7 @@ code it creates the page with the original and the contract's hint.
 - [x] T027 [P] [US1] Texts of the dialog and the hints in German and English in the locale files of haex-notes (in the `<i18n>` blocks of the components, as elsewhere in haex-notes)
 - [ ] T028 [US1] Fixtures in `apps/haex-notes/app/lib/paperNotes/fixtures/`: de-identified photos (text, table, drawing, a sideways sheet) with the expected `read` and `fix` results and their manifest — two invented pages (upright, turned a quarter) rendered from the OFL fonts, with the recorded answers of both steps from `qwen3-vl:4b-instruct` (2026-10-23), in haex-space/haextension#130. They check the contract and the canvas, not the quality of a model, and they are not real handwriting; real photos stay out of the repository
 
-**Checkpoint**: US1 works against the fake; quickstart steps 1–4, 9 and 10 against holzi.
+**Checkpoint**: US1 works against the fake; quickstart steps 1–4, 9 and 10 against haex-vault.
 
 ---
 
@@ -163,7 +163,7 @@ spec, a test or a PR description.
 - [x] T058 (haex-space/haextension#141) [US3] Insert a formula by hand: an `addLatex` action in `app/stores/notebook.ts` and a toolbar button in `app/pages/notebook/[id].vue` that places a formula on the page and opens its source (FR-032)
 - [x] T059 (haex-space/haextension#141) [US3] Check that the PDF export and a shared page carry formulas: a test that `serializePageDoc` keeps `latex` elements byte for byte, and quickstart step 6c
 - [x] T060 [US3] Measure the formula recognition per model on the private reference photos locally (a local model and a subscription model): count formula lines found, set, and kept as text; record only the counts in the PR description (SC-009) — Result 2026-10-26 (12 photos, 4 with formulas, about 36 formula lines or cells by eye): `qwen3-vl:4b-instruct` 0 set, 36 kept as text; Claude Sonnet 5.5 (read step only, no correction step) 5 lines and 11 cells set, 20 kept as text, with 0 attributable to a source error (10 salt table cells, 6 acid-table formula cells, 4 physics lines were not marked as formula)
-- [x] T061 [US3] Update the test extension of spec 055 (`src-tauri/tests/fixtures/extension_e2e/model-jobs/` in holzi: instruction, format `page-recognition` v2, its `SOURCE.md`) and rebuild `model-jobs.xt` as `build.sh` says, so that the fixture and this contract stay the same
+- [x] T061 [US3] Update the test extension of spec 055 (`src-tauri/tests/fixtures/extension_e2e/model-jobs/` in haex-vault: instruction, format `page-recognition` v2, its `SOURCE.md`) and rebuild `model-jobs.xt` as `build.sh` says, so that the fixture and this contract stay the same
 
 **Checkpoint**: Quickstart step 6c.
 
@@ -171,8 +171,8 @@ spec, a test or a PR description.
 
 - [x] T038 [P] Check every new or changed file of haex-notes stays under 500 lines (largest: `PageCanvas.vue` with 495 lines)
 - [ ] T039 Run `pnpm test` and `pnpm build` in `apps/haex-notes/`
-- [ ] T040 Walk through quickstart.md against holzi with Ollama and record the evidence of its last section in the PR description
-- [ ] T041 Update the state of spec 046 in holzi (`spec.md`, ticks in this file) after the merge in haextension
+- [ ] T040 Walk through quickstart.md against haex-vault with Ollama and record the evidence of its last section in the PR description
+- [ ] T041 Update the state of spec 046 in haex-vault (`spec.md`, ticks in this file) after the merge in haextension
 
 ---
 
@@ -183,7 +183,7 @@ spec, a test or a PR description.
 - Phase 1 → Phase 2 → US1 → US3 → US4 → Polish. US3 and US4 need the draft of US1 to be useful, but T030–T033 and
   T035–T036 only need Phase 2 and can start alongside US1.
 - Within a phase the tests come first and must fail before the implementation.
-- T025 and T026 need holzi with spec 055 for the manual check only; the automated tests use the fake `runPageJob`.
+- T025 and T026 need haex-vault with spec 055 for the manual check only; the automated tests use the fake `runPageJob`.
 
 ### Parallel examples
 
@@ -192,6 +192,6 @@ spec, a test or a PR description.
 
 ## Implementation Strategy
 
-1. MVP: Phases 1, 2 and US1. A photo becomes a draft, read through holzi; every failure leaves the original.
+1. MVP: Phases 1, 2 and US1. A photo becomes a draft, read through haex-vault; every failure leaves the original.
 2. Then US3 (editing) and US4 (PDF), each its own PR in haextension.
-3. Each delivery is its own PR in haextension; this list is ticked in holzi after each merge (T041).
+3. Each delivery is its own PR in haextension; this list is ticked in haex-vault after each merge (T041).

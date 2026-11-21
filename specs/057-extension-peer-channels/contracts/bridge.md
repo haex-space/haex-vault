@@ -1,8 +1,8 @@
-# Contract: Brücke für Kanäle (Erweiterung ↔ holzi)
+# Contract: Brücke für Kanäle (Erweiterung ↔ haex-vault)
 
 Methoden der Erweiterungs-Brücke (Spec 017, `extensions/bridge/allowlist.rs`) und Meldungen an die
 Rahmen. PR 4 trägt sie in `specs/017-extension-host/contracts/bridge.md` ein (Tabelle der Methoden und
-„Meldungen holzi → Erweiterung“); der Vertragstest `src-tauri/tests/extension_bridge_contract.rs` kennt
+„Meldungen haex-vault → Erweiterung“); der Vertragstest `src-tauri/tests/extension_bridge_contract.rs` kennt
 sie dann.
 
 Alle Methoden laufen über `dispatch::call` (aktive Erweiterung), gelten für die aufrufende Erweiterung
@@ -106,10 +106,10 @@ result: {}
 Beide Seiten erhalten `peers:channel-closed { reason: "closed" }` (die eigene Seite ebenfalls, genau
 einmal).
 
-Es gibt **keine** Methoden zum Annehmen oder Ablehnen einer Einladung: Das geschieht nur in holzis
+Es gibt **keine** Methoden zum Annehmen oder Ablehnen einer Einladung: Das geschieht nur in haex-vaults
 Einladungsabfrage (Spec FR-016).
 
-## Meldungen holzi → Erweiterung
+## Meldungen haex-vault → Erweiterung
 
 An alle offenen Rahmen der Erweiterung auf dem Gerät (`bridge::events::emit_to_frames`), nicht flach
 (`data` ist das Objekt).
@@ -126,17 +126,17 @@ An alle offenen Rahmen der Erweiterung auf dem Gerät (`bridge::events::emit_to_
   die Gegenseite schnell antwortet; die Erweiterung ordnet über `inviteId` zu.
 - `status` kommt genau einmal je Einladung; `channelId` nur bei `accepted`; `hint: "share_current_card"`
   nur bei `unreachable` (Clarifications 2026-10-22).
-- `peers:channel-opened` kommt erst nach der Annahme in holzis Abfrage und nach `InviteConfirm`. Ist kein
-  Rahmen offen, öffnet holzi die Erweiterung, und die Meldung wartet bis zu ihrem Rahmen (research R9).
+- `peers:channel-opened` kommt erst nach der Annahme in haex-vaults Abfrage und nach `InviteConfirm`. Ist kein
+  Rahmen offen, öffnet haex-vault die Erweiterung, und die Meldung wartet bis zu ihrem Rahmen (research R9).
   Nachrichten, die in der Zwischenzeit eintreffen, warten mit ihr (höchstens 256 Meldungen; schnelle
   gehen zuerst verloren, eine gesicherte, die keinen Platz findet, beendet den Kanal mit `lost`). Sie
   gehen hinaus, sobald der Rahmen seine erste Anmeldung meldet (`extension_frame_reloaded`), denn vorher
-  kennt holzis Fenster die Kennung des Rahmens nicht und verwirft seine Meldungen.
+  kennt haex-vaults Fenster die Kennung des Rahmens nicht und verwirft seine Meldungen.
 - `contactId` steht nur da, wenn die Berechtigung `contacts` der Erweiterung den Kontakt umfasst
   (051 FR-031); `name` ist der Name von der Visitenkarte der Gegenseite. `displayName` beim Beitritt ist
   selbst gewählt und ungeprüft.
 - `peers:message` mit `reliable: false` darf im Puffer eines noch nicht bereiten Rahmens verworfen
-  werden; müsste eine mit `reliable: true` verworfen werden, schließt holzi den Kanal mit `lost`
+  werden; müsste eine mit `reliable: true` verworfen werden, schließt haex-vault den Kanal mit `lost`
   (research R8).
 
 ## Fehler
@@ -146,7 +146,7 @@ Nur die festen Codes von `ExtensionErrorCode`; der Grund in `details.reason`:
 | `code`                          | `details.reason`                        | Bedeutung                                                                                                             |
 | ------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | 1002 `PermissionDenied`         | —                                       | `peers` verweigert                                                                                                    |
-| 1004 `PermissionPromptRequired` | —                                       | holzi fragt; erneut nach `extension:permission-resolved`                                                              |
+| 1004 `PermissionPromptRequired` | —                                       | haex-vault fragt; erneut nach `extension:permission-resolved`                                                         |
 | 1001 `NotFound`                 | `contact_unknown`                       | Kontakt fehlt, außerhalb der Berechtigung `contacts` oder ohne Visitenkarte                                           |
 | 1001 `NotFound`                 | `invite_not_open`, `channel_unknown`    | fremde, unbekannte oder beendete Kennung (gleich behandelt, FR-006)                                                   |
 | 1001 `NotFound`                 | `lobby_closed`                          | Beitritt nicht möglich (einheitliche Antwort, FR-025)                                                                 |
@@ -157,7 +157,7 @@ Nur die festen Codes von `ExtensionErrorCode`; der Grund in `details.reason`:
 
 Keine Meldung enthält Adressen, Schlüssel oder Daten anderer Erweiterungen (FR-043).
 
-## Befehle für holzis Fenster (nicht für Erweiterungen)
+## Befehle für haex-vaults Fenster (nicht für Erweiterungen)
 
 | Befehl / Ereignis                          | Richtung       | Inhalt                                                           |
 | ------------------------------------------ | -------------- | ---------------------------------------------------------------- |
@@ -168,7 +168,7 @@ Keine Meldung enthält Adressen, Schlüssel oder Daten anderer Erweiterungen (FR
 | `extension-notification-click` (bestehend) | Rust → Fenster | `{ extensionId }` — öffnet die Erweiterung nach der Annahme      |
 
 `raise` ist `true`, wenn der Nutzer die Benachrichtigung selbst angeklickt hat (nicht einen Knopf):
-holzis Fenster kommt dann mit der Abfrage nach vorn. `withdrawn` gilt für Rückzug, Ende der Verbindung
+haex-vaults Fenster kommt dann mit der Abfrage nach vorn. `withdrawn` gilt für Rückzug, Ende der Verbindung
 und Ende der Erweiterung, `expired` für den Ablauf auf diesem Gerät; ein anderes Gerät, das gewonnen
 hat, zieht die Einladung ebenfalls zurück (`withdrawn`), das Protokoll unterscheidet es nicht. Die Schließt der Nutzer die Abfrage im Fenster (X, Escape), gilt das als Ablehnen und geht denselben Weg
 über `extension_peer_invitation_answer`; eine Benachrichtigung, die ohne Klick verschwindet, entscheidet

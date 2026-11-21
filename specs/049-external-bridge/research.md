@@ -9,7 +9,7 @@ Quellen, auf die sich die Entscheidungen stützen:
   `src/composables/handlers/useCoreExternalRequestHandlers/`.
 - **Client**: `https://github.com/haex-space/haextension`, Revision
   `c8133b94b37ca90f7b17011f4f58f8c9ab91d1f0`, Pfad `apps/haex-pass-browser/src/`.
-- **holzi**: Stand `main` bei `35e1c34e`.
+- **haex-vault**: Stand `main` bei `35e1c34e`.
 
 ## R1 Server, Transport und Grenzen
 
@@ -53,10 +53,10 @@ soweit das Gerät IPv6-Loopback hat.
 **Decision**: Der Callback von `accept_hdr_async` liest den Header `Origin`.
 
 - Nur `chrome-extension://<id>` und `moz-extension://<uuid>` werden angenommen.
-- Fehlt der Header, oder ist er `null`, `http(s)://…` oder etwas anderes, antwortet holzi mit HTTP
+- Fehlt der Header, oder ist er `null`, `http(s)://…` oder etwas anderes, antwortet haex-vault mit HTTP
   403, und es entsteht kein WebSocket.
 - Die Herkunft gehört zur Zulassung: Die gemerkte Zulassung speichert sie. Meldet sich derselbe
-  Fingerabdruck mit einer anderen Herkunft, fragt holzi neu, genau wie bei einer geänderten
+  Fingerabdruck mit einer anderen Herkunft, fragt haex-vault neu, genau wie bei einer geänderten
   Erklärung (FR-012).
 
 **Rationale**:
@@ -73,7 +73,7 @@ soweit das Gerät IPv6-Loopback hat.
 
 **Prüfung**: Das Verhalten beider Browser muss an echten Browsern nachgewiesen werden; dafür ist
 der erste Schritt von [quickstart.md](./quickstart.md) da (M1). Schickt ein Browser
-entgegen der Erwartung keinen `Origin`, bleibt holzi geschlossen (keine Ausnahme), und der Plan
+entgegen der Erwartung keinen `Origin`, bleibt haex-vault geschlossen (keine Ausnahme), und der Plan
 wird angepasst, bevor PR B gemergt wird.
 
 **Alternatives considered**:
@@ -84,7 +84,7 @@ wird angepasst, bevor PR B gemergt wird.
 
 ## R3 Kryptografie der Umschläge
 
-**Decision**: holzi spricht das Verfahren der Vorlage und des Clients unverändert.
+**Decision**: haex-vault spricht das Verfahren der Vorlage und des Clients unverändert.
 
 - **Schlüsseltausch**: X25519 mit `curve25519-dalek` 5
   (`MontgomeryPoint(peer).mul_clamped(secret)`). Ein gemeinsames Geheimnis aus lauter Nullbytes
@@ -97,7 +97,7 @@ wird angepasst, bevor PR B gemergt wird.
 - **Antworten**: Jede Antwort bekommt ein frisches Schlüsselpaar des Servers. Ihr öffentlicher
   Schlüssel steht in `publicKey`. Das gemeinsame Geheimnis kommt aus diesem frischen Schlüssel und
   dem öffentlichen Handshake-Schlüssel des Clients (`background/crypto.ts:228-245`).
-- **Kennung**: holzi prüft `clientId == hex(SHA-256(publicKey)[0..16])` mit `sha2` 0.11 und weist
+- **Kennung**: haex-vault prüft `clientId == hex(SHA-256(publicKey)[0..16])` mit `sha2` 0.11 und weist
   sonst ab (FR-006). Die Vorlage prüft das nicht (`connection.rs:102`).
 
 **Rationale**:
@@ -129,7 +129,7 @@ wird angepasst, bevor PR B gemergt wird.
 
 - **Wiederholte Handshakes**: Der Client schickt den Handshake auf derselben Verbindung erneut,
   solange er nicht gepaart ist (`connection.ts:127-131`). Gleiche Kennung und gleicher Schlüssel
-  beantwortet holzi mit dem aktuellen Zustand und öffnet keinen zweiten Dialog. Eine andere Kennung
+  beantwortet haex-vault mit dem aktuellen Zustand und öffnet keinen zweiten Dialog. Eine andere Kennung
   auf derselben Verbindung schließt sie.
 - **Dialoge je Client**: Höchstens ein Zulassungsdialog je Fingerabdruck über alle Verbindungen
   (FR-007, US6 Szenario 4). Wartende Verbindungen werden nach der Antwort alle benachrichtigt.
@@ -140,11 +140,11 @@ wird angepasst, bevor PR B gemergt wird.
   - Die `requestId` gilt je Verbindung, nicht global (in der Vorlage global, Lücke 4).
 - **Fehler mit und ohne `requestId`**:
   - Jede Antwort auf eine entschlüsselbare Anfrage trägt deren `requestId`. Fehlt sie oder ist
-    sie leer, verwirft holzi die Anfrage stumm, weil der Client sie ohnehin nicht zuordnen könnte.
+    sie leer, verwirft haex-vault die Anfrage stumm, weil der Client sie ohnehin nicht zuordnen könnte.
   - Nicht entschlüsselbare Anfragen bekommen einen `error`-Rahmen wie in der Vorlage.
 - **Widerruf und Ablehnen**: `authorizationUpdate { authorized: false }`, dann Schließen (FR-011).
   Wartende Anfragen dieser Verbindung scheitern; ihre Dialoge werden abgebrochen.
-- **Ping**: `{"type":"ping"}` beantwortet holzi in jedem Zustand mit `{"type":"pong"}`.
+- **Ping**: `{"type":"ping"}` beantwortet haex-vault in jedem Zustand mit `{"type":"pong"}`.
 
 **Rationale**:
 
@@ -176,8 +176,8 @@ Client hält ohnehin nur eine Verbindung.
   `ItemInput.tags`. Mit einem Bereich aus Tags verlangt `authorize_create` ohnehin ein Tag im
   Bereich (`access.rs:282-295`).
 - **Erklärung**: Nur der Eintrag `permissions.core.passwords` zählt. Alle anderen Kategorien der
-  Erklärung (`database`, `shell`, …) gewährt holzi nie; die Vorlage gewährt sie alle (Lücke 7).
-  Erklärt ein Client keine Passwörter, antwortet holzi mit `PERMISSIONS_DECLARATION_REQUIRED`
+  Erklärung (`database`, `shell`, …) gewährt haex-vault nie; die Vorlage gewährt sie alle (Lücke 7).
+  Erklärt ein Client keine Passwörter, antwortet haex-vault mit `PERMISSIONS_DECLARATION_REQUIRED`
   (FR-006).
 
 **Rationale**:
@@ -206,11 +206,11 @@ Client hält ohnehin nur eine Verbindung.
   - jede Methode genau einmal;
   - jede Methode in [contracts/wire-protocol.md](./contracts/wire-protocol.md) aufgeführt;
   - kein `module` enthält `::chat`, `::llm`, `::adapters` oder `::providers`;
-  - jedes `module` beginnt mit `holzi_lib::browser_bridge::`.
+  - jedes `module` beginnt mit `haex_lib::browser_bridge::`.
 - **Eingaben**: Je Methode gibt es ein eigenes `serde`-Struct mit genau den Feldern, die die
   Methode liest. Andere Felder werden übergangen, nicht abgelehnt. Das ist FR-022 und die Antwort
   auf die ungefilterten Seitendaten in `webauthn-bridge.ts:127`: Eine Seite kann dort Felder wie
-  `itemId` ergänzen, holzi liest sie nie.
+  `itemId` ergänzen, haex-vault liest sie nie.
 
 **Rationale**: Das Muster stammt aus `src-tauri/tests/extension_bridge_contract.rs` und
 `extensions/bridge/dispatch.rs:38-41` (Spec 017, ADR-0004).
@@ -219,7 +219,7 @@ Client hält ohnehin nur eine Verbindung.
 
 **Decision**: Ablauf von `get-items`:
 
-1. Die Adresse parsen. Fehlt ein Schema, ergänzt holzi `https://` wie die Vorlage. Fehlt die
+1. Die Adresse parsen. Fehlt ein Schema, ergänzt haex-vault `https://` wie die Vorlage. Fehlt die
    Adresse oder ist sie unlesbar, wird abgelehnt.
 2. Die Seite (Site) bestimmen:
    - Für Hosts die registrierbare Domain (`psl::domain_str`).
@@ -308,8 +308,8 @@ Dienst (`reveal::totp_code`, `reveal.rs:201`), das Secret verlässt ihn nicht (F
 - Im Frontend reiht der Store `src/stores/browserBridge.ts` die Fragen ein und zeigt sie
   nacheinander. Die drei Dialoge sind in `src/components/wm/Desktop.vue` eingehängt, neben
   `PermissionRequestDialog`.
-- Vor jedem Dialog holt sich holzi nach vorn (`raiseWindowAsync`,
-  `src/composables/useExtensionHost.ts:53-66`). Ist das Fenster danach nicht im Fokus, zeigt holzi
+- Vor jedem Dialog holt sich haex-vault nach vorn (`raiseWindowAsync`,
+  `src/composables/useExtensionHost.ts:53-66`). Ist das Fenster danach nicht im Fokus, zeigt haex-vault
   eine Systembenachrichtigung über `tauri-plugin-notification`, die das Fenster öffnet.
 - **Antwort ohne Dialog**: Kein Client, keine haextension und kein Agent kann einen dieser
   Dialoge beantworten (FR-013). `browser_bridge_answer` ist ein Tauri-Command des Fensters und
@@ -382,7 +382,7 @@ Ablauf von `passkey-get`:
   - Anmelden: `credentialId`, `authenticatorData`, `signature`, `clientDataJson`, `userHandle`
     (nur bei auffindbaren Passkeys) und `passkeyId`.
   - `publicKeyCose` liest der Client nicht und entfällt.
-  - `"hybrid"` meldet holzi nicht, weil es nicht stimmt.
+  - `"hybrid"` meldet haex-vault nicht, weil es nicht stimmt.
 - **ADR**: ADR-0015 hält fest, dass der Passkey-Dienst UP und UV setzt, wenn ein
   zeremoniegebundener Nachweis vorliegt. Das löst ADR-0009 in diesem Punkt ab.
   `specs/036-password-redesign/contracts/passkey-service.md` bekommt einen Hinweis auf die
@@ -412,7 +412,7 @@ Ablauf von `passkey-get`:
   - läuft über `gate.spawn_blocking`.
 - Ist das Passwort falsch oder bricht der Nutzer ab, gilt das als Ablehnen.
 - Das Passwort reist als `Passphrase` (zeroizing) durch den Command und wird nicht gespeichert.
-- Bei `"preferred"` und `"discouraged"` fragt holzi nicht nach dem Passwort und setzt nur UP.
+- Bei `"preferred"` und `"discouraged"` fragt haex-vault nicht nach dem Passwort und setzt nur UP.
 
 **Rationale**: Die Prüfung gibt es schon für den Passwortwechsel. Eine zweite Implementierung
 widerspräche „eine Implementierung je Regel“.
@@ -429,7 +429,7 @@ widerspräche „eine Implementierung je Regel“.
   Fremdschlüssel `vault_device_uuid` auf `known_devices` (ADR-0001; Vorbild
   `extension_permissions`, `identity/migrations_extensions.rs:63-73`).
   - Migration mit der nächsten freien Nummer (bei Planung `0038`).
-  - `HOLZI_TRIGGER_VERSION` 25 → 26.
+  - `HAEX_TRIGGER_VERSION` 25 → 26.
   - Felder in [data-model.md](./data-model.md).
 - **Vorläufige Zulassungen, Sperren und Erweiterungen**: im Speicher der Bridge. Sie verfallen
   beim Ausschalten und mit dem Prozess beim Schließen der Vault (ADR-0003, FR-003).
@@ -438,7 +438,7 @@ widerspräche „eine Implementierung je Regel“.
   Geräten ist harmlos, weil dort niemand die Zeile liest (sie ist geräteeigen).
 
 **Rationale**: ADR-0001 schließt `_no_sync`-Tabellen für geräteeigene Daten aus, weil sie beim
-Kopieren der Datei mitreisen. Die Vorlage nutzt `_no_sync`; das übernimmt holzi nicht.
+Kopieren der Datei mitreisen. Die Vorlage nutzt `_no_sync`; das übernimmt haex-vault nicht.
 
 **Alternatives considered**: Zulassungen als JSON in den Einstellungen. Das ist schlecht
 abfragbar, und jede Änderung schreibt die ganze Liste neu.
@@ -548,17 +548,17 @@ Das Ergebnis liegt in `src-tauri/tests/fixtures/browser_bridge/webcrypto.json`.
 1. **`passkey-list`**: Der Hintergrund antwortet `{ success, data: { passkeys } }`, oder das
    Inhaltsskript liest `passkeys`. Gewählt wird die Form, die zu `relayVaultRequest` passt; ein
    Vitest-Test belegt, dass die Liste ankommt.
-2. **Name**: keine Änderung; „HaexVault“ ist der Produktname, den holzi übernimmt (die
+2. **Name**: keine Änderung; „HaexVault“ ist der Produktname, den haex-vault übernimmt (die
    Umbenennung in #113 wurde in #114 zurückgenommen).
 3. **Lesezeichen**: Liefert `bookmarks-*` den Fehler `NOT_SUPPORTED` (siehe Vertrag), halten die
    Lesezeichen-Aufrufe die Marke `BOOKMARKS_NOT_SUPPORTED`, und Einrichtung und Optionen zeigen
    „Deine Vault-App synchronisiert keine Lesezeichen.“ Die Wiederholung bleibt, weil sie nur mit
-   einer aktiven Sammlung läuft, die es mit holzi nicht gibt.
+   einer aktiven Sammlung läuft, die es mit haex-vault nicht gibt.
 
 Danach wird die Spec auf die Merge-Revision gepinnt, und die Erweiterung wird veröffentlicht
 (`haex-pass-browser-v1.3.0`, Release-Workflow `browser-extension-release.yml`).
 
-**Rationale**: Ohne Punkt 1 erreicht keine Passkey-Anmeldung holzi. Der Fehler liegt in der
+**Rationale**: Ohne Punkt 1 erreicht keine Passkey-Anmeldung haex-vault. Der Fehler liegt in der
 Erweiterung (`main.ts:241` gegen `webauthn-bridge.ts:143-150`), nicht im Protokoll.
 
 ## R20 Lieferungen
@@ -578,7 +578,7 @@ Danach folgen Politur, Handprüfung nach quickstart, ein neuer Pin und der Relea
 Erweiterung.
 
 Nachtrag 2026-10-23: Die Erkennung der offiziellen Erweiterung (R21) kommt als PR F; sie berührt
-weder das Protokoll noch die Erweiterung. Der Besitznachweis (R22) kommt als PR G in holzi und als
+weder das Protokoll noch die Erweiterung. Der Besitznachweis (R22) kommt als PR G in haex-vault und als
 zweiter Begleit-PR I in haextension; I wird als 1.4.0 veröffentlicht, bevor G gemergt wird.
 
 **Rationale**:
@@ -612,14 +612,14 @@ Funktion; keine Tabelle, keine Migration, nichts gespeichert.
   aber niemand vergleicht 32 Hexzeichen. Der Abgleich mit der Liste nimmt ihm das ab.
 - `Lookalike` ist billig und trifft genau diesen Fall: gleicher Name, fremde Herkunft.
 - Die Liste fest im Code: Eine nachladbare Liste wäre ein eigener Angriffsweg, und sie ändert sich
-  mit der Veröffentlichung der Erweiterung, also mit einem Release von holzi.
+  mit der Veröffentlichung der Erweiterung, also mit einem Release von haex-vault.
 - Firefox bleibt `Unverifiable`: `moz-extension://<uuid>` ist je Installation zufällig. Die Add-on-ID
   (`haex-pass-extension@haex.space`) schickt der Client nicht mit; sie in den Handshake zu
   bringen, wäre eine Änderung des Protokolls (Nicht im Umfang).
 
 **Offen (T081)**: Die Chrome-ID steht nicht im Repository. Das Manifest der Erweiterung hat keinen
 `key`, der Chrome Web Store vergibt die Kennung beim ersten Upload, und `CHROME_EXTENSION_ID` ist
-heute kein Secret von haextension. Ohne Eintrag zeigt holzi Chromium als „nicht prüfbar“. Wer die
+heute kein Secret von haextension. Ohne Eintrag zeigt haex-vault Chromium als „nicht prüfbar“. Wer die
 ZIP aus dem GitHub-Release oder einen eigenen Build entpackt lädt, bekommt von Chromium eine andere
 Kennung als der Store; er sieht dann „nennt sich so“, mit dem Hinweis, dass das bei einer
 Installation außerhalb des Stores zu erwarten ist. Ob der GitHub-Build die Store-Kennung bekommen
@@ -649,13 +649,13 @@ gibt (R3); keine neue Kryptografie und kein neuer Schlüssel.
   (R13). FR-047 hält das fest, und PR G prüft es über die echte Bridge, auch mit einem zweiten
   Gerät.
 - **Nachweis**:
-  1. Nach Prüfung von Version, Erklärung und Kennung zieht holzi 32 zufällige Bytes und schickt
+  1. Nach Prüfung von Version, Erklärung und Kennung zieht haex-vault 32 zufällige Bytes und schickt
      sie in `challenge`, versiegelt mit `seal_response` an den öffentlichen Schlüssel aus dem
      Handshake, zusammen mit `serverPublicKey`.
   2. Die Erweiterung öffnet sie mit `decryptMessageEnvelope` und ihrem privaten Schlüssel und
      schickt sie in `proof` zurück, versiegelt wie ein `request`.
-  3. holzi öffnet `proof` mit dem Schlüssel der Bridge und vergleicht in konstanter Zeit.
-  4. Erst dann liest holzi die gemerkte Entscheidung und zeigt gegebenenfalls den Dialog.
+  3. haex-vault öffnet `proof` mit dem Schlüssel der Bridge und vergleicht in konstanter Zeit.
+  4. Erst dann liest haex-vault die gemerkte Entscheidung und zeigt gegebenenfalls den Dialog.
 - **Zustand**: Die Verbindung bekommt den Zustand `AwaitingProof` mit der Aufgabe im Speicher
   (gelöscht nach Gebrauch). Die Frist ist die des Handshakes (10 s ab dem Upgrade). Die Aufgabe gilt
   nur für die eine Verbindung und nur einmal.
@@ -663,11 +663,11 @@ gibt (R3); keine neue Kryptografie und kein neuer Schlüssel.
   Betreibers, 2026-10-23). haex-pass-browser 1.3.0 zeigt diesen Text nicht: Das Popup übersetzt nur
   die Codes der SDK (`client_not_authorized` und Verwandte) und zeigt sonst „Unbekannter Fehler“,
   und das Schließen danach überschreibt den Code mit „Verbindung geschlossen“
-  (`background/connection.ts`, `popup/components/ConnectionStatus.vue`). holzi meldet es deshalb
+  (`background/connection.ts`, `popup/components/ConnectionStatus.vue`). haex-vault meldet es deshalb
   selbst im Fenster (FR-049); ab 1.4.0 zeigt auch die Erweiterung den Satz.
 - **Reihenfolge der Veröffentlichung**: Die Erweiterung 1.4.0 spricht Protokoll 3, läuft aber
-  weiter, wenn statt `challenge` gleich `handshakeResponse` kommt (holzi vor PR G). So kann sie vor
-  holzi erscheinen, und niemand steht zwischen zwei Releases ohne Verbindung.
+  weiter, wenn statt `challenge` gleich `handshakeResponse` kommt (haex-vault vor PR G). So kann sie vor
+  haex-vault erscheinen, und niemand steht zwischen zwei Releases ohne Verbindung.
 
 **Rationale**:
 
@@ -681,8 +681,8 @@ gibt (R3); keine neue Kryptografie und kein neuer Schlüssel.
 - Die Aufgabe kommt vor der Entscheidung, damit eine gefälschte Instanz weder einen Dialog noch den
   Zustand einer echten erfährt.
 
-**Grenze**: `ws://` auf Loopback hat keine Kanalbindung. Wer den Port vor holzi belegt, kann als
-Vermittler die Aufgabe an die echte Erweiterung weiterreichen und ihre Antwort an holzi geben; holzi
+**Grenze**: `ws://` auf Loopback hat keine Kanalbindung. Wer den Port vor haex-vault belegt, kann als
+Vermittler die Aufgabe an die echte Erweiterung weiterreichen und ihre Antwort an haex-vault geben; haex-vault
 zeigt dann „Port belegt“. Ein Schutz dagegen bräuchte TLS oder einen gemeinsamen Schlüssel aus der
 Zulassung (Nicht im Umfang).
 

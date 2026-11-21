@@ -27,8 +27,8 @@ gibt; Geschichte 2 baut auf dem Deep-Link-Weg aus Spec 060 auf (gemergt).
 
 - [x] T001 Spike zur Registrierung von `mailto`: (a) Android: nimmt das Plugin einen Link der Aktion `ACTION_SENDTO` an
       `onOpenUrl`, mit `adb shell am start -a android.intent.action.SENDTO -d mailto:a@example.org`? Wenn nicht, ist ein
-      eigener Filter und die Weitergabe in `src-tauri/plugins/holzi-android` nötig (T019). (b) Windows: schreibt der
-      Installer (NSIS/WiX) für `mailto` Einträge unter `Software\Classes\mailto` (macht holzi zum Standard, FR-016
+      eigener Filter und die Weitergabe in `src-tauri/plugins/haex-android` nötig (T019). (b) Windows: schreibt der
+      Installer (NSIS/WiX) für `mailto` Einträge unter `Software\Classes\mailto` (macht haex-vault zum Standard, FR-016
       verletzt) oder unter `RegisteredApplications`? (c) Linux: trägt das Paket `x-scheme-handler/mailto` als mögliches,
       nicht als Standardprogramm ein? Ergebnis in `research.md` R5 unter „Ergebnis des Spikes“ festhalten; bei (b) mit
       Eintrag in `Classes\mailto` fällt `mailto` auf Windows aus dem Paket, und die Spec bekommt eine Ausnahme in
@@ -38,7 +38,7 @@ gibt; Geschichte 2 baut auf dem Deep-Link-Weg aus Spec 060 auf (gemergt).
 
 ## Phase 2: Grundlagen (blockiert alle Geschichten)
 
-- [x] T002 [P] `src-tauri/src/error.rs`: `HolziError::OpenerLinkInvalid { reason }`, `OpenerLinkTooLarge`,
+- [x] T002 [P] `src-tauri/src/error.rs`: `HaexError::OpenerLinkInvalid { reason }`, `OpenerLinkTooLarge`,
       `OpenerNotAvailable` mit stabilen Codes; in `src/composables/useErrorString.ts` abbilden und die Texte in
       `src/i18n/locales/{de,en}.json` unter `errors.openers.*` anlegen (Ton wie `errors.share.*`).
 - [x] T003 [P] `src-tauri/src/openers/mod.rs` (neu, in `lib.rs` als `pub mod openers` deklarieren) und
@@ -156,7 +156,7 @@ der Knopf beim System.
 
 ---
 
-## Phase 5: Geschichte 2 – Ein E-Mail-Link von außen öffnet holzi, und ich wähle den Öffner (Priorität: P2)
+## Phase 5: Geschichte 2 – Ein E-Mail-Link von außen öffnet haex-vault, und ich wähle den Öffner (Priorität: P2)
 
 **Ziel**: `mailto:` von außen führt zum Dialog; gesperrte Vault wartet; kein Systemweg.
 
@@ -167,7 +167,7 @@ der Knopf beim System.
       erzeugten Block neu erzeugen und einchecken; nach dem Spike (research R5) zusätzlich ein eigener Filter für
       `ACTION_SENDTO` mit `mailto` außerhalb des erzeugten Blocks, und `gen/android/.../MainActivity.kt` schreibt einen
       `SENDTO`-Intent mit `mailto:`-Daten in `onCreate` (vor `super.onCreate`) und `onNewIntent` (vor `super`) auf
-      `ACTION_VIEW` um; keine Weitergabe über `src-tauri/plugins/holzi-android`); `src-tauri/tauri.windows.conf.json` (neu)
+      `ACTION_VIEW` um; keine Weitergabe über `src-tauri/plugins/haex-android`); `src-tauri/tauri.windows.conf.json` (neu)
       setzt `plugins.deep-link.desktop.schemes` auf `["haex-vault"]`, weil der Windows-Installer den Klassenschlüssel von
       `mailto` schreiben würde;
       `src-tauri/src/deep_link/mod.rs`: `register_for_development` registriert nur `haex-vault`
@@ -247,6 +247,6 @@ Nach T016:   T017 (haextension) ∥ T022
 - **MVP** ist Geschichte 1 mit Geschichte 3: Anmeldung gelesen, Mail-Knopf mit Auswahl, Übergabe an die
   Testextension; ohne Registrierung beim System und ohne `vault-sdk` (T011 kann nachfolgen).
 - Danach Geschichte 2 als eigener PR (braucht T001 und den Deep-Link-Weg).
-- Die Arbeiten im `vault-sdk` (T007, T008) und in `haextension` (T017) laufen als eigene PRs in ihren Repos; holzi
+- Die Arbeiten im `vault-sdk` (T007, T008) und in `haextension` (T017) laufen als eigene PRs in ihren Repos; haex-vault
   hebt die Revision erst nach dem Merge (T011).
 - Vorschlag für Teile (PRs): A = Phase 2 und US3 (T002–T010), B = US1 (T012–T018), C = US2 (T019–T023), D = Abschluss.

@@ -1,6 +1,6 @@
-# Contract: values holzi turns into the tool's type
+# Contract: values haex-vault turns into the tool's type
 
-Before the guard, holzi looks at each top-level argument whose property in the tool's input schema declares exactly
+Before the guard, haex-vault looks at each top-level argument whose property in the tool's input schema declares exactly
 one `type`, and turns the value only when its meaning is unique:
 
 | Schema type | Sent                                      | Becomes         |

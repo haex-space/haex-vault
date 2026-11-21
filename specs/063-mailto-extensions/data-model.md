@@ -33,7 +33,7 @@ Entsteht aus einem Link, wird nie gespeichert.
 | `subject` | `string`   | höchstens 998 Zeichen; kein `\r`/`\n`; leer, wenn nicht angegeben |
 | `body`    | `string`   | höchstens 16 KiB; `\n` als Zeilenende; leer, wenn nicht angegeben |
 
-`parse(link: &str) -> Result<MailRequest, HolziError>`; Fehler: `OpenerLinkInvalid { reason }` (Form,
+`parse(link: &str) -> Result<MailRequest, HaexError>`; Fehler: `OpenerLinkInvalid { reason }` (Form,
 Kodierung, Zeilenumbruch, Adresse) und `OpenerLinkTooLarge` (Grenzen).
 
 ## 3. Wartende Anfrage (`OpenRequests`, Rust, `openers/requests.rs`)

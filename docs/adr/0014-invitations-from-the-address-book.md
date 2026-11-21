@@ -12,12 +12,12 @@ reason was unsolicited invitations: without a link there is nothing that proves 
 invitee, and nothing to block.
 
 Spec 051 adds an address book. Its operator decision (2026-10-13, option C) is that contacts carry
-confirmed holzi addresses from a signed business card ("Visitenkarte") of the other vault, and that the
+confirmed haex-vault addresses from a signed business card ("Visitenkarte") of the other vault, and that the
 invite dialogs of 027 and 028 can pick a recipient from the address book.
 
 ## Decision
 
-**An invitation may be delivered to a contact whose business card holzi has verified, in addition to
+**An invitation may be delivered to a contact whose business card haex-vault has verified, in addition to
 the link.** D33 is superseded in this point; everything else in D33 stays.
 
 - Only a vault identity that came from a valid, signed business card is a valid recipient. Inviting a
@@ -36,6 +36,6 @@ the link.** D33 is superseded in this point; everything else in D33 stays.
 
 - Having someone's business card is enough to invite them. Separate display and blocking are the
   protection against unwanted invitations; there is no further spam protection.
-- holzi starts using stored Nostr events (until now only ephemeral ones). The plans of 027 and 028
+- haex-vault starts using stored Nostr events (until now only ephemeral ones). The plans of 027 and 028
   take over the wire format from spec 051.
 - D33 in the sync design gets a note pointing to this ADR.

@@ -3,7 +3,7 @@
 **Feature**: [spec.md](./spec.md) | **Research**: [research.md](./research.md)
 
 Migrationen (R3): `0027_passwords_owner` (`src-tauri/src/identity/migrations_passwords_owner.rs`, PR B) und
-`0028_storage_connections` (`src-tauri/src/identity/migrations_storage.rs`, PR C). `HOLZI_TRIGGER_VERSION`
+`0028_storage_connections` (`src-tauri/src/identity/migrations_storage.rs`, PR C). `HAEX_TRIGGER_VERSION`
 wird jeweils erhöht (neue Spalte in einer CRDT-Tabelle, neue CRDT-Tabellen).
 
 ## haex_storage_connections (synchronisiert)
@@ -30,7 +30,7 @@ Zugangsdaten (`ConnectionView.credentials`, Review 2026-10-06, statt `credential
 - `missing` („neue Zugangsdaten nötig“): der Eintrag fehlt, und `haex_deleted_rows` hat einen
   Löschvermerk für ihn (vom Nutzer gelöscht).
 - `syncing` („wird synchronisiert“, Edge Case): der Eintrag fehlt ohne Löschvermerk, ist also noch nicht
-  angekommen. Ist ein Vermerk schon aufgeräumt (nach 90 Tagen, Spec 024 R20), zeigt holzi weiter
+  angekommen. Ist ein Vermerk schon aufgeräumt (nach 90 Tagen, Spec 024 R20), zeigt haex-vault weiter
   `syncing`; der Hinweis bietet dort auch das Eingeben neuer Zugangsdaten an.
 
 Ein Aufruf einer Erweiterung scheitert bei `syncing` mit 2002 `network` (Edge Case), bei `missing` mit
@@ -70,14 +70,14 @@ Hinweis zeigen.
 
 ## haex_passwords_item_details.owner (neue Spalte, Migration 0027)
 
-| Spalte  | Typ  | Regel                                                                     |
-| ------- | ---- | ------------------------------------------------------------------------- |
-| `owner` | TEXT | `NULL` = Eintrag des Nutzers; sonst Name einer holzi-Funktion (`storage`) |
+| Spalte  | Typ  | Regel                                                                          |
+| ------- | ---- | ------------------------------------------------------------------------------ |
+| `owner` | TEXT | `NULL` = Eintrag des Nutzers; sonst Name einer haex-vault-Funktion (`storage`) |
 
 Regel Z14 (R2, Änderung an `specs/034-password-manager/contracts/access.md`): Ein Eintrag mit `owner` ist
 für jeden Aufrufer außer `User` und `Internal { feature }` mit `feature == owner` `NotFound`, fehlt in
 `list_headers` und den Agent-Kopfdaten und gilt beim Auflösen von Verweisen als nicht sichtbar.
-`ItemState` bekommt dafür `owner: Option<&str>`. Nur holzi setzt `owner` (beim Anlegen über
+`ItemState` bekommt dafür `owner: Option<&str>`. Nur haex-vault setzt `owner` (beim Anlegen über
 `create_item` eines `Internal`-Aufrufers); kein Command und keine Bridge-Methode kann ihn setzen oder
 ändern.
 
@@ -94,8 +94,8 @@ für jeden Aufrufer außer `User` und `Internal { feature }` mit `feature == own
 
 ## Abgeleitet, nicht gespeichert
 
-- **Bereich einer Erweiterung**: `holzi-ext/<vault_id>/<extension_id>/`, für eine Entwicklerversion
-  `holzi-ext-dev/<vault_id>/<dev_extension_id>/`; `vault_id` aus `vault_identity.pubkey` (R4, Review
+- **Bereich einer Erweiterung**: `haex-ext/<vault_id>/<extension_id>/`, für eine Entwicklerversion
+  `haex-ext-dev/<vault_id>/<dev_extension_id>/`; `vault_id` aus `vault_identity.pubkey` (R4, Review
   2026-10-06).
 - **Liste für eine Erweiterung** (FR-009a): `{ id, type: "s3", name, providerName, bucket }` je Speicher,
   den eine Leseberechtigung deckt.

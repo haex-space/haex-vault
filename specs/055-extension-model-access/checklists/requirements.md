@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Erweiterungen nutzen holzis Modelle
+# Specification Quality Checklist: Erweiterungen nutzen HaexVaults Modelle
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-10-16
@@ -32,4 +32,4 @@
 ## Notes
 
 - "OpenAI-kompatibel" (FR-018, Story 5) names an interface standard on purpose: the user asked for exactly this provider type, so it is a requirement, not an implementation choice.
-- Defaults taken instead of clarification markers are listed under Assumptions: the existing permission states distinguish asking from an explicit denial, consent works like any other permission request (vault session or permanent), effort capped instead of rejected, holzi picks by the user's ranking, a school server is just another provider, another device is reached through a registered provider (not through the vault).
+- Defaults taken instead of clarification markers are listed under Assumptions: the existing permission states distinguish asking from an explicit denial, consent works like any other permission request (vault session or permanent), effort capped instead of rejected, HaexVault picks by the user's ranking, a school server is just another provider, another device is reached through a registered provider (not through the vault).

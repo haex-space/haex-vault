@@ -9,7 +9,7 @@
 
 Spec 072 adds chatting and file exchange with contacts and groups. Contacts are other vaults, known by
 their signed Visitenkarte (spec 051/060) with device keys, iroh addresses and Nostr-Relays. Until now
-holzi talked to contacts' devices only directly over iroh (specs 056, 057), which needs both vaults open
+haex-vault talked to contacts' devices only directly over iroh (specs 056, 057), which needs both vaults open
 at the same time. Spec 051 US7 / ADR 0014 proposed stored Nostr gift wraps for invitations, without code.
 
 ## Decision

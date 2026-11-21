@@ -1,7 +1,7 @@
 # Vertrag: Block `openers` im Manifest
 
 Gilt für `haextension/manifest.json` und für die Prüfung in `haex-bundle` (Repo `vault-sdk`,
-`crates/haex-bundle/src/openers.rs`, neben `tools.rs`). holzi liest den Block in
+`crates/haex-bundle/src/openers.rs`, neben `tools.rs`). haex-vault liest den Block in
 `extensions/bundle/manifest.rs`.
 
 ## Form
@@ -30,9 +30,9 @@ Gilt für `haextension/manifest.json` und für die Prüfung in `haex-bundle` (Re
 Die Prüfung steht in `haex-bundle::format` an derselben Stelle wie `check_tools` und läuft beim Signieren,
 Verifizieren und im WebAssembly-Bau. Testvektoren in `test-vectors/` für gültig, zu lang, doppelt und falsche Form.
 
-## Wie holzi es liest
+## Wie haex-vault es liest
 
-- `Manifest.openers: Vec<String>` in Reihenfolge des Manifests. Ein Block falschen Typs zählt in holzi als
+- `Manifest.openers: Vec<String>` in Reihenfolge des Manifests. Ein Block falschen Typs zählt in haex-vault als
   abwesend (wie die anderen optionalen Felder), bevor das neue `haex-bundle` ihn ablehnt.
 - Bekannte Arten (`OpenerKind`): `mail.compose`. Unbekannte Einträge bleiben im Manifest, werden nirgends
   angeboten und nicht in `ExtensionSummary.openers` genannt.

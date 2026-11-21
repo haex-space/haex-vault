@@ -61,8 +61,8 @@ migration of old rights (spec 083 FR-024, research R7): they stop counting in PR
       `subject` TEXT NOT NULL, `profile_id` TEXT NOT NULL). Per data-model.md: synced CRDT tables, no
       `vault_device_uuid`, no UNIQUE besides the primary key (a conflict halts the sync), no cascading foreign key. Header
       comment explains the vault-wide scope against the device-scoped agent tables (ADR-0001) and cites spec 083.
-- [x] T004 Register the migration in `src-tauri/src/identity/migrations.rs` (`holzi_migration_source()`, after
-      `0053_sync_rules_source_target`), bump `HOLZI_TRIGGER_VERSION` from 34 to 35 with a line in its history comment, and
+- [x] T004 Register the migration in `src-tauri/src/identity/migrations.rs` (`haex_migration_source()`, after
+      `0053_sync_rules_source_target`), bump `HAEX_TRIGGER_VERSION` from 34 to 35 with a line in its history comment, and
       check how a new synced table gets its CRDT triggers (follow `migrations_mcp_agents.rs`); update every test that pins
       the migration count or the trigger version (`identity/migrations_tests.rs`, `sync/handshake_refusal_tests.rs`).
 - [x] T005 [P] Create `src-tauri/src/identity/migrations_agent_profiles_tests.rs`: the three tables exist with exactly
@@ -376,7 +376,7 @@ reset is not applied twice. There is no migration code; this phase is the eviden
       in `src-tauri/tests/common/mcp_fixture.rs` then creates a profile with the rights and assigns it. The table
       `haex_mcp_agent_grants` stays until T072.
 - [x] T072 (PR E; migration number 0056, because 0055 became the profile indexes) Drop the table `haex_mcp_agent_grants`: migration `0056_drop_agent_grants` (DDL only, a drop leaves no markers;
-      register it in `migrations.rs`, `HOLZI_TRIGGER_VERSION` 36 with its history line; migration `0045` stays as it is). Check
+      register it in `migrations.rs`, `HAEX_TRIGGER_VERSION` 36 with its history line; migration `0045` stays as it is). Check
       with `git grep haex_mcp_agent_grants` that no code reads it; migration test next to
       `migrations_agent_profiles_tests.rs`.
 
@@ -404,7 +404,7 @@ reset is not applied twice. There is no migration code; this phase is the eviden
 **Goal**: an agent or model is a member of any number of profiles; exactly one profile is active for the vault, and the
 user sets it from the list of profiles (FR-006, FR-006a, FR-023, SC-003). Decided 2026-11-06 after the first manual check.
 
-- [x] T078 [US3] Migration `0057_agent_memberships` (the non-unique index by subject, `HOLZI_TRIGGER_VERSION` 37) and the reading of legacy ids (`legacy_member_id`): the rows that exist keep their ids and stay memberships, never rewritten, so a stale
+- [x] T078 [US3] Migration `0057_agent_memberships` (the non-unique index by subject, `HAEX_TRIGGER_VERSION` 37) and the reading of legacy ids (`legacy_member_id`): the rows that exist keep their ids and stay memberships, never rewritten, so a stale
       device cannot bring back a removed membership (data-model.md, Migration 0057); tests that an existing assignment stays a
       membership, that adding it again writes nothing and that two memberships of one subject are two rows.
 - [x] T079 [US3] `agent_profiles/store.rs`: `add_member` and `remove_member` per `{subject, profile}` (replacing `assign`),
@@ -465,7 +465,7 @@ deny rules in the profile, no registration (FR-027 to FR-031). Decided 2026-11-0
 treated alike; different treatment is two profiles). Delivery J1 to J4 as in plan.md; J1 is this documentation.
 
 - [x] T095 [J1] Spec, research R14, plan and tasks for PR J.
-- [x] T096 [J2] `DelegatePass.model` and `HolziAccess::server_for(vendor, thread, model)`; the adapter (`adapters/cli_delegate`) passes the
+- [x] T096 [J2] `DelegatePass.model` and `HaexAccess::server_for(vendor, thread, model)`; the adapter (`adapters/cli_delegate`) passes the
       model of the request; test that the pass names it.
 - [x] T097 [J2] `SessionAgent.subject`; rights for a session, for `Caller::ExternalAgent` and for a delegate's `Caller` through
       `resolve::rights_of(subject)` only (`attach.rs`, `connection.rs`, `dispatch.rs`, `agent_browser/env.rs`, `password_env.rs`,

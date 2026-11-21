@@ -7,11 +7,11 @@
 **Status**: Planned (2026-10-21)
 
 **Input**: User description: "Eine External Bridge, damit die bestehende Browser-Erweiterung
-`haex-pass-browser` (haextension, `apps/haex-pass-browser`) mit holzi statt mit haex-vault 2.x (Legacy)
+`haex-pass-browser` (haextension, `apps/haex-pass-browser`) mit HaexVault statt mit haex-vault 2.x (Legacy)
 arbeitet. Die Erweiterung spricht heute mit haex-vault 2.x über einen verschlüsselten WebSocket
 (Standardport 19455, Protokoll v2 mit erklärten Berechtigungen im Handshake, Umschläge mit
 Schlüsseltausch und AES-GCM, Zulassung je Client, Ping/Pong, `authorizationUpdate`). Ziel: Die
-unveränderte oder nur minimal veränderte Erweiterung verbindet sich mit holzi, wird in holzi
+unveränderte oder nur minimal veränderte Erweiterung verbindet sich mit HaexVault, wird in HaexVault
 zugelassen und kann ausfüllen (Einträge und TOTP holen), Zugangsdaten speichern und über den
 vorhandenen Passkey-Dienst Passkeys anlegen und benutzen. 034 FR-032 und 036 FR-036 verlangen,
 dass die Bridge an dieselbe Zugriffsprüfung andockt, ohne das Datenmodell zu ändern. Die
@@ -20,9 +20,9 @@ auszuschließen."
 
 ## Begriffe
 
-- **External Bridge**: der Dienst in holzi, der auf dem eigenen Gerät Verbindungen von
+- **External Bridge**: der Dienst in HaexVault, der auf dem eigenen Gerät Verbindungen von
   Browser-Erweiterungen annimmt und ihre Anfragen an den Passwortmanager weitergibt. Nicht zu
-  verwechseln mit der Brücke zwischen holzi und dem Erweiterungsrahmen einer haextension (Spec 017,
+  verwechseln mit der Brücke zwischen HaexVault und dem Erweiterungsrahmen einer haextension (Spec 017,
   ADR-0004 Richtung B); beide teilen sich nur die Begriffe Freigabe und Anfrage.
 - **Client**: eine Browser-Erweiterung, die sich mit der External Bridge verbindet, hier
   `haex-pass-browser`. Ein Client ist eindeutig durch sein **Schlüsselpaar**, das er beim ersten
@@ -32,7 +32,7 @@ auszuschließen."
   Verbindungsaufbau mitschickt (`chrome-extension://…`, `moz-extension://…`).
 - **Erklärung**: die Berechtigungen, die ein Client im Handshake erklärt (Protokoll v2). Heute
   erklärt `haex-pass-browser` „Passwörter, Lesen und Schreiben, alle Einträge“.
-- **Zulassung**: die Entscheidung des Nutzers in holzi, dass ein Client sich verbinden darf, mit
+- **Zulassung**: die Entscheidung des Nutzers in HaexVault, dass ein Client sich verbinden darf, mit
   seiner **Freigabe** für den Passwortmanager im Sinn von 034 (Art „Lesen“ oder „Lesen und
   Schreiben“, Bereich „alle Einträge“ oder Einträge mit bestimmten Tags) und einem
   **Standard-Tag** für Einträge, die der Client neu anlegt. Eine Zulassung ist **gemerkt** (bleibt
@@ -40,11 +40,11 @@ auszuschließen."
   Eine gemerkte Zulassung gilt immer **geräteeigen**: nur auf dem Gerät, auf dem sie erteilt
   wurde.
 - **Sperre**: die gemerkte Ablehnung eines Clients. Ein gesperrter Client wird abgewiesen, ohne
-  dass holzi fragt, bis der Nutzer die Sperre aufhebt.
+  dass HaexVault fragt, bis der Nutzer die Sperre aufhebt.
 - **Methode**: eine benannte Anfrage des Clients, etwa `get-items`. Die Namen sind die von
   `HAEX_PASS_METHODS` aus `apps/haex-pass-browser/src/logic/haexPassApi.ts` (haextension, siehe
   unten).
-- **Anwesenheitsbestätigung**: ein Dialog von holzi für genau eine Passkey-Zeremonie (Anlegen oder
+- **Anwesenheitsbestätigung**: ein Dialog von HaexVault für genau eine Passkey-Zeremonie (Anlegen oder
   Anmelden), in dem der Nutzer die Gegenstelle, die Herkunft und das Konto sieht und bestätigt.
   Erst sie erlaubt dem Passkey-Dienst, in den Authenticator-Daten „Nutzer anwesend“ (UP) zu
   setzen (ADR-0009).
@@ -94,7 +94,7 @@ auszuschließen."
   Lesezeichen), `src/composables/useExternalAuth.ts` und
   `src/components/haex/extension/dialog/external-auth.vue` (Zulassungsdialog),
   `src/components/haex/system/settings/external-clients/` (Verwaltung) und
-  `src-tauri/src/extension/permissions/` (Prüfung und Rückfrage). holzi übernimmt das Protokoll so,
+  `src-tauri/src/extension/permissions/` (Prüfung und Rückfrage). HaexVault übernimmt das Protokoll so,
   dass die Erweiterung es unverändert spricht, und schließt die Lücken der Vorlage: keine Prüfung
   der Herkunft (FR-005) und der Kennung (FR-006), UP und UV ohne Bestätigung (FR-031), Herkunft
   fest `https://<Kennung>` (FR-032), Aufgabe der Gegenstelle in falscher Kodierung (FR-035),
@@ -116,12 +116,12 @@ auszuschließen."
 
 ### Session 2026-10-10
 
-Die Antworten sind aus dem Freigabemodell von holzi und dem Verhalten von haex-vault 2.x begründet;
+Die Antworten sind aus dem Freigabemodell von HaexVault und dem Verhalten von haex-vault 2.x begründet;
 der Betreiber hat sie am 2026-10-10 bestätigt.
 
 - Q: Gehört die Lesezeichen-Synchronisation der Erweiterung dazu? → A: Nein. Sie läuft über
   dieselbe Verbindung (Methoden `bookmarks-*`), braucht aber Lesezeichen-Tabellen und eine
-  Synchronisationslogik, die holzi nicht hat. holzi beantwortet diese Methoden mit „nicht
+  Synchronisationslogik, die HaexVault nicht hat. HaexVault beantwortet diese Methoden mit „nicht
   unterstützt“, ohne zu fragen (FR-028). Eine eigene Spec kann sie später nachziehen.
 - Q: Läuft die Bridge nur bei offener Vault? → A: Ja. Ohne offene Vault gibt es weder Einträge
   noch Zulassungen. Schließen oder Sperren der Vault beendet alle Verbindungen und gibt den Port
@@ -129,33 +129,33 @@ der Betreiber hat sie am 2026-10-10 bestätigt.
 - Q: Ist die Bridge ab Werk eingeschaltet? → A: Nein. Sie öffnet einen Port auf dem Gerät; der
   Nutzer schaltet sie je Gerät in den Einstellungen ein (FR-001). haex-vault 2.x startet sie ab Werk.
 - Q: Welcher Port? → A: Ab Werk 19455 wie in haex-vault 2.x, damit die Erweiterung ohne Änderung
-  ihrer Einstellung verbindet. Ist der Port belegt (etwa weil haex-vault 2.x läuft), sagt holzi das
+  ihrer Einstellung verbindet. Ist der Port belegt (etwa weil haex-vault 2.x läuft), sagt HaexVault das
   und bietet an, einen anderen zu wählen; die Erweiterung hat dafür schon eine Einstellung.
-- Q: Auf welches Freigabemodell bildet holzi die Erklärung ab? → A: Auf die Freigabe aus 034
+- Q: Auf welches Freigabemodell bildet HaexVault die Erklärung ab? → A: Auf die Freigabe aus 034
   (Art und Bereich), ohne Änderung der Semantik. Der Zulassungsdialog zeigt die Erklärung und
   lässt den Nutzer Art und Bereich enger wählen, nie weiter (FR-010). Neue Einträge bekommen das
   Standard-Tag der Zulassung, damit sie im Bereich des Clients bleiben (034 FR-028).
-- Q: Wie merkt sich holzi eine Zulassung? → A: Wie eine Berechtigung in 017: mit „Erlaubnis
+- Q: Wie merkt sich HaexVault eine Zulassung? → A: Wie eine Berechtigung in 017: mit „Erlaubnis
   merken“ (ab Werk nicht gesetzt) dauerhaft, sonst vorläufig bis zum Schließen der Vault. Gemerkt
   gilt sie nur auf diesem Gerät, weil der Client in einem Browser auf diesem Gerät lebt und sich
-  nur mit holzi auf diesem Gerät verbindet.
-- Q: Wie liefert holzi zu `get-items` Passwörter, wenn Listen nach 034 FR-026 keine Geheimnisse
+  nur mit HaexVault auf diesem Gerät verbindet.
+- Q: Wie liefert HaexVault zu `get-items` Passwörter, wenn Listen nach 034 FR-026 keine Geheimnisse
   enthalten dürfen? → A: `get-items` ist keine Liste, sondern eine Abfrage für genau eine Adresse.
-  holzi sucht die passenden Einträge über die Kopfdaten und liest jeden Treffer mit einer
+  HaexVault sucht die passenden Einträge über die Kopfdaten und liest jeden Treffer mit einer
   Einzelabfrage des Dienstes (FR-020). So bleiben die Regeln des Dienstes unverändert, und die
   Erweiterung bekommt die Form, die sie erwartet.
-- Q: Wer bestätigt die Anwesenheit bei Passkeys? → A: Der Nutzer in einem Dialog von holzi, je
+- Q: Wer bestätigt die Anwesenheit bei Passkeys? → A: Der Nutzer in einem Dialog von HaexVault, je
   Zeremonie, ohne „Merken“ (FR-030). Die Auswahl in der Erweiterung („über haex-vault 2.x oder den
-  Browser“, merkbar je Seite) zählt nicht als Nachweis: holzi kann sie nicht prüfen, und gemerkt
+  Browser“, merkbar je Seite) zählt nicht als Nachweis: HaexVault kann sie nicht prüfen, und gemerkt
   ist sie nicht an eine Zeremonie gebunden.
-- Q: Setzt holzi nach der Anwesenheitsbestätigung auch UV (Nutzer verifiziert)? → A: Nur, wenn
+- Q: Setzt HaexVault nach der Anwesenheitsbestätigung auch UV (Nutzer verifiziert)? → A: Nur, wenn
   die Gegenstelle UV verlangt (`userVerification: "required"`) und der Nutzer in der
   Anwesenheitsbestätigung das Passwort der Vault erneut eingibt. Ein Klick auf „Bestätigen“ zeigt
   nur, dass jemand am entsperrten Gerät war, nicht wer; UV ohne erneute Prüfung wäre eine falsche
   Behauptung gegenüber der Gegenstelle (FR-033).
-- Q: Gibt es die Bridge auf Android? → A: Nein. holzi läuft auf Android nicht im Hintergrund
+- Q: Gibt es die Bridge auf Android? → A: Nein. HaexVault läuft auf Android nicht im Hintergrund
   (043 FR-007), und haex-vault 2.x startet sie dort ebenfalls nicht.
-- Q: Leitet holzi Anfragen an installierte haextensions weiter (in haex-vault 2.x `requestedExtensions`
+- Q: Leitet HaexVault Anfragen an installierte haextensions weiter (in haex-vault 2.x `requestedExtensions`
   mit Aktionen)? → A: Nein, nur an den Passwortmanager (Ziel `__core__`/`core`); alles andere wird
   abgelehnt (FR-029).
 
@@ -165,14 +165,14 @@ Beim Planen gegen den Stand der Erweiterung auf haextension `main` (`c8133b94`) 
 Betreiber:
 
 - Q: Die Erweiterung ruft `update-item` nicht mehr auf, und `create-item` schickt nur Titel,
-  Adresse, Benutzername und Passwort. Baut holzi trotzdem Ändern, TOTP-Angaben und Symbol? → A:
-  Nein. holzi bietet nur, was der Client nutzt: `update-item` wird wie die Lesezeichen mit „nicht
+  Adresse, Benutzername und Passwort. Baut HaexVault trotzdem Ändern, TOTP-Angaben und Symbol? → A:
+  Nein. HaexVault bietet nur, was der Client nutzt: `update-item` wird wie die Lesezeichen mit „nicht
   unterstützt“ beantwortet (FR-028), `create-item` übernimmt nur die vier Felder (FR-022), alles
   andere in der Anfrage wird übergangen.
 - Q: Gehört eine Änderung an der Erweiterung zu 049? → A: Ja, ein kleiner Begleit-PR in
   haextension: die Antwort von `passkey-list` im Hintergrund korrigieren (ohne sie erreicht keine
-  Passkey-Anmeldung holzi) und die Lesezeichen-Synchronisation bei „nicht unterstützt“ als nicht
-  verfügbar zeigen. Die Texte nennen weiter „HaexVault“: Das ist der Produktname, den holzi
+  Passkey-Anmeldung HaexVault) und die Lesezeichen-Synchronisation bei „nicht unterstützt“ als nicht
+  verfügbar zeigen. Die Texte nennen weiter „HaexVault“: Das ist der Produktname, den HaexVault
   übernimmt (haextension#114). Danach wird die Erweiterung neu
   veröffentlicht.
 - Q: Wo liegen die Einstellungen der Bridge? → A: In der vorhandenen Kategorie „Erweiterungen“ als
@@ -180,7 +180,7 @@ Betreiber:
 
 ### Session 2026-10-23
 
-Auslöser war die Frage, ob sich ein Fork von haex-pass-browser oder ein anderes Programm bei holzi
+Auslöser war die Frage, ob sich ein Fork von haex-pass-browser oder ein anderes Programm bei HaexVault
 als die Erweiterung ausgeben kann. Die Antworten folgen aus der Herkunftsprüfung (R2) und der
 Zulassung; der Betreiber hat die Ergänzung am 2026-10-23 beauftragt.
 
@@ -188,13 +188,13 @@ Zulassung; der Betreiber hat die Ergänzung am 2026-10-23 beauftragt.
   eigenes Schlüsselpaar, also eine neue Kennung, und löst den Zulassungsdialog aus (FR-008). Eine
   gemerkte Zulassung gilt nur für das Gerät und die Kennung, für die sie erteilt wurde (FR-009,
   FR-012).
-- Q: Erkennt holzi, ob eine Erweiterung die offizielle ist? → A: Bisher nicht. Der Name ist eine
+- Q: Erkennt HaexVault, ob eine Erweiterung die offizielle ist? → A: Bisher nicht. Der Name ist eine
   Angabe des Clients, und jede `chrome-extension://`- oder `moz-extension://`-Herkunft wird
-  angenommen; ein Fork mit demselben Namen sieht im Dialog fast aus wie das Original. Neu: holzi
+  angenommen; ein Fork mit demselben Namen sieht im Dialog fast aus wie das Original. Neu: HaexVault
   kennt die Herkunft der offiziellen Erweiterung und sagt im Dialog und in den Einstellungen, ob ein
   Client sie ist, sich nur so nennt, unbekannt ist oder nicht prüfbar (FR-045, FR-046). Das ist
   eine Hilfe für die Entscheidung des Nutzers, keine Zugangsgrenze.
-- Q: Und in Firefox? → A: Dort ist die Herkunft je Installation eine zufällige UUID; holzi kann
+- Q: Und in Firefox? → A: Dort ist die Herkunft je Installation eine zufällige UUID; HaexVault kann
   sie nicht mit dem Add-on abgleichen. Der Dialog sagt das, statt „bekannt“ oder „unbekannt“ zu
   behaupten.
 - Q: Muss jede Instanz einer Erweiterung einzeln zugelassen werden? → A: Ja. Eine Instanz ist das
@@ -205,17 +205,17 @@ Zulassung; der Betreiber hat die Ergänzung am 2026-10-23 beauftragt.
   reichten Kennung, öffentlicher Schlüssel und Herkunft, und die sind nicht geheim: Ein lokales
   Programm, das sie kennt, galt als die zugelassene Instanz und konnte blind schreiben. Mit dem
   Nachweis kommt nur durch, wer den privaten Schlüssel der Instanz hat.
-- Q: Was geschieht mit Clients ohne Nachweis (haex-pass-browser 1.3.0 und älter)? → A: holzi weist
+- Q: Was geschieht mit Clients ohne Nachweis (haex-pass-browser 1.3.0 und älter)? → A: HaexVault weist
   sie ab und sagt ihnen, dass sie aktualisieren müssen; keine Übergangszeit und kein Schalter
   (FR-049). Der Betreiber hat das am 2026-10-23 entschieden.
 
 ## User Scenarios & Testing _(mandatory)_
 
-### User Story 1 - Browser-Erweiterung verbinden und in holzi zulassen (Priority: P1)
+### User Story 1 - Browser-Erweiterung verbinden und in HaexVault zulassen (Priority: P1)
 
-Anna nutzt holzi auf ihrem Laptop und hat in Firefox die Erweiterung haex-pass installiert. In den
-Einstellungen von holzi schaltet sie die External Bridge ein. Die Erweiterung verbindet sich, und
-holzi zeigt einen Dialog: „haex-pass Browser Extension“ (vom Client angegeben), Fingerabdruck,
+Anna nutzt HaexVault auf ihrem Laptop und hat in Firefox die Erweiterung haex-pass installiert. In den
+Einstellungen von HaexVault schaltet sie die External Bridge ein. Die Erweiterung verbindet sich, und
+HaexVault zeigt einen Dialog: „haex-pass Browser Extension“ (vom Client angegeben), Fingerabdruck,
 Herkunft `moz-extension://…`, erklärt: Passwörter lesen und schreiben, alle Einträge. Anna wählt
 „Einträge mit Tag web“, Standard-Tag „web“, setzt „Erlaubnis merken“ und lässt zu. Die Erweiterung
 zeigt „verbunden“.
@@ -223,27 +223,27 @@ zeigt „verbunden“.
 **Why this priority**: Ohne Verbindung und Zulassung geht nichts anderes; hier entscheidet sich,
 dass nur Clients, die der Nutzer kennt, an Geheimnisse kommen.
 
-**Independent Test**: holzi mit offener Vault und eingeschalteter Bridge, die Erweiterung in der
+**Independent Test**: HaexVault mit offener Vault und eingeschalteter Bridge, die Erweiterung in der
 gepinnten Revision unverändert in Chromium und Firefox laden; Verbindung, Dialog, Zulassen mit und
-ohne „Merken“, Neustart von Browser und holzi, erneutes Verbinden ohne Dialog (gemerkt) und mit
+ohne „Merken“, Neustart von Browser und HaexVault, erneutes Verbinden ohne Dialog (gemerkt) und mit
 Dialog (vorläufig).
 
 **Acceptance Scenarios**:
 
 1. **Given** eine offene Vault und die Bridge eingeschaltet, **When** ein neuer Client sich
-   verbindet, **Then** zeigt holzi den Zulassungsdialog mit angegebenem Namen (als Angabe des
+   verbindet, **Then** zeigt HaexVault den Zulassungsdialog mit angegebenem Namen (als Angabe des
    Clients gekennzeichnet), Fingerabdruck, Herkunft und Erklärung, und der Client erfährt
    „wartet auf Zulassung“.
 2. **Given** der Dialog, **When** Anna zulässt, **Then** erhält der offene Client sofort die
    Nachricht, dass er zugelassen ist, ohne neu zu verbinden.
 3. **Given** eine gemerkte Zulassung, **When** sich derselbe Client nach einem Neustart wieder
    verbindet, **Then** ist er ohne Dialog zugelassen; **Given** eine vorläufige, **When** die
-   Vault geschlossen und wieder geöffnet wurde, **Then** fragt holzi erneut.
+   Vault geschlossen und wieder geöffnet wurde, **Then** fragt HaexVault erneut.
 4. **Given** der Dialog, **When** Anna ablehnt und „merken“ setzt, **Then** wird der Client ab
    jetzt ohne Dialog abgewiesen, bis sie die Sperre in den Einstellungen aufhebt; ohne „merken“
    gilt die Ablehnung bis zum Schließen der Vault.
 5. **Given** ein zugelassener Client, **When** er sich mit einer geänderten Erklärung meldet (etwa
-   nach einem Update der Erweiterung), **Then** fragt holzi erneut, statt die alte Zulassung zu
+   nach einem Update der Erweiterung), **Then** fragt HaexVault erneut, statt die alte Zulassung zu
    verwenden.
 6. **Given** die Bridge ist ausgeschaltet oder keine Vault ist offen, **When** die Erweiterung zu
    verbinden versucht, **Then** findet sie keinen Dienst und zeigt „nicht verbunden“.
@@ -252,21 +252,21 @@ Dialog (vorläufig).
    sich so nennt, aber eine andere Chromium-Herkunft hat, steht dort eine Warnung, dass er sich nur
    so nennt (FR-045).
 8. **Given** der Dialog für einen Client aus Firefox, **When** er erscheint, **Then** sagt er, dass
-   holzi die Erweiterung dort nicht prüfen kann, und rät, nur zuzulassen, was der Nutzer gerade
+   HaexVault die Erweiterung dort nicht prüfen kann, und rät, nur zuzulassen, was der Nutzer gerade
    selbst installiert hat (FR-045).
 9. **Given** die Erweiterung in Firefox auf Gerät A ist zugelassen und gemerkt, **When** sich die
    Erweiterung in Chrome auf Gerät A oder in einem Browser auf Gerät B mit derselben Vault
-   verbindet, **Then** zeigt holzi für jede dieser Instanzen einen eigenen Zulassungsdialog
+   verbindet, **Then** zeigt HaexVault für jede dieser Instanzen einen eigenen Zulassungsdialog
    (FR-047).
 
 ---
 
 ### User Story 2 - Anmeldedaten im Browser ausfüllen, auch TOTP (Priority: P1)
 
-Anna öffnet `https://login.example.de`. Die Erweiterung erkennt das Formular, fragt holzi nach
+Anna öffnet `https://login.example.de`. Die Erweiterung erkennt das Formular, fragt HaexVault nach
 Einträgen für die Adresse und bietet zwei Konten an. Anna wählt eines, Benutzername und Passwort
 stehen im Formular. Auf der nächsten Seite verlangt die Seite einen Einmalcode; die Erweiterung
-holt den aktuellen Code von holzi.
+holt den aktuellen Code von HaexVault.
 
 **Why this priority**: Ausfüllen ist der Hauptzweck der Erweiterung.
 
@@ -281,14 +281,14 @@ einem Verweis auf einen Eintrag außerhalb des Bereichs anlegen; `get-items` fü
    Einträge für `https://login.example.de/x` holt, **Then** erhält er beide mit Kennung, Titel,
    Adresse, Benutzername, Passwort, eigenen Feldern, Autofill-Aliasen und dem Hinweis auf TOTP; den
    Eintrag für `bad-example.de` erhält er nicht.
-2. **Given** ein passender Eintrag ohne Tag aus dem Bereich, im Papierkorb oder einer holzi-Funktion
+2. **Given** ein passender Eintrag ohne Tag aus dem Bereich, im Papierkorb oder einer HaexVault-Funktion
    (034 Z14), **When** der Client Einträge holt, **Then** fehlt er, ohne dass die Antwort sein
-   Dasein verrät, und holzi fragt nicht.
+   Dasein verrät, und HaexVault fragt nicht.
 3. **Given** ein Eintrag mit TOTP im Bereich, **When** der Client den Code holt, **Then** erhält er
    den aktuellen Code und die Restzeit in Sekunden, nie das Secret.
 4. **Given** ein Benutzername, der auf einen Eintrag außerhalb des Bereichs verweist, **When** der
    Client den Eintrag holt, **Then** fehlt dieses Feld (ADR-0009), und alle übrigen sind da.
-5. **Given** eine Anfrage ohne Adresse, **When** der Client sie schickt, **Then** lehnt holzi ab;
+5. **Given** eine Anfrage ohne Adresse, **When** der Client sie schickt, **Then** lehnt HaexVault ab;
    es gibt keinen Weg, alle Einträge auf einmal zu holen.
 
 ---
@@ -296,16 +296,16 @@ einem Verweis auf einen Eintrag außerhalb des Bereichs anlegen; `get-items` fü
 ### User Story 3 - Neue Zugangsdaten aus dem Browser speichern (Priority: P2)
 
 Anna legt bei einem Shop ein Konto an. Im Popup der Erweiterung lässt sie ein Passwort nach ihrer
-Standard-Voreinstellung aus holzi erzeugen und speichert Titel, Adresse, Benutzername und Passwort.
-Der Eintrag erscheint sofort im Passwortmanager von holzi, mit dem Tag „web“.
+Standard-Voreinstellung aus HaexVault erzeugen und speichert Titel, Adresse, Benutzername und Passwort.
+Der Eintrag erscheint sofort im Passwortmanager von HaexVault, mit dem Tag „web“.
 
-**Why this priority**: Ohne Speichern muss Anna neue Konten von Hand in holzi übertragen; es baut auf
+**Why this priority**: Ohne Speichern muss Anna neue Konten von Hand in HaexVault übertragen; es baut auf
 US1 auf.
 
 **Independent Test**: Mit Freigabe „Lesen und Schreiben“ für Tag „web“ und Standard-Tag „web“
 Voreinstellungen holen, einen Eintrag anlegen und prüfen, dass er Tag, Verlauf und Werte hat und
 übergangene Felder (Ordner, TOTP, Symbol) nicht übernommen sind; dasselbe mit „Lesen“ (Anfrage in
-holzi); `update-item` scheitert mit „nicht unterstützt“.
+HaexVault); `update-item` scheitert mit „nicht unterstützt“.
 
 **Acceptance Scenarios**:
 
@@ -314,13 +314,13 @@ holzi); `update-item` scheitert mit „nicht unterstützt“.
 2. **Given** eine Zulassung „Lesen und Schreiben“ mit Standard-Tag „web“, **When** der Client einen
    Eintrag anlegt, **Then** entsteht er mit dem Tag „web“ und einem ersten Stand im Verlauf, und
    der Passwortmanager zeigt ihn ohne Neuladen.
-3. **Given** derselbe Client, **When** er `update-item` schickt, **Then** antwortet holzi „nicht
+3. **Given** derselbe Client, **When** er `update-item` schickt, **Then** antwortet HaexVault „nicht
    unterstützt“, ohne zu fragen, und nichts ändert sich (FR-028).
-4. **Given** eine Zulassung nur mit „Lesen“, **When** der Client anlegen will, **Then** zeigt holzi
+4. **Given** eine Zulassung nur mit „Lesen“, **When** der Client anlegen will, **Then** zeigt HaexVault
    eine Anfrage wie in 017; erlaubt Anna, gelingt es, lehnt sie ab oder antwortet sie nicht
    rechtzeitig, scheitert es und nichts ändert sich.
 5. **Given** eine Anlege-Anfrage mit zusätzlichen Feldern (`groupId`, TOTP-Angaben, `iconBase64`,
-   `tags`), **When** der Client speichert, **Then** legt holzi den Eintrag nur mit Titel, Adresse,
+   `tags`), **When** der Client speichert, **Then** legt HaexVault den Eintrag nur mit Titel, Adresse,
    Benutzername, Passwort und Standard-Tag an.
 
 ---
@@ -328,9 +328,9 @@ holzi); `update-item` scheitert mit „nicht unterstützt“.
 ### User Story 4 - Mit Passkey anmelden und Passkey anlegen (Priority: P2)
 
 Anna registriert bei einer Seite einen Passkey. Die Erweiterung fragt sie, ob haex-pass oder der
-Browser ihn verwalten soll; sie wählt haex-pass. holzi kommt nach vorn und zeigt: „Passkey für
+Browser ihn verwalten soll; sie wählt haex-pass. HaexVault kommt nach vorn und zeigt: „Passkey für
 example.de als anna@example.de anlegen? An Eintrag: Neuer Eintrag“. Sie bestätigt. Später meldet
-sie sich mit dem Passkey an; holzi fragt wieder, diesmal mit der Wahl zwischen ihren zwei Konten
+sie sich mit dem Passkey an; HaexVault fragt wieder, diesmal mit der Wahl zwischen ihren zwei Konten
 bei der Seite.
 
 **Why this priority**: Passkeys sind der zweite Zweck der Erweiterung, aber ohne US1 und US2 nicht
@@ -344,7 +344,7 @@ mit abgelaufener Bestätigung darf nichts entstehen und nichts signiert werden.
 **Acceptance Scenarios**:
 
 1. **Given** eine Zulassung „Lesen und Schreiben“, **When** der Client einen Passkey anlegen will,
-   **Then** zeigt holzi eine Anwesenheitsbestätigung mit Gegenstelle, Herkunft, Benutzer und der
+   **Then** zeigt HaexVault eine Anwesenheitsbestätigung mit Gegenstelle, Herkunft, Benutzer und der
    Wahl des Eintrags (neuer Eintrag ab Werk, oder ein vorhandener im Bereich mit derselben
    registrierbaren Domain); erst nach „Bestätigen“ entsteht der Passkey am Eintrag, und die
    Gegenstelle akzeptiert die Registrierung.
@@ -354,19 +354,19 @@ mit abgelaufener Bestätigung darf nichts entstehen und nichts signiert werden.
 3. **Given** mehrere passende Passkeys, **When** der Client sich anmelden will, **Then** wählt Anna
    das Konto in der Anwesenheitsbestätigung.
 4. **Given** eine Anfrage, deren Herkunft nicht zur Gegenstelle passt oder die keine Herkunft
-   nennt, **When** der Client sie schickt, **Then** lehnt holzi ab, ohne einen Dialog zu zeigen, und
+   nennt, **When** der Client sie schickt, **Then** lehnt HaexVault ab, ohne einen Dialog zu zeigen, und
    die Erweiterung fällt auf den Browser zurück.
 5. **Given** eine Anwesenheitsbestätigung, **When** Anna ablehnt oder nicht innerhalb der Frist
    antwortet, **Then** entsteht nichts, nichts wird signiert, und der Client erhält eine Ablehnung.
 6. **Given** eine Zulassung nur mit „Lesen“, **When** der Client einen Passkey anlegen will,
-   **Then** fragt holzi zuerst nach der Freigabe (wie US3, Szenario 4) und danach nach der
+   **Then** fragt HaexVault zuerst nach der Freigabe (wie US3, Szenario 4) und danach nach der
    Anwesenheit.
 
 ---
 
 ### User Story 5 - Zugelassene Clients verwalten, ändern und widerrufen (Priority: P2)
 
-Anna öffnet in den Einstellungen von holzi den Punkt „Browser-Erweiterungen“. Sie sieht, dass die
+Anna öffnet in den Einstellungen von HaexVault den Punkt „Browser-Erweiterungen“. Sie sieht, dass die
 Bridge auf Port 19455 läuft, ihre Firefox-Erweiterung zugelassen ist (Tag „web“, Lesen und
 Schreiben, zuletzt verbunden vor fünf Minuten) und eine alte Chromium-Installation gesperrt ist.
 Sie engt die Firefox-Zulassung auf „Lesen“ ein und widerruft eine dritte, die sie nicht mehr
@@ -386,11 +386,11 @@ Verhalten offener Verbindungen prüfen.
    gemerkt oder vorläufig, Zeitpunkt der Zulassung und letzte Verbindung.
 2. **Given** ein verbundener Client, **When** Anna ihn widerruft, **Then** erhält er sofort die
    Nachricht, dass er nicht mehr zugelassen ist, wartende Anfragen scheitern, und beim nächsten
-   Verbinden fragt holzi neu.
+   Verbinden fragt HaexVault neu.
 3. **Given** ein verbundener Client, **When** Anna Art oder Bereich ändert, **Then** gilt die
    Änderung ab der nächsten Anfrage.
-4. **Given** der Port ist belegt, **When** Anna die Bridge einschaltet, **Then** zeigt holzi „Port
-   belegt“ mit dem Hinweis, dass eine andere holzi-Instanz oder haex-vault 2.x ihn nutzen kann, und
+4. **Given** der Port ist belegt, **When** Anna die Bridge einschaltet, **Then** zeigt HaexVault „Port
+   belegt“ mit dem Hinweis, dass eine andere HaexVault-Instanz oder haex-vault 2.x ihn nutzen kann, und
    bietet an, einen anderen Port zu wählen.
 
 ---
@@ -398,7 +398,7 @@ Verhalten offener Verbindungen prüfen.
 ### User Story 6 - Webseiten und fremde Programme kommen nicht durch (Priority: P1)
 
 Eine Webseite, die Anna besucht, versucht im Hintergrund, sich mit `ws://localhost:19455` zu
-verbinden und sich als „haex-pass Browser Extension“ auszugeben. holzi weist sie ab, bevor ein
+verbinden und sich als „haex-pass Browser Extension“ auszugeben. HaexVault weist sie ab, bevor ein
 Dialog erscheint. Ein Client mit einer gefälschten Kennung kommt ebenso nicht durch.
 
 **Why this priority**: Die Bridge öffnet einen Port, den jede Seite im Browser erreicht. Was hier
@@ -413,45 +413,45 @@ einen Dialog oder eine Antwort mit Daten auslöst.
 **Acceptance Scenarios**:
 
 1. **Given** eine Verbindung, deren Herkunft keine Browser-Erweiterung ist, **When** sie aufgebaut
-   wird, **Then** schließt holzi sie vor dem Handshake, ohne Dialog.
+   wird, **Then** schließt HaexVault sie vor dem Handshake, ohne Dialog.
 2. **Given** ein Handshake mit Protokoll v1 oder ohne Erklärung, **When** er ankommt, **Then**
-   antwortet holzi mit dem Fehler `PERMISSIONS_DECLARATION_REQUIRED` und schließt die Verbindung.
+   antwortet HaexVault mit dem Fehler `PERMISSIONS_DECLARATION_REQUIRED` und schließt die Verbindung.
 3. **Given** ein Handshake, dessen Kennung nicht aus dem mitgeschickten öffentlichen Schlüssel
-   folgt, **When** er ankommt, **Then** weist holzi ihn ab, ohne Dialog.
-4. **Given** derselbe unbekannte Client verbindet sich hundertmal hintereinander, **When** holzi
+   folgt, **When** er ankommt, **Then** weist HaexVault ihn ab, ohne Dialog.
+4. **Given** derselbe unbekannte Client verbindet sich hundertmal hintereinander, **When** HaexVault
    fragt, **Then** steht genau ein Zulassungsdialog für ihn da.
 5. **Given** ein Programm kennt Kennung, öffentlichen Schlüssel und Herkunft einer zugelassenen
    Instanz, aber nicht ihren privaten Schlüssel, **When** es sich damit verbindet, **Then** kann es
-   die Aufgabe nicht beantworten, und holzi schließt die Verbindung ohne Dialog und ohne eine
+   die Aufgabe nicht beantworten, und HaexVault schließt die Verbindung ohne Dialog und ohne eine
    Anfrage auszuführen (FR-048).
 6. **Given** ein Client mit Protokoll 2 (haex-pass-browser 1.3.0 oder älter), **When** er sich
-   verbindet, **Then** antwortet holzi mit dem Fehler `PROTOCOL_UPDATE_REQUIRED` und schließt, ohne
+   verbindet, **Then** antwortet HaexVault mit dem Fehler `PROTOCOL_UPDATE_REQUIRED` und schließt, ohne
    Dialog, und zeigt im Fenster, dass die Erweiterung aktualisiert werden muss (FR-049).
 7. **Given** die Antwort auf eine Aufgabe aus einer anderen Verbindung, **When** ein Client sie
-   schickt, **Then** weist holzi ihn ab wie bei einer falschen Antwort.
+   schickt, **Then** weist HaexVault ihn ab wie bei einer falschen Antwort.
 
 ### Edge Cases
 
 - **haex-vault 2.x läuft auf demselben Gerät**: Beide wollen Port 19455. Wer zuerst lauscht, hat ihn;
-  holzi meldet „Port belegt“ (US5). Die Erweiterung verbindet sich mit dem, der lauscht; welchen
+  HaexVault meldet „Port belegt“ (US5). Die Erweiterung verbindet sich mit dem, der lauscht; welchen
   Dienst sie erreicht, sieht der Nutzer daran, wo der Zulassungsdialog erscheint.
-- **Zwei holzi-Instanzen** (Spec 030, je eine Vault): Nur eine kann die Bridge auf einem Port
+- **Zwei HaexVault-Instanzen** (Spec 030, je eine Vault): Nur eine kann die Bridge auf einem Port
   betreiben; die andere meldet „Port belegt“. Es gibt keine automatische Ausweichportwahl, weil die
   Erweiterung den neuen Port nicht kennen würde.
 - **Vault wird geschlossen oder gesperrt, während eine Anfrage, ein Zulassungsdialog oder eine
   Anwesenheitsbestätigung offen ist**: Alles endet mit einer Ablehnung; nichts wird halb
   geschrieben oder signiert.
 - **Zwei Browser oder zwei Profile auf einem Gerät**: Zwei Instanzen mit je eigenem Schlüssel;
-  holzi fragt für jede (FR-047). Firefox Sync und Chrome Sync übertragen den Schlüssel nicht, weil
+  HaexVault fragt für jede (FR-047). Firefox Sync und Chrome Sync übertragen den Schlüssel nicht, weil
   er in der IndexedDB des Profils liegt.
 - **Erweiterung neu installiert oder Browserprofil gewechselt**: Neues Schlüsselpaar, also ein neuer
-  Client mit neuem Fingerabdruck; holzi fragt. Der alte bleibt in der Liste, bis der Nutzer ihn
+  Client mit neuem Fingerabdruck; HaexVault fragt. Der alte bleibt in der Liste, bis der Nutzer ihn
   widerruft.
 - **Zwei Clients mit demselben angegebenen Namen**: Der Dialog unterscheidet sie an Fingerabdruck
   und Herkunft; den Namen kennzeichnet er als Angabe des Clients und sagt, ob die Herkunft die einer
   bekannten Erweiterung ist (FR-045).
 - **Offizielle Erweiterung aus dem GitHub-Release oder selbst gebaut**: Chromium vergibt entpackten
-  und per Hand installierten Erweiterungen eine andere Kennung als der Store. holzi zeigt sie als
+  und per Hand installierten Erweiterungen eine andere Kennung als der Store. HaexVault zeigt sie als
   „nennt sich so“ und sagt im Text dazu, dass das bei einer Installation außerhalb des Stores zu
   erwarten ist; zulassen kann der Nutzer sie wie jeden anderen Client.
 - **Anderes eigenes Gerät**: Eine gemerkte Zulassung von Gerät A gilt auf Gerät B nicht; ein
@@ -460,18 +460,18 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   Domain gibt es nicht.
 - **Eintrag mit mehreren Adressen oder ohne Adresse**: Ohne Adresse ist er für `get-items` kein
   Treffer; Abgleich wie heute über das Adressfeld aus 034.
-- **Sehr viele Treffer für eine Adresse**: holzi liefert alle Treffer im Bereich; jeder ist eine
+- **Sehr viele Treffer für eine Adresse**: HaexVault liefert alle Treffer im Bereich; jeder ist eine
   Einzelabfrage des Dienstes (SC-002 begrenzt die Zeit).
 - **Feld mit einem Verweis, dessen Kette zu tief ist oder einen Kreis bildet**: Das Feld fehlt in
-  der Antwort, wie bei einem Verweis außerhalb des Bereichs; holzi liefert nie einen leeren oder
+  der Antwort, wie bei einem Verweis außerhalb des Bereichs; HaexVault liefert nie einen leeren oder
   wörtlichen Platzhalter als Wert (ADR-0009).
 - **Weitere Felder beim Anlegen** (`groupId`, `iconBase64`, `otpSecret` und Verwandte, `tags`):
-  holzi übergeht sie und legt den Eintrag ohne sie an (FR-022). Ordner zu wählen steht Aufrufern von
+  HaexVault übergeht sie und legt den Eintrag ohne sie an (FR-022). Ordner zu wählen steht Aufrufern von
   außen ohnehin nicht offen (034 Z11).
 - **Passkey-Anfrage ohne Herkunft** (Erweiterungen vor `e0ee77f`): Abgelehnt (036 FR-025 schließt die
   Annahme `https://<Kennung>` aus). Die Erweiterung fällt bei jedem Fehler auf den Passkey-Dialog
   des Browsers zurück; der Nutzer sieht also den Browser-Dialog statt eines Fehlers.
-- **Client gibt vor der Anwesenheitsbestätigung auf** (Zeitlimit der Erweiterung): holzi bemerkt das
+- **Client gibt vor der Anwesenheitsbestätigung auf** (Zeitlimit der Erweiterung): HaexVault bemerkt das
   nur, wenn die Verbindung endet; dann schließt es den Dialog. Bestätigt der Nutzer einen
   Passkey-Anlegen-Dialog, nachdem der Client aufgegeben hat, bleibt ein Passkey am Eintrag, den die
   Gegenstelle nie bekommen hat; der Nutzer kann ihn im Tab Extra löschen. Die Wartezeit der
@@ -482,13 +482,13 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   Client erhält die Ablehnung aus 036 FR-024, und es erscheint keine Anwesenheitsbestätigung.
   Passkeys außerhalb des Bereichs zählen nicht (036 FR-030).
 - **Importierter RS256-Passkey**: Anmelden wird abgelehnt (036 FR-034); keine Bestätigung.
-- **holzi-Fenster minimiert oder auf einer anderen Arbeitsfläche**: holzi holt sich für Zulassung,
+- **HaexVault-Fenster minimiert oder auf einer anderen Arbeitsfläche**: HaexVault holt sich für Zulassung,
   Anfrage und Anwesenheitsbestätigung nach vorn; wo das System das verhindert, zeigt es eine
   Systembenachrichtigung, die zum Dialog führt.
 - **Unbekannte Methode oder Ziel eine haextension**: Abgelehnt ohne Rückfrage und ohne Wirkung.
 - **Lesezeichen-Methoden**: Abgelehnt mit „nicht unterstützt“; die Passwort-Funktionen derselben
   Verbindung arbeiten weiter.
-- **Uhr des Geräts falsch**: TOTP-Codes sind falsch wie in der Oberfläche von holzi; die Bridge
+- **Uhr des Geräts falsch**: TOTP-Codes sind falsch wie in der Oberfläche von HaexVault; die Bridge
   korrigiert nichts.
 
 ## Requirements _(mandatory)_
@@ -497,13 +497,13 @@ einen Dialog oder eine Antwort mit Daten auslöst.
 
 **Dienst und Verbindung**
 
-- **FR-001**: holzi MUSS eine External Bridge anbieten, die der Nutzer je Gerät in den
+- **FR-001**: HaexVault MUSS eine External Bridge anbieten, die der Nutzer je Gerät in den
   Einstellungen ein- und ausschaltet; ab Werk ist sie aus. Die Einstellung und der Port MÜSSEN
   geräteeigen sein.
 - **FR-002**: Die Bridge MUSS ausschließlich auf der Loopback-Schnittstelle des Geräts lauschen
   (nie auf anderen Netzschnittstellen; IPv4 und, wo vorhanden, IPv6, weil die Erweiterung
   `localhost` aufruft), ab Werk auf Port 19455; der Nutzer MUSS den Port ändern
-  können. Ist der Port belegt, MUSS holzi das in den Einstellungen anzeigen und DARF NICHT still
+  können. Ist der Port belegt, MUSS HaexVault das in den Einstellungen anzeigen und DARF NICHT still
   auf einen anderen Port ausweichen.
 - **FR-003**: Die Bridge DARF nur lauschen, solange eine Vault offen ist. Schließen oder Sperren der
   Vault und Ausschalten der Bridge MÜSSEN alle Verbindungen beenden, offene Anfragen,
@@ -515,40 +515,40 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   `authorizationUpdate`, Ping/Pong und Fehler; Umschläge mit Schlüsseltausch je Nachricht und
   AES-256-GCM wie in haex-vault 2.x; Antworten mit `requestId`, `success`, `data`, `error` und, wo
   haex-vault 2.x ihn sendet, `errorCode`.
-- **FR-005**: holzi MUSS eine Verbindung vor dem Handshake schließen, wenn der Browser als Herkunft
+- **FR-005**: HaexVault MUSS eine Verbindung vor dem Handshake schließen, wenn der Browser als Herkunft
   keine Browser-Erweiterung meldet (etwa `https://…`, `http://…`, `null`) oder keine Herkunft
   mitschickt. Andere Programme als Browser-Erweiterungen sind in dieser Spec keine Clients.
-- **FR-006**: holzi MUSS einen Handshake abweisen, dessen Kennung nicht aus dem mitgeschickten
+- **FR-006**: HaexVault MUSS einen Handshake abweisen, dessen Kennung nicht aus dem mitgeschickten
   öffentlichen Schlüssel folgt (Berechnung wie in `haex-pass-browser`), und einen ohne Erklärung
   mit `PERMISSIONS_DECLARATION_REQUIRED` beantworten und schließen. Ältere Protokolle regelt
   FR-049.
-- **FR-007**: holzi MUSS Nachrichten über einer festen Größe und unlesbare Nachrichten ablehnen,
+- **FR-007**: HaexVault MUSS Nachrichten über einer festen Größe und unlesbare Nachrichten ablehnen,
   ohne abzustürzen; die Grenze legt der Plan fest. Ein Client DARF höchstens einen offenen
   Zulassungsdialog haben, egal wie oft er sich verbindet.
 
 **Zulassung**
 
-- **FR-008**: Verbindet sich ein Client, der weder zugelassen noch gesperrt ist, MUSS holzi ihm
+- **FR-008**: Verbindet sich ein Client, der weder zugelassen noch gesperrt ist, MUSS HaexVault ihm
   „wartet auf Zulassung“ antworten und den Zulassungsdialog zeigen. Der Dialog MUSS den angegebenen
   Namen (gekennzeichnet als Angabe des Clients), den Fingerabdruck, die Herkunft und die Erklärung
-  in Worten zeigen. Er ist ein Dialog von holzi, den der Client weder gestalten noch beantworten
+  in Worten zeigen. Er ist ein Dialog von HaexVault, den der Client weder gestalten noch beantworten
   kann.
 - **FR-009**: Der Dialog MUSS „Zulassen“, „Ablehnen“ und den Haken „Erlaubnis merken“ (ab Werk nicht
-  gesetzt) bieten. Mit Haken MUSS holzi die Zulassung oder Sperre geräteeigen speichern; ohne Haken
+  gesetzt) bieten. Mit Haken MUSS HaexVault die Zulassung oder Sperre geräteeigen speichern; ohne Haken
   gilt sie bis zum Schließen der Vault.
 - **FR-010**: Beim Zulassen MUSS der Nutzer die Freigabe festlegen: Art („Lesen“ oder „Lesen und
   Schreiben“) und Bereich („alle Einträge“ oder Einträge mit gewählten Tags), höchstens so weit wie
   erklärt, ab Werk wie erklärt. Für „Lesen und Schreiben“ MUSS er ein Standard-Tag wählen, das im
   Bereich liegt; bei „alle Einträge“ DARF er es leer lassen. Die Freigabe hat genau die Bedeutung aus
   034 FR-025.
-- **FR-011**: Nach dem Zulassen MUSS holzi einem offenen Client sofort `authorizationUpdate` mit
+- **FR-011**: Nach dem Zulassen MUSS HaexVault einem offenen Client sofort `authorizationUpdate` mit
   „zugelassen“ schicken; nach Ablehnen oder Widerruf `authorizationUpdate` mit „nicht zugelassen“
   und danach die Verbindung schließen.
-- **FR-012**: holzi MUSS die Erklärung eines Clients bei der Zulassung speichern und bei jedem
-  Handshake vergleichen, ohne Rücksicht auf die Reihenfolge der Einträge. Weicht sie ab, MUSS holzi
+- **FR-012**: HaexVault MUSS die Erklärung eines Clients bei der Zulassung speichern und bei jedem
+  Handshake vergleichen, ohne Rücksicht auf die Reihenfolge der Einträge. Weicht sie ab, MUSS HaexVault
   erneut fragen und bis dahin keine Anfrage ausführen.
 - **FR-013**: Zulassen, Ändern, Widerrufen, Sperren und Entsperren eines Clients DÜRFEN nur durch den
-  Nutzer in der Oberfläche von holzi geschehen; kein Client, keine haextension und keine Aktion des
+  Nutzer in der Oberfläche von HaexVault geschehen; kein Client, keine haextension und keine Aktion des
   eingebauten Agenten oder externer Agenten DARF sie auslösen oder beantworten.
 
 **Freigaben und Anfragen**
@@ -558,19 +558,19 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   mit der Freigabe seiner Zulassung. Kein Weg DARF die Tabellen am Dienst vorbei lesen oder
   schreiben (034 FR-024).
 - **FR-015**: Verlangt eine Methode die Art „Lesen und Schreiben“ und hat die Zulassung nur „Lesen“,
-  MUSS holzi eine Anfrage wie in 017 zeigen (Erlauben, Ablehnen, Merken; Merken erweitert die
+  MUSS HaexVault eine Anfrage wie in 017 zeigen (Erlauben, Ablehnen, Merken; Merken erweitert die
   Freigabe der Zulassung), aber nur, wenn die Handshake-Erklärung des Clients Schreiben einschließt.
-  Fehlt Schreiben in der Erklärung, MUSS holzi die Methode ohne Anfrage ablehnen; auch eine gemerkte
+  Fehlt Schreiben in der Erklärung, MUSS HaexVault die Methode ohne Anfrage ablehnen; auch eine gemerkte
   Erweiterung darf nie über die erklärte Freigabe hinausgehen. Aktiviert die Anfrage das Anlegen von
   Einträgen, MUSS der Nutzer vor dem Zulassen einen Standard-Tag innerhalb des tag-begrenzten Bereichs
-  wählen; das gilt auch, wenn er die Erweiterung merkt. holzi MUSS die Antwort an den Client bis zu
+  wählen; das gilt auch, wenn er die Erweiterung merkt. HaexVault MUSS die Antwort an den Client bis zu
   120 Sekunden zurückhalten; danach scheitert die Methode mit `PERMISSION_PROMPT_TIMEOUT`. Eine
   gemerkte Ablehnung MUSS ohne Anfrage gelten.
-- **FR-016**: Für Einträge außerhalb des Bereichs DARF holzi nie fragen; sie sind für den Client nicht
+- **FR-016**: Für Einträge außerhalb des Bereichs DARF HaexVault nie fragen; sie sind für den Client nicht
   vorhanden (034 FR-029), damit eine Frage ihr Dasein nicht verrät.
 - **FR-017**: Ein Client DARF keine Einträge löschen und weder Ordner, Tags, Papierkorb, Verlauf,
   Anhänge noch Passkeys ändern oder löschen; die Bridge bietet dafür keine Methode. Einzige
-  Ausnahme ist das Standard-Tag, das holzi beim Anlegen setzt (FR-022, FR-034).
+  Ausnahme ist das Standard-Tag, das HaexVault beim Anlegen setzt (FR-022, FR-034).
 
 **Methoden für Passwörter**
 
@@ -585,7 +585,7 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   `localhost` derselbe Host); Einträge, die nur im Text ähnlich sind (`bad-example.de`), sind keine
   Treffer. Optional angegebene Feldnamen schränken die Treffer auf Einträge mit einem dieser Felder
   ein.
-- **FR-020**: holzi MUSS die Treffer über die Kopfdaten des Dienstes finden und jeden Treffer mit
+- **FR-020**: HaexVault MUSS die Treffer über die Kopfdaten des Dienstes finden und jeden Treffer mit
   einer Einzelabfrage des Dienstes lesen. Die Antwort MUSS je Treffer Kennung, Titel (ohne Titel
   „Untitled“ wie haex-vault 2.x), Adresse, Felder (Benutzername, Passwort, eigene Felder und die Marke
   `otp: "TOTP"`, wenn TOTP eingerichtet ist), den Hinweis auf TOTP und die Autofill-Aliase
@@ -595,28 +595,28 @@ einen Dialog oder eine Antwort mit Daten auslöst.
 - **FR-022**: `create-item` MUSS einen Eintrag mit Titel (ohne Titel der Host der Adresse),
   Adresse, Benutzername und Passwort anlegen, mit dem Standard-Tag der Zulassung, in der obersten
   Ebene, mit erstem Stand im Verlauf, und Kennung und Titel zurückgeben. Alle anderen Felder der
-  Anfrage MUSS holzi übergehen (Clarification 2026-10-21).
+  Anfrage MUSS HaexVault übergehen (Clarification 2026-10-21).
 - **FR-023**: _(entfallen 2026-10-21)_ `update-item` gehört zu den nicht unterstützten Methoden
   (FR-028).
 - **FR-024**: `get-totp` MUSS für einen Eintrag im Bereich den aktuellen Code und die Restzeit in
   Sekunden liefern, berechnet im Dienst; das Secret DARF den Dienst nicht verlassen. Für einen
-  Eintrag ohne TOTP oder außerhalb des Bereichs antwortet holzi gleich (nicht gefunden).
+  Eintrag ohne TOTP oder außerhalb des Bereichs antwortet HaexVault gleich (nicht gefunden).
 - **FR-025**: Ein Eintrag, den ein Client anlegt oder ändert, MUSS im Passwortmanager ohne Neuladen
   erscheinen (034 FR-038) und wie jeder Eintrag synchronisieren.
-- **FR-026**: Ändern sich Einträge, während ein Client verbunden ist, DARF holzi ihm nichts von sich
+- **FR-026**: Ändern sich Einträge, während ein Client verbunden ist, DARF HaexVault ihm nichts von sich
   aus schicken; der Client fragt bei Bedarf neu.
 - **FR-027**: `get-password-config` und `get-password-presets` MÜSSEN die Voreinstellungen des
   Generators (034) mit jeder Passwort-Freigabe liefern; sie enthalten keine Geheimnisse.
 - **FR-028**: Die Methoden `update-item`, `bookmarks-collections-list`, `bookmarks-collection-create`,
-  `bookmarks-list`, `bookmarks-upsert`, `bookmarks-delete` und `bookmarks-device-upsert` MUSS holzi
+  `bookmarks-list`, `bookmarks-upsert`, `bookmarks-delete` und `bookmarks-device-upsert` MUSS HaexVault
   ohne Anfrage und ohne Wirkung mit einer Ablehnung „nicht unterstützt“ beantworten; die Verbindung
   bleibt bestehen.
 - **FR-029**: Jede andere Methode und jede Anfrage an ein anderes Ziel als den Passwortmanager (in
-  haex-vault 2.x `__core__`/`core`) MUSS holzi ohne Anfrage und ohne Wirkung ablehnen.
+  haex-vault 2.x `__core__`/`core`) MUSS HaexVault ohne Anfrage und ohne Wirkung ablehnen.
 
 **Passkeys und Anwesenheitsbestätigung**
 
-- **FR-030**: Vor jedem `passkey-create` und `passkey-get` MUSS holzi nach Prüfung von Freigabe und
+- **FR-030**: Vor jedem `passkey-create` und `passkey-get` MUSS HaexVault nach Prüfung von Freigabe und
   Herkunft eine Anwesenheitsbestätigung zeigen: Client, Gegenstelle (Name und Kennung), Herkunft,
   Benutzer, beim Anmelden die Wahl des Kontos, wenn mehrere passen (036 `ChoiceRequired`), beim
   Anlegen die Wahl des Eintrags (ab Werk „Neuer Eintrag“, sonst ein vorhandener Eintrag im Bereich
@@ -628,15 +628,15 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   Verfallen, Schließen der Vault oder Ende der Verbindung DARF nichts entstehen und nichts signiert
   werden.
 - **FR-032**: Anfragen ohne Herkunft oder mit einer Herkunft, die nicht zur Kennung der Gegenstelle
-  passt (036 FR-025), MUSS holzi ablehnen, bevor es eine Anwesenheitsbestätigung zeigt. holzi DARF
+  passt (036 FR-025), MUSS HaexVault ablehnen, bevor es eine Anwesenheitsbestätigung zeigt. HaexVault DARF
   die Herkunft nicht aus der Kennung der Gegenstelle ableiten.
-- **FR-033**: UV (Nutzer verifiziert) DARF holzi nur setzen, wenn die Gegenstelle UV verlangt
+- **FR-033**: UV (Nutzer verifiziert) DARF HaexVault nur setzen, wenn die Gegenstelle UV verlangt
   (`userVerification: "required"`) und der Nutzer in derselben Anwesenheitsbestätigung das Passwort
   der Vault erneut richtig eingegeben hat; nur dann MUSS die Anwesenheitsbestätigung danach fragen.
-  Bei `"preferred"` und `"discouraged"` MUSS holzi UV nicht setzen und DARF nicht nach dem Passwort
+  Bei `"preferred"` und `"discouraged"` MUSS HaexVault UV nicht setzen und DARF nicht nach dem Passwort
   fragen. Ein falsches Passwort oder ein Abbruch der Eingabe MUSS wie Ablehnen wirken (FR-031).
-  Anders als haex-vault 2.x, das UV immer setzt, behauptet holzi UV nie ohne Prüfung.
-- **FR-034**: Für „Neuer Eintrag“ MUSS holzi zuerst einen Eintrag mit dem Namen der Gegenstelle als
+  Anders als haex-vault 2.x, das UV immer setzt, behauptet HaexVault UV nie ohne Prüfung.
+- **FR-034**: Für „Neuer Eintrag“ MUSS HaexVault zuerst einen Eintrag mit dem Namen der Gegenstelle als
   Titel, der Herkunft als Adresse, dem Benutzer als Benutzername und dem Standard-Tag der Zulassung
   anlegen und den Passkey daran; scheitert das Anlegen des Passkeys, MUSS auch der Eintrag
   entfallen. Passkeys entstehen immer mit ES256, weil die Erweiterung diesen Algorithmus fest
@@ -675,7 +675,7 @@ einen Dialog oder eine Antwort mit Daten auslöst.
 
 **Plattformen**
 
-- **FR-043**: Die Bridge MUSS auf Linux, macOS und Windows verfügbar sein. Auf Android DARF holzi sie
+- **FR-043**: Die Bridge MUSS auf Linux, macOS und Windows verfügbar sein. Auf Android DARF HaexVault sie
   nicht anbieten; die Einstellungen zeigen „auf dieser Plattform nicht verfügbar“.
 - **FR-044**: Alle neuen Texte MÜSSEN auf Deutsch und Englisch vorliegen; Dialoge und Einstellungen
   MÜSSEN ab 360 px Breite ohne waagerechtes Scrollen bedienbar sein (034 FR-041).
@@ -683,7 +683,7 @@ einen Dialog oder eine Antwort mit Daten auslöst.
 **Erkennung der Erweiterung**
 
 - **FR-045**: Der Zulassungsdialog und die Listen der Einstellungen MÜSSEN für jeden Client sagen,
-  wie weit holzi die Erweiterung erkennt, aus Herkunft und angegebenem Namen:
+  wie weit HaexVault die Erweiterung erkennt, aus Herkunft und angegebenem Namen:
   - **bekannt**: Die Herkunft steht in der Liste der offiziellen Erweiterungen (FR-046). Der Text
     nennt den Namen aus der Liste.
   - **nennt sich so**: Die Herkunft ist eine Chromium-Herkunft, die nicht in der Liste steht, aber
@@ -691,19 +691,19 @@ einen Dialog oder eine Antwort mit Daten auslöst.
     Kleinschreibung und Leerzeichen am Rand). Der Text warnt, dass das keine Bestätigung der
     offiziellen Erweiterung ist.
   - **unbekannt**: Eine Chromium-Herkunft, die nicht in der Liste steht, mit einem anderen Namen. Der
-    Text sagt, dass holzi diese Erweiterung nicht kennt.
+    Text sagt, dass HaexVault diese Erweiterung nicht kennt.
   - **nicht prüfbar**: Eine Firefox-Herkunft (die UUID ist je Installation zufällig) oder eine
-    Herkunft, für die die Liste keinen Eintrag derselben Browserart hat. Der Text sagt, dass holzi
+    Herkunft, für die die Liste keinen Eintrag derselben Browserart hat. Der Text sagt, dass HaexVault
     das hier nicht prüfen kann.
 
-  holzi MUSS den Zustand bei jeder Anzeige berechnen und DARF ihn nicht speichern. Kein Zustand
-  ändert, was holzi zulässt: Der Dialog, der Haken „Erlaubnis merken“ (ab Werk nicht gesetzt) und
+  HaexVault MUSS den Zustand bei jeder Anzeige berechnen und DARF ihn nicht speichern. Kein Zustand
+  ändert, was HaexVault zulässt: Der Dialog, der Haken „Erlaubnis merken“ (ab Werk nicht gesetzt) und
   die Freigabe bleiben gleich, auch bei „bekannt“.
 
-- **FR-046**: Die Liste der offiziellen Erweiterungen MUSS fest in holzi stehen, je Eintrag Name,
+- **FR-046**: Die Liste der offiziellen Erweiterungen MUSS fest in HaexVault stehen, je Eintrag Name,
   Browserart und Herkunft; sie wird nicht von außen geladen oder von einem Client verändert. Ein
   Eintrag kommt erst hinein, wenn die Herkunft der veröffentlichten Erweiterung feststeht.
-  Solange die Liste für Chromium keinen Eintrag hat, MUSS holzi Chromium-Clients als „nicht
+  Solange die Liste für Chromium keinen Eintrag hat, MUSS HaexVault Chromium-Clients als „nicht
   prüfbar“ zeigen, nicht als „unbekannt“ oder „nennt sich so“: Sonst wäre jede Zulassung der
   echten Erweiterung eine Warnung.
 
@@ -712,25 +712,25 @@ einen Dialog oder eine Antwort mit Daten auslöst.
 - **FR-047**: Eine Instanz ist das Schlüsselpaar einer Installation der Erweiterung in einem
   Browserprofil. Eine Zulassung oder Sperre MUSS genau für eine Instanz auf genau einem Gerät
   gelten: Gerät, Kennung, öffentlicher Schlüssel, Herkunft und Erklärung MÜSSEN übereinstimmen,
-  sonst fragt holzi neu. Sie DARF NICHT auf einen anderen Browser, ein anderes Profil oder ein
+  sonst fragt HaexVault neu. Sie DARF NICHT auf einen anderen Browser, ein anderes Profil oder ein
   anderes Gerät übergehen, auch nicht über die Synchronisation der Vault.
-- **FR-048**: Bevor holzi über einen Client entscheidet (gesperrt, zugelassen oder Dialog), MUSS der
+- **FR-048**: Bevor HaexVault über einen Client entscheidet (gesperrt, zugelassen oder Dialog), MUSS der
   Client nachweisen, dass er den privaten Schlüssel zu seiner Kennung besitzt:
-  - holzi schickt eine Aufgabe aus 32 zufälligen Bytes, versiegelt an den öffentlichen Schlüssel
+  - HaexVault schickt eine Aufgabe aus 32 zufälligen Bytes, versiegelt an den öffentlichen Schlüssel
     aus dem Handshake, zusammen mit dem Schlüssel der Bridge;
   - der Client öffnet sie mit seinem privaten Schlüssel und schickt sie versiegelt an den
     Schlüssel der Bridge zurück;
-  - holzi vergleicht in konstanter Zeit. Die Aufgabe gilt nur für diese Verbindung, nur einmal und
+  - HaexVault vergleicht in konstanter Zeit. Die Aufgabe gilt nur für diese Verbindung, nur einmal und
     nur bis zur Frist des Handshakes.
 
-  Ohne passende Antwort MUSS holzi mit `PROOF_FAILED` antworten und schließen, ohne Dialog, ohne
+  Ohne passende Antwort MUSS HaexVault mit `PROOF_FAILED` antworten und schließen, ohne Dialog, ohne
   Anfrage und ohne die Verbindung als die Instanz zu notieren. Nach dem Nachweis braucht ein
   wiederholter Handshake derselben Kennung auf derselben Verbindung keinen neuen.
 
-- **FR-049**: Einen Handshake mit Protokoll kleiner als 3 MUSS holzi mit dem Fehler
+- **FR-049**: Einen Handshake mit Protokoll kleiner als 3 MUSS HaexVault mit dem Fehler
   `PROTOCOL_UPDATE_REQUIRED` beantworten, dessen Text sagt, dass die Erweiterung aktualisiert werden
   muss, und schließen, ohne Dialog. Es gibt keine Übergangszeit und keinen Schalter dafür. Weil
-  haex-pass-browser 1.3.0 und älter diesen Text nicht anzeigen, MUSS holzi im Fenster einen Hinweis
+  haex-pass-browser 1.3.0 und älter diesen Text nicht anzeigen, MUSS HaexVault im Fenster einen Hinweis
   zeigen, dass sich eine veraltete Erweiterung verbinden wollte und aktualisiert werden muss:
   höchstens einmal je Lauf der Bridge als Systembenachrichtigung oder Toast, und solange die Bridge
   läuft auf der Seite Browser-Erweiterungen.
@@ -755,10 +755,10 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   Firefox in 100 % der End-to-End-Läufe: Verbinden, Zulassen, Ausfüllen einer Anmeldung auf einer
   Testseite, Holen eines TOTP-Codes und Speichern neuer Zugangsdaten. Ein Nutzer schafft das vom
   Einschalten der Bridge bis zur ersten ausgefüllten Anmeldung in unter 2 Minuten.
-- **SC-002**: In einer Vault mit 5 000 Einträgen beantwortet holzi `get-items` für eine Adresse mit bis
+- **SC-002**: In einer Vault mit 5 000 Einträgen beantwortet HaexVault `get-items` für eine Adresse mit bis
   zu 20 Treffern grob in unter 500 ms.
 - **SC-003**: In 100 % der Fälle einer Zugriffsmatrix (Bereich nach Tags und „alle“, Art,
-  Papierkorb, Einträge einer holzi-Funktion, Verweise mit Quelle außerhalb des Bereichs, gemerkte
+  Papierkorb, Einträge einer HaexVault-Funktion, Verweise mit Quelle außerhalb des Bereichs, gemerkte
   Ablehnung) erhält der Client genau, was die Regeln aus 034 und 036 erlauben.
 - **SC-004**: In Prüfungen mit eingepflanzten Markierungen kommen TOTP-Secrets, private
   Passkey-Schlüssel, Einträge außerhalb des Bereichs und angefragte Adressen 0-mal in Antworten,
@@ -770,7 +770,7 @@ einen Dialog oder eine Antwort mit Daten auslöst.
 - **SC-006**: 100 % der Verbindungen mit einer Webseiten-Herkunft oder ohne Herkunft und 100 % der
   Handshakes mit falscher Kennung, Protokoll v1 oder ohne Erklärung enden ohne Dialog und ohne
   Daten.
-- **SC-007**: Nach einem Widerruf beantwortet holzi einem offenen Client keine weitere Anfrage; die
+- **SC-007**: Nach einem Widerruf beantwortet HaexVault einem offenen Client keine weitere Anfrage; die
   Nachricht „nicht zugelassen“ kommt in unter 1 Sekunde an.
 - **SC-008**: Nach dem Schließen der Vault oder dem Ausschalten der Bridge sind in unter 2 Sekunden
   alle Verbindungen beendet und der Port frei.
@@ -778,7 +778,7 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   enden ohne Anfrage, ohne Dialog und ohne Änderung der Vault.
 - **SC-010**: In einer Prüfung mit je einem Client der vier Zustände aus FR-045 zeigen Dialog und
   Einstellungsliste in 100 % der Fälle den passenden Zustand, und in keinem Fall ändern sich die
-  Wahlmöglichkeiten des Dialogs oder das, was holzi dem Client zugesteht.
+  Wahlmöglichkeiten des Dialogs oder das, was HaexVault dem Client zugesteht.
 - **SC-011**: 100 % der Verbindungen ohne Antwort auf die Aufgabe, mit falscher Antwort, mit der
   Antwort aus einer anderen Verbindung oder mit Protokoll 2 enden ohne Dialog, ohne ausgeführte
   Anfrage und ohne Änderung der Vault, auch wenn Kennung, öffentlicher Schlüssel und Herkunft die
@@ -804,11 +804,11 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   sie feststeht, bleibt Chromium „nicht prüfbar“ (FR-046, T081).
 - Ab Protokoll 3 weist ein Client den Besitz seines privaten Schlüssels nach (FR-048). Es bleibt
   eine Grenze: Die Verbindung ist `ws://` auf Loopback ohne Kanalbindung. Wer den Port belegt, bevor
-  holzi lauscht, kann zwischen Erweiterung und holzi vermitteln und die Antwort auf die Aufgabe
-  weiterreichen; holzi zeigt dann „Port belegt“ (FR-002), und die Erweiterung redet mit dem, der
+  HaexVault lauscht, kann zwischen Erweiterung und HaexVault vermitteln und die Antwort auf die Aufgabe
+  weiterreichen; HaexVault zeigt dann „Port belegt“ (FR-002), und die Erweiterung redet mit dem, der
   lauscht. Das ist dieselbe Grenze wie bei haex-vault 2.x auf demselben Port (Edge Cases).
 - Die Umschläge nehmen das gemeinsame Geheimnis des Schlüsseltauschs (X25519) unmittelbar als
-  AES-256-GCM-Schlüssel, ohne Ableitung (wie haex-vault 2.x und die Erweiterung). holzi übernimmt das
+  AES-256-GCM-Schlüssel, ohne Ableitung (wie haex-vault 2.x und die Erweiterung). HaexVault übernimmt das
   aus Kompatibilitätsgründen; der Plan bewertet es.
 - Die Verbindung selbst ist unverschlüsseltes `ws://` auf Loopback; vertraulich sind die Inhalte durch
   die Umschläge.
@@ -816,9 +816,9 @@ einen Dialog oder eine Antwort mit Daten auslöst.
   `passkey-create` und `passkey-get` 130 Sekunden (`connection.ts`), auf `passkey-list` 3 Sekunden.
   Die 120 Sekunden für Anfragen nach FR-015 und Anwesenheitsbestätigungen passen hinein.
 - Die Erweiterung ruft `get-totp` auf, wenn ein Eintrag `hasTotp` meldet und die Seite ein Feld für
-  Einmalcodes hat, und tippt die Marke `otp: "TOTP"` nie ein. holzi liefert die Marke trotzdem wie
+  Einmalcodes hat, und tippt die Marke `otp: "TOTP"` nie ein. HaexVault liefert die Marke trotzdem wie
   haex-vault 2.x, weil die Erweiterung Einträge verwirft, deren Felder keine Zeichenketten sind.
-- Die registrierbare Domain bestimmt holzi mit der Liste öffentlicher Suffixe, die die Herkunftsprüfung
+- Die registrierbare Domain bestimmt HaexVault mit der Liste öffentlicher Suffixe, die die Herkunftsprüfung
   des Passkey-Dienstes schon nutzt (ADR-0009).
 - Ein Eintrag hat genau ein Adressfeld (034 FR-001); weitere Adressen je Eintrag sind nicht
   vorgesehen.
@@ -830,41 +830,41 @@ Ausfüllen, TOTP und Speichern (US1 bis US3, US5, US6) funktionieren mit der gep
 
 1. **Herkunft mitschicken (MUSS für Passkeys)**: erledigt (`e0ee77f`). `passkey-create` und
    `passkey-get` tragen `origin`, die der Hintergrund aus Tab und Rahmen des Absenders bestimmt
-   (`background/passkeyOrigin.ts`, nur der oberste Rahmen). Ohne sie lehnt holzi ab (FR-032).
+   (`background/passkeyOrigin.ts`, nur der oberste Rahmen). Ohne sie lehnt HaexVault ab (FR-032).
 2. **Längere Wartezeit (MUSS für Passkeys, SOLL sonst)**: erledigt. `create-item`, `passkey-create`
    und `passkey-get` warten 130 Sekunden.
 3. **Antwort von `passkey-list` (MUSS für die Anmeldung)**: erledigt (#113). Der Hintergrund
    antwortet `{ success, passkeys }`, das Inhaltsskript liest `response.data`
    (`background/main.ts`, `contentScripts/webauthn-bridge.ts`); die Liste ist immer leer, und jede
-   Anmeldung fällt auf den Browser zurück, ohne holzi zu fragen.
+   Anmeldung fällt auf den Browser zurück, ohne HaexVault zu fragen.
 4. **Name der Vault-App**: keine Änderung. Die Texte nennen „HaexVault“, den Produktnamen, den
-   holzi übernimmt; haex-vault 2.x (Legacy) ist abgelöst. Eine Umbenennung im Begleit-PR (#113)
+   HaexVault übernimmt; haex-vault 2.x (Legacy) ist abgelöst. Eine Umbenennung im Begleit-PR (#113)
    wurde in #114 zurückgenommen.
 5. **Lesezeichen (SOLL)**: erledigt (#113). Antwortet der Dienst auf `bookmarks-*` mit „nicht
    unterstützt“, zeigen Einrichtung und Optionen der Erweiterung einen Satz statt des rohen Fehlers.
    Die Wiederholung alle fünf Minuten bleibt; sie läuft nur mit einer aktiven Sammlung, die es mit
-   holzi nicht geben kann.
-6. **Algorithmen (KANN)**: nicht Teil des Begleit-PR. `passkey-create` meldet weiter fest ES256; holzi
+   HaexVault nicht geben kann.
+6. **Algorithmen (KANN)**: nicht Teil des Begleit-PR. `passkey-create` meldet weiter fest ES256; HaexVault
    legt ES256 an (FR-034).
 
 Port, Protokollversion, Schlüsselablage, Umschläge und Methodennamen bleiben, wie sie sind. Nach dem
 Begleit-PR wird die Erweiterung neu veröffentlicht (Chrome Web Store, addons.mozilla.org).
 
 Ergänzung 2026-10-23, zweiter Begleit-PR für Protokoll 3 (FR-048, FR-049), veröffentlicht als 1.4.0
-**vor** holzi mit PR G:
+**vor** HaexVault mit PR G:
 
 7. **Besitznachweis (MUSS)**: Der Handshake meldet Protokoll 3. Kommt eine Aufgabe, öffnet die
    Erweiterung sie mit ihrem Schlüssel und schickt sie versiegelt an den Schlüssel der Bridge
-   zurück. Kommt ohne Aufgabe gleich `handshakeResponse` (holzi vor PR G), läuft sie weiter wie
-   bisher, damit 1.4.0 vor holzi veröffentlicht werden kann.
+   zurück. Kommt ohne Aufgabe gleich `handshakeResponse` (HaexVault vor PR G), läuft sie weiter wie
+   bisher, damit 1.4.0 vor HaexVault veröffentlicht werden kann.
 8. **Eigene Kennung zeigen (SOLL)**: Die Optionen zeigen den Fingerabdruck der Instanz in
-   Vierergruppen wie der Dialog in holzi, damit der Nutzer beide vergleichen kann.
+   Vierergruppen wie der Dialog in HaexVault, damit der Nutzer beide vergleichen kann.
 9. **Fehlertexte (MUSS)**: `PROTOCOL_UPDATE_REQUIRED` und `PROOF_FAILED` erscheinen als Satz statt
    als roher Code.
 
 ## Nicht im Umfang
 
-- Lesezeichen-Synchronisation (`bookmarks-*`); holzi hat keine Lesezeichen (FR-028).
+- Lesezeichen-Synchronisation (`bookmarks-*`); HaexVault hat keine Lesezeichen (FR-028).
 - Weiterleiten von Anfragen an installierte haextensions (in haex-vault 2.x `requestedExtensions` mit
   Aktionen) und andere Clients als Browser-Erweiterungen (Kommandozeile, Server).
 - Die External Bridge auf Android und anderen Mobilplattformen.
@@ -874,7 +874,7 @@ Ergänzung 2026-10-23, zweiter Begleit-PR für Protokoll 3 (FR-048, FR-049), ver
   Protokoll 3 (FR-048, Clarification 2026-10-23); beides andere bräuchte eine weitere abgestimmte
   Änderung an der Erweiterung.
 - Benachrichtigungen an Clients über geänderte Einträge (FR-026).
-- Ein Anwesenheitsnachweis mit Biometrie oder Systemanmeldung; UV prüft holzi nur über das Passwort
+- Ein Anwesenheitsnachweis mit Biometrie oder Systemanmeldung; UV prüft HaexVault nur über das Passwort
   der Vault (FR-033).
 - Andere Beglaubigungsformate als `none` und ein Zähler ungleich 0 (036, Folgearbeiten).
 - Änderungen an der Erweiterung über den Begleit-PR hinaus (Abschnitt oben, Punkte 3 bis 5).

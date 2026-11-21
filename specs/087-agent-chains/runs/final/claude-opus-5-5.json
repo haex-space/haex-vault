@@ -136,7 +136,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich kann den Zahnarzttermin morgen (Donnerstag, 19.03.2026) um 10:00 Uhr leider nicht eintragen: In holzi gibt es keine Kalender-App, und keine der verfügbaren Aktionen kann Termine anlegen. Installiert sind nur Einstellungen, Chat, Dateien, Passwörter, Kontakte und haex-mail. Falls du eine Kalender"
+      "text": "Ich kann den Zahnarzttermin morgen (Donnerstag, 19.03.2026) um 10:00 Uhr leider nicht eintragen: In haex-vault gibt es keine Kalender-App, und keine der verfügbaren Aktionen kann Termine anlegen. Installiert sind nur Einstellungen, Chat, Dateien, Passwörter, Kontakte und haex-mail. Falls du eine Kalender"
     },
     {
       "id": "no_tool-de-4",
@@ -202,7 +202,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "There is no shopping list app in holzi. Where do you keep your shopping list?",
+            "question": "There is no shopping list app in haex-vault. Where do you keep your shopping list?",
             "options": [
               "In a file in Dateien (I'll name it)",
               "Look for a shopping list file in Dateien",
@@ -212,7 +212,7 @@
           "ending": "ran"
         }
       ],
-      "text": "There is no shopping list app in holzi. Where do you keep your shopping list?"
+      "text": "There is no shopping list app in haex-vault. Where do you keep your shopping list?"
     }
   ],
   "requests": [

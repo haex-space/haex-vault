@@ -42,10 +42,10 @@ nicht testbar).
 `migrationsDir` und zwei Steuerdateien:
 
 - `haextension/manifest.json` — ist **byte-genau** die kanonische JSON-Form nach RFC 8785 (JCS) von sich
-  selbst; holzi kanonisiert nicht neu, sondern lehnt nicht kanonische Bytes ab. Kein Feld `signature`.
+  selbst; haex-vault kanonisiert nicht neu, sondern lehnt nicht kanonische Bytes ab. Kein Feld `signature`.
   Eingeschränktes JSON: nur ASCII-Schlüssel, nur ganze Zahlen im Bereich ±2^53, keine Gleitkommazahlen; damit
   ist die Kanonisierung auf beiden Seiten klein (rund 60 Zeilen) und ohne neue Abhängigkeit.
-  (`serde_json` läuft in holzi mit `preserve_order`, `Cargo.toml:69`, sortiert also nicht.)
+  (`serde_json` läuft in haex-vault mit `preserve_order`, `Cargo.toml:69`, sortiert also nicht.)
 - `haextension/signature.json` (ebenfalls JCS):
   `{"files":[{"path","sha256","size"}…],"format":"haextension-bundle/2","publicKey","signature"}`. `files`
   listet jeden Eintrag des Archivs außer `signature.json`, nach UTF-8-Bytes sortiert.
@@ -67,7 +67,7 @@ serde abhängt. Die Fehlermeldung kann die geänderte Datei nennen.
 Prüfen in `src/bundle/` (`sign.ts`, `verify.ts`, `jcs.ts`, `zip.ts`), Testvektoren unter `test-vectors/bundles/`,
 kopiert nach `src-tauri/tests/fixtures/extension_bundles/` (`SOURCE.md`). Seit haex-space/vault-sdk#54 (Release
 4.0.0, `36bf6e98f36c2362d42aa2d92c85288a3d91e775`) gibt es eine einzige Umsetzung, das Rust-Crate
-`crates/haex-bundle`: holzi bindet es per Git-SHA ein, `haex` nutzt seinen WebAssembly-Build; 46 Vektoren.
+`crates/haex-bundle`: haex-vault bindet es per Git-SHA ein, `haex` nutzt seinen WebAssembly-Build; 46 Vektoren.
 
 **Alternativen**: Signatur als Manifest-Feld (wieder das Leeren); Merkle-Wurzel (keine lesbaren Fehler);
 abgesetzte `.sig`-Datei (geht beim Kopieren verloren); HV-Format (Spec-Entscheidung dagegen).
@@ -75,7 +75,7 @@ abgesetzte `.sig`-Datei (geht beim Kopieren verloren); HV-Format (Spec-Entscheid
 ## R3 — Archiv lesen: Regeln und Grenzen
 
 **Entscheidung**: Das Bundle-Format hat genau eine Umsetzung, das Rust-Crate `haex-bundle` im vault-sdk
-(`crates/haex-bundle`, haex-space/vault-sdk#54). holzi bindet es per Git-Revision ein, das Werkzeug `haex` nutzt
+(`crates/haex-bundle`, haex-space/vault-sdk#54). haex-vault bindet es per Git-Revision ein, das Werkzeug `haex` nutzt
 seinen WebAssembly-Build. Es liest das Archiv mit einem eigenen Leser (nicht dem `zip`-Crate) in den Speicher,
 ruft nie `extract` auf und prüft auf den rohen Namensbytes:
 
@@ -94,7 +94,7 @@ ruft nie `extract` auf und prüft auf den rohen Namensbytes:
 ruft `archive.extract` ohne Grenzen auf (HV `installer.rs:84-90`). 25 MiB je Datei entspricht der bewährten
 Grenze für Anhänge in 034 (R4 dort).
 
-Ein Crate statt je einer Umsetzung in TypeScript (Werkzeug) und Rust (holzi): sonst müsste jede Regeländerung
+Ein Crate statt je einer Umsetzung in TypeScript (Werkzeug) und Rust (haex-vault): sonst müsste jede Regeländerung
 an zwei Stellen nachgezogen werden (Entscheidung des Betreibers, 2026-10-03). Die Testvektoren erzeugt weiter
 ein unabhängiges Node.js-Skript; sie prüfen das Crate nativ und über WebAssembly.
 
@@ -159,7 +159,7 @@ bei gleichzeitiger Installation).
    die volle Prüfung (HV prüft dort nur DDL, `helpers.rs:69-71, 176-189`); Funktionen über eine Erlaubtliste;
    genau eine Anweisung (haex-crdts `parse_single_statement` verwirft nachfolgende still, `parsing.rs:10-27`).
    Zweck: Anweisungen früh und mit klarer Meldung ablehnen und die nötigen Berechtigungen **vor** der Ausführung
-   kennen, damit holzi fragen kann, ohne die Verbindung zu sperren.
+   kennen, damit haex-vault fragen kann, ohne die Verbindung zu sperren.
 2. **SQLite-Authorizer** (die eigentliche Durchsetzung), von haex-crdt nur um Vorbereiten und Ausführen der
    Anweisung der Erweiterung gesetzt:
    - oberste Ebene: `Read`/`Insert`/`Update`/`Delete` nur bei `database_name == "main"` und eigener oder
@@ -185,7 +185,7 @@ Berechtigung umgeht die Systemtabellen-Sperre“ (HV `check/database.rs:66-74`) 
 (`utils.rs:202-210`, `starts_with`) aus.
 
 **Voraussetzung (haex-crdt, L0)**: `CrdtTransaction` hält die Transaktion privat (`database/write.rs:35-40`),
-und `Database::read` setzt seinen eigenen Authorizer und danach `None` (`write.rs:171-183, 213-219`). holzi
+und `Database::read` setzt seinen eigenen Authorizer und danach `None` (`write.rs:171-183, 213-219`). haex-vault
 kommt also nicht selbst an die Verbindung. Neue API in haex-crdt: `Database::write_guarded(&SqlGuard, f)` und
 `read_guarded(&SqlGuard, f)` mit `SqlGuard { authorizer, progress }`; haex-crdt kombiniert ihn mit seiner
 eigenen Nur-Lese-Sperre und setzt ihn nur um die Anweisungen der Erweiterung, nicht um seine eigenen
@@ -194,7 +194,7 @@ eigenen Nur-Lese-Sperre und setzt ihn nur um die Anweisungen der Erweiterung, ni
 **Alternativen**: nur die portierte AST-Prüfung (eine übersehene Stelle genügt für einen Durchbruch);
 nur der Authorizer (keine Berechtigungen vorab, also keine Anfrage; Fehler kämen erst bei der Ausführung);
 dauerhafter Authorizer über `with_connection` (wird von `read()`
-überschrieben und ist in holzi per Clippy gesperrt); SQL der Erweiterung roh auf der Verbindung (verletzt
+überschrieben und ist in haex-vault per Clippy gesperrt); SQL der Erweiterung roh auf der Verbindung (verletzt
 FR-028).
 
 ## R7 — Ausführung, Ergebnisform, Grenzen
@@ -227,7 +227,7 @@ Sync-Spalten durchreichen (verrät Interna, ohne Nutzen).
 
 ## R8 — Migrationen von Erweiterungen
 
-**Entscheidung**: Ein eigener Migrations-Lauf in holzi (`extensions/sql/migrate.rs`), der haex-crdt-Engine
+**Entscheidung**: Ein eigener Migrations-Lauf in haex-vault (`extensions/sql/migrate.rs`), der haex-crdt-Engine
 **nicht** nutzt (feste Journaltabelle, bricht bei fremden Journaleinträgen ab und fällt still auf rohes SQL
 zurück, `db/migrations/engine.rs:140, 234`).
 
@@ -317,7 +317,7 @@ Bundles, das das Gerät dort hat (`extension_device_status.bundle_id`); ist sie 
 wirksame, heißt es „älter als hier: Daten von diesem Gerät kommen teils erst nach seinem Update an“. Der
 Zustand dieses Geräts selbst steht schon darüber („wird übertragen“).
 
-Regel für holzi: synchronisierte Zeilen von Kern- und Erweiterungstabellen werden nie in einer Schreibgruppe
+Regel für haex-vault: synchronisierte Zeilen von Kern- und Erweiterungstabellen werden nie in einer Schreibgruppe
 geschrieben (sonst warten Kerndaten mit einer geparkten Gruppe). Lokale Journalzeilen (`_no_sync`) dürfen mit in
 der Transaktion stehen.
 
@@ -384,15 +384,15 @@ Spalte `current_bundle_id` mit Last-Writer-Wins (verletzt „höhere Fassung gew
 
 **Entscheidung**:
 
-- Ein asynchrones Protokoll `holzi-ext` mit Pfad-Routing: `holzi-ext://localhost/<extId>/<datei>` (Linux,
-  macOS) bzw. `http://holzi-ext.localhost/<extId>/<datei>` (Windows); `extId` ist die kurze Kennung aus der
+- Ein asynchrones Protokoll `haex-ext` mit Pfad-Routing: `haex-ext://localhost/<extId>/<datei>` (Linux,
+  macOS) bzw. `http://haex-ext.localhost/<extId>/<datei>` (Windows); `extId` ist die kurze Kennung aus der
   Registry. Der Handler wählt Dateien nur über den Pfad (nie über Origin, Referer oder einen „letzte
   Erweiterung“-Speicher wie HV `protocol.rs:21-24, 498-560`), liest abseits des Executors, antwortet mit
   `Access-Control-Allow-Origin: *` (Module unter undurchsichtigem Ursprung) und fällt für SPA-Routen auf
   `index.html` zurück.
 - Abschottung über `sandbox="allow-scripts allow-pointer-lock"` (mit `allow="fullscreen" allowfullscreen`) ohne `allow-same-origin`: jeder Rahmen hat einen eigenen
-  undurchsichtigen Ursprung, getrennt von holzi, von anderen Erweiterungen und von eigenen anderen Tabs.
-  Kein `allow-top-navigation`, `allow-popups`, `allow-forms`. `allow-pointer-lock` und `allow="fullscreen"` gelten für alle Erweiterungen (Mausblick und Vollbild für haex-doom): beide verlangen eine Nutzergeste im Rahmen, der Nutzer verlässt sie mit Esc, und keiner gibt dem Rahmen Zugriff auf holzi oder andere Erweiterungen. Folge: Browser-Speicher, Cookies, IndexedDB und
+  undurchsichtigen Ursprung, getrennt von haex-vault, von anderen Erweiterungen und von eigenen anderen Tabs.
+  Kein `allow-top-navigation`, `allow-popups`, `allow-forms`. `allow-pointer-lock` und `allow="fullscreen"` gelten für alle Erweiterungen (Mausblick und Vollbild für haex-doom): beide verlangen eine Nutzergeste im Rahmen, der Nutzer verlässt sie mit Esc, und keiner gibt dem Rahmen Zugriff auf haex-vault oder andere Erweiterungen. Folge: Browser-Speicher, Cookies, IndexedDB und
   Service Worker gibt es im Rahmen nicht; das SDK ersetzt `localStorage` und Cookies schon durch Attrappen
   (`polyfills/localStorage.ts:15-28`), dauerhaft speichert FR-043.
 - CSP **als Antwort-Header** (Tauri und wry reichen Header auf allen Desktop-Plattformen durch,
@@ -400,14 +400,14 @@ Spalte `current_bundle_id` mit Last-Writer-Wins (verletzt „höhere Fassung gew
   `wkwebview/class/url_scheme_handler.rs:138-139`):
   `default-src 'none'; script-src P 'wasm-unsafe-eval' 'sha256-…'; style-src P 'unsafe-inline'; img-src P data: blob:;
 font-src P data:; media-src P data: blob:; connect-src P; worker-src P blob:; frame-src 'none';
-object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors <holzi>` mit P = Präfix der
-  Erweiterung. Die Hashes der Inline-Skripte (Nuxt-Konfiguration, Import-Map, Polyfill des SDK) berechnet holzi
+object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors <haex-vault>` mit P = Präfix der
+  Erweiterung. Die Hashes der Inline-Skripte (Nuxt-Konfiguration, Import-Map, Polyfill des SDK) berechnet haex-vault
   nach der Signaturprüfung. Kein `'unsafe-eval'`. `'wasm-unsafe-eval'` für alle Erweiterungen, seit der erste
   Bedarf da ist (haex-doom: eine nach WebAssembly übersetzte Engine): es erlaubt nur das Übersetzen von
   WebAssembly, kein `eval` von JavaScript, und eine Berechtigung je Erweiterung brächte keine Abschottung. Keine expliziten
   `'self'` (Verhalten unter undurchsichtigem Ursprung uneinheitlich).
-- holzis eigene CSP (`src-tauri/tauri.conf.json:23-44`) bekommt `frame-src holzi-ext://localhost
-http://holzi-ext.localhost` (in `csp` und `devCsp`) und dasselbe in `img-src` für Symbole. `frame-src` der
+- haex-vaults eigene CSP (`src-tauri/tauri.conf.json:23-44`) bekommt `frame-src haex-ext://localhost
+http://haex-ext.localhost` (in `csp` und `devCsp`) und dasselbe in `img-src` für Symbole. `frame-src` der
   Elternseite regelt auch Selbstnavigationen des Rahmens und ist damit der Schutz gegen
   `location = 'https://…?daten'` (FR-010). `http://localhost:*` kommt **nicht** in die feste CSP (R16).
 - **Windows**: wry spritzt die IPC-Skripte samt Invoke-Key in jeden Rahmen (`wry lib.rs:1029`,
@@ -429,14 +429,14 @@ Skripte (schwächer); CSP als `<meta>` (kann `frame-ancestors` nicht).
 
 - `confirm()` vor dem Löschen in haex-notes (`app/pages/index.vue:48`) und haex-draw (`app/pages/index.vue:62`):
   ohne `allow-modals` gibt `confirm()` sofort `false` zurück, Löschen wäre unmöglich. **Entscheidung
-  (Betreiber, 2026-10-03)**: kein `allow-modals`; das SDK bekommt `client.dialog.confirm`, holzi zeigt den
+  (Betreiber, 2026-10-03)**: kein `allow-modals`; das SDK bekommt `client.dialog.confirm`, haex-vault zeigt den
   Dialog über dem eigenen Tab (Brückenmethode `extension_dialog_confirm`), die Apps stellen um (T117–T119).
   Der Dialog nimmt beim Öffnen die Tastatur (der Bestätigen-Knopf bekommt den Fokus), der Rahmen ist
   solange `inert` und bekommt die Tastatur nach der Antwort zurück, wie nach `confirm()`; sonst bliebe sie im
   Rahmen, Escape bräche nicht ab und Enter auf dem Knopf der Erweiterung fragte erneut (7000).
 - ics-Export in haex-calendar über `a.download` (`app/composables/useIcal.ts:400`): ohne `allow-downloads`
   passiert nichts. **Entscheidung**: kein `allow-downloads`; der Export läuft künftig über den
-  Speichern-Dialog von holzi (L4, `extension_filesystem_*` mit Dialog-Auswahl), bis dahin geht er nicht.
+  Speichern-Dialog von haex-vault (L4, `extension_filesystem_*` mit Dialog-Auswahl), bis dahin geht er nicht.
 - Link mit `target="_blank"` in haex-calendar (`app/components/calendar/EventPreview.vue:56`): öffnet nichts;
   Abhilfe ist `extension_web_open` (L4). `allow-popups` bleibt ausgeschlossen.
 - `navigator.clipboard.writeText` in haex-code (`app/components/TerminalView.vue:159`): im Rahmen ohne
@@ -468,9 +468,9 @@ Prozesstrennung zwischen Rahmen (Spectre-artige Restrisiken).
   (`hello {fresh}`, contracts/bridge.md), nicht das `load` allein.
 - **SDK-Änderung (L0)**: `waitForHostPortAsync` nimmt heute jedes `PORT_INIT` an
   (`client/init.ts:345-366`). Ein Geschwisterrahmen erreicht andere über `top.frames[i].postMessage` und könnte
-  holzi zuvorkommen und einen falschen Port unterschieben. Fix im SDK: `if (event.source !== window.parent)
-return` (klein, rückwärtskompatibel). Bis Erweiterungen neu gebaut sind: Kommt kein `READY` auf holzis Port,
-  lädt holzi den Rahmen neu und protokolliert das.
+  haex-vault zuvorkommen und einen falschen Port unterschieben. Fix im SDK: `if (event.source !== window.parent)
+return` (klein, rückwärtskompatibel). Bis Erweiterungen neu gebaut sind: Kommt kein `READY` auf haex-vaults Port,
+  lädt haex-vault den Rahmen neu und protokolliert das.
 
 **Begründung**: Host-Kontrolle allein verhindert das gefälschte `PORT_INIT` eines Geschwisters nicht.
 
@@ -487,13 +487,13 @@ URL); die Erweiterung kennt `frame` nie. Meldungen an Rahmen schickt Rust als ei
 `extension-frame-event {frame, type, data}` an das Hauptfenster, bereits gefiltert; das Frontend reicht sie an
 den Port. Antworten folgen dem SDK-Format `{id, result | error{code, message, details}}`.
 
-Fehlercodes wie HV, damit das SDK sie versteht (1002 verweigert, 1004 Anfrage nötig), ergänzt um holzi-eigene:
+Fehlercodes wie HV, damit das SDK sie versteht (1002 verweigert, 1004 Anfrage nötig), ergänzt um haex-vault-eigene:
 8000 „nicht unterstützt“, 8001 „nicht verfügbar“, 8002 „Erweiterung deaktiviert“ ([contracts/bridge.md](./contracts/bridge.md)).
 Ein Vertragstest zählt alle Methoden der Erlaubtliste auf und scheitert, wenn eine davon Code unter `chat/`,
 `llm/` oder `adapters/` erreicht (FR-009).
 
-**Begründung**: ADR-0004 (eine Prüfstelle in Rust, Frontend nur Relais). Erweiterungen haben in holzi kein
-eigenes Webview-Fenster, also stammt die Identität aus der Rahmensitzung, die holzis eigener Code anlegt — nie
+**Begründung**: ADR-0004 (eine Prüfstelle in Rust, Frontend nur Relais). Erweiterungen haben in haex-vault kein
+eigenes Webview-Fenster, also stammt die Identität aus der Rahmensitzung, die haex-vaults eigener Code anlegt — nie
 aus Angaben der Erweiterung. Kein Tauri-ACL-Eintrag je Erweiterungs-Command nötig.
 
 **Alternativen**: ein Tauri-Command je Host-Funktion (jede bräuchte eigene Identitätsprüfung); Prüfung im
@@ -515,7 +515,7 @@ Frontend (gegen ADR-0004).
 - Anfrage: Rust antwortet mit 1004 und schickt `extension-permission-request {requestId, ext, kind, action,
 target, declared, deviceScoped}` an die Oberfläche; die Warteschlange im Frontend fasst gleiche Anfragen
   zusammen, zeigt sie nacheinander und meldet die Entscheidung an `extension_permission_resolve` (nur aus
-  holzis Oberfläche aufrufbar, nicht über die Brücke). Rust schickt danach `extension:permission-resolved`
+  haex-vaults Oberfläche aufrufbar, nicht über die Brücke). Rust schickt danach `extension:permission-resolved`
   an alle Rahmen der Erweiterung; das SDK wiederholt die Anfrage (`client/permissionRetry.ts`). Eine Anfrage,
   deren Rahmen alle geschlossen sind, verschwindet.
 - Oberfläche: neuer Dialog nach dem Muster von `chat/PermissionPrompt.vue` (Schließen = abbrechen, nicht
@@ -532,7 +532,7 @@ Wiederholungslogik des SDK).
 ## R16 — Entwicklermodus
 
 **Entscheidung**: Schalter als gerätebezogene Einstellung (ADR-0001). Die Entwicklerin wählt den
-Projektordner; holzi liest `haextension/manifest.json` und die Migrationen von dort. Host der Adresse nur
+Projektordner; haex-vault liest `haextension/manifest.json` und die Migrationen von dort. Host der Adresse nur
 `localhost`, `127.0.0.1` oder `[::1]`. Registrierung und Berechtigungen in `dev_extensions_no_sync` und
 `dev_extension_permissions_no_sync` mit Gerätekennung. Laden wird abgelehnt, wenn es für dasselbe
 `(publicKey, name)` eine Zeile in `extensions` gibt (gleich welcher `state`, also auch nach „Daten behalten“)
@@ -542,17 +542,17 @@ Präfix bestehen. Kommt eine Installation desselben Präfixes über den Sync von
 auf diesem Gerät nicht (`migration_failed` mit Fehler `dev_prefix_conflict`), und Gruppen für dieses Präfix
 werden weiter geparkt, bis die Entwicklungsfassung entladen und ihre Tabellen gelöscht sind. Entwicklungs-Tabellen entstehen im lokalen Modus von haex-crdt **ohne** CRDT-Spalten; die
 Erkennung synchronisierter Tabellen und die Trigger lassen sie dadurch aus (`sync/replica.rs:113-124`,
-`db/init.rs:39-52`). Die Adresse des Entwicklungsservers kommt nicht in die feste CSP. holzi setzt `frame-src`
+`db/init.rs:39-52`). Die Adresse des Entwicklungsservers kommt nicht in die feste CSP. haex-vault setzt `frame-src`
 für sie zur Laufzeit in die CSP des Hauptdokuments über `on_web_resource_request` (Muster
 `tauri-2.12.1/src/webview/mod.rs:470-480`); weil die CSP beim Laden des Dokuments gilt, lädt das Einschalten
 des Entwicklermodus das Hauptfenster neu (vermutet, Prüfaufgabe). Der Rahmen bekommt kein
 `allow-same-origin` (gleiche Abschottung wie installiert). Die Antworten des Entwicklungsservers kontrolliert
-holzi nicht; ihre CSP ist Sache der Entwicklerin, Netzsperre und Inline-Hashes gelten im Entwicklermodus also
-nicht (Bewusste Grenze). Konsolenausgabe des Rahmens zeigt holzi in einem Bereich des Tabs.
+haex-vault nicht; ihre CSP ist Sache der Entwicklerin, Netzsperre und Inline-Hashes gelten im Entwicklermodus also
+nicht (Bewusste Grenze). Konsolenausgabe des Rahmens zeigt haex-vault in einem Bereich des Tabs.
 
-**Umsetzung (L3)**: Die Migrationen kommen nicht von der Platte, sondern aus `extension_database_register_migrations`, mit dem die Erweiterung sie ohnehin meldet (wie HV im Entwicklermodus): die Regeln für das Lesen von Migrationen aus einem Bundle liegen privat in `haex-bundle`, ein zweiter Leser in holzi wäre eine zweite Implementierung. Sie laufen durch dieselbe Prüfung und im lokalen Modus. Erlaubt sind nur `localhost` und `127.0.0.1`, weil eine CSP-Quelle keine IPv6-Adresse nennen kann. Das Hauptfenster wird in `setup` gebaut (`create: false`), damit es den Haken `on_web_resource_request` bekommt; im `tauri dev` mit Entwicklungsserver ruft Tauri ihn nicht auf, dort lädt der Rahmen einer Entwicklungsfassung also nicht. Nach dem Entsperren mit eingeschaltetem Modus lädt das Fenster einmal neu (das Dokument stammt von vor dem Entsperren); ein Merker in `sessionStorage` verhindert eine Schleife. Geprüft unter Linux (WebKitGTK, E2E-Szene `extension-dev-mode`); macOS und Windows sind noch offen. `name` kommt wie im `readManifest` des SDK aus der `package.json` des Projekts (das SDK benennt die Tabellen damit, `haex init` schreibt keinen Namen ins Manifest); `version`, `author` und `homepage` von dort, wo das Manifest keine hat. `extension_get_info`, das Öffnen eines Rahmens und die Liste lesen das Projekt jeweils neu (ein Entwicklungsserver auf neuem Port wird gefunden), aber nur solange es dasselbe Präfix nennt wie die Registrierung; sonst `dev_project_changed`, und das Projekt wird neu geladen. Bewusste Grenze: `frame-src` gilt für das ganze Hauptdokument, solange der Modus an ist, darf also auch der Rahmen einer installierten Erweiterung zu einem Server auf `localhost`/`127.0.0.1` navigieren. Nur die Adressen der geladenen Projekte freizugeben, hieße das Fenster bei jedem Laden und jedem Portwechsel neu zu laden; der Modus ist eine bewusste Einstellung dieses Geräts.
+**Umsetzung (L3)**: Die Migrationen kommen nicht von der Platte, sondern aus `extension_database_register_migrations`, mit dem die Erweiterung sie ohnehin meldet (wie HV im Entwicklermodus): die Regeln für das Lesen von Migrationen aus einem Bundle liegen privat in `haex-bundle`, ein zweiter Leser in haex-vault wäre eine zweite Implementierung. Sie laufen durch dieselbe Prüfung und im lokalen Modus. Erlaubt sind nur `localhost` und `127.0.0.1`, weil eine CSP-Quelle keine IPv6-Adresse nennen kann. Das Hauptfenster wird in `setup` gebaut (`create: false`), damit es den Haken `on_web_resource_request` bekommt; im `tauri dev` mit Entwicklungsserver ruft Tauri ihn nicht auf, dort lädt der Rahmen einer Entwicklungsfassung also nicht. Nach dem Entsperren mit eingeschaltetem Modus lädt das Fenster einmal neu (das Dokument stammt von vor dem Entsperren); ein Merker in `sessionStorage` verhindert eine Schleife. Geprüft unter Linux (WebKitGTK, E2E-Szene `extension-dev-mode`); macOS und Windows sind noch offen. `name` kommt wie im `readManifest` des SDK aus der `package.json` des Projekts (das SDK benennt die Tabellen damit, `haex init` schreibt keinen Namen ins Manifest); `version`, `author` und `homepage` von dort, wo das Manifest keine hat. `extension_get_info`, das Öffnen eines Rahmens und die Liste lesen das Projekt jeweils neu (ein Entwicklungsserver auf neuem Port wird gefunden), aber nur solange es dasselbe Präfix nennt wie die Registrierung; sonst `dev_project_changed`, und das Projekt wird neu geladen. Bewusste Grenze: `frame-src` gilt für das ganze Hauptdokument, solange der Modus an ist, darf also auch der Rahmen einer installierten Erweiterung zu einem Server auf `localhost`/`127.0.0.1` navigieren. Nur die Adressen der geladenen Projekte freizugeben, hieße das Fenster bei jedem Laden und jedem Portwechsel neu zu laden; der Modus ist eine bewusste Einstellung dieses Geräts.
 
-**Nachtrag (Rahmen-Shim, 2026-10-05)**: Den Rahmen-Shim fügt holzi in die Dokumente ein, die es selbst ausliefert. Die Seite einer Entwicklungsfassung kommt vom Entwicklungsserver; ihr gibt holzi denselben Shim als Init-Skript des Hauptfensters für alle Rahmen (`initialization_script_for_all_frames`, Tauri 2.12). Es läuft wie das eingefügte vor den Skripten der Seite, aber nur in einem Rahmen (`window.top !== window`) mit einer Adresse `http://localhost:*` oder `http://127.0.0.1:*`, also nur dort, wo `frame-src` im Entwicklermodus Rahmen erlaubt. Ein ausgelieferter Rahmen (`holzi-ext`) hat eine andere Adresse und bekommt den Shim weiter nur eingefügt, nicht doppelt. Der Text des Shims bleibt eine Konstante, beide Wege setzen dieselbe ein. Damit meldet auch die Seite einer Entwicklungsfassung `hello {fresh}`, und holzi braucht keinen eigenen Handshake für sie. Grenze: Auf Android ohne `addDocumentStartJavaScript` (WebView-Funktion `DOCUMENT_START_SCRIPT`) setzt wry Init-Skripte nur in Antworten des eigenen Protokolls ein oder führt sie bei `onPageStarted` im Hauptdokument aus, nie in einem Rahmen (wry 0.57, `RustWebViewClient.kt`); die Seite einer Entwicklungsfassung bekommt dort keinen Shim, meldet kein `hello`, und ihr Tab zeigt nach der Frist den Fehler mit „Neu laden“. Alternativen: den Entwicklungsserver über das holzi-Protokoll spiegeln und den Shim einfügen (bricht den HMR-Websocket und die Ausnahme aus FR-064, dass holzi dort keine eigene Inhaltsrichtlinie setzt); den Shim ins SDK verlegen (eine zweite Implementierung neben holzis oder ein Umbau des SDK für alle Hosts).
+**Nachtrag (Rahmen-Shim, 2026-10-05)**: Den Rahmen-Shim fügt haex-vault in die Dokumente ein, die es selbst ausliefert. Die Seite einer Entwicklungsfassung kommt vom Entwicklungsserver; ihr gibt haex-vault denselben Shim als Init-Skript des Hauptfensters für alle Rahmen (`initialization_script_for_all_frames`, Tauri 2.12). Es läuft wie das eingefügte vor den Skripten der Seite, aber nur in einem Rahmen (`window.top !== window`) mit einer Adresse `http://localhost:*` oder `http://127.0.0.1:*`, also nur dort, wo `frame-src` im Entwicklermodus Rahmen erlaubt. Ein ausgelieferter Rahmen (`haex-ext`) hat eine andere Adresse und bekommt den Shim weiter nur eingefügt, nicht doppelt. Der Text des Shims bleibt eine Konstante, beide Wege setzen dieselbe ein. Damit meldet auch die Seite einer Entwicklungsfassung `hello {fresh}`, und haex-vault braucht keinen eigenen Handshake für sie. Grenze: Auf Android ohne `addDocumentStartJavaScript` (WebView-Funktion `DOCUMENT_START_SCRIPT`) setzt wry Init-Skripte nur in Antworten des eigenen Protokolls ein oder führt sie bei `onPageStarted` im Hauptdokument aus, nie in einem Rahmen (wry 0.57, `RustWebViewClient.kt`); die Seite einer Entwicklungsfassung bekommt dort keinen Shim, meldet kein `hello`, und ihr Tab zeigt nach der Frist den Fehler mit „Neu laden“. Alternativen: den Entwicklungsserver über das haex-vault-Protokoll spiegeln und den Shim einfügen (bricht den HMR-Websocket und die Ausnahme aus FR-064, dass haex-vault dort keine eigene Inhaltsrichtlinie setzt); den Shim ins SDK verlegen (eine zweite Implementierung neben haex-vaults oder ein Umbau des SDK für alle Hosts).
 
 **Begründung**: geräteeigen per Bauart; keine SDK-Änderung; derselbe Ablauf wie HV über den Projektordner,
 aber ohne dessen synchronisierte Registrierung (HV `dev_server.rs:266, 301`).
@@ -576,12 +576,12 @@ aber ohne dessen synchronisierte Registrierung (HV `dev_server.rs:266, 301`).
   und WebKit lädt ihn dabei neu. In L1 akzeptiert: der aktuelle Ort kommt über den Hash der URL zurück. Eine
   dauerhafte Rahmenebene auf Ebene des Desktops ist eine spätere Verbesserung.
 - **Rahmen-Shim**: Das SDK v3.7.0 hat keine Meldungen für Navigation, Titel, Tastatur oder Schließen
-  (`messages.ts:9-34`; sein History-Polyfill sendet nichts, `polyfills/history.ts:25-84`). holzi fügt beim
+  (`messages.ts:9-34`; sein History-Polyfill sendet nichts, `polyfills/history.ts:25-84`). haex-vault fügt beim
   Ausliefern ein Inline-Skript in HTML ein (durch einen CSP-Hash gedeckt; die Signaturprüfung gilt für die
-  gespeicherten Bytes), das auf ein eigenes `holzi:frame:init` mit zweitem Port hört (Prüfung `event.source
+  gespeicherten Bytes), das auf ein eigenes `haex:frame:init` mit zweitem Port hört (Prüfung `event.source
 === parent`) und Web-Standards abbildet: `hashchange`/`popstate` → Ort im Tab (`{path, query, replace}`),
   `document.title` → Tabtitel, registriertes `beforeunload` → Schließen-Wächter, `window.close()` → Tab
-  schließen, `keydown` für die gebundenen Kürzel (holzi schickt die Liste) → Aktion, nur solange der Rahmen den Fokus hat und das Fenster aktiv ist (der Shim läuft im Code der Erweiterung, seine Nachrichten sind fälschbar). holzis Zurück schickt
+  schließen, `keydown` für die gebundenen Kürzel (haex-vault schickt die Liste) → Aktion, nur solange der Rahmen den Fokus hat und das Fenster aktiv ist (der Shim läuft im Code der Erweiterung, seine Nachrichten sind fälschbar). haex-vaults Zurück schickt
   den Zielort, der Shim setzt den Hash. Aufmerksamkeit hat kein Web-Gegenstück; dafür bekommt das SDK in L0
   `client.tab.requestAttention(active)`, das die Brückenmethode `extension_tab_attention {active}` sendet. Rust
   prüft den Rahmen und meldet `extension-tab-attention {frame, active}` an die Oberfläche.
@@ -593,7 +593,7 @@ FR-012); dauerhafte Rahmenebene sofort (Z-Reihenfolge und Fokus deutlich aufwend
 
 ## R18 — Netzwerk
 
-**Entscheidung**: Eigener `reqwest::Client` (vorhanden, rustls) mit `redirect::Policy::none()`; holzi folgt
+**Entscheidung**: Eigener `reqwest::Client` (vorhanden, rustls) mit `redirect::Policy::none()`; haex-vault folgt
 höchstens zehn Weiterleitungen selbst und prüft jedes Ziel mit derselben Regel, einschließlich Methode
 (FR-050); bei Ursprungswechsel fallen `Authorization` und `Cookie` weg. Nur http/https. Zeitlimit und
 Größengrenze der Antwort aus den Grenzwerten. Muster: `*`, `schema://host/pfad*` mit `*.` für Subdomains,
@@ -624,7 +624,7 @@ bleibt 1002.
 4. Was der Nutzer im Dialog wählt, wird eine an den Rahmen gebundene vorläufige Berechtigung (Datei genau,
    Ordner mit Unterordnern; Lesen beim Öffnen, Lesen und Schreiben beim Speichern), FR-048. `save_file` schreibt
    im selben Command.
-5. `open_file` schreibt in ein holzi-eigenes Temp-Verzeichnis, nur mit `Path::file_name()`.
+5. `open_file` schreibt in ein haex-vault-eigenes Temp-Verzeichnis, nur mit `Path::file_name()`.
 6. Beobachten über `notify` + `notify-debouncer-full` (neu), Schlüssel (Erweiterung, `ruleId`), Meldungen
    (`filesync:file-changed`, flache Form wie im SDK, jeder Pfad eines Bündels) nur an Rahmen der Erweiterung.
 
@@ -635,10 +635,10 @@ einen ganzen Baum erfasst (rekursives Entfernen, Umbenennen, Kopieren, Beobachte
 Baum einen dieser Orte enthält. Kopieren lässt symbolische Links innerhalb des Baums aus, weil ihr Ziel nie
 geprüft wurde. Die Dialoge laufen über das Merkmal `FileDialogs` im Host (Tauri-Plugins im Programm, ein Fake in
 den Tests), damit die Bridge keinen `AppHandle` braucht. `open_file` und `show_image` legen die Kopie in einen
-Ordner im Cache von holzi, der selbst gesperrt ist; `show_image` nimmt nur PNG, JPEG, GIF, WebP und BMP.
+Ordner im Cache von haex-vault, der selbst gesperrt ist; `show_image` nimmt nur PNG, JPEG, GIF, WebP und BMP.
 Beobachtungen enden mit dem letzten Rahmen ihrer Erweiterung, beim Entfernen, Deaktivieren und Entladen der
 Erweiterung, und eine nur durch die Dialog-Auswahl eines Rahmens erlaubte schon mit diesem Rahmen (FR-048). Sie
-folgen keinen Links im Baum. `filesync:file-changed` trägt den Pfad relativ zum beobachteten Ordner; holzis Fenster
+folgen keinen Links im Baum. `filesync:file-changed` trägt den Pfad relativ zum beobachteten Ordner; haex-vaults Fenster
 legt die Felder flacher Ereignisse neben `type`.
 
 **Nachträge aus dem Review (L4)**: Ein Pfadteil, der da ist, sich aber nicht auflösen lässt (kaputter oder
@@ -647,9 +647,9 @@ einen Link, der im Ziel schon liegt. `read_file` liest nur reguläre Dateien und
 `open_file` übergibt dem Standardprogramm nur Dokumente, Bilder und Medien (feste Liste von Endungen, ohne `:`,
 Steuerzeichen und Punkt oder Leerzeichen am Ende): sonst startete etwa unter Windows eine `.bat` ohne jede
 Berechtigung, und eine Seite (`.html`, `.svg`) liefe mit Zugriff auf lokale Dateien. Kopien im Cache, die älter als
-ein Tag sind, entfernt holzi beim Start.
+ein Tag sind, entfernt haex-vault beim Start.
 
-**Nachtrag Spec 044 (2026-10-07)**: Auflösen, Sperrliste der eigenen Orte von holzi (FR-049) und der Kern des
+**Nachtrag Spec 044 (2026-10-07)**: Auflösen, Sperrliste der eigenen Orte von haex-vault (FR-049) und der Kern des
 Beobachtens ziehen nach `src-tauri/src/files/local/`, weil der Dateibrowser und die Agents dieselben Regeln
 brauchen; `extensions/fs` ruft sie über dünne Adapter auf, das Verhalten für Erweiterungen bleibt gleich. `notify`
 wird mit 044 auch für Android gebaut; `watch` für Erweiterungen antwortet auf Android und iOS weiter „nicht
@@ -673,21 +673,21 @@ als Härtung); lexikalischer Abgleich wie HV.
   Fähigkeiten `actions`, `persistence`) meldet `notify-rust` 4.18.1 einen Klick auf die Benachrichtigung als `default`
   und ein Schließen als `Closed`; ohne Klick kommt nichts. `notify-rust` 4.18 meldet Klicks auch unter Windows
   (WinRT-Aktivierung) und macOS (`NSUserNotificationCenter`, blockiert bis zur Antwort). Betreiber: eine einheitliche
-  Lösung, nicht je Betriebssystem. Deshalb nutzt holzi überall `tauri-plugin-notification` und hört Klicks über dessen
+  Lösung, nicht je Betriebssystem. Deshalb nutzt haex-vault überall `tauri-plugin-notification` und hört Klicks über dessen
   `Notification::on_action`; der Fork `haexmas/plugins-workspace` (Zweig `feat/notification-desktop-actions`)
   ergänzt die Desktop-Seite (Aktionsarten als Knöpfe, `tap` für den Klick auf die Benachrichtigung,
   `remove_active` unter Linux und den BSDs, Listener-Befehle), Upstream-PR zu tauri-apps/plugins-workspace#2150.
-  Schließen meldet das Plugin auf dem Desktop nicht; holzi begrenzt deshalb die offenen Benachrichtigungen je
-  Erweiterung. Android und iOS melden Wegwischen als Aktion `dismiss`; holzi wertet nur `tap` und die Knöpfe als
+  Schließen meldet das Plugin auf dem Desktop nicht; haex-vault begrenzt deshalb die offenen Benachrichtigungen je
+  Erweiterung. Android und iOS melden Wegwischen als Aktion `dismiss`; haex-vault wertet nur `tap` und die Knöpfe als
   Klick. Unter Linux (COSMIC, Fork `3f9db5e`) geprüft: Ein Klick auf die Benachrichtigung kommt als `tap`, ein Knopf
-  mit seiner Kennung, beide mit holzis Kennung der Benachrichtigung; das Klicksignal des Servers wurde dafür mit
+  mit seiner Kennung, beide mit haex-vaults Kennung der Benachrichtigung; das Klicksignal des Servers wurde dafür mit
   `gdbus emit` gesendet, nachdem der frühere Klick von Hand gezeigt hatte, dass COSMIC es sendet. Windows und macOS
   sind in der CI des Forks gebaut und geprüft (Clippy), aber nicht angeklickt; T099 bleibt bis dahin offen.
 - **Nachtrag (2026-10-10)**: Upstream hat die Desktop-Seite als tauri-apps/plugins-workspace#3671 übernommen
-  (Commit `46381516b7bd7b6915ded698d93e92760b4221d7` auf Zweig `v2`); holzi nimmt das Plugin seitdem von dort statt
+  (Commit `46381516b7bd7b6915ded698d93e92760b4221d7` auf Zweig `v2`); haex-vault nimmt das Plugin seitdem von dort statt
   aus dem Fork, bis ein Release nach 2.5.1 es enthält. Abweichungen zum Fork: Unter Linux und den BSDs hört eine
   eigene D-Bus-Verbindung (`zbus`) auf die Signale aller Benachrichtigungen statt `notify-rust`s `handle_action` je
-  Benachrichtigung, und Knöpfe erscheinen nur, solange ein Handler oder Listener existiert (holzi registriert
+  Benachrichtigung, und Knöpfe erscheinen nur, solange ein Handler oder Listener existiert (haex-vault registriert
   `on_action` beim Start). Die Prüfung unter COSMIC oben galt dem Fork.
 
 ## R21 — Passwörter, entfernter Speicher, Mail, Shell (L5)
@@ -701,10 +701,10 @@ scope}` aus `passwords/access.rs`), Berechtigungen der Art `passwords` → `Gran
 - **Entfernter Speicher**: Trait `ObjectStore`; Erweiterungen sehen nur Speicher, die der Nutzer für sie
   freigibt, mit einem Schlüsselpräfix je Erweiterung (029 FR-027 erlaubt in Space-Buckets nur
   inhaltsadressierte Objekte, also nie beliebige Schlüssel dort). Anlegen, Ändern, Prüfen und Entfernen immer
-  über einen Dialog von holzi. Umgesetzt durch Spec 038 (Speicherverbindungen ohne Spaces): S3-Client
+  über einen Dialog von haex-vault. Umgesetzt durch Spec 038 (Speicherverbindungen ohne Spaces): S3-Client
   `rusty-s3` über reqwest, eine Berechtigung `remoteStorage` je Speicher (`backendId`, ein Bucket) oder für
-  `*`, Präfix `holzi-ext/<vault_id>/<extension_id>/` (Entwicklerversionen getrennt), Zugangsdaten gibt nur
-  der Nutzer in holzi ein, sie liegen im Passwortmanager (Eintrag mit Eigentümer, Regel Z14 in 034) und
+  `*`, Präfix `haex-ext/<vault_id>/<extension_id>/` (Entwicklerversionen getrennt), Zugangsdaten gibt nur
+  der Nutzer in haex-vault ein, sie liegen im Passwortmanager (Eintrag mit Eigentümer, Regel Z14 in 034) und
   erreichen keine Erweiterung (Review 2026-10-06: nicht mehr „je Verbindung“). Bis dahin „nicht verfügbar“.
 - **Mail**: `async-imap` (tokio, `tokio-rustls`), `lettre` (rustls/ring), `mail-parser` (alle neu, reines
   Rust). Befehle wie im SDK; Berechtigung je Host **und** Port. Das Beobachten liest Zugangsdaten nur über 034
@@ -714,7 +714,7 @@ scope}` aus `passwords/access.rs`), Berechtigungen der Art `passwords` → `Gran
   immer `"*"`, `shell/commands.rs:16-31`); Besitzprüfung je Sitzung; Prozessgruppe beenden bei letztem Rahmen,
   Deaktivieren, Schließen der Vault; UTF-8 strömend dekodieren; auf Nicht-Desktop „nicht verfügbar“
   (`cfg(desktop)`).
-- **TLS** überall rustls mit ring (holzi lehnt aws-lc-rs ab).
+- **TLS** überall rustls mit ring (haex-vault lehnt aws-lc-rs ab).
 
 ## R22 — Änderungen an der Spec aus der Planung
 
@@ -740,7 +740,7 @@ Eingetragen als „(Planung)“ in den Clarifications der Spec:
 - Frontend: `pnpm check:extensions` (Brücke, Warteschlange, App-Liste, Shim-Abbildung) nach dem Muster der
   vorhandenen Prüfskripte; `typecheck`, `lint`, `format:check`.
 - End-to-End (Rahmen aus Spec 016/033): `extension-install-open`, `extension-permission-prompt`,
-  `extension-isolation` (Rahmen kommt nicht an holzi, andere Rahmen, Netz), `extension-two-devices`,
+  `extension-isolation` (Rahmen kommt nicht an haex-vault, andere Rahmen, Netz), `extension-two-devices`,
   `extension-dialog` (Bestätigung nimmt die Tastatur, Escape und Enter antworten).
 - Lokal nur gezielte Testbinärdateien mit `-j 4` (Erfahrung aus früheren Sitzungen); CI deckt den Rest.
 
@@ -753,7 +753,7 @@ reserviert.
 ## R25 — Android und iOS
 
 **Entscheidung**: Erweiterungen laufen auf Android und iOS mit demselben Modell (iframe, Brücke, Prüfstelle in
-Rust). Die mobilen Builds von holzi selbst sind eigene Arbeit (eigene Spec, siehe plan.md); 017 baut alles so,
+Rust). Die mobilen Builds von haex-vault selbst sind eigene Arbeit (eigene Spec, siehe plan.md); 017 baut alles so,
 dass es dort läuft, und wird dort abgenommen, sobald die Ziele bestehen.
 
 - **Android und Windows, IPC in Rahmen (L0, wry)**: wry spritzt die Init-Skripte von Tauri — darunter den IPC-Code mit dem
@@ -772,18 +772,18 @@ setOf("*"))` (`wry-0.57.0/src/android/kotlin/RustWebView.kt:31`), ohne `for_main
   Unterrahmen mit gleichem Ursprung trotzdem nicht ausschließen; der Wächter ist der Schutz. Ein Hauptrahmen auf
   fremdem Ursprung (etwa nach einer Navigation) bekommt die Skripte auf jeder Plattform, auch unter Linux und
   macOS; ihn hält Tauris ACL ab: Anfragen von nicht lokalen Ursprüngen werden abgelehnt, solange keine Capability
-  den Ursprung unter `remote` nennt (`tauri-2.12.1/src/webview/mod.rs:2075-2108`). holzi hat keine solche
+  den Ursprung unter `remote` nennt (`tauri-2.12.1/src/webview/mod.rs:2075-2108`). haex-vault hat keine solche
   Capability, und `src-tauri/src/extensions/capabilities_tests.rs` lässt keine zu. Ein Rahmen einer
   Erweiterung bekommt den Schlüssel damit nie. Ein Block statt einer Funktion hält `var` und Funktionsdeklarationen
   global; Tauris Init-Skripte binden nichts mit `let`/`const` auf oberster Ebene (`tauri-2.12.1/scripts/*.js`). PR an `tauri-apps/wry`; bis zur
-  Veröffentlichung nutzt holzi einen Fork über `[patch.crates-io]`, gepinnt auf den vollen SHA (Constitution
+  Veröffentlichung nutzt haex-vault einen Fork über `[patch.crates-io]`, gepinnt auf den vollen SHA (Constitution
   IV). Abnahme: End-to-End-Szene auf dem Emulator prüft, dass `__TAURI_INTERNALS__` im Rahmen fehlt und ein
   Aufruf über `window.ipc` scheitert.
 - **iOS**: wry setzt `WKUserScript … forMainFrameOnly` aus `for_main_frame_only` (`wkwebview/mod.rs:647, 784`),
   derselbe Code wie auf macOS. Erwartet: Rahmen bekommen die IPC nicht (vermutet, gleiche Abnahme-Szene im
   Simulator).
-- **Protokoll und URL**: Android wie Windows `http://holzi-ext.localhost/<extId>/…`, iOS wie macOS
-  `holzi-ext://localhost/<extId>/…` (`wry-0.57.0/src/custom_protocol_workaround.rs:13-40`); CSP-Header
+- **Protokoll und URL**: Android wie Windows `http://haex-ext.localhost/<extId>/…`, iOS wie macOS
+  `haex-ext://localhost/<extId>/…` (`wry-0.57.0/src/custom_protocol_workaround.rs:13-40`); CSP-Header
   und `frame-src` wie in R12.
 - **Plattformunterschiede der Host-Funktionen**: Dateien über die System-Auswahl (Android liefert
   Content-URIs; nur Dialog-Auswahl und App-eigene Orte, keine freien Pfade; HV nutzt dafür

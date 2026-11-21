@@ -16,7 +16,7 @@ Alle offenen Klärfragen aus dem Spec sind in der Clarify-Session vom 2026-09-10
 
 ## Entscheidung 2: haex-crdt-Kompatibilität der neuen Migrationen
 
-**Decision**: Migrations 0011 und 0012 werden über den bestehenden `HolziMigrationSource`-Mechanismus geliefert. `CREATE TABLE preferences (..., PRIMARY KEY (vault_device_uuid, key), FOREIGN KEY (vault_device_uuid) REFERENCES known_devices(vault_device_uuid) ON DELETE CASCADE)` als 0011; `DROP TABLE device_downloaded_models_no_sync` als 0012.
+**Decision**: Migrations 0011 und 0012 werden über den bestehenden `HaexMigrationSource`-Mechanismus geliefert. `CREATE TABLE preferences (..., PRIMARY KEY (vault_device_uuid, key), FOREIGN KEY (vault_device_uuid) REFERENCES known_devices(vault_device_uuid) ON DELETE CASCADE)` als 0011; `DROP TABLE device_downloaded_models_no_sync` als 0012.
 
 **Rationale**:
 
@@ -31,11 +31,11 @@ Alle offenen Klärfragen aus dem Spec sind in der Clarify-Session vom 2026-09-10
 
 ## Entscheidung 3: Bootstrap-Sentinel-Row-Insertion
 
-**Decision**: In `HolziBootstrap::bootstrap` VOR dem `installation_uuid`-Lookup ein `INSERT OR IGNORE INTO known_devices (installation_uuid, vault_device_uuid, alias, first_seen) VALUES (nil_uuid, nil_uuid, NULL, 0)`. Läuft bei JEDEM Open (Genesis + Adoption + normaler Resume). Idempotent per `INSERT OR IGNORE`.
+**Decision**: In `HaexBootstrap::bootstrap` VOR dem `installation_uuid`-Lookup ein `INSERT OR IGNORE INTO known_devices (installation_uuid, vault_device_uuid, alias, first_seen) VALUES (nil_uuid, nil_uuid, NULL, 0)`. Läuft bei JEDEM Open (Genesis + Adoption + normaler Resume). Idempotent per `INSERT OR IGNORE`.
 
 **Rationale**:
 
-- Der bestehende `HolziBootstrap`-Impl (`src-tauri/src/identity/bootstrap.rs`) läuft in einer eigenen Transaktion vor HLC-Init und ist der einzige atomare Kontext, in dem wir garantieren können, dass die Sentinel-Zeile vor dem ersten Write in `preferences` existiert.
+- Der bestehende `HaexBootstrap`-Impl (`src-tauri/src/identity/bootstrap.rs`) läuft in einer eigenen Transaktion vor HLC-Init und ist der einzige atomare Kontext, in dem wir garantieren können, dass die Sentinel-Zeile vor dem ersten Write in `preferences` existiert.
 - CRDT-Sync-Kollision: wenn zwei Geräte parallel den Sentinel schreiben, sind die Werte identisch (nil, nil, NULL, 0) — LWW resolviert conflict-free.
 - HLC-basiert wird der zweite Insert (auf einem Gerät, das den ersten sync-empfangen hat) durch `INSERT OR IGNORE` supprimiert.
 
@@ -69,12 +69,12 @@ Alle offenen Klärfragen aus dem Spec sind in der Clarify-Session vom 2026-09-10
 **Rationale**:
 
 - `@haex/ui`-Layer wird via GitHub-extends geladen (pinned rev `634d621`, siehe `nuxt.config.ts`). Aktueller Snapshot enthält keine dedizierte FAB-Komponente (nur `UiButton`, `UiDrawerModal`, `UiInputPassword` u.a. die wir bisher nutzten).
-- Eigene FAB-Komponente in holzi zu haben statt Upstream-Beitrag in `@haex/ui` ist für den ersten Wurf schneller und blockt kein externes Repo. Wenn andere haex-Apps auch FAB brauchen, kann später ein Upstream-PR die Komponente in die Shared-Layer heben.
+- Eigene FAB-Komponente in haex-vault zu haben statt Upstream-Beitrag in `@haex/ui` ist für den ersten Wurf schneller und blockt kein externes Repo. Wenn andere haex-Apps auch FAB brauchen, kann später ein Upstream-PR die Komponente in die Shared-Layer heben.
 - FAB-Verhalten in diesem Feature: Klick öffnet den Chat als eigene Route (`/chat/[instance]`) — Overlay/Modal ist explizit in FR-018b als "Plan-Detail, nicht Spec-Detail" offen gelassen; Route ist die einfachste Variante ohne Modal-State-Handling in der Landing.
 
 **Alternatives considered**:
 
-- Upstream-PR gegen `@haex/ui` für FAB: verzögert dieses Feature auf einen externen Review-Zyklus; wenn später gebraucht, ist die Extraktion aus holzi trivial.
+- Upstream-PR gegen `@haex/ui` für FAB: verzögert dieses Feature auf einen externen Review-Zyklus; wenn später gebraucht, ist die Extraktion aus haex-vault trivial.
 - Chat als Modal/Overlay statt Route: erfordert State-Handling für "Chat sichtbar-ja/nein" in Workspace, macht Layouts komplexer (welcher Container hält Chat-State?); Route hat freies Back-Button-Verhalten und bekannte Nuxt-Route-Guard-Semantik.
 
 ## Entscheidung 6: Route-Guarding für Onboarding
@@ -151,12 +151,12 @@ Alle offenen Klärfragen aus dem Spec sind in der Clarify-Session vom 2026-09-10
 
 **Rationale**:
 
-- Bestehendes Test-Muster in holzi ist rein Rust (Unit + Integration, keine Frontend-Tests). Kein neuer Test-Stack in diesem Feature.
+- Bestehendes Test-Muster in haex-vault ist rein Rust (Unit + Integration, keine Frontend-Tests). Kein neuer Test-Stack in diesem Feature.
 - Der spannendste Testfall ist die FK-Cascade auf ON DELETE — Delete einer `known_devices`-Zeile muss alle `preferences`-Zeilen mit diesem `vault_device_uuid` mit-entfernen. Dieser Test beweist auch, dass haex-crdt's Sync-Apply die FK-Deklaration respektiert wenn er sie temporär abschaltet.
 
 **Alternatives considered**:
 
-- Playwright einführen: großer Scope-Add, nicht gerechtfertigt für ein Feature dieser Größe. Bleibt in der Etappe-1-Follow-Up-Liste (siehe [holzi-status]-Memory).
+- Playwright einführen: großer Scope-Add, nicht gerechtfertigt für ein Feature dieser Größe. Bleibt in der Etappe-1-Follow-Up-Liste (siehe [haex-status]-Memory).
 - E2E-Test via cargo mit gestartetem Tauri-Prozess: Overkill, keine bestehende Infrastruktur.
 
 ---

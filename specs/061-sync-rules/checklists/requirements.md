@@ -31,7 +31,7 @@
 
 ## Notes
 
-- Die Spec nennt `.holzi-trash` und die Prüfsumme als sichtbares Verhalten (Name des Papierkorb-Ordners,
+- Die Spec nennt `.haex-trash` und die Prüfsumme als sichtbares Verhalten (Name des Papierkorb-Ordners,
   Kontrolle nach dem Kopieren); Formate und Module bleiben Sache des Plans.
 - Geklärt 2026-10-26: verschlüsselte Ordner (048) liefern Größe, Änderungszeit und Klartext-Prüfsumme
   je Datei aus der Sidecar-Datei. Offen für den Plan: Eine Datei, die in einen verschlüsselten Ordner

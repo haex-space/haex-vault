@@ -214,8 +214,8 @@ with an expected call whose routed domains hold the domain of the expected first
   read 6 → 12. Mail replies stay the weakest category (0–3 of 6 for every local model).
 - **Questions for ids fall** for the target models (`askedForId` Qwen3.5 4B 8 → 5, Gemma 4 E4B 11 → 7), not for the
   phone models (SC-007).
-- **Routing costs more in holzi's engine than in llama-server.** The median routing call takes 232 ms (Gemma 4
-  E4B) and 240 ms (Qwen3.5 4B), against 111 and 123 ms in the measurement of research R3 with llama-server: holzi's
+- **Routing costs more in haex-vault's engine than in llama-server.** The median routing call takes 232 ms (Gemma 4
+  E4B) and 240 ms (Qwen3.5 4B), against 111 and 123 ms in the measurement of research R3 with llama-server: haex-vault's
   engine reads each prompt in a new context until spec 080 keeps one. The plan's goal of at most 200 ms is missed
   for the target models; Gemma 4 12B, half on the CPU, takes 935 ms.
 - **The first chunk comes later**, by 0.3 to 0.4 s for the target models. Not measured separately; likely because
@@ -231,7 +231,7 @@ with an expected call whose routed domains hold the domain of the expected first
 ## Hosted
 
 Run of 2026-11-05 at 9ff2db99: the three hosted models through `claude -p` with the subscription, offered as
-through their API, each with routing on and with `HOLZI_EVAL_ROUTING=off`, the guard, the next-step sentences and
+through their API, each with routing on and with `HAEX_EVAL_ROUTING=off`, the guard, the next-step sentences and
 the lookup sentence in both. Reports in `runs/hosted/on/` and `runs/hosted/off/`. Not deterministic; each setting
 ran once.
 
@@ -360,7 +360,7 @@ mail client called Thunderbird would have been routed as `thunderbird`. Two chan
   the reply did not route better. Qwen3.5 4B mixes mail up with files, Gemma with chat, under every name.
 
 - **The everyday set runs haex-mail under the app's names** (`x_haexmail_<tool>`, `mailExtension` in the
-  report); `HOLZI_EVAL_MAIL_NAME` and `HOLZI_EVAL_MAIL_TITLE` call it something else. The set, the fake world and
+  report); `HAEX_EVAL_MAIL_NAME` and `HAEX_EVAL_MAIL_TITLE` call it something else. The set, the fake world and
   the scoring keep `x_mail_<tool>`.
 
 Full runs (`runs/names/`; "old rule" is the prefix name, built from ae256edd with only that line changed back):

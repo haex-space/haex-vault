@@ -1,7 +1,7 @@
 # Contract: Tauri-Befehle, Ereignisse und Aktionen
 
 Alle Befehle laufen durch den Wrapper des Vault-Gates (Spec 013); außer `link_join_*` brauchen sie
-eine aktive Vault-Session. Fehler kommen als `HolziError` mit festen Codes. Typen für die
+eine aktive Vault-Session. Fehler kommen als `HaexError` mit festen Codes. Typen für die
 Oberfläche erzeugt `ts-rs` wie bisher.
 
 ## Befehle
@@ -54,14 +54,14 @@ interface VaultDevice {
   online: boolean
   lastSeen: number | null // ms; null = "noch nie online gesehen"
   problem: DeviceProblem
-  // Spec 059: Versionsstand; bei isCurrent der des laufenden holzi, sonst der zuletzt im Handshake
+  // Spec 059: Versionsstand; bei isCurrent der des laufenden haex-vault, sonst der zuletzt im Handshake
   // gesehene, null solange dieses Gerät keinen sah.
   schema: DeviceSchema | null
 }
 
 interface DeviceSchema {
   protocol: number // Sync-Protokoll
-  holziMigration: number // Vault-Schema (Zahl der holzi-Migrationen)
+  haexMigration: number // Vault-Schema (Zahl der haex-vault-Migrationen)
   crdtTrigger: number // Änderungsverfolgung (Version der CRDT-Trigger)
 }
 
@@ -104,7 +104,7 @@ type LinkJoinState =
 | `link-join-state-changed` | `LinkJoinState`         | Fortschritt eines Verknüpfens auf der neuen Installation                                                                                                                  |
 
 `vault-data-changed` kommt aus `src-tauri/src/vault_events.rs`: haex-crdt meldet nach jedem
-Commit die geänderten Tabellen (`Database::observe_committed_changes`), holzi fasst Meldungen
+Commit die geänderten Tabellen (`Database::observe_committed_changes`), haex-vault fasst Meldungen
 innerhalb von 50 ms zu einem Ereignis zusammen. Die Quelle einer Änderung spielt für die Ansicht
 keine Rolle. Jede Ansicht, die Vault-Daten zeigt, meldet sich mit `onVaultTablesChanged(tabellen,
 laden)` (`src/composables/useVaultData.ts`) für genau die Tabellen an, die sie zeigt, und lädt

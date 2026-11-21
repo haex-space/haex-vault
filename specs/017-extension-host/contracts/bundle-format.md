@@ -1,7 +1,7 @@
 # Vertrag: Bundle-Format `haextension-bundle/2`
 
-Gilt für holzi (Prüfen) und das Werkzeug `haex` im vault-sdk (Erzeugen und Prüfen). Beide nutzen dieselbe
-Umsetzung, das Rust-Crate `haex-bundle` im vault-sdk (holzi nativ, `haex` als WebAssembly). Begründung:
+Gilt für haex-vault (Prüfen) und das Werkzeug `haex` im vault-sdk (Erzeugen und Prüfen). Beide nutzen dieselbe
+Umsetzung, das Rust-Crate `haex-bundle` im vault-sdk (haex-vault nativ, `haex` als WebAssembly). Begründung:
 [research.md](../research.md) R2, R3. Die Testvektoren liegen im vault-sdk und werden mit Repository, voller
 Revision und Pfad nach `src-tauri/tests/fixtures/extension_bundles/` kopiert (Constitution IV).
 
@@ -67,7 +67,7 @@ Ein Manifest darf einen Block `openers` führen, ein Array von Arten von Links, 
 (heute `mail.compose`). Form, Grenzen und Prüfung stehen in
 `specs/063-mailto-extensions/contracts/manifest-openers.md`; die Anmeldung gibt keinen Zugriff.
 
-## Prüfung in holzi
+## Prüfung in haex-vault
 
 Reihenfolge wie `haex verify` und die Testvektoren (`test-vectors/bundles/README.md`); die erste verletzte
 Regel bestimmt die Fehlerart.
@@ -102,14 +102,14 @@ Fehlerarten (für Installation und Start): `archive_too_large`, `archive_invalid
 `entry_duplicate`, `entry_too_large`, `entry_ratio`, `entry_kind`, `manifest_not_canonical`,
 `manifest_invalid`, `file_mismatch { path }`, `public_key_mismatch`, `signature_invalid`,
 `legacy_signature_format`. Jede Art hat einen Test mit einem schlechten Bundle aus den Testvektoren, jede
-Manifestregel aus Schritt 6 einen eigenen Vektor. `haex verify` und holzi müssen für jeden Vektor dieselbe
+Manifestregel aus Schritt 6 einen eigenen Vektor. `haex verify` und haex-vault müssen für jeden Vektor dieselbe
 Fehlerart melden; eine Regel ohne Vektor gilt als nicht abgestimmt.
 
 ## Werkzeug `haex` (Änderung im vault-sdk, L0)
 
 - `haex sign <dist>` schreibt v2: durchläuft mit `lstat` und bricht bei Symlinks ab, wendet die Pfadregeln an,
   schreibt das Manifest als JCS ohne `signature`, erzeugt `signature.json`, packt deterministisch.
-- `haex verify <datei.xt>` prüft wie holzi.
+- `haex verify <datei.xt>` prüft wie haex-vault.
 - Schlüsselformat bleibt (öffentlicher Schlüssel roh als Hex), damit Präfixe der Tabellen gleich bleiben.
 - Programmname einheitlich `haex` (heute `haexhub` in `src/cli/index.ts:13`).
 - Gemeinsame Testvektoren: gute Bundles und je Regel ein schlechtes.

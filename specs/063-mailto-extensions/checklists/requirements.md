@@ -33,7 +33,7 @@
 
 - Die Spec nennt Manifest, Bridge und RFC 6068 beim Namen, weil sie wie 060 die bestehenden Verträge
   des Projekts und die Nachbar-Repos benennen muss. Sie sagt nicht, wie sie gebaut werden.
-- FR-018 lässt offen, wie holzi eine Schleife je Plattform vermeidet; das klärt `speckit-clarify` oder
+- FR-018 lässt offen, wie HaexVault eine Schleife je Plattform vermeidet; das klärt `speckit-clarify` oder
   der Plan.
 - Die Edge Case „Mehrere Fenster oder Vaults“ ist entschieden: Ein Link von außen geht an die zuletzt
   aktive Vault; die Öffnen-Auswahl nennt die Vault nicht weiter.

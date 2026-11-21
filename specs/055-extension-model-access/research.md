@@ -1,7 +1,7 @@
-# Research: Erweiterungen nutzen holzis Modelle
+# Research: Erweiterungen nutzen haex-vaults Modelle
 
 Grundlage: `spec.md` (mit den Klärungen vom 2026-10-17), eine Code-Erkundung vom 2026-10-17 (Stellen unten
-geprüft) und der Modelltest in `~/Projekte/holzi-ocr-eval` (nicht im Repo; Ergebnisse unter R10 und R11
+geprüft) und der Modelltest in `~/Projekte/haex-ocr-eval` (nicht im Repo; Ergebnisse unter R10 und R11
 zusammengefasst). Pfade `S/` stehen für `src-tauri/src/`.
 
 ## R1 — `agent_tasks` wird zu `model_jobs` umgebaut, nicht ergänzt
@@ -14,7 +14,7 @@ zusammengefasst). Pfade `S/` stehen für `src-tauri/src/`.
   `definitions.rs`, `validation.rs` (alle fest auf Papiernotizen) und `fixture.rs`.
 - **Begründung**: Der Rest ist Lebenszyklus und taugt für jeden Auftrag. Alles, was ein Modell berührt, ist
   Fixture (`bridge.rs`: „Real profile resolution is deliberately added behind the same lifecycle“). Weder
-  das SDK noch das Frontend rufen `extension_ai_task_*` auf, deshalb entfällt eine Übergangslösung (holzi hat
+  das SDK noch das Frontend rufen `extension_ai_task_*` auf, deshalb entfällt eine Übergangslösung (haex-vault hat
   noch keine Nutzer).
 - **Namen**: Methoden `extension_model_job_start`, `extension_model_job_cancel`, `extension_model_list`;
   Ereignis `haextension:model-job:completed`.
@@ -83,9 +83,9 @@ zusammengefasst). Pfade `S/` stehen für `src-tauri/src/`.
 ## R5 — Rangfolge pro Erweiterung (ersetzt am 2026-11-13: Standardmodell)
 
 - **Entscheidung (2026-11-13)**: Keine Rangfolge. Neue Tabelle `extension_default_model(id, extension_id, model_id)`
-  (Migration `0062_extension_default_model`, `HOLZI_TRIGGER_VERSION` 41), höchstens eine Zeile je Erweiterung.
+  (Migration `0062_extension_default_model`, `HAEX_TRIGGER_VERSION` 41), höchstens eine Zeile je Erweiterung.
   Ein Schritt geht an das Standardmodell, sonst an das zuerst freigegebene Modell, das ihn kann. Kann das Modell
-  ihn nicht, fragt holzi den Nutzer statt still das nächste zu versuchen.
+  ihn nicht, fragt haex-vault den Nutzer statt still das nächste zu versuchen.
 - **Ergänzung (2026-11-14, Entscheidung des Betreibers)**: Es wird nie automatisch ein Modell gewählt. Hat die
   Erweiterung ein Standardmodell, geht der Schritt nur dorthin. Kann es ihn nicht (`fits`) oder ist es nicht
   verfügbar (nicht mehr freigegeben, nicht im Tresor), startet der Schritt als `Start::Ask`: der Lauf fragt über
@@ -94,13 +94,13 @@ zusammengefasst). Pfade `S/` stehen für `src-tauri/src/`.
   (`model_replacement_answer`), dieselbe Einwilligung und derselbe Haken „Als Standardmodell festlegen“. Gibt es
   kein einziges anderes Modell im Tresor, das den Schritt kann, bleibt es beim Fehler `no_capable_model` beim Start.
   Ohne Standardmodell geht das zuerst freigegebene Modell, das den Schritt kann, voran (es gibt nichts, worauf
-  zurückgefallen würde; eine Annahme, die der Betreiber ändern kann); fällt es aus, fragt holzi ebenfalls. In der
+  zurückgefallen würde; eine Annahme, die der Betreiber ändern kann); fällt es aus, fragt haex-vault ebenfalls. In der
   Herkunft steht ein Modell, an das keine Anfrage ging, als Versuch `unavailable` mit Aufwand `none` und dem Grund
   („it cannot take images“, „the model is not available to the extension“); ein Modell, das der Tresor nicht mehr
   kennt, hat keinen Namen und steht nicht darin. Nutzer gibt es noch keine, eine Umstellung alter Ränge ist nicht
   nötig.
 - **Begründung**: Der Nutzer will pro Erweiterung ein Modell festlegen und bei einem Ausfall selbst entscheiden,
-  statt dass holzi über eine lange Liste, auch kostenpflichtiger Modelle, wechselt. Mit hunderten Modellen eines
+  statt dass haex-vault über eine lange Liste, auch kostenpflichtiger Modelle, wechselt. Mit hunderten Modellen eines
   Abos ist eine Rangfolge nicht pflegbar.
 - **Frühere Entscheidung (verworfen)**: `extension_model_order(id, extension_id, model_id, position)`
   (Migration `0037`), neue Freigaben am Ende, automatischer Wechsel zum nächsten Modell der Rangfolge.
@@ -190,17 +190,17 @@ Vec<DynamicImage>)`; das GGUF-Format hat keine Bildmodelle, sie laden als Safete
     gab leeren Inhalt zurück.
 
 - **Entscheidung (2026-10-21): Rückfall.** Lokale Bildmodelle laufen als OpenAI-kompatibler Anbieter auf
-  `localhost` (Ollama oder llama.cpp-Server); holzi bekommt keinen zweiten Ladeweg. Der Ort ist
+  `localhost` (Ollama oder llama.cpp-Server); haex-vault bekommt keinen zweiten Ladeweg. Der Ort ist
   `this_device` (R6), also ohne Einwilligung, und der Nutzer setzt am Modell „nimmt Bilder an“ (FR-019). Die
   Einrichtung ist Sache des Nutzers (`quickstart.md`). Das deckt FR-018 und FR-020 ab, ohne die Spec zu verletzen.
   - Begründung: mistral.rs liest richtig, braucht aber 4–8-mal so lange wie Ollama und mit Q8_0 fast die ganze
     Karte; Q4K gerät in Schleifen, die erst an der Längengrenze enden.
-  - Der Versuch bleibt als ignorierter Test liegen (Q4K oder `HOLZI_SPIKE_ISQ_BITS=8`) und wird nach einem
+  - Der Versuch bleibt als ignorierter Test liegen (Q4K oder `HAEX_SPIKE_ISQ_BITS=8`) und wird nach einem
     mistral.rs-Update wiederholt. Nicht versucht: das Feature `flash-attn`; das Erzeugen der Antwort hängt
     aber schon an der Karte.
   - Die Frage nach einem lokalen Platz (ein Auftrag verdrängt das Chatmodell aus `ChatState`) entfällt damit.
     Ollama hält sein Modell selbst und gibt es nach `OLLAMA_KEEP_ALIVE` (Voreinstellung 5 min) frei. Auf einer
-    8-GB-Karte teilen sich holzis Chatmodell und das Bildmodell den Grafikspeicher.
+    8-GB-Karte teilen sich haex-vaults Chatmodell und das Bildmodell den Grafikspeicher.
 
 ## R9 — Grenzen und nichts speichern
 
@@ -261,7 +261,7 @@ value)`. Die Teilmenge ist größer (Grenzen, `additionalProperties`, `null`-Paa
   nur an die Erweiterung.
 - **Befehlszeilen-Agenten** (`cli_delegate`, etwa Claude Code oder Codex) waren bis 2026-10-23 nie Kandidaten
   eines Auftrags, weil sie mit eigenen Werkzeugen und Dateizugriff arbeiten. Seit der Klärung vom 2026-10-23
-  sind sie Kandidaten mit dem Zugriff, den sie in holzi haben (FR-032, R16). Für alle anderen Modelle gilt
+  sind sie Kandidaten mit dem Zugriff, den sie in haex-vault haben (FR-032, R16). Für alle anderen Modelle gilt
   weiter: keine Werkzeuge.
 - **Zugang zu Schlüsseln**: Adapter werden bei Bedarf aus `providers`+`models` gebaut (`build_adapter`); die
   Erweiterung sieht weder Schlüssel noch Adressen (FR-021). Fehlertexte des Anbieters werden vor der Rückgabe
@@ -273,7 +273,7 @@ value)`. Die Teilmenge ist größer (Grenzen, `additionalProperties`, `null`-Paa
 ## R13 — SDK und Erweiterung
 
 - **Entscheidung**: Das vault-sdk (eigenes Repo) bekommt `sdk.models.list()`, `sdk.models.run(job)` und
-  `sdk.models.cancel(id)` mit Ereignis. Es ist eine eigene Lieferung mit eigenem PR; holzi pinnt die veröffentlichte
+  `sdk.models.cancel(id)` mit Ereignis. Es ist eine eigene Lieferung mit eigenem PR; haex-vault pinnt die veröffentlichte
   Version (Verfassung IV). Die Seitenerkennung in haex-notes (Spec 046) ist ein dritter Schritt im Repo
   `haextension` und gehört nicht zu dieser Spec.
 - **Test ohne SDK**: Eine Test-Erweiterung im Repo ruft die Brücke direkt wie `agent-tools.xt` in Spec 018.
@@ -287,13 +287,13 @@ value)`. Die Teilmenge ist größer (Grenzen, `additionalProperties`, `null`-Paa
 | C   | Lokale Bilder (R8): Versuch, Ladeweg, Katalog, Fähigkeiten                                                                    | Vollständig lokale Auswertung                     |
 | D   | Oberfläche: Freigabe- und Einwilligungsdialog, Modelle und Rangfolge in den Einstellungen, Dauer                              | Der Nutzer bestimmt alles selbst                  |
 | E   | vault-sdk und Test-Erweiterung (R13)                                                                                          | Entwickler können es nutzen                       |
-| F   | Jedes Modell aus holzi (US8, R15, R16): lokal installierte Modelle und Abos als Quellen von Aufträgen                         | Kein zweites Einrichten als Modell-Server nötig   |
+| F   | Jedes Modell aus haex-vault (US8, R15, R16): lokal installierte Modelle und Abos als Quellen von Aufträgen                    | Kein zweites Einrichten als Modell-Server nötig   |
 | G   | Weg zur Freigabe (US9, R17): Modell-Seite aus der Erweiterung öffnen, Freigabe vor dem ersten Auftrag                         | Kein Suchen nach der richtigen Einstellung        |
 
 B hängt von A nur für die Fernmodelle ab; C ist unabhängig und der größte Unsicherheitsfaktor, daher
 frühzeitig der Versuch. Reihenfolge: A, B (mit D für die Dialoge), C, E. F kam am 2026-10-23 dazu und baut
 auf B und D auf; lokale Modelle (R15) und Abos (R16) sind zwei getrennte PRs. G (R17) kam am selben Tag dazu
-und hängt nur von B und D ab: holzi zuerst, dann vault-sdk, dann haex-notes.
+und hängt nur von B und D ab: haex-vault zuerst, dann vault-sdk, dann haex-notes.
 
 ## R15 — Lokal installierte Modelle als Quelle
 
@@ -347,7 +347,7 @@ und hängt nur von B und D ab: holzi zuerst, dann vault-sdk, dann haex-notes.
 
 ## R17 — Weg zur Freigabe aus der Erweiterung
 
-- **Befund**: Eine Erweiterung kann holzis Einstellungen nicht öffnen; das vault-sdk hat dafür nichts, und
+- **Befund**: Eine Erweiterung kann haex-vaults Einstellungen nicht öffnen; das vault-sdk hat dafür nichts, und
   `DeepLink` (Benachrichtigungen) sowie die Tab-API führen nur innerhalb der eigenen Erweiterung. Die Freigabe
   entsteht erst in der Vorprüfung des ersten Auftrags (`preflight.rs::ask_for_model`). haex-notes konnte beim
   Hinweis `no_capable_model` daher nur sagen, wo der Nutzer suchen soll (haextension#132).
@@ -358,6 +358,6 @@ und hängt nur von B und D ab: holzi zuerst, dann vault-sdk, dann haex-notes.
   Codes, keine Einwilligung für ein Ziel, nichts gesendet. Im vault-sdk werden daraus
   `models.openSettingsAsync()` und `models.requestAccessAsync({ needs, effort })`; das SDK wiederholt den Aufruf
   nach der Antwort des Nutzers wie bei `runAsync`.
-- **Verworfen**: Ein Auswahlmenü in jeder Erweiterung, das holzi nur bestätigt. Die Erweiterung würde bestimmen,
+- **Verworfen**: Ein Auswahlmenü in jeder Erweiterung, das haex-vault nur bestätigt. Die Erweiterung würde bestimmen,
   was der Nutzer sieht und was vorausgewählt ist, und bräuchte die Liste aller Modelle des Tresors; heute kennt
   sie nur ihre eigenen Freigaben (FR-030).

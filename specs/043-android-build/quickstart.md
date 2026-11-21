@@ -1,4 +1,4 @@
-# Quickstart: holzi für Android prüfen
+# Quickstart: HaexVault für Android prüfen
 
 **Spec**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md)
 
@@ -10,7 +10,7 @@ auf einem echten Telefon bleibt, was der Emulator nicht kann.
 
 - Nix-devShell mit der Android-Umgebung aus den gepinnten atoms-Dateien
   ([`haexmas/atoms` @ `b662c6205d6a1ebd7fac588291f82ea8e78c3d52`](https://github.com/haexmas/atoms/tree/b662c6205d6a1ebd7fac588291f82ea8e78c3d52),
-  holzi PR #308):
+  HaexVault PR #308):
   `nix develop` setzt `ANDROID_HOME`, `NDK_HOME`, `ANDROID_NDK_ROOT` und `JAVA_HOME`; die
   Rust-Toolchain bringt die Android-Ziele mit, `rustup` ist nicht nötig.
 - Ein Telefon mit Entwickleroptionen und USB-Debugging, oder ein Emulator (API 35, x86_64).
@@ -24,11 +24,11 @@ adb install -r src-tauri/gen/android/app/build/outputs/apk/arm64/debug/app-arm64
 adb install -r src-tauri/gen/android/app/build/outputs/apk/x86_64/debug/app-x86_64-debug.apk   # Emulator
 ```
 
-Erwartet: Das APK installiert sich, holzi startet, die Tresorauswahl erscheint in ≤ 3 s
+Erwartet: Das APK installiert sich, HaexVault startet, die Tresorauswahl erscheint in ≤ 3 s
 (SC-001). Tresor anlegen, einen Eintrag anlegen, Tresor schließen → die App endet (FR-006);
 neu starten → Tresorauswahl; entsperren ≤ 10 s (SC-002), der Eintrag ist da.
 
-Alternativ das APK aus dem CI-Lauf des PRs (Artefakt `holzi-android-debug`).
+Alternativ das APK aus dem CI-Lauf des PRs (Artefakt `haex-android-debug`).
 
 ## §2 Entwicklungsmodus (Stufe 1a)
 
@@ -37,7 +37,7 @@ nix develop --command pnpm tauri android dev            # Emulator
 nix develop --command pnpm tauri android dev --host     # echtes Telefon im selben Netz
 ```
 
-Erwartet: holzi startet mit dem Dev-Server; eine Änderung an einer `.vue`-Datei erscheint ohne
+Erwartet: HaexVault startet mit dem Dev-Server; eine Änderung an einer `.vue`-Datei erscheint ohne
 neues APK (FR-034).
 
 ## §3 Telefon-Oberfläche, von Hand (Stufe 1c)
@@ -69,7 +69,7 @@ Ergebnis in Spec 036 T081 und in dieser Spec eintragen.
 ## §4 e2e im Emulator (Stufe 1b)
 
 ```sh
-emulator -avd holzi-api35 -no-window -gpu swiftshader_indirect -noaudio &
+emulator -avd haex-api35 -no-window -gpu swiftshader_indirect -noaudio &
 adb wait-for-device
 adb install -r <x86_64-Debug-APK>
 nix develop --command pnpm test:e2e --platform android
@@ -83,7 +83,7 @@ Abdeckung (Ziel 95 %, mindestens 80 %).
 
 1. Desktop und Telefon koppeln (wie zwischen zwei Desktops); beide Geräte in beiden Listen.
 2. Eintrag am Desktop ändern → am Telefon in ≤ 10 s sichtbar; umgekehrt (SC-005).
-3. holzi am Telefon in den Hintergrund, am Desktop ändern, holzi wieder öffnen → Änderung kommt
+3. HaexVault am Telefon in den Hintergrund, am Desktop ändern, HaexVault wieder öffnen → Änderung kommt
    (FR-018).
 4. Während eines Syncs WLAN aus- und Mobilfunk einschalten → Sync setzt fort (FR-019).
 
@@ -93,7 +93,7 @@ Abdeckung (Ziel 95 %, mindestens 80 %).
 2. `extension-isolation` im Emulator grün (FR-021, Spec 017 T112).
 3. Erweiterung lässt eine Datei öffnen und speichern → System-Dateiauswahl (FR-022).
 4. Benachrichtigung: Berechtigung erlauben → Android-Benachrichtigung; ablehnen → Meldung in
-   holzi, kein Absturz (FR-023).
+   HaexVault, kein Absturz (FR-023).
 
 ## §7 Chat mit Online-Anbietern (Stufe 4)
 

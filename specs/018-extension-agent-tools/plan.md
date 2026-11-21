@@ -6,15 +6,15 @@
 
 ## Summary
 
-Eine Erweiterung erklärt Werkzeuge im signierten Manifest und stellt sie über MCP bereit; holzi bietet sie
+Eine Erweiterung erklärt Werkzeuge im signierten Manifest und stellt sie über MCP bereit; haex-vault bietet sie
 dem eingebauten Agenten an. Weil kleine lokale Modelle Werkzeuge, die sie erst suchen müssen, nicht
-verlässlich nutzen (046), bietet holzi passende Werkzeuge selbst im ersten Schritt an: ein deterministischer
+verlässlich nutzen (046), bietet haex-vault passende Werkzeuge selbst im ersten Schritt an: ein deterministischer
 Abgleich der Nachricht mit Titel, Beschreibung und Beispielsätzen.
 
 Technischer Ansatz (Begründungen in [research.md](./research.md)):
 
 - **Manifest** (R5): Block `tools` mit Name, Titeln, Beschreibung, Schema, Wirkungsart, Beispielsätzen;
-  Format-Prüfung im Crate `haex-bundle` (vault-sdk), Schema-Teilmenge in holzi.
+  Format-Prüfung im Crate `haex-bundle` (vault-sdk), Schema-Teilmenge in haex-vault.
 - **Bestätigung** (R3, R4): Berechtigungsart `agentTool` in `extension_permissions`; Dialog, Update,
   Sync und Einstellungen aus 017 gelten mit. Wirkungsart aus dem Manifest; Schalter = `*`-Zeile „denied“.
 - **Transport** (R1, R2): `rmcp`-Client über ein Kanalpaar (`sink_stream`), Port-Nachricht `haexspace:mcp`,
@@ -44,7 +44,7 @@ Laufzeitabhängigkeit
 **Testing**: `cargo test` (neu `extensions/agent_tools/*_tests.rs`, `chat/tools/extension_offer_tests.rs`,
 Erweiterungen in `offer_tests.rs`, `install_tests.rs`, `manifest_tests.rs`, `eval/*_tests.rs`; Integration
 `tests/extension_agent_tools.rs`; Vertrag und Mitschnitte in `extensions/agent_tools/contract_tests.rs`
-(T005: `HOLZI_WRITE_MCP_TRANSCRIPTS=1 cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --lib agent_tools`),
+(T005: `HAEX_WRITE_MCP_TRANSCRIPTS=1 cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --lib agent_tools`),
 `pnpm check:extensions`, `check:chat-state`, `check:wm-state`, `check:agent-actions`, E2E-Szenario
 `extension-agent-tools.test.ts`; vault-sdk: vitest (Mitschnitte, Schema-Prüfer, Vektoren)
 
@@ -59,7 +59,7 @@ Fenster ≤ 3 s langsamer als mit (SC-004)
 ersten Schritt, ≤ 19 nach einer Suche (R6); Manifest ohne Gleitkommazahlen (RFC 8785); Dateien < 500
 Zeilen; Rust-Tests in `*_tests.rs`
 
-**Scale/Scope**: ≥ 30 Erweiterungen mit je bis zu 32 Werkzeugen; 2 Repos (holzi, vault-sdk); 5 Lieferungen
+**Scale/Scope**: ≥ 30 Erweiterungen mit je bis zu 32 Werkzeugen; 2 Repos (haex-vault, vault-sdk); 5 Lieferungen
 (R15)
 
 ## Constitution Check
@@ -71,13 +71,13 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 | I No secrets in git                           | Erfüllt: Die Test-Erweiterung wird wie `probe.xt` (017) mit einem aus einem öffentlichen Seed abgeleiteten Testschlüssel signiert; [ADR-0012](../../docs/adr/0012-public-test-signing-keys.md) hält fest, dass solche Testschlüssel kein Schlüsselmaterial im Sinne von Prinzip I sind (vom Operator am 2026-10-10 bestätigt). |
 | II Keine lokalen Pfade                        | Erfüllt: Verweise repo-relativ; vault-sdk über Repository + SHA.                                                                                                                                                                                                                                                               |
 | III Geräteunabhängige Identität               | Nicht berührt.                                                                                                                                                                                                                                                                                                                 |
-| IV Pins auf unveränderliche Revisionen        | Erfüllt: `haex-bundle` per `rev` auf den Merge-Commit von Lieferung A; Mitschnitte und Vertrag liegen in holzi und werden in vault-sdk per SHA referenziert.                                                                                                                                                                   |
+| IV Pins auf unveränderliche Revisionen        | Erfüllt: `haex-bundle` per `rev` auf den Merge-Commit von Lieferung A; Mitschnitte und Vertrag liegen in haex-vault und werden in vault-sdk per SHA referenziert.                                                                                                                                                              |
 | V Externe Quellen opt-in                      | Nicht berührt.                                                                                                                                                                                                                                                                                                                 |
 | VI Selbstmodifizierende Anweisungen           | ADR-0004 wird per PR geändert (Lieferung E), nicht stillschweigend.                                                                                                                                                                                                                                                            |
 | VII Relay blockiert nichts                    | Erfüllt: alles lokal.                                                                                                                                                                                                                                                                                                          |
 | VIII Keine Verschleierung                     | Erfüllt; Ergebnisse von Erweiterungen werden dem Modell als Daten gekennzeichnet (R10).                                                                                                                                                                                                                                        |
 | Phasen                                        | 017 und 032 im täglichen Einsatz, 046 gemergt; 019 erst nach Lieferung D.                                                                                                                                                                                                                                                      |
-| PR-Pflicht, kein Squash, Conventional Commits | Je Lieferung ein PR (holzi bzw. vault-sdk).                                                                                                                                                                                                                                                                                    |
+| PR-Pflicht, kein Squash, Conventional Commits | Je Lieferung ein PR (haex-vault bzw. vault-sdk).                                                                                                                                                                                                                                                                               |
 
 Ergebnis nach Phase 1: keine Verletzung. Die Abweichung zu FR-002 (research R4) hat der Operator am
 2026-10-10 angenommen; die Spec ist angepasst.
@@ -156,13 +156,13 @@ Brücken-Vertragstest bleibt unverändert.
 
 ## Lieferungen
 
-| Lieferung | Repo      | Inhalt                                                                                                                                   | Voraussetzung      |
-| --------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
-| A         | vault-sdk | Format-Prüfung `tools`, Typen, `sdk.tools`, Mitschnitt-Tests, Release                                                                    | Mitschnitte aus C1 |
-| B         | holzi     | Pin auf A, Manifest `tools`, `agentTool`, Dialog, Einstellungen                                                                          | A gemergt          |
-| C         | holzi     | C1 Mitschnitte + R2-Vertrag; C2 Relay, `ExtensionTool`, Hintergrund-Rahmen, Herkunft, Verlauf, `byAgent`                                 | B                  |
-| D         | holzi     | Passendes Angebot, Suche, Test-Erweiterung, Eval v4, E2E                                                                                 | C                  |
-| E         | holzi     | ADR-0004 ändern: Wirkungsart aus dem Manifest, Transport über den Port, rmcp 3.5, Modell nur über einen vom Nutzer festgelegten Weg (R2) | mit B              |
+| Lieferung | Repo       | Inhalt                                                                                                                                   | Voraussetzung      |
+| --------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| A         | vault-sdk  | Format-Prüfung `tools`, Typen, `sdk.tools`, Mitschnitt-Tests, Release                                                                    | Mitschnitte aus C1 |
+| B         | haex-vault | Pin auf A, Manifest `tools`, `agentTool`, Dialog, Einstellungen                                                                          | A gemergt          |
+| C         | haex-vault | C1 Mitschnitte + R2-Vertrag; C2 Relay, `ExtensionTool`, Hintergrund-Rahmen, Herkunft, Verlauf, `byAgent`                                 | B                  |
+| D         | haex-vault | Passendes Angebot, Suche, Test-Erweiterung, Eval v4, E2E                                                                                 | C                  |
+| E         | haex-vault | ADR-0004 ändern: Wirkungsart aus dem Manifest, Transport über den Port, rmcp 3.5, Modell nur über einen vom Nutzer festgelegten Weg (R2) | mit B              |
 
 C1 (Mitschnitte aufzeichnen) kann vor A laufen, weil sie nur `rmcp` gegen einen In-Memory-Server brauchen.
 

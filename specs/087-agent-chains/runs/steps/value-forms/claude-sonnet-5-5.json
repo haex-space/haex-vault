@@ -165,7 +165,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Dafür kann ich in holzi leider nichts tun: Es gibt keine Kalender-App und keine Aktion, mit der sich ein Termin eintragen lässt. Deinen Zahnarzttermin morgen um 10:00 Uhr (Donnerstag, 19.03.2026) musst du daher in einem anderen Kalender eintragen."
+      "text": "Dafür kann ich in haex-vault leider nichts tun: Es gibt keine Kalender-App und keine Aktion, mit der sich ein Termin eintragen lässt. Deinen Zahnarzttermin morgen um 10:00 Uhr (Donnerstag, 19.03.2026) musst du daher in einem anderen Kalender eintragen."
     },
     {
       "id": "no_tool-de-4",
@@ -186,7 +186,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "Ich finde keine Einkaufslisten-App in holzi. Wie soll ich vorgehen?",
+            "question": "Ich finde keine Einkaufslisten-App in haex-vault. Wie soll ich vorgehen?",
             "options": [
               "Eine Datei in Dateien öffnen, in der du die Liste führst",
               "Eine Notiz im Chat anlegen",
@@ -196,7 +196,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich finde keine Einkaufslisten-App in holzi. Wie soll ich vorgehen?"
+      "text": "Ich finde keine Einkaufslisten-App in haex-vault. Wie soll ich vorgehen?"
     },
     {
       "id": "no_tool-en-3",
@@ -222,7 +222,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I'm sorry, but holzi has no calendar and no action for creating appointments, so I couldn't add the dentist appointment for tomorrow (Thursday, March 19) at 10:00. I can open haex-mail if you'd like to send yourself a reminder as a draft instead."
+      "text": "I'm sorry, but haex-vault has no calendar and no action for creating appointments, so I couldn't add the dentist appointment for tomorrow (Thursday, March 19) at 10:00. I can open haex-mail if you'd like to send yourself a reminder as a draft instead."
     },
     {
       "id": "no_tool-en-4",
@@ -250,18 +250,18 @@
         {
           "tool": "ask_user",
           "args": {
-            "question": "I couldn't find a shopping list in holzi. Where should I put \"milk\"?",
+            "question": "I couldn't find a shopping list in haex-vault. Where should I put \"milk\"?",
             "options": [
               "Open haex-mail so I can write it as a note to myself",
               "Open Dateien so I can add it to a text file",
-              "Keep searching holzi's other actions for a list feature",
+              "Keep searching haex-vault's other actions for a list feature",
               "Never mind"
             ]
           },
           "ending": "ran"
         }
       ],
-      "text": "I couldn't find a shopping list in holzi. Where should I put \"milk\"?"
+      "text": "I couldn't find a shopping list in haex-vault. Where should I put \"milk\"?"
     }
   ],
   "requests": [

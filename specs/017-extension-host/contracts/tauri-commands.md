@@ -1,9 +1,9 @@
-# Vertrag: Tauri-Commands und Ereignisse für holzis Oberfläche
+# Vertrag: Tauri-Commands und Ereignisse für haex-vaults Oberfläche
 
-Nur holzis eigenes Frontend ruft diese Commands auf. Eine Erweiterung erreicht ausschließlich
+Nur haex-vaults eigenes Frontend ruft diese Commands auf. Eine Erweiterung erreicht ausschließlich
 `extension_bridge_call` und nur über die Weiterleitung im Frontend ([bridge.md](./bridge.md)). Alle Commands
 laufen über `VaultDb` und sind nach dem Schließen der Vault gesperrt (ADR-0003). Typen per ts-rs nach
-`src/types/bindings/`. Fehlerart `HolziError::Extension*` ohne Daten der Erweiterung im Text.
+`src/types/bindings/`. Fehlerart `HaexError::Extension*` ohne Daten der Erweiterung im Text.
 
 ## Installation und Verwaltung (L1, L3)
 
@@ -32,7 +32,7 @@ Modelle einer Erweiterung (Spec 055 US2): `extension_model_grants_list {extensio
 `extension_model_grants_set {args: {extensionId, modelId, effort}}` erlaubt ein Modell bis zu diesem Aufwand und
 ersetzt jede frühere Zeile des Modells; `extension_model_grants_revoke {args: {extensionId, modelId}}` nimmt es
 zurück, auch eine Entscheidung für die Sitzung; `extension_model_default_set {args: {extensionId, modelId?}}`
-macht ein erlaubtes Modell zum Standardmodell (ohne `modelId`: kein Standardmodell). Die Antwort auf eine Frage nach einem Modell (`extension_permission_resolve`, `model`) kann mit `makeDefault` dasselbe tun. Fällt das Modell eines laufenden Auftrags aus, sendet holzi `model-replacement-request` (`ModelReplacementRequest`); `model_replacement_answer {requestId, answer?}` antwortet (ohne `answer`: ablehnen). Die Liste der Berechtigungen in den Einstellungen zeigt die Modelle deshalb nicht.
+macht ein erlaubtes Modell zum Standardmodell (ohne `modelId`: kein Standardmodell). Die Antwort auf eine Frage nach einem Modell (`extension_permission_resolve`, `model`) kann mit `makeDefault` dasselbe tun. Fällt das Modell eines laufenden Auftrags aus, sendet haex-vault `model-replacement-request` (`ModelReplacementRequest`); `model_replacement_answer {requestId, answer?}` antwortet (ohne `answer`: ablehnen). Die Liste der Berechtigungen in den Einstellungen zeigt die Modelle deshalb nicht.
 
 Einwilligungen für Modellaufträge (Spec 055 US4) sind Berechtigungen der Art `modelDestination` mit der
 Anbieterkennung als Ziel; sie laufen über die Befehle oben. `PermissionView.destination` und
@@ -53,7 +53,7 @@ Ereignis `extension-permission-request` (siehe [permissions.md](./permissions.md
 | `extension_dev_confirm`                         | `{projectPath, accepted}`                 | Kennung der Entwicklungsfassung                                                                            |
 | `extension_dev_unload`                          | `{extensionId}`                           | – (löscht Registrierung, Berechtigungen, Speicher und Tabellen)                                            |
 
-`Limits` hat `maxRows`, `maxConcurrent`, `maxSqlBytes`, `timeoutMs` und `maxResponseBytes`. Nur holzi prüft die
+`Limits` hat `maxRows`, `maxConcurrent`, `maxSqlBytes`, `timeoutMs` und `maxResponseBytes`. Nur haex-vault prüft die
 Grenzen und liefert sie mit, damit die Einstellungen sie anzeigen: Zeilen 1 bis 1.000.000, gleichzeitige Anfragen
 1 bis 100, Anweisung 1.000 Bytes bis 16 MiB, Laufzeit 100 bis 60.000 ms, Antwort 64 KiB bis 256 MiB. Ein Wert
 außerhalb wird mit `InvalidInput` abgelehnt, nichts wird geschrieben.
@@ -69,8 +69,8 @@ außerhalb wird mit `InvalidInput` abgelehnt, nichts wird geschrieben.
 
 Ereignis `extension-frame-event {frame, type, data, timestamp}`.
 
-`extension_host_context_set {theme, locale}` (nur holzis Fenster): Farbschema (`light` | `dark` | `system`) und
-Sprache, wie holzis Oberfläche sie anwendet; Grundlage von `extension_context_get`. So liest nur das Frontend
+`extension_host_context_set {theme, locale}` (nur haex-vaults Fenster): Farbschema (`light` | `dark` | `system`) und
+Sprache, wie haex-vaults Oberfläche sie anwendet; Grundlage von `extension_context_get`. So liest nur das Frontend
 die Einstellungen, und Rust kennt sie trotzdem.
 
 ## Weitere Ereignisse

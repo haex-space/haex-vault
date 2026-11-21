@@ -30,7 +30,7 @@ piece of TypeScript logic) and by the spec's independent tests. Test tasks come 
   `cargo test` that touches ts-rs types, run `sed -i -E "s/[[:space:]]+$//" src/types/bindings/*.ts`.
 - Before every push: `pnpm typecheck:scripts`, `pnpm lint`, `pnpm format:check`, and **all** `pnpm check:*` after a change
   to a composable or a module under `src/lib/wm/` (they run in Node sandboxes: no DOM globals, no `instanceof Element`).
-- UI texts that holzi adds go in `src/i18n/locales/de.json` and `en.json` in lockstep; no save or apply buttons.
+- UI texts that haex-vault adds go in `src/i18n/locales/de.json` and `en.json` in lockstep; no save or apply buttons.
 - Commits follow Conventional Commits, English, short, **no agent trailer**; a PR per step from a topic branch in a repository-local worktree
   (`git worktree add .worktrees/090-app-header-bar -b 090-app-header-bar origin/main`, never `git switch` in the
   primary checkout); E2E does not run on pull requests, so before merging a step run
@@ -261,8 +261,8 @@ duplicated and cross-tab input changes nothing.
       `src/api/header.ts` (`HeaderAPI` with `set` and `onEvent`), `EXTENSION_COMMANDS.headerSet =
 "extension_header_set"` in `src/commands/extension.ts`, `HAEXTENSION_EVENTS.HEADER_EVENT =
 'haextension:header:event'` in `src/events.ts`, the types, `client.header` in `src/client.ts`, and a test as in
-      `src/api/__tests__/tab.test.ts`; `header.set` resolves `true`, and `false` when the host answers unknown method (holzi's code 8000 or haex-vault 2.x's
-      `Error("Unknown method: …")` text), every other error still rejects; test both replies and a `3001` (research R14). holzi does not
+      `src/api/__tests__/tab.test.ts`; `header.set` resolves `true`, and `false` when the host answers unknown method (haex-vault's code 8000 or haex-vault 2.x's
+      `Error("Unknown method: …")` text), every other error still rejects; test both replies and a `3001` (research R14). haex-vault does not
       wait for the release; when merged, cite it in `specs/090-app-header-bar/` as `haex-space/vault-sdk@<sha>:<path>` (not started: a pull request in another repository)
 - [x] T033 [US3] Run the Rust gates: the new tests and `notifications` tests in the 10 GB scope; `cargo clippy` for the
       host and for `aarch64-linux-android` as in the feedback notes; strip trailing spaces in `src/types/bindings`;
@@ -314,7 +314,7 @@ window until the path collapses.
 - [ ] T040 [P] Run `mcp__knip__knip-run` and fix what this spec left unused (components, i18n keys, exports); do not touch
       what other code left
 - [ ] T041 [P] Run `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm typecheck:scripts` and **all** `pnpm check:*`
-- [ ] T042 [P] Add the term to `CONTEXT.md` (section "Erweiterungen"): **Header-Beschreibung** (what an app hands holzi
+- [ ] T042 [P] Add the term to `CONTEXT.md` (section "Erweiterungen"): **Header-Beschreibung** (what an app hands haex-vault
       for the window's header), **Header-Control**, **Überlauf-Menü**; German, in the file's style; no other change
 - [ ] T043 Hand check with the quickstart's "See it in the running app": Settings against the COSMIC screenshot (SC-008,
       the operator), the effect time of a control (SC-006, about 100 ms), and a 400 px wide window (a phone)

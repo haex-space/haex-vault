@@ -15,7 +15,7 @@ menu is a `SyncRuleDraft` like any other and goes through `sync_rules_create`.
 ## Pure functions (new, tested without Vue)
 
 - `syncRuleOffer(input) -> boolean`, `lib/files/registry.ts`: the rule of research R2.
-  Input: `{ source: SourceRef, holziOwned: boolean, symlink: boolean, noAccess: boolean, encrypted: EncryptedInfo-like | null }`.
+  Input: `{ source: SourceRef, haexOwned: boolean, symlink: boolean, noAccess: boolean, encrypted: EncryptedInfo-like | null }`.
 - `pickedFromEntry(source, path, kind, encrypted) -> PickedFolder`, `lib/files/syncRules.ts`: research R3,
   including the window form of a storage path.
 

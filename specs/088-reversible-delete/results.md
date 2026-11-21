@@ -1,6 +1,6 @@
 # Results: The reversible way first
 
-Machine: RTX A2000 8 GB laptop. Local models through holzi's llama.cpp engine (CUDA build, all layers on the card),
+Machine: RTX A2000 8 GB laptop. Local models through haex-vault's llama.cpp engine (CUDA build, all layers on the card),
 the context the memory plan picks. haex-mail under the app's names (`x_haexmail_<tool>`) unless a run says
 `thunderbird`. Measured 2026-11-11/12.
 
@@ -67,7 +67,7 @@ checked any more (two checks of `x_mail_send_mail` in `c6a2`, none in `c6a2s`).
 
 - **`none` is not offered** (open): the kept question lets the model answer `final` or a candidate's name. When no
   candidate fits it can only name an unfitting one (Qwen3.5 4B named `x_mail_mark_messages` for a delete, below); the
-  turn-away then points to that tool. holzi reads a `none` answer as no verdict, but the question never asks for it.
+  turn-away then points to that tool. haex-vault reads a `none` answer as no verdict, but the question never asks for it.
   Offering it changes the measured wording, so it needs a new chain-set run (`contracts/check-question.md`); candidate
   c7 below is that run.
 

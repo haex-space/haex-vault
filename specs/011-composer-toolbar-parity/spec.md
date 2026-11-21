@@ -14,7 +14,7 @@
 
 ### User Story 1 - The effort control does what it says (Priority: P1)
 
-Today, holzi's composer shows a low/medium/high "effort" control regardless of which model or backend
+Today, HaexVault's composer shows a low/medium/high "effort" control regardless of which model or backend
 is selected. For the built-in (local) model it only raises a response-length cap; for a connected
 Claude Code or Codex delegate it is not passed to the subprocess at all — changing it does nothing. A
 user who raises or lowers the effort level should see that choice genuinely change how much reasoning
@@ -43,7 +43,7 @@ one for it.
    hidden or clearly marked unavailable rather than silently ignored.
 4. **Given** the user has not touched the effort control for the active model/backend, **When** they
    send a message, **Then** that model/backend's own sensible default effort is used, not an
-   arbitrary holzi-specific default that contradicts it.
+   arbitrary HaexVault-specific default that contradicts it.
 5. **Given** a model that only supports a subset of effort levels (e.g. no "extra high"/"max"),
    **When** the user opens the control, **Then** only the levels that model actually supports are
    offered.
@@ -52,7 +52,7 @@ one for it.
 
 ### User Story 2 - See sub-agent activity while a delegate is working (Priority: P2)
 
-When the Claude Code delegate spawns one or more sub-agents to work on parts of a request, holzi today
+When the Claude Code delegate spawns one or more sub-agents to work on parts of a request, HaexVault today
 gives no sign of it — the composer looks like a single plain request is running. Give the user live
 visibility into that activity, grouped by the batch in which sub-agents were dispatched together, the
 way Claude Code's own interface does.
@@ -213,7 +213,7 @@ _Out of scope for this feature_:
 - Persisting a chosen effort level across app restarts, or per model/backend — out of scope the same
   way today's effort setting already resets each session; this feature does not regress or improve
   that.
-- holzi originating its own multi-agent orchestration (e.g. a Claude-Code-"ultracode"-style feature).
+- HaexVault originating its own multi-agent orchestration (e.g. a Claude-Code-"ultracode"-style feature).
   This feature only visualizes sub-agent activity the delegate itself already decided to do.
 
 ### Key Entities
@@ -261,14 +261,14 @@ _Out of scope for this feature_:
   part of this feature.
 - Sub-agent detection for the Claude Code delegate is based on the documented `parent_tool_use_id`
   field the delegate's stream already carries on sub-agent messages; a batch is the set of sub-agent
-  dispatches issued together within one delegate turn. This feature does not require holzi to know
+  dispatches issued together within one delegate turn. This feature does not require HaexVault to know
   the exact name of the tool that spawns a sub-agent, only that a later message references an earlier
   tool call as its parent.
 - Local (in-process) models and the Codex delegate have no sub-agent concept in scope here; showing no
   indicator for them (FR-010) is the natural, correct behavior, not a gap.
 - Attachment usability follows what each backend can already accept: the direct Anthropic API already
   supports image/document content in a request; the Claude Code delegate can be given file content as
-  part of what holzi passes it for a turn; local (in-process) models have no attachment/multimodal
+  part of what HaexVault passes it for a turn; local (in-process) models have no attachment/multimodal
   handling today, so an attachment is marked unusable for that backend (FR-015) rather than this
   feature adding new local multimodal capability.
 - A per-file size limit and an allowed-file-type list are needed to satisfy FR-016 but their exact

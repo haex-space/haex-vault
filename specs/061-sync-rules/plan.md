@@ -31,7 +31,7 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 - **Ablauf** (R8, R9): Dienst `file_sync` startet beim Öffnen der Vault in `open.rs` und `import.rs`; Wächter
   `notify` für lokale Orte, Intervall für entfernte; ein Lauf je Regel, Läufe verschiedener Regeln nebenläufig
   mit Obergrenze.
-- **Papierkorb** (R10): Systempapierkorb nur bei lokalen Orten auf dem Desktop, sonst `.holzi-trash`.
+- **Papierkorb** (R10): Systempapierkorb nur bei lokalen Orten auf dem Desktop, sonst `.haex-trash`.
 - **Agent** (R11): neue `AgentFileKind::SyncRules`, Aktionen `syncRules.*` mit eigener Abfrage je Änderung.
 - **Oberfläche** (R12): Eintrag in der Seitenleiste, `FilesSyncRules`-Seite, `FilesFolderPicker` (neu),
   Ausnahmen-Editor mit `UiTextarea`, Dialog „Einstellungen“ (Protokolltiefe).
@@ -52,7 +52,7 @@ Laufdateien wachsen mit Protokolltiefe mal Dateien je Regel, ohne künstliche Ei
 `node --test` (`pnpm check:files`, `check:settings`, `check:agent-actions`); E2E `files-sync-rules`;
 Rust-Tests in `*_tests.rs` neben dem Modul
 
-**Target Platform**: Linux, macOS, Windows, Android (Dateiwächter nicht auf iOS; iOS ist kein Ziel von holzi
+**Target Platform**: Linux, macOS, Windows, Android (Dateiwächter nicht auf iOS; iOS ist kein Ziel von haex-vault
 für Dateien)
 
 **Project Type**: Tauri-Desktop-/Mobil-App (Rust-Backend, Nuxt-Frontend)
@@ -177,7 +177,7 @@ docs/…, specs/…                                        # Verweise auf 025 er
 
 **Structure Decision**: ein neues Rust-Modul `file_sync` neben `files` (der Dateibrowser kennt Regeln nicht, das
 Modul kennt nur seine Schnittstellen); im Frontend ein Bereich im Dateibrowser; die Protokolltiefe
-stellt ein Dialog „Einstellungen“ im selben Bereich ein, kein Menüpunkt der Einstellungen von holzi.
+stellt ein Dialog „Einstellungen“ im selben Bereich ein, kein Menüpunkt der Einstellungen von haex-vault.
 
 ## Complexity Tracking
 

@@ -1,10 +1,10 @@
 # Contract: migration `0053_sync_rules_source_target`
 
-Registered in `holzi_migration_source` after `0050_voice_conversations`, with a comment in the style of the neighbours
+Registered in `haex_migration_source` after `0050_voice_conversations`, with a comment in the style of the neighbours
 ("Spec 075: the two places of a sync rule are source and target"). The SQL lives in
 `identity/migrations_sync_rules_source_target.rs` as the constant `SYNC_RULES_SOURCE_TARGET_0053`.
 
-All five tables are `_no_sync` (ADR 0018): not tracked, not synced, so `HOLZI_TRIGGER_VERSION` stays, as for `0046`.
+All five tables are `_no_sync` (ADR 0018): not tracked, not synced, so `HAEX_TRIGGER_VERSION` stays, as for `0046`.
 
 ## Statements
 

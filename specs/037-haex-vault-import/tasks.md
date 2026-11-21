@@ -38,7 +38,7 @@ description: 'Task list for spec 037-haex-vault-import'
   - Do a real `pnpm install` (no symlinked `node_modules`).
   - Reflink the Rust build cache from the primary checkout with `cp -a --reflink=always ../../src-tauri/target src-tauri/target`, but only if `src-tauri/Cargo.lock` matches.
   - Record baseline counts for `cargo test --test passwords_import --test passwords_import_keepass`, `cargo test --lib passwords::import` and `pnpm check:passwords` in this task's note. **Note**: Build cache reflinked from `.worktrees/fix-passwords-keyvalues` (same `Cargo.lock`). Baseline on 4168acc: `passwords_import` 10 pass, `passwords_import_keepass` 15 pass, `pnpm check:passwords` 119 pass.
-- [x] T002 [P] Run `graphify query` (budget ~1000) before the first new name, for each of these: "import group write reuse existing folder", "tag color set", "generator preset save", "passkey insert", "sqlcipher open connection key", "temporary directory copy". Prefer an existing candidate. Note which candidates were evaluated and why they did not match. On a borderline match, stop and ask the operator. **Note**: Evaluated `presets::save`, `tags::set_color`, `tags::get_or_create`, `passkeys::insert` and `binaries::ensure_binary`; all are reused. `ensure_group_path` (import/mod.rs) only merges within one model, so it does not replace the lookup of folders already in the vault (`existing_group`, new). `haex_crdt::SqlCipherKey` belongs to `Database::open`, which runs holzi's migrations, so it is unsuitable for a foreign file. The graph had no candidate for opening a foreign SQLCipher file or copying it to a temporary directory. No borderline match.
+- [x] T002 [P] Run `graphify query` (budget ~1000) before the first new name, for each of these: "import group write reuse existing folder", "tag color set", "generator preset save", "passkey insert", "sqlcipher open connection key", "temporary directory copy". Prefer an existing candidate. Note which candidates were evaluated and why they did not match. On a borderline match, stop and ask the operator. **Note**: Evaluated `presets::save`, `tags::set_color`, `tags::get_or_create`, `passkeys::insert` and `binaries::ensure_binary`; all are reused. `ensure_group_path` (import/mod.rs) only merges within one model, so it does not replace the lookup of folders already in the vault (`existing_group`, new). `haex_crdt::SqlCipherKey` belongs to `Database::open`, which runs haex-vault's migrations, so it is unsuitable for a foreign file. The graph had no candidate for opening a foreign SQLCipher file or copying it to a temporary directory. No borderline match.
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
@@ -90,7 +90,7 @@ description: 'Task list for spec 037-haex-vault-import'
 
 ---
 
-## Phase 3: User Story 1 - Alle Passwörter aus haex-vault 2.x in holzi holen (P1) 🎯 MVP
+## Phase 3: User Story 1 - Alle Passwörter aus haex-vault 2.x in haex-vault holen (P1) 🎯 MVP
 
 **Goal**: choose the source, file and password, see a preview with every count, and import everything losslessly.
 
@@ -108,14 +108,14 @@ description: 'Task list for spec 037-haex-vault-import'
   - `presets` holds two entries.
   - `tag_colors` holds the coloured tag, and `TagMerged` is reported for `Work`/`work`.
   - The missing binary icon gives `IconNotMapped`, the unknown name gives `IconNotMapped`, `i-lucide-key` maps to `lucide:key`, and `mdi:bank` maps to a `lucide:` name.
-  - Times are run through `holzi_time`; `expires_at` stays `2027-01-31`.
-- [x] T008 [P] [US1] In the same file, write a service-level test (`fixture()` pattern of `tests/passwords_import.rs`: a temporary holzi vault plus `PasswordsService`):
+  - Times are run through `haex_time`; `expires_at` stays `2027-01-31`.
+- [x] T008 [P] [US1] In the same file, write a service-level test (`fixture()` pattern of `tests/passwords_import.rs`: a temporary haex-vault vault plus `PasswordsService`):
   - Run `import_preview`, then `import_run` with `Skip`, for source `LegacyHaexVault`.
   - Read the rows back with `with_connection` (`#![allow(clippy::disallowed_methods)]`).
   - Entries have `color` and `autofill_aliases`; groups have `color` and `sort_order`; tags have colours.
-  - The attachment bytes are equal to the source bytes; the binary icon is set (`binary:` plus the holzi hash).
+  - The attachment bytes are equal to the source bytes; the binary icon is set (`binary:` plus the haex-vault hash).
   - The passkey on an entry and the standalone passkey (`item_id IS NULL`) exist, the latter with the source `public_key`.
-  - Both presets exist, and the source default becomes the default only when holzi had none.
+  - Both presets exist, and the source default becomes the default only when haex-vault had none.
   - The trashed entries are under `trash`.
   - The preview counts `tags` and `presets` and its `warnings` contain `legacy_haex_vault_close_first`.
 - [x] T009 [P] [US1] Write `src-tauri/src/passwords/import/legacy_haex_vault/icons_tests.rs`, following `import/icons_tests.rs:18`:
@@ -155,7 +155,7 @@ description: 'Task list for spec 037-haex-vault-import'
   - **Snapshots**: deserialize into `SnapshotData`, with attachments taken from `snapshot_binaries`.
   - **Passkeys**: build `PasskeyInput` 1:1 with `is_discoverable != 0`.
   - **Presets**: build `PresetInput` with an empty `id`.
-  - Run every time through `holzi_time`.
+  - Run every time through `haex_time`.
   - Call `check_otp` on each item.
   - Split helpers (`groups.rs`, `history.rs`) only if the file exceeds 500 lines.
 - [x] T014 [US1] Create `src-tauri/src/passwords/import/legacy_haex_vault/mod.rs` with `pub fn read(path: &Path, credentials: &Credentials) -> Result<ImportModel>`:
@@ -172,7 +172,7 @@ description: 'Task list for spec 037-haex-vault-import'
 - [x] T016 [US1] Create `src-tauri/src/passwords/import/apply_extras.rs`, called from `write_all` after the entries and before the attachments end. It writes, each in its own `write`:
   - **Tag colours**: for `(name, color)` in `tag_colors`, if the folded tag exists and has no colour, call `tags::set_color` (`tags.rs:128`).
   - **Standalone passkeys**: `model.passkeys` through `passkeys::insert`. `Duplicate` becomes `PasskeyDuplicate` in the report; new ids go to `Ledger.passkeys`.
-  - **Presets**: `model.presets` through `presets::save`. Skip a preset when holzi already has one with the same name (case-folded). Clear `is_default` when holzi already has a default. A validation error becomes `ValueNotStorable`. New ids go to `Ledger.presets`.
+  - **Presets**: `model.presets` through `presets::save`. Skip a preset when haex-vault already has one with the same name (case-folded). Clear `is_default` when haex-vault already has a default. A validation error becomes `ValueNotStorable`. New ids go to `Ledger.presets`.
   - Extend `Ledger` with `passkeys` and `presets`, and make `rollback` delete them.
   - Unit tests go in `apply_extras_tests.rs`. **Note**: The three parts are written together in one `write` (step `Step::Extras`) instead of one each: they are few and small, and the ledger and rollback stay the same.
 - [x] T017 [P] [US1] Wire up the wizard in `src/components/passwords/ImportWizard.vue`, following [contracts/tauri-commands.md](./contracts/tauri-commands.md) §Oberfläche:
@@ -198,9 +198,9 @@ description: 'Task list for spec 037-haex-vault-import'
 
 **Goal**: every failure is explained, nothing is written, and the source file is never changed.
 
-**Independent Test**: wrong password, foreign files, a vault without password tables, a missing column, and a cancel. Each one leaves the source hashes and the holzi vault unchanged (SC-002).
+**Independent Test**: wrong password, foreign files, a vault without password tables, a missing column, and a cancel. Each one leaves the source hashes and the haex-vault vault unchanged (SC-002).
 
-- [x] T020 [P] [US2] Add tests in `src-tauri/tests/passwords_import_legacy_haex_vault.rs`, failing first, each asserting the reason and the unchanged holzi counts:
+- [x] T020 [P] [US2] Add tests in `src-tauri/tests/passwords_import_legacy_haex_vault.rs`, failing first, each asserting the reason and the unchanged haex-vault counts:
   - wrong password gives `legacy_haex_vault_locked`;
   - random bytes of 8 KiB give `legacy_haex_vault_locked`;
   - an unencrypted SQLite file gives `unsupported_format`;
@@ -211,12 +211,12 @@ description: 'Task list for spec 037-haex-vault-import'
 - [x] T021 [P] [US2] Add a test in the same file for the unchanged source and the WAL:
   - With `build_with_wal`, the open connection keeps the `MARKER-wal` entry only in `-wal`.
   - `sha256_files` before and after the preview, the run, a failed run with a wrong password and a cancelled run are identical.
-  - The `MARKER-wal` entry arrives in holzi.
+  - The `MARKER-wal` entry arrives in haex-vault.
   - No `-shm` or other new file appears next to the source (list the directory before and after).
   - The source directory may be set read-only for the run (`std::fs::set_permissions`), and the import still succeeds.
 - [x] T022 [P] [US2] Add a cancel and rollback test in the same file:
   - Use the `inject` hook of `Control` (as the existing tests in `tests/passwords_import.rs` do) to fail after the standalone passkeys and presets are written.
-  - Afterwards, holzi has no new entries, folders, tags, passkeys (including `item_id IS NULL`) or presets.
+  - Afterwards, haex-vault has no new entries, folders, tags, passkeys (including `item_id IS NULL`) or presets.
   - The reason is `cancelled` for a user cancel.
 - [x] T023 [US2] Make T020 to T022 pass by adjusting `open.rs`, `mod.rs` and `apply_extras.rs`; no new public surface. Ensure the password from `Credentials` is never formatted into an error, log line or report (grep the new modules for `password` in `format!`/`tracing` calls).
 - [x] T024 [P] [US2] Check that the wizard shows the new reasons through `importFailureReason` in `src/lib/passwords/importReport.ts`. Add cases for `legacy_haex_vault_locked` and `no_passwords` to `scripts/check-passwords-import.ts`.

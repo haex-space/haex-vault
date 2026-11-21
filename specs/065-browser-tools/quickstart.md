@@ -8,7 +8,7 @@ einmal je Lieferung durchgeht.
 
 ## Vorbereitung
 
-1. holzi mit einer Test-Vault starten, KI → Agenten: Zugang an, Claude Code nach Anleitung
+1. HaexVault mit einer Test-Vault starten, KI → Agenten: Zugang an, Claude Code nach Anleitung
    verbinden und registrieren (Spec 021, quickstart M1).
 2. Lokalen Testserver mit den Seiten aus `src-tauri/tests/fixtures/agent_browser/site/` starten:
    `pnpm agent-browser:fixtures` in der nix-Umgebung (anderer Port: `pnpm agent-browser:fixtures
@@ -48,7 +48,7 @@ einmal je Lieferung durchgeht.
 
 - Während der Agent eine längere Aufgabe ausführt: „Eingreifen“ in der Markierung → der Agent
   meldet „pausiert“; selbst tippen; „Zurückgeben“ → der Agent macht weiter.
-- „Stoppen“ in holzi → die Markierung verschwindet sofort, der Tab bleibt offen, der nächste
+- „Stoppen“ in HaexVault → die Markierung verschwindet sofort, der Tab bleibt offen, der nächste
   Aufruf des Agenten meldet `stopped`.
 
 ## M5 Prompt Injection (US2, SC-002)
@@ -77,12 +77,12 @@ einmal je Lieferung durchgeht.
 
 ## M8 Profil (FR-001)
 
-- Nach M6 holzi beenden. Unter `agent-browser/` im Datenverzeichnis liegt nur ein verschlüsselter
-  Ordner (`*.hxef`), kein lesbares Cookie-Verzeichnis; `$XDG_RUNTIME_DIR/holzi-agent-browser/`
+- Nach M6 HaexVault beenden. Unter `agent-browser/` im Datenverzeichnis liegt nur ein verschlüsselter
+  Ordner (`*.hxef`), kein lesbares Cookie-Verzeichnis; `$XDG_RUNTIME_DIR/haex-agent-browser/`
   (Linux) bzw. das Temp-Verzeichnis ist leer.
 - Ein Agent meldet sich mit „Anmeldedaten eintragen“ an; der Agenten-Browser bietet nicht an, das
   Passwort zu speichern (FR-002).
-- holzi starten, Vault entsperren, die Seite erneut öffnen lassen → noch angemeldet (mit einer
+- HaexVault starten, Vault entsperren, die Seite erneut öffnen lassen → noch angemeldet (mit einer
   echten Website mit Anmeldung; die Testseiten führen keine Sitzung).
 - Dieselbe Vault auf einem zweiten Gerät: Agenten-Browser startet ohne Anmeldung.
 
@@ -111,7 +111,7 @@ einmal je Lieferung durchgeht.
 
 ## M10 Dialogs stay open (FR-042)
 
-- Open a question of the agent browser (M3), send holzi to the background, bring it back with a
+- Open a question of the agent browser (M3), send HaexVault to the background, bring it back with a
   click into the window, click next to the dialog, press Escape: the dialog stays and nothing is
   declined. There is no X; only "Erlauben" and "Ablehnen" answer. The same with a permission
   question in the chat, the registration of a new agent (Spec 021, quickstart M1) and an approval
@@ -191,7 +191,7 @@ einmal je Lieferung durchgeht.
 
 ## M18 Stop and take over during input (FR-062)
 
-- While a drag runs (a fixture that makes it slow), press "Stoppen" in holzi: within a second the
+- While a drag runs (a fixture that makes it slow), press "Stoppen" in HaexVault: within a second the
   call ends, no mouse button stays held (the page shows `mouseup`). Move the mouse in the page
   while the agent presses keys: the agent pauses as for a click.
 

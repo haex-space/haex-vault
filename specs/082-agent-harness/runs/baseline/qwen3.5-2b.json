@@ -467,7 +467,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich habe den aktuellen Status der Workspaces und Fenster in Holzi abgerufen, aber ich kann keine Informationen über die Handynummer von Anna finden.\n\nKönnten Sie mir vielleicht sagen, in welchem App- oder Kontext Sie diese Information suchen? Vielleicht gibt es eine spezifische App oder ein Konto, d"
+      "text": "Ich habe den aktuellen Status der Workspaces und Fenster in HaexVault abgerufen, aber ich kann keine Informationen über die Handynummer von Anna finden.\n\nKönnten Sie mir vielleicht sagen, in welchem App- oder Kontext Sie diese Information suchen? Vielleicht gibt es eine spezifische App oder ein Konto, d"
     },
     {
       "id": "contact-de-2",
@@ -620,7 +620,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ich habe den aktuellen Status der Workspaces und Fenster in Holzi abgerufen. Da ich jedoch keinen Zugriff auf Ihre persönlichen Daten oder Ihre Steuererklärung habe, kann ich Ihnen nicht sagen, wo sie sich befindet.\n\nKönnen Sie mir kurz sagen, ob Sie eine Steuererklärung in Holzi verwalten möchten? "
+      "text": "Ich habe den aktuellen Status der Workspaces und Fenster in HaexVault abgerufen. Da ich jedoch keinen Zugriff auf Ihre persönlichen Daten oder Ihre Steuererklärung habe, kann ich Ihnen nicht sagen, wo sie sich befindet.\n\nKönnen Sie mir kurz sagen, ob Sie eine Steuererklärung in HaexVault verwalten möchten? "
     },
     {
       "id": "file-de-2",
@@ -1574,7 +1574,7 @@
           "ending": "ran"
         }
       ],
-      "text": "I don't have access to Julia Wagner's work number. I can only access information about apps and settings within the holzi vault. If you're asking about a specific person or entity, I'd need to know more about what you're looking for."
+      "text": "I don't have access to Julia Wagner's work number. I can only access information about apps and settings within the haex-vault vault. If you're asking about a specific person or entity, I'd need to know more about what you're looking for."
     },
     {
       "id": "password-en-1",
@@ -1909,7 +1909,7 @@
       "id": "contact-en-1-s",
       "result": "missed",
       "calls": [],
-      "text": "I don't have access to Tom's phone number. I can only access information about the holzi app and its settings, not external data like phone numbers.\n\nCould you tell me more about what you're looking for? For example:\n- Are you trying to find a contact named Tom in the holzi app?\n- Are you asking abo"
+      "text": "I don't have access to Tom's phone number. I can only access information about the haex-vault app and its settings, not external data like phone numbers.\n\nCould you tell me more about what you're looking for? For example:\n- Are you trying to find a contact named Tom in the haex-vault app?\n- Are you asking abo"
     },
     {
       "id": "contact-en-2-s",

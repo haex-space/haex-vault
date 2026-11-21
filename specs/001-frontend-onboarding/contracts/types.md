@@ -55,9 +55,9 @@ pub enum ConflictPolicy {
 
 See [`tauri-commands.md`](./tauri-commands.md). All derive `TS` with `#[serde(rename_all = "camelCase")]` for consistent camelCase field names on the wire.
 
-### `HolziError`
+### `HaexError`
 
-See [`tauri-commands.md`](./tauri-commands.md) → "Error type". Serialized as a tagged union with `kind` as the discriminator, matching Rust's `#[serde(tag = "kind")]`. The haex-crdt-mapped variants (`CrdtSqlite`, `CrdtIo`, `CrdtHlc`, `DeviceIdMismatch`, `CrdtSignatureVerificationFailed`, `CrdtUnexpectedSignatureUnderNoop`, `MigrationMissingFromSource`, `MigrationContentDrift`, `MigrationCompatibility`, `CrdtAlreadyInstalled`) plus the residual `CrdtInit` catch-all replace what earlier drafts flattened into a single opaque `CrdtInit { reason: String }`; see [`tauri-commands.md`](./tauri-commands.md) → "Error mapping" for the source-of-truth table. `DeviceIdMismatch` is not expected in normal operation — Holzi uses the pinned `DatabaseBootstrap` hook instead of the crate's removed `reconcile_device_id` arbitration.
+See [`tauri-commands.md`](./tauri-commands.md) → "Error type". Serialized as a tagged union with `kind` as the discriminator, matching Rust's `#[serde(tag = "kind")]`. The haex-crdt-mapped variants (`CrdtSqlite`, `CrdtIo`, `CrdtHlc`, `DeviceIdMismatch`, `CrdtSignatureVerificationFailed`, `CrdtUnexpectedSignatureUnderNoop`, `MigrationMissingFromSource`, `MigrationContentDrift`, `MigrationCompatibility`, `CrdtAlreadyInstalled`) plus the residual `CrdtInit` catch-all replace what earlier drafts flattened into a single opaque `CrdtInit { reason: String }`; see [`tauri-commands.md`](./tauri-commands.md) → "Error mapping" for the source-of-truth table. `DeviceIdMismatch` is not expected in normal operation — HaexVault uses the pinned `DatabaseBootstrap` hook instead of the crate's removed `reconcile_device_id` arbitration.
 
 ## Generation flow
 
@@ -69,5 +69,5 @@ See [`tauri-commands.md`](./tauri-commands.md) → "Error type". Serialized as a
 ## Naming rules
 
 - Rust struct names are `PascalCase`; TS exports the same names.
-- Enum variants: `PascalCase` on both sides; `#[serde(tag = "type")]` for internally tagged discriminant `type` (data enums) and `#[serde(tag = "kind")]` for `HolziError` — chosen to keep error-vs-mode discriminators visually distinct in logs.
+- Enum variants: `PascalCase` on both sides; `#[serde(tag = "type")]` for internally tagged discriminant `type` (data enums) and `#[serde(tag = "kind")]` for `HaexError` — chosen to keep error-vs-mode discriminators visually distinct in logs.
 - Field names: Rust `snake_case`, wire `camelCase` (via `#[serde(rename_all = "camelCase")]`), TS `camelCase`.

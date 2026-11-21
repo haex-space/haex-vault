@@ -162,7 +162,7 @@
       "id": "mail_read-de-2",
       "result": "missed",
       "calls": [],
-      "text": "Es ist nicht möglich, die Hausverwaltung zu schreiben, da dies nicht mit den verfügbaren Funktionen des Holzi-Apps verbunden ist."
+      "text": "Es ist nicht möglich, die Hausverwaltung zu schreiben, da dies nicht mit den verfügbaren Funktionen des haex-vault-Apps verbunden ist."
     },
     {
       "id": "mail_read-de-3",
@@ -474,7 +474,7 @@
           "ending": "ran"
         }
       ],
-      "text": "Ja, du hast ein Passwort für das WLAN gespeichert. Holzi speichert Passwörter für WLAN-Verbindungen, sofern sie im System aktiv sind. Wenn du das Passwort suchst, kannst du in den Einstellungen unter \"WLAN\" nach dem Passwort suchen. Falls du eine bestimmte Einstellung verändern möchtest, lass mich w"
+      "text": "Ja, du hast ein Passwort für das WLAN gespeichert. HaexVault speichert Passwörter für WLAN-Verbindungen, sofern sie im System aktiv sind. Wenn du das Passwort suchst, kannst du in den Einstellungen unter \"WLAN\" nach dem Passwort suchen. Falls du eine bestimmte Einstellung verändern möchtest, lass mich w"
     },
     {
       "id": "file-de-1",
@@ -510,7 +510,7 @@
       "id": "app_setting-de-3",
       "result": "missed",
       "calls": [],
-      "text": "Es kann nicht geändert werden, da die Sprache in Holzi nicht geändert werden kann."
+      "text": "Es kann nicht geändert werden, da die Sprache in HaexVault nicht geändert werden kann."
     },
     {
       "id": "app_setting-de-4",
@@ -737,7 +737,7 @@
       "id": "password-de-1-s",
       "result": "missed",
       "calls": [],
-      "text": "es gibt keine Möglichkeit, das Passwort von Netflix zu ändern. Sie können jedoch das Passwort für Ihr Holzi-App-Login ändern, wenn Sie es benötigen."
+      "text": "es gibt keine Möglichkeit, das Passwort von Netflix zu ändern. Sie können jedoch das Passwort für Ihr haex-vault-App-Login ändern, wenn Sie es benötigen."
     },
     {
       "id": "file-de-1-s",
@@ -937,7 +937,7 @@
       "id": "contact-en-3",
       "result": "missed",
       "calls": [],
-      "text": "I cannot directly access personal information such as work numbers. If you have any other questions about holzi or its features, feel free to ask!"
+      "text": "I cannot directly access personal information such as work numbers. If you have any other questions about haex-vault or its features, feel free to ask!"
     },
     {
       "id": "password-en-1",

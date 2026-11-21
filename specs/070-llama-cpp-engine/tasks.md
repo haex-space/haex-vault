@@ -13,10 +13,10 @@ description: 'Task list for spec 070-llama-cpp-engine'
 
 - **Rust**: tests go into a `*_tests.rs` file next to the module, never inline. Pure parts (templates,
   parsers, holdback, engine choice, the catalog gate) need no model.
-- **With a model**: ignored tests gated on `HOLZI_TEST_GGUF` (like `tests/local_inference.rs`) and the
-  83-sentence evaluation (`HOLZI_EVAL_ENGINE=llamacpp`, spec 032). They run on the development machine, not
+- **With a model**: ignored tests gated on `HAEX_TEST_GGUF` (like `tests/local_inference.rs`) and the
+  83-sentence evaluation (`HAEX_EVAL_ENGINE=llamacpp`, spec 032). They run on the development machine, not
   in CI.
-- **Always build in a targeted way** (`-j 4`, only the affected target; `holzi-cargo-in-worktrees`).
+- **Always build in a targeted way** (`-j 4`, only the affected target; `haex-cargo-in-worktrees`).
 
 **Organization**: Grouped by PR (plan.md "Stages"), in the order a PR needs them. The user stories map to
 stages: US1 and US2 are answered by the spike and made real in B and C; US3 is D (and E for Gemma 4); US4 is
@@ -50,9 +50,9 @@ F; US5 is G.
       (`research.md` "R1"): `cudaPackages.libcublas.static` and a `CUDA_LIBRARY_PATH` directory with a
       `lib64` of `libcudart_static.a`, `libculibos.a`, `libcublas_static.a`, `libcublasLt_static.a` and
       `stubs`. `.devshell/packages.nix` is delivered by the atoms package, so the change goes into the atoms
-      repo (as the Android devShell did) and holzi bumps the pin; record both PR numbers here.
+      repo (as the Android devShell did) and haex-vault bumps the pin; record both PR numbers here.
       Progress: atoms PR haexmas/atoms#47 (`cmake`, `ANDROID_NDK`, the static CUDA directory and
-      `CUDA_LIBRARY_PATH`); the holzi pin bump follows its merge.
+      `CUDA_LIBRARY_PATH`); the haex-vault pin bump follows its merge.
 - [x] T004 [P] Settle R1 (CUDA linking): static cuBLAS from the nixpkgs CUDA packages works (option (a));
       the finding is in `research.md`.
 - [x] T005 `src-tauri/Cargo.toml`: promote the spike features to `llm-llamacpp`, `llm-llamacpp-cuda` and
@@ -84,7 +84,7 @@ F; US5 is G.
 - [x] T013 [P] `formats/hermes.rs` per the contract, with the case table in `hermes_tests.rs`.
 - [x] T014 [P] `formats/qwen_xml.rs` per the contract (typing by schema, trimming, cut-off block), with
       `qwen_xml_tests.rs`.
-- [x] T015 Message shaping round trip: holzi's flat history (assistant text, `ToolCall` rows, `ToolResult`
+- [x] T015 Message shaping round trip: haex-vault's flat history (assistant text, `ToolCall` rows, `ToolResult`
       rows) renders through each fixture template without error and shows the call and the result. mistralrs'
       own renderer is not public, so parity is shown by the evaluation instead: the 83 sentences through
       the new modules give the same 55 (Qwen3) and 60 (Qwen3.5) as the spike's own code.
@@ -156,7 +156,7 @@ F; US5 is G.
       takes the newest NDK it finds unless `ANDROID_NDK` names one, and API 28 unless `ANDROID_API_LEVEL`
       says 26 (the app's `minSdk`, now in `.cargo/config.toml`).
 - [x] T036 Decide whether phones use llama.cpp (the profiles load no new models).
-      Result (operator, 2026-10-31): holzi keeps one engine. If US5 picks llama.cpp, it runs everywhere,
+      Result (operator, 2026-10-31): haex-vault keeps one engine. If US5 picks llama.cpp, it runs everywhere,
       phones included; otherwise mistralrs stays everywhere. Runtime and memory validation of the phone
       profiles remains in T044.
 - [ ] T037 iOS: build on a Mac with Metal; `llama-cpp-sys-2`'s `build.rs` has no iOS branch, so patch it

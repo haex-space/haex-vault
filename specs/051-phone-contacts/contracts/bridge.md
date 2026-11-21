@@ -26,8 +26,8 @@
 - `ContactSummary`: `id`, `displayName`, `organization`, `phones[]`, `emails[]`, `groups[]`
   (Gruppennamen), `photo`.
 - `ContactDetail`: `id`, `displayName`, alle Kopf-Felder, alle Angaben (`id`, `kind`, `label`, `value`)
-  einschließlich unbekannter Arten, Gruppennamen, `photo`, bestätigte holzi-Adressen als
-  `holziAddresses` (`vault` hex, `npub`, `devices[]` mit `devicePubkey`, `endpointId`, `irohRelay`,
+  einschließlich unbekannter Arten, Gruppennamen, `photo`, bestätigte haex-vault-Adressen als
+  `haexAddresses` (`vault` hex, `npub`, `devices[]` mit `devicePubkey`, `endpointId`, `irohRelay`,
   `nostrRelays[]`), `updatedAt`; ohne Herkunft, Abgleichsziele, Probleme und Zuordnungen.
 - Ein Feld ohne Wert fehlt, nie `null` (die Aktionen der Agenten prüfen ihre Ergebnisse gegen ein
   Schema ohne `null`).

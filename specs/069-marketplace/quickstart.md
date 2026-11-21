@@ -1,15 +1,15 @@
 # Quickstart: Checking the Marketplace
 
 Shows that the feature holds up from start to finish. Prerequisites: the worktree of this spec, the
-nix devshell (`cargo` only there, memory `holzi-cargo-in-worktrees`), a test marketplace (below).
+nix devshell (`cargo` only there, memory `haex-cargo-in-worktrees`), a test marketplace (below).
 
 ## Automated
 
 Always build in a targeted way (`-j 4`, only the affected target), never the whole tree:
 
 ```sh
-nix develop --command cargo test -j 4 -p holzi marketplace::                  # core, download, credentials
-nix develop --command cargo test -j 4 -p holzi extensions::registry::install  # source of the installation
+nix develop --command cargo test -j 4 -p haex marketplace::                  # core, download, credentials
+nix develop --command cargo test -j 4 -p haex extensions::registry::install  # source of the installation
 pnpm lint:rust                                                                # Clippy with -D warnings
 pnpm typecheck && pnpm lint && pnpm check:templates && pnpm format:check
 ```
@@ -17,7 +17,7 @@ pnpm typecheck && pnpm lint && pnpm check:templates && pnpm format:check
 The logic (merging, versions, compatibility, credentials) sits in the host; the frontend has no unit
 tests of its own, but is covered by type check, lint and e2e.
 
-E2E (spec 016; desktop with Xvfb, Android in the emulator `holzi-emulator`):
+E2E (spec 016; desktop with Xvfb, Android in the emulator `haex-emulator`):
 
 ```sh
 nix develop --command scripts/with-nix-host-bridge.sh pnpm test:e2e --grep marketplace

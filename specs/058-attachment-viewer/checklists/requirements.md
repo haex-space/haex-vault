@@ -31,7 +31,7 @@
 
 ## Notes
 
-- Both open decisions (which kinds show in holzi, "Mit System-App öffnen") were settled by the
+- Both open decisions (which kinds show in HaexVault, "Mit System-App öffnen") were settled by the
   operator before the spec was written; see Clarifications, session 2026-10-23.
 - References to the viewer of spec 044 and the notice of spec 048 name behaviour to match, not an
   implementation; whether code is shared is decided in `/speckit-plan` (FR-002 forbids a second

@@ -12,7 +12,7 @@ after spec 079 was parked for this.)
 
 ## Background
 
-- **What the model reads**: before a local model writes a single word, it reads the whole prompt: holzi's system
+- **What the model reads**: before a local model writes a single word, it reads the whole prompt: HaexVault's system
   prompt, the descriptions of the offered tools, the conversation so far and the new request. In a chat with
   tools that is about 4000 tokens.
 - **What that costs, measured 2026-11-04** (reference laptop, RTX A2000 8 GB; spec 079 research R11):
@@ -124,11 +124,11 @@ half-way, and check every answer against the same run without the feature.
 
 ### User Story 4 - The desktop default model gains as well (Priority: P1)
 
-Qwen3.5 4B, holzi's default local model on desktops, keeps part of its memory in a form that cannot be cut back to
+Qwen3.5 4B, HaexVault's default local model on desktops, keeps part of its memory in a form that cannot be cut back to
 an earlier point. When a new prompt matches only the beginning of what was read, the model still reuses as much as
 possible instead of falling back to reading everything.
 
-**Why this priority**: the default model is what most users run; a gain only for Gemma 4, which holzi offers just
+**Why this priority**: the default model is what most users run; a gain only for Gemma 4, which HaexVault offers just
 to try, would miss most of them.
 
 **Independent Test**: User Stories 1 and 2 with Qwen3.5 4B.
@@ -146,9 +146,9 @@ to try, would miss most of them.
 ### User Story 5 - Memory stays planned (Priority: P2)
 
 The model's reading is kept between answers, which holds memory on the GPU or in the computer's memory for as long
-as the model is loaded. holzi plans that memory before loading, so no load or answer fails because of it.
+as the model is loaded. HaexVault plans that memory before loading, so no load or answer fails because of it.
 
-**Why this priority**: the inference library aborts the whole app when GPU memory runs out; but holzi already
+**Why this priority**: the inference library aborts the whole app when GPU memory runs out; but HaexVault already
 plans the memory of one answer, so the change is in what the plan counts.
 
 **Independent Test**: load each catalog model on the reference laptop, and the mobile default model on an Android
@@ -174,26 +174,26 @@ phone, run ten answers in a row, and check that no load or answer fails that suc
   again.
 - **The app goes to the background on a phone**: what was read may be dropped with the model, as the model itself
   may be today; the next answer is read from the start.
-- **Two requests at once**: holzi already lets only one answer run per model at a time; the kept reading follows
+- **Two requests at once**: HaexVault already lets only one answer run per model at a time; the kept reading follows
   the same rule.
 
 ## Requirements _(mandatory)_
 
 ### Functional Requirements
 
-- **FR-001**: For a model loaded through the llama.cpp engine, holzi MUST keep what the model has read and written
+- **FR-001**: For a model loaded through the llama.cpp engine, HaexVault MUST keep what the model has read and written
   after an answer ends, for as long as the model stays loaded.
-- **FR-002**: Before an answer, holzi MUST reuse the longest beginning of the kept reading that is identical to the
+- **FR-002**: Before an answer, HaexVault MUST reuse the longest beginning of the kept reading that is identical to the
   beginning of the new prompt, and read only the rest.
 - **FR-003**: Reusing MUST NOT change what the model decides. With deterministic settings, the tool calls and the
   answers MUST be the same as without reuse, apart from rare rounding differences in wording.
 - **FR-004**: Nothing that does not match the new prompt exactly MUST influence the new answer: not another
   conversation, not a cancelled or failed answer, not an earlier version of a changed prompt.
-- **FR-005**: A failed or cancelled answer, an unload, a reload and a change of model MUST leave holzi in a state in
+- **FR-005**: A failed or cancelled answer, an unload, a reload and a change of model MUST leave HaexVault in a state in
   which the next answer is correct. When in doubt, the kept reading MUST be dropped and the prompt read from the
   start.
 - **FR-006**: For a model whose kept reading cannot be cut back to an arbitrary point (the desktop default Qwen3.5
-  4B), holzi MUST still reuse the beginnings a conversation repeats: the whole previous prompt of a tool chain, and
+  4B), HaexVault MUST still reuse the beginnings a conversation repeats: the whole previous prompt of a tool chain, and
   the system prompt with the tool descriptions apart from at most 1024 tokens before their end.
 - **FR-007**: The date and time MUST NOT stop the unchanged system prompt, tool descriptions and earlier turns
   from being reused: the prompt of a turn MUST only grow at its end compared with the previous turn. The model
@@ -241,10 +241,10 @@ phone, run ten answers in a row, and check that no load or answer fails that suc
 
 ## Assumptions
 
-- **The engine supports it**: the llama.cpp version holzi ships can keep a context between answers, remove a tail
+- **The engine supports it**: the llama.cpp version HaexVault ships can keep a context between answers, remove a tail
   from the cache of attention models (shown for Gemma 4 in spec 079), and save and restore the state of models
   whose memory cannot be cut back. The plan confirms the last point with a spike.
-- **Prompts grow at the end**: holzi builds the prompt of a turn from the system prompt, the tools and the history
+- **Prompts grow at the end**: HaexVault builds the prompt of a turn from the system prompt, the tools and the history
   in a fixed order, and a tool chain appends to it. Every user message carries the time it was sent, so a turn
   that becomes history keeps its text (research R8). Templates that rewrite earlier turns (dropped thinking) reuse
   less, never wrongly.

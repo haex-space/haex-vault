@@ -16,7 +16,7 @@
   every proposal that matches what it would have written and discards the rest. So the answer comes out faster
   and the real model still decides every word.
 - **Measurement, 2026-11-04**:
-  - **Setup**: the reference laptop (RTX A2000 8 GB), using the inference library at exactly the version holzi
+  - **Setup**: the reference laptop (RTX A2000 8 GB), using the inference library at exactly the version HaexVault
     ships. Four typical requests of 200 words each: a short spoken answer, a mail summary, a tool call and a
     longer reply.
   - **Results**:
@@ -29,7 +29,7 @@
 
     The 12B model had half its layers on the processor, because it does not fit the 8 GB GPU whole.
 - **The drafter is a second file**: for Gemma 4, each model has its own drafter, published next to the model. It is
-  about 100 MB for E2B and E4B and 465 MB for 12B. The Gemma 4 models come to holzi as models to try (#806).
+  about 100 MB for E2B and E4B and 465 MB for 12B. The Gemma 4 models come to HaexVault as models to try (#806).
 - **A known limit**: with a drafter, one acceleration of the attention step has to stay off on the GPU, or the
   drafter aborts. On its own that acceleration brought only about 5 %, and the baseline above had it on.
 
@@ -119,14 +119,14 @@ hand, and with a drafter that does not belong to the model; all three answer wit
 
 ### User Story 4 - The memory planner counts the drafter (Priority: P2)
 
-holzi decides before loading how much of a model goes on the GPU. With a drafter, that decision includes the
+HaexVault decides before loading how much of a model goes on the GPU. With a drafter, that decision includes the
 drafter, so loading with a drafter never fails or crashes where loading without one would have worked.
 
 **Why this priority**: the inference library aborts the whole process when GPU memory runs out, so a forgotten
 drafter could crash the app; but it matters only on devices near their memory limit.
 
 **Independent Test**: on the reference laptop, load Gemma 4 12B with its drafter ten times; every load succeeds. The
-drafter is used for a partly placed model only where a measurement in holzi's own placement showed a gain.
+drafter is used for a partly placed model only where a measurement in HaexVault's own placement showed a gain.
 
 **Acceptance Scenarios**:
 
@@ -134,7 +134,7 @@ drafter is used for a partly placed model only where a measurement in holzi's ow
    it loads with its drafter, **Then** the placement leaves room for the drafter and the load succeeds. Without such
    a measurement, it loads without the drafter (FR-009).
 2. **Given** a device where the model fits but the model plus drafter does not, **When** the model loads, **Then**
-   holzi chooses between fewer layers on the GPU with the drafter and the same layers without it, and takes the one
+   HaexVault chooses between fewer layers on the GPU with the drafter and the same layers without it, and takes the one
    that is faster on that device. If the planner cannot tell, it loads without the drafter.
 
 ---
@@ -161,7 +161,7 @@ that the next answer uses it.
 
 ### Edge Cases
 
-- **Model and drafter mismatch**: the drafter must belong to exactly that model family and size, and holzi checks
+- **Model and drafter mismatch**: the drafter must belong to exactly that model family and size, and HaexVault checks
   that before using it. A drafter for E4B is never loaded with E2B.
 - **Low memory on a phone**: the drafter adds about 100 MB. On a phone that has room for the model but not for both,
   the model loads without the drafter (User Story 4).
@@ -169,7 +169,7 @@ that the next answer uses it.
   installs another quantisation of Gemma 4 through the Hugging Face search gets no drafter in this delivery.
 - **Answers that are mostly copied text**: for a tool call with long fixed arguments, more proposals are kept; for
   free text, fewer. The speed-up varies with the content; the criteria use the measured mix of four requests.
-- **Parallel requests**: holzi generates one answer at a time per model. The drafter follows the same rule.
+- **Parallel requests**: HaexVault generates one answer at a time per model. The drafter follows the same rule.
 - **The answer is cancelled**: stopping an answer stops the drafter too. The next answer starts clean.
 - **Thinking models**: Gemma 4 can write a thinking part before the answer. The drafter speeds up both parts, and
   how thinking is shown stays as it is.
@@ -180,7 +180,7 @@ that the next answer uses it.
 
 ### Functional Requirements
 
-- **FR-001**: When a local model has a drafter installed and the device can hold both, holzi MUST generate its
+- **FR-001**: When a local model has a drafter installed and the device can hold both, HaexVault MUST generate its
   answers with the drafter.
 - **FR-002**: The drafter MUST NOT change what the model decides. Sampling settings, prompt, offered tools and
   stop rules MUST stay the same with and without a drafter.
@@ -196,13 +196,13 @@ that the next answer uses it.
 - **FR-007**: Before loading, the memory planner MUST count the drafter. Loading with a drafter MUST NOT fail or
   crash where loading the same model without it would have succeeded.
 - **FR-008**: If the drafter is missing, does not belong to the model, cannot be loaded, or stops working during an
-  answer, holzi MUST continue without it. The user MUST see no error in the chat or the voice assistant, and the
+  answer, HaexVault MUST continue without it. The user MUST see no error in the chat or the voice assistant, and the
   reason MUST be written to the log.
-- **FR-009**: holzi MUST use the drafter only where it is faster. Where the planner must choose between fewer GPU
+- **FR-009**: HaexVault MUST use the drafter only where it is faster. Where the planner must choose between fewer GPU
   layers with the drafter and the full placement without it, and cannot tell which is faster, it MUST load without
   the drafter.
 - **FR-010**: For an installed model whose drafter is missing, the model list MUST offer the drafter download with
-  its size. holzi MUST NOT download a drafter without the user asking.
+  its size. HaexVault MUST NOT download a drafter without the user asking.
 - **FR-011**: The model list MUST show whether an installed model has its speed-up.
 - **FR-012**: The rules for the GPU that a drafter needs (one attention acceleration off) MUST apply only while a
   drafter is in use. Without a drafter, the model MUST run with the settings it uses today. If the drafter stops
@@ -227,11 +227,11 @@ that the next answer uses it.
 
 ### Measurable Outcomes
 
-- **SC-001**: On the reference desktop, holzi writes answers with Gemma 4 E2B, E4B and 12B at least 1.3 times as
+- **SC-001**: On the reference desktop, HaexVault writes answers with Gemma 4 E2B, E4B and 12B at least 1.3 times as
   many tokens per second with the drafter as without, over the four measured request types, rendered through the
   model's chat template as the app does (operator, 2026-11-04: the 1.4 of the first draft came from thinking
   answers, research R11). For a model that fits
-  the GPU only partly (the 12B on the reference desktop), this is measured in holzi's own placement. If it is not
+  the GPU only partly (the 12B on the reference desktop), this is measured in HaexVault's own placement. If it is not
   reached there, that model loads without the drafter (FR-009), and the result records the criterion as not reached
   for it.
 - **SC-002**: On the everyday voice set of spec 078, every Gemma 4 model passes at least as many requests with the
@@ -247,13 +247,13 @@ that the next answer uses it.
 
 ## Assumptions
 
-- **The library supports it**: the inference library at the version holzi ships supports the Gemma 4 drafter. The
+- **The library supports it**: the inference library at the version HaexVault ships supports the Gemma 4 drafter. The
   measurement used exactly that version.
 - **The catalog entries exist**: the Gemma 4 entries come from #806. This feature extends them and does not decide
   which models are suggested.
 - **No switch for the user**: the drafter is used wherever it helps. A settings switch to turn it off is out of
   scope, because the answers do not change.
-- **Phones**: Android builds the same code. holzi runs models there on the processor only, and FR-009 keeps the
+- **Phones**: Android builds the same code. HaexVault runs models there on the processor only, and FR-009 keeps the
   drafter off without a GPU. Measuring a phone is left to a later delivery.
 - **Rare differences in wording**: checking several proposed words at once uses slightly different arithmetic than
   writing one word at a time. In rare cases a deterministic answer can therefore differ in wording; SC-003 allows

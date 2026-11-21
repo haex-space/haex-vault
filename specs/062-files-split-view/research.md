@@ -118,7 +118,7 @@ Alle Entscheidungen beruhen auf dem Stand von `main` (2026-10-26). Es gibt keine
   Pfad-Strings. Zwei Quellen haben getrennte Pfadräume; ohne Quellenvergleich gälte F6 von Speicher
   A `/` nach Speicher B `/` als „derselbe Ordner“ (`nothing`) und `/backup` nach B `/backup/2026`
   als „in sich selbst“ (`intoItself`). Die Funktion bekommt `sameSource`; `nothing` und `intoItself`
-  gelten nur bei gleicher Quelle, `holziOwned` immer. Das ändert auch das bisherige Einfügen
+  gelten nur bei gleicher Quelle, `haexOwned` immer. Das ändert auch das bisherige Einfügen
   zwischen Quellen (ein Fehler, den es dort schon gab).
 - **Rationale**: Das Backend (`files_transfer`, „Copies or moves between sources“, `change.rs`) kann
   schon zwischen Quellen kopieren und verschieben; die Oberfläche stellte das Ziel bisher fest auf die

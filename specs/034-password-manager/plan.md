@@ -6,10 +6,10 @@
 
 ## Summary
 
-holzi bekommt einen festen Passwortmanager als App im Window Manager. Vorlage ist der
+haex-vault bekommt einen festen Passwortmanager als App im Window Manager. Vorlage ist der
 Passwortmanager von haex-vault 2.x (Legacy), dessen Datenmodell (zwölf Tabellen `haex_passwords_*`)
 fast unverändert übernommen wird; Oberfläche, Datenzugriff und Zugriffsprüfung sind neu
-gebaut, weil holzi weder Drizzle im Frontend noch ein Freigabesystem hat. Den
+gebaut, weil haex-vault weder Drizzle im Frontend noch ein Freigabesystem hat. Den
 Umfang bestimmt die Spec (US1–US8); die External Bridge ist ausdrücklich nicht dabei.
 
 Technischer Ansatz (Begründungen und verworfene Alternativen in
@@ -70,7 +70,7 @@ optional); TypeScript 6 (strict), Vue 3.5, Nuxt 4.5.2 (SPA), Node 22.19 für die
 R2; schon transitiv im Lock). Base32 wird selbst geschrieben (R8).
 
 **Storage**: Migration `0022_passwords`: zwölf CRDT-Tabellen `haex_passwords_*`, 14 Indizes,
-kein `_no_sync`. `HOLZI_TRIGGER_VERSION` 13 → 14. Eine Vault-Einstellung
+kein `_no_sync`. `HAEX_TRIGGER_VERSION` 13 → 14. Eine Vault-Einstellung
 `passwords.clipboard_clear_seconds`. Details in [data-model.md](./data-model.md).
 
 **Testing**: Rust — Einheitstests in `*_tests.rs` (`access`, `totp`, `ids`, `tags`, `trash`,
@@ -131,7 +131,7 @@ Geprüft gegen `.specify/memory/constitution.md` (v1.4.0) und die spaex-Constitu
 | Graphify vor neuen benannten Artefakten                                    | ✅     | Aufgabe T002: Abfragen für Rahmen/Seitenleiste, `Query`/`VaultDb`, Zwischenablage, Dialoge, Suche vor dem ersten neuen Namen                                                                                                                                            |
 | `ponytail:`-Kommentar bei bewusster Vereinfachung                          | ✅     | Geplant an: Zusammenführen doppelter Tags nur beim Öffnen (R2), Aufräumen mit fester Karenzzeit (R4), kein Gesamtbudget für Anhänge (R4), Millisekunden-Token der Konfliktprüfung (R15), Zwischenablage-Löschen bei Absturz (R9), Pfad-Übergabe nur Desktop (R4)        |
 | Nicht-triviale Logik hinterlässt einen ausführbaren Check                  | ✅     | `access_tests`, `totp_tests`, `trash_tests`, `passwords_sync`, `check:passwords`, End-to-End                                                                                                                                                                            |
-| Keine Selbstreferenzen von Agenten in Artefakten/Commits                   | ✅     | Commits und PR ohne Agent-Zusätze (holzi-Regel)                                                                                                                                                                                                                         |
+| Keine Selbstreferenzen von Agenten in Artefakten/Commits                   | ✅     | Commits und PR ohne Agent-Zusätze (haex-vault-Regel)                                                                                                                                                                                                                    |
 | Phasen-Disziplin                                                           | ✅     | Baut auf 015, 020, 024 (gemerged und im Einsatz, offen nur das manuelle Quickstart T081) und 030; Spec 029 setzt diese Spec voraus, nicht umgekehrt; 017–019 und 021 folgen danach                                                                                      |
 | Keine Geheimnisse in Logs/Fehlern (Spec FR-040)                            | ✅     | `Debug` geschwärzt, Fehlerfelder ohne Werte, Prüfung per Markierungswert in den Integrationstests                                                                                                                                                                       |
 
@@ -164,7 +164,7 @@ specs/034-password-manager/
 ```text
 src-tauri/src/
 ├── identity/
-│   ├── migrations.rs              # HOLZI_TRIGGER_VERSION 14, Eintrag 0022        [ändern, klein]
+│   ├── migrations.rs              # HAEX_TRIGGER_VERSION 14, Eintrag 0022        [ändern, klein]
 │   └── migrations_passwords.rs    # SQL der zwölf Tabellen und Indizes             [neu]
 ├── passwords/
 │   ├── mod.rs                     # Modulliste, Konstanten (Limit, Karenzzeit)      [neu]
@@ -182,7 +182,7 @@ src-tauri/src/
 │   ├── binaries.rs                # Anhänge, Hash, Limit, prune_binaries            [neu]
 │   ├── snapshots.rs               # Verlaufsstände, Änderungsliste, Wiederherstellen[neu]
 │   ├── passkeys.rs                # Liste, Spitzname, Löschen, Schlüsselableitung   [neu]
-│   ├── usage.rs                   # EntryUsage-Trait: holzi-Funktionen melden genutzte Einträge [neu]
+│   ├── usage.rs                   # EntryUsage-Trait: haex-vault-Funktionen melden genutzte Einträge [neu]
 │   ├── presets.rs                 # Generator-Voreinstellungen                      [neu]
 │   ├── totp.rs                    # RFC 6238, Base32, otpauth-Eingabe               [neu]
 │   ├── clipboard.rs               # Schreiben + abbrechbares Löschen                [neu]
@@ -193,7 +193,7 @@ src-tauri/src/
 │   │   ├── mod.rs, read.rs, items.rs, organize.rs, trash.rs, attachments.rs,
 │   │   │   history.rs, passkeys.rs, presets.rs, import.rs, agent.rs   (rufen nur den Dienst) [neu]
 │   └── *_tests.rs                 # je Modul (access, totp, ids, tags, trash, …)    [neu]
-├── error.rs                       # HolziError + Passwords*-Varianten              [ändern]
+├── error.rs                       # HaexError + Passwords*-Varianten              [ändern]
 ├── lib.rs                         # mod passwords, Plugin, generate_handler        [ändern]
 ├── instances/open.rs              # prune_binaries + reconcile_tags beim Öffnen    [ändern, klein]
 └── chat/eval/tools.json           # Schnappschuss neu erzeugt (export:eval-tools)  [ändern]

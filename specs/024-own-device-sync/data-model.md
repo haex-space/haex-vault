@@ -57,12 +57,12 @@ Zeilen anderer Installationen bleiben unverändert und werden nie gelesen (Kopie
 
 ### `device_lists` (neu, synchronisiert, nur Einfügen)
 
-| Spalte       | Typ         | Regeln                                                            |
-| ------------ | ----------- | ----------------------------------------------------------------- |
-| `list_hash`  | BLOB(32) PK | `SHA-256(payload)`                                                |
-| `generation` | INTEGER     | ≥ 1                                                               |
-| `payload`    | BLOB        | kanonische Geräteliste (postcard), siehe unten                    |
-| `signature`  | BLOB(64)    | Schnorr der Vault-Identität über `holzi-device-list/v1 ‖ payload` |
+| Spalte       | Typ         | Regeln                                                           |
+| ------------ | ----------- | ---------------------------------------------------------------- |
+| `list_hash`  | BLOB(32) PK | `SHA-256(payload)`                                               |
+| `generation` | INTEGER     | ≥ 1                                                              |
+| `payload`    | BLOB        | kanonische Geräteliste (postcard), siehe unten                   |
+| `signature`  | BLOB(64)    | Schnorr der Vault-Identität über `haex-device-list/v1 ‖ payload` |
 
 Zeilen werden nie geändert oder gelöscht. Geltende Liste: höchste Generation, bei Gleichstand
 kleinster `list_hash` (FR-043). Ein Gerät ist entfernt, wenn irgendeine gültige Zeile es als
@@ -94,7 +94,7 @@ weiterführen und mindestens ein Hauptgerät enthalten (FR-005, FR-043).
 
 | Spalte             | Typ         | Regeln                                                                                                      |
 | ------------------ | ----------- | ----------------------------------------------------------------------------------------------------------- |
-| `key_id`           | BLOB(16) PK | `SHA-256("holzi-key-id/v1" ‖ schlüssel)[0..16]`                                                             |
+| `key_id`           | BLOB(16) PK | `SHA-256("haex-key-id/v1" ‖ schlüssel)[0..16]`                                                              |
 | `scope`            | TEXT        | in 024 immer `vault`                                                                                        |
 | `generation`       | INTEGER     | steigt mit jedem Entfernen (FR-015)                                                                         |
 | `created_by`       | BLOB(32)    | Geräteschlüssel des Ausstellers                                                                             |
@@ -176,7 +176,7 @@ Verknüpfen ab oder ist der Datensatz älter als 24 h, wird er gelöscht (R20).
 | `endpoint_id`       | BLOB(32)    |                                                                   |
 | `name`              | TEXT        |                                                                   |
 | `requested_at`      | INTEGER     | ms                                                                |
-| `signature`         | BLOB(64)    | Schnorr der Kopie über `holzi-admission/v1 ‖ …`                   |
+| `signature`         | BLOB(64)    | Schnorr der Kopie über `haex-admission/v1 ‖ …`                    |
 | `state`             | TEXT        | `open` \| `admitted` \| `rejected`                                |
 
 Übergänge: „Aufnehmen“ (Hauptgerät, gleichzeitig neue Geräteliste) löscht die Zeile, und `open →
@@ -199,7 +199,7 @@ stehen oder dort entfernt sind, sowie Zeilen (offen oder abgelehnt), die älter 
 | `endpoint_addr`  | BLOB         | letzte bekannte Erreichbarkeit (postcard `EndpointAddr`)               |
 | `problem`        | TEXT NULL    | `incompatible_version` \| `duplicate` \| NULL                          |
 | `peer_protocol`  | INTEGER NULL | Spec 059: `SchemaVersion.protocol` des Geräts im letzten Handshake     |
-| `peer_migration` | INTEGER NULL | Spec 059: `SchemaVersion.holzi_migration`                              |
+| `peer_migration` | INTEGER NULL | Spec 059: `SchemaVersion.haex_migration`                               |
 | `peer_trigger`   | INTEGER NULL | Spec 059: `SchemaVersion.crdt_trigger`; alle drei `NULL` = unbekannt   |
 
 „Zuletzt online“ über ein drittes Gerät: Geräte tauschen im Handshake ihre `last_seen`-Werte aus

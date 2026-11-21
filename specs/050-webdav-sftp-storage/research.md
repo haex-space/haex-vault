@@ -30,8 +30,8 @@ Einspeisung der Tests).
 
 ## R2 — WebDAV-Client
 
-**Decision**: holzi schreibt den WebDAV-Client selbst auf dem vorhandenen `reqwest` (rustls, ring) und
-`quick-xml` 0.41, das holzi schon direkt für die Texte aus Office-Dateien nutzt (Spec 044 US6; bei
+**Decision**: haex-vault schreibt den WebDAV-Client selbst auf dem vorhandenen `reqwest` (rustls, ring) und
+`quick-xml` 0.41, das haex-vault schon direkt für die Texte aus Office-Dateien nutzt (Spec 044 US6; bei
 der Umsetzung festgestellt, PR C). Methoden: `PROPFIND` (immer `Depth: 1`), `GET` mit `Range`, `HEAD`, `PUT` (gestreamt), `DELETE`,
 `MKCOL`, `MOVE`, `COPY`. Den HTTP-Client baut eine gemeinsame Funktion, die heute in
 `remote_storage/s3.rs:59-80` steckt (keine Weiterleitungen, kein Proxy, `resolve_to_addrs` auf die
@@ -48,13 +48,13 @@ Regeln:
 - **Auflisten nur mit `Depth: 1`** und Ebene für Ebene; Apache (Hetzner, kDrive) verweigert `infinity`,
   SabreDAV liefert still nur eine Ebene (RFC 4918 §9.1). Abgefragt werden `resourcetype`,
   `getcontentlength`, `getlastmodified` (RFC 1123) und `getetag`.
-- **`href`** ist ein absoluter Pfad oder eine volle Adresse und prozentkodiert (§8.3): holzi dekodiert,
+- **`href`** ist ein absoluter Pfad oder eine volle Adresse und prozentkodiert (§8.3): haex-vault dekodiert,
   prüft, dass er unter der angefragten Adresse liegt (sonst wird der Eintrag verworfen und geloggt), und
   lässt den ersten Eintrag (den Ordner selbst) weg.
-- **Fehlende Elternordner**: `PUT` und `MKCOL` antworten mit 409 (§9.7.1, §9.3.1). holzi legt dann die
+- **Fehlende Elternordner**: `PUT` und `MKCOL` antworten mit 409 (§9.7.1, §9.3.1). haex-vault legt dann die
   Ordner Stufe für Stufe mit `MKCOL` an (405 = schon da) und wiederholt den Aufruf einmal; das gilt nur
   unterhalb des Ordners des Speichers. Fehlt der Ordner des Speichers selbst (`PROPFIND` auf ihn: 404),
-  ist das `NotFound` (im Test `folderMissing`); ihn legt holzi nur nach Bestätigung an (FR-006). SFTP
+  ist das `NotFound` (im Test `folderMissing`); ihn legt haex-vault nur nach Bestätigung an (FR-006). SFTP
   verfährt ebenso mit `create_dir`.
 - **`MOVE`/`COPY`** mit `Destination` als volle Adresse auf demselben Host und `Overwrite: T`; 201 und 204
   sind Erfolg.
@@ -63,7 +63,7 @@ Regeln:
   Netzfehler → `Network`.
 - **Teilbereiche**: `GET` mit `Range`; ein Server, der mit 200 und dem ganzen Inhalt antwortet, wird wie
   bei S3 behandelt (Warnung einmal, `s3.rs:376-379`), die ersten Bytes bis zum Start werden verworfen.
-- **Änderungszeit**: Nur die Nextcloud-Familie übernimmt `X-OC-Mtime`; holzi setzt keine Zeit und zeigt
+- **Änderungszeit**: Nur die Nextcloud-Familie übernimmt `X-OC-Mtime`; haex-vault setzt keine Zeit und zeigt
   die Zeit des Servers (Zeitpunkt des Hochladens). Spec 048 FR-016 nutzt genau diese Zeit.
 - **Bedingte Schreibvorgänge** (`If-Match`): nicht genutzt. `golang.org/x/net/webdav` (rclone, SFTPGo)
   ignoriert `If-Match` bei `PUT`; Spec 048 erkennt Konflikte ohnehin ohne (048 research R7).
@@ -90,12 +90,12 @@ Apache-2.0). Schlüssel über die Re-Exporte von russh (`russh::keys`, darin `ss
 neueren Versionen (russh 0.64.x, russh-sftp 3.0.1) sind jünger als zwei Wochen und werden später
 nachgezogen.
 
-- **Verbindung**: holzi löst den Host auf und prüft die Adressen (R6), öffnet einen `tokio::net::TcpStream`
+- **Verbindung**: haex-vault löst den Host auf und prüft die Adressen (R6), öffnet einen `tokio::net::TcpStream`
   genau zu einer geprüften Adresse und übergibt ihn `russh::client::connect_stream`. Verbindungsaufbau,
   Schlüsseltausch und Anmeldung laufen in `tokio::time::timeout` mit der Frist des Aufrufs (russh hat
   keine eigene Frist dafür); `Config` setzt `inactivity_timeout` und `keepalive_interval`.
 - **Hostschlüssel**: `client::Handler::check_server_key` läuft beim ersten Schlüsseltausch, vor jeder
-  Anmeldung. holzi vergleicht den Schlüssel mit dem bestätigten (R5); passt er nicht oder fehlt er,
+  Anmeldung. haex-vault vergleicht den Schlüssel mit dem bestätigten (R5); passt er nicht oder fehlt er,
   merkt sich der Handler den gezeigten Schlüssel und antwortet `Ok(false)`, russh bricht mit
   `Error::UnknownKey` ab, bevor Zugangsdaten gesendet werden (FR-012, SC-004).
 - **Anmeldung**: `authenticate_password` oder `authenticate_publickey` mit
@@ -105,16 +105,16 @@ nachgezogen.
   `create_dir`, `remove_file`, `remove_dir`, `rename`, `sync_all` (`fsync@openssh.com`, wenn der Server
   es kann). Lesen und Schreiben sind in russh-sftp schon gestaffelt (16 gleichzeitige Anfragen).
 - **Überschreibendes Umbenennen**: `SSH_FXP_RENAME` überschreibt bei OpenSSH nicht, und russh-sftp kennt
-  `posix-rename@openssh.com` nicht. holzi öffnet dafür einen zweiten SFTP-Kanal als `RawSftpSession`,
+  `posix-rename@openssh.com` nicht. haex-vault öffnet dafür einen zweiten SFTP-Kanal als `RawSftpSession`,
   liest bei `init()` die Erweiterungen des Servers und nutzt `extended("posix-rename@openssh.com", …)`,
   wenn sie gemeldet ist; sonst Ziel löschen und umbenennen (wie rclone). Das kurze Fenster ohne Ziel deckt
   der Randfall „soweit der Server das zulässt“ der Spec.
 - **Verbindungen wiederverwenden**: Ein SSH-Aufbau kostet mehrere Rundreisen, und Hetzner erlaubt 10
-  gleichzeitige Verbindungen je Konto. holzi hält je Verbindung (Kennung, Hostschlüssel, Benutzer) bis zu
+  gleichzeitige Verbindungen je Konto. haex-vault hält je Verbindung (Kennung, Hostschlüssel, Benutzer) bis zu
   zwei SSH-Sitzungen offen und schließt sie nach 60 s ohne Aufruf; ein Wechsel von Zugangsdaten oder
   Hostschlüssel verwirft sie.
 - **Kopieren beim Server**: `copy-data` kennt russh-sftp nicht und viele Server auch nicht. SFTP meldet
-  „kein Kopieren beim Anbieter“ (R8), der Transfer streamt dann über holzi.
+  „kein Kopieren beim Anbieter“ (R8), der Transfer streamt dann über haex-vault.
 
 **Rationale**: russh ist die einzige gepflegte SSH-Bibliothek in reinem Rust; mit dem Backend ring
 kommt keine neue native Bibliothek dazu (ring baut schon für alle Ziele über rustls), und die
@@ -137,15 +137,15 @@ https://github.com/RustCrypto/SSH; crates.io-API (Versionen und Abhängigkeiten,
 
 **Decision**:
 
-- **Erzeugen** (FR-008): `PrivateKey::random(&mut rng, Algorithm::Ed25519)`, Kommentar `holzi`, ohne
-  Passphrase (geschützt durch den Passwortmanager der Vault). holzi zeigt den öffentlichen Schlüssel als
-  OpenSSH-Zeile (`ssh-ed25519 AAAA… holzi`) zum Kopieren. Hetzner verlangt auf Port 22 das Format
+- **Erzeugen** (FR-008): `PrivateKey::random(&mut rng, Algorithm::Ed25519)`, Kommentar `haex`, ohne
+  Passphrase (geschützt durch den Passwortmanager der Vault). haex-vault zeigt den öffentlichen Schlüssel als
+  OpenSSH-Zeile (`ssh-ed25519 AAAA… haex`) zum Kopieren. Hetzner verlangt auf Port 22 das Format
   RFC 4716, auf Port 23 die OpenSSH-Zeile; die Voreinstellung nutzt Port 23 (R11). Der private
-  Schlüssel geht nie in die Oberfläche: holzi hält ihn bis zum Speichern als vorläufigen Schlüssel im
+  Schlüssel geht nie in die Oberfläche: haex-vault hält ihn bis zum Speichern als vorläufigen Schlüssel im
   Prozess (Kennung → `Zeroizing`, verworfen nach 30 Minuten, beim Sperren der Vault und nach dem
   Speichern) und gibt nur Kennung und öffentlichen Schlüssel zurück (Analyse U1).
 - **Einfügen oder Datei einlesen**: `russh::keys::decode_secret_key(text, passphrase)` liest OpenSSH (auch
-  mit Passphrase), PKCS#1, PKCS#8, `EC PRIVATE KEY` und PuTTY-PPK. holzi prüft den Schlüssel beim
+  mit Passphrase), PKCS#1, PKCS#8, `EC PRIVATE KEY` und PuTTY-PPK. haex-vault prüft den Schlüssel beim
   Speichern und legt den Text so ab, wie der Nutzer ihn gab, mit der Passphrase in einem eigenen Feld.
 - **Ablage**: im Eintrag des Passwortmanagers (R9 in data-model.md: eigene Felder `privateKey` und
   `passphrase`); eigene Felder sind dort Geheimnisse (Listen zeigen nur, dass es sie gibt;
@@ -165,7 +165,7 @@ ohne Gewinn, weil die Passphrase im selben Eintrag läge).
   gezeigten Schlüssel samt Fingerabdruck (`SHA256:<base64>`, wie OpenSSH). Die Einstellungen zeigen den
   Fingerabdruck mit dem Hinweis, ihn mit der Angabe des Anbieters zu vergleichen (bei der Voreinstellung
   Hetzner mit dem Verweis auf die veröffentlichten Fingerabdrücke). Bestätigt der Nutzer, schickt die
-  Oberfläche den Schlüssel mit dem nächsten Speichern mit; holzi verbindet erneut und akzeptiert nur
+  Oberfläche den Schlüssel mit dem nächsten Speichern mit; haex-vault verbindet erneut und akzeptiert nur
   genau diesen Schlüssel.
 - Den zuletzt gezeigten Schlüssel je Verbindung merkt sich der Prozess (nicht gespeichert), damit
   „annehmen“ nur genau den Schlüssel übernimmt, den der Nutzer gesehen hat (Analyse U2).
@@ -212,7 +212,7 @@ wiederholt einen Teil nach Netzfehlern.
   `abort_upload`, mit derselben Form (Teile der Reihe nach ab 1; `upload_part` liefert eine Marke, bei S3
   das ETag des Teils). S3 bleibt Multipart.
 - **WebDAV**: `begin_upload` startet einen gestreamten `PUT` auf eine Zwischendatei
-  `.holzi-part-<UUID>` im Zielordner; jeder Teil geht in den Strom (gebundener Kanal, Gegendruck);
+  `.haex-part-<UUID>` im Zielordner; jeder Teil geht in den Strom (gebundener Kanal, Gegendruck);
   `finish_upload` schließt den Strom, wartet auf die Antwort und verschiebt die Zwischendatei mit `MOVE`
   und `Overwrite: T` auf den Zielnamen; `abort_upload` bricht den Strom ab und löscht die Zwischendatei.
   Ein gescheiterter Teil lässt sich nicht wiederholen: Die Sitzung ist dann verbraucht, jeder weitere
@@ -224,7 +224,7 @@ wiederholt einen Teil nach Netzfehlern.
 - **`put`** kleiner Dateien geht bei WebDAV und SFTP denselben Weg (Zwischendatei, dann umbenennen).
 - Die Zustände der Sitzungen hält der jeweilige Store in einer Tabelle nach Kennung; eine Sitzung, die
   30 Minuten keinen Teil bekam, wird abgebrochen.
-- **Zwischendateien** heißen `.holzi-part-<UUID>`. Auflisten blendet sie aus (Dateibrowser, Agents,
+- **Zwischendateien** heißen `.haex-part-<UUID>`. Auflisten blendet sie aus (Dateibrowser, Agents,
   Erweiterungen, FR-022), und eine, deren Änderungszeit älter als 24 Stunden ist, wird beim Auflisten
   gelöscht (ohne Fehler, wenn das scheitert).
 
@@ -255,7 +255,7 @@ Objekt, die Markierung zuletzt. Der Transfer zählt Ordnerbäume mit einem rekur
   über Objekte; S3 bleibt bei den Schleifen und gibt für beide Methoden `Unsupported` zurück (wird nie
   aufgerufen, geprüft im Test).
 - Eine Methode `copies_on_provider(&Access) -> bool`: S3 und WebDAV ja (`COPY`), SFTP nein; der Transfer
-  kopiert beim Anbieter nur, wenn sie ja sagt, sonst streamt er über holzi (der Weg zwischen Speichern
+  kopiert beim Anbieter nur, wenn sie ja sagt, sonst streamt er über haex-vault (der Weg zwischen Speichern
   gibt es schon).
 - `ObjectInfo` bekommt `etag: Option<String>`: S3 das ETag, WebDAV `getetag`, SFTP eine Marke aus Größe
   und Änderungszeit. Spec 048 braucht sie für ihre Zwischenspeicher (048 data-model.md); wer zuerst
@@ -271,7 +271,7 @@ für Navigation, Viewer, Transfers, Suche, Agents); ein `enum` für die Form im 
 
 ## R9 — Erweiterungen: dieselben Ergebnisse auf jedem Protokoll
 
-**Befund**: Erweiterungen schreiben unter `holzi-ext/<vault>/<ext>/`, Schlüssel bis 1024 Byte
+**Befund**: Erweiterungen schreiben unter `haex-ext/<vault>/<ext>/`, Schlüssel bis 1024 Byte
 (`extensions/remote_storage_keys.rs`); ihr `list` ist ein Präfixvergleich (`remote_storage.rs:296-330`):
 `a/b` trifft auch `a/bc`.
 
@@ -282,16 +282,16 @@ für Navigation, Viewer, Transfers, Suche, Agents); ein `enum` für die Form im 
   Zwischendateien fallen für Erweiterungen weg, damit das Ergebnis dem von S3 gleicht.
 - **Schlüssel prüfen je Protokoll**: zusätzlich zu Spec 038 FR-011 bei WebDAV und SFTP kein Teil länger
   als 255 Byte, keine Teile `.`, kein `\`, keine Zeichen, die verbreitete Dateisysteme verbieten
-  (`:*?"<>|` und Steuerzeichen), kein Teil, der mit `.holzi-part-` beginnt; Gesamtlänge wie bei S3
+  (`:*?"<>|` und Steuerzeichen), kein Teil, der mit `.haex-part-` beginnt; Gesamtlänge wie bei S3
   (1024 Byte mit Präfix).
 - **Groß-/Kleinschreibung**: Vor dem Schreiben einer neuen Datei liest der Store den Elternordner (eine
   Ebene) und lehnt ab, wenn dort ein Name liegt, der sich nur in der Schreibweise unterscheidet
   (`InvalidKey`, Randfall der Spec); so trifft ein Schreiben auf Koofr (unterscheidet nicht) nie eine
   andere Datei. Die Prüfung liegt in `tree.rs` und gilt auch für den Dateibrowser: Dort ist ein solcher
   Name „schon vorhanden“ und löst die Konfliktfrage aus (Analyse C1).
-- **Leere Ordner nach dem Löschen**: Nach dem Löschen einer Datei entfernt holzi die dadurch leeren
+- **Leere Ordner nach dem Löschen**: Nach dem Löschen einer Datei entfernt haex-vault die dadurch leeren
   Elternordner bis zur Wurzel des Bereichs der Erweiterung, nie darüber. SFTP `remove_dir` scheitert an
-  nicht leeren Ordnern von selbst; bei WebDAV prüft holzi mit `PROPFIND`, dass der Ordner leer ist, und
+  nicht leeren Ordnern von selbst; bei WebDAV prüft haex-vault mit `PROPFIND`, dass der Ordner leer ist, und
   löscht dann. Das kleine Fenster zwischen Prüfen und Löschen betrifft nur den Bereich derselben
   Erweiterung (sie schreibt gleichzeitig von einem anderen Gerät) und wird hingenommen.
 - **Liste der Speicher** (FR-017a): `type` ist `s3`, `webdav` oder `sftp`; bei WebDAV und SFTP steht statt
@@ -309,20 +309,20 @@ wie in Spec 038 R5.
 **Decision**:
 
 - `StorageError` bekommt `QuotaExceeded` (WebDAV 507; SFTP meldet beim Schreiben nur `SSH_FX_FAILURE`,
-  daher fragt holzi danach `statvfs@openssh.com` ab, wenn der Server es anbietet, und meldet
+  daher fragt haex-vault danach `statvfs@openssh.com` ab, wenn der Server es anbietet, und meldet
   `QuotaExceeded`, wenn weniger frei ist als der Rest der Datei, sonst `Network` mit Log), `HostKeyChanged`,
   `HostKeyUnknown` und `Unsupported` (R8). Für Erweiterungen wird `QuotaExceeded` zur Fehlerart „Grenze
   überschritten“ und `HostKey*` zu „Netzwerkfehler“ (FR-021); der Dateibrowser nennt beide eigens.
 - `TestOutcome` bekommt `folderMissing` (statt `bucketMissing` bei WebDAV und SFTP), `notWebDav`,
   `hostKeyUnknown` (mit gezeigtem Schlüssel und Fingerabdruck in `TestResult`) und `hostKeyChanged`.
-- Der Test (`remote_storage/probe.rs`) bleibt: `holzi-test/<UUID>` schreiben, lesen, auflisten, löschen;
-  bei WebDAV und SFTP zusätzlich den dabei angelegten Ordner `holzi-test/` entfernen, wenn er leer ist.
+- Der Test (`remote_storage/probe.rs`) bleibt: `haex-test/<UUID>` schreiben, lesen, auflisten, löschen;
+  bei WebDAV und SFTP zusätzlich den dabei angelegten Ordner `haex-test/` entfernen, wenn er leer ist.
   Vor dem Schreiben fragt der Test nach dem Ordner des Speichers (`head` auf den leeren Schlüssel:
   WebDAV `PROPFIND` mit `Depth: 0`, SFTP `metadata`); fehlt er, ist das `folderMissing` ohne jedes
   Schreiben. Eine Antwort, die nicht nach WebDAV aussieht (Weiterleitung, 405 auf `PROPFIND`, keine
   207), ist der neue Fehler `StorageError::Protocol` und im Test `notWebDav`.
 - „Ordner anlegen“ (FR-006): Für eine neue Verbindung oder einen neuen Speicher schickt die
-  Oberfläche nach der Bestätigung dasselbe Speichern noch einmal mit `createFolder: true`; holzi legt
+  Oberfläche nach der Bestätigung dasselbe Speichern noch einmal mit `createFolder: true`; haex-vault legt
   den Ordner dann an, wenn der Test ihn vermisst, und testet erneut. Für einen gespeicherten Speicher
   gibt es den Command `storage_folder_create`. (Bei der Umsetzung geändert, PR C: eine neue
   Verbindung hat vor dem ersten Speichern keine Kennung, die ein eigener Command nennen könnte.)
@@ -343,7 +343,7 @@ Die Muster legt das Frontend fest (`ConnectionForm.vue`, `PRESETS`):
 | Anderer Server      | SFTP      | `sftp://` (Port 22)                                  | —                                                                                                           |
 
 Die Platzhalter `<…>` markiert das Formular als noch zu ergänzen (US1 Szenario 5). Nach einem Test mit
-429 (Koofr) nennt holzi „Zu viele Versuche, später erneut“ statt „Zugangsdaten falsch“.
+429 (Koofr) nennt haex-vault „Zu viele Versuche, später erneut“ statt „Zugangsdaten falsch“.
 
 ## R12 — Gleichzeitige Aufrufe je Verbindung
 
@@ -356,12 +356,12 @@ gleichzeitig.
 
 **Decision**: Eine Migration (nächste freie Nummer, Spec 048 nimmt eventuell vorher eine) ergänzt
 `haex_storage_connections` um `protocol` (TEXT NOT NULL DEFAULT 's3'), `host_key` (TEXT) und
-`host_key_confirmed_at` (TEXT); `HOLZI_TRIGGER_VERSION` steigt um eins (neue Spalten einer
+`host_key_confirmed_at` (TEXT); `HAEX_TRIGGER_VERSION` steigt um eins (neue Spalten einer
 CRDT-Tabelle). `haex_storages.bucket` bleibt und trägt bei WebDAV und SFTP den Ordnerpfad; die
 Prüfregeln hängen am Protokoll der Verbindung (data-model.md).
 
 **Rationale**: Geräte mit verschiedener Schema-Version synchronisieren nicht miteinander (der Handshake
-lehnt ab, `sync/handshake_refusal_tests.rs:38`); ein älteres holzi sieht also nie eine Verbindung mit
+lehnt ab, `sync/handshake_refusal_tests.rs:38`); ein älteres haex-vault sieht also nie eine Verbindung mit
 unbekanntem Protokoll. Eine umbenannte Spalte (`bucket` → `folder`) kostete eine Tabellen-Neuanlage in
 einer synchronisierten Tabelle ohne Nutzen.
 
@@ -398,5 +398,5 @@ einer synchronisierten Tabelle ohne Nutzen.
 
 **Decision**: Ein eigener PR im vault-sdk ergänzt die Typen der Speicherliste (`type`, `folder`) und die
 Vorschläge (`webdav`, `sftp`) ohne Zugangsdaten. Erweiterungen, die nur Objekte hoch- und herunterladen,
-brauchen keine Änderung (US3). Spec 038 und haextension `^4.x` bleiben die Grundlage; holzi lehnt einen
+brauchen keine Änderung (US3). Spec 038 und haextension `^4.x` bleiben die Grundlage; haex-vault lehnt einen
 unbekannten `type` wie bisher ab.

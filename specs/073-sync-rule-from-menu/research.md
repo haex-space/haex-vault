@@ -18,12 +18,12 @@ the sync rule list with the dialog on top (the user would leave the folder, agai
 ## R2: When the menu offers the entry
 
 **Decision**: One pure function `syncRuleOffer` decides, in `src/lib/files/registry.ts` next to `shareableSource`.
-Input: the source, whether the entry is a symlink, has no access, is holzi's own, and the encryption state of the
+Input: the source, whether the entry is a symlink, has no access, is haex-vault's own, and the encryption state of the
 entry (or of the open folder). It returns `true` when all hold:
 
 - the source is this device, one of the vault's own cloud storages, or another own device (`peer:`); not a contact's
   share (`share:`), not a `device:` storage (those only name an encrypted folder's store);
-- the entry is not holzi's own data, not a symlink, not without access (the folder picker hides the same entries,
+- the entry is not haex-vault's own data, not a symlink, not without access (the folder picker hides the same entries,
   so SC-003 holds: the menu offers what the list's dialog could pick);
 - the entry is not in an encrypted folder that is not readable (`otherVault`, `newerFormat`, `damaged`); a readable
   one is a usable place (spec FR-004, edge case "locked encrypted folder").

@@ -53,7 +53,7 @@ behaviour visible to the user yet.
 - [x] T006 Change `credentials::state_in(q, item_id)` and `credentials::state(db, item_id)` in `src-tauri/src/remote_storage/credentials.rs` to take the `Protocol`: an entry that is present and not in the trash but where `from_item(secret_item(q, id), protocol)` is `None` is `CredentialsState::Missing` (spec FR-010; before it was `Present`); update all callers: `service.rs` in `overview` and in `save_connection_in`, and `service_host_key.rs`. `crate::passwords::reveal::secret_item` is already `pub`
 - [x] T007 [P] In `src-tauri/src/remote_storage/credentials_tests.rs` add tests for the state: password cleared on a present entry gives `Missing`, `privateKey` field removed from an SFTP key entry gives `Missing`, restored value gives `Present` again, entry in the trash `Missing`, deleted entry `Missing`, not arrived `Syncing` (existing cases stay green with the protocol argument)
 - [x] T008 In `src-tauri/src/remote_storage/model.rs` add `CredentialsInput::Entry { item_id: String }` (`kind: 'entry'`, camelCase) with its `Debug` arm (no value besides the opaque id) and the new structs `CredentialsCandidate { id, title: Option<String>, username: String, url: Option<String>, tagged: bool, owned: bool }` and `CredentialsEntry { id, title: Option<String>, owned: bool }` (`Serialize`, `TS`, export to `../../src/types/bindings/` like the other types); `credentials_of` in `service_credentials.rs` keeps rejecting every kind it does not know with `invalid("credentials")`, so `Entry` never reaches it (done: `CredentialsEntry` came with the tag in PR B, `bc212276`)
-- [x] T009 Regenerate the ts-rs bindings in `src/types/bindings/` (`CredentialsInput.ts`, `CredentialsCandidate.ts`, `CredentialsEntry.ts`) and normalize trailing whitespace (`sed -E 's/[[:space:]]+$//'`, the CI checks it); run `cargo test -j 4 -p holzi --lib remote_storage::credentials` and fix every caller that matched `CredentialsInput` exhaustively
+- [x] T009 Regenerate the ts-rs bindings in `src/types/bindings/` (`CredentialsInput.ts`, `CredentialsCandidate.ts`, `CredentialsEntry.ts`) and normalize trailing whitespace (`sed -E 's/[[:space:]]+$//'`, the CI checks it); run `cargo test -j 4 -p haex --lib remote_storage::credentials` and fix every caller that matched `CredentialsInput` exhaustively
 
 **Checkpoint**: Mapping rule in one place, state sees missing values, types exist. Commit, PR B continues with US1.
 
@@ -61,7 +61,7 @@ behaviour visible to the user yet.
 
 ## Phase 3: User Story 1 - Zugangsdaten aus einem vorhandenen Eintrag nehmen (Priority: P1) 🎯 MVP
 
-**Goal**: Anna picks an existing password manager entry instead of typing credentials; holzi tests with
+**Goal**: Anna picks an existing password manager entry instead of typing credentials; haex-vault tests with
 its values and saves a connection that points at it (spec US1, FR-001 to FR-004, FR-013 for the
 backend).
 
@@ -79,7 +79,7 @@ manager has no new entry, a call of the storage uses the entry's values (quickst
 - [x] T012 [US1] In `src-tauri/src/remote_storage/credentials.rs` add `pub async fn candidates(db: &VaultDb, protocol: Protocol) -> Result<Vec<CredentialsCandidate>>` per research R3: `items::headers_in_scope(q, &Scope::All, &Caller::User)` (no trash), prefilter by header (`username` not empty; S3 and WebDAV need `has_password`), then `reveal::secret_item` and `from_item` for the rest; `tagged` from the header tags (compare by `tags::fold`) with the new `pub const TAG: &str = "haex-cloud-storage"` defined here, the one definition of the name, `owned = header.owner.as_deref() == Some(FEATURE)`; sort tagged first, then `title` case-insensitively; `Protocol::Local` is `invalid("protocol")`
 - [x] T013 [US1] In `src-tauri/src/remote_storage/commands.rs` add `#[tauri::command] storage_credentials_candidates(state, protocol: Protocol) -> Result<Vec<CredentialsCandidate>>` and register it in `src-tauri/src/lib.rs` next to `storage_connection_save`
 - [x] T014 [US1] Create `src-tauri/src/remote_storage/service_link.rs` (module `#[path = "service_link.rs"] mod link;` in `service.rs` like the existing `service_host_key.rs`) with the resolution of `CredentialsInput::Entry` for `save_connection_in`: `async fn resolve(&self, input: CredentialsInput, protocol: Protocol) -> Result<Resolved>` where `Resolved` is `Typed(Credentials)` (through `credentials_of`) or `Linked { item_id, credentials }` (through `credentials::read(&self.passwords, &self.db, &item_id, protocol)`); in `service.rs` replace `new_credentials` handling so that: the test uses the resolved credentials (`test_with`), `credentials::create` runs only for `Typed`, `row.credentials_item_id = item_id` for `Linked`, the rollback after a failed `put_connection` deletes only an entry this call created, and `delete_credentials_if_unused(&old)` runs when the link changed to a different id; `generated` key handling stays for `Typed`
-- [x] T015 [US1] Run the tests of T010 and T011 and `cargo test -j 4 -p holzi --lib remote_storage` (the existing service tests must stay green); fix `service.rs` call sites; no new `unwrap()` or `expect()` on input
+- [x] T015 [US1] Run the tests of T010 and T011 and `cargo test -j 4 -p haex --lib remote_storage` (the existing service tests must stay green); fix `service.rs` call sites; no new `unwrap()` or `expect()` on input
 - [x] T016 [P] [US1] Create `src/components/settings/storage/credentialsInput.ts` (pure, no Vue): `credentialsInputOf(draft, protocol): CredentialsInput | null` moved out of `ConnectionForm.vue` (the existing builder of the typed credentials) with a new draft part `source: 'new' | 'entry'` and `entryId: string`; for `source === 'entry'` it returns `{ kind: 'entry', itemId: entryId }` (or `null` when `entryId` is empty); `CredentialsDraft` in `CredentialsFields.vue` gets `source` and `entryId` (default `'new'`, `''`) (done in the existing `credentials.ts` of spec 050 instead of a new `credentialsInput.ts`)
 - [x] T017 [P] [US1] Create `scripts/check-storage-credentials.ts` (`node:test`, like `scripts/check-passwords-draft.ts`) for `credentialsInput.ts`: each protocol and auth method gives the right kind, `entry` with and without id, empty fields give `null`; add `"check:storage": "node --test scripts/check-storage-*.ts"` to `package.json` and a step "Check storage" with `corepack pnpm check:storage` after "Check passwords" in `.github/workflows/ci.yml`
 - [x] T018 [US1] Create `src/components/settings/storage/CredentialsEntryPicker.vue` (under 500 lines): props `protocol`, v-model `entryId`; on mount `invoke('storage_credentials_candidates', { protocol })`; search field (title, username, url, client side, case-insensitive); boxed list with `Group`/`Row`/`OptionRow` (UI style COSMIC/GNOME), tagged entries first as delivered; empty state text "Keine passenden Einträge" with the hint that only fitting entries appear (FR-002); shows title, username and url, never a secret; `data-testid` `storage-entry-picker`, `storage-entry-search`, `storage-entry-option-<id>`
@@ -94,7 +94,7 @@ manager has no new entry, a call of the storage uses the entry's values (quickst
 
 ## Phase 4: User Story 2 - Neue Zugangsdaten liegen sichtbar im Passwortmanager (Priority: P1)
 
-**Goal**: Credentials holzi creates, and entries the user chooses, carry the tag `haex-cloud-storage`;
+**Goal**: Credentials haex-vault creates, and entries the user chooses, carry the tag `haex-cloud-storage`;
 the form names the entry and opens it (spec US2, FR-005 to FR-008).
 
 **Independent Test**: Create a connection with typed credentials; filter by the tag in the password
@@ -116,7 +116,7 @@ shows exactly this entry (quickstart §2 step 5, §4).
 - [x] T030 [US2] Extend `scripts/e2e/scenarios/storage-credentials-entry.test.ts` with quickstart §2 step 5: a connection with typed credentials has an entry with the tag (filter in the password manager), the form names it and "Eintrag öffnen" shows it; removing the connection removes that entry
 - [x] T031 [US2] Local checks as T022; commit and open PR C
 
-**Checkpoint**: Every entry holzi made or the user chose is findable by one tag, and the form leads there.
+**Checkpoint**: Every entry haex-vault made or the user chose is findable by one tag, and the form leads there.
 
 ---
 
@@ -145,7 +145,7 @@ the connection asks for new credentials (spec US3, FR-009, FR-010, FR-012, FR-01
 
 ## Phase 6: User Story 4 - Auch im Fenster für Speichervorschläge von Erweiterungen (Priority: P3)
 
-**Goal**: The same choice in holzi's window over the app; the extension learns nothing of it (spec US4,
+**Goal**: The same choice in haex-vault's window over the app; the extension learns nothing of it (spec US4,
 FR-011, FR-013).
 
 **Independent Test**: Quickstart §3, second bullet.
@@ -157,7 +157,7 @@ FR-011, FR-013).
 ### Implementation for User Story 4
 
 - [x] T039 [US4] In `src/components/StorageCredentialsModal.vue` offer the same source choice and `CredentialsEntryPicker` (protocol of the proposal), send `{ kind: 'entry', itemId }` through `storage_dialog_resolve` (a failed test keeps the window open, as for typed values); reuse `credentialsInputOf` from T016 where its draft fits the modal's fields, otherwise add only the `entry` branch to the modal's own builder; texts reuse the keys of T020 (the source choice and the picker are in the modal since `bc212276`; open until T038 and T040 test it) (in the modal since `bc212276`, tested by T038 and T040)
-- [x] T040 [P] [US4] Extend `scripts/e2e/scenarios/extension-storage-webdav.test.ts` (Docker) with a step: the test extension proposes a WebDAV storage without credentials; in holzi's window choose an existing entry; the storage exists and the extension's answer has no entry id (done; the second proposal picks "new credentials" over the reusable connection, then the entry)
+- [x] T040 [P] [US4] Extend `scripts/e2e/scenarios/extension-storage-webdav.test.ts` (Docker) with a step: the test extension proposes a WebDAV storage without credentials; in haex-vault's window choose an existing entry; the storage exists and the extension's answer has no entry id (done; the second proposal picks "new credentials" over the reusable connection, then the entry)
 - [x] T041 [US4] Local checks as T022; commit; include in PR D
 
 **Checkpoint**: Both entry points use the same choice.
@@ -169,7 +169,7 @@ FR-011, FR-013).
 - [x] T042 [P] Mark the tasks done in this file; set the status of the 052 row in `plans/README.md`
 - [x] T043 [P] Check `src-tauri/src/remote_storage/service.rs`, `ConnectionForm.vue`, `credentials.rs` and every new file against the 500-line rule (`wc -l`); a file over it needs a documented reason and a split plan (constitution) (`service.rs` 607 lines, below its 624 before 052; every new file under 500)
 - [x] T044 Full local parity before the PR: `pnpm check:storage`, `pnpm check:passwords`, `pnpm check:settings`, `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm check:templates`, `pnpm lint:rust`, the targeted `cargo test -j 4` of `remote_storage`, `passwords_owner`, `passwords_access`, the extension storage tests, and the e2e scenarios `storage-credentials-entry`, `storage-webdav`, `extension-storage-webdav` (needs Docker; skipped without it, say so in the PR) (all green; `files-storage` failed once with a WebDriver timeout and passed twice alone)
-- [ ] T045 Manual quickstart §3 (Android emulator `holzi-emulator`: list scrolls, keyboard does not cover the search) and §4 (older vault: all entries "S3: …", "WebDAV: …", "SFTP: …" carry the tag, second open changes nothing) by the operator; open until done, like T081 of spec 024
+- [ ] T045 Manual quickstart §3 (Android emulator `haex-emulator`: list scrolls, keyboard does not cover the search) and §4 (older vault: all entries "S3: …", "WebDAV: …", "SFTP: …" carry the tag, second open changes nothing) by the operator; open until done, like T081 of spec 024
 
 ---
 

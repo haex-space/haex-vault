@@ -44,10 +44,10 @@ Nach `cargo test` die ts-rs-Bindings von Leerzeichen am Zeilenende befreien, wie
    E-Mail-Adresse zeigt „Hinzufügen“ (vorgewählt) oder „Aktualisieren“.
 5. **Identität**: In einer dritten Vault C eine Karte für „Anna“ erzeugen und in B zu Annas Kontakt
    (mit bestätigter Identität aus A) hinzufügen wollen. Die Vorschau lässt es nicht zu.
-6. **Fremden Kontakt teilen**: In B Annas Kontakt teilen. Die Zeile „holzi-Adressen (bestätigt)“ ist da,
-   ohne Einzelauswahl von Geräten. Einen Handykontakt ohne holzi-Adressen teilen: derselbe Dialog, die
-   Vorschau in C meldet „nicht über holzi erreichbar“.
-7. **Deep Link**: Den Link als Nachricht in einer anderen App öffnen. holzi kommt nach vorn (Entsperren
+6. **Fremden Kontakt teilen**: In B Annas Kontakt teilen. Die Zeile „HaexVault-Adressen (bestätigt)“ ist da,
+   ohne Einzelauswahl von Geräten. Einen Handykontakt ohne HaexVault-Adressen teilen: derselbe Dialog, die
+   Vorschau in C meldet „nicht über HaexVault erreichbar“.
+7. **Deep Link**: Den Link als Nachricht in einer anderen App öffnen. HaexVault kommt nach vorn (Entsperren
    zuerst, wenn die Vault gesperrt ist) und zeigt die Vorschau; es ist nichts gespeichert. Auf Android
    zusätzlich den QR-Code mit der Systemkamera scannen. Auf macOS zusätzlich mit zwei Prozessen prüfen,
    dass ein Link, den der Prozess ohne offene Vault empfängt, im Prozess mit offener Vault erscheint.

@@ -13,7 +13,7 @@ delegate adapter drives its own subprocess to completion and streams the result 
 `StreamChunk::Delta`/`Done`, the same escape hatch non-tool-calling local models already use. The
 genuinely new work is (1) spawning and talking to `claude -p`/`codex app-server --stdio` as
 subprocesses with vault-portable, host-isolated credentials, and (2) bridging each backend's own live
-approval mechanism into holzi's _existing_ `tool-permission-request`/`respond_tool_permission` gate
+approval mechanism into haex-vault's _existing_ `tool-permission-request`/`respond_tool_permission` gate
 from 003-agent-tool-loop, so Manual/Auto/Plan apply identically to delegate tool use — confirmed
 feasible for both backends by live verification against installed CLIs during this planning session
 (see [research.md](research.md)), which overturned this feature's own draft assumption that Claude
@@ -27,14 +27,14 @@ Code would need a separate "upfront batch approval" design.
 for spawning `claude`/`codex` subprocesses. `rmcp` 3.3.0 (already pinned for the MCP _client_ path)
 gains real (non-test-only) use of its `server` + `transport-io` features: MCP's stdio transport means
 `claude` spawns the `--mcp-config` server as _its own_ child process, not something reachable
-in-process — so holzi's permission-prompt-tool MCP server actually runs in a small separate process
-(the holzi binary re-invoked with a hidden internal flag via `std::env::current_exe()`, never
+in-process — so haex-vault's permission-prompt-tool MCP server actually runs in a small separate process
+(the haex-vault binary re-invoked with a hidden internal flag via `std::env::current_exe()`, never
 initializing Tauri/GUI), which then relays each approval request back to the main process over a
 local Unix-domain-socket/named-pipe hop using `tokio::net` (feature `net`, newly added — no new
 crate; a local-HTTP-server alternative was considered and explicitly rejected per operator direction:
 prefer a pure-Rust IPC mechanism over spawning an HTTP stack, even though this whole feature is
 desktop-only regardless of that choice, since subprocess spawning itself is impossible on mobile).
-Codex needs no such bridge: holzi already owns its `app-server --stdio` pipe directly. No MCP
+Codex needs no such bridge: haex-vault already owns its `app-server --stdio` pipe directly. No MCP
 dependency needed for Codex either way: `codex app-server --stdio` speaks its own JSON-RPC protocol
 directly (hand-rolled newline-delimited JSON-RPC framing, no crate), verified against the installed
 CLI's own `codex app-server generate-json-schema` output — see [research.md](research.md) §2. Parsing
@@ -64,7 +64,7 @@ the host-command tool (SC-005) — no new, independent performance target.
 after the process exits regardless of success/failure (RAII/`finally`); `CLAUDE_CODE_OAUTH_TOKEN`
 (not `--bare`) since `--bare` doesn't support subscription/OAuth login (verified —
 [research.md](research.md) §3); the approval-bridge MCP server (Claude Code side) and the
-`app-server` JSON-RPC session (Codex side) both terminate holzi's existing `pending_tool_approvals`
+`app-server` JSON-RPC session (Codex side) both terminate haex-vault's existing `pending_tool_approvals`
 oneshot flow from `turn.rs`/`session.rs`, not a parallel approval mechanism; a single delegate call is
 bounded by the same overall turn/step model as any other backend (no new tool-round cap needed, since
 the delegate itself is one step from `turn.rs`'s perspective, per the Summary above).
@@ -78,7 +78,7 @@ keeping cancellation/host-isolation uniform with the existing host-CLI tool's pe
 
 _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
-Evaluated against the holzi Constitution (`.specify/memory/constitution.md`, hard-pinned from
+Evaluated against the haex-vault Constitution (`.specify/memory/constitution.md`, hard-pinned from
 haex-hive, revision `336eaf1e`):
 
 | Principle                                               | Status | Rationale                                                                                                                                                                                                                                                                        |
@@ -89,7 +89,7 @@ haex-hive, revision `336eaf1e`):
 | IV. Cross-Repo References Pin Immutable Revisions       | ✓ PASS | `rmcp`'s `server` feature moves from test-only to a real dependency use, still under the existing exact version pin (`=3.3.0`) — no new external harness content, same reasoning 003's plan.md already applied to this same dependency.                                          |
 | V. External Sources Are Opt-in Per Project              | ✓ PASS | N/A — no external harness content involved.                                                                                                                                                                                                                                      |
 | VI. Self-Modifying Instructions Are Always Review-Gated | ✓ PASS | This planning session's edits to `docs/plans/2026-09-11-agent-tool-loop-design.md` (§8.2a addendum, §10 updates) and `specs/007-cli-delegate/spec.md` (clarification supersession) land through this feature's normal PR review, not silently.                                   |
-| VII. Relay Unavailability Never Blocks Local Work       | ✓ PASS | Delegate calls are local subprocess + local vault reads/writes, independent of holzi's sync relay.                                                                                                                                                                               |
+| VII. Relay Unavailability Never Blocks Local Work       | ✓ PASS | Delegate calls are local subprocess + local vault reads/writes, independent of haex-vault's sync relay.                                                                                                                                                                          |
 | VIII. No Concealment Instructions in Agent Output       | ✓ PASS | FR-005 requires every delegate response to visibly identify its backend and record its tool use; no hidden behavior introduced.                                                                                                                                                  |
 
 **Result**: All gates PASS. No Complexity Tracking entry needed.

@@ -1,6 +1,6 @@
 # Contracts: Tauri Commands & Events (Autonomous Delegate Mode)
 
-All commands are async, run in Tauri's `invoke_handler`, return `Result<T, HolziError>`. No new
+All commands are async, run in Tauri's `invoke_handler`, return `Result<T, HaexError>`. No new
 dedicated commands are introduced by this feature (research.md §5) — it changes one existing
 command's args and reuses the existing generic preference commands unchanged.
 
@@ -39,7 +39,7 @@ omitted `idempotencyKey` before invoking Tauri; it forwards the other optional f
 - If `autonomyMode` requests `ungated` or `gated_permissive` for a delegate backend whose installed
   CLI version does not support the required native mechanism (spec edge case, FR-013), `send_message`
   returns this exact existing error shape (the command boundary maps
-  `AdapterError::Unavailable` to `HolziError::InvalidInput`):
+  `AdapterError::Unavailable` to `HaexError::InvalidInput`):
 
   ```json
   {
@@ -51,7 +51,7 @@ omitted `idempotencyKey` before invoking Tauri; it forwards the other optional f
   `<vendor>` is `claude` or `codex`, and `<mode>` is `ungated` or `gated_permissive`. The frontend
   recognizes the `reason` prefix `adapter start: backend unavailable: autonomy mode unavailable:`
   and maps it to the localized `errors.autonomyUnavailable` message; other `InvalidInput` errors
-  keep their existing mapping. No new `HolziError` variant or generated binding is introduced.
+  keep their existing mapping. No new `HaexError` variant or generated binding is introduced.
 
 **No change** to `SendMessageResult` — the response shape is identical; which autonomy mode a turn
 used is discoverable from the persisted message record (data-model.md's new `autonomy_mode` column),

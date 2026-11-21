@@ -46,7 +46,7 @@ Composition API on a Nuxt 4 SPA with Pinia (frontend). Unchanged.
 `usePreferences`, `useDevice`, Pinia.
 
 **Storage**: SQLite (CRDT-tracked). One nullable column `models.capabilities_json TEXT`
-(migration `0018_models_add_capabilities`, `HOLZI_TRIGGER_VERSION` 9 → 10). The effort preference
+(migration `0018_models_add_capabilities`, `HAEX_TRIGGER_VERSION` 9 → 10). The effort preference
 uses the existing `preferences` table, device scope, no schema change.
 
 **Testing**: Rust — sibling `*_tests.rs` files and `tests/` integration tests (`cargo test`,

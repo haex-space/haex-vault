@@ -1,6 +1,6 @@
 # Quickstart: haex-mail für den Agenten prüfen
 
-Voraussetzung: holzi aus diesem Branch (`pnpm tauri:dev:cuda` oder `tauri:dev`) mit E2a, haex-mail im
+Voraussetzung: HaexVault aus diesem Branch (`pnpm tauri:dev:cuda` oder `tauri:dev`) mit E2a, haex-mail im
 Entwicklungsmodus (`pnpm ext:dev` in `apps/haex-mail`, E3), lokales Modell Qwen3-4B, zwei Mailkonten
 (zum Beispiel ein lokaler Testserver und ein echtes Konto) mit einigen ungelesenen Mails. Die Werkzeuge
 erscheinen erst, wenn der Dialog der Installation bzw. des Entwicklungsmodus sie bestätigt hat (018).

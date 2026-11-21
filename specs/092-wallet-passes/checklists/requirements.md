@@ -23,7 +23,7 @@
 - [x] Success criteria are technology-agnostic (no implementation details)
 - [x] All acceptance scenarios are defined
 - [x] Edge cases are identified
-- [x] Scope is clearly bounded (Not in scope names what the wallets do that holzi cannot, and what is left to later specs)
+- [x] Scope is clearly bounded (Not in scope names what the wallets do that HaexVault cannot, and what is left to later specs)
 - [x] Dependencies and assumptions identified (Relation to existing specs, Assumptions)
 
 ## Feature Readiness

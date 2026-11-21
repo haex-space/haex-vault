@@ -35,6 +35,6 @@
 
 - The operator's two open points (what the dialog prefills, what happens after saving) were settled in the
   brainstorming of 2026-11-01: the folder as source place only, and stay in the file browser.
-- Not stated by the operator, taken from spec 061 FR-002: the entry is absent for holzi's own data,
+- Not stated by the operator, taken from spec 061 FR-002: the entry is absent for HaexVault's own data,
   received shares and locked encrypted folders (FR-004, US3). Confirm at `/speckit-clarify` or `/speckit-plan`.
 - SC-004 names the existing E2E scenarios because specs 061 and 071 do the same for regression.

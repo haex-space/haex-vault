@@ -7,13 +7,13 @@ plan was written against.
 
 **Decision.** One migration `0061_passwords_pass` in a new file `migrations_passwords_pass.rs`: the column `kind TEXT NOT NULL DEFAULT 'login'` on
 `haex_passwords_item_details` (an `ALTER TABLE ... ADD COLUMN`), `CREATE TABLE haex_passwords_pass_details`,
-`CREATE TABLE haex_passwords_pass_barcodes` and plain indexes. `HOLZI_TRIGGER_VERSION` goes from 39 to 40 and its doc list
+`CREATE TABLE haex_passwords_pass_barcodes` and plain indexes. `HAEX_TRIGGER_VERSION` goes from 39 to 40 and its doc list
 gets the line. Templates: `migrations_passwords_owner.rs` (column on this very table), `migrations_passwords_refs.rs` (new
 table), `migrations_voice.rs` (ALTER and CREATE in one migration), and the test pattern of
 `migrations_passwords_owner_tests.rs` and `tests/vault_upgrade.rs`.
 
 **The gate (resolves Open Question 1).** The sync handshake compares three numbers for equality: protocol, the count of
-holzi migrations and the CRDT trigger version (`sync/handshake.rs`, `local_schema()`; spec 024 FR-029). Migration `0061`
+haex-vault migrations and the CRDT trigger version (`sync/handshake.rs`, `local_schema()`; spec 024 FR-029). Migration `0061`
 raises the count and the bump raises the trigger version, so an older build and a newer one refuse each other before any
 pass row moves; both show the reason and nothing is lost. An old build also cannot open a vault file that holds a migration
 it does not know (`haex-crdt` `MigrationMissingFromSource`, `instances/open.rs`; test `open_tests.rs` "refuses a vault that
@@ -23,7 +23,7 @@ column are skipped or abort the pull and never raise the origin's progress (`syn
 **What stays for FR-042.** The gate compares versions, not meanings. A later type (payment card, identity) or a new kind of
 pass that arrives **without** a migration would sync to an equal-version build and be read as something it is not. Two rules
 close this: every new entry type ships with a migration (a real one or a documented no-op) so the gate stays the enforcement,
-and the user interface reads an unknown `kind` as "needs a newer holzi" (never as an empty login, no edit, no write) and an
+and the user interface reads an unknown `kind` as "needs a newer haex-vault" (never as an empty login, no edit, no write) and an
 unknown kind of pass as "other" (FR-004). Both are tasks in slice A.
 
 **Alternatives.** A separate `haex_passwords_passes` table with copies of every satellite (rejected in the spec: six foreign
@@ -162,7 +162,7 @@ The "Linked" section is `headers.filter(h => h.parentId === id)` sorted by `sort
 **Decision.** The type is chosen once, when creating. `/entry/new?type=pass` opens the pass editor; `type` is added to the
 route whitelist for that one place (`registry.ts`, `scripts/check-passwords-routes.ts`), with only the value `pass` accepted.
 `EntryPage.vue` dispatches on `detail.kind` for an existing entry and on the query for a new one; a `kind` it does not know shows
-the "needs a newer holzi" panel (FR-042). The toolbar's "New" menu and the empty-area context menu of `List.vue` get the third
+the "needs a newer haex-vault" panel (FR-042). The toolbar's "New" menu and the empty-area context menu of `List.vue` get the third
 item (`passwords.newMenu.pass`). The pass editor and view reuse `EntryTabs`, `HistoryTab`, `KeyValues`, `Attachments`, the
 dialogs and `Breadcrumbs`; the login-only Details tab has a pass twin (`PassDetails`). Window titles stay static (034 FR-040).
 
@@ -238,7 +238,7 @@ the free fields, the tags, the folder, and one `take_snapshot`. Conflict handlin
 
 ## R14. Screen brightness and keeping the screen on (FR-008, FR-036)
 
-**Decision.** On Android, two commands in the `holzi-android` plugin (`@Command`s with `@InvokeArg` classes, `android.rs`,
+**Decision.** On Android, two commands in the `haex-android` plugin (`@Command`s with `@InvokeArg` classes, `android.rs`,
 no-ops in `other.rs`, following `set_secure`): `setScreenBright(on)` sets `window.attributes.screenBrightness` to full and
 restores `BRIGHTNESS_OVERRIDE_NONE`, and `setKeepScreenOn(on)` sets `FLAG_KEEP_SCREEN_ON`. A composable
 `useScreenBright.ts` turns both on when "Show large" opens and off when it closes, the tab closes or the window loses focus.
@@ -271,7 +271,7 @@ macOS.
 **Share.** Intent filters for `ACTION_SEND` and `ACTION_SEND_MULTIPLE` (types `application/vnd.apple.pkpass`,
 `application/pdf`, and the pictures the capture reads: png, jpeg, webp, gif) in `AndroidManifest.xml`; `MainActivity.kt` (launch mode `singleTask`, so a second share arrives
 in `onNewIntent`) copies the shared `content://` stream **at once** into the app's own temporary space (the read permission of
-the URI is transient) and forwards the path through the `holzi-android` plugin to the Rust inbox. The inbox is the pattern of
+the URI is transient) and forwards the path through the `haex-android` plugin to the Rust inbox. The inbox is the pattern of
 `deep_link/inbox.rs` and `stores/shareInbox.ts`: the file waits in the inbox, nothing is imported, and the import dialog opens
 once a vault is open (spec 013: a cold process starts, the vault is locked, the user unlocks, the dialog opens). A cancelled or
 finished dialog removes the copied file (FR-035). The file never leaves the device.

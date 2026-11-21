@@ -14,7 +14,7 @@ Keine neue Spalte. Eine feste Zeile:
 | Spalte                     | Wert                                                                              |
 | -------------------------- | --------------------------------------------------------------------------------- |
 | `id`                       | `SELF_CONTACT_ID` (`contacts/ids.rs`, eine einmal erzeugte UUID, **nie ändern**)  |
-| `origin_kind`              | `holzi`                                                                           |
+| `origin_kind`              | `haex`                                                                            |
 | `origin_device`            | `00000000-0000-0000-0000-000000000000` (Vault-Scope-Kennung, kein Fremdschlüssel) |
 | `origin_caller`            | `internal:self`                                                                   |
 | `created_at`, `updated_at` | fester Zeitpunkt im Format von `passwords::clock`                                 |
@@ -43,7 +43,7 @@ CREATE INDEX haex_contacts_cards_contact ON haex_contacts_cards(contact_id);
 ```
 
 - `hash` = `sha256(payload)`, `payload` = die kanonischen Bytes der Karte ohne Signatur (`card/format.rs`).
-  holzi berechnet ihn selbst und überträgt ihn nie. Dieselbe Karte ergibt auf jedem Gerät dieselbe Zeile.
+  haex-vault berechnet ihn selbst und überträgt ihn nie. Dieselbe Karte ergibt auf jedem Gerät dieselbe Zeile.
 - Mehrere Zeilen je Vault sind erlaubt (mehrere Karten derselben Vault). Alle Zeilen einer Vault gehören
   zu **einem** Kontakt (Spec 051 FR-013); das prüft der Dienst, nicht ein UNIQUE.
 - Prüfung beim Lesen (`received::verified`): Format, Grenzen und Unterschrift (`format::from_bytes`),
@@ -51,7 +51,7 @@ CREATE INDEX haex_contacts_cards_contact ON haex_contacts_cards(contact_id);
   nicht (FR-025a).
 - Keine Zeile wird kopiert (R5): Beim Update verschwinden gespeicherte bestätigte Adressen und kommen mit
   dem erneuten Einlesen zurück.
-- `HOLZI_TRIGGER_VERSION` 27 → 28.
+- `HAEX_TRIGGER_VERSION` 27 → 28.
 
 ### `haex_contacts_own_card`
 
@@ -60,7 +60,7 @@ Unverändert. `own_card::refresh` schreibt sie weiter (FR-028).
 ### Vault-Einstellungen
 
 `contacts.card.own_contact` und `contacts.card.values` entfallen; kein Löschen vorhandener Werte nötig
-(sie werden nicht mehr gelesen, holzi hat keine Nutzer).
+(sie werden nicht mehr gelesen, haex-vault hat keine Nutzer).
 
 ## 2. Typen der Weitergabe (Rust, `src-tauri/src/contacts/share/`)
 
@@ -75,9 +75,9 @@ pub struct ShareSelection {
     pub values: Vec<String>,      // Kennungen von haex_contacts_values.id des Kontakts
     pub display_name: bool, pub nickname: bool,
     pub organization: bool, pub job_title: bool, pub note: bool,
-    pub holzi: HolziSelection,
+    pub haex: HaexSelection,
 }
-pub enum HolziSelection { None, Card, Own { devices: Vec<String>, relays: Vec<String> } }
+pub enum HaexSelection { None, Card, Own { devices: Vec<String>, relays: Vec<String> } }
 ```
 
 `devices` sind `device_pubkey` (hex); `relays` die Nostr-Relay-URLs der Karte. Der Dienst prüft jede
@@ -88,7 +88,7 @@ Kennung gegen den Kontakt und jede Gerätekennung gegen die wirksame Gerätelist
 ```text
 rows:  [ShareRow { id, group, kind, label, value }]   // alle vorgewählt
 head:  { displayName?, nickname?, organization?, jobTitle?, note? } // Zeilen, wenn belegt
-holzi: None
+haex: None
      | Card { npub, devices: n, relays: n, issuedAt }  // fremder Kontakt mit Karte
      | Own  { canSign: bool, npub, devices: [ShareDevice], relays: [string] }
 name:  string                                          // wie ihn der Empfänger sähe (FR-011)
@@ -115,7 +115,7 @@ targets: [ShareTarget { id, name, reason: Vault | Hint }]  // Hinweise nach Tele
 identity: None | New | Matches | Mismatch { existingNpub }
 items: [ShareItem { id: u32, kind, label, value, state, choices: [Choice], default: Choice,
                     existing: [ExistingValue] }]
-reachable: bool                                         // false: ohne holzi-Adressen (FR-017a)
+reachable: bool                                         // false: ohne haex-vault-Adressen (FR-017a)
 skipped: u32                                            // übergangene ungültige Angaben
 blocked: bool
 ```
@@ -123,10 +123,10 @@ blocked: bool
 - `ShareItem.state`: `New`, `Same` (schon da: keine Wahl), `Conflict` (einfeldig belegt, Wert
   weicht ab).
 - Posten-Arten: `NamePart(field)`, `DisplayName`, `Nickname`, `Organization`, `JobTitle`, `Note`, `Value`,
-  `HolziAddresses`.
+  `HaexAddresses`.
 - `Choice`: `Add`, `Update`, `Skip`, `Keep`, `Replace` (nur alte Karte). Je Art nur erlaubte:
   `Value`: Add/Update/Skip; einfeldig (auch Anzeigename und Spitzname): Keep/Update;
-  `HolziAddresses`: Add/Skip (+ Replace).
+  `HaexAddresses`: Add/Skip (+ Replace).
 - `Decision { item: u32, choice: Choice, value_id?: String }`; `value_id` nur bei `Update` einer Angabe.
 - `ExistingValue { id, kind, label, value }`: die Werte derselben Art am Kontakt, aus denen der Nutzer bei
   `Update` einen wählt.

@@ -1,7 +1,7 @@
 # Data Model: Dateizugriff zwischen eigenen Geräten und Dateifreigaben an Kontakte
 
 Migration `0039_file_shares` in `src-tauri/src/identity/migrations_file_shares.rs` (mit
-`_tests.rs` und `SYNCED_TABLES`), registriert in `identity/migrations.rs`; `HOLZI_TRIGGER_VERSION`
+`_tests.rs` und `SYNCED_TABLES`), registriert in `identity/migrations.rs`; `HAEX_TRIGGER_VERSION`
 26 → 27 mit Zeile im Änderungsprotokoll. Regeln der Vault-Datenbank: Primärschlüssel Pflicht, keine
 UNIQUE-Bedingungen, Eindeutigkeit über abgeleitete IDs (UUIDv5 über `\n`-verbundene Teile); bei einer
 Tabelle mit nur einer verfolgten Spalte kein `INSERT … ON CONFLICT DO UPDATE` (prüfen, dann schreiben).

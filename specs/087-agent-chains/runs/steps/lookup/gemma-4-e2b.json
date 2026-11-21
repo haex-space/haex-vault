@@ -166,7 +166,7 @@
       "id": "mail_reply-de-1",
       "result": "missed",
       "calls": [],
-      "text": "Ich kann diese Nachricht nicht direkt an Anna senden. Möchtest du, dass ich versuche, einen Kontakt in holzi zu finden, damit du ihn dort erreichen kannst?"
+      "text": "Ich kann diese Nachricht nicht direkt an Anna senden. Möchtest du, dass ich versuche, einen Kontakt in haex-vault zu finden, damit du ihn dort erreichen kannst?"
     },
     {
       "id": "mail_reply-de-2",
@@ -263,7 +263,7 @@
       "id": "mail_reply-de-1-s",
       "result": "missed",
       "calls": [],
-      "text": "Ich kann diese Nachricht nicht direkt an Anna senden. Möchtest du, dass ich eine Nachricht in einem Chat-Konversation starte oder eine andere Aktion in holzi durchführe?"
+      "text": "Ich kann diese Nachricht nicht direkt an Anna senden. Möchtest du, dass ich eine Nachricht in einem Chat-Konversation starte oder eine andere Aktion in haex-vault durchführe?"
     },
     {
       "id": "mail_tidy-de-1-s",

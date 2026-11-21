@@ -36,7 +36,7 @@
   verification against an installed `claude` CLI showed Claude Code's `-p` mode does support a live,
   blocking, per-tool-call approval round-trip via `--permission-prompt-tool` (see spec.md
   "Clarifications" for both the original answer and the addendum that replaced it). Final state: both
-  delegate backends get live per-tool-use approval through holzi's existing permission gate, no
+  delegate backends get live per-tool-use approval through HaexVault's existing permission gate, no
   backend-specific batch-approval exception.
 - Named CLI flags, protocols, and process names (e.g. `claude -p`, `codex app-server --stdio`,
   `CLAUDE_CONFIG_DIR`) appear only in Input/Assumptions/Out-of-scope framing, not inside functional

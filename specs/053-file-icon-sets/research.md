@@ -6,7 +6,7 @@ Stand des Codes: `main` bei `d44816eb` (2026-10-14). Lizenzprüfung am selben Ta
 
 **Regel des Betreibers (2026-10-14)**: nur Icons und Icon-Sets mit offener Lizenz, die wir ohne Probleme nutzen können. Das ist in FR-017 der Spec als Prüfliste festgehalten: permissive Lizenz (MIT, ISC, Apache-2.0, CC0), Teile aus Drittquellen nur, wenn die Quelle benannt und ebenfalls permissiv ist, kein Copyleft. **Ausnahme, vom Betreiber bewusst angenommen**: Das Material Icon Theme enthält Logos von Firmen, Produkten, Sprachen und Werkzeugen. Nicht die MIT-Lizenz ist dabei das Problem (die Apache-2.0-Teile von Pictogrammers und Google sind zulässig), sondern dass eine Lizenz der Set-Autoren keine Marken- und Urheberrechte Dritter einräumen kann. VS Code liefert dieselben Bilder als Dateityp-Anzeige aus; das Restrisiko ist klein, aber nicht null, und der Betreiber hat es am 2026-10-14 angenommen („ich denke das Risiko können wir eingehen“). Die Lizenzseite sagt, dass Marken und Zeichen ihren Inhabern gehören und nur den Dateityp kennzeichnen. Importierte Sets sind von der Regel ausgenommen (der Nutzer bringt sie mit).
 
-**Lizenz von holzi selbst**: `AGPL-3.0-or-later` (`src-tauri/Cargo.toml`, Zeile `license`). Im Repository liegt keine LICENSE-Datei, und `package.json` hat kein `license`-Feld; das ist eine Lücke außerhalb dieser Spec (Hinweis an den Betreiber).
+**Lizenz von haex-vault selbst**: `AGPL-3.0-or-later` (`src-tauri/Cargo.toml`, Zeile `license`). Im Repository liegt keine LICENSE-Datei, und `package.json` hat kein `license`-Feld; das ist eine Lücke außerhalb dieser Spec (Hinweis an den Betreiber).
 
 Gelesen wurden die Lizenzdateien in geklonten Quellen (Stand 2026-10-14); was Einschätzung ist, steht als solche da (keine Rechtsberatung).
 
@@ -28,7 +28,7 @@ Gelesen wurden die Lizenzdateien in geklonten Quellen (Stand 2026-10-14); was Ei
 
 **Verworfen**: Adwaita unter der LGPL-Option (Copyleft, unklare Anteile); vscode-icons (CC BY-SA); ein logofreier Auszug des Materials (erste Fassung dieses Plans: Handauswahl aus über 1200 Icons mit Einzelfall-Entscheidungen; der Betreiber nimmt das Restrisiko der Logos stattdessen an); ein weiteres Set nur zur Auswahl (Aufwand ohne neue Fähigkeit).
 
-**Offener Punkt für den Betreiber (kein Blocker)**: die fehlende LICENSE-Datei von holzi.
+**Offener Punkt für den Betreiber (kein Blocker)**: die fehlende LICENSE-Datei von haex-vault.
 
 ## R2 – Wie viele Sets, und ist Lucide ein Paket?
 
@@ -40,7 +40,7 @@ Gelesen wurden die Lizenzdateien in geklonten Quellen (Stand 2026-10-14); was Ei
 
 ## R3 – Wo liegen eigene Sets, und wie kommen sie atomar auf andere Geräte?
 
-**Entscheidung**: Ein eigenes Set ist **eine Zeile** in einer neuen CRDT-Tabelle `haex_file_icon_sets`; die Bilder und das Manifest liegen als ZIP-Paket (gepackt, höchstens 5 MiB entpackt) in einer BLOB-Spalte derselben Zeile ([data-model.md](./data-model.md)). Migration `0036_file_icon_sets` (nach `0035_chat_messages_tool_origin`, das während der Umsetzung auf `main` gelandet ist) und eine Erhöhung von `HOLZI_TRIGGER_VERSION` auf 24.
+**Entscheidung**: Ein eigenes Set ist **eine Zeile** in einer neuen CRDT-Tabelle `haex_file_icon_sets`; die Bilder und das Manifest liegen als ZIP-Paket (gepackt, höchstens 5 MiB entpackt) in einer BLOB-Spalte derselben Zeile ([data-model.md](./data-model.md)). Migration `0036_file_icon_sets` (nach `0035_chat_messages_tool_origin`, das während der Umsetzung auf `main` gelandet ist) und eine Erhöhung von `HAEX_TRIGGER_VERSION` auf 24.
 
 **Begründung**: Der Sync überträgt eine Transaktionsgruppe erst vollständig angewendet (Spec 024, `inbound`), und ein einzelner Wert, der größer als eine Seite ist, reist in Teilen (`Change.continues`, `sync/change.rs`). Eine Zeile mit einem BLOB ist damit von selbst „erscheint erst vollständig“ (FR-015); die im Code fehlende allgemeine Markierung „Datensatz vollständig“ (Bericht zum Sync) wird nicht gebraucht. Sets sind unveränderlich (Ersetzen = neue Zeile, alte löschen), also gibt es kein feldweises Zusammenführen zweier Versionen. Ein einzelnes Löschen lässt einen Löschmarker (`haex_deleted_rows`), der auf allen Geräten gilt (Spec 024 FR-017); es gibt keine Kind-Zeilen, die vor dem Elternteil gelöscht werden müssten.
 
@@ -70,7 +70,7 @@ Gelesen wurden die Lizenzdateien in geklonten Quellen (Stand 2026-10-14); was Ei
 
 ## R6 – Pakete: Format, mitgelieferte Sets Phosphor und Material, Auslieferung
 
-**Entscheidung**: Ein Paket ist ein ZIP mit dem Manifest (`icon-theme.json`), den Bildern und einer Datei `LICENSE`. Das Manifest ist das Format der Icon-Themes von VS Code, ergänzt um einen Block `x-holzi` mit `roles` (Rolle → Bild-Kennung) und `origin` (Urheber, SPDX-Lizenz, Quelle). Ein Theme ohne `x-holzi` gilt ohne Rollen; seine `file`- und `folder`-Vorgaben übernehmen deren Aufgabe (R7).
+**Entscheidung**: Ein Paket ist ein ZIP mit dem Manifest (`icon-theme.json`), den Bildern und einer Datei `LICENSE`. Das Manifest ist das Format der Icon-Themes von VS Code, ergänzt um einen Block `x-haex` mit `roles` (Rolle → Bild-Kennung) und `origin` (Urheber, SPDX-Lizenz, Quelle). Ein Theme ohne `x-haex` gilt ohne Rollen; seine `file`- und `folder`-Vorgaben übernehmen deren Aufgabe (R7).
 
 **Herstellung der mitgelieferten Pakete** (ein Weg für beide): Ein Skript `scripts/icon-sets/prepare.ts` (läuft mit `node` in der Devshell, keine neue Abhängigkeit) liest die gepinnte Quelle und schreibt ein **Quellverzeichnis** `src-tauri/icon-sets/<set>/` (Manifest, ausgewählte Bilder, Lizenztexte), das eingecheckt wird und in jedem PR prüfbar ist. Gepackt wird es vom selben Rust-Code, den der Import für einen Ordner benutzt (`files/icons/import.rs`): ein Befehl (ignorierter Test oder Beispiel, Entscheidung beim Umsetzen) schreibt `src-tauri/icon-sets/<set>.zip` mit festen Zeitstempeln und sortierten Einträgen; ein normaler Test vergleicht die Dateien des Quellverzeichnisses (Namen und Inhalt) mit denen im eingecheckten ZIP (nicht die Bytes des ZIP, die von der Version der Kompressionsbibliothek abhängen). Das ZIP ist mit `include_bytes!` in die App eingebunden (kein Resource-Resolver und kein Unterschied zu Android; im Bestand ist `bundle.resources` leer und kein Android-Asset vorhanden). `src-tauri/icon-sets/SOURCES.md` nennt je Set Quelle, Version, Commit-SHA oder Prüfsumme.
 
@@ -78,7 +78,7 @@ Gelesen wurden die Lizenzdateien in geklonten Quellen (Stand 2026-10-14); was Ei
 
 1. Aus `assets/regular` wird nur eine feste Liste übernommen (Dateityp-Icons `file-*`, `folder`, `folder-lock`, `folder-simple`, `folder-simple-lock`, `file`, `file-lock`, `file-x`, `file-dashed`); alle `*-logo`-Icons bleiben draußen. Die Liste steht im Repository (`src-tauri/icon-sets/phosphor.icons.txt`), damit jede Aufnahme eine Entscheidung im Diff ist.
 2. Jedes Bild wird in zwei Fassungen geschrieben: `currentColor` wird durch eine feste helle Farbe (dunkles Schema) und eine feste dunkle Farbe (helles Schema) ersetzt. Das Manifest führt im Hauptteil die Fassung mit hellen Strichen (für das dunkle Schema, wie bei VS Code, dessen Hauptteil das dunkle Theme ist) und im Block `light` die Fassung mit dunklen Strichen (für das helle Schema). Die Farben stehen im Skript (Vorgabe: Grautöne, die zu `text-muted-foreground` passen).
-3. Das Manifest ordnet Endungen den vorhandenen Bildern zu (`src-tauri/icon-sets/phosphor.mapping.json`, von Hand geschrieben): zum Beispiel `pdf` → `file-pdf`, `doc`, `docx`, `odt` → `file-doc`, `xls`, `xlsx`, `ods` → `file-xls`, `ppt`, `pptx` → `file-ppt`, `zip`, `7z`, `tar`, `gz` → `file-zip`, `png` → `file-png`, `jpg`, `jpeg` → `file-jpg`, `rs` → `file-rs`, `ts` → `file-ts`, `py` → `file-py`; Sprachen ohne eigenes Bild (`go`, `kt`, `java`, `rb`, `php`, `sh`) → `file-code`. Phosphor hat keine Namen für Dateien und Ordner, also gibt es dort keine; Rollen (`x-holzi.roles`) belegen Bild, Video, Audio, PDF, Text, Ordner, Ordner ohne Zugriff, die Schloss-Zustände (`folder-lock`, `file-lock`) und beschädigt (`file-x`).
+3. Das Manifest ordnet Endungen den vorhandenen Bildern zu (`src-tauri/icon-sets/phosphor.mapping.json`, von Hand geschrieben): zum Beispiel `pdf` → `file-pdf`, `doc`, `docx`, `odt` → `file-doc`, `xls`, `xlsx`, `ods` → `file-xls`, `ppt`, `pptx` → `file-ppt`, `zip`, `7z`, `tar`, `gz` → `file-zip`, `png` → `file-png`, `jpg`, `jpeg` → `file-jpg`, `rs` → `file-rs`, `ts` → `file-ts`, `py` → `file-py`; Sprachen ohne eigenes Bild (`go`, `kt`, `java`, `rb`, `php`, `sh`) → `file-code`. Phosphor hat keine Namen für Dateien und Ordner, also gibt es dort keine; Rollen (`x-haex.roles`) belegen Bild, Video, Audio, PDF, Text, Ordner, Ordner ohne Zugriff, die Schloss-Zustände (`folder-lock`, `file-lock`) und beschädigt (`file-x`).
 4. `LICENSE` im Paket ist der MIT-Text von Phosphor, `origin` nennt Urheber, SPDX `MIT` und die Quelle.
 
 Größe: alle `file*` und `folder*` der Gewichtung `regular` sind zusammen rund 35 KB roh; mit zwei Fassungen und Packen weit unter 0,2 MB (beim Packen messen).
@@ -107,10 +107,10 @@ Größe: das ZIP mit 1251 SVG und dem gekürzten Manifest ist nach Schätzung un
 
 **Reihenfolge der Auflösung** (FR-003, FR-005; eine Funktion in `icons/resolve.rs`):
 
-0. Zustände zuerst: Ist der Eintrag ein verschlüsselter Ordner (lesbar), nicht lesbar, beschädigt oder ein Ordner ohne Zugriff, gilt `x-holzi.roles[zustand]`, sonst gleich das Standard-Set (Schritt 5). Ein Dateityp-Bild verdeckt einen Zustand nie.
+0. Zustände zuerst: Ist der Eintrag ein verschlüsselter Ordner (lesbar), nicht lesbar, beschädigt oder ein Ordner ohne Zugriff, gilt `x-haex.roles[zustand]`, sonst gleich das Standard-Set (Schritt 5). Ein Dateityp-Bild verdeckt einen Zustand nie.
 1. Ordner: `folderNames[name]`; Datei: `fileNames[name]`.
 2. Datei: `fileExtensions` (längste Endung zuerst).
-3. Rolle: `x-holzi.roles[rolle]` für Bild, Video, Audio, PDF und Text (Phosphor trägt sie; Material und große importierte Themes brauchen sie nicht, weil ihre Endungen und Namen fast alles abdecken).
+3. Rolle: `x-haex.roles[rolle]` für Bild, Video, Audio, PDF und Text (Phosphor trägt sie; Material und große importierte Themes brauchen sie nicht, weil ihre Endungen und Namen fast alles abdecken).
 4. Vorgabe des Themes: `file` oder `folder`.
 5. Standard-Set (Lucide: Tabelle Rolle → Symbol in Rust, übernommen aus dem heutigen `EntryIcon.vue` und `encrypted.ts`).
 

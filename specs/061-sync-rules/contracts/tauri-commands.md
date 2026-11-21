@@ -73,7 +73,7 @@ darauf, dass `invoke().await` vor dem ersten Ereignis zurückkehrt).
 | `syncRules.update` | `destructive` | wie `create`, mit den alten Werten daneben                                                            |
 | `syncRules.delete` | `destructive` | Name und Orte der Regel                                                                               |
 
-Ein Agent kann weder Orte der eigenen Daten von holzi noch Freigaben von Kontakten wählen (FR-002, FR-036);
+Ein Agent kann weder Orte der eigenen Daten von haex-vault noch Freigaben von Kontakten wählen (FR-002, FR-036);
 `sync_rules_create` lehnt sie unabhängig vom Aufrufer ab. Der Agent prüft die Regel vor der Abfrage, eine
 solche Regel fragt also nie. Die Aktionen laufen in Rust (`file_sync/agent.rs`, `runner: 'native'`);
 `create`, `update` und `delete` tragen `confirmsItself`, die Abfrage des Chats entfällt, der Plan-Modus lehnt

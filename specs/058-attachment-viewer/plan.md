@@ -174,7 +174,7 @@ scripts/
 └── e2e/scenarios/passwords-attachments.test.ts   # Text und PDF öffnen
 ```
 
-**Structure Decision**: Die bestehende Aufteilung von holzi (Rust in `src-tauri/src/<Bereich>`,
+**Structure Decision**: Die bestehende Aufteilung von haex-vault (Rust in `src-tauri/src/<Bereich>`,
 Fenster in `src/components/<Bereich>`). Neue Rust-Logik liegt in einem eigenen Modul des
 Passwortmanagers, weil `binaries.rs` sonst an die 500-Zeilen-Grenze kommt. Die Teile, die die
 Dateien-App schon hat, bleiben in `files/` und werden von dort genutzt.

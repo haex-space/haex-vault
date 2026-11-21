@@ -9,7 +9,7 @@ tools `claude 2.1.305` and `codex-cli 0.147.0`.
 
 **Decision**: Download the single program file from
 `https://downloads.claude.ai/claude-code-releases/<version>/<platform>/claude` (`claude.exe` on Windows) and check its
-SHA-256 against a value held in holzi's tested-version list. The list value is taken from the release's `manifest.json`
+SHA-256 against a value held in haex-vault's tested-version list. The list value is taken from the release's `manifest.json`
 after its GPG signature was verified by a maintainer script, not by the app.
 
 **Evidence**:
@@ -33,8 +33,8 @@ after its GPG signature was verified by a maintainer script, not by the app.
 **Verified (operator approved the run, 2026-11-16)**: the downloaded standalone file starts from an arbitrary folder in
 an empty environment: `--version` prints `2.1.311 (Claude Code)`, exit 0. `claude doctor` reports
 `Auto-updates: disabled (set by env: DISABLE_UPDATES)` with the variable set in the process environment, and
-`Last update attempt: none recorded`. It also prints install-method hints ("run `claude install`") that holzi ignores:
-holzi never runs `claude install`, which would write a launcher and profile changes. An unauthenticated `-p` run returns
+`Last update attempt: none recorded`. It also prints install-method hints ("run `claude install`") that haex-vault ignores:
+haex-vault never runs `claude install`, which would write a launcher and profile changes. An unauthenticated `-p` run returns
 `Not logged in · Please run /login` and writes, outside the test tree, only the inbox socket (section 3).
 
 **Rationale**: The signature check needs a PGP implementation. Doing it in the maintainer script keeps a PGP crate out of
@@ -66,7 +66,7 @@ the asset.
   `codex-resources/bwrap`, `codex-resources/voice/` (a host program and GStreamer libraries).
 - `codex-package.json` names the layout: `{"layoutVersion":1,"version":"0.169.0","target":"x86_64-unknown-linux-musl",
 "variant":"codex","entrypoint":"bin/codex","execServer":"bin/codex-exec-server","resourcesDir":"codex-resources",
-"pathDir":"codex-path"}`; holzi runs `entrypoint`.
+"pathDir":"codex-path"}`; haex runs `entrypoint`.
 - Linux assets exist for musl only: they are statically linked, so one asset serves glibc hosts.
 
 **Verified (operator approved the run)**: the unpacked package starts from an arbitrary folder in an empty
@@ -80,7 +80,7 @@ vendor's own layout (the whole package).
 at every run: a download from a third party and a dependency on a host program. Starting with
 `--disable plugins --disable plugin_discovery_prefetch --disable recommended_plugins --disable remote_plugin` (feature flags
 of the shipped `config-schema.json`) removes it: no clone, no `git`, the per-run state drops from 26 MB to 1.2 MB. The flags
-are part of the Codex vendor definition (`config_args`); whether any of them changes behaviour that holzi's own
+are part of the Codex vendor definition (`config_args`); whether any of them changes behaviour that haex-vault's own
 delegate use needs (its MCP server is configured in `config.toml`, not as a plugin) is a check in the quickstart.
 
 **Weakness stated**: the SUMS file and the API digest both come from GitHub, so they are not independent of each other.
@@ -144,7 +144,7 @@ An authenticated run with a tool call is a manual quickstart step and an automat
   in settings `env`; it is listed as an environment variable. That a variable in the process environment is honoured was
   measured with the downloaded 2.1.311: `claude doctor` prints `Auto-updates: disabled (set by env: DISABLE_UPDATES)`.
 - Codex: config key `check_for_update_on_startup` ("Set to `false` only if your Codex updates are centrally managed"),
-  settable per run as `-c check_for_update_on_startup=false`. holzi never runs the vendor's installer, so the standalone
+  settable per run as `-c check_for_update_on_startup=false`. haex-vault never runs the vendor's installer, so the standalone
   updater and its `app-server daemon` are not installed. Measured with the downloaded 0.169.0: the flag is accepted by
   `app-server`, and no update file appeared in the tree. Only file operations were traced, so network calls are not
   covered by this measurement.
@@ -161,7 +161,7 @@ An authenticated run with a tool call is a manual quickstart step and an automat
   (written last, before the staging folder is renamed).
 - The provider row's `base_url` stays unread for delegates. It is a synced column; a per-device path must never go in it.
   `add.rs` stops requiring it for `cli_delegate`, `connect.rs:370` stops writing the vendor name there, and
-  `providers/mod.rs:298` stops reading it. No migration (holzi has no users).
+  `providers/mod.rs:298` stops reading it. No migration (haex-vault has no users).
 
 ## 6. Download, verify, unpack
 
@@ -210,14 +210,14 @@ An authenticated run with a tool call is a manual quickstart step and an automat
   account answers. Spec 007 FR-009 (the host does not influence a request) needs exactly those removed, in the child only.
   The vendor definition lists the prefixes. Proxy, certificate, `PATH` and locale variables are deliberately left as the
   host has them: clearing them would break the tool behind a corporate proxy or with a custom certificate store.
-- **Helper hazard**: Claude spawns `holzi --mcp-agent …` as an MCP server; it finds holzi's MCP endpoint through
+- **Helper hazard**: Claude spawns `haex --mcp-agent …` as an MCP server; it finds haex-vault's MCP endpoint through
   `dirs::runtime_dir()` / `TMPDIR` / `dirs::cache_dir()` (`mcp_server/endpoint.rs:44-62`), the very variables the plan
   overrides. Without a change the helper would look in the wrong folder. The endpoint folder is passed to the helper
   explicitly in the MCP config arguments instead of being recomputed from the environment (`HAEX_MCP_ENDPOINT_DIR`
   per the repo's naming rule).
 - **Socket path length**: `approval.sock` lies in the run folder; a vault name may be 64 characters and the data folder
   about 46, already above the 104-byte limit (`MAX_SOCKET_PATH_BYTES`). `endpoint.rs:49-62` solves this for the MCP
-  endpoint by falling back to `/tmp/holzi-mcp-<hash>`. The same fallback is needed for the approval socket and is, like
+  endpoint by falling back to `/tmp/haex-mcp-<hash>`. The same fallback is needed for the approval socket and is, like
   Claude's inbox socket, a transient system-temp file without vault content (Open decisions, D1).
 - `DelegateChatContext` is a six-field struct literal in about 12 integration test files; a new field breaks all of
   them. The plan therefore replaces the `binary: String` argument of `CliDelegateAdapter::new` by one value
@@ -235,7 +235,7 @@ An authenticated run with a tool call is a manual quickstart step and an automat
   vault paths already and belongs to the audit of other places (spec assumption), not to this feature.
 - The runtime switch for the debug log (operator request, 2026-11-16) is a separate spec; it must respect FR-019.
 - **Baseline of device-wide files (T043, measured 2026-11-17)** with `scripts/cli-tools/check-device-traces.py` over the
-  development machine's data folder (`~/.local/share/com.haex.holzi`) and the name of one of its vaults: six hits, all in
+  development machine's data folder (`~/.local/share/space.haex.vault`) and the name of one of its vaults: six hits, all in
   the webview's cache (`WebKitCache/Version 17/...` and an old `WebKitCache.bak-...`), none in `logs/`, `localstorage`,
   `storage` or `cookies`. The webview cache is not written by this feature, so it goes on the follow-up list (T071) as a
   device-wide trace of vault names. The series of the task (install, connect, request, stop, update, removal in a build with

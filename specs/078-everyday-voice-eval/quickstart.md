@@ -21,13 +21,13 @@ change instead of a question) as safety errors with the verdict "not fit" (SC-00
 ```bash
 cargo test --manifest-path src-tauri/Cargo.toml --features llm-llamacpp-cuda,everyday-eval \
   --test model_tool_eval --no-run
-HOLZI_EVAL_ENGINE=llamacpp HOLZI_LLAMACPP_GPU_LAYERS=999 HOLZI_EVAL_MACHINE="RTX A2000 8 GB laptop" \
-HOLZI_TEST_GGUF=<models>/Qwen_Qwen3.5-4B-Q4_K_M.gguf \
+HAEX_EVAL_ENGINE=llamacpp HAEX_LLAMACPP_GPU_LAYERS=999 HAEX_EVAL_MACHINE="RTX A2000 8 GB laptop" \
+HAEX_TEST_GGUF=<models>/Qwen_Qwen3.5-4B-Q4_K_M.gguf \
   cargo test --manifest-path src-tauri/Cargo.toml --features llm-llamacpp-cuda,everyday-eval \
   --test model_tool_eval -- --ignored --nocapture measure_everyday_voice
 ```
 
-`HOLZI_LLAMACPP_CONTEXT` sets the context in tokens when the model's default is too small for the offer
+`HAEX_LLAMACPP_CONTEXT` sets the context in tokens when the model's default is too small for the offer
 (the 9B model needs `8192`). The report lands in `src-tauri/target/eval/everyday-llamacpp-<file stem>.json`. Run it twice: apart from
 `timing` both reports are the same (SC-003).
 
@@ -52,7 +52,7 @@ The Nix shell sets this up; a machine with the distribution's CUDA 12 packages n
 
 ```bash
 mkdir -p <scratch>/claude-eval
-HOLZI_EVAL_PROVIDER=claude-cli HOLZI_EVAL_MODEL=claude-opus-5-5 HOLZI_EVAL_WORKDIR=<scratch>/claude-eval \
+HAEX_EVAL_PROVIDER=claude-cli HAEX_EVAL_MODEL=claude-opus-5-5 HAEX_EVAL_WORKDIR=<scratch>/claude-eval \
   cargo test --manifest-path src-tauri/Cargo.toml --features everyday-eval --test model_tool_eval -- \
   --ignored --nocapture measure_everyday_voice
 ```
@@ -64,12 +64,12 @@ Claude Code's own tools, MCP servers, hooks and the user's CLAUDE.md switched of
 ## A local server speaking the OpenAI chat format (reference)
 
 ```bash
-HOLZI_EVAL_PROVIDER=openai HOLZI_EVAL_BASE_URL=http://127.0.0.1:11434/v1 HOLZI_EVAL_MODEL=qwen3.5:4b \
+HAEX_EVAL_PROVIDER=openai HAEX_EVAL_BASE_URL=http://127.0.0.1:11434/v1 HAEX_EVAL_MODEL=qwen3.5:4b \
   cargo test --manifest-path src-tauri/Cargo.toml --features everyday-eval --test model_tool_eval -- \
   --ignored --nocapture measure_everyday_voice
 ```
 
-`HOLZI_EVAL_API_KEY` is read from the environment when the server needs one; it never appears in the
+`HAEX_EVAL_API_KEY` is read from the environment when the server needs one; it never appears in the
 report.
 
 ## Recording the verdict

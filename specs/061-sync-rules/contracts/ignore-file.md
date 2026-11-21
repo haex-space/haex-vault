@@ -5,7 +5,7 @@
 - Genau eine Datei `.haex-ignore` im Wurzelordner eines Orts. Dateien gleichen Namens in Unterordnern werden nicht
   ausgewertet (FR-038); sie sind gewöhnliche Dateien und werden abgeglichen.
 - Zeichensatz UTF-8, Zeilenende `\n` oder `\r\n`, höchstens 64 KiB und 2 000 Zeilen. Der Editor lehnt größere
-  Schreibvorgänge ab. Ist eine vorhandene Datei größer, verwendet holzi sie nicht verkürzt, sondern bricht den
+  Schreibvorgänge ab. Ist eine vorhandene Datei größer, verwendet haex-vault sie nicht verkürzt, sondern bricht den
   Lauf geschlossen mit einem Fehler im Regelstatus ab, bis die Datei korrigiert wurde.
 
 ## Schreibweise
@@ -28,8 +28,8 @@ Zeilen gelten (FR-038).
    Orts aus (FR-039).
 2. Ein Pfad ist ausgenommen, wenn er selbst oder ein Elternordner trifft.
 3. `.haex-ignore` selbst ist nie ausgenommen.
-4. Feste Ausnahmen (immer, nicht änderbar): `.holzi-trash/`, die temporären Kopierdateien der Regel
-   (`.*.holzi-part-*`, `.*.holzi-old-*`), `.DS_Store`, `Thumbs.db`, `desktop.ini`.
+4. Feste Ausnahmen (immer, nicht änderbar): `.haex-trash/`, die temporären Kopierdateien der Regel
+   (`.*.haex-part-*`, `.*.haex-old-*`), `.DS_Store`, `Thumbs.db`, `desktop.ini`.
 5. Eine Datei, die ausgenommen ist, erscheint nicht im Plan, nicht im Stand und nicht in den Zählern (nur in der
    Zahl „ausgenommen“ der Vorschau und des Editors, FR-042).
 6. Wird eine Ausnahme aufgehoben, gilt die Datei im nächsten Lauf als neu (FR-040).
