@@ -105,7 +105,7 @@ onVaultTablesChanged(['preferences'], loadAsync)
         <UiButton
           variant="outline"
           :loading="checking"
-          :disabled="!address.trim() || busy"
+          :disabled="!address.trim()"
           data-testid="settings-chat-server-check"
           @click="checkAsync"
         >
