@@ -76,8 +76,9 @@ Jeder Test baut ein kleines Git-Repo in einem temporären Verzeichnis:
 ## Wirkung auf den Ablauf
 
 Ab S8 ist die Prüfung Teil von „Documentation consistency“ (Pflichtprüfung für `main`). Ein PR, der
-den Namen neu einführt, scheitert dort mit den Fundstellen (SC-001). S10 entfernt die drei Einträge
-mit `until: S10` (`.spaex/**`, die Constitution und die Zeilen mit dem Namen der atoms-Molekül); danach
+den Namen neu einführt, scheitert dort mit den Fundstellen (SC-001). S10 entfernt die vier Einträge
+mit `until: S10` (`.spaex/**`, die Constitution, die Zeilen mit dem Namen der atoms-Molekül und die
+Zeilen mit dem Regelnamen `holzi-ui-feedback`); danach
 bleiben die dauerhaften Einträge für Spec 054, Verzeichnisname 032 (Pfadname und Verweiszeilen), die
 drei Gate-Metadateien, Migration 0065 samt Tests, die zwei SQL-Zeilen der Migrationen 0020 und 0042
 und die zwei Hinweissätze „früher holzi“ im README und in `CONTEXT.md`.
