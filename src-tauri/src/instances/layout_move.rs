@@ -147,23 +147,23 @@ pub fn run_with(paths: &VaultPaths, budget: &mut Budget) -> io::Result<Outcome> 
 pub fn run_at_start(paths: &VaultPaths) {
     match run(paths) {
         Ok(outcome) => {
-            for name in &outcome.moved {
-                log::info!("vault folders: moved `{name}` into its folder");
+            for _ in &outcome.moved {
+                log::info!("vault folders: moved a vault into its folder");
             }
-            for (name, reason) in &outcome.left {
-                log::warn!("vault folders: `{name}` stays where it is for now: {reason}");
+            for (_, reason) in &outcome.left {
+                log::warn!("vault folders: a vault stays where it is for now: {reason}");
             }
-            for label in &outcome.adopted {
-                log::info!("vault folders: moved `{label}` into the vault folder");
+            for _ in &outcome.adopted {
+                log::info!("vault folders: moved a file into the vault folder");
             }
-            for (label, reason) in &outcome.adoption_left {
-                log::warn!("vault folders: `{label}` stays where it is for now: {reason}");
+            for (_, reason) in &outcome.adoption_left {
+                log::warn!("vault folders: a file stays where it is for now: {reason}");
             }
-            for file in &outcome.lists {
-                log::info!("vault folders: moved the filter list file `{file}` to filter-lists");
+            for _ in &outcome.lists {
+                log::info!("vault folders: moved a filter list file to filter-lists");
             }
-            for (file, reason) in &outcome.lists_left {
-                log::warn!("vault folders: filter list file `{file}` stays for now: {reason}");
+            for (_, reason) in &outcome.lists_left {
+                log::warn!("vault folders: a filter list file stays where it is for now: {reason}");
             }
         }
         Err(error) => log::warn!("vault folders: the move could not start: {error}"),
@@ -265,9 +265,9 @@ fn move_vault(paths: &VaultPaths, name: &str, budget: &mut Budget) -> Result<boo
             let _ = fs::remove_dir(&staging);
             return Ok(false);
         }
-        return Err(Stop::Left(format!(
-            "{folder:?} exists already and files of the old layout are left"
-        )));
+        return Err(Stop::Left(
+            "the vault folder exists and files of the old layout are left".to_string(),
+        ));
     }
 
     // The same lock `Database::open` takes, on the old place: held means another process has the
@@ -283,7 +283,7 @@ fn move_vault(paths: &VaultPaths, name: &str, budget: &mut Budget) -> Result<boo
     for (source, target) in files {
         let target = staging.join(target);
         if target.exists() {
-            return Err(Stop::Left(format!("{target:?} exists already")));
+            return Err(Stop::Left("a target file already exists".to_string()));
         }
         budget.spend()?;
         fs::rename(source, target)?;
@@ -304,7 +304,7 @@ fn remove_lock(paths: &VaultPaths, name: &str) {
     match fs::remove_file(&lock) {
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Err(error) => log::warn!("vault folders: could not remove {lock:?}: {error}"),
+        Err(error) => log::warn!("vault folders: could not remove a legacy lock file: {error}"),
     }
 }
 

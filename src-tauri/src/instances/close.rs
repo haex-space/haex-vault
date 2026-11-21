@@ -142,6 +142,10 @@ pub async fn finish_close(ctx: &CloseContext<'_>) -> DrainOutcome {
         Ok(None) => {}
         Err(error) => log::warn!("could not release the vault: {error}"),
     }
+    // Spec 098: the log of the vault ends after the lines of the close and takes no more.
+    if let Err(error) = tokio::task::spawn_blocking(crate::diagnostic_log::end).await {
+        log::warn!("diagnostic log: the writer did not stop cleanly: {error}");
+    }
     // Releases the microphone and frees the cached model. Nothing here holds vault data and the
     // process is ending, so it is bounded by the time the forced end would wait anyway.
     let _ = tokio::time::timeout(ctx.timings.grace, ctx.voice.reset_for_close()).await;

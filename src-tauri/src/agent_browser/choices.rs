@@ -208,7 +208,7 @@ pub async fn import_legacy(
     for (took, file) in [(imported.trackers, trackers_file), (imported.dns, dns_file)] {
         if took {
             if let Err(error) = std::fs::remove_file(file) {
-                log::warn!("agent browser: could not remove {file:?} after its import: {error}");
+                log::warn!("agent browser: could not remove an imported settings file: {error}");
             }
         }
     }

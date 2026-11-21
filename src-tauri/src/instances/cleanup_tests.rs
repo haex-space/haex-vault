@@ -126,3 +126,18 @@ fn taking_back_a_vault_leaves_no_file_of_its_tools_or_home_and_keeps_those_of_an
     );
     assert!(paths.records_dir("ben").join("tools.log").is_file());
 }
+
+#[test]
+fn taking_back_a_vault_takes_its_log_with_it() {
+    // Spec 098 FR-017: the diagnostic log lies in the vault's folder and goes with it.
+    let dir = tempfile::tempdir().unwrap();
+    let folder = dir.path().join("vaults").join("anna");
+    std::fs::create_dir_all(folder.join("logs")).unwrap();
+    std::fs::write(folder.join("vault.db"), b"x").unwrap();
+    std::fs::write(folder.join("logs").join("haex.log"), b"line").unwrap();
+    std::fs::write(folder.join("logs").join("haex.log.1"), b"older").unwrap();
+
+    assert!(take_back(&folder.join("vault.db")));
+
+    assert!(!folder.exists());
+}

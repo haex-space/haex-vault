@@ -68,7 +68,7 @@ pub async fn load_local(
         .and_then(|file| read_architecture(&mut std::io::BufReader::new(file)))
         .map_err(|e| EngineError::Header(e.to_string()))?;
     let engine = engine_for(&architecture)?;
-    log::info!("loading {} with {}", path.display(), engine.name());
+    log::info!("loading a local model with {}", engine.name());
     let adapter = crate::llm::llamacpp::LlamaCppAdapter::load(
         path,
         crate::llm::llamacpp::LoadOptions {

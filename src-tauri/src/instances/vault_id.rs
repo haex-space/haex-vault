@@ -50,7 +50,7 @@ pub fn write(db_path: &Path, db: &Database) -> std::io::Result<()> {
         return Ok(());
     }
     if let Err(error) = fs::write(&path, format!("{fingerprint}\n")) {
-        log::warn!("vault id: writing {path:?} failed: {error}");
+        log::warn!("vault id: writing the identity file failed: {error}");
         return Err(error);
     }
     Ok(())

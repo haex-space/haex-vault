@@ -3478,6 +3478,7 @@ dependencies = [
  "image",
  "imap-proto",
  "iroh",
+ "jiff",
  "jni 0.22.4",
  "keepass",
  "lettre",
