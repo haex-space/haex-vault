@@ -243,37 +243,34 @@ pub(crate) fn apply_state(state: LevelState) {
 /// close. A timer that runs is replaced.
 pub(crate) fn schedule_expiry(db: VaultDb, gate: &VaultGate, until_ms: i64, emit: &Emitter) {
     let left = expiry::remaining(until_ms, now_ms(), DEADLINE.left(Instant::now()));
-    schedule_expiry_after(db, gate, until_ms, emit, left);
-}
-
-fn schedule_expiry_retry(db: VaultDb, gate: &VaultGate, until_ms: i64, emit: &Emitter) {
-    schedule_expiry_after(db, gate, until_ms, emit, std::time::Duration::from_secs(5));
-}
-
-fn schedule_expiry_after(
-    db: VaultDb,
-    gate: &VaultGate,
-    until_ms: i64,
-    emit: &Emitter,
-    delay: std::time::Duration,
-) {
     let generation = EXPIRY_GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
     let token = gate.token();
     let task_gate = gate.clone();
     let emit = Arc::clone(emit);
     let spawned = gate.spawn(async move {
+        let mut retry_delay = std::time::Duration::from_secs(1);
         tokio::select! {
             () = token.cancelled() => return,
-            () = tokio::time::sleep(delay) => {}
+            () = tokio::time::sleep(left) => {}
         }
-        // A replaced timer must not take the current timer's handle or end its level early.
-        if let Err(error) =
-            commands::expire_level(&db, &task_gate, generation, until_ms, &emit).await
-        {
-            log::warn!("diagnostic log: \"Ausführlich\" could not be ended: {error}");
-            let current = status();
-            if current.level == LogLevel::Verbose && current.until_ms == Some(until_ms) {
-                schedule_expiry_retry(db, &task_gate, until_ms, &emit);
+        loop {
+            // Keep this generation installed until Standard is stored and applied. On a transient
+            // database failure, retry while the same vault and verbose selection are current.
+            if !expiry_is_current(generation) {
+                return;
+            }
+            match commands::expire_level(&db, &task_gate, generation, until_ms, &emit).await {
+                Ok(()) => return,
+                Err(error) => {
+                    log::warn!("diagnostic log: \"Ausführlich\" could not be ended: {error}");
+                    tokio::select! {
+                        () = token.cancelled() => return,
+                        () = tokio::time::sleep(retry_delay) => {}
+                    }
+                    retry_delay = retry_delay
+                        .saturating_mul(2)
+                        .min(std::time::Duration::from_secs(60));
+                }
             }
         }
     });
@@ -285,6 +282,7 @@ fn schedule_expiry_after(
 
 /// Stops the timer, if one runs.
 pub(crate) fn cancel_expiry() {
+    EXPIRY_GENERATION.fetch_add(1, Ordering::AcqRel);
     replace_expiry(None);
 }
 
@@ -295,17 +293,29 @@ fn replace_expiry(next: Option<(u64, tokio::task::AbortHandle)>) {
     }
 }
 
-fn take_expiry(generation: u64) -> bool {
+fn take_expiry(generation: u64) -> Option<tokio::task::AbortHandle> {
     let mut slot = EXPIRY.lock().unwrap_or_else(PoisonError::into_inner);
     if slot
         .as_ref()
         .is_some_and(|(current, _)| *current == generation)
     {
-        slot.take();
-        true
+        slot.take().map(|(_, handle)| handle)
     } else {
-        false
+        None
     }
+}
+
+fn restore_expiry(generation: u64, handle: tokio::task::AbortHandle) {
+    let mut slot = EXPIRY.lock().unwrap_or_else(PoisonError::into_inner);
+    if EXPIRY_GENERATION.load(Ordering::Acquire) == generation && slot.is_none() {
+        *slot = Some((generation, handle));
+    } else {
+        handle.abort();
+    }
+}
+
+fn expiry_is_current(generation: u64) -> bool {
+    EXPIRY_GENERATION.load(Ordering::Acquire) == generation
 }
 
 /// Whether the timer of "Ausführlich" runs.

@@ -91,7 +91,7 @@ impl RotatingFile {
         // One call per record, unbuffered: a crash loses no line that was reported as written.
         if let Err(error) = file.write_all(&bytes) {
             self.repair_to = Some(self.size);
-            if file.set_len(self.size).is_ok() {
+            if truncate_file(&self.current(), self.size).is_ok() {
                 self.repair_to = None;
             }
             return Err(error);
@@ -141,10 +141,7 @@ impl RotatingFile {
         }
         // Append handles on Windows do not include FILE_WRITE_DATA, which set_len requires.
         // Open a separate truncation handle rather than relying on append mode for this repair.
-        OpenOptions::new()
-            .write(true)
-            .open(self.current())?
-            .set_len(size)?;
+        truncate_file(&self.current(), size)?;
         self.size = size;
         self.repair_to = None;
         Ok(())
@@ -313,6 +310,10 @@ impl RotatingFile {
         }
         Ok(())
     }
+}
+
+fn truncate_file(path: &Path, length: u64) -> io::Result<()> {
+    OpenOptions::new().write(true).open(path)?.set_len(length)
 }
 
 /// Splits `content` into records: a line that starts with four spaces continues the record

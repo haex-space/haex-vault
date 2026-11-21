@@ -58,14 +58,19 @@ pub(crate) async fn expire_level(
     emit: &Emitter,
 ) -> Result<()> {
     let _transition = LEVEL_TRANSITION.lock().await;
-    if !super::take_expiry(generation)
-        || status().level != LogLevel::Verbose
-        || status().until_ms != Some(until_ms)
-    {
+    let Some(timer) = super::take_expiry(generation) else {
+        return Ok(());
+    };
+    if status().level != LogLevel::Verbose || status().until_ms != Some(until_ms) {
         return Ok(());
     }
-    switch_level_locked(db, gate, LogLevel::Standard, emit).await?;
-    Ok(())
+    match switch_level_locked(db, gate, LogLevel::Standard, emit).await {
+        Ok(_) => Ok(()),
+        Err(error) => {
+            super::restore_expiry(generation, timer);
+            Err(error)
+        }
+    }
 }
 
 async fn switch_level_locked(

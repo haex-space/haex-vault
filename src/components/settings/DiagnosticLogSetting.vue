@@ -84,9 +84,11 @@ onMounted(async () => {
 
   const stopUnwritable = await listen('haex:diagnostic-log-unwritable', () => {
     pendingUnwritable = true
+    statusRevision += 1
     if (status.value) {
-      statusRevision += 1
       status.value = { ...status.value, writable: false }
+    } else {
+      void reloadAsync()
     }
   })
   if (disposed) {
