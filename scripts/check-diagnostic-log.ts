@@ -45,7 +45,10 @@ test('a structured backend error stays [object] and none of its fields appear', 
     reason: 'no such file',
     path: '/secret',
   }
-  assert.equal(messageText(['reading failed', failed]), 'reading failed [object]')
+  assert.equal(
+    messageText(['reading failed', failed]),
+    'reading failed [object]',
+  )
 })
 
 test('a field that is no text is not read', () => {
