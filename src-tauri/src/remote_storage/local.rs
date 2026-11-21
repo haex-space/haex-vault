@@ -400,6 +400,13 @@ impl ObjectStore for LocalStore {
                 return Err(error);
             }
         };
+        // Do not start the rename after the deadline has already passed. Otherwise the timeout
+        // can win while the blocking rename creates the final object, leaving cleanup to race
+        // with the caller's next operation.
+        if Instant::now() >= deadline {
+            let _ = fs::remove_file(&part);
+            return Err(StorageError::TimedOut);
+        }
         let cleanup = path.clone();
         let work = tokio::task::spawn_blocking(move || settle(&part, &path));
         let (result_tx, result_rx) = tokio::sync::oneshot::channel();
