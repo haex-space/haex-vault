@@ -167,7 +167,10 @@ impl Server {
         let base = parse_address(address)?;
         let scope = address::scope_of(&base, resolver)
             .await
-            .map_err(|_| BlossomError::NotAllowed)?;
+            .map_err(|error| match error {
+                address::AddressError::Unresolved => BlossomError::Network,
+                _ => BlossomError::NotAllowed,
+            })?;
         Ok(Self {
             base,
             scope,

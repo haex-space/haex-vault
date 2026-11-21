@@ -10,7 +10,16 @@ use tokio::net::TcpListener;
 
 use super::*;
 use crate::chat::peer::files::test_server::BlossomTestServer;
-use crate::remote_storage::address::SystemResolver;
+use crate::remote_storage::address::{Resolver, SystemResolver};
+
+struct Unresolved;
+
+#[async_trait::async_trait]
+impl Resolver for Unresolved {
+    async fn lookup(&self, _host: &str, _port: u16) -> std::io::Result<Vec<std::net::IpAddr>> {
+        Err(std::io::Error::other("lookup failed"))
+    }
+}
 
 #[tokio::test]
 async fn a_server_that_takes_the_largest_file_accepts() {
@@ -82,6 +91,12 @@ async fn a_server_that_is_not_there_is_unreachable() {
     let address = format!("http://{}/", listener.local_addr().expect("address"));
     drop(listener);
     let result = check(&address, &SystemResolver).await;
+    assert_eq!(result, Check::of(Verdict::Unreachable));
+}
+
+#[tokio::test]
+async fn a_server_whose_name_does_not_resolve_is_unreachable() {
+    let result = check("https://blossom.example.com/", &Unresolved).await;
     assert_eq!(result, Check::of(Verdict::Unreachable));
 }
 

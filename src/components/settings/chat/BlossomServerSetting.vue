@@ -27,6 +27,7 @@ async function loadAsync() {
   try {
     stored.value = (await getPrefAsync({ kind: 'vault' }, KEY)) ?? ''
     address.value = stored.value
+    result.value = null
   } catch (cause) {
     toast.error(errString(cause))
   }
@@ -58,9 +59,10 @@ async function checkAsync() {
   checking.value = true
   result.value = null
   try {
-    result.value = await invoke<ChatBlossomCheck>('chat_blossom_check', {
+    const checked = await invoke<ChatBlossomCheck>('chat_blossom_check', {
       args: { url },
     })
+    if (address.value.trim() === url) result.value = checked
   } catch (cause) {
     toast.error(errString(cause))
   } finally {
