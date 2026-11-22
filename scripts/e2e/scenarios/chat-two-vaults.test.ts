@@ -59,12 +59,12 @@ const send = async (page: FlowInstance, threadId: string, text: string) =>
   ).messageId
 
 scenario('chat-two-vaults', { timeoutMs: 420_000 }, async (ctx) => {
+  const blossom = await ctx.blossomServer()
   const group = await ctx.group({
     users: { anna: ['laptop'], ben: ['desktop'] },
   })
   const anna = group.device('anna/laptop').page
   const ben = group.device('ben/desktop').page
-  const blossom = await ctx.blossomServer()
 
   const [annaCard, benCard] = [
     await ownCardText(anna, 'Anna'),
