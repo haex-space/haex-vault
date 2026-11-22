@@ -91,7 +91,9 @@ fn a_plaintext_over_the_limit_is_too_large() {
         kind: 24120,
         content: "a".repeat(MAX_PLAINTEXT_BYTES - overhead),
     };
-    assert_eq!(fits.encode().expect("fits").len(), MAX_PLAINTEXT_BYTES);
+    let encoded = fits.encode().expect("fits");
+    assert_eq!(encoded.len(), MAX_PLAINTEXT_BYTES);
+    assert_eq!(Plaintext::decode(encoded.as_bytes()), Ok(fits));
     let over = Plaintext {
         kind: 24120,
         content: "a".repeat(MAX_PLAINTEXT_BYTES - overhead + 1),
