@@ -30,9 +30,16 @@ command runs the whole flow like the Codex branch does, returning `Connected` at
    `userCode`), the shape the Codex flow already uses and the UI already renders.
 4. It polls `_pollDeviceCode` until the code is confirmed, the user cancels (below), the vault closes or ten minutes pass
    (`status: "error"`, reason `expired`).
-5. It saves the device code with `delegate_credential::save` (kind `device_code`), upserts the provider row
-   (`write_delegate_provider` with empty credentials), records `connect_finished`, emits `status: "success"` and returns
-   `Connected { provider }`.
+5. It saves the device code with `delegate_credential::save` (kind `device_code`) and upserts the provider row
+   (`write_delegate_provider` with empty credentials). Treat these writes as one logical operation: keep the prior
+   credential and provider row until both writes succeed; if either write fails, restore the prior state and return an
+   error. A failed connection must not leave an orphan credential or replace a working connection with a partial one.
+   Then record `connect_finished`, emit `status: "success"` and return `Connected { provider }`.
+
+There is exactly one `cli_delegate` provider row with `adapter = "abacusai"` per vault. Upsert reuses that row. If legacy
+or synced data contains duplicates, retain the row with the lexicographically smallest provider id, remove the other rows,
+and preserve the single vendor credential while connecting. Disconnecting any Abacus row removes the credential only when
+it removes the last Abacus provider row; cleanup of duplicates must not delete the credential still used by the survivor.
 
 No `AwaitingCode`/`AwaitingKey` result exists for this vendor. The e-mail address, the code and the device code are never
 logged and appear only in the event (address and code) and in the entry (device code).
@@ -44,10 +51,10 @@ Stops a running connect flow of `vendor` (the polling loop; idempotent). The UI 
 
 ### `delete_provider(id)` (existing command, extended)
 
-Disconnecting is deleting the provider row. For a `cli_delegate` row whose `adapter` is `abacusai`, the command first deletes
-the password-manager entry (`delegate_credential::delete`; a missing entry is not an error) and then the row. A response
-already running is not disturbed (it holds its own copy of the device code in its process environment). Rows of `claude` and
-`codex` are deleted as before.
+Disconnecting is deleting the provider row. For a `cli_delegate` row whose `adapter` is `abacusai`, the command deletes the
+password-manager entry (`delegate_credential::delete`; a missing entry is not an error) only when this is the last Abacus
+provider row. A response already running is not disturbed (it holds its own copy of the device code in its process
+environment). Rows of `claude` and `codex` are deleted as before.
 
 ## Events
 
