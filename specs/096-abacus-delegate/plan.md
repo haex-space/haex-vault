@@ -16,8 +16,9 @@ hands it to the process for one run only, never writing it to a file. An API key
 sign-in unlocks free models). The tool's own interactive login is not used either: it needs a terminal and stores a
 device-bound file.
 
-Technical approach (details in [research.md](research.md)): a vendor definition in `catalog.json` plus two small manager
-additions the release format needs (an x64 variant for CPUs without AVX2, zip archives for Windows); a new
+Technical approach (details in [research.md](research.md)): a vendor definition in `catalog.json` plus four small manager
+additions the release format and the measurement gate need (an x64 variant for CPUs without AVX2, a per-program requirement
+of AVX2, zip archives for Windows, a vendor with no tested version yet); a new
 `DelegateVendor::Abacus` and every match that names the vendors; a module that saves, reads and deletes a delegate credential
 as an owned password-manager entry (generic for later vendors, used by Abacus only); a small client of the vendor's sign-in
 service and the connect flow on top of it; an adapter that speaks the JSON-lines
@@ -170,7 +171,7 @@ src/
 └── types/bindings/                    # ts-rs: CliToolVendor values, ConnectCliDelegateArgs.email
 ```
 
-**Structure Decision**: the manager gets data plus the two additions; the delegate layer gets one adapter file and an enum
+**Structure Decision**: the manager gets data plus the four additions; the delegate layer gets one adapter file and an enum
 variant; the credential gets one small module. Frontend changes stay in the existing providers settings page and the lists
 that name the vendors.
 
@@ -183,5 +184,5 @@ the first catalog entry, residual entries, glossary entries in `CONTEXT.md`, the
 
 ## Complexity Tracking
 
-None. The two manager additions follow from the vendor's release format (research §2); the enum variant is the smallest
+None. The four manager additions follow from the vendor's release format and from the measurement gate (research §2, §8); the enum variant is the smallest
 change (D2).

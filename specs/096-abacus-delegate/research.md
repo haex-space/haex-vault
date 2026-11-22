@@ -247,6 +247,12 @@ Read from `src-tauri/src/cli_tools` (spec 094, merged):
    The musl variants are not offered (a desktop app on a musl host is rare; the start check reports it as "not runnable").
 2. `ArtifactKind::Zip` for the Windows archives (the `zip` crate is already a dependency), with the same escape refusal
    and size accounting as `tar.gz`.
+3. A per-program requirement `requires_avx2` on an artifact (default false): the vendor's `darwin-x64` and `win32-x64`
+   programs have only a `-baseline` sibling that is not offered (spec 096 plan D3), so a host without AVX2 must get
+   `unsupported` for them instead of a program that cannot run. Claude Code and Codex entries do not set it.
+4. A vendor that has no tested version yet (`versions: []`). The catalog rejects it today ("no version listed"); the vendor
+   definition must ship before its first measured version (plan D8), and the status then reads `no_tested_version`
+   and the install is refused with that reason.
 
 Everything else (install, update, revert, remove, status, progress, paths) is untouched.
 
