@@ -1,8 +1,9 @@
 //! The vault's own Visitenkarte (spec 051 FR-009, FR-010, research R12; spec 060). Only a main device
 //! holds the vault secret and signs one. A main device keeps the newest card in the synced
 //! `haex_contacts_own_card` (made when the device list or the Nostr-Relays change); a share of the
-//! own contact signs a fresh card with only the devices and relays the person chose and stores
-//! nothing (spec 060 FR-008, FR-016).
+//! own contact signs a fresh card with only the devices and relays the person chose, then advances
+//! the stored full card past it so later chat messages are not rejected as stale (spec 060 FR-008,
+//! FR-016).
 
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -186,6 +187,13 @@ pub fn build_for_share(
 
 /// Makes and stores a new own card, on a main device; a linked device does nothing.
 pub fn refresh(tx: &mut CrdtTransaction<'_>) -> Result<()> {
+    refresh_after(tx, 0)
+}
+
+/// Makes the stored full card newer than an ephemeral card that was signed for a share. The share
+/// itself remains unstored, but later chat rumors must not carry a card older than the one a
+/// recipient just accepted.
+pub(crate) fn refresh_after(tx: &mut CrdtTransaction<'_>, issued_after: u64) -> Result<()> {
     let Some(secret) = keys::vault_secret(tx)? else {
         return Ok(());
     };
@@ -194,7 +202,9 @@ pub fn refresh(tx: &mut CrdtTransaction<'_>) -> Result<()> {
     };
     // A newer card replaces an older one only with a later `issued_at` (FR-012).
     let previous = stored(tx)?.map_or(0, |card| card.card.issued_at);
-    let issued_at = unix_seconds().max(previous + 1);
+    let issued_at = unix_seconds()
+        .max(previous + 1)
+        .max(issued_after.saturating_add(1));
     card.issued_at = issued_at;
     let (signed, _omitted) = format::sign(card, &secret)?;
     let at = clock::format_millis(i64::try_from(issued_at.saturating_mul(1000)).unwrap_or(0));

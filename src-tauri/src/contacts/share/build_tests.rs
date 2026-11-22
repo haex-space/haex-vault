@@ -215,6 +215,31 @@ async fn the_own_card_carries_only_the_chosen_devices_and_relays() {
 }
 
 #[tokio::test]
+async fn sharing_own_card_keeps_the_stored_card_newer_for_later_chat_messages() {
+    let vault = card_vault();
+    let own = crate::contacts::ids::SELF_CONTACT_ID;
+    let options = options_of(&vault, own).await;
+    let shared = read(
+        &share(&vault, own, everything(&options))
+            .await
+            .expect("share"),
+    )
+    .card
+    .expect("the share carries a card")
+    .card;
+    let stored = vault
+        .db
+        .read_blocking(|q| own_card::stored(q).map_err(haex_crdt::Error::from))
+        .expect("read")
+        .expect("a stored own card");
+
+    assert!(
+        stored.card.issued_at > shared.issued_at,
+        "later chat rumors carry a card newer than the one just shared"
+    );
+}
+
+#[tokio::test]
 async fn the_own_contact_without_a_name_shares_the_npub_as_its_name() {
     let vault = card_vault();
     let own = crate::contacts::ids::SELF_CONTACT_ID;

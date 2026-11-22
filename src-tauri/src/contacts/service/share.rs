@@ -4,10 +4,11 @@
 
 use super::{caller_text, Caller, ContactsService};
 use crate::contacts::access::require_user;
+use crate::contacts::card::own_card;
 use crate::contacts::model::{Contact, Origin, OriginKind};
 use crate::contacts::share::model::{
-    ContactShareDecision, ContactShareOptions, ContactShareOutput, ContactSharePreview,
-    ContactShareSelection, ContactShareTarget,
+    ContactShareDecision, ContactShareHaexChoice, ContactShareOptions, ContactShareOutput,
+    ContactSharePreview, ContactShareSelection, ContactShareTarget,
 };
 use crate::contacts::share::{build, merge, preview};
 use crate::error::Result;
@@ -33,9 +34,22 @@ impl ContactsService {
         selection: ContactShareSelection,
     ) -> Result<ContactShareOutput> {
         require_user(caller)?;
-        self.db()
-            .read(move |q| build::build(q, &contact_id, &selection).map_err(Into::into))
-            .await
+        if matches!(&selection.haex, ContactShareHaexChoice::Own { .. }) {
+            self.db()
+                .write(move |tx| {
+                    let (output, issued_at) =
+                        build::build_with_card_issued_at(tx, &contact_id, &selection)?;
+                    if let Some(issued_at) = issued_at {
+                        own_card::refresh_after(tx, issued_at)?;
+                    }
+                    Ok(output)
+                })
+                .await
+        } else {
+            self.db()
+                .read(move |q| build::build(q, &contact_id, &selection).map_err(Into::into))
+                .await
+        }
     }
 
     /// What reading a share in would do; nothing is stored (FR-021). Also reads an old

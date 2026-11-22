@@ -71,7 +71,10 @@ Telefonverknüpfung und wird dort nie erreicht.
   Dialog sagt es (FR-016).
 - **`issued_at`** ist `max(jetzt, neueste gespeicherte eigene Karte + 1)`; die frische Karte darf die
   gespeicherte eigene nicht unterschreiten, damit sie beim Empfänger „neuer“ ist, wenn der Empfänger
-  eine Karte der Vault schon hat. Beim Teilen geschieht kein Schreiben.
+  eine Karte der Vault schon hat. Die ausgewählte Karte selbst wird nicht gespeichert. Auf einem
+  Hauptgerät wird danach die volle eigene Karte mit einem noch neueren Zeitstempel gespeichert, damit
+  spätere Chat-Nachrichten keine ältere Karte als die eben geteilte tragen. Auf verknüpften Geräten
+  wird nichts geschrieben.
 
 ## R5 Mehrere Karten je Vault, Hash als Schlüssel
 
