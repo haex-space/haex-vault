@@ -173,7 +173,17 @@ scenario('chat-two-vaults', { timeoutMs: 420_000 }, async (ctx) => {
   await openChat(ben)
   const mutedInList = async () =>
     (await conversations(ben)).find((c) => c.id === benThread)?.muted
-  for (const muted of [true, false]) {
+  for (const [index, muted] of [true, false].entries()) {
+    if (index > 0) {
+      await ctx.waitFor(
+        'the list row to show the previous mute state',
+        async () =>
+          (await ben.exec<boolean>(
+            `return !!document.querySelector('[data-testid="chat-peer"] [data-testid="chat-peer-muted"]')`,
+          )) === true,
+        { timeoutMs: 30_000, fixed: true },
+      )
+    }
     await contextMenu(ben, 'chat-peer')
     await ben.click('chat-peer-menu-mute')
     await ctx.waitFor(

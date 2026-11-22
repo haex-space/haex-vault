@@ -42,6 +42,7 @@ const time = computed(() =>
             <span class="truncate">{{ peer.displayName }}</span>
             <Icon
               v-if="peer.muted"
+              data-testid="chat-peer-muted"
               name="lucide:bell-off"
               class="h-3 w-3 shrink-0 text-muted-foreground"
               :aria-label="t('chat.list.muted')"
