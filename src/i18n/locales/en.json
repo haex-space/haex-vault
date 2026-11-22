@@ -527,7 +527,9 @@
       "failed": "Loading failed",
       "retry": "Load again",
       "download": "Download ({size})",
-      "gone": "File no longer available"
+      "gone": "File no longer available",
+      "openSystem": "Open with the system app",
+      "openSystemNoApp": "No app is installed for this file."
     },
     "error": {
       "tooLong": "The text is too long (at most 1,000,000 characters).",

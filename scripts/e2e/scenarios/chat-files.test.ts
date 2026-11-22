@@ -173,4 +173,11 @@ scenario('chat-files', { timeoutMs: 420_000 }, async (ctx) => {
   )
   assert.equal(await count(ben, 'chat-attachment-download'), 0)
   ctx.step('a tap on "Herunterladen" fetches the large file')
+
+  // The first time a decrypted copy goes to another app, the notice about it comes first; the
+  // app itself is not started here.
+  await ben.waitForDisplayed('chat-attachment-open-system')
+  await ben.click('chat-attachment-open-system')
+  await ben.waitForDisplayed('files-open-system-notice')
+  ctx.step('opening with the system app asks for the notice first')
 })
