@@ -55,7 +55,9 @@ only what Abacus adds or fixes to a value.
 code runs against test vendor definitions.
 
 - Validation additions: `kind` accepts `zip` (needs `unpacked_size`, like `tar.gz`); a platform key may be
-  `linux-x64-baseline`.
+  `linux-x64-baseline`; an artifact may set `requires_avx2: true` (default false; `darwin-x64` and `win32-x64` of Abacus
+  do, so a host without AVX2 reads `unsupported` for them); `versions` may be empty (status `no_tested_version`, install
+  refused) so the vendor definition can ship before its first measured version.
 
 ## 2. Platform key (`platform.rs`)
 

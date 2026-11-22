@@ -201,8 +201,9 @@ of its download.
 ### Functional Requirements
 
 - **FR-001**: The Abacus AI CLI MUST be a vendor of the tool manager of spec 094, added as a vendor definition plus an adapter,
-  with no change to the manager's update, removal or path logic and, for install, only the two additions the vendor's release
-  format needs: an x64 variant for CPUs without AVX2, and zip archives for Windows (094 FR-015; research §8). The tool lives in
+  with no change to the manager's update, removal or path logic and, for install and status, only the four additions the
+  vendor's release format and the measurement gate need: an x64 variant for CPUs without AVX2, a per-program requirement of
+  AVX2, zip archives for Windows, and a vendor that has no tested version yet (094 FR-015; research §8). The tool lives in
   `<vault folder>/cli-tools/abacusai/<version>/`; the vault's home is `<vault folder>/home/`; both are resolved only by the
   vault path function (094 FR-001, FR-002).
 - **FR-002**: The user MUST be able to install, update, see the version of, go back and remove the Abacus tool for the current
@@ -283,7 +284,7 @@ of its download.
   backend is not offered with weaker control (FR-010).
 - **SC-007**: Adding Abacus changes vendor data, one adapter, the places that name the delegate vendors, and the user-facing
   texts; a review of the change finds no edit in the update, removal or path logic of the tool manager, and its edits to
-  install are limited to the platform variant and the zip archive of FR-001.
+  install and status are limited to the four additions of FR-001.
 - **SC-008**: After the same series as SC-003, a text search of every device-wide file HaexVault writes (its log included, in a
   build with logging on) for the vault's name, the tool's name and the request's text finds nothing.
 
