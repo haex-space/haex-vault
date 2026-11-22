@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import { removeRoot, removeRootSettled, startInstance } from './instance.ts'
 import type { Instance } from './instance.ts'
 import { toTools } from './preflight.ts'
+import { startBlossomServer } from './blossom.ts'
 import { startNostrRelay } from './nostr-relay.ts'
 import { startProvider } from './provider.ts'
 import type { Provider } from './provider.ts'
@@ -331,6 +332,13 @@ export async function runScenario(
       })
       teardowns.push(() => relay.stop())
       return relay
+    },
+    async blossomServer() {
+      const server = await startBlossomServer({
+        logFile: join(env.runDir, name, 'blossom.log'),
+      })
+      teardowns.push(() => server.stop())
+      return server
     },
     async group(spec) {
       if (deps.createHost === undefined) {

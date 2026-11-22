@@ -5,6 +5,7 @@ import type { CaptureDevice, Group, GroupSpec } from './group.ts'
 import type { ColorScheme, Instance } from './instance.ts'
 import type { Tools } from './preflight.ts'
 import type { NostrRelay } from './nostr-relay.ts'
+import type { BlossomServer } from './blossom.ts'
 import type { DeviceHost } from './platform/host.ts'
 import type { Behavior, Provider, ProviderOptions } from './provider.ts'
 
@@ -165,6 +166,8 @@ export interface ScenarioContext {
   provider(behavior?: Behavior, options?: ProviderOptions): Promise<Provider>
   /** A Nostr relay (the binary built with `--features e2e`) the instances of a scenario can share; ended with the context. */
   nostrRelay(): Promise<NostrRelay>
+  /** A Blossom-Server (the binary built with `--features e2e`) for chat files, in memory; ended with the context. */
+  blossomServer(): Promise<BlossomServer>
   /**
    * Users with vaults and devices over one test relay (contracts/group.md); the devices start with
    * their own data and all of it ends with the scenario.
