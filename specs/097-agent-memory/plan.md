@@ -93,7 +93,7 @@ Each PR leaves the app working.
 | A   | Migration 0069, `agent_memory` (store, limits, check, pointers, search, commands), "KI → Gedächtnis" with list, search, page view, editing, store, window actions and texts                                                                                                                                               | the user keeps pages; no agent reads them yet                        | US3 (user's part), US6.4 |
 | B   | The group `memory` in `Rights`, rows, resolver (external agents off), editor; the five actions and their executor (built-in agent only); the routing domain; snapshot and block in `start_turn`; the foreign mark from the local turn; the gate in `plan_calls`; the preview in the chat's approval; the notice; ADR 0028 | the local agent's models remember and find; the right in the profile | US1, US3, US4, US5, US6  |
 | C   | Abo-Agents: the block in their system prompt; the executor serves their pass; the gate and the foreign mark in `dispatch.rs`; the Claude Code reader takes tool names; the Codex spike and its reader or config; the preview in `CallQuestionDetails.vue`; the integration test of the kinds                              | Claude Code and Codex remember and find, by the same rule            | US2, US5.4               |
-| D   | The memory request set, the runner's seeded memory, the new safety kind, `tools.json`; the runs and `results.md`; a small model that drops goes onto `NO_START_TOC`                                                                                                                                                       | nothing new                                                          | FR-026, FR-027, SC-009   |
+| D   | The memory request set, the runner's seeded memory, the new safety kind, `tools.json`; the runs and `results.md` for hosted models and Claude Code/Codex Abo-Agents; a small model that drops goes onto `NO_START_TOC`                                                                                                    | nothing new                                                          | FR-026, FR-027, SC-009   |
 | E   | e2e scenario, `CONTEXT.md` (Gedächtnis, Seite, Verweis, Inhaltsverzeichnis, fremder Inhalt), quickstart checked by hand                                                                                                                                                                                                   | nothing new                                                          | all                      |
 
 A is safe on its own. In B the executor refuses every caller but the built-in agent, so an Abo-Agent cannot write before
@@ -108,6 +108,13 @@ C gives it the same rule.
 - A model that loses the right, also by a change of model in a running conversation, gets no memory from that turn on.
 - Local, cloud and Abo-Agents behave the same (research R7).
 - External agents do not reach the memory (FR-020).
+
+For an Abo-Agent, stdout `tool_use` events and haex MCP calls arrive on separate pipes. Each delegate pass therefore
+provides an awaited stdout-reader barrier: before dispatch decides a `memory.write`, it asks the reader to drain and
+classify every complete stream record already emitted, in stdout order, and waits for its acknowledgement before reading
+the foreign mark. The delegate flushes each stream record before issuing a later haex MCP call. If the reader barrier
+fails, dispatch fails closed by asking. This prevents a fast `memory.write` handler from outrunning an earlier foreign
+`tool_use` event.
 
 Open, for PR C: what the Codex spike finds; if Codex's own tools cannot be seen, research R7 names the fallback, and the
 operator sees the result before PR C lands.
