@@ -118,6 +118,31 @@ impl ChatDevice {
         Self::of(linked)
     }
 
+    /// A copy of this device's vault file opened by a new installation (spec 095 SC-007), which
+    /// makes keys of its own; this device lists it and issues the card again, and the copy syncs.
+    pub(crate) fn copy_vault_file(&self) -> Self {
+        let (copy, _) = self.member.copy_of();
+        self.member.add(&copy);
+        self.db
+            .write_blocking(|tx| Ok(own_card::refresh(tx)?))
+            .expect("card");
+        copy.device.pull_from(&self.member.device);
+        Self::of(copy)
+    }
+
+    /// Removes `other` from this (main) device's vault and issues the card again.
+    pub(crate) fn remove(&self, other: &ChatDevice) {
+        let removed = other.me.keys.device_pubkey;
+        self.member.issue_list(|mut list| {
+            list.devices
+                .retain(|device| device.device_pubkey != removed);
+            list
+        });
+        self.db
+            .write_blocking(|tx| Ok(own_card::refresh(tx)?))
+            .expect("card");
+    }
+
     /// This device's vault card.
     pub(crate) fn card(&self) -> SignedCard {
         self.db

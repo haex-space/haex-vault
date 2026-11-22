@@ -102,3 +102,66 @@ fn a_device_on_the_card_of_an_open_request_belongs_to_that_vault() {
         .expect("block");
     assert_eq!(vault_of(&anna, stranger.me.keys.device_pubkey), None);
 }
+
+fn addressed(device: &ChatDevice, of: [u8; 32]) -> Option<String> {
+    let me = device.me.clone();
+    device
+        .db
+        .read_blocking(move |r| Ok(addressed_vault(r, &me, &of)?))
+        .expect("read")
+}
+
+/// Spec 095 T038, T039: a contact's device is addressed while a conversation with its vault is
+/// kept, an own device while it is listed; `ratchet::session::forget_unaddressed`
+/// forgets the record of one that is no longer addressed.
+#[tokio::test]
+async fn a_contact_device_is_addressed_while_a_conversation_is_kept() {
+    use crate::chat::peer::ratchet::{session, store as ratchet};
+
+    let anna = ChatDevice::genesis(&[RELAY.to_owned()]);
+    let phone = anna.link();
+    let ben = ChatDevice::genesis(&[RELAY.to_owned()]);
+    anna.learn(&ben).await;
+    anna.introduce(&ben);
+    let ben_device = ben.me.keys.device_pubkey;
+    assert_eq!(addressed(&anna, ben_device), None, "no conversation yet");
+    assert_eq!(
+        addressed(&anna, phone.me.keys.device_pubkey),
+        Some(anna.me.vault_hex.clone()),
+        "an own device needs no conversation"
+    );
+
+    let (own, peer) = (anna.me.vault_hex.clone(), ben.me.vault_hex.clone());
+    let thread = anna
+        .db
+        .write_blocking(move |tx| Ok(store::open_direct(tx, &own, &peer, now_ms())?))
+        .expect("conversation");
+    assert_eq!(addressed(&anna, ben_device), Some(ben.me.vault_hex.clone()));
+    let me = anna.me.clone();
+    let forgotten = anna
+        .db
+        .write_blocking(move |tx| Ok(session::forget_unaddressed(tx, &me)?))
+        .expect("forget");
+    assert_eq!(forgotten, 0);
+
+    anna.db
+        .write_blocking(move |tx| Ok(store::delete(tx, thread)?))
+        .expect("delete");
+    assert_eq!(
+        addressed(&anna, ben_device),
+        None,
+        "the conversation is gone"
+    );
+    let me = anna.me.clone();
+    let forgotten = anna
+        .db
+        .write_blocking(move |tx| Ok(session::forget_unaddressed(tx, &me)?))
+        .expect("forget");
+    assert_eq!(forgotten, 1);
+    let ben_hex = ben.me.device_hex();
+    let record = anna
+        .db
+        .read_blocking(move |r| Ok(ratchet::record(r, &ben_hex)?))
+        .expect("record");
+    assert_eq!(record, None, "Ben's record is gone");
+}

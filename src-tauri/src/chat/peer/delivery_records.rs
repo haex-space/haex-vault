@@ -15,21 +15,36 @@ use nostr::filter::Filter;
 
 use super::{invalid, Delivery, CONNECT_TIMEOUT};
 use crate::chat::peer::ratchet::store::{self, RecordRow};
-use crate::chat::peer::ratchet::{account, record, KEY_RECORD_KIND, START_KEY_RENEW_MS};
+use crate::chat::peer::ratchet::{account, record, session, KEY_RECORD_KIND, START_KEY_RENEW_MS};
 use crate::chat::peer::targets;
 use crate::error::Result;
 use crate::sync::presence;
 
 impl Delivery {
-    /// Catches up, then makes the account, renews the start key and publishes the own record as
-    /// due. Without a connected Nostr-Relay neither runs: a fetch would only wait for its timeout
-    /// and find nothing, which must not count as a catch-up.
+    /// Catches up, forgets the peer devices no longer addressed, then makes the account, renews the
+    /// start key and publishes the own record as due. Without a connected Nostr-Relay none of it
+    /// runs: a fetch would only wait for its timeout and find nothing, which must not count as a
+    /// catch-up.
     pub(super) async fn catch_up_and_keep_record(&self) -> Result<()> {
         if !self.any_relay_connected().await {
             return Ok(());
         }
         self.catch_up().await?;
+        self.forget_unaddressed().await?;
         self.keep_record().await
+    }
+
+    /// Forgets the peer devices this device no longer addresses (spec 095 T039).
+    async fn forget_unaddressed(&self) -> Result<()> {
+        let me = self.me.clone();
+        let forgotten = self
+            .db
+            .write(move |tx| Ok(session::forget_unaddressed(tx, &me)?))
+            .await?;
+        if forgotten > 0 {
+            log::info!("chat: forgot {forgotten} peer devices no longer addressed");
+        }
+        Ok(())
     }
 
     pub(super) async fn any_relay_connected(&self) -> bool {

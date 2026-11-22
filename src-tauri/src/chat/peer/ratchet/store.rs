@@ -301,6 +301,38 @@ pub fn delete_sessions(
     Ok(())
 }
 
+/// The peer devices `installation` keeps sessions or peer state with, and the devices with a stored
+/// chat key record, each once.
+pub fn known_devices(q: &mut impl Query, installation: Uuid) -> Result<Vec<String>> {
+    Ok(q.query_map(
+        "SELECT peer_device FROM chat_ratchet_sessions_no_sync WHERE installation_uuid = ?1 \
+         UNION SELECT peer_device FROM chat_ratchet_peers_no_sync WHERE installation_uuid = ?1 \
+         UNION SELECT peer_device FROM chat_key_records_no_sync \
+         ORDER BY peer_device",
+        params![installation.to_string()],
+        |row| row.get(0),
+    )?)
+}
+
+/// Forgets `peer_device`: the sessions and peer state of `installation` with it and its stored
+/// chat key record.
+pub fn forget_device(
+    tx: &mut CrdtTransaction<'_>,
+    installation: Uuid,
+    peer_device: &str,
+) -> Result<()> {
+    delete_sessions(tx, installation, peer_device)?;
+    tx.execute(
+        "DELETE FROM chat_ratchet_peers_no_sync WHERE installation_uuid = ?1 AND peer_device = ?2",
+        params![installation.to_string(), peer_device],
+    )?;
+    tx.execute(
+        "DELETE FROM chat_key_records_no_sync WHERE peer_device = ?1",
+        params![peer_device],
+    )?;
+    Ok(())
+}
+
 /// What `installation` remembers about `peer_device`; the default when nothing.
 pub fn peer(q: &mut impl Query, installation: Uuid, peer_device: &str) -> Result<PeerRow> {
     Ok(q.query_row(

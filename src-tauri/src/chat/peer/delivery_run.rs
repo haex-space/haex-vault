@@ -1,11 +1,12 @@
 //! The loop of the delivery service (spec 072 research R3): one task per vault session that
-//! receives, publishes, batches receipts and catches up, until the vault closes.
+//! receives, publishes, batches receipts and catches up, until the vault closes. It also sends the
+//! keep-alives of spec 095 (T038): after the first catch-up, then every [`KEEP_ALIVE_CHECK`].
 
 use std::sync::Arc;
 
 use nostr::event::Event;
 
-use super::{Delivery, CATCH_UP, OUTBOX_TICK, RECEIPT_BATCH};
+use super::{Delivery, CATCH_UP, KEEP_ALIVE_CHECK, OUTBOX_TICK, RECEIPT_BATCH};
 use crate::chat::peer::session::Session;
 use crate::chat::peer::verify;
 
@@ -22,6 +23,10 @@ impl Delivery {
         let mut receipt_tick = tokio::time::interval(RECEIPT_BATCH);
         let mut catch_up_tick =
             tokio::time::interval_at(tokio::time::Instant::now() + CATCH_UP, CATCH_UP);
+        let mut keep_alive_tick = tokio::time::interval_at(
+            tokio::time::Instant::now() + KEEP_ALIVE_CHECK,
+            KEEP_ALIVE_CHECK,
+        );
         let prune_now = self.now();
         if let Err(error) = self
             .db
@@ -37,6 +42,9 @@ impl Delivery {
             log::warn!("chat: no catch-up at the start: {error}");
         }
         wake_files(&session);
+        if let Err(error) = self.send_keep_alives().await {
+            log::warn!("chat: no keep-alives at the start: {error}");
+        }
         if let Err(error) = self.retry_now().await {
             log::warn!("chat: the outbox was not tried at the start: {error}");
         }
@@ -52,6 +60,7 @@ impl Delivery {
                     wake_files(&session);
                     caught
                 }
+                _ = keep_alive_tick.tick() => self.send_keep_alives().await.map(|_| ()),
                 () = session.wake.notified() => self.reconnect().await,
                 received = incoming.recv() => {
                     let Some(first) = received else { break };
