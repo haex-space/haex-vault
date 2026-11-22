@@ -1526,6 +1526,25 @@
           "unreachable": "Der Server antwortet nicht.",
           "notAllowed": "Diese Adresse ist nicht erlaubt: sie muss mit https:// beginnen."
         }
+      },
+      "groups": {
+        "files": "Dateien",
+        "messages": "Nachrichten"
+      },
+      "readReceipts": {
+        "label": "Lesebestätigungen",
+        "hint": "Kontakte sehen, dass du ihre Nachricht gelesen hast. Ist das aus, sendest du keine und siehst bei niemandem „gelesen“."
+      },
+      "notifications": {
+        "label": "Benachrichtigungen",
+        "hint": "Zeigt eine Systembenachrichtigung für neue Nachrichten, solange der Vault geöffnet ist. Gilt nur für dieses Gerät."
+      },
+      "autoDownload": {
+        "label": "Dateien automatisch laden bis",
+        "hint": "Größere Dateien lädst du mit einem Tipp. Gilt nur für dieses Gerät.",
+        "never": "Nie",
+        "all": "Alle (bis 200 MB)",
+        "megabytes": "{count} MB"
       }
     },
     "modelServers": {

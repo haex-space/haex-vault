@@ -86,45 +86,43 @@ onVaultTablesChanged(['preferences'], loadAsync)
 </script>
 
 <template>
-  <SettingsGroup>
-    <SettingsRow
-      :title="t('settings.chat.server.label')"
-      :description="t('settings.chat.server.hint')"
-      label-for="settings-chat-server-input"
-    >
-      <div class="flex w-80 max-w-full gap-2">
-        <UiInput
-          id="settings-chat-server-input"
-          v-model="address"
-          type="url"
-          :placeholder="t('settings.chat.server.placeholder')"
-          :labels="fieldLabels.input.value"
-          :disabled="busy"
-          data-testid="settings-chat-server"
-          @blur="commitAsync"
-          @keydown.enter.prevent="commitAsync"
-        />
-        <UiButton
-          variant="outline"
-          :loading="checking"
-          :disabled="!address.trim()"
-          data-testid="settings-chat-server-check"
-          @click="checkAsync"
-        >
-          {{ t('settings.chat.server.check') }}
-        </UiButton>
-      </div>
-      <template #below>
-        <p
-          v-if="result"
-          class="text-sm"
-          :class="verdictIsGood ? 'text-foreground' : 'text-destructive'"
-          role="status"
-          data-testid="settings-chat-server-result"
-        >
-          {{ verdictText }}
-        </p>
-      </template>
-    </SettingsRow>
-  </SettingsGroup>
+  <SettingsRow
+    :title="t('settings.chat.server.label')"
+    :description="t('settings.chat.server.hint')"
+    label-for="settings-chat-server-input"
+  >
+    <div class="flex w-80 max-w-full gap-2">
+      <UiInput
+        id="settings-chat-server-input"
+        v-model="address"
+        type="url"
+        :placeholder="t('settings.chat.server.placeholder')"
+        :labels="fieldLabels.input.value"
+        :disabled="busy"
+        data-testid="settings-chat-server"
+        @blur="commitAsync"
+        @keydown.enter.prevent="commitAsync"
+      />
+      <UiButton
+        variant="outline"
+        :loading="checking"
+        :disabled="!address.trim()"
+        data-testid="settings-chat-server-check"
+        @click="checkAsync"
+      >
+        {{ t('settings.chat.server.check') }}
+      </UiButton>
+    </div>
+    <template #below>
+      <p
+        v-if="result"
+        class="text-sm"
+        :class="verdictIsGood ? 'text-foreground' : 'text-destructive'"
+        role="status"
+        data-testid="settings-chat-server-result"
+      >
+        {{ verdictText }}
+      </p>
+    </template>
+  </SettingsRow>
 </template>

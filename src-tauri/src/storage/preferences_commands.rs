@@ -111,6 +111,21 @@ pub(crate) fn validate_value(key: &str, value: &str) -> Result<()> {
             reason: format!("{key} must be empty or an https address without credentials"),
         });
     }
+    // The switches of the chat settings take `true` or `false`; the automatic download limit a
+    // whole number of bytes, 0 meaning no file downloads by itself.
+    if (key == crate::chat::peer::settings::KEY_READ_RECEIPTS
+        || key == crate::chat::peer::settings::KEY_NOTIFICATIONS)
+        && crate::storage::preferences::parse_bool(Some(value)).is_none()
+    {
+        return Err(HaexError::InvalidInput {
+            reason: format!("{key} must be true or false"),
+        });
+    }
+    if key == crate::chat::peer::settings::KEY_AUTO_LIMIT && value.trim().parse::<u64>().is_err() {
+        return Err(HaexError::InvalidInput {
+            reason: format!("{key} must be a whole number of bytes"),
+        });
+    }
     // Spec 061: runs kept per sync rule, 0 to 100.
     if key == crate::file_sync::run_log::LOG_DEPTH_KEY
         && !crate::file_sync::run_log::is_valid_depth(value)
