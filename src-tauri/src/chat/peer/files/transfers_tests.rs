@@ -149,6 +149,9 @@ async fn a_closed_receiver_gets_the_file_when_it_opens_while_the_sender_is_gone(
     let (anna, ben) = two_vaults(&[url]).await;
     anna.enable_files(&blossom.url, None);
     ben.enable_files(&blossom.url, None);
+    // Ben's device was online once, so its chat key record is on the relay (spec 095).
+    ben.start().await;
+    ben.stop();
     anna.start().await;
     send_file(&anna, &ben, "", PLAN).await.expect("send");
     anna.wait_for(&ben, "sent", |m| {

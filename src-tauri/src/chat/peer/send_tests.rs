@@ -39,6 +39,11 @@ fn a_message_becomes_its_row_a_delivery_and_an_outbox_row_once() {
         Some(first.to_string().as_str())
     );
     assert_eq!(rows[0].pending, [BEN.to_owned(), anna.me.vault_hex.clone()]);
+    assert_eq!(
+        rows[0].awaiting,
+        [BEN.to_owned()],
+        "spec 095: until Ben's receipt"
+    );
     let rumor: envelope::Envelope = serde_json::from_str(&rows[0].rumor.content).expect("rumor");
     assert_eq!(rumor.to, To::Direct(BEN.into()));
     assert_eq!(rumor.from, anna.me.vault_hex);

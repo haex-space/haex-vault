@@ -173,6 +173,7 @@ impl ChatDevice {
             .db
             .read_blocking(|r| Ok(super::targets::listening_relays(r)?))
             .expect("relays");
+        let listening = !relays.is_empty();
         let token = CancellationToken::new();
         let old = std::mem::replace(
             &mut *self.token.lock().unwrap_or_else(PoisonError::into_inner),
@@ -192,6 +193,78 @@ impl ChatDevice {
             tokio::spawn(Arc::clone(files).run(token.clone()));
         }
         tokio::spawn(delivery.run(Arc::clone(&self.session), incoming, forward));
+        if listening {
+            self.wait_for_record().await;
+        }
+    }
+
+    /// Waits until a Nostr-Relay took this device's chat key record (spec 095): only then can a
+    /// contact open a session with it. Panics after [`LIMIT`].
+    async fn wait_for_record(&self) {
+        let installation = self.me.installation;
+        let deadline = tokio::time::Instant::now() + LIMIT;
+        loop {
+            let published = self
+                .db
+                .read_blocking(move |r| {
+                    Ok(super::ratchet::store::account(r, installation)?
+                        .and_then(|row| row.record_published_at))
+                })
+                .expect("read");
+            if published.is_some() {
+                return;
+            }
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "timed out waiting for the chat key record of {}",
+                self.me.device_hex()
+            );
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    }
+
+    /// A delivery of this device that the test drives step by step (no loop runs).
+    pub(crate) async fn delivery(&self) -> Arc<Delivery> {
+        let relays = self
+            .db
+            .read_blocking(|r| Ok(super::targets::listening_relays(r)?))
+            .expect("relays");
+        let (delivery, _incoming, forward) = Delivery::connect(
+            self.db.clone(),
+            self.me.clone(),
+            self.clock.clock(),
+            relays,
+            CancellationToken::new(),
+        )
+        .await
+        .expect("connect");
+        forward.abort();
+        delivery
+    }
+
+    /// Stores `other`'s chat key record on this device as if it had been fetched (spec 095), for
+    /// tests without a Nostr-Relay; `other` gets its ratchet account if it has none.
+    pub(crate) fn introduce(&self, other: &ChatDevice) {
+        use super::ratchet::{account, store, START_KEY_RENEW_MS};
+
+        let (installation, now) = (other.me.installation, other.clock.now());
+        let keys = other
+            .db
+            .write_blocking(move |tx| {
+                let created = account::load_or_create(tx, installation, now)?;
+                Ok(account::own_keys(&created)?)
+            })
+            .expect("account");
+        let row = store::RecordRow {
+            peer_device: other.me.device_hex(),
+            identity_key: keys.identity.to_base64(),
+            start_key: keys.start.to_base64(),
+            made_at: now,
+            valid_until: now + START_KEY_RENEW_MS,
+        };
+        self.db
+            .write_blocking(move |tx| Ok(store::put_record(tx, &row)?))
+            .expect("record");
     }
 
     /// Gives this device a file store and its vault the Blossom-Server `server` (US3); call before

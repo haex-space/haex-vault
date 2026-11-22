@@ -6,7 +6,9 @@ use nostr::types::Timestamp;
 
 use super::*;
 use crate::chat::peer::delivery::now_ms;
-use crate::chat::peer::envelope::{self, To, CHAT_KIND, MAX_RUMOR_BYTES};
+use crate::chat::peer::envelope::{self, To, CHAT_KIND};
+use crate::chat::peer::ratchet::wire::Plaintext;
+use crate::chat::peer::ratchet::MAX_PLAINTEXT_BYTES;
 use crate::sync::keys::{hex, DeviceKeys};
 
 fn tag_value(event: &Event, kind: &str) -> Option<String> {
@@ -106,20 +108,9 @@ fn the_recipient_device_opens_it_and_learns_the_sealing_device() {
 }
 
 #[test]
-fn the_largest_rumor_fits_the_wrap_limit() {
+fn a_content_over_the_wrap_limit_is_refused() {
     let sender = DeviceKeys::generate();
     let recipient = DeviceKeys::generate();
-    let content = "x".repeat(MAX_RUMOR_BYTES);
-    let event = wrap(
-        CHAT_KIND,
-        &content,
-        &sender.device_secret,
-        &recipient.device_pubkey,
-        now_ms(),
-    )
-    .expect("a 24 KiB rumor fits");
-    assert!(event.as_json().len() <= MAX_WRAP_BYTES);
-
     let too_big = "x".repeat(MAX_WRAP_BYTES);
     assert!(wrap(
         CHAT_KIND,
@@ -131,8 +122,19 @@ fn the_largest_rumor_fits_the_wrap_limit() {
     .is_err());
 }
 
+/// The plaintext of a ratchet message is what an event has to fit since spec 095 (the wrap of the
+/// largest one is checked in `ratchet/wire_tests.rs`).
+fn fits_one_plaintext(event: &envelope::Envelope) -> bool {
+    Plaintext {
+        kind: CHAT_KIND.as_u16(),
+        content: envelope::encode(event).expect("encode"),
+    }
+    .encode()
+    .is_ok()
+}
+
 #[test]
-fn a_rumor_over_24_kib_or_a_text_over_the_bound_is_refused() {
+fn a_text_at_the_bound_or_a_huge_card_does_not_fit_one_plaintext() {
     let at = 1_761_900_000_000;
     let text = "ä".repeat(envelope::MAX_TEXT_CHARS);
     let message = envelope::message(
@@ -145,8 +147,8 @@ fn a_rumor_over_24_kib_or_a_text_over_the_bound_is_refused() {
     )
     .expect("the bound itself is fine");
     assert!(
-        envelope::encode(&message).is_err(),
-        "but it does not fit one rumor: such a text goes as a file"
+        !fits_one_plaintext(&message),
+        "but it does not fit one message: such a text goes as a file"
     );
 
     let longer = format!("{text}ä");
@@ -161,7 +163,7 @@ fn a_rumor_over_24_kib_or_a_text_over_the_bound_is_refused() {
     .expect_err("over the bound");
     assert!(error.to_string().contains("chat.error.tooLong"), "{error}");
 
-    let huge_card = "c".repeat(MAX_RUMOR_BYTES);
+    let huge_card = "c".repeat(MAX_PLAINTEXT_BYTES);
     let message = envelope::message(
         "hi",
         Vec::new(),
@@ -171,10 +173,72 @@ fn a_rumor_over_24_kib_or_a_text_over_the_bound_is_refused() {
         at,
     )
     .expect("the text is fine");
+    assert!(!fits_one_plaintext(&message), "the event is too large");
+}
+
+/// Spec 095 T023: chat events travel only as ratchet messages. Only `delivery_send.rs` wraps, and
+/// it wraps no chat event or receipt directly. If this fails, a production file found a way around
+/// the sessions: route it through `delivery_send.rs` instead.
+#[test]
+fn only_sending_on_sessions_wraps_and_never_a_chat_event_directly() {
+    let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/chat/peer");
+    let mut files = Vec::new();
+    sources_below(&dir, &mut files);
     assert!(
-        envelope::encode(&message).is_err(),
-        "the rumor is too large"
+        files.len() > 20,
+        "the chat sources were found: {}",
+        files.len()
     );
+    let mut hits = Vec::new();
+    for file in &files {
+        let name = file
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or_default();
+        let text = std::fs::read_to_string(file).unwrap_or_default();
+        for (number, line) in text.lines().enumerate() {
+            let code = line.split("//").next().unwrap_or_default();
+            let wraps = code.contains("wrap::wrap(")
+                || (code.contains("wrap_shaped_at(") && name != "wrap.rs");
+            let wraps_elsewhere = wraps && name != "delivery_send.rs";
+            let names_event_kind = name == "delivery_send.rs"
+                && (code.contains("CHAT_KIND") || code.contains("RECEIPT_KIND"));
+            if wraps_elsewhere || names_event_kind {
+                hits.push(format!(
+                    "{}:{}: {}",
+                    file.display(),
+                    number + 1,
+                    line.trim()
+                ));
+            }
+        }
+    }
+    assert!(
+        hits.is_empty(),
+        "wraps outside the sessions:\n{}",
+        hits.join("\n")
+    );
+}
+
+/// Rust sources below `dir`, tests and test support left out.
+fn sources_below(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            sources_below(&path, out);
+            continue;
+        }
+        let name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or_default();
+        if name.ends_with(".rs") && !name.contains("_tests.") && !name.contains("test_support") {
+            out.push(path);
+        }
+    }
 }
 
 #[test]

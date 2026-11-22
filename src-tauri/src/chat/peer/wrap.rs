@@ -37,6 +37,10 @@ pub struct Opened {
 
 /// Wraps the rumor `kind`/`content`, sealed by `sender_secret`, to the device key `recipient`, at
 /// the time `now_ms` (milliseconds; `created_at` and `expiration` count from it).
+///
+/// Only `delivery_send.rs` calls it (spec 095 T023): every chat event travels as a ratchet message
+/// on the session with the receiving device, never under the device key alone. `wrap_tests.rs`
+/// fails when another production file calls it.
 pub fn wrap(
     kind: Kind,
     content: &str,

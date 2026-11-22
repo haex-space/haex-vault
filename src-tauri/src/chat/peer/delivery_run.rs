@@ -48,9 +48,18 @@ impl Delivery {
                 }
                 () = session.wake.notified() => self.reconnect().await,
                 received = incoming.recv() => {
-                    let Some((relay, event)) = received else { break };
-                    self.receive(event, Some(relay)).await.map(|stored| {
-                        if stored.is_some_and(|stored| stored.new && stored.attachments) {
+                    let Some(first) = received else { break };
+                    // Everything waiting is one batch, ordered before it is stored (spec 095 T022).
+                    let mut batch = vec![first];
+                    while let Ok(next) = incoming.try_recv() {
+                        batch.push(next);
+                    }
+                    let batch = batch
+                        .into_iter()
+                        .map(|(relay, event)| (event, Some(relay)))
+                        .collect();
+                    self.receive_batch(batch).await.map(|stored| {
+                        if stored.iter().any(|stored| stored.new && stored.attachments) {
                             wake_files(&session);
                         }
                     })

@@ -1,9 +1,18 @@
 //! Two vaults chat over a Nostr-Relay (spec 072 T027, US2 scenarios 1–5, 7–9, quickstart A3): the
 //! receiver closed, both open, the sender offline, a recipient with two devices, no Nostr-Relay at
-//! all, and a newer card that names a new device.
+//! all, and a newer card that names a new device. Since spec 095 (T014) on device sessions: a
+//! device is reached once its chat key record is on a Nostr-Relay, and the relay sees only wraps
+//! with ratchet messages and records (quickstart scenario 8).
+
+use std::time::Duration;
+
+use nostr::event::Kind;
+use nostr::filter::Filter;
 
 use super::messages::DeliveryState;
-use super::test_support::{mock_relay, two_vaults, ChatDevice};
+use super::ratchet::{KEY_RECORD_KIND, RATCHET_KIND};
+use super::test_support::{mock_relay, two_vaults, ChatDevice, LIMIT};
+use super::{outbox, wrap};
 
 fn state_of(messages: &[super::messages::PeerMessage], text: &str) -> Option<DeliveryState> {
     messages
@@ -12,10 +21,40 @@ fn state_of(messages: &[super::messages::PeerMessage], text: &str) -> Option<Del
         .and_then(|m| m.delivery)
 }
 
+/// Every event on the Nostr-Relay at `url`: only wraps and chat key records, and every wrap to
+/// `device` carries a ratchet message (FR-016). Answers the wraps to `device`.
+async fn relay_holds_only_sessions(url: &str, device: &ChatDevice) -> usize {
+    let client = nostr_sdk::client::Client::builder().build();
+    client.add_relay(url).await.expect("relay");
+    client.connect().and_wait(Duration::from_secs(5)).await;
+    let events = client
+        .fetch_events(Filter::new())
+        .timeout(Duration::from_secs(5))
+        .await
+        .expect("fetch");
+    client.shutdown().await;
+    let mut to_device = 0;
+    for event in events {
+        assert!(
+            event.kind == Kind::GiftWrap || event.kind == KEY_RECORD_KIND,
+            "only wraps and records: {}",
+            event.kind
+        );
+        if let Ok(opened) = wrap::unwrap(&event, &device.me.keys.device_secret) {
+            assert_eq!(opened.kind, RATCHET_KIND, "a ratchet message, nothing else");
+            to_device += 1;
+        }
+    }
+    to_device
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_message_to_a_closed_vault_arrives_when_it_opens_and_the_answer_comes_back() {
     let (_relay, url) = mock_relay().await;
-    let (anna, ben) = two_vaults(&[url]).await;
+    let (anna, ben) = two_vaults(std::slice::from_ref(&url)).await;
+    // Ben's device was online once, so its chat key record is on the relay.
+    ben.start().await;
+    ben.stop();
     anna.start().await;
 
     anna.send(&ben, "Kommst du heute Abend?");
@@ -59,6 +98,84 @@ async fn a_message_to_a_closed_vault_arrives_when_it_opens_and_the_answer_comes_
     ben.session.kick.notify_one();
     anna.wait_for(&ben, "read", |m| {
         state_of(m, "Kommst du heute Abend?") == Some(DeliveryState::Read)
+    })
+    .await;
+    assert!(
+        relay_holds_only_sessions(&url, &ben).await >= 1,
+        "the message"
+    );
+    assert!(
+        relay_holds_only_sessions(&url, &anna).await >= 3,
+        "Ben's receipts and answer"
+    );
+}
+
+/// Spec 095 scenario 8, step 1: the first message to a vault whose devices are all offline is
+/// delivered when one of them comes online, with the sender gone by then.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_first_message_to_a_vault_offline_everywhere_arrives_without_the_sender() {
+    let (_relay, url) = mock_relay().await;
+    let (anna, ben) = two_vaults(&[url]).await;
+    let ben_phone = ben.link();
+    anna.learn(&ben).await;
+    for device in [&ben, &ben_phone] {
+        device.start().await;
+        device.stop();
+    }
+    anna.start().await;
+    anna.send(&ben, "Wir schreiben uns zum ersten Mal");
+    anna.wait_for(&ben, "sent", |m| {
+        state_of(m, "Wir schreiben uns zum ersten Mal") == Some(DeliveryState::Sent)
+    })
+    .await;
+    anna.stop();
+
+    ben_phone.start().await;
+    ben_phone
+        .wait_for(&anna, "the message on the phone", |m| !m.is_empty())
+        .await;
+}
+
+/// Spec 095 scenario 8, step 2: a device without a chat key record gets nothing, not even a wrap
+/// under its device key; the message waits for it and goes out once the record is there.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_device_without_a_record_gets_nothing_until_its_record_appears() {
+    let (_relay, url) = mock_relay().await;
+    let (anna, ben) = two_vaults(std::slice::from_ref(&url)).await;
+    anna.start().await;
+    anna.send(&ben, "Bist du da?");
+    let deadline = tokio::time::Instant::now() + LIMIT;
+    loop {
+        let attempts = anna
+            .db
+            .read_blocking(|r| Ok(outbox::due(r, i64::MAX - 1)?))
+            .expect("outbox")
+            .first()
+            .map_or(0, |entry| entry.attempts);
+        if attempts > 0 {
+            break;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "no attempt was made"
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert_eq!(
+        state_of(&anna.messages_with(&ben), "Bist du da?"),
+        Some(DeliveryState::Waiting)
+    );
+    assert_eq!(
+        relay_holds_only_sessions(&url, &ben).await,
+        0,
+        "nothing for Ben"
+    );
+
+    ben.start().await;
+    // The next attempt now, instead of after the back-off.
+    anna.session.wake.notify_one();
+    ben.wait_for(&anna, "the message once the record is there", |m| {
+        !m.is_empty()
     })
     .await;
 }

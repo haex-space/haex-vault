@@ -1,5 +1,6 @@
 //! Own devices that are never online together end with the same conversation (spec 072 T028,
-//! FR-016, US2 scenario 6, quickstart A4): every rumor is also wrapped to the own other devices.
+//! FR-016, US2 scenario 6, quickstart A4): every rumor is also wrapped to the own other devices,
+//! since spec 095 on the session with each of them, opened from its chat key record.
 
 use super::test_support::{mock_relay, two_vaults};
 
@@ -9,6 +10,9 @@ async fn two_own_devices_never_online_together_hold_the_same_rows() {
     let (anna, ben) = two_vaults(&[url]).await;
     let anna_phone = anna.link();
     ben.learn(&anna).await;
+    // The phone was online once, so its chat key record is on the relay.
+    anna_phone.start().await;
+    anna_phone.stop();
     ben.start().await;
 
     // The laptop writes while the phone is closed.

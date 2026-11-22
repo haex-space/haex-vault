@@ -138,10 +138,6 @@ impl Delivery {
 
     /// Fetches the record of `device` from `relays` and stores the newest one that passes
     /// [`record::accept`]; `None` when none does.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "sending opens sessions from it (spec 095 T020)")
-    )]
     pub(super) async fn fetch_record(
         &self,
         device: &[u8; 32],

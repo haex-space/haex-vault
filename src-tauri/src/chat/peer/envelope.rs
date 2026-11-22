@@ -28,9 +28,6 @@ pub const PREVIEW_CHARS: usize = 1_000;
 pub const MAX_INLINE_FILE_BYTES: u64 = 4 * 1024 * 1024;
 /// The mime type of the file that carries a long text.
 pub const INLINE_MIME: &str = "text/plain";
-/// The largest rumor content in bytes: two NIP-44 layers (padding, base64) grow it to about 60 KiB
-/// (research R2). Sending also wraps once on trial, since escaping can grow a rumor further.
-pub const MAX_RUMOR_BYTES: usize = 24 * 1024;
 /// The most attachments of one message (contracts/nostr-chat.md).
 pub const MAX_ATTACHMENTS: usize = 10;
 
@@ -207,15 +204,12 @@ pub fn message(
     })
 }
 
-/// The JSON of a rumor's content, refused when it is over [`MAX_RUMOR_BYTES`].
+/// The JSON of an event or receipt. Its size is checked as the plaintext of the ratchet message
+/// that carries it (spec 095, `ratchet::wire::Plaintext::encode`).
 pub fn encode<T: Serialize>(value: &T) -> Result<String> {
-    let json = serde_json::to_string(value).map_err(|e| HaexError::InvalidInput {
+    serde_json::to_string(value).map_err(|e| HaexError::InvalidInput {
         reason: format!("the chat event does not encode: {e}"),
-    })?;
-    if json.len() > MAX_RUMOR_BYTES {
-        return Err(too_large());
-    }
-    Ok(json)
+    })
 }
 
 /// "chat.error.tooLong": a text over [`MAX_TEXT_CHARS`] (FR-012).
