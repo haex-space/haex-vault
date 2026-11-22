@@ -90,17 +90,21 @@ Re-check after design: unchanged. No violation needs the Complexity Tracking tab
 - **D2 - Vendor in the delegate layer: RESOLVED.** `DelegateVendor::Abacus` and extended matches (research §9). A vendor
   trait would serve three vendors with different protocols (a PTY OAuth flow, a device-auth subprocess, a JSON-lines
   process) and abstract nothing they share. The matches are the cost, and they are listed so none is missed.
-- **D3 - Platform variants: RESOLVED.** Only `linux-x64-baseline` (x64 without AVX2, common in virtual machines) is added.
-  musl, `darwin-x64-baseline` and `win32-x64-baseline` are not offered: a desktop app on musl is rare and the others cover
-  old hardware; a host the build does not run on is reported by the start check as `start_failed` with the system's reason.
+- **D3 - Platform variants: OPEN for macOS x64.** `linux-x64-baseline` (x64 without AVX2, common in virtual machines) is
+  added. Do not offer the macOS x64 archive on hosts without AVX2 until quickstart verifies the vendor archive's minimum
+  CPU requirement or a baseline archive is added and measured. musl and `win32-x64-baseline` remain out of scope; a host the
+  build does not run on is reported as `start_failed` with the system's reason.
 - **D4 - Windows: RESOLVED.** The zip archive kind and the Windows keys are the last change; nothing of it can run in CI, so
   it is its own pull request with the operator's run (quickstart §9).
 - **D5 - Finding the credential entry: RESOLVED.** Filter the headers an Internal caller sees (its own owned entries) by tag;
   no id on the provider row, so no schema change to a synced table. A duplicate from two devices is resolved by the newest
   `updated_at` and purged at the next save (research §10).
-- **D6 - Permission posture: RESOLVED.** `--permission-mode supervise` so that every changing tool asks; each request goes
-  through `request_approval`; the adapter never answers with a persistent variant (`allowAlways`, `allowYolo`, the rule
-  variants). If the tool reports another mode in `system/init`, the run is refused.
+- **D6 - Permission posture: OPEN; release gate.** The adapter uses `--permission-mode supervise`, forwards every
+  `can_use_tool` request to `request_approval`, never answers with a persistent variant (`allowAlways`, `allowYolo`, or rule
+  variants), and refuses a mismatched mode in `system/init`. This does not prove that read-only tools reach the approval
+  bridge. Before enabling Abacus in a user's `always ask` posture, quickstart §3.4 must demonstrate approval for both a
+  read-only tool and a changing tool. If read-only tools bypass the bridge, the backend must be unavailable while `always
+ask` is active until an enforcement path is implemented and verified. Do not treat `supervise` alone as satisfying FR-010.
 - **D7 - Models: RESOLVED for the first delivery.** One entry, the account's default model (no `--model`), as Codex has its
   fixed entry. A list from the account (`get_model_catalog` control request) is added only if quickstart step 3.5 shows it
   works without spending credits.

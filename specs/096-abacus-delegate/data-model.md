@@ -63,7 +63,9 @@ code runs against test vendor definitions.
 `std::is_x86_feature_detected!("avx2")` is false, otherwise the base key as today. A lookup in a vendor's entries goes
 through `PlatformKey::candidates()`, the variant first and then the base key: Claude Code and Codex have no variant entry and
 keep using `linux-x64`. An installation records the key it was installed under; "fits this device" holds when the recorded key
-is one of the host's candidates.
+is one of the host's candidates. Apply the same rule to `darwin-x64-baseline` only after the vendor archive and minimum CPU
+requirements have been measured on a macOS x64 host without AVX2; until that artifact is verified, do not select or offer the
+macOS x64 archive to such a host and report the platform as unsupported.
 
 ## 3. Abacus credential (a password-manager entry, per vault)
 
@@ -76,7 +78,8 @@ is one of the host's candidates.
 | custom field `device` | the id of the HaexVault device the sign-in ran on (see "Device binding")                       |
 | tags                  | `haex-delegate-abacusai`                                                                       |
 
-- One entry per vendor per vault. `read` returns `Ready(kind, secret)`, `Missing` (no entry) or `Syncing` (the vault's sync
+- One entry per vendor per vault. The provider table likewise has at most one Abacus row per vault; see the duplicate-row
+  recovery rule in the command contract. `read` returns `Ready(kind, secret)`, `Missing` (no entry) or `Syncing` (the vault's sync
   has not delivered it yet, from the deleted-row marker as the marketplace does).
 - `kind` selects what the adapter sets after containment: `device_code` is `CODELLM_DEVICE_CODE=<secret>`. An API key is
   never stored or set (spec FR-005); `ABACUS_API_KEY` is removed from the host's environment by the vendor definition.
