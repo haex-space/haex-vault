@@ -18,6 +18,7 @@ use tokio_util::sync::CancellationToken;
 use crate::error::{HaexError, Result};
 use crate::files::encrypted::device::DeviceRoot;
 use crate::files::encrypted::manage;
+use crate::files::encrypted::opened;
 use crate::files::encrypted::ops::{create_encrypted_folder, file_at};
 use crate::files::encrypted::route::{route, Route};
 use crate::files::encrypted::source::EncryptedFile;
@@ -26,6 +27,7 @@ use crate::files::encrypted::{EncryptedFolders, Scope, VaultSource};
 use crate::files::storage_source::StorageFiles;
 use crate::files::{FilesError, FilesErrorCode};
 use crate::instances::vault_paths::VaultPaths;
+use crate::passwords::attachment_view::{copy_file_name, remove_copy};
 use crate::remote_storage::local::LocalStore;
 
 /// The encrypted folder that holds the chat files.
@@ -98,6 +100,51 @@ impl ChatFileStore {
             .await
             .map(Some)
             .map_err(store_error)
+    }
+
+    /// A decrypted copy of the file of attachment `id` for the system's app (spec 048 FR-028, spec 072
+    /// US3): in a folder of its own below `root`, named `name` (cleaned for every system), so the
+    /// app can tell the type from the ending. `None` while the notice about the copy has to be shown
+    /// first; `NotFound` while this device has no file.
+    pub async fn copy_for_app(
+        &self,
+        id: &str,
+        name: &str,
+        root: &Path,
+        confirmed: bool,
+        dont_ask_again: bool,
+    ) -> Result<Option<PathBuf>> {
+        let missing = || HaexError::NotFound {
+            name: "chat file".into(),
+        };
+        if !self.dir.is_dir() {
+            return Err(missing());
+        }
+        let Route::Encrypted(at) = route(&self.files, &self.view(&[FOLDER, id]))
+            .await
+            .map_err(store_error)?
+        else {
+            return Err(missing());
+        };
+        let copy =
+            match opened::copy_for_app(&self.files, &at, root, confirmed, dont_ask_again).await {
+                Ok(copy) => copy,
+                Err(error) if error.code == FilesErrorCode::NeedsNotice => return Ok(None),
+                Err(error) if error.code == FilesErrorCode::NotFound => return Err(missing()),
+                Err(error) => return Err(store_error(error)),
+            };
+        // The copy is named by the attachment id, like the file in the folder.
+        let cleaned = copy_file_name(name);
+        let target = copy.with_file_name(if cleaned.is_empty() { id } else { &cleaned });
+        if target != copy {
+            if let Err(error) = tokio::fs::rename(&copy, &target).await {
+                remove_copy(&copy).await;
+                return Err(HaexError::InvalidInput {
+                    reason: format!("chat files: the copy could not be named ({})", error.kind()),
+                });
+            }
+        }
+        Ok(Some(target))
     }
 
     /// Starts the file of attachment `id`, making the folders on first use. It shows when the

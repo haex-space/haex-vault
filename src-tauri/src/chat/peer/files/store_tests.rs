@@ -107,3 +107,72 @@ async fn a_removed_file_is_gone_and_removing_a_missing_one_is_fine() {
         "another file stays"
     );
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_copy_for_the_system_app_waits_for_the_notice_and_keeps_to_its_folder() {
+    let (_vault, db) = vault();
+    give_key(&db, 1);
+    let data = tempfile::tempdir().expect("tempdir");
+    let files = store(&dir(data.path(), "anna"), &db);
+    files.put("a1", MARKER).await.expect("put");
+    let root = tempfile::tempdir().expect("tempdir");
+
+    let waiting = files
+        .copy_for_app("a1", "../bild.png", root.path(), false, false)
+        .await
+        .expect("copy");
+    assert_eq!(waiting, None, "the notice comes first");
+    assert!(
+        std::fs::read_dir(root.path())
+            .expect("dir")
+            .next()
+            .is_none(),
+        "nothing is written before the notice is confirmed"
+    );
+
+    let path = files
+        .copy_for_app("a1", "../bild.png", root.path(), true, true)
+        .await
+        .expect("copy")
+        .expect("a copy");
+    assert_eq!(std::fs::read(&path).expect("copy"), MARKER);
+    assert_eq!(
+        path.parent().and_then(Path::parent),
+        Some(root.path()),
+        "a name from the sender cannot lead out of the copy's folder"
+    );
+    assert!(path.extension().is_some_and(|ending| ending == "png"));
+
+    let without_notice = files
+        .copy_for_app("a1", "x.txt", root.path(), false, false)
+        .await
+        .expect("copy");
+    assert!(
+        without_notice.is_some(),
+        "\"Nicht mehr fragen\" skips the notice"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_copy_of_a_file_this_device_does_not_hold_is_not_found() {
+    let (_vault, db) = vault();
+    give_key(&db, 1);
+    let data = tempfile::tempdir().expect("tempdir");
+    let files = store(&dir(data.path(), "anna"), &db);
+    let root = tempfile::tempdir().expect("tempdir");
+    let before_any_file = files
+        .copy_for_app("a1", "a.txt", root.path(), true, false)
+        .await;
+    assert!(matches!(
+        before_any_file,
+        Err(crate::error::HaexError::NotFound { .. })
+    ));
+    files.put("a2", b"x").await.expect("put");
+    let missing = files
+        .copy_for_app("a1", "a.txt", root.path(), true, false)
+        .await;
+    assert!(matches!(
+        missing,
+        Err(crate::error::HaexError::NotFound { .. })
+    ));
+}

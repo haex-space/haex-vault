@@ -334,7 +334,6 @@ pub async fn files_open_system(
     }
     #[cfg(desktop)]
     {
-        use tauri_plugin_opener::OpenerExt;
         let real = match place_of(&app, &state, &files, &source, &path, Want::Read).await? {
             Place::Storage {
                 files: storage,
@@ -349,18 +348,7 @@ pub async fn files_open_system(
             },
             Place::Device => device_path(&files, &source, &path, Want::Read)?,
         };
-        let name = real
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        let opened = match with_app.filter(|app| !app.is_empty()) {
-            Some(id) => crate::files::open_with::open_with(&name, &real, &id),
-            None => app
-                .opener()
-                .open_path(real.to_string_lossy(), None::<&str>)
-                .map_err(|_| ()),
-        };
-        opened.map_err(|()| {
+        crate::files::open_with::open_copy(&app, &real, with_app.as_deref()).map_err(|()| {
             log::warn!(
                 "files: the system could not open {}",
                 Redacted(&real.to_string_lossy())
