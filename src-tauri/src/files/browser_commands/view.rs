@@ -341,8 +341,14 @@ pub async fn files_open_system(
                 ..
             } => match route(&storage, &path).await? {
                 Route::Encrypted(at) => {
-                    let root = &files.opened_encrypted;
-                    copy_for_app(&storage, &at, root, confirmed, dont_ask_again).await?
+                    copy_for_app(
+                        &storage,
+                        &at,
+                        &files.opened_copies,
+                        confirmed,
+                        dont_ask_again,
+                    )
+                    .await?
                 }
                 Route::Plain => download_to_open(&storage, &files, &path).await?,
             },

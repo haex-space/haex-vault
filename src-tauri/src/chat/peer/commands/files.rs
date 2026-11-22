@@ -165,7 +165,7 @@ pub async fn chat_attachment_open_system(
         let copy = chat_files(&session)?
             .copy_for_app(
                 &id.to_string(),
-                &files.opened_encrypted,
+                files.opened_copies.as_ref(),
                 args.confirmed,
                 args.dont_ask_again,
             )

@@ -27,7 +27,7 @@ use crate::files::encrypted::{EncryptedFolders, Scope, VaultSource};
 use crate::files::storage_source::StorageFiles;
 use crate::files::{FilesError, FilesErrorCode};
 use crate::instances::vault_paths::VaultPaths;
-use crate::passwords::attachment_view::{copy_file_name, remove_copy};
+use crate::passwords::attachment_view::copy_file_name;
 use crate::remote_storage::local::LocalStore;
 
 /// The encrypted folder that holds the chat files.
@@ -110,7 +110,7 @@ impl ChatFileStore {
         &self,
         id: &str,
         name: &str,
-        root: &Path,
+        copies: &opened::OpenedCopies,
         confirmed: bool,
         dont_ask_again: bool,
     ) -> Result<Option<PathBuf>> {
@@ -126,25 +126,24 @@ impl ChatFileStore {
         else {
             return Err(missing());
         };
-        let copy =
-            match opened::copy_for_app(&self.files, &at, root, confirmed, dont_ask_again).await {
-                Ok(copy) => copy,
-                Err(error) if error.code == FilesErrorCode::NeedsNotice => return Ok(None),
-                Err(error) if error.code == FilesErrorCode::NotFound => return Err(missing()),
-                Err(error) => return Err(store_error(error)),
-            };
-        // The copy is named by the attachment id, like the file in the folder.
         let cleaned = copy_file_name(name);
-        let target = copy.with_file_name(if cleaned.is_empty() { id } else { &cleaned });
-        if target != copy {
-            if let Err(error) = tokio::fs::rename(&copy, &target).await {
-                remove_copy(&copy).await;
-                return Err(HaexError::InvalidInput {
-                    reason: format!("chat files: the copy could not be named ({})", error.kind()),
-                });
-            }
-        }
-        Ok(Some(target))
+        let output_name = if cleaned.is_empty() { id } else { &cleaned };
+        let copy = match opened::copy_for_app_named(
+            &self.files,
+            &at,
+            copies,
+            Some(output_name),
+            confirmed,
+            dont_ask_again,
+        )
+        .await
+        {
+            Ok(copy) => copy,
+            Err(error) if error.code == FilesErrorCode::NeedsNotice => return Ok(None),
+            Err(error) if error.code == FilesErrorCode::NotFound => return Err(missing()),
+            Err(error) => return Err(store_error(error)),
+        };
+        Ok(Some(copy))
     }
 
     /// Starts the file of attachment `id`, making the folders on first use. It shows when the

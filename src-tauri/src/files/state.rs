@@ -53,6 +53,8 @@ pub struct FilesState {
     pub thumbnails: PathBuf,
     /// Copies of files of encrypted folders for the system's apps (spec 048 FR-028).
     pub opened_encrypted: PathBuf,
+    /// Tracks encrypted-file copies so vault close can wait for and sweep them.
+    pub opened_copies: Arc<crate::files::encrypted::opened::OpenedCopies>,
     watches: Mutex<HashMap<u64, Watching>>,
     next_watch: AtomicU64,
     /// Opened encrypted folders with their keys (spec 048).
@@ -71,7 +73,9 @@ impl FilesState {
         );
         let state = Self::new(OwnPlaces::from_app(app), known_places(app), thumbnails);
         // Copies an earlier run left behind (it crashed before its vault closed).
-        crate::files::encrypted::opened::sweep(&state.opened_encrypted);
+        if let Err(error) = crate::files::encrypted::opened::sweep(&state.opened_encrypted) {
+            log::warn!("files: copies left by an earlier run could not be removed: {error}");
+        }
         state
     }
 
@@ -80,11 +84,15 @@ impl FilesState {
             .parent()
             .unwrap_or(&thumbnails)
             .join(crate::files::encrypted::opened::FOLDER);
+        let opened_copies = Arc::new(crate::files::encrypted::opened::OpenedCopies::new(
+            opened_encrypted.clone(),
+        ));
         Self {
             own,
             known,
             thumbnails,
             opened_encrypted,
+            opened_copies,
             watches: Mutex::new(HashMap::new()),
             next_watch: AtomicU64::new(1),
             encrypted: Arc::default(),
@@ -102,24 +110,31 @@ impl FilesState {
         let (folders, thumbnails, opened, token) = (
             Arc::clone(&self.encrypted),
             Arc::clone(&self.memory_thumbnails),
-            self.opened_encrypted.clone(),
+            Arc::clone(&self.opened_copies),
             gate.token(),
         );
         let spawned = gate.spawn(async move {
             token.cancelled().await;
             folders.clear();
             thumbnails.clear();
-            let _ = tokio::task::spawn_blocking(move || {
-                crate::files::encrypted::opened::sweep(&opened);
-            })
-            .await;
+            if let Err(error) = opened.close_and_sweep().await {
+                log::warn!(
+                    "files: encrypted-file copies could not be removed at vault close: {error}"
+                );
+            }
         });
         if spawned.is_err() {
             // Closing already: nothing is kept for later.
             self.encrypted.clear();
             self.memory_thumbnails.clear();
-            crate::files::encrypted::opened::sweep(&self.opened_encrypted);
-            self.forgetting.store(false, Ordering::SeqCst);
+            let opened = Arc::clone(&self.opened_copies);
+            tauri::async_runtime::spawn(async move {
+                if let Err(error) = opened.close_and_sweep().await {
+                    log::warn!(
+                        "files: encrypted-file copies could not be removed at vault close: {error}"
+                    );
+                }
+            });
         }
     }
 
