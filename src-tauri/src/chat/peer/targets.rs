@@ -4,6 +4,7 @@
 //! devices: the current own device list without this device and without removed devices, reached
 //! over the own Nostr-Relays.
 
+use haex_crdt::rusqlite::params;
 use uuid::Uuid;
 
 use super::session::Me;
@@ -151,6 +152,25 @@ pub fn vault_of_device(q: &mut impl Query, me: &Me, device: &[u8; 32]) -> Result
         }
     }
     Ok(None)
+}
+
+/// The vault of `device` while this device still addresses it (spec 095 T038, T039): the own vault
+/// for a device on the own device list, another vault only while a conversation with it is kept (a
+/// direct one, a request or a group it is a member of). `None` otherwise, as for
+/// [`vault_of_device`].
+pub fn addressed_vault(q: &mut impl Query, me: &Me, device: &[u8; 32]) -> Result<Option<String>> {
+    let Some(vault) = vault_of_device(q, me, device)? else {
+        return Ok(None);
+    };
+    if vault == me.vault_hex {
+        return Ok(Some(vault));
+    }
+    let member: Option<i64> = q.query_row(
+        "SELECT 1 FROM chat_members WHERE vault = ?1 LIMIT 1",
+        params![vault],
+        |row| row.get(0),
+    )?;
+    Ok(member.map(|_| vault))
 }
 
 #[cfg(test)]

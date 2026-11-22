@@ -39,6 +39,8 @@ const RECEIPT_BATCH: Duration = Duration::from_secs(2);
 /// The stored wraps are fetched again this often (`ponytail:` a fixed interval; upgrade: only
 /// after the notification channel reported a gap).
 const CATCH_UP: Duration = Duration::from_secs(10 * 60);
+/// Sessions are looked at this often for a keep-alive that fell due (spec 095 T038).
+const KEEP_ALIVE_CHECK: Duration = Duration::from_secs(15 * 60);
 /// Notifications nostr-sdk keeps for a slow reader before it skips some.
 const NOTIFICATION_CHANNEL: NonZeroUsize = match NonZeroUsize::new(16_384) {
     Some(size) => size,
@@ -483,3 +485,11 @@ mod forward_secrecy_tests;
 #[cfg(test)]
 #[path = "crash_tests.rs"]
 mod crash_tests;
+
+#[cfg(test)]
+#[path = "keep_alive_tests.rs"]
+mod keep_alive_tests;
+
+#[cfg(test)]
+#[path = "devices_tests.rs"]
+mod devices_tests;

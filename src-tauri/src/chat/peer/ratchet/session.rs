@@ -25,7 +25,9 @@ use super::store::{self, SessionRow};
 use super::wire::RatchetRumor;
 use super::{account, reset, MAX_SESSIONS};
 use crate::chat::peer::session::Me;
+use crate::chat::peer::targets;
 use crate::error::{HaexError, Result};
+use crate::sync::presence::decode_hex;
 
 /// The result of [`decrypt`].
 #[derive(Debug)]
@@ -251,6 +253,26 @@ fn try_session(mut row: SessionRow, message: &OlmMessage, now: i64) -> Option<De
         opened: false,
         previous_pickle: Some(previous_pickle),
     })
+}
+
+/// Deletes the sessions, the peer state and the stored record of every peer device that
+/// [`targets::addressed_vault`] no longer answers for; answers how many devices went.
+pub fn forget_unaddressed(tx: &mut CrdtTransaction<'_>, me: &Me) -> Result<usize> {
+    let mut forgotten = 0;
+    for device in store::known_devices(tx, me.installation)? {
+        let bytes: Option<[u8; 32]> = decode_hex(&device)
+            .ok()
+            .and_then(|bytes| bytes.try_into().ok());
+        let addressed = match bytes {
+            Some(bytes) => targets::addressed_vault(tx, me, &bytes)?.is_some(),
+            None => false,
+        };
+        if !addressed {
+            store::forget_device(tx, me.installation, &device)?;
+            forgotten += 1;
+        }
+    }
+    Ok(forgotten)
 }
 
 /// Deletes sessions with `peer_device` beyond [`MAX_SESSIONS`], never `keep`: the least recently

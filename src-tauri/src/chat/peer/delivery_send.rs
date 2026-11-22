@@ -13,6 +13,11 @@
 //!
 //! A reset (T030) is wrapped here too, once, to the Nostr-Relays of the device's vault.
 //!
+//! So is a keep-alive (T038): on the session this device sends on to a device it still addresses
+//! ([`targets::addressed_vault`]), once nothing was sent on it for [`KEEP_ALIVE_MS`]. It never opens
+//! a session, never enters the outbox and is published once; only the run loop's timer sends one,
+//! never an arriving event, so two devices do not answer each other's keep-alives without end.
+//!
 //! This is the only caller of [`wrap::wrap`] outside tests (`wrap_tests.rs` checks that).
 
 use haex_crdt::CrdtTransaction;
@@ -22,13 +27,14 @@ use vodozemac::Curve25519PublicKey;
 use super::{invalid, Delivery, Published};
 use crate::chat::peer::outbox::{self, Entry, FailReason};
 use crate::chat::peer::ratchet::wire::{self, Plaintext};
-use crate::chat::peer::ratchet::{reset, session, store, RATCHET_KIND, RESET_KIND};
+use crate::chat::peer::ratchet::{reset, session, store, KEEP_ALIVE_MS, RATCHET_KIND, RESET_KIND};
 use crate::chat::peer::session::Me;
 use crate::chat::peer::targets::{self, Target};
 use crate::chat::peer::wrap;
 use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 use crate::sync::keys::hex;
+use crate::sync::presence::decode_hex;
 
 /// The fixed reason of an attempt that found no device of a vault with a usable record.
 pub(crate) const WAITING_FOR_KEYS: &str = "waitingForKeys";
@@ -274,6 +280,103 @@ impl Delivery {
         }
         Ok(())
     }
+
+    /// Sends a keep-alive on every session that is due; answers how many were made. Without a
+    /// connected Nostr-Relay none is made, so no session moves for a keep-alive that goes nowhere.
+    pub(super) async fn send_keep_alives(&self) -> Result<usize> {
+        if !self.any_relay_connected().await {
+            return Ok(0);
+        }
+        let (me, now) = (self.me.clone(), self.now());
+        let due = self
+            .db
+            .read(move |r| Ok(keep_alives_due(r, &me, now)?))
+            .await?;
+        let mut made = 0;
+        for (device, relays) in due {
+            let (me, now) = (self.me.clone(), self.now());
+            let sealed = self
+                .db
+                .write(move |tx| Ok(seal_keep_alive(tx, &me, &device, now)?))
+                .await?;
+            let Some(event) = sealed else {
+                continue;
+            };
+            made += 1;
+            self.use_relays(&relays).await;
+            let accepted = matches!(
+                self.client
+                    .send_event(&event)
+                    .to(relays.iter().map(String::as_str))
+                    .await,
+                Ok(output) if !output.success.is_empty()
+            );
+            if !accepted {
+                log::info!("chat: no Nostr-Relay accepted a keep-alive");
+            }
+        }
+        Ok(made)
+    }
+}
+
+/// The peer devices due a keep-alive, with the Nostr-Relays of their vaults.
+fn keep_alives_due(q: &mut impl Query, me: &Me, now: i64) -> Result<Vec<([u8; 32], Vec<String>)>> {
+    let mut due = Vec::new();
+    for device_hex in store::known_devices(q, me.installation)? {
+        let Some(device) = decode_hex(&device_hex)
+            .ok()
+            .and_then(|bytes| <[u8; 32]>::try_from(bytes).ok())
+        else {
+            continue;
+        };
+        let Some(vault) = targets::addressed_vault(q, me, &device)? else {
+            continue;
+        };
+        if !keep_alive_due(q, me, &device_hex, now)? {
+            continue;
+        }
+        let relays = targets::of(q, me, &vault)?.relays;
+        if !relays.is_empty() {
+            due.push((device, relays));
+        }
+    }
+    Ok(due)
+}
+
+/// Whether the session this device sends on to `device` (hex) got nothing for [`KEEP_ALIVE_MS`];
+/// false without a session.
+fn keep_alive_due(q: &mut impl Query, me: &Me, device: &str, now: i64) -> Result<bool> {
+    Ok(store::sessions(q, me.installation, device)?
+        .first()
+        .is_some_and(|row| {
+            row.last_sent_at
+                .is_none_or(|sent| now - sent >= KEEP_ALIVE_MS)
+        }))
+}
+
+/// Encrypts a keep-alive for `device` on the session to send on and wraps it, when it is still
+/// due; the session is saved in this transaction.
+fn seal_keep_alive(
+    tx: &mut CrdtTransaction<'_>,
+    me: &Me,
+    device: &[u8; 32],
+    now: i64,
+) -> Result<Option<Event>> {
+    let device_hex = hex(device);
+    if !keep_alive_due(tx, me, &device_hex, now)? {
+        return Ok(None);
+    }
+    let plaintext = Plaintext::keep_alive().encode()?;
+    let Some(rumor) = session::encrypt(tx, me, &device_hex, plaintext.as_bytes(), now)? else {
+        return Ok(None);
+    };
+    Ok(Some(wrap::wrap(
+        RATCHET_KIND,
+        &rumor.encode()?,
+        &me.keys.device_secret,
+        device,
+        now,
+    )?))
 }
 
 /// Encrypts the event of `entry` for `device` on its session, opened from the stored record when
