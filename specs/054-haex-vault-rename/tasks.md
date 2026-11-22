@@ -173,7 +173,7 @@ Worktree `.worktrees/054-s8-gate`, Branch `054-s8-gate`, nach S7.
 
 **Independent Test**: Eine Kopie von `test.db` wird importiert, die Zahl und der Inhalt der Passwort-Einträge stimmen mit der alten App überein (SC-003).
 
-- [x] T064 [US2] Vor dem Test mit dem Betreiber klären und festhalten: haex-vault 3 beendet; ein vorhandener Datenordner `space.haex.vault` mit Daten der alten App haex-vault 2.x wird **vom Betreiber** gelöscht (Spec, Edge Cases); die Sicherung der Datei wird noch einmal mit dem Original verglichen (SHA-256)
+- [ ] T064 [US2] Vor dem Test mit dem Betreiber klären und festhalten: haex-vault 3 beendet; ein vorhandener Datenordner `space.haex.vault` mit Daten der alten App haex-vault 2.x wird **vom Betreiber** gelöscht (Spec, Edge Cases); die Sicherung der Datei wird noch einmal mit dem Original verglichen (SHA-256) — für den isolierten Test in S9 nicht erledigt: beide Apps nutzten eigene leere Datenordner, der Datenordner des Betreibers blieb unangetastet. Vor einem echten Öffnen/Migrieren dieses Ordners mit dem Betreiber abstimmen.
 - [x] T065 [US2] Kopie der gesicherten Ordners (nicht des Originals) in ein Arbeitsverzeichnis außerhalb des Repos anlegen; die Sicherung und das Original bleiben unverändert (FR-015)
 - [x] T066 [US2] Referenz aus der alten App: Worktree `git worktree add <pfad> holzi-final`, dort die App starten und für drei Einträge (einen mit Notiz, einen mit Anhang, einen mit TOTP) Felder und Gesamtzahl aufschreiben (Prüfstand, nie committen)
 - [x] T067 [US2] In der umbenannten App `pnpm tauri:dev` starten (devShell), „Vault-Datei öffnen“ wählen, die Kopie von `test.db` angeben, Passphrase eingeben; Passwort-Manager öffnen und Anzahl und die drei Stichproben mit T066 vergleichen
