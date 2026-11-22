@@ -263,7 +263,7 @@ async fn messages_through_relays_that_withhold_reorder_and_replay_arrive_once_an
     withhold_first.store(false, Ordering::SeqCst);
     ben.session.wake.notify_one();
     let at_ben = ben
-        .wait_for(&anna, "the withheld message", |m| m.len() == 61)
+        .wait_within(SIXTY, &anna, "the withheld message", |m| m.len() == 61)
         .await;
     assert_eq!(
         texts(&at_ben).last().map(String::as_str),
