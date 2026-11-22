@@ -47,8 +47,21 @@ scenario('files-sync-file-rule', { timeoutMs: 180_000 }, async (ctx) => {
     const copyText = () => {
       try {
         return target.read(FILE)
-      } catch {
-        return undefined
+      } catch (error) {
+        // Linux reads fail with ENOENT; adb pull reports a missing remote path in stderr.
+        // Other read errors must fail the scenario with their original cause.
+        const missingLocally =
+          error !== null &&
+          typeof error === 'object' &&
+          'code' in error &&
+          error.code === 'ENOENT'
+        const missingOnDevice =
+          error !== null &&
+          typeof error === 'object' &&
+          'stderr' in error &&
+          String(error.stderr).includes('No such file or directory')
+        if (missingLocally || missingOnDevice) return undefined
+        throw error
       }
     }
     const stateOf = async () => {
