@@ -17,41 +17,43 @@ defines it; a musl host gets the glibc build and is reported by the start check 
 remove" (the settings page deletes the provider with the tool, spec 094 US4). Deleting the provider removes the credential
 entry (next command), so removing a tool and its connection stays the two calls the page already makes.
 
-### `connect_cli_delegate(args: { vendor, name }) -> ConnectCliDelegateResult`
+### `connect_cli_delegate(args: { vendor, name, email? }) -> ConnectCliDelegateResult`
 
-For `vendor = "abacusai"` the command does not start a flow. It checks that the tool is installed in this vault (otherwise
-the same "not installed" error the other vendors return, which the UI turns into the install action) and returns
+`ConnectCliDelegateArgs` gains an optional `email`. For `vendor = "abacusai"` it is required (else `InvalidInput`), and the
+command runs the whole flow like the Codex branch does, returning `Connected` at the end:
 
-```json
-{ "status": "awaiting_key", "vendor": "abacusai" }
-```
+1. It checks that the tool is installed in this vault (otherwise the same "not installed" error as the other vendors, which the
+   UI turns into the install action), records `connect_started`.
+2. It calls the sign-in service (data-model §3a): `_authenticateDeviceForCodeLlm` with the e-mail address and a random UUID
+   as `deviceId`. A refusal ends the flow with the vendor's text as `InvalidInput`/`HaexError` reason.
+3. It emits `delegate-connect-progress` with `status: "awaiting_browser"`, `url` (the `verificationUri`) and `code` (the
+   `userCode`), the shape the Codex flow already uses and the UI already renders.
+4. It polls `_pollDeviceCode` until the code is confirmed, the user cancels (below), the vault closes or ten minutes pass
+   (`status: "error"`, reason `expired`).
+5. It saves the device code with `delegate_credential::save` (kind `device_code`), upserts the provider row
+   (`write_delegate_provider` with empty credentials), records `connect_finished`, emits `status: "success"` and returns
+   `Connected { provider }`.
 
-(`ConnectCliDelegateResult` gains the variant `AwaitingKey { vendor }`, snake_case tag like the others.)
+No `AwaitingCode`/`AwaitingKey` result exists for this vendor. The e-mail address, the code and the device code are never
+logged and appear only in the event (address and code) and in the entry (device code).
 
-## Commands that are new
+### `cancel_cli_delegate_connect(vendor)` (new)
 
-### `connect_cli_delegate_with_key(args: { vendor, name, key }) -> ConnectCliDelegateResult`
-
-Saves the key as the vendor's credential (`delegate_credential::save`, kind `api_key`), upserts the provider row
-(`write_delegate_provider` with empty credentials), and returns `Connected { provider }`. Errors: `InvalidInput` for an empty key or
-an unknown vendor, `CliToolNotInstalled` when the tool is missing. The key is never logged and never part of an event.
-Whether the command also checks the key by starting the tool is decided after the authenticated measurement (quickstart §3);
-until then a wrong key shows at the first request as `not_authenticated`.
-
-`vendor` must be a vendor whose credential is a key (`abacusai`); `claude` and `codex` are refused with `InvalidInput`, since
-their credentials stay on the provider row (spec Assumptions).
+Stops a running connect flow of `vendor` (the polling loop; idempotent). The UI calls it when the dialog is closed. For
+`claude` and `codex` it does nothing new (their flows end with their processes).
 
 ### `delete_provider(id)` (existing command, extended)
 
 Disconnecting is deleting the provider row. For a `cli_delegate` row whose `adapter` is `abacusai`, the command first deletes
 the password-manager entry (`delegate_credential::delete`; a missing entry is not an error) and then the row. A response
-already running is not disturbed (it holds its own copy of the key in its process environment). Rows of `claude` and
+already running is not disturbed (it holds its own copy of the device code in its process environment). Rows of `claude` and
 `codex` are deleted as before.
 
 ## Events
 
-No new event. `cli-tool-progress` and `cli-tool-changed` carry `vendor: "abacusai"`. `delegate-connect-progress` is not used
-by this vendor.
+No new event. `cli-tool-progress` and `cli-tool-changed` carry `vendor: "abacusai"`. `delegate-connect-progress` carries the
+connect flow: `awaiting_browser` (with `url` and `code`), then `success` or `error` (with a `message`, `expired` among them),
+as the Codex flow emits them.
 
 ## Delegate-side contract (no command)
 
@@ -69,7 +71,7 @@ A request answered by Abacus:
 
    runs it through `Containment` (the base layer sets `HOME`, `TMPDIR`, the XDG variables, `ABACUSAI_CODING_AGENT_DIR` and
    the vendor's `env_set`, and removes the host's `ABACUS_*`, `ABACUSAI_*`, `CODELLM_*` variables), and only then sets
-   `ABACUS_API_KEY` for the child.
+   `CODELLM_DEVICE_CODE` for the child (an `ABACUS_API_KEY` is never set).
 
 3. It writes one `user` line, reads stdout lines (data-model §4), answers `can_use_tool` through
    `approval_bridge::request_approval`, and closes stdin after the `result` line.

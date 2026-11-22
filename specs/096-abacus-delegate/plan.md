@@ -10,14 +10,17 @@ The Abacus AI CLI (`abacusai`) becomes the third delegate, on the tool manager o
 the vendor's release host, verified against the SHA-256 held in the tested-version list (the maintainer script first
 verifies the vendor's Sigstore signature), run with the vault's home through the existing containment layer, and answers
 chat requests through the tool's JSON-lines mode, in which it asks the host to approve each tool call. The user connects
-from the app's UI by entering an API key; the key is stored as an entry of the password manager and handed to the process
-for one run only, never written to a file. The tool's own interactive login is not used: it needs a terminal and stores a
+from the app's UI with their normal account credentials: HaexVault runs the vendor's own device sign-in (e-mail address, then
+an address and a code confirmed in the browser), stores the resulting device code as an entry of the password manager, and
+hands it to the process for one run only, never writing it to a file. An API key is not used (it is billed per request, the
+sign-in unlocks free models). The tool's own interactive login is not used either: it needs a terminal and stores a
 device-bound file.
 
 Technical approach (details in [research.md](research.md)): a vendor definition in `catalog.json` plus two small manager
 additions the release format needs (an x64 variant for CPUs without AVX2, zip archives for Windows); a new
 `DelegateVendor::Abacus` and every match that names the vendors; a module that saves, reads and deletes a delegate credential
-as an owned password-manager entry (generic for later vendors, used by Abacus only); an adapter that speaks the JSON-lines
+as an owned password-manager entry (generic for later vendors, used by Abacus only); a small client of the vendor's sign-in
+service and the connect flow on top of it; an adapter that speaks the JSON-lines
 protocol and calls the existing approval bridge; the connect dialog and vendor lists in the frontend; the maintainer script
 learns the Sigstore check; the measurement and the first catalog entry follow the operator's authenticated runs.
 
@@ -36,7 +39,7 @@ app does not (as it needs no PGP library for Claude Code).
 
 **Testing**: `cargo test` with sibling `*_tests.rs` files; `wiremock` stand-in release host and the existing unix stub
 delegates in `src-tauri/tests/`, with a stub that speaks the JSON-lines protocol; the maintainer script against a recorded
-Sigstore bundle and archive; Node checks for frontend logic; the e2e suite with the stand-in host. Real-tool checks stay
+Sigstore bundle and archive; the sign-in client against a `wiremock` double of the service; Node checks for frontend logic; the e2e suite with the stand-in host. Real-tool checks stay
 manual ([quickstart.md](quickstart.md)).
 
 **Target Platform**: desktop (Linux, macOS, Windows). Android and iOS: unavailable (`cli_delegates` capability). CI is Linux
@@ -76,12 +79,14 @@ Re-check after design: unchanged. No violation needs the Complexity Tracking tab
 
 ## Decisions (resolved; the operator-open ones carry a gate)
 
-- **D1 - Credential kind: RESOLVED PROVISIONALLY 2026-11-22; the operator confirms.** The operator decided where the
-  credential lives (password manager) and that connecting is a UI flow, but did not name the credential itself. The tool
-  accepts an API key (documented for scripts) and a device code (the vendor's desktop-app contract, from private endpoints).
-  The plan builds the API key and keeps the model open for the device code (`kind` field). **Gate**: quickstart step 3.2 must
-  show whether a key draws on the subscription's credits; if it is billed separately the operator decides before the connect
-  dialog merges (the operator wanted the subscription path).
+- **D1 - Credential: RESOLVED 2026-11-22 (operator).** The account's own sign-in, never an API key: a key is billed per
+  request, the sign-in unlocks models that cost nothing. The stored thing is the device code the vendor's sign-in returns
+  (the value `CODELLM_DEVICE_CODE` carries), kept in the password manager. HaexVault runs the sign-in's two calls itself
+  (research §3), like the Codex flow runs its device authentication, because the tool's own login needs a terminal. **Risk**:
+  the two endpoints are private and undocumented, so a vendor change breaks connecting without a new program version.
+  **Gate**: quickstart step 3.0 must show that the service answers a client other than the vendor's own and step 6 whether a
+  code works on another device (otherwise each device connects once, data-model §3); if the service refuses other clients
+  there is no UI route, and the operator decides what replaces it. An API key is not an alternative.
 - **D2 - Vendor in the delegate layer: RESOLVED.** `DelegateVendor::Abacus` and extended matches (research §9). A vendor
   trait would serve three vendors with different protocols (a PTY OAuth flow, a device-auth subprocess, a JSON-lines
   process) and abstract nothing they share. The matches are the cost, and they are listed so none is missed.
@@ -98,8 +103,8 @@ Re-check after design: unchanged. No violation needs the Complexity Tracking tab
   variants). If the tool reports another mode in `system/init`, the run is refused.
 - **D7 - Models: RESOLVED for the first delivery.** One entry, the account's default model (no `--model`), as Codex has its
   fixed entry. A list from the account (`get_model_catalog` control request) is added only if quickstart step 3.5 shows it
-  works without credits.
-- **D8 - When the first catalog entry lands: RESOLVED.** After the measurement of spec 094 FR-021 on a real key (quickstart
+  works without spending credits.
+- **D8 - When the first catalog entry lands: RESOLVED.** After the measurement of spec 094 FR-021 on a real device code (quickstart
   §3). Until then every change is developed against test vendor definitions; the operator measures with the same isolation
   the research used, so no unmeasured version is ever installable.
 - **D9 - Claude Code and Codex credentials: OPEN for the operator.** The operator wants every delegate provider's credential in
@@ -140,11 +145,12 @@ src-tauri/src/
 │   └── (claude.rs, codex.rs untouched except where a match names every vendor)
 ├── providers/
 │   ├── delegate_credential.rs         # save / read / delete as an owned password-manager entry (new)
-│   ├── connect.rs                     # AwaitingKey, connect_cli_delegate_with_key; add.rs, mod.rs: vendor parse, build_adapter
+│   ├── abacus_signin.rs               # client of the two sign-in calls (reqwest), polling, cancel token (new)
+│   ├── connect.rs                     # email arg, Abacus branch of connect_cli_delegate, cancel_cli_delegate_connect; add.rs, mod.rs: vendor parse, build_adapter
 │   └── mod.rs                         # delete_provider also deletes the entry
 ├── chat/model_loading.rs              # the legacy-id check names vendors
 ├── agent_profiles/delegates.rs, mcp_server/{delegates,registry}.rs   # vendor matches
-└── lib.rs                             # register connect_cli_delegate_with_key
+└── lib.rs                             # register cancel_cli_delegate_connect
 
 src-tauri/tests/cli_delegate_abacus_*.rs   # stub program, containment and log-search tests for the third vendor
 
@@ -155,9 +161,9 @@ scripts/cli-tools/
 src/
 ├── lib/cli-tools.ts                   # CliToolVendor includes 'abacusai'
 ├── composables/{useProviders,useModelInventory,useToolNotice}.ts, lib/actions/settingsActions.ts
-├── components/settings/ConnectDelegateProvider.vue   # key dialog, per-vendor maps
+├── components/settings/ConnectDelegateProvider.vue   # e-mail step, address and code display, per-vendor maps
 ├── components/chat/MessageList.vue, i18n/locales/{en,de}.json   # chat.model.delegate.abacusai, connect and error texts
-└── types/bindings/                    # ts-rs: CliToolVendor values, ConnectCliDelegateResult::AwaitingKey
+└── types/bindings/                    # ts-rs: CliToolVendor values, ConnectCliDelegateArgs.email
 ```
 
 **Structure Decision**: the manager gets data plus the two additions; the delegate layer gets one adapter file and an enum
@@ -167,10 +173,9 @@ that name the vendors.
 ### Delivery in stacked pull requests
 
 A. Manager: platform variant, zip kind (with fixtures), vendor definition for tests, maintainer script. Independent of the
-adapter. B. Credential module, connect commands, `delete_provider` extension, the vendor lists and the connect dialog
-(gated by D1). C. Adapter, approval mapping, model entry, stub-based tests. D. The operator's authenticated measurement,
-the first catalog entry, residual entries, glossary entries in `CONTEXT.md`, the follow-up list (D9, device-code route,
-model list). E. Windows (zip) with the operator's run.
+adapter. B. Credential module, sign-in client and connect flow, `delete_provider` extension, the vendor lists and the connect
+dialog (gated by D1: step 3.0 of the quickstart). C. Adapter, approval mapping, model entry, stub-based tests. D. The operator's authenticated measurement,
+the first catalog entry, residual entries, glossary entries in `CONTEXT.md`, the follow-up list (D9, model list). E. Windows (zip) with the operator's run.
 
 ## Complexity Tracking
 

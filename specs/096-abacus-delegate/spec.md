@@ -23,17 +23,21 @@ Abacus account, so everything that needs one is an operator task." (operator, 20
   Spec 094 moved their programs and their home folder into the vault's folder and made the vendor list "data plus an
   adapter" (094 FR-015, SC-007), so that a third vendor needs no change to install, update, removal or paths.
 - **What the operator wants.** Abacus AI as the third delegate, the same "bring your existing subscription" path as the
-  other two, connected from the app's own UI: no command line for the user, no variable the user has to set, nothing
-  depending on the host.
+  other two, connected from the app's own UI with the user's normal account credentials: no command line for the user, no
+  variable the user has to set, nothing depending on the host, and **no API key**. A key is billed per request, while the
+  account's own sign-in (the CLI's login) unlocks models that cost nothing and the better conditions of the account.
 - **What is known about the tool** (research 2026-11-22 on `abacusai` 2.10.23, from the vendor's documentation, its release
   files and runs in a throwaway home; details in `research.md`): the release archives carry a Sigstore signature made by
   the vendor's release workflow; the tool has a print mode and a JSON-lines mode in which it asks its host to answer
   each tool-call permission; its interactive `auth login` needs a real terminal and stores the login in an encrypted file
-  whose key comes from the device's name and user, so the file cannot move between devices; without a stored login the
-  tool accepts a credential from its environment (an API key, or a device code that the vendor's desktop app sets).
-- **What is still not known** (research that needs a real Abacus account, listed in Open risks): whether an API key
-  draws on the subscription's credits, what an authenticated run writes beyond the unauthenticated runs measured so far,
-  and the exact messages of an approval round trip.
+  whose key comes from the device's name and user, so the file cannot move between devices. What that login stores is a
+  device code: the user gives an e-mail address, the vendor answers with an address and a code, the user confirms the code
+  in the browser, and polling returns the device code. Without a stored login the tool accepts a device code from its
+  environment, which is what the vendor's desktop app does.
+- **What is still not known** (research that needs a real Abacus account, listed in Open risks): whether a device code
+  works on another device than the one it was obtained on, how the vendor's sign-in service treats a client other than its
+  own, what an authenticated run writes beyond the unauthenticated runs measured so far, and the exact messages of an
+  approval round trip.
 
 ## Clarifications
 
@@ -42,6 +46,10 @@ Abacus account, so everything that needs one is an operator task." (operator, 20
 - Q: How does the user sign in to Abacus, given that its own login needs a terminal? → A: From the app's own UI, as with
   Claude Code and Codex; no terminal view, no command line, no variable the user sets, nothing that depends on the host
   (operator, 2026-11-22, replacing the first answer of the same day, a terminal view in the app).
+- Q: With an API key or with the account's own credentials? → A: With the account's own credentials, as with the other
+  cloud providers. An API key is not offered here: it is billed per request, while the sign-in unlocks free models and the
+  account's better conditions. A user who wants to pay per request can always add Abacus's OpenAI-compatible server as an
+  ordinary provider; that needs nothing from this spec (operator, 2026-11-22).
 - Q: Where does the credential live, and is it portable? → A: In the password manager, as an entry of its own, and is used
   from there; the entry travels with the vault to every device. This holds for all delegate providers, present and future
   (operator, 2026-11-22). This spec does it for Abacus; moving Claude Code and Codex is a change of its own (Assumptions).
@@ -65,8 +73,9 @@ tool from Settings, connect from the app, send one request, confirm a reply labe
 
 1. **Given** a vault without the Abacus tool, **When** the user selects the Abacus backend, **Then** it is shown as "not
    installed in this vault" with the install action next to the other tools' (094 US1), and no request is sent.
-2. **Given** an installed tool and no credential, **When** the user chooses to connect, **Then** they complete it in the
-   app's UI, without a terminal and without setting any variable, and the backend shows as connected.
+2. **Given** an installed tool and no credential, **When** the user chooses to connect, **Then** they enter their Abacus
+   e-mail address in the app, the app shows the address and the code to confirm in the browser, and after the user has
+   confirmed it the backend shows as connected: no terminal, no API key, no variable the user sets.
 3. **Given** a connected Abacus backend, **When** the user sends a request, **Then** it runs with the vault's own copy and the
    reply is labelled with the backend that answered it (007 FR-005).
 4. **Given** the user cancels connecting half way, **When** it ends, **Then** nothing is stored, nothing is left in the
@@ -170,9 +179,12 @@ of its download.
 - The vendor changes how the tool accepts a credential or names its messages in a new version: the tested-version list is
   what protects the user; a version outside it is shown as untested (094 FR-009), and a request that fails for it ends with
   a specific reason, not a hang.
-- Connecting needs something outside the app (for example a key the user creates on the vendor's website): the app tells
-  the user what to do and where, and nothing is opened on the host that leaves state there beyond the vault's folder (the
-  host browser's own state is the host's and is not touched).
+- Connecting needs the browser: the app shows the address and the code and offers to open the address; opening it is the
+  host browser's own state and is not touched by HaexVault. The code is valid for a limited time (the tool waits ten
+  minutes): after that the app says it expired and offers to start again, and it never keeps polling after the user cancelled
+  or the vault closed.
+- The e-mail address has no Abacus account, or the account has no CLI access: the vendor's answer is shown with its reason;
+  nothing is stored.
 - HaexVault is killed during a run: the next start finds no credential file anywhere, because none was ever written; the
   per-run folder is cleared (094 FR-007, FR-011).
 - The same vault's credential is used on two devices at once: both runs work; nothing is written back by the tool.
@@ -203,14 +215,18 @@ of its download.
 - **FR-004**: HaexVault MUST offer the Abacus tool only on operating systems and architectures the vendor publishes it for; on
   others the backend MUST say "not available for this device" with the reason. On Android and iOS the backend stays
   unavailable (094 FR-016).
-- **FR-005**: The user MUST be able to connect their Abacus account from the app's own UI, for the current vault, as with
-  Claude Code and Codex: no terminal, no command line, no variable the user sets, and no tool or login state on the host
-  (007 FR-001, FR-003). The tool's own interactive login (which needs a real terminal and writes a device-bound file) MUST
-  NOT be part of connecting. What the user enters MUST NOT be logged.
+- **FR-005**: The user MUST be able to connect their Abacus account with their normal account credentials, from the app's
+  own UI, for the current vault, as with Claude Code and Codex: no terminal, no command line, no API key, no variable the
+  user sets, and no tool or login state on the host (007 FR-001, FR-003). The sign-in is the vendor's own: the user's
+  e-mail address, then an address and a code that the user confirms in the browser. HaexVault runs that exchange itself
+  and the tool's interactive login (which needs a real terminal and writes a device-bound file) MUST NOT be part of
+  connecting. An API key MUST NOT be accepted as a way to connect (it is billed per request). The e-mail address and the
+  code MUST NOT be logged.
 - **FR-006**: The credential MUST be stored in the password manager as an entry of its own, reached only through the
   password manager's service by a HaexVault function with a fixed grant (ADR 0007), and used from there. It is portable to
-  every device that holds the vault, usable there with no further connect step (007 FR-002). HaexVault hands it to the
-  tool's process for that run only; it MUST NOT be written to any file, in the vault's home or on the host, and no file of
+  every device that holds the vault, usable there with no further connect step (007 FR-002), unless the vendor binds it to
+  the device it was obtained on, in which case each device connects once and the entry says which device it belongs to
+  (Open risks). HaexVault hands it to the tool's process for that run only; it MUST NOT be written to any file, in the vault's home or on the host, and no file of
   the tool that holds a login (such as its keystore) may remain after a run.
 - **FR-007**: A credential the tool does not accept (expired, revoked, wrong) MUST end the request with a specific reason
   that leads the user back to connecting; HaexVault MUST NOT retry with another credential or another backend.
@@ -245,8 +261,8 @@ of its download.
   tool installation as in spec 094.
 - **Abacus vendor definition**: The data for the Abacus tool in the tool manager: where each tested version comes from, its
   platforms, its integrity information, and the home- and config-variables it needs.
-- **Abacus credential**: The delegate credential (spec 007) in the form the tool accepts without its interactive login; one
-  entry of the password manager per vault; never a file.
+- **Abacus credential**: The delegate credential (spec 007): the device code the vendor's sign-in returns, which the tool
+  accepts from its environment without its interactive login; one entry of the password manager per vault; never a file.
 
 ## Success Criteria _(mandatory)_
 
@@ -303,10 +319,11 @@ every archive, so FR-003 is satisfiable; the tool has a JSON-lines mode with a h
 request, so FR-010 looks satisfiable (the message round trip still needs an authenticated run); its own update can be
 switched off (`ABACUS_AUTO_UPDATE=off`); release files exist for Linux, macOS and Windows on x64 and arm64. Still open:
 
-- **Which credential the tool accepts and what it costs.** An API key (`ABACUS_API_KEY`) and a device code
-  (`CODELLM_DEVICE_CODE`, set by the vendor's desktop app) sign the tool in without its own login. The key is documented for
-  scripts; the device code comes from vendor endpoints that are not documented. Whether a key draws on the subscription's
-  credits, and whether a device code can be obtained without the tool's terminal, needs the operator's account (FR-015).
+- **The sign-in service.** The device code is obtained from two vendor endpoints that are not documented (they are what the
+  vendor's CLI and desktop app call, found in the program). Needs the operator's account (FR-015): whether the service
+  answers a client other than the vendor's own, whether the code works with `CODELLM_DEVICE_CODE` on a second device, how
+  long it lasts, and whether the vendor's terms cover this use. If the service refuses other clients, the sign-in cannot be
+  done from the UI and the operator decides what replaces it; an API key is not an answer (FR-005).
 - **Authenticated traces.** What a run with a credential writes beyond the unauthenticated runs measured so far (a keystore
   file, sessions, caches), with `HOME`, `TMPDIR` and `XDG_CONFIG_HOME` moved (FR-006, FR-013).
 - **The approval round trip.** The messages of a real `can_use_tool` exchange and what the tool does with a refusal
