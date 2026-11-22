@@ -62,6 +62,7 @@ scenario('chat-two-vaults', { timeoutMs: 420_000 }, async (ctx) => {
   const blossom = await ctx.blossomServer()
   const group = await ctx.group({
     users: { anna: ['laptop'], ben: ['desktop'] },
+    irohRelay: true,
   })
   const anna = group.device('anna/laptop').page
   const ben = group.device('ben/desktop').page
