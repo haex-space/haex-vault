@@ -4,7 +4,10 @@
  * icon, and by the state of this device's copy what follows: the progress while it is coming,
  * "Herunterladen" above the automatic limit, the reason and a new attempt after a failure, or the
  * hint that the file is gone from the server. The sender's own files are on this device at once.
+ * A file on this device opens with the system's app on a computer (scenario 4), through the same
+ * notice about the decrypted copy as the file browser and the password manager.
  */
+import { toast } from 'vue-sonner'
 import type { ChatPeerAttachment } from '@bindings/ChatPeerAttachment'
 import { textControl } from '~/lib/chat/longText'
 import { formatFileSize } from '~/lib/passwords/format'
@@ -22,6 +25,8 @@ const emit = defineEmits<{
 
 const { t, te } = useI18n()
 const { errString } = useErrorString()
+const commands = useConversationCommands()
+const { capabilities, isAndroid } = useDeviceCapabilities()
 
 const control = computed(() =>
   props.own && props.file.state === null ? null : textControl(props.file),
@@ -36,6 +41,13 @@ const icon = computed(() => {
     return 'lucide:file-text'
   return 'lucide:file'
 })
+/** The copy is on this device; a phone has no app to hand a copy to yet (spec 044 R11). */
+const openable = computed(
+  () =>
+    (control.value === null || control.value.kind === 'toggle') &&
+    capabilities.value !== null &&
+    !isAndroid.value,
+)
 const name = computed(() => props.file.name ?? t('chat.file.unnamed'))
 const error = computed(() => {
   const reason = props.file.error
@@ -44,6 +56,23 @@ const error = computed(() => {
     return te(reason) ? t(reason) : t('chat.file.failed')
   return errString(reason)
 })
+
+/** The reasons of `chat_attachment_open_system` in words; anything else as usual. */
+function openSystemError(cause: unknown): string {
+  const reason = (cause as { reason?: unknown } | null)?.reason
+  if (reason === 'no_app') return t('chat.file.openSystemNoApp')
+  return errString(cause)
+}
+
+const {
+  noticing,
+  openAsync: openSystem,
+  confirmAsync: confirmOpenSystem,
+} = useOpenSystemNotice(
+  (id: string, confirmed, dontAskAgain) =>
+    commands.openSystemAsync(id, confirmed, dontAskAgain),
+  (cause) => toast.error(openSystemError(cause)),
+)
 </script>
 
 <template>
@@ -104,5 +133,21 @@ const error = computed(() => {
           : t('chat.file.download', { size: formatFileSize(file.size) })
       }}
     </UiButton>
+    <UiButton
+      v-if="openable"
+      type="button"
+      variant="ghost"
+      size="icon"
+      :aria-label="t('chat.file.openSystem')"
+      :tooltip="t('chat.file.openSystem')"
+      data-testid="chat-attachment-open-system"
+      @click="openSystem(file.id)"
+    >
+      <Icon name="lucide:external-link" class="h-4 w-4" />
+    </UiButton>
+    <FilesOpenSystemNotice
+      v-model:open="noticing"
+      @confirm="confirmOpenSystem"
+    />
   </div>
 </template>
