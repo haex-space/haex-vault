@@ -19,6 +19,11 @@ path = "src/bin/e2e_nostr_relay.rs"
 required-features = ["e2e"]
 
 [[bin]]
+name = "e2e_blossom"
+path = "src/bin/e2e_blossom.rs"
+required-features = ["e2e"]
+
+[[bin]]
 name = "e2e_bridge_client"
 path = "src/bin/e2e_bridge_client.rs"
 required-features = ["e2e"]
@@ -64,7 +69,8 @@ voice-qwen = ["voice", "llm-llamacpp", "llama-cpp-sys-2/mtmd"]
 e2e-audio = ["voice"]
 
 # End-to-end tests (spec 024, T078): builds `e2e_nostr_relay`, an in-process
-# `MockRelay` as a process the two application processes of a scenario share.
+# `MockRelay` as a process the two application processes of a scenario share, and (spec 072 T105)
+# `e2e_blossom`, the in-memory Blossom-Server of the file tests.
 # Not part of any default build.
 e2e = ["nostr-sdk/local-relay"]
 # Spec 044 (T007, research R4): a self-checking probe for the CI on Windows, macOS and Android. It

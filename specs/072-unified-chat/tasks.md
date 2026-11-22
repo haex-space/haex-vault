@@ -323,8 +323,8 @@ confirm (sent) (spec US7, quickstart A10).
 ## Phase 11: Polish & Cross-Cutting Concerns (PR I)
 
 - [ ] T104 Test the public Blossom-Servers for the preset list (quickstart M13): upload an encrypted 20 MB blob anonymously, `HEAD` limits, `DELETE`; put only passing servers into the presets next to the default Nostr-Relays (`src-tauri/src/sync/servers.rs` or `chat/peer/settings.rs`); if none passes, default `none` with the settings hint; record the results in research.md R12; then set the default of `chat.blossom.server` to the first passing preset (replaces the `none` default of T069)
-- [ ] T105 [P] `src-tauri/src/bin/e2e_blossom.rs` behind feature `e2e` (hyper optional dependency, in-memory, prints its address), and a helper in `scripts/e2e/lib/blossom.ts` like `nostr-relay.ts`
-- [ ] T106 E2E scenario `scripts/e2e/scenarios/chat-two-vaults.test.ts` (model `extension-peers.test.ts`): text both ways, a 5 MB file both ways, _read_ state, request accept (quickstart A13)
+- [x] T105 [P] `src-tauri/src/bin/e2e_blossom.rs` behind feature `e2e` (the in-memory `BlossomTestServer` of the unit tests, public with the feature; `hyper` is already a dependency; prints its address, port from `HAEX_E2E_BLOSSOM_PORT`), and a helper in `scripts/e2e/lib/blossom.ts` like `nostr-relay.ts`, as `ctx.blossomServer()`
+- [ ] T106 E2E scenario `scripts/e2e/scenarios/chat-two-vaults.test.ts` (model `extension-peers.test.ts`): text both ways, a long text as a file over the Blossom-Server, _read_ state (written, not yet run on CI); open: a 5 MB file (the file dialog cannot be driven), request accept (quickstart A13)
 - [ ] T107 [P] E2E scenario `scripts/e2e/scenarios/chat-group.test.ts` with three vaults (create, accept, message, leave)
 - [ ] T108 [P] Android e2e: notification on a new message while backgrounded (extend `android-notifications.test.ts`), download limit on metered network if the emulator can simulate it
 - [ ] T109 Update spec 060's "spätere Messenger-Spec" references to point at spec 072 in `specs/060-contact-sharing/spec.md`; set ADR 0024 to accepted

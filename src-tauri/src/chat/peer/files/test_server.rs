@@ -2,6 +2,9 @@
 //! free port of the loopback interface. It checks the kind 24242 events as BUD-01/02 ask (signature,
 //! `t`, `x`, `expiration`), deletes only for the uploading key, can refuse uploads over a size, and
 //! logs every request with its body for the privacy checks. It ends with the test's runtime.
+//!
+//! The end-to-end tests run it as a process (`e2e_blossom`, spec 072 T105), so the module is public
+//! with the feature `e2e`; it is not part of any other build.
 
 use std::collections::HashMap;
 use std::convert::Infallible;
@@ -25,7 +28,7 @@ use crate::sync::keys::hex;
 
 /// One request as the server saw it.
 #[derive(Debug, Clone)]
-pub(crate) struct Logged {
+pub struct Logged {
     pub method: String,
     pub path: String,
     pub headers: Vec<(String, String)>,
@@ -43,21 +46,26 @@ struct State {
 
 /// A running test server.
 #[derive(Clone)]
-pub(crate) struct BlossomTestServer {
+pub struct BlossomTestServer {
     pub url: String,
     state: Arc<Mutex<State>>,
 }
 
 impl BlossomTestServer {
-    pub(crate) async fn start() -> Self {
-        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
-        let port = listener.local_addr().expect("address").port();
+    pub async fn start() -> Self {
+        Self::start_on(0).await.expect("bind")
+    }
+
+    /// Starts on `port` of the loopback interface; 0 lets the system choose.
+    pub async fn start_on(port: u16) -> std::io::Result<Self> {
+        let listener = TcpListener::bind(("127.0.0.1", port)).await?;
+        let port = listener.local_addr()?.port();
         let server = Self {
             url: format!("http://127.0.0.1:{port}/"),
             state: Arc::default(),
         };
         tokio::spawn(serve(listener, server.clone()));
-        server
+        Ok(server)
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, State> {
@@ -65,13 +73,13 @@ impl BlossomTestServer {
     }
 
     /// Refuses uploads larger than `bytes` with `413` and `reason` as `X-Reason`.
-    pub(crate) fn limit(&self, bytes: u64, reason: &str) {
+    pub fn limit(&self, bytes: u64, reason: &str) {
         self.lock().max_size = Some((bytes, reason.to_owned()));
     }
 
     /// Flips a byte of the stored blob `sha256`, so that the bytes it serves are not the ones its
     /// name says.
-    pub(crate) fn tamper(&self, sha256: &str) {
+    pub fn tamper(&self, sha256: &str) {
         if let Some((blob, _)) = self.lock().blobs.get_mut(sha256) {
             if let Some(byte) = blob.last_mut() {
                 *byte ^= 1;
@@ -79,11 +87,11 @@ impl BlossomTestServer {
         }
     }
 
-    pub(crate) fn has(&self, sha256: &str) -> bool {
+    pub fn has(&self, sha256: &str) -> bool {
         self.lock().blobs.contains_key(sha256)
     }
 
-    pub(crate) fn log(&self) -> Vec<Logged> {
+    pub fn log(&self) -> Vec<Logged> {
         self.lock().log.clone()
     }
 

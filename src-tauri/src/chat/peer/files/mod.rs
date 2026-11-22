@@ -9,5 +9,5 @@ pub mod probe;
 pub mod store;
 pub mod transfers;
 
-#[cfg(test)]
-pub(crate) mod test_server;
+#[cfg(any(test, feature = "e2e"))]
+pub mod test_server;
