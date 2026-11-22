@@ -299,12 +299,13 @@ Precedent: the marketplace login (`marketplace/credentials.rs`), an entry of the
   never sees it.
 
 **Decision**: a module `providers/delegate_credential.rs` (or beside the adapter) with `FEATURE = "delegate"`,
-`CALLER = Caller::Internal { feature: FEATURE }`, one tag per vendor (`haex-delegate-abacusai`), and functions
-`save(db, vendor, kind, secret)`, `read(db, vendor) -> Credential | Missing | Syncing`, `delete(db, vendor)`. One entry per
-vendor per vault: the title is `Delegate: Abacus AI`, the secret is `password`, the kind is a custom field `kind`
-(`device_code`). A second entry created on another device before the sync arrives is resolved as the marketplace does: the
-newest `updated_at` is used, and the others are purged at the next save. The generic names are deliberate: the operator
-wants every delegate provider's credential there (Clarifications); only Abacus uses it in this spec.
+`CALLER = Caller::Internal { feature: FEATURE }`, one tag per vendor (`haex-delegate-abacusai`), and scope-aware functions
+`save(db, vendor, kind, secret, scope)`, `read(db, vendor, scope) -> Credential | Missing | Syncing`, and scoped deletion.
+The title is `Delegate: Abacus AI`, the secret is `password`, and the kind and scope are custom fields `kind` (`device_code`)
+and `device`. Portable credentials use scope `vault`; device-bound credentials use the installation ID. Concurrent duplicate
+entries in one scope resolve to newest `updated_at` and only same-scope duplicates are purged at the next save. A save on
+another device never replaces an existing device-bound credential. The generic names are deliberate: the operator wants
+every delegate provider's credential there (Clarifications); only Abacus uses it in this spec.
 
 ## 11. Testing without an account
 

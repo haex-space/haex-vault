@@ -97,9 +97,10 @@ Re-check after design: unchanged. No violation needs the Complexity Tracking tab
   build does not run on is reported as `start_failed` with the system's reason.
 - **D4 - Windows: RESOLVED.** The zip archive kind and the Windows keys are the last change; nothing of it can run in CI, so
   it is its own pull request with the operator's run (quickstart §9).
-- **D5 - Finding the credential entry: RESOLVED.** Filter the headers an Internal caller sees (its own owned entries) by tag;
-  no id on the provider row, so no schema change to a synced table. A duplicate from two devices is resolved by the newest
-  `updated_at` and purged at the next save (research §10).
+- **D5 - Finding the credential entry: RESOLVED.** Filter the headers an Internal caller sees (its own owned entries) by tag
+  and exact credential scope; no id on the provider row, so no schema change to a synced table. Duplicate entries are resolved
+  by newest `updated_at` within the same scope and purged only in that scope. Shared credentials use `vault`; device-bound
+  credentials use the installation ID, so connecting on another device preserves existing credentials (research §10).
 - **D6 - Permission posture: OPEN; release gate.** The adapter uses `--permission-mode supervise`, forwards every
   `can_use_tool` request to `request_approval`, never answers with a persistent variant (`allowAlways`, `allowYolo`, or rule
   variants), and refuses a mismatched mode in `system/init`. This does not prove that read-only tools reach the approval

@@ -77,20 +77,22 @@ macOS x64 archive to such a host and report the platform as unsupported.
 | title                 | `Delegate: Abacus AI`                                                                          |
 | `password`            | the secret: the device code the vendor's sign-in returned                                      |
 | custom field `kind`   | `device_code` (decides the environment variable, see below)                                    |
-| custom field `device` | the id of the HaexVault device the sign-in ran on (see "Device binding")                       |
+| custom field `device` | `vault` for a shared credential, or the installation ID for a device-bound credential (see "Device binding") |
 | tags                  | `haex-delegate-abacusai`                                                                       |
 
-- One entry per vendor per vault. The provider table likewise has at most one Abacus row per vault; see the duplicate-row
-  recovery rule in the command contract. `read` returns `Ready(kind, secret)`, `Missing` (no entry) or `Syncing` (the vault's sync
-  has not delivered it yet, from the deleted-row marker as the marketplace does).
+- One shared entry per vendor per vault when the credential is portable; otherwise one entry per installation. The provider
+  table still has at most one Abacus row per vault; see the duplicate-row recovery rule in the command contract. `read`
+  selects the exact scope and returns `Ready(kind, secret)`, `Missing` (no entry) or `Syncing` (the vault's sync has not
+  delivered it yet, from the deleted-row marker as the marketplace does). Saving on one installation never replaces another
+  installation's entry. Duplicate resolution is newest `updated_at` within the same scope. Disconnecting the provider is
+  vault-wide and removes every scope; deleting a duplicate provider row while another survives removes no credentials.
 - `kind` selects what the adapter sets after containment: `device_code` is `CODELLM_DEVICE_CODE=<secret>`. An API key is
   never stored or set (spec FR-005); `ABACUS_API_KEY` is removed from the host's environment by the vendor definition.
-- **Device binding** (open, quickstart §6): the sign-in sends a random UUID as `deviceId`
-  (`device` in the entry is HaexVault's own device id, kept inside the vault). If the vendor accepts the
-  code on other devices (expected, since the vendor's desktop app hands the same code to a CLI), `device` is informational and
-  the one entry serves every device. If it does not, the entry is read only on the device named in `device`, and another
-  device connects once more and replaces it (one entry per vault stays; the newest wins). The plan builds the first case and
-  keeps the field for the second.
+- **Device binding** (open, quickstart §6): the sign-in sends a random UUID as `deviceId`. The vendor definition records
+  whether the returned code is shared or device-bound, based on the operator measurement. A shared credential uses scope
+  `vault` and serves every device. A device-bound credential uses the installation ID as scope; device B's connection creates
+  its own entry and cannot replace device A's. Each adapter reads only its selected scope, and both records can coexist
+  after sync. Disconnecting the provider is a vault-wide action that deletes every scope.
 - The provider row of the vendor (`providers`, `kind = cli_delegate`, `adapter = "abacusai"`, `credentials = NULL`) exists once
   connected, so the model picker lists the backend; it holds no secret. Removing the tool or disconnecting deletes the entry and
   the row.
