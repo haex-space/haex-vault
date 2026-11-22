@@ -14,9 +14,9 @@
 //! A reset (T030) is wrapped here too, once, to the Nostr-Relays of the device's vault.
 //!
 //! So is a keep-alive (T038): on the session this device sends on to a device it still addresses
-//! ([`targets::addressed_vault`]), once nothing was sent on it for [`KEEP_ALIVE_MS`]. It never opens
-//! a session, never enters the outbox and is published once; only the run loop's timer sends one,
-//! never an arriving event, so two devices do not answer each other's keep-alives without end.
+//! ([`targets::addressed_vault`]), once nothing was sent on it for [`KEEP_ALIVE_MS`]. A received
+//! keep-alive gets one distinct response that never requests another response, so a fresh ratchet
+//! key is answered without waiting for the next daily timer.
 //!
 //! This is the only caller of [`wrap::wrap`] outside tests (`wrap_tests.rs` checks that).
 
@@ -297,7 +297,7 @@ impl Delivery {
             let (me, now) = (self.me.clone(), self.now());
             let sealed = self
                 .db
-                .write(move |tx| Ok(seal_keep_alive(tx, &me, &device, now)?))
+                .write(move |tx| Ok(seal_keep_alive(tx, &me, &device, now, false)?))
                 .await?;
             let Some(event) = sealed else {
                 continue;
@@ -316,6 +316,42 @@ impl Delivery {
             }
         }
         Ok(made)
+    }
+
+    /// Answers one keep-alive immediately, without creating an outbox row or another request.
+    pub(super) async fn send_keep_alive_reply(&self, device: [u8; 32]) -> Result<()> {
+        if !self.any_relay_connected().await {
+            return Ok(());
+        }
+        let (me, now) = (self.me.clone(), self.now());
+        let Some((event, relays)) = self
+            .db
+            .write(move |tx| {
+                let Some(vault) = targets::addressed_vault(tx, &me, &device)? else {
+                    return Ok(None);
+                };
+                let Some(event) = seal_keep_alive(tx, &me, &device, now, true)? else {
+                    return Ok(None);
+                };
+                let relays = targets::of(tx, &me, &vault)?.relays;
+                Ok((!relays.is_empty()).then_some((event, relays)))
+            })
+            .await?
+        else {
+            return Ok(());
+        };
+        self.use_relays(&relays).await;
+        let accepted = matches!(
+            self.client
+                .send_event(&event)
+                .to(relays.iter().map(String::as_str))
+                .await,
+            Ok(output) if !output.success.is_empty()
+        );
+        if !accepted {
+            log::info!("chat: no Nostr-Relay accepted a keep-alive response");
+        }
+        Ok(())
     }
 }
 
@@ -361,12 +397,20 @@ fn seal_keep_alive(
     me: &Me,
     device: &[u8; 32],
     now: i64,
+    reply: bool,
 ) -> Result<Option<Event>> {
     let device_hex = hex(device);
-    if !keep_alive_due(tx, me, &device_hex, now)? {
+    if targets::addressed_vault(tx, me, device)?.is_none()
+        || (!reply && !keep_alive_due(tx, me, &device_hex, now)?)
+    {
         return Ok(None);
     }
-    let plaintext = Plaintext::keep_alive().encode()?;
+    let plaintext = if reply {
+        Plaintext::keep_alive_reply()
+    } else {
+        Plaintext::keep_alive()
+    }
+    .encode()?;
     let Some(rumor) = session::encrypt(tx, me, &device_hex, plaintext.as_bytes(), now)? else {
         return Ok(None);
     };

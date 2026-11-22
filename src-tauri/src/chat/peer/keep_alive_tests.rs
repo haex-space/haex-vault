@@ -2,7 +2,8 @@
 //! user message, only time passes. A copy of a device's key state that an attacker advances with
 //! every wrap to the device keeps decrypting until the device sent a ratchet key made after the
 //! copy and the peer answered it; from then on (`renewed_at` later than the copy) it decrypts
-//! nothing. That happens within 48 hours, and no device sends more than one keep-alive a day.
+//! nothing. That happens within 48 hours; requests are answered once, and replies do not create a
+//! keep-alive loop.
 
 use std::collections::HashSet;
 use std::time::Duration;
@@ -127,6 +128,33 @@ async fn keep_alives_end_a_copied_key_state_within_48_hours_and_come_once_a_day(
     ben.wait_for(&anna, "delivered", |m| delivered(m, "zurück"))
         .await;
 
+    // A keep-alive gets an immediate bounded response even though Ben sent recently and is not
+    // due for his own proactive request. This prevents a fresh ratchet key waiting at the daily
+    // gate; the distinct reply kind does not ask Anna to answer again.
+    let (anna_check, ben_check) = (anna.delivery().await, ben.delivery().await);
+    let (at_ben, at_anna) = (last_received(&ben, &anna), last_received(&anna, &ben));
+    let ben_sent_before = sessions(&ben, &anna)[0]
+        .last_sent_at
+        .expect("Ben just sent");
+    ben.clock.advance(1);
+    anna.clock
+        .advance(crate::chat::peer::ratchet::KEEP_ALIVE_MS);
+    assert_eq!(
+        anna_check.send_keep_alives().await.expect("Anna's request"),
+        1
+    );
+    wait_received(&ben, &anna, at_ben).await;
+    wait_received(&anna, &ben, at_anna).await;
+    assert!(
+        sessions(&ben, &anna)[0]
+            .last_sent_at
+            .expect("Ben's response")
+            > ben_sent_before,
+        "Ben answers before his daily keep-alive is due"
+    );
+    ben.clock
+        .advance(crate::chat::peer::ratchet::KEEP_ALIVE_MS - 1);
+
     let archive = Client::builder().build();
     archive.add_relay(url.as_str()).await.expect("relay");
     archive.connect().and_wait(Duration::from_secs(5)).await;
@@ -139,7 +167,6 @@ async fn keep_alives_end_a_copied_key_state_within_48_hours_and_come_once_a_day(
     assert!(!copy.sessions.is_empty());
 
     // Time passes with both vaults open; the run loop's check is driven step by step.
-    let (anna_check, ben_check) = (anna.delivery().await, ben.delivery().await);
     let (mut from_anna, mut from_ben) = (0, 0);
     let mut renewed_after = None;
     let (mut copy_decrypted, mut after_renewal) = (0, 0);
@@ -191,7 +218,7 @@ async fn keep_alives_end_a_copied_key_state_within_48_hours_and_come_once_a_day(
     assert!(after_renewal > 0, "a keep-alive after the renewal");
     for (who, sent) in [("Anna", from_anna), ("Ben", from_ben)] {
         assert!(
-            (3..=4).contains(&sent),
+            (2..=3).contains(&sent),
             "{who} sent {sent} keep-alives in 72 hours"
         );
     }

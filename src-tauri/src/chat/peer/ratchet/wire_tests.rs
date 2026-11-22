@@ -63,6 +63,16 @@ fn the_keep_alive_plaintext_is_kind_0_with_empty_content() {
 }
 
 #[test]
+fn a_keep_alive_reply_is_distinct_and_known() {
+    let encoded = Plaintext::keep_alive_reply().encode().expect("encode");
+    assert_eq!(encoded.as_str(), r#"{"kind":2,"content":""}"#);
+    assert_eq!(
+        Plaintext::decode(encoded.as_bytes()).expect("decode"),
+        Plaintext::keep_alive_reply()
+    );
+}
+
+#[test]
 fn a_plaintext_of_another_kind_is_refused_both_ways() {
     let other = Plaintext {
         kind: 1,
@@ -74,7 +84,7 @@ fn a_plaintext_of_another_kind_is_refused_both_ways() {
         Err(Drop::UnknownKind)
     );
     assert_eq!(Plaintext::decode(b"{"), Err(Drop::Malformed));
-    for kind in [24120, 24121] {
+    for kind in [24120, 24121, 2] {
         let known = Plaintext {
             kind,
             content: "{}".into(),
