@@ -35,6 +35,9 @@ test('open-folder sync rules require current, successful and eligible folder fac
   }
   const imports = {
     '~/composables/useFiles': { asFilesError: () => null },
+    '~/composables/useErrorString': {
+      useErrorString: () => ({ errString: String }),
+    },
     '~/lib/files/clipboard': clipboard,
     '~/lib/files/encrypted': encrypted,
     '~/lib/files/menus': menus,

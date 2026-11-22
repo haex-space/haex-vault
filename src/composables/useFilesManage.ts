@@ -5,6 +5,7 @@ import type { OpenApp } from '@bindings/OpenApp'
 import type { SourceRef } from '@bindings/SourceRef'
 import type { TransferOp } from '@bindings/TransferOp'
 import { asFilesError } from '~/composables/useFiles'
+import { useErrorString } from '~/composables/useErrorString'
 import {
   clickEntry,
   type ClickKeys,
@@ -73,6 +74,7 @@ export function useFilesManage(options: {
 }) {
   const { source, path, shown, tabId, reload, activate } = options
   const { t } = useI18n()
+  const { errString } = useErrorString()
   const {
     statAsync,
     encryptedNoticeShownAsync,
@@ -203,7 +205,7 @@ export function useFilesManage(options: {
 
   function errorText(cause: unknown): string {
     const code = asFilesError(cause)?.code
-    return code ? t(`files.error.${code}`) : String(cause)
+    return code ? t(`files.error.${code}`) : errString(cause)
   }
 
   /** Starts a transfer; a refusal shows as a message. Whether it started. */
