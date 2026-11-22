@@ -194,7 +194,6 @@ pub async fn passwords_attachment_open_system(
     }
     #[cfg(desktop)]
     {
-        use tauri_plugin_opener::OpenerExt;
         // Arms the clean-up on close also when the file browser never ran in this session.
         files.forget_on_close(state.gate());
         let db = crate::state_utils::active_database(&state)?;
@@ -212,9 +211,7 @@ pub async fn passwords_attachment_open_system(
         let Some(path) = copy else {
             return Ok(OpenSystemOutcome::NeedsNotice);
         };
-        if let Err(error) = app.opener().open_path(path.to_string_lossy(), None::<&str>) {
-            // The opener's error can quote the path (FR-013).
-            let _ = error;
+        if crate::files::open_with::open_copy(&app, &path, None).is_err() {
             log::warn!("passwords: the system could not open an attachment");
             crate::passwords::attachment_view::remove_copy(&path).await;
             return Err(HaexError::InvalidInput {

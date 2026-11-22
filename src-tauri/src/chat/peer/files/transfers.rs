@@ -6,6 +6,7 @@
 //! (`chat_attachment_files_no_sync`).
 
 use std::io::{self, Cursor, Read};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -624,6 +625,40 @@ impl ChatFiles {
                 name: "chat text file".into(),
             })?;
         String::from_utf8(bytes).map_err(|_| invalid("chat.file.damaged"))
+    }
+
+    /// A decrypted copy of the file of attachment `id` for the system's app, named as the sender
+    /// named it (see [`ChatFileStore::copy_for_app`]); `None` while the notice has to be shown first.
+    pub async fn copy_for_app(
+        &self,
+        id: &str,
+        root: &Path,
+        confirmed: bool,
+        dont_ask_again: bool,
+    ) -> Result<Option<PathBuf>> {
+        let attachment_id = id.to_owned();
+        let name = self
+            .db
+            .read(move |r| {
+                r.query_row(
+                    "SELECT name FROM chat_attachments WHERE id = ?1 AND kind = 'file'",
+                    params![attachment_id],
+                    |row| row.get::<_, Option<String>>(0),
+                )
+            })
+            .await?
+            .ok_or_else(|| HaexError::NotFound {
+                name: "chat attachment".into(),
+            })?;
+        self.store
+            .copy_for_app(
+                id,
+                name.as_deref().unwrap_or_default(),
+                root,
+                confirmed,
+                dont_ask_again,
+            )
+            .await
     }
 
     /// Downloads, checks, decrypts and keeps the file of attachment `id` (FR-032). The bytes go into

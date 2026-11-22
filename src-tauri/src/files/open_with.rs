@@ -814,6 +814,34 @@ pub fn open_with(file_name: &str, path: &std::path::Path, id: &str) -> Result<()
     platform::open(file_name, path, id)
 }
 
+/// The last step of "Mit System-App öffnen", the same for the file browser (spec 044 FR-014), the
+/// password manager (spec 058 FR-010) and the chat (spec 072 US3): hands the local copy at `path`
+/// to the app `with_app` names (`files_open_apps`), or to the system's default app. Making the copy,
+/// the notice about it and removing it are the caller's part. The error carries nothing: the
+/// opener's text can quote the path (spec 048 FR-013).
+#[cfg(desktop)]
+#[allow(clippy::result_unit_err)]
+pub fn open_copy(
+    app: &tauri::AppHandle,
+    path: &std::path::Path,
+    with_app: Option<&str>,
+) -> Result<(), ()> {
+    use tauri_plugin_opener::OpenerExt;
+    match with_app.filter(|id| !id.is_empty()) {
+        Some(id) => {
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            open_with(&name, path, id)
+        }
+        None => app
+            .opener()
+            .open_path(path.to_string_lossy(), None::<&str>)
+            .map_err(|_| ()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{expand_env, split_command};

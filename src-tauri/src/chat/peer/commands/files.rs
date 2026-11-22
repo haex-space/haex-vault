@@ -6,7 +6,7 @@ use std::io::Read;
 use std::sync::Arc;
 
 use serde::Deserialize;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
 use crate::chat::peer::files::transfers::{ChatFiles, Picked, Source};
@@ -14,6 +14,9 @@ use crate::chat::peer::session::{PeerRegistry, Session};
 use crate::error::{HaexError, Result};
 use crate::files::kind::mime_for;
 use crate::files::picked::{self, PickedFile};
+use crate::files::state::FilesState;
+use crate::passwords::commands::attachments::OpenSystemOutcome;
+use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -25,6 +28,18 @@ pub struct DownloadArgs {
 #[serde(rename_all = "camelCase")]
 pub struct TextArgs {
     pub attachment_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenSystemArgs {
+    pub attachment_id: String,
+    /// The user confirmed the notice about the decrypted copy.
+    #[serde(default)]
+    pub confirmed: bool,
+    /// "Nicht mehr fragen" was ticked in the notice (this device only).
+    #[serde(default)]
+    pub dont_ask_again: bool,
 }
 
 pub(super) fn session(app: &AppHandle) -> Result<Arc<Session>> {
@@ -118,4 +133,53 @@ pub async fn chat_attachment_text(app: AppHandle, args: TextArgs) -> Result<Stri
     })?;
     let session = session(&app)?;
     chat_files(&session)?.text(&id.to_string()).await
+}
+
+/// "Mit System-App öffnen" for a received or sent file (spec 072 US3 scenario 4): a decrypted copy
+/// in a folder of its own, named as the sender named the file, handed to the system's app by the
+/// same last step as the file browser and the password manager. The first time the notice about the
+/// decrypted copy comes first (`needsNotice`); the copies go when the vault closes and after a crash.
+/// Not on mobiles (spec 044 R11).
+#[tauri::command]
+pub async fn chat_attachment_open_system(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    files: State<'_, FilesState>,
+    args: OpenSystemArgs,
+) -> Result<OpenSystemOutcome> {
+    #[cfg(mobile)]
+    {
+        let _ = (app, state, files, args);
+        Err(HaexError::InvalidInput {
+            reason: "unsupported".to_owned(),
+        })
+    }
+    #[cfg(desktop)]
+    {
+        let id = Uuid::parse_str(&args.attachment_id).map_err(|_| HaexError::InvalidInput {
+            reason: "attachmentId must be a valid UUID".into(),
+        })?;
+        // Arms the clean-up on close also when the file browser never ran in this session.
+        files.forget_on_close(state.gate());
+        let session = session(&app)?;
+        let copy = chat_files(&session)?
+            .copy_for_app(
+                &id.to_string(),
+                &files.opened_encrypted,
+                args.confirmed,
+                args.dont_ask_again,
+            )
+            .await?;
+        let Some(path) = copy else {
+            return Ok(OpenSystemOutcome::NeedsNotice);
+        };
+        if crate::files::open_with::open_copy(&app, &path, None).is_err() {
+            log::warn!("chat: the system could not open a file");
+            crate::passwords::attachment_view::remove_copy(&path).await;
+            return Err(HaexError::InvalidInput {
+                reason: "no_app".to_owned(),
+            });
+        }
+        Ok(OpenSystemOutcome::Opened)
+    }
 }

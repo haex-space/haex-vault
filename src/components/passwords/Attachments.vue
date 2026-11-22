@@ -131,9 +131,6 @@ async function downloadAsync(attachment: AttachmentView) {
 /** "Mit System-App öffnen" exists where the file browser offers it (not on Android, FR-009). */
 const systemApps = computed(() => !isAndroid.value)
 /** The attachment waiting for the notice about the decrypted copy. */
-const pendingOpen = ref<AttachmentView | null>(null)
-const noticing = ref(false)
-
 /** The reasons of `passwords_attachment_open_system` in words; anything else as usual. */
 function openSystemError(cause: unknown): string {
   const reason = (cause as { kind?: unknown; reason?: unknown } | null)?.reason
@@ -143,25 +140,15 @@ function openSystemError(cause: unknown): string {
   return errString(cause)
 }
 
-async function openSystemAsync(attachment: AttachmentView) {
-  try {
-    const outcome = await attachmentOpenSystemAsync(attachment.id)
-    if (outcome !== 'needsNotice') return
-    pendingOpen.value = attachment
-    noticing.value = true
-  } catch (cause) {
-    toast.error(openSystemError(cause))
-  }
-}
-
-async function confirmOpenAsync(dontAskAgain: boolean) {
-  const attachment = pendingOpen.value
-  pendingOpen.value = null
-  if (!attachment) return
-  await attachmentOpenSystemAsync(attachment.id, true, dontAskAgain).catch(
-    (cause: unknown) => toast.error(openSystemError(cause)),
-  )
-}
+const {
+  noticing,
+  openAsync: openSystemAsync,
+  confirmAsync: confirmOpenAsync,
+} = useOpenSystemNotice(
+  (attachment: AttachmentView, confirmed, dontAskAgain) =>
+    attachmentOpenSystemAsync(attachment.id, confirmed, dontAskAgain),
+  (cause) => toast.error(openSystemError(cause)),
+)
 
 function openImage(attachment: AttachmentView) {
   const index = images.value.findIndex((image) => image.id === attachment.id)
