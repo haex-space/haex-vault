@@ -92,7 +92,8 @@ pub fn own_event(me: &Me, account: &Account, start_key_made_at: i64, now: i64) -
 
 /// Checks a record fetched from a Nostr-Relay at `now` (milliseconds) and stores it for its device.
 /// A record with another ratchet identity key than the stored one means the device started anew:
-/// the sessions of this installation with it are deleted.
+/// the sessions of this installation with it are deleted. An accepted record ends a reset's request
+/// to fetch it again (`refetch_record`).
 pub fn accept(
     tx: &mut CrdtTransaction<'_>,
     me: &Me,
@@ -134,6 +135,12 @@ pub fn accept(
         }
     }
     store::put_record(tx, &row)?;
+    // A reset asked for this fresh record (spec 095 T030).
+    let mut peer = store::peer(tx, me.installation, &peer_device)?;
+    if peer.refetch_record {
+        peer.refetch_record = false;
+        store::put_peer(tx, me.installation, &peer_device, &peer)?;
+    }
     Ok(Ok(row))
 }
 

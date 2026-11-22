@@ -5,7 +5,13 @@
 //! opened from the device's chat key record when there is none (fetched from its Nostr-Relays when
 //! no usable one is stored), and encrypting, saving the session and storing the wrap happen in one
 //! write transaction ([`seal`]). A device without a usable record gets nothing, never a wrap under
-//! its device key alone; it is tried again with the next attempt at the row.
+//! its device key alone; it is tried again with the next attempt at the row. After a reset from a
+//! device its record is fetched again before a session is opened with it (`refetch_record`).
+//!
+//! A resend (T031) first fetches the record of each device on whose session nothing was ever
+//! received; when the record changed, the sessions that never received go and a new one is opened.
+//!
+//! A reset (T030) is wrapped here too, once, to the Nostr-Relays of the device's vault.
 //!
 //! This is the only caller of [`wrap::wrap`] outside tests (`wrap_tests.rs` checks that).
 
@@ -15,10 +21,10 @@ use vodozemac::Curve25519PublicKey;
 
 use super::{invalid, Delivery, Published};
 use crate::chat::peer::outbox::{self, Entry, FailReason};
-use crate::chat::peer::ratchet::wire::Plaintext;
-use crate::chat::peer::ratchet::{session, store, RATCHET_KIND};
+use crate::chat::peer::ratchet::wire::{self, Plaintext};
+use crate::chat::peer::ratchet::{reset, session, store, RATCHET_KIND, RESET_KIND};
 use crate::chat::peer::session::Me;
-use crate::chat::peer::targets::Target;
+use crate::chat::peer::targets::{self, Target};
 use crate::chat::peer::wrap;
 use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
@@ -64,7 +70,10 @@ impl Delivery {
         if accepted && !missing {
             Published::Accepted
         } else {
-            Published::NotYet(error)
+            Published::NotYet {
+                error,
+                none_accepted: missing && !accepted,
+            }
         }
     }
 
@@ -84,7 +93,7 @@ impl Delivery {
             Some(sealed) if sealed.accepted_at.is_some() => return Ok(ForDevice::Accepted),
             Some(sealed) => sealed.wrap,
             None => {
-                if !self.can_open(&device_hex).await?
+                if self.needs_record(&device_hex).await?
                     && self.fetch_record(device, relays).await?.is_none()
                 {
                     return Ok(ForDevice::NoRecord);
@@ -135,22 +144,124 @@ impl Delivery {
         Ok(ForDevice::Accepted)
     }
 
-    /// Whether a session with `device` (hex) exists or one can be opened from a stored record.
-    async fn can_open(&self, device: &str) -> Result<bool> {
+    /// Whether the record of `device` (hex) must be fetched before sealing for it: there is no
+    /// session, and no usable stored record or a reset asked for a fresh one.
+    async fn needs_record(&self, device: &str) -> Result<bool> {
         let (installation, device, now) = (self.me.installation, device.to_owned(), self.now());
         self.db
             .read(move |r| {
-                Ok(!store::sessions(r, installation, &device)?.is_empty()
-                    || usable_record(r, &device, now)?.is_some())
+                Ok(store::sessions(r, installation, &device)?.is_empty()
+                    && (store::peer(r, installation, &device)?.refetch_record
+                        || usable_record(r, &device, now)?.is_none()))
             })
             .await
+    }
+
+    /// Before a resend of `entry`: fetches the record of every device of its vaults on whose
+    /// session to send on nothing was ever received; when the record's keys changed, the sessions
+    /// that never received are deleted, so the attempt opens a new one from the fetched record.
+    pub(super) async fn refresh_quiet_records(&self, entry: &Entry) -> Result<()> {
+        for vault in &entry.pending {
+            let (me, for_vault) = (self.me.clone(), vault.clone());
+            let target = self
+                .db
+                .read(move |r| Ok(targets::of(r, &me, &for_vault)?))
+                .await?;
+            for device in &target.devices {
+                let (installation, device_hex) = (self.me.installation, hex(device));
+                let for_device = device_hex.clone();
+                let before = self
+                    .db
+                    .read(move |r| {
+                        let quiet = store::sessions(r, installation, &for_device)?
+                            .first()
+                            .is_some_and(|row| row.last_received_at.is_none());
+                        Ok(quiet.then(|| store::record(r, &for_device)).transpose()?)
+                    })
+                    .await?;
+                let Some(before) = before else {
+                    continue;
+                };
+                // Without the record the resend goes on the session it has.
+                let after = match self.fetch_record(device, &target.relays).await {
+                    Ok(Some(after)) => after,
+                    Ok(None) => continue,
+                    Err(error) => {
+                        log::info!("chat: no record fetched before a resend: {error}");
+                        continue;
+                    }
+                };
+                let changed = before.is_none_or(|before| {
+                    before.identity_key != after.identity_key || before.start_key != after.start_key
+                });
+                if changed {
+                    self.db
+                        .write(move |tx| {
+                            for row in store::sessions(tx, installation, &device_hex)? {
+                                if row.last_received_at.is_none() {
+                                    store::delete_session(
+                                        tx,
+                                        installation,
+                                        &device_hex,
+                                        &row.session_id,
+                                    )?;
+                                }
+                            }
+                            Ok(())
+                        })
+                        .await?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Sends `device` a reset, once, to the Nostr-Relays of its vault; when none accepts it, the
+    /// next undecryptable event from the device may send one again.
+    pub(super) async fn send_reset(&self, device: [u8; 32]) -> Result<()> {
+        let me = self.me.clone();
+        let relays = self
+            .db
+            .read(move |r| {
+                Ok(match targets::vault_of_device(r, &me, &device)? {
+                    Some(vault) => targets::of(r, &me, &vault)?.relays,
+                    None => Vec::new(),
+                })
+            })
+            .await?;
+        let mut accepted = false;
+        if !relays.is_empty() {
+            self.use_relays(&relays).await;
+            let event = wrap::wrap(
+                RESET_KIND,
+                &wire::reset_content(),
+                &self.me.keys.device_secret,
+                &device,
+                self.now(),
+            )?;
+            accepted = matches!(
+                self.client
+                    .send_event(&event)
+                    .to(relays.iter().map(String::as_str))
+                    .await,
+                Ok(output) if !output.success.is_empty()
+            );
+        }
+        if !accepted {
+            let me = self.me.clone();
+            self.db
+                .write(move |tx| Ok(reset::not_sent(tx, &me, &device)?))
+                .await?;
+        }
+        Ok(())
     }
 }
 
 /// Encrypts the event of `entry` for `device` on its session, opened from the stored record when
 /// there is none, wraps it and stores the wrap with the row; answers the wrap, or `None` when there
-/// is neither a session nor a usable record. Runs in one write transaction, so the advanced session
-/// and the stored wrap are saved together or not at all. A wrap stored already is answered as it is.
+/// is neither a session nor a usable record (a record a reset asked to fetch again is not usable
+/// before that). Runs in one write transaction, so the advanced session and the stored wrap are
+/// saved together or not at all. A wrap stored already is answered as it is.
 pub(crate) fn seal(
     tx: &mut CrdtTransaction<'_>,
     me: &Me,
@@ -163,6 +274,9 @@ pub(crate) fn seal(
         return Ok(Some(sealed.wrap));
     }
     if store::sessions(tx, me.installation, &device_hex)?.is_empty() {
+        if store::peer(tx, me.installation, &device_hex)?.refetch_record {
+            return Ok(None);
+        }
         let Some((identity, start)) = usable_record(tx, &device_hex, now)? else {
             return Ok(None);
         };

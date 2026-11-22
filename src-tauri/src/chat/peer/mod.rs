@@ -45,3 +45,11 @@ mod soak_tests;
 #[cfg(test)]
 #[path = "notes_tests.rs"]
 mod notes_tests;
+
+#[cfg(test)]
+#[path = "reset_tests.rs"]
+mod reset_tests;
+
+#[cfg(test)]
+#[path = "relay_interference_tests.rs"]
+mod relay_interference_tests;

@@ -197,6 +197,7 @@ mod receiving {
             pending: Vec::new(),
             awaiting: Vec::new(),
             attempts: 0,
+            resends: 0,
             created_at: now,
         };
         from.db
@@ -380,5 +381,116 @@ mod receiving {
             1,
             "Anna's own wrap opens it"
         );
+    }
+
+    /// Every due row of `device` counted as accepted by a Nostr-Relay at `now`.
+    fn accept_due(device: &ChatDevice, now: i64) {
+        device
+            .db
+            .write_blocking(move |tx| {
+                for entry in outbox::due(tx, now)? {
+                    let attempt = outbox::Attempt {
+                        accepted: entry.pending.clone(),
+                        ..outbox::Attempt::default()
+                    };
+                    outbox::record(tx, &entry, &attempt, now)?;
+                }
+                Ok(())
+            })
+            .expect("accepted");
+    }
+
+    /// `device`'s due resends started (wraps dropped, vaults pending again), as the pump does.
+    fn start_resends(device: &ChatDevice, now: i64) {
+        let me = device.me.clone();
+        device
+            .db
+            .write_blocking(move |tx| {
+                for entry in outbox::due(tx, now)? {
+                    assert!(entry.is_resend(), "only resends are due");
+                    outbox::start_resend(tx, &me, &entry)?;
+                }
+                Ok(())
+            })
+            .expect("resend");
+    }
+
+    fn outbox_rows(device: &ChatDevice) -> usize {
+        device
+            .db
+            .read_blocking(|r| Ok(outbox::due(r, i64::MAX - 1)?.len()))
+            .expect("outbox")
+    }
+
+    /// What `device`'s delivery would acknowledge after receiving `wraps`: its event ids per vault.
+    async fn acknowledged(device: &ChatDevice, wraps: Vec<Event>) -> Vec<String> {
+        let delivery = device.delivery().await;
+        delivery
+            .receive_batch(wraps.into_iter().map(|wrap| (wrap, None)).collect())
+            .await
+            .expect("batch");
+        let receipts = std::mem::take(
+            &mut *delivery
+                .receipts
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        );
+        receipts.into_values().flatten().collect()
+    }
+
+    /// Spec 095 T027: a lost receipt makes the sender send again after a day; the receiver stores
+    /// nothing new, acknowledges again, and the sender's row ends with that receipt.
+    #[tokio::test]
+    async fn a_receipt_that_never_arrives_is_answered_by_a_resend_that_is_acknowledged_again() {
+        let (anna, ben) = two_vaults(&[]).await;
+        anna.introduce(&ben);
+        ben.introduce(&anna);
+        anna.send(&ben, "Bist du da?");
+        let first = sealed_for(&anna, &ben);
+        assert_eq!(first.len(), 1);
+        accept_due(&anna, anna.clock.now());
+        assert_eq!(acknowledged(&ben, first).await.len(), 1, "acknowledged");
+        // That receipt is lost: the delivery holding it is gone.
+
+        anna.clock.advance(DAY_MS);
+        ben.clock.advance(DAY_MS);
+        start_resends(&anna, anna.clock.now());
+        let resent = sealed_for(&anna, &ben);
+        assert_eq!(resent.len(), 1, "encrypted again");
+        accept_due(&anna, anna.clock.now());
+        let again = acknowledged(&ben, resent).await;
+        assert_eq!(again.len(), 1, "acknowledged again");
+        assert_eq!(ben.messages_with(&anna).len(), 1, "nothing new stored");
+
+        let delivery = ben.delivery().await;
+        delivery
+            .receipts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(anna.me.vault_hex.clone(), again);
+        delivery.flush_receipts().await.expect("queued");
+        let receipt = sealed_for(&ben, &anna);
+        assert_eq!(receipt.len(), 1);
+        assert_eq!(outbox_rows(&anna), 1);
+        receive(&anna, receipt).await;
+        assert_eq!(outbox_rows(&anna), 0, "the receipt ends the row");
+    }
+
+    /// Spec 095 T027: a copy within 12 hours (the one another own device stored and acknowledged)
+    /// is not acknowledged again.
+    #[tokio::test]
+    async fn a_copy_within_twelve_hours_is_not_acknowledged_again() {
+        let (anna, ben) = two_vaults(&[]).await;
+        anna.introduce(&ben);
+        anna.send(&ben, "Bist du da?");
+        let first = sealed_for(&anna, &ben);
+        accept_due(&anna, anna.clock.now());
+        assert_eq!(acknowledged(&ben, first).await.len(), 1);
+
+        start_resends(&anna, i64::MAX - 1);
+        let copy = sealed_for(&anna, &ben);
+        ben.clock.advance(11 * 60 * 60 * 1000);
+        assert!(acknowledged(&ben, copy).await.is_empty());
+        assert_eq!(ben.messages_with(&anna).len(), 1);
     }
 }

@@ -23,7 +23,7 @@ use zeroize::Zeroizing;
 
 use super::store::{self, SessionRow};
 use super::wire::RatchetRumor;
-use super::{account, MAX_SESSIONS};
+use super::{account, reset, MAX_SESSIONS};
 use crate::chat::peer::session::Me;
 use crate::error::{HaexError, Result};
 
@@ -97,7 +97,7 @@ impl Decrypted {
         if self.opened {
             keep_at_most(tx, me, &self.row.peer_device, &self.row.session_id)?;
         }
-        Ok(())
+        reset::recovered(tx, installation, &self.row.peer_device, self.row.created_at)
     }
 }
 

@@ -383,7 +383,9 @@ pub fn set_muted(tx: &mut CrdtTransaction<'_>, id: Uuid, muted: bool) -> Result<
 }
 
 /// Deletes a conversation of any kind with everything that belongs to it, on every own device
-/// through the sync (FR-008); false when there is none. Leaving a group first is the caller's job
+/// through the sync (FR-008); false when there is none. This device's outbox rows of it and their
+/// stored wraps go too; another own device drops its rows at their next resend, when it finds the
+/// message gone. Leaving a group first is the caller's job
 /// (US4).
 pub fn delete(tx: &mut CrdtTransaction<'_>, id: Uuid) -> Result<bool> {
     let Some(kind) = kind_of(tx, id)? else {
@@ -394,6 +396,10 @@ pub fn delete(tx: &mut CrdtTransaction<'_>, id: Uuid) -> Result<bool> {
     }
     let thread = id.to_string();
     for sql in [
+        // This device stops sending it (spec 095 T034); the outbox is device-local.
+        "DELETE FROM chat_outbox_sealed_no_sync WHERE outbox_id IN \
+           (SELECT id FROM chat_outbox_no_sync WHERE thread_id = ?1)",
+        "DELETE FROM chat_outbox_no_sync WHERE thread_id = ?1",
         "DELETE FROM chat_deliveries WHERE message_id IN \
            (SELECT id FROM chat_peer_messages WHERE thread_id = ?1)",
         "DELETE FROM chat_attachments WHERE message_id IN \

@@ -32,7 +32,7 @@ impl Delivery {
         self.keep_record().await
     }
 
-    async fn any_relay_connected(&self) -> bool {
+    pub(super) async fn any_relay_connected(&self) -> bool {
         self.client
             .relays()
             .await

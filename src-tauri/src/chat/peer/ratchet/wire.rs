@@ -78,6 +78,24 @@ impl RatchetRumor {
     }
 }
 
+/// The content of a `chat.reset` rumor.
+pub fn reset_content() -> String {
+    format!("{{\"v\":{VERSION}}}")
+}
+
+/// Checks a `chat.reset` rumor's content: `{ "v": 1 }` and nothing else.
+pub fn check_reset(text: &str) -> std::result::Result<(), Drop> {
+    let json: serde_json::Value = serde_json::from_str(text).map_err(|_| Drop::Malformed)?;
+    let object = json.as_object().ok_or(Drop::Malformed)?;
+    if object.get("v").and_then(serde_json::Value::as_u64) != Some(u64::from(VERSION)) {
+        return Err(Drop::UnknownVersion);
+    }
+    if object.len() != 1 {
+        return Err(Drop::Malformed);
+    }
+    Ok(())
+}
+
 /// What a ratchet message encrypts.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

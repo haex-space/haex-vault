@@ -324,6 +324,59 @@ async fn deleting_removes_the_conversation_with_its_rows_and_agent_commands_neve
     assert!(!again);
 }
 
+/// Spec 095 T034: deleting a conversation ends sending its events from this device.
+#[tokio::test]
+async fn deleting_a_conversation_removes_its_outbox_rows_and_stored_wraps() {
+    use crate::chat::peer::outbox::{self, Rumor};
+
+    let vault = card_vault();
+    let (own, ben, _) = with_ben(&vault).await;
+    let direct = open(&vault, &own, &ben, 1);
+    let other = open(&vault, &own, &hex(&[7; 32]), 1);
+    let wrap = {
+        let keys = keys::DeviceKeys::generate();
+        crate::chat::peer::wrap::wrap(
+            nostr::event::Kind::Custom(24122),
+            "{}",
+            &keys.device_secret,
+            &keys.device_pubkey,
+            1_000,
+        )
+        .expect("wrap")
+    };
+    vault
+        .db
+        .write_blocking(move |tx| {
+            let rumor = Rumor {
+                kind: 24120,
+                content: "{}".into(),
+            };
+            for (id, thread) in [("gone", direct), ("kept", other)] {
+                outbox::enqueue(tx, id, &thread.to_string(), None, &rumor, &[], &[], 1)?;
+                outbox::store_sealed(tx, id, "d", &wrap)?;
+            }
+            Ok(())
+        })
+        .expect("outbox");
+
+    vault
+        .db
+        .write_blocking(move |tx| Ok(delete(tx, direct)?))
+        .expect("delete");
+    let left: Vec<String> = vault
+        .db
+        .read_blocking(|r| {
+            r.query_map(
+                "SELECT id FROM chat_outbox_no_sync UNION ALL \
+                 SELECT outbox_id FROM chat_outbox_sealed_no_sync",
+                &[],
+                |row| row.get(0),
+            )
+        })
+        .expect("rows");
+    assert_eq!(left, ["kept", "kept"]);
+}
+
 #[tokio::test]
 async fn deleting_an_agent_conversation_goes_through_the_agent_storage() {
     let vault = card_vault();
