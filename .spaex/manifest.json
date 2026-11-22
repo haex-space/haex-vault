@@ -8,7 +8,7 @@
         "com.github.haexmas.atoms.coding-guideline-rust",
         "com.github.haexmas.atoms.general-coding",
         "com.github.haexmas.atoms.graphify-first-authoring",
-        "com.github.haexmas.atoms.holzi",
+        "com.github.haexmas.atoms.haex-vault",
         "com.github.haexmas.atoms.nix-devshell-base",
         "com.github.haexmas.atoms.nix-nodejs",
         "com.github.haexmas.atoms.nix-rust",
@@ -16,11 +16,11 @@
         "com.github.haexmas.atoms.spaex-constitution",
         "com.github.haexmas.atoms.speckit"
       ],
-      "revision": "cfc17a261fdaced6db30441015f70cc6a7b7ac2e",
+      "revision": "d70bb8fd408458bd104ca6e7101d9f146d45adb3",
       "source": "https://github.com/haexmas/atoms"
     }
   ],
-  "identity": "com.github.haexmas.holzi",
+  "identity": "com.github.haexmas.haex-vault",
   "spaex_min_version": ">=4.3.0",
   "spaex_version": "4"
 }

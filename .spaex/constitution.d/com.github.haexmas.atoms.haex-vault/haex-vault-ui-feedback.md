@@ -1,19 +1,19 @@
 ---
-id: holzi-ui-feedback
+id: haex-vault-ui-feedback
 kind: constitution_fragment
-atom_source: holzi-ui-feedback
-tags: [holzi, ui, settings, toast, feedback, errors]
+atom_source: haex-vault-ui-feedback
+tags: [haex-vault, ui, settings, toast, feedback, errors]
 ---
 
-# Capability: give feedback in holzi's UI without inline status lines
+# Capability: give feedback in haex-vault's UI without inline status lines
 
-**Status**: Part of molecule `com.github.haexmas.atoms.holzi`.
+**Status**: Part of molecule `com.github.haexmas.atoms.haex-vault`.
 **Applies to**: agents that write or change user-facing components, pages, dialogs or settings in
-a holzi checkout or worktree.
+a haex-vault checkout or worktree.
 
 ## Rule
 
-holzi's operator decided (2026-11-03 and 2026-11-04) that success and error messages appear only
+haex-vault's operator decided (2026-11-03 and 2026-11-04) that success and error messages appear only
 as toasts, so they look the same everywhere. A component never reports the outcome of an action
 with text inside itself. The visible state is the confirmation; a failure is a toast.
 

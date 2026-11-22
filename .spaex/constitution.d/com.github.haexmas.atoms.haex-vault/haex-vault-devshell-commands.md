@@ -1,17 +1,17 @@
 ---
-id: holzi-devshell-commands
+id: haex-vault-devshell-commands
 kind: constitution_fragment
-atom_source: holzi-devshell-commands
-tags: [holzi, nix, devshell, node, pnpm, cargo, prettier]
+atom_source: haex-vault-devshell-commands
+tags: [haex-vault, nix, devshell, node, pnpm, cargo, prettier]
 ---
-# Capability: run holzi's tooling inside its Nix devShell
+# Capability: run haex-vault's tooling inside its Nix devShell
 
-**Status**: Part of molecule `com.github.haexmas.atoms.holzi`.
-**Applies to**: agents that build, test or format code in a holzi checkout or worktree.
+**Status**: Part of molecule `com.github.haexmas.atoms.haex-vault`.
+**Applies to**: agents that build, test or format code in a haex-vault checkout or worktree.
 
 ## Rule
 
-`node`, `pnpm` and the Rust toolchain exist only inside holzi's Nix devShell. An agent's
+`node`, `pnpm` and the Rust toolchain exist only inside haex-vault's Nix devShell. An agent's
 shell does not load it (direnv's hook fires at an interactive prompt, not for a single
 command), so a bare `node`, `pnpm`, `prettier` or `cargo` is either not found or is a
 different version than CI uses. The agent SHOULD run them through

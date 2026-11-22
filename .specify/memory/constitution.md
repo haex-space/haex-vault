@@ -1,11 +1,11 @@
 <!--
-Effective project constitution for holzi.
+Effective project constitution for haex-vault.
 Source: com.github.haexmas.haex-hive.constitution
 Pinned by .haex-hive.json at revision 336eaf1e5b1a86f76031b60b7f692da98682b9ac.
 Keep this copy aligned with the pinned source through a reviewed change.
 -->
 
-# holzi Constitution
+# haex-vault Constitution
 
 Hard, non-negotiable invariants adopted from haex-hive. Every spec, plan, and
 implementation in this repository MUST respect them.
