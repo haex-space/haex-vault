@@ -35,4 +35,8 @@
   only in the turn that read it.
 - FR-027 and SC-006 name the two small models and their results on purpose: the measurement is a decision of the operator
   ("no tuning series for small models"), not an implementation detail.
-- The limits of an entry and of the memory are left to the plan (Assumptions).
+- The limits of a page and of the memory are left to the plan (Assumptions).
+- Amended on 2026-11-22 after the operator's decisions during planning: pages with pointers instead of single entries,
+  the table of contents at the start, search (FR-028, FR-029, SC-009), every kind of agent behaves the same (FR-018,
+  FR-019), external agents do not reach the memory (FR-001, FR-008, FR-013, FR-020, US2, SC-002). The checklist was run
+  again over the amended spec; every item still passes.
