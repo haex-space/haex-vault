@@ -35,9 +35,16 @@ pub(crate) fn remove(path: &Path, how: Removal) -> Result<(), FilesError> {
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 fn trash(path: &Path) -> Result<(), FilesError> {
     trash::delete(path).map_err(|error| {
+        // `trash::Error` prints its `Debug`, which holds the paths it names; the log keeps only the
+        // variant. The path can come from an encrypted folder (spec 048 FR-027).
+        let debug = format!("{error:?}");
+        let variant = debug
+            .split(|c: char| !c.is_alphanumeric())
+            .next()
+            .unwrap_or("unknown");
         log::warn!(
-            "files: moving {} to the trash failed: {error}",
-            path.display()
+            "files: moving {} to the trash failed: {variant}",
+            crate::files::encrypted::redacted::Redacted(&path.to_string_lossy())
         );
         FilesError::new(
             FilesErrorCode::NoAccess,

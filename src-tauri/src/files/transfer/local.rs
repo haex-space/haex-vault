@@ -22,6 +22,7 @@ use tokio_util::sync::CancellationToken;
 pub use super::entries::free_name;
 use super::entries::{copy_link, entry_name, remove, write_error};
 use super::{ConflictChoice, TransferOp, TransferProgress};
+use crate::files::encrypted::redacted::Redacted;
 use crate::files::local::ops::io_error;
 use crate::files::local::OwnPlaces;
 use crate::files::{FilesError, FilesErrorCode};
@@ -300,9 +301,10 @@ impl Run<'_, '_> {
                 let _ = remove(target, Removal::Permanent);
                 if let Err(error) = std::fs::rename(&aside, target) {
                     log::warn!(
-                        "files: {} could not come back from {}: {error}",
-                        target.display(),
-                        aside.display()
+                        "files: {} could not come back from {}: {}",
+                        Redacted(&target.to_string_lossy()),
+                        Redacted(&aside.to_string_lossy()),
+                        error.kind()
                     );
                 }
                 Err(stop)
