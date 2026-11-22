@@ -314,7 +314,7 @@ confirm (sent) (spec US7, quickstart A10).
 - [x] T100 [US8] Settings category `chat` in `src/lib/settings/registry.ts` (`SettingsCategoryId`, `SETTINGS_CATEGORIES`, `SETTINGS_LOCATIONS`), view mapping in `src/components/wm/appRoutes.ts`; `scripts/check-settings.ts` expects seven categories
 - [ ] T101 [US8] `src/components/settings/ChatView.vue` with `SettingsGroup`/`SettingsRow`/`SettingsOptionRow`: Blossom-Server (own address with check result, "Keiner"; presets wait for T104), read receipts, automatic download limit, notifications (done: vault/device preferences checked in `validate_value`, `chat/FlagSetting.vue`, `chat/AutoDownloadSetting.vue`), Blossom upload key (create, show npub; open); saved on selection, revert on failure (pattern `AutonomyModeSetting.vue`)
 - [ ] T102 [P] [US8] i18n `settings.categories.chat.*`, `settings.chat.*` de/en (done except the upload key)
-- [ ] T103 [US8] Mute in the conversation header and list context menu; muted conversations count unread but never notify (US8 scenario 5)
+- [x] T103 [US8] Mute in the conversation header and list context menu (`chat-two-vaults` drives the menu); muted conversations count unread but never notify (US8 scenario 5)
 
 **Checkpoint**: PR I part 1.
 
