@@ -27,7 +27,7 @@ export default defineNuxtConfig({
   // that wait for an answer turn off (a click that only brings the window forward must not decline),
   // and #178: the focus ring of fields is no longer half transparent (it read as disabled).
   extends: [
-    'github:haex-space/haextension/packages/haex-ui#10ed4269743515ae1bf36cdfa442c003d4bbfbfe',
+    'github:haex-space/haextension/packages/haex-ui#6ec7eae45a92ed44359216ece06417c4fa11a694',
   ],
   build: {
     transpile: ['reka-ui'],

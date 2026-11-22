@@ -1,5 +1,5 @@
 # Tooling for haex-vault that nixpkgs does not provide as a ready package: the e2e drivers, the
-# Android SDK with its NDK, and the emulator the Android e2e runs use. Delivered to the consumer repo by `com.github.haexmas.atoms.holzi` and
+# Android SDK with its NDK, and the emulator the Android e2e runs use. Delivered to the consumer repo by `com.github.haexmas.atoms.haex-vault` and
 # read by `nix-devshell-base`'s `flake.nix`: a function from `pkgs` to a list of derivations for the
 # devShell.
 pkgs:

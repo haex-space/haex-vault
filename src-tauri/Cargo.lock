@@ -3570,7 +3570,7 @@ dependencies = [
 [[package]]
 name = "haex-autofill"
 version = "0.1.0"
-source = "git+https://github.com/haex-space/vault-sdk?rev=ae3dfc73e71395c230c4c5bf95c5e850e345d7c3#ae3dfc73e71395c230c4c5bf95c5e850e345d7c3"
+source = "git+https://github.com/haex-space/vault-sdk?rev=7568e5e78d7e4aced2a43496c4efa86a8b83e64d#7568e5e78d7e4aced2a43496c4efa86a8b83e64d"
 dependencies = [
  "serde",
 ]
@@ -3578,7 +3578,7 @@ dependencies = [
 [[package]]
 name = "haex-bundle"
 version = "0.1.0"
-source = "git+https://github.com/haex-space/vault-sdk?rev=517402a94c7c2b5f2093f38e3930f4019ddbba8d#517402a94c7c2b5f2093f38e3930f4019ddbba8d"
+source = "git+https://github.com/haex-space/vault-sdk?rev=7568e5e78d7e4aced2a43496c4efa86a8b83e64d#7568e5e78d7e4aced2a43496c4efa86a8b83e64d"
 dependencies = [
  "crc32fast",
  "ed25519-dalek",
@@ -3593,7 +3593,7 @@ dependencies = [
 [[package]]
 name = "haex-crdt"
 version = "0.4.0"
-source = "git+https://github.com/haexmas/haex-crdt?rev=928d06af1ef61c507395a38fc3012ad03d15fc33#928d06af1ef61c507395a38fc3012ad03d15fc33"
+source = "git+https://github.com/haexmas/haex-crdt?rev=9d59694603fe18093b91651e659ed1760b811a84#9d59694603fe18093b91651e659ed1760b811a84"
 dependencies = [
  "base64 0.22.1",
  "fs2",
@@ -3611,7 +3611,7 @@ dependencies = [
 [[package]]
 name = "haex-passgen"
 version = "0.1.0"
-source = "git+https://github.com/haex-space/vault-sdk?rev=4f5294f60b75ba0a073a7818a93464d8d8ad7c68#4f5294f60b75ba0a073a7818a93464d8d8ad7c68"
+source = "git+https://github.com/haex-space/vault-sdk?rev=7568e5e78d7e4aced2a43496c4efa86a8b83e64d#7568e5e78d7e4aced2a43496c4efa86a8b83e64d"
 dependencies = [
  "getrandom 0.2.17",
  "serde",
