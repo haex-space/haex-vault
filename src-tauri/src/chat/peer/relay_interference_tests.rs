@@ -181,14 +181,27 @@ fn resends(device: &ChatDevice) -> Option<i64> {
 async fn resent_after(device: &ChatDevice, ms: i64, count: i64) {
     device.clock.advance(ms);
     let deadline = tokio::time::Instant::now() + Duration::from_secs(20);
-    while resends(device) != Some(count) {
+    while resends(device) != Some(count)
+        || device
+            .db
+            .read_blocking(|r| {
+                r.query_row(
+                    "SELECT attempts FROM chat_outbox_no_sync WHERE message_id IS NOT NULL",
+                    params![],
+                    |row| row.get::<_, i64>(0),
+                )
+            })
+            .expect("outbox")
+            .unwrap_or(0)
+            == 0
+    {
         assert!(
             tokio::time::Instant::now() < deadline,
             "not sent again a {count}. time: {:?}",
             resends(device)
         );
         device.session.kick.notify_one();
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        tokio::task::yield_now().await;
     }
 }
 

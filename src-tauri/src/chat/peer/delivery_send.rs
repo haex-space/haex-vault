@@ -39,6 +39,8 @@ enum ForDevice {
     Accepted,
     /// No session and no usable record: left out until the next attempt.
     NoRecord,
+    /// The record could not be fetched; keep waiting for keys and retain the diagnostic.
+    RecordUnavailable(String),
     /// Its wrap was not accepted; the reason.
     NotAccepted(String),
 }
@@ -49,11 +51,16 @@ impl Delivery {
     pub(super) async fn publish_to_devices(&self, entry: &Entry, target: &Target) -> Published {
         let mut accepted = false;
         let mut missing = false;
+        let mut waiting_for_record = false;
         let mut error = String::from(WAITING_FOR_KEYS);
         for device in &target.devices {
             match self.publish_to_device(entry, device, &target.relays).await {
                 Ok(ForDevice::Accepted) => accepted = true,
                 Ok(ForDevice::NoRecord) => {}
+                Ok(ForDevice::RecordUnavailable(reason)) => {
+                    waiting_for_record = true;
+                    error = reason;
+                }
                 Ok(ForDevice::NotAccepted(reason)) => {
                     missing = true;
                     error = reason;
@@ -67,11 +74,12 @@ impl Delivery {
                 }
             }
         }
-        if accepted && !missing {
+        if accepted && !missing && !waiting_for_record {
             Published::Accepted
         } else {
             Published::NotYet {
                 error,
+                partial_accepted: accepted,
                 none_accepted: missing && !accepted,
             }
         }
@@ -93,10 +101,14 @@ impl Delivery {
             Some(sealed) if sealed.accepted_at.is_some() => return Ok(ForDevice::Accepted),
             Some(sealed) => sealed.wrap,
             None => {
-                if self.needs_record(&device_hex).await?
-                    && self.fetch_record(device, relays).await?.is_none()
-                {
-                    return Ok(ForDevice::NoRecord);
+                if self.needs_record(&device_hex).await? {
+                    match self.fetch_record(device, relays).await {
+                        Ok(Some(_)) => {}
+                        Ok(None) => return Ok(ForDevice::NoRecord),
+                        Err(error) => {
+                            return Ok(ForDevice::RecordUnavailable(error.to_string()));
+                        }
+                    }
                 }
                 let (me, entry, device, now) =
                     (self.me.clone(), entry.clone(), *device, self.now());
@@ -160,7 +172,11 @@ impl Delivery {
     /// Before a resend of `entry`: fetches the record of every device of its vaults on whose
     /// session to send on nothing was ever received; when the record's keys changed, the sessions
     /// that never received are deleted, so the attempt opens a new one from the fetched record.
-    pub(super) async fn refresh_quiet_records(&self, entry: &Entry) -> Result<()> {
+    pub(super) async fn refresh_quiet_records(
+        &self,
+        entry: &Entry,
+        refreshed_devices: &mut std::collections::HashSet<[u8; 32]>,
+    ) -> Result<()> {
         for vault in &entry.pending {
             let (me, for_vault) = (self.me.clone(), vault.clone());
             let target = self
@@ -182,6 +198,9 @@ impl Delivery {
                 let Some(before) = before else {
                     continue;
                 };
+                if !refreshed_devices.insert(*device) {
+                    continue;
+                }
                 // Without the record the resend goes on the session it has.
                 let after = match self.fetch_record(device, &target.relays).await {
                     Ok(Some(after)) => after,

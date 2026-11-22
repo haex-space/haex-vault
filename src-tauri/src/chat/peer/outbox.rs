@@ -17,6 +17,11 @@
 //! on a device that never comes back stays _waiting_; upgrade: a synced claim lets another own
 //! device take it over.
 
+//! spaex: This module currently exceeds 500 lines because its persistence operations share one
+//! transaction model and public boundary. At the next outbox state-machine change, move
+//! `Attempt`, `record`, its delivery helpers, and the explicit resend operations into
+//! `outbox/state.rs`; keep the row types and shared serialization helpers here.
+
 use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
 use nostr::event::Event;
@@ -402,6 +407,8 @@ pub fn start_resend(tx: &mut CrdtTransaction<'_>, me: &Me, entry: &Entry) -> Res
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Attempt {
     pub accepted: Vec<String>,
+    /// Vaults with a partially accepted delivery that must stay pending.
+    pub partial_accepted: Vec<String>,
     pub failed: Vec<(String, FailReason)>,
     pub unaccepted: Vec<String>,
     pub error: Option<String>,
@@ -434,6 +441,9 @@ pub fn record(
         mark(tx, entry, vault, "sent_at", None, now)?;
         clear_failure(tx, entry, vault)?;
     }
+    for vault in &attempt.partial_accepted {
+        clear_failure(tx, entry, vault)?;
+    }
     for (vault, reason) in &attempt.failed {
         if *reason == FailReason::NoRelay {
             fail_unsent(tx, entry, vault, now)?;
@@ -441,7 +451,7 @@ pub fn record(
             mark(tx, entry, vault, "failed_at", Some(*reason), now)?;
         }
     }
-    if !attempt.accepted.is_empty() {
+    if !attempt.accepted.is_empty() || !attempt.partial_accepted.is_empty() {
         tx.execute(
             "UPDATE chat_outbox_no_sync SET accepted_at = ?2 WHERE id = ?1 AND accepted_at IS NULL",
             params![entry.id, now],
@@ -462,8 +472,19 @@ pub fn record(
     let attempts = entry.attempts + 1;
     if pending.is_empty() {
         // A message with a failed delivery stays parked so "Erneut senden" finds its rumor.
+        let retained_parking_failure = if let Some(message_id) = entry.message_id.as_deref() {
+            tx.query_row(
+                "SELECT EXISTS (SELECT 1 FROM chat_deliveries WHERE message_id = ?1 \
+                   AND failed_at IS NOT NULL AND failed_reason IN ('noDevices', 'tooLarge'))",
+                params![message_id],
+                |row| row.get::<_, bool>(0),
+            )?
+            .unwrap_or(false)
+        } else {
+            false
+        };
         let failed =
-            entry.message_id.is_some() && attempt.failed.iter().any(|(_, reason)| reason.parks());
+            retained_parking_failure || attempt.failed.iter().any(|(_, reason)| reason.parks());
         if awaiting.is_empty() && !failed {
             remove(tx, &entry.id)?;
             return Ok(());

@@ -7,7 +7,7 @@
 //!
 //! Contact relay changes are picked up on catch-up; own relay changes apply on catch-up as well.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::num::NonZeroUsize;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
@@ -325,6 +325,7 @@ impl Delivery {
     pub async fn pump(&self) -> Result<()> {
         let now = self.now();
         let due = self.db.read(move |r| Ok(outbox::due(r, now)?)).await?;
+        let mut refreshed_devices = HashSet::new();
         for entry in due {
             if self.closing.is_cancelled() {
                 break;
@@ -338,7 +339,8 @@ impl Delivery {
                 else {
                     continue;
                 };
-                self.refresh_quiet_records(&entry).await?;
+                self.refresh_quiet_records(&entry, &mut refreshed_devices)
+                    .await?;
                 entry
             } else {
                 entry
@@ -366,8 +368,12 @@ impl Delivery {
                 Published::Failed(reason) => attempt.failed.push((vault.clone(), reason)),
                 Published::NotYet {
                     error,
+                    partial_accepted,
                     none_accepted,
                 } => {
+                    if partial_accepted {
+                        attempt.partial_accepted.push(vault.clone());
+                    }
                     if none_accepted {
                         attempt.unaccepted.push(vault.clone());
                     }
@@ -440,9 +446,10 @@ impl Delivery {
 enum Published {
     Accepted,
     Failed(FailReason),
-    /// Not done yet; `none_accepted` when wraps were made and no Nostr-Relay took any of them.
+    /// Not done yet; `partial_accepted` separates relay acceptance from vault completion.
     NotYet {
         error: String,
+        partial_accepted: bool,
         none_accepted: bool,
     },
 }

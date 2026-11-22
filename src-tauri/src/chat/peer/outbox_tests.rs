@@ -1,6 +1,10 @@
 //! The outbox's back-off, failures without an end, sending again and "Erneut senden" (spec 072
 //! T026, research R6; spec 095 T028, T031, T033).
 
+//! spaex: These integration tests currently share one vault fixture and exercise transitions of
+//! the same persisted outbox state. Split the resend schedule and resend lifecycle cases into
+//! `outbox_resend_tests.rs` when the next resend behavior is added; keep failure/back-off cases here.
+
 use super::*;
 use crate::chat::peer::ratchet::RESEND_AFTER_MS;
 use crate::chat::peer::receive::ensure_delivery;
@@ -9,6 +13,7 @@ use crate::storage::query::Query;
 use crate::vault_gate::VaultDb;
 
 const PEER: &str = "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2";
+const OTHER: &str = "c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3";
 const MESSAGE: &str = "0b5c3f0e-4f6c-5c55-9a55-4b0d6f8a1e01";
 
 fn queued(db: &VaultDb, now: i64) -> Entry {
@@ -202,6 +207,81 @@ fn a_vault_waiting_for_keys_or_sent_already_does_not_fail() {
     let entry = due(&anna.db, i64::MAX - 1).remove(0);
     attempt(&anna.db, &entry, unaccepted(), 2_000 + GIVE_UP_MS);
     assert_eq!(delivery(&anna.db), (Some(5), None, None), "sent before");
+}
+
+#[test]
+fn partial_acceptance_clears_no_relay_but_keeps_the_vault_pending() {
+    let anna = ChatDevice::genesis(&[]);
+    let entry = queued(&anna.db, 1_000);
+    let failed_at = 1_000 + GIVE_UP_MS;
+    attempt(&anna.db, &entry, unaccepted(), failed_at);
+    assert_eq!(delivery(&anna.db).2.as_deref(), Some("noRelay"));
+
+    let entry = due(&anna.db, i64::MAX - 1).remove(0);
+    let next = failed_at + backoff(entry.attempts);
+    attempt(
+        &anna.db,
+        &entry,
+        Attempt {
+            partial_accepted: vec![PEER.to_owned()],
+            ..Attempt::default()
+        },
+        next,
+    );
+
+    assert_eq!(delivery(&anna.db), (None, None, None));
+    assert_eq!(due(&anna.db, i64::MAX - 1)[0].pending, [PEER.to_owned()]);
+}
+
+#[test]
+fn a_parked_vault_stays_parked_when_another_vault_later_succeeds() {
+    let anna = ChatDevice::genesis(&[]);
+    let entry = queued(&anna.db, 1_000);
+    let message = MESSAGE.parse().expect("uuid");
+    anna.db
+        .write_blocking(move |tx| {
+            ensure_delivery(tx, message, OTHER)?;
+            let pending = vec![PEER, OTHER];
+            tx.execute(
+                "UPDATE chat_outbox_no_sync SET pending = ?1 WHERE id = 'e1'",
+                params![serde_json::to_string(&pending).expect("pending")],
+            )?;
+            Ok(())
+        })
+        .expect("second delivery");
+    let entry = Entry {
+        pending: vec![PEER.to_owned(), OTHER.to_owned()],
+        ..entry
+    };
+    attempt(
+        &anna.db,
+        &entry,
+        Attempt {
+            failed: vec![(PEER.to_owned(), FailReason::NoDevices)],
+            ..Attempt::default()
+        },
+        2_000,
+    );
+
+    let entry = due(&anna.db, 7_000).remove(0);
+    attempt(
+        &anna.db,
+        &entry,
+        Attempt {
+            accepted: vec![OTHER.to_owned()],
+            ..Attempt::default()
+        },
+        7_000,
+    );
+
+    assert!(due(&anna.db, i64::MAX - 1).is_empty());
+    assert!(
+        anna.db
+            .write_blocking(|tx| Ok(resend(tx, MESSAGE, 8_000)?))
+            .expect("resend"),
+        "the parked vault remains available for manual resend"
+    );
+    assert_eq!(due(&anna.db, 8_000)[0].pending, [PEER.to_owned()]);
 }
 
 #[test]
