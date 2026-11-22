@@ -4,6 +4,7 @@ import type { ChatConversation } from '@bindings/ChatConversation'
 import type { ChatConversationKind } from '@bindings/ChatConversationKind'
 import type { ContactHeader } from '@bindings/ContactHeader'
 import type { ChatPeerMessage } from '@bindings/ChatPeerMessage'
+import type { OpenSystemOutcome } from '@bindings/OpenSystemOutcome'
 
 /** A contact or group conversation with the name and photo the list shows (spec 072 US1). */
 export interface PeerConversationEntry extends ChatConversation {
@@ -50,6 +51,16 @@ export function useConversationCommands() {
     // Spec 072 FR-012a: the full text of a long message, from this device's copy of its file.
     textAsync: (attachmentId: string) =>
       invoke<string>('chat_attachment_text', { args: { attachmentId } }),
+    // Spec 072 US3 scenario 4: a decrypted copy handed to the system's app; `needsNotice` until the
+    // user confirmed the notice about the copy, or chose "Nicht mehr fragen" on this device.
+    openSystemAsync: (
+      attachmentId: string,
+      confirmed: boolean,
+      dontAskAgain: boolean,
+    ) =>
+      invoke<OpenSystemOutcome>('chat_attachment_open_system', {
+        args: { attachmentId, confirmed, dontAskAgain },
+      }),
     downloadAsync: (attachmentId: string) =>
       invoke<null>('chat_attachment_download', { args: { attachmentId } }),
     messagesAsync: (threadId: string, before?: number) =>

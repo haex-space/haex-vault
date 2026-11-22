@@ -527,7 +527,9 @@
       "failed": "Laden fehlgeschlagen",
       "retry": "Erneut laden",
       "download": "Herunterladen ({size})",
-      "gone": "Datei nicht mehr verfügbar"
+      "gone": "Datei nicht mehr verfügbar",
+      "openSystem": "Mit System-App öffnen",
+      "openSystemNoApp": "Für diese Datei ist keine App installiert."
     },
     "error": {
       "tooLong": "Der Text ist zu lang (höchstens 1.000.000 Zeichen).",
