@@ -14,8 +14,8 @@ Linux on a CPU architecture the vendor does not build), the status says `unsuppo
 defines it; a musl host gets the glibc build and is reported by the start check as `start_failed`.
 
 `cli_tools_remove("abacusai")` removes the tool only, as for the other vendors; "the stored connection is the caller's to
-remove" (the settings page deletes the provider with the tool, spec 094 US4). Deleting the provider removes the credential
-entry (next command), so removing a tool and its connection stays the two calls the page already makes.
+remove" (the settings page deletes the provider with the tool, spec 094 US4). Deleting the provider removes all credential
+scopes (next command), so removing a tool and its connection stays the two calls the page already makes.
 
 ### `connect_cli_delegate(args: { vendor, name, email? }) -> ConnectCliDelegateResult`
 
@@ -30,16 +30,19 @@ command runs the whole flow like the Codex branch does, returning `Connected` at
    `userCode`), the shape the Codex flow already uses and the UI already renders.
 4. It polls `_pollDeviceCode` until the code is confirmed, the user cancels (below), the vault closes or ten minutes pass
    (`status: "error"`, reason `expired`).
-5. It saves the device code with `delegate_credential::save` (kind `device_code`) and upserts the provider row
+5. It saves the device code with `delegate_credential::save` (kind `device_code`) in the measured scope (`vault` for a
+   portable code, this installation ID for a device-bound code) and upserts the provider row
    (`write_delegate_provider` with empty credentials). Treat these writes as one logical operation: keep the prior
-   credential and provider row until both writes succeed; if either write fails, restore the prior state and return an
+   credential in this scope and provider row until both writes succeed; if either write fails, restore the prior state and return an
    error. A failed connection must not leave an orphan credential or replace a working connection with a partial one.
    Then record `connect_finished`, emit `status: "success"` and return `Connected { provider }`.
 
 There is exactly one `cli_delegate` provider row with `adapter = "abacusai"` per vault. Upsert reuses that row. If legacy
 or synced data contains duplicates, retain the row with the lexicographically smallest provider id, remove the other rows,
-and preserve the single vendor credential while connecting. Disconnecting any Abacus row removes the credential only when
-it removes the last Abacus provider row; cleanup of duplicates must not delete the credential still used by the survivor.
+and preserve the vendor credentials while connecting. Connecting on a device-bound installation updates only that
+installation's credential entry; it does not replace another device's entry. Disconnecting the last Abacus provider row is
+vault-wide and removes every Abacus credential scope. Cleanup of duplicate provider rows must not delete credentials while a
+provider row survives.
 
 No `AwaitingCode`/`AwaitingKey` result exists for this vendor. The e-mail address, the code and the device code are never
 logged and appear only in the event (address and code) and in the entry (device code).
@@ -51,10 +54,10 @@ Stops a running connect flow of `vendor` (the polling loop; idempotent). The UI 
 
 ### `delete_provider(id)` (existing command, extended)
 
-Disconnecting is deleting the provider row. For a `cli_delegate` row whose `adapter` is `abacusai`, the command deletes the
-password-manager entry (`delegate_credential::delete`; a missing entry is not an error) only when this is the last Abacus
-provider row. A response already running is not disturbed (it holds its own copy of the device code in its process
-environment). Rows of `claude` and `codex` are deleted as before.
+Disconnecting is deleting the provider row. For a `cli_delegate` row whose `adapter` is `abacusai`, the command deletes all
+password-manager entries for that vendor (`delegate_credential::delete`; a missing entry is not an error) only when this is
+the last Abacus provider row. A response already running is not disturbed (it holds its own copy of the device code in its
+process environment). Rows of `claude` and `codex` are deleted as before.
 
 ## Events
 

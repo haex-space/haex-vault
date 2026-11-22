@@ -85,8 +85,8 @@ tool from Settings, connect from the app, send one request, confirm a reply labe
 
 ### User Story 2 - The credential belongs to the vault, not to the device (Priority: P1)
 
-A user connects once and expects the vault to carry the credential to every device that holds it, without connecting again
-there and without a credential file lying around on any of them.
+A user expects a credential to follow the vendor's binding rules: a shared credential moves with the vault, while a
+device-bound credential is stored separately for each installation. Neither case leaves a credential file behind.
 
 **Why this priority**: It is spec 007's second promise (FR-002, FR-003) and the point where Abacus differs from the others:
 the tool's own login is stored in a file that only the device that wrote it can read.
@@ -97,7 +97,8 @@ connect step; then search the vault's folders and the host for the credential.
 **Acceptance Scenarios**:
 
 1. **Given** a vault with an Abacus credential saved on device A, **When** it is opened on device B, **Then** the user
-   installs the tool there (094 FR-018) and needs nothing else to get a reply.
+   installs the tool there (094 FR-018) and needs nothing else to get a reply if the measured credential is shared; for a
+   device-bound credential, B connects once and keeps a separate entry without replacing A's.
 2. **Given** a saved credential, **When** no request is running, **Then** it exists only as the password manager's entry
    (encrypted at rest with the vault, ADR 0007); no file with its content exists in the vault's home or anywhere on the host.
 3. **Given** the credential has expired or was revoked, **When** the user selects the backend, **Then** they are led back
@@ -224,15 +225,17 @@ of its download.
   connecting. An API key MUST NOT be accepted as a way to connect (it is billed per request). The e-mail address and the
   code MUST NOT be logged.
 - **FR-006**: The credential MUST be stored in the password manager as an entry of its own, reached only through the
-  password manager's service by a HaexVault function with a fixed grant (ADR 0007), and used from there. It is portable to
-  every device that holds the vault, usable there with no further connect step (007 FR-002), unless the vendor binds it to
-  the device it was obtained on, in which case each device connects once and the entry says which device it belongs to
-  (Open risks). HaexVault hands it to the tool's process for that run only; it MUST NOT be written to any file, in the vault's home or on the host, and no file of
-  the tool that holds a login (such as its keystore) may remain after a run.
+  password manager's service by a HaexVault function with a fixed grant (ADR 0007), and used from there. If the vendor's
+  measurement shows a shared credential, one entry is portable to every device that holds the vault and usable there with no
+  further connect step (007 FR-002). If the vendor binds credentials to devices, each device MUST connect once and have a
+  separate entry scoped to its installation; connecting on one device MUST NOT replace another device's entry. A vault-wide
+  disconnect removes all scopes. HaexVault hands the selected credential to the tool's process for that run only; it MUST NOT be written to any file,
+  in the vault's home or on the host, and no file of the tool that holds a login (such as its keystore) may remain after a run.
 - **FR-007**: A credential the tool does not accept (expired, revoked, wrong) MUST end the request with a specific reason
   that leads the user back to connecting; HaexVault MUST NOT retry with another credential or another backend.
-- **FR-008**: The user MUST be able to disconnect Abacus at any time, which removes the entry and does not disturb a
-  response already running; requests made afterwards are refused with "not connected" (007 FR-013, FR-014).
+- **FR-008**: The user MUST be able to disconnect Abacus at any time, which removes the provider row and every credential
+  scope for that vendor and does not disturb a response already running; requests made afterwards are refused with "not
+  connected" (007 FR-013, FR-014).
 - **FR-009**: The Abacus backend MUST be selectable per request like the other delegates, MUST label the response with the
   backend that answered it, and MUST show a record of the tool use it performed (007 FR-004, FR-005).
 - **FR-010**: Abacus tool use MUST follow the user's approval posture as spec 007 requires of the other delegates: blocked
@@ -263,7 +266,8 @@ of its download.
 - **Abacus vendor definition**: The data for the Abacus tool in the tool manager: where each tested version comes from, its
   platforms, its integrity information, and the home- and config-variables it needs.
 - **Abacus credential**: The delegate credential (spec 007): the device code the vendor's sign-in returns, which the tool
-  accepts from its environment without its interactive login; one entry of the password manager per vault; never a file.
+  accepts from its environment without its interactive login; one shared entry per vault or one entry per installation if
+  device-bound; never a file.
 
 ## Success Criteria _(mandatory)_
 

@@ -81,8 +81,9 @@ response: the process ends (`pgrep abacusai`).
 code of step 3.0 (obtained with one `deviceId`) and run 3.2 with it on a second machine. If it is refused, the code is bound
 to its device: record the answer, and the plan's device-binding case applies (each device connects once, data-model §3).
 
-After sync, open the vault on another device, install the tool there, send a request without any connect step. Repeat ten
-times alternating between the two devices.
+After sync, open the vault on another device and install the tool there. If the credential is shared, send a request without
+another connect step. If it is device-bound, connect once on each device and verify both entries remain present after sync.
+Then repeat ten runs alternating between the two devices.
 
 ## 7. No traces (SC-003, SC-004, SC-008)
 
