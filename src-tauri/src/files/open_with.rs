@@ -1,3 +1,9 @@
+//! The platform-specific app discovery and launch implementations are kept together for this first
+//! extraction so the shared `OpenApp` contract and dispatch remain reviewable in one place. Before
+//! adding another platform or changing app discovery independently, split the three `platform`
+//! implementations into `open_with/linux.rs`, `macos.rs`, and `windows.rs`, and move platform tests
+//! beside their implementation.
+//!
 //! "Öffnen mit": the apps of this device that can open a file, so the person picks one instead of
 //! the system's default. The best matches for the file's type come first (`recommended`); every
 //! other app that takes files follows. An app is named by an `id` only this module hands out and

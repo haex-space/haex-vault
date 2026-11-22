@@ -1,4 +1,4 @@
-import { shallowRef } from 'vue'
+import { ref, shallowRef } from 'vue'
 import type { OpenSystemOutcome } from '@bindings/OpenSystemOutcome'
 
 /**
