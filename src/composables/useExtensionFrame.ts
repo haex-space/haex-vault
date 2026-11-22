@@ -398,7 +398,7 @@ export function useExtensionFrame(
       typeof data.type === 'string' &&
       data.type.startsWith('haexspace:')
     )
-      console.debug('[extension]', extensionId, data)
+      console.debug('[extension]', extensionId, data.type)
   }
   window.addEventListener('message', onWindowMessage)
 
