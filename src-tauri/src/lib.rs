@@ -831,6 +831,8 @@ pub fn run() {
             diagnostic_log::commands::diagnostic_log_get,
             diagnostic_log::commands::diagnostic_log_set,
             diagnostic_log::commands::diagnostic_log_ui_message,
+            diagnostic_log::commands::diagnostic_log_reveal,
+            diagnostic_log::commands::diagnostic_log_share,
             list_instances,
             create_instance,
             import_instance,

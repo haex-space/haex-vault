@@ -280,8 +280,8 @@ impl DiagnosticSink {
         }
     }
 
-    /// Waits for queued records to finish. Used by tests that inspect the file directly.
-    #[cfg(test)]
+    /// Waits for queued records to reach the file: before a copy of the log is taken, and in the
+    /// tests that inspect the file directly.
     pub(crate) fn flush_sync(&self) {
         let Ok(sender) = self.sender() else { return };
         let (reply, result) = mpsc::sync_channel(1);

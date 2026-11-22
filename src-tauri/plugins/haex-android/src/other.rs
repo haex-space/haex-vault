@@ -54,6 +54,11 @@ impl<R: Runtime> HaexAndroid<R> {
         Err("unsupported".to_owned())
     }
 
+    /// See [`HaexAndroid::share_file`]: refused here.
+    pub fn share_file(&self, _path: &std::path::Path, _mime: &str) -> Result<(), String> {
+        Err("unsupported".to_owned())
+    }
+
     /// The host name is the device's name here.
     pub fn device_name(&self) -> Option<String> {
         None

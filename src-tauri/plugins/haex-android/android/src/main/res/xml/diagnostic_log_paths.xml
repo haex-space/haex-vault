@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Only the copy of the diagnostic log, nothing else of the cache (spec 098). -->
+    <cache-path name="diagnostic_log" path="diagnostic-log/" />
+</paths>

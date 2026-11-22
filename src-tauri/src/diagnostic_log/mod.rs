@@ -27,6 +27,7 @@ use ts_rs::TS;
 use self::expiry::{LevelState, DEADLINE};
 use self::level::LogLevel;
 use self::sink::DiagnosticSink;
+use crate::platform::PlatformName;
 use crate::state::AppState;
 use crate::vault_gate::{VaultDb, VaultGate};
 
@@ -62,6 +63,26 @@ pub struct DiagnosticLogStatus {
     /// Fresh and opaque per unlock; the interface sends it with every message, so a message
     /// queued for an earlier vault is dropped. `None` while no vault is attached.
     pub session_id: Option<String>,
+    /// This platform can show the folder of the log in the file manager (a computer).
+    pub can_reveal: bool,
+    /// This platform can hand the log to the system's share sheet (Android).
+    pub can_share: bool,
+}
+
+/// Whether this platform reveals the log in a file manager.
+pub(crate) const fn can_reveal() -> bool {
+    matches!(
+        crate::platform::capabilities().platform,
+        PlatformName::Linux | PlatformName::Macos | PlatformName::Windows
+    )
+}
+
+/// Whether this platform shares the log through the system's share sheet.
+pub(crate) const fn can_share() -> bool {
+    matches!(
+        crate::platform::capabilities().platform,
+        PlatformName::Android
+    )
 }
 
 /// Hands a status to whoever shows it (the window); a test hands in a recorder.
@@ -75,6 +96,8 @@ pub fn status() -> DiagnosticLogStatus {
         until_ms: current.until_ms,
         writable: !SINK.unwritable(),
         session_id: SINK.session(),
+        can_reveal: can_reveal(),
+        can_share: can_share(),
     }
 }
 

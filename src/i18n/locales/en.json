@@ -621,6 +621,10 @@
       "location": "The log lies in this vault's folder and goes along when the folder is copied.",
       "moreLater": "More detail lines will follow step by step in later versions.",
       "unwritable": "The log cannot be written",
+      "reveal": "Open the folder with the log",
+      "share": "Share log",
+      "revealFailed": "The folder with the log could not be opened",
+      "shareFailed": "The log could not be shared",
       "failed": "The setting could not be changed"
     },
     "sttModel": {

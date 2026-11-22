@@ -621,6 +621,10 @@
       "location": "Das Protokoll liegt im Ordner dieser Vault und geht mit, wenn der Ordner kopiert wird.",
       "moreLater": "Weitere Detailzeilen kommen in späteren Versionen schrittweise dazu.",
       "unwritable": "Das Protokoll kann nicht geschrieben werden",
+      "reveal": "Ordner mit dem Protokoll öffnen",
+      "share": "Protokoll teilen",
+      "revealFailed": "Der Ordner mit dem Protokoll konnte nicht geöffnet werden",
+      "shareFailed": "Das Protokoll konnte nicht geteilt werden",
       "failed": "Die Einstellung konnte nicht geändert werden"
     },
     "sttModel": {
