@@ -10,11 +10,13 @@ import type { DriveOpened } from '@bindings/DriveOpened'
 import type { DriveRemember } from '@bindings/DriveRemember'
 import type { DriveSecretInput } from '@bindings/DriveSecretInput'
 import { asFilesError } from '~/composables/useFiles'
+import { useErrorString } from '~/composables/useErrorString'
 import { driveLabel } from '~/lib/files/drives'
 import { formatFileSize } from '~/lib/passwords/format'
 
 export function useFilesDriveActions() {
   const { t } = useI18n()
+  const { errString } = useErrorString()
   const { driveOpenAsync, driveUnlockAsync, driveReleaseAsync } = useFiles()
   const { busy, setBusy } = useFilesDrives()
 
@@ -143,7 +145,7 @@ export function useFilesDriveActions() {
         toast.error(
           t('files.drives.failed', {
             name,
-            message: error?.message ?? String(cause),
+            message: error?.message ?? errString(cause),
           }),
         )
     }

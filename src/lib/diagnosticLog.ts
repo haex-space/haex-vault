@@ -22,13 +22,30 @@ export interface LogStatus {
   sessionId: string | null
 }
 
+/** The text fields of an error that is no `Error`, in the order they read best. */
+const ERROR_FIELDS = ['kind', 'code', 'reason', 'message'] as const
+
+/**
+ * The backend rejects with `{ kind, reason }` (`HaexError`), a failed action answers with
+ * `{ code, message }` and a native plugin with `{ message }`. Their text is the cause a person
+ * reads; no other field is read, so an object that is an entry stays `[object]`.
+ */
+function errorFieldsText(value: object): string {
+  const fields = value as Record<string, unknown>
+  const parts = ERROR_FIELDS.flatMap((name) => {
+    const field = fields[name]
+    return typeof field === 'string' && field.length > 0 ? [field] : []
+  })
+  return parts.length > 0 ? parts.join(': ') : '[object]'
+}
+
 /** The text of one argument. An object is never serialised: its fields may hold an entry (FR-006). */
 function argumentText(value: unknown): string {
   if (typeof value === 'string') return value
   if (value instanceof Error) return errorText(value)
   if (typeof value === 'function') return '[function]'
   if (Array.isArray(value)) return '[object]'
-  if (typeof value === 'object' && value !== null) return '[object]'
+  if (typeof value === 'object' && value !== null) return errorFieldsText(value)
   try {
     return String(value)
   } catch {
