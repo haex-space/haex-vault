@@ -41,6 +41,16 @@ scenario('files-sync-file-rule', { timeoutMs: 180_000 }, async (ctx) => {
         },
       }),
     )
+    // A changed file replaces the copy by moving the old one aside and putting the new one at its
+    // path (files/transfer/local.rs `replacing`), so for a moment the path holds nothing: a poll
+    // that reads the copy sees "not there yet", it does not fail.
+    const copyText = () => {
+      try {
+        return target.read(FILE)
+      } catch {
+        return undefined
+      }
+    }
     const stateOf = async () => {
       const views = unwrap<View[]>(
         'sync_rules_list',
@@ -72,7 +82,7 @@ scenario('files-sync-file-rule', { timeoutMs: 180_000 }, async (ctx) => {
     await instance.click('files-sync-rule-run-Haushalt')
     await ctx.waitFor(
       'the changed file at the target',
-      () => target.read(FILE) === 'zwei und mehr',
+      () => copyText() === 'zwei und mehr',
       { timeoutMs: 30_000 },
     )
 
@@ -100,7 +110,7 @@ scenario('files-sync-file-rule', { timeoutMs: 180_000 }, async (ctx) => {
       'the rule valid again, with the new version at the target',
       async () =>
         (await stateOf()) !== 'invalidSource' &&
-        target.read(FILE) === 'wieder da, und anders',
+        copyText() === 'wieder da, und anders',
       { timeoutMs: 30_000 },
     )
 
