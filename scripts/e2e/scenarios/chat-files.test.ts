@@ -1,11 +1,9 @@
 import assert from 'node:assert/strict'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { scenario } from '../lib/scenario.ts'
 import { openChat, unwrap, type FlowInstance } from '../lib/flows.ts'
 import { acceptCard } from '../lib/peers.ts'
+import { deviceFiles } from '../lib/extension-files.ts'
 import { ownCardText } from '../lib/share.ts'
 
 // Spec 072 US3 (quickstart A13, tasks T071, T070, T106): a contact conversation offers files only
@@ -111,11 +109,12 @@ scenario('chat-files', { timeoutMs: 420_000 }, async (ctx) => {
   assert.equal(await count(anna, 'chat-peer-no-server-hint'), 0)
   ctx.step('choosing the server swaps the hint for the attach button')
 
-  const folder = mkdtempSync(join(tmpdir(), 'haex-chat-files-'))
-  const small = join(folder, 'klein.bin')
-  const large = join(folder, 'gross.bin')
-  writeFileSync(small, randomBytes(SMALL))
-  writeFileSync(large, randomBytes(LARGE))
+  const folder = deviceFiles('haex-chat-files-')
+  ctx.onTeardown(() => folder.remove())
+  const small = folder.path('klein.bin')
+  const large = folder.path('gross.bin')
+  folder.write('klein.bin', randomBytes(SMALL))
+  folder.write('gross.bin', randomBytes(LARGE))
   for (const path of [small, large]) {
     unwrap(
       'chat_peer_send',
