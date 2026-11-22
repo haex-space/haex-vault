@@ -67,21 +67,43 @@ is one of the host's candidates.
 
 ## 3. Abacus credential (a password-manager entry, per vault)
 
-| Field               | Value                                                                                          |
-| ------------------- | ---------------------------------------------------------------------------------------------- |
-| owner               | `delegate` (`Caller::Internal { feature: "delegate" }`; only that feature and the user see it) |
-| title               | `Delegate: Abacus AI`                                                                          |
-| `password`          | the secret (an API key)                                                                        |
-| custom field `kind` | `api_key` (later `device_code`; decides the environment variable, see below)                   |
-| tags                | `haex-delegate-abacusai`                                                                       |
+| Field                 | Value                                                                                          |
+| --------------------- | ---------------------------------------------------------------------------------------------- |
+| owner                 | `delegate` (`Caller::Internal { feature: "delegate" }`; only that feature and the user see it) |
+| title                 | `Delegate: Abacus AI`                                                                          |
+| `password`            | the secret: the device code the vendor's sign-in returned                                      |
+| custom field `kind`   | `device_code` (decides the environment variable, see below)                                    |
+| custom field `device` | the id of the HaexVault device the sign-in ran on (see "Device binding")                       |
+| tags                  | `haex-delegate-abacusai`                                                                       |
 
 - One entry per vendor per vault. `read` returns `Ready(kind, secret)`, `Missing` (no entry) or `Syncing` (the vault's sync
   has not delivered it yet, from the deleted-row marker as the marketplace does).
-- `kind` selects what the adapter sets after containment: `api_key` is `ABACUS_API_KEY=<secret>`; `device_code` would be
-  `CODELLM_DEVICE_CODE=<secret>` (not built, research §3).
+- `kind` selects what the adapter sets after containment: `device_code` is `CODELLM_DEVICE_CODE=<secret>`. An API key is
+  never stored or set (spec FR-005); `ABACUS_API_KEY` is removed from the host's environment by the vendor definition.
+- **Device binding** (open, quickstart §6): the sign-in sends a random UUID as `deviceId`
+  (`device` in the entry is HaexVault's own device id, kept inside the vault). If the vendor accepts the
+  code on other devices (expected, since the vendor's desktop app hands the same code to a CLI), `device` is informational and
+  the one entry serves every device. If it does not, the entry is read only on the device named in `device`, and another
+  device connects once more and replaces it (one entry per vault stays; the newest wins). The plan builds the first case and
+  keeps the field for the second.
 - The provider row of the vendor (`providers`, `kind = cli_delegate`, `adapter = "abacusai"`, `credentials = NULL`) exists once
   connected, so the model picker lists the backend; it holds no secret. Removing the tool or disconnecting deletes the entry and
   the row.
+
+## 3a. The sign-in service (research §3; private, not documented by the vendor)
+
+Base address `https://apps.abacus.ai` (fixed in code; a test double replaces it in tests). Both calls are `POST` with a JSON
+body and a JSON answer.
+
+| Call                                 | Body                                            | Answer on success                                                                 |
+| ------------------------------------ | ----------------------------------------------- | --------------------------------------------------------------------------------- |
+| `/api/_authenticateDeviceForCodeLlm` | `{"email": "...", "deviceId": "<random uuid>"}` | `{"success": true, "result": {"verificationUri", "userCode", "pollingInterval"}}` |
+| `/api/_pollDeviceCode`               | `{"userCode": "..."}`                           | `{"success": true, "result": {"deviceCode", "chatWebUrl"}}` once confirmed        |
+
+A `success: false` (or an answer without `result`) on the first call ends the flow with the vendor's `error` text; on the
+second call it means "not confirmed yet" and polling goes on every `pollingInterval` seconds (default 5) for at most ten
+minutes (the tool's own limits). Nothing of these bodies or answers is logged; the progress event carries only the address
+and the code, which the user needs on screen.
 
 ## 4. The JSON-lines protocol subset the adapter uses (research §5)
 
@@ -117,8 +139,8 @@ Fatal reasons (exit 1) mapped to the delegate errors that spec 007 and the exist
 Unchanged from 094: `<vault>/home/run/<id>/` (config folder = `ABACUSAI_CODING_AGENT_DIR`, `tmp` = `TMPDIR`, working
 folder), created at the start of a run and removed when it ends. The 13 MB native library the program extracts lands in that
 `tmp` folder, so it is removed with the run; the cost is one 13 MB write per start. No credential file is created by
-HaexVault; whether the program writes one by itself with `ABACUS_API_KEY` set is checked in the authenticated measurement
-(quickstart §3) and, if it does, removed with the run folder.
+HaexVault; whether the program writes one by itself with `CODELLM_DEVICE_CODE` set (a keystore) is checked in the
+authenticated measurement (quickstart §3) and, if it does, removed with the run folder.
 
 ## 6. State transitions
 

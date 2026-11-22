@@ -86,21 +86,40 @@ baseline variants on the device (two small probes: the C library, the CPU featur
   AES-GCM); its key is derived from `<machine key>:<user name>` (the host name and the operating-system user name). A file
   that cannot be decrypted is renamed `keystore.enc.unreadable` and "stored credentials must be re-entered". **A keystore
   cannot travel between devices**, which is why the tool's own login cannot satisfy spec 007 FR-002 or this spec's FR-006.
-- **Binary**: the device-code route calls `/api/_authenticateDeviceForCodeLlm` and `/api/_pollDeviceCode` on the vendor's
-  host. They are part of the vendor's private API (not documented), used by its own desktop app and CLI.
+- **Binary** (the program's own login code, read in 2.10.23): the login is a device-code exchange with two calls to the
+  vendor's host (`https://apps.abacus.ai`, overridable with `ABACUS_BASE_URL`), both private and undocumented, the ones the
+  CLI and the desktop app use:
+  1. `POST /api/_authenticateDeviceForCodeLlm` with `{"email": <address>, "deviceId": <machine id>}` answers
+     `{"success": true, "result": {"verificationUri", "userCode", "pollingInterval"}}`. The tool shows "Open the URL and enter
+     the code to log in", opens the browser, and waits.
+  2. `POST /api/_pollDeviceCode` with `{"userCode": <code>}` (optionally `keyType`), polled every `pollingInterval`
+     seconds (default 5) for up to ten minutes, answers `{"success": true, "result": {"deviceCode", "chatWebUrl"}}` once the
+     user has confirmed the code in the browser.
+  3. The tool stores `deviceCode` in `keystore.enc` as `codellm.devicecode`. `CODELLM_DEVICE_CODE` carries exactly this
+     value, so a device code in the environment is the same credential the stored login holds. (`deviceId` is the
+     `node-machine-id` of the device, or a hash of the host name when that fails.)
+     Not measured (**operator**): the answers of the service to a client that is not the vendor's own, whether a device code is
+     accepted on a device other than the one named by `deviceId`, how long it lasts, and what a run does with it.
 
-**Decision** (operator, 2026-11-22): the credential is connected from the app's UI and lives in the password manager
-(spec Clarifications). The stored thing is therefore not a file but one secret and its kind: `api_key` or `device_code`.
+**Decision** (operator, 2026-11-22): the credential is the account's own sign-in, never an API key (an API key is billed per
+request, the sign-in unlocks free models); it is connected from the app's UI and lives in the password manager (spec
+Clarifications). What is stored is one secret, the device code, and the kind says so.
 
-- **First delivery**: `api_key`. The user creates a key at Abacus and enters it in the app's connect dialog, like an
-  api_key provider; HaexVault passes it to the process as `ABACUS_API_KEY` for that run only. The vendor documents this
-  for scripts. **Open (operator)**: whether such a key draws on the subscription's credits or is billed separately; the
-  operator wanted the subscription path, so this decides whether the first delivery is acceptable.
-- **Held back**: `device_code` (a real browser login without the tool's terminal). It needs the app to call the vendor's
-  private endpoints; not decided; the credential model (kind plus secret, section 5 of `data-model.md`) already carries it,
-  so adding it later changes the connect flow and one environment variable, nothing stored or run.
-- Rejected: running `auth login` in a terminal view (the operator wants no terminal and the keystore is device-bound
-  anyway) and carrying `keystore.enc` in the vault (device-bound; it would also be a credential file in the vault's folder).
+- **Connect**: HaexVault runs the two calls itself with `reqwest`, like Codex's connect flow runs its device authentication:
+  the UI asks for the e-mail address, `connect_cli_delegate` calls the first endpoint, emits `delegate-connect-progress` with
+  `awaiting_browser`, the address and the code (the event the Codex flow already has, and the UI already renders), polls the
+  second, stores the device code as the vault's entry and returns `Connected`. `deviceId` is a random UUID made for this
+  connect, not the host's machine id and not a stable identifier of the device or the vault (so nothing that identifies the
+  host or the vault reaches the vendor; the cost is one new device registration per connect on the vendor's side). The base address is the vendor's, fixed;
+  a test double of the service stands in for it in tests.
+- **Run**: the adapter sets `CODELLM_DEVICE_CODE=<secret>` for the child after containment; `ABACUS_API_KEY` is never set
+  (and removed from the host's environment by the vendor definition).
+- **Risk** (stated in the spec): the two endpoints are not documented, and a change on the vendor's side breaks connecting
+  without a new program version, so the tested-version list cannot protect it; the failure is then a specific connect error,
+  not a hang. If the service refuses other clients, the operator decides what replaces it.
+- Rejected: an API key (billing, above); running `auth login` in a terminal view or a hidden pseudo-terminal (the operator wants
+  no terminal; the login needs a real terminal and ends in a device-bound keystore whose key would have to be recomputed to
+  read the code back); carrying `keystore.enc` in the vault (device-bound, and a credential file in the vault's folder).
 
 ## 4. What the tool writes and what moves it (measured)
 
@@ -197,7 +216,9 @@ software around the CLI, API keys or the CLI itself (the CLI appears once, as a 
 nearest to the question forbid letting third parties use the services and circumventing "any aspect of the Services". It is
 silent, neither allowing nor forbidding. Recorded in the spec's Assumptions; **decision for the operator**, as spec 007 did
 for Claude Code. Abacus's own documentation describes the print and JSON-lines modes as "what you use from a script or a CI
-job" and as how "the Desktop app and the SDK drive the agent", which is the use this spec makes.
+job" and as how "the Desktop app and the SDK drive the agent", which is the use this spec makes. The sign-in endpoints of
+section 3 are not documented at all, so whether a third-party client may call them is a separate question for the operator
+(spec Open risks).
 
 ## 8. The tool manager: what a vendor is today (code survey)
 
@@ -275,7 +296,7 @@ Precedent: the marketplace login (`marketplace/credentials.rs`), an entry of the
 `CALLER = Caller::Internal { feature: FEATURE }`, one tag per vendor (`haex-delegate-abacusai`), and functions
 `save(db, vendor, kind, secret)`, `read(db, vendor) -> Credential | Missing | Syncing`, `delete(db, vendor)`. One entry per
 vendor per vault: the title is `Delegate: Abacus AI`, the secret is `password`, the kind is a custom field `kind`
-(`api_key`). A second entry created on another device before the sync arrives is resolved as the marketplace does: the
+(`device_code`). A second entry created on another device before the sync arrives is resolved as the marketplace does: the
 newest `updated_at` is used, and the others are purged at the next save. The generic names are deliberate: the operator
 wants every delegate provider's credential there (Clarifications); only Abacus uses it in this spec.
 
