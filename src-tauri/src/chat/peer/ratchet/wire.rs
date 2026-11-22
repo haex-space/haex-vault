@@ -1,7 +1,7 @@
 //! The two layers of a ratchet message (spec 095 contracts/nostr-chat-ratchet.md "`chat.ratchet`"):
 //! the rumor `{ "v": 1, "type": 0 | 1, "body": "<base64>" }` carrying an Olm message, and its
-//! plaintext `{ "kind": 24120 | 24121 | 0, "content": "..." }` carrying the spec 072 event, the
-//! receipt or a keep-alive.
+//! plaintext `{ "kind": 24120 | 24121 | 0 | 2, "content": "..." }` carrying the spec 072 event,
+//! the receipt, a keep-alive or its bounded reply.
 //!
 //! Decoding answers the [`Drop`] reason the receiving side logs; the content is never part of it.
 
@@ -24,6 +24,8 @@ pub const OPENING: u8 = 0;
 pub const NORMAL: u8 = 1;
 /// The plaintext kind of a keep-alive.
 pub const KEEP_ALIVE: u16 = 0;
+/// A one-way answer to a keep-alive; it does not ask for another answer.
+pub const KEEP_ALIVE_REPLY: u16 = 2;
 
 /// The content of a `chat.ratchet` rumor.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -100,9 +102,9 @@ pub fn check_reset(text: &str) -> std::result::Result<(), Drop> {
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Plaintext {
-    /// 24120 (chat event), 24121 (receipt) or 0 (keep-alive).
+    /// 24120 (chat event), 24121 (receipt), 0 (keep-alive request) or 2 (reply).
     pub kind: u16,
-    /// The JSON of the spec 072 event or receipt; empty for a keep-alive.
+    /// The JSON of the spec 072 event or receipt; empty for a keep-alive request or reply.
     pub content: String,
 }
 
@@ -120,6 +122,14 @@ impl Plaintext {
     pub fn keep_alive() -> Self {
         Self {
             kind: KEEP_ALIVE,
+            content: String::new(),
+        }
+    }
+
+    /// The bounded response to a keep-alive. It does not trigger another response.
+    pub fn keep_alive_reply() -> Self {
+        Self {
+            kind: KEEP_ALIVE_REPLY,
             content: String::new(),
         }
     }
@@ -158,7 +168,10 @@ impl Plaintext {
 }
 
 fn known_kind(kind: u16) -> bool {
-    kind == CHAT_KIND.as_u16() || kind == RECEIPT_KIND.as_u16() || kind == KEEP_ALIVE
+    kind == CHAT_KIND.as_u16()
+        || kind == RECEIPT_KIND.as_u16()
+        || kind == KEEP_ALIVE
+        || kind == KEEP_ALIVE_REPLY
 }
 
 #[cfg(test)]

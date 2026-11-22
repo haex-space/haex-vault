@@ -28,13 +28,14 @@ The plaintext of `body`:
 
 ```json
 {
-  "kind": 24120 | 24121 | 0,
-  "content": "<the JSON of the spec 072 event, or empty for kind 0>"
+  "kind": 24120 | 24121 | 0 | 2,
+  "content": "<the JSON of the spec 072 event, or empty for kind 0 or 2>"
 }
 ```
 
 - `kind: 24120` and `kind: 24121` carry the chat event and the receipt of spec 072 unchanged, with `from`, `to` or `thread`, and the sender's card.
 - `kind: 0` is a keep-alive: it only moves the session forward and is never shown.
+- `kind: 2` is its bounded reply: it only moves the session forward, is never shown, and never triggers another reply.
 
 ## `chat.reset`
 
@@ -72,7 +73,7 @@ For each receiving device (every device on the recipients' cards and the own oth
 
 Step 4 applies only to user-created chat events. Receipts and keep-alives are sent once and are not retried by this schedule.
 
-While its vault is open, each device sends on every active session at least once every 24 hours, even when it has received no recent event: a keep-alive when it sent nothing else on the session in that time. A session is active when it is the one the device sends on (Limits) to a peer device it still addresses. A received message is answered promptly by the delivery receipt of spec 072. A received keep-alive or receipt is answered by the next event that falls due, at the latest 24 hours later, and never by a keep-alive sent at once: two devices would otherwise answer each other without end. A session is not considered recovered from a copied state until both devices have contributed fresh DH ratchet keys that were generated after the copy; exchanging one event in each direction alone is not sufficient. With both vaults open, this full two-sided ratchet progression completes within 48 hours.
+While its vault is open, each device sends on every active session at least once every 24 hours, even when it has received no recent event: a keep-alive when it sent nothing else on the session in that time. A session is active when it is the one the device sends on (Limits) to a peer device it still addresses. A received message is answered promptly by the delivery receipt of spec 072. A received keep-alive request is answered promptly by a distinct keep-alive reply; a reply never triggers another reply, so the exchange is bounded. A received receipt is answered only by the next event that falls due. A session is not considered recovered from a copied state until both devices have contributed fresh DH ratchet keys that were generated after the copy; exchanging one event in each direction alone is not sufficient. With both vaults open, this full two-sided ratchet progression completes within 48 hours.
 
 ## Receiving
 
@@ -81,7 +82,7 @@ For a fetched batch of wraps:
 1. Per wrap: not seen before and not past its `expiration` (a wrap without one is dropped); open the wrap and the seal; this gives the sender device key and the rumor. Seen wraps are remembered for the 30 days a wrap lives, so a replayed wrap never reaches a session.
 2. `chat.reset`: accept only from a device on a stored card of a contact, a group member or the own vault, and at most once per device and hour. Then drop every session with that device, fetch its record again, open a new session and encrypt again every outbox entry whose awaiting vault is the device's vault.
 3. `chat.ratchet`: group by sender device. `type: 0` whose session already exists is decrypted on it; otherwise it creates the session with the identity key it carries. `type: 1` is tried on the sessions with that device. Within a session, decrypt in the order of the message counters. An accepted opening that carries another ratchet identity key than the sessions already held with that device drops those sessions (the device started anew).
-4. Before committing a session created by an opening, authorize the sender before saving any session state. For a decrypted user event, run the spec 072 receiver checks unchanged, including verifying and storing its carried card and checking the seal's device key; commit the card, session and message atomically only if they pass. A decrypted `kind: 0` keep-alive has no carried card, so accept it only from a non-removed device on an already verified stored card of a contact, group member or the own vault; otherwise drop it without saving its session. This also prevents an unauthenticated opening from creating a stored keep-alive session.
+4. Before committing a session created by an opening, authorize the sender before saving any session state. For a decrypted user event, run the spec 072 receiver checks unchanged, including verifying and storing its carried card and checking the seal's device key; commit the card, session and message atomically only if they pass. A decrypted `kind: 0` keep-alive request or `kind: 2` keep-alive reply has no carried card, so accept it only from a non-removed device on an already verified stored card of a contact, group member or the own vault; otherwise drop it without saving its session. Only a request produces a reply. This also prevents an unauthenticated opening from creating a stored keep-alive session.
 5. Save the session, the wrap id and the rows of the event in one transaction.
 6. A ratchet message that cannot be decrypted: if the sender device is on a stored card, drop every session with it and send it a `chat.reset` (at most once per device and hour); otherwise drop silently.
 7. A message that is already stored and was received more than 12 hours ago is a resend (Sending, step 4): it is acknowledged with a delivery receipt again, so a lost receipt does not make the sender send for ever.

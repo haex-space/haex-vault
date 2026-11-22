@@ -32,7 +32,9 @@ use vodozemac::olm::OlmMessage;
 use super::Delivery;
 use crate::chat::peer::envelope::{CHAT_KIND, RECEIPT_KIND};
 use crate::chat::peer::ratchet::session::{self, Decrypt, Decrypted};
-use crate::chat::peer::ratchet::wire::{self, Plaintext, RatchetRumor, KEEP_ALIVE};
+use crate::chat::peer::ratchet::wire::{
+    self, Plaintext, RatchetRumor, KEEP_ALIVE, KEEP_ALIVE_REPLY,
+};
 use crate::chat::peer::ratchet::{reset, RATCHET_KIND, REACK_AFTER_MS, RESET_KIND};
 use crate::chat::peer::receive::{self, Stored};
 use crate::chat::peer::session::Me;
@@ -79,6 +81,8 @@ pub(crate) enum Received {
     Undecryptable([u8; 32]),
     /// A reset was accepted: the outbox has rows to seal again.
     ResetAccepted,
+    /// A keep-alive request; send one bounded response after the batch is stored.
+    KeepAlive([u8; 32]),
 }
 
 /// Sender device, opening (0) or not (1), session id or ratchet key, counter, place in the batch.
@@ -128,6 +132,7 @@ impl Delivery {
         batch.sort_by(|a, b| a.order.cmp(&b.order));
         let mut stored = Vec::new();
         let mut undecryptable = Vec::new();
+        let mut keep_alive_replies = Vec::new();
         let mut reset_accepted = false;
         let mut first_error = None;
         for prepared in batch {
@@ -162,6 +167,7 @@ impl Delivery {
                     }
                 }
                 Ok(Received::ResetAccepted) => reset_accepted = true,
+                Ok(Received::KeepAlive(device)) => keep_alive_replies.push(device),
                 Ok(Received::Nothing) => {}
                 Err(error) => {
                     log::warn!("chat: a received wrap was not stored: {error}");
@@ -182,6 +188,12 @@ impl Delivery {
             };
             if let Err(error) = sent {
                 log::warn!("chat: a reset was not sent: {error}");
+                first_error.get_or_insert(error);
+            }
+        }
+        for device in keep_alive_replies {
+            if let Err(error) = self.send_keep_alive_reply(device).await {
+                log::warn!("chat: a keep-alive response was not sent: {error}");
                 first_error.get_or_insert(error);
             }
         }
@@ -322,13 +334,17 @@ fn ratchet(
         Ok(plaintext) => plaintext,
         Err(drop) => return dropped(tx, me, decrypted, drop),
     };
-    if plaintext.kind == KEEP_ALIVE {
+    if plaintext.kind == KEEP_ALIVE || plaintext.kind == KEEP_ALIVE_REPLY {
         if targets::vault_of_device(tx, me, sender)?.is_none() {
             log::info!("chat: dropped a keep-alive: {}", Drop::UnknownDevice.code());
             return Ok(Received::Nothing);
         }
         decrypted.confirm(tx, me)?;
-        return Ok(Received::Nothing);
+        return Ok(if plaintext.kind == KEEP_ALIVE {
+            Received::KeepAlive(*sender)
+        } else {
+            Received::Nothing
+        });
     }
     let opened = Opened {
         sender_device: *sender,

@@ -90,7 +90,7 @@ Each slice is one pull request with its tests.
 2. **Chat key record**: publish, renew, fetch, check against the card.
 3. **Send and receive on sessions**: new rumor kinds, stored results in the outbox, batch order on receive, old kinds dropped; the two-vault and own-device tests move to sessions.
 4. **Reset and sending again**: undecryptable events, older vault copy, simultaneous openings, retry without limit.
-5. **Keep-alive and cleanup**: proactive keep-alives at least every 24 hours, answers within 24 hours, recovery after both sides contribute fresh ratchet keys (up to 48 hours), sessions of removed devices deleted.
+5. **Keep-alive and cleanup**: proactive keep-alives at least every 24 hours, one immediate bounded response to each request, recovery after both sides contribute fresh ratchet keys (up to 48 hours), sessions of removed devices deleted.
 6. **Conversation view**: protection state and the texts of US4, FR-014 and FR-024.
 
 ## Complexity Tracking
