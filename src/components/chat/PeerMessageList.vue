@@ -89,8 +89,16 @@ function reason(code: string | null) {
           {{ peerName }}
         </span>
         <ChatPeerMessageText
+          v-if="message.text || textFile(message.attachments)"
           :text="message.text ?? ''"
           :file="textFile(message.attachments)"
+          @download="emit('download', $event)"
+        />
+        <ChatAttachmentBubble
+          v-for="file in message.attachments.filter((a) => !a.inline)"
+          :key="file.id"
+          :file="file"
+          :own="message.own"
           @download="emit('download', $event)"
         />
         <span

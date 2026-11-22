@@ -36,9 +36,14 @@ export function useConversationCommands() {
     requestAnswerAsync: (threadId: string, answer: 'decline' | 'block') =>
       invoke<null>('chat_request_answer', { args: { threadId, answer } }),
     // Spec 072 US2: messages of contact conversations.
-    sendAsync: (threadId: string, text: string, idempotencyKey: string) =>
+    sendAsync: (
+      threadId: string,
+      text: string,
+      idempotencyKey: string,
+      files: string[] = [],
+    ) =>
       invoke<{ messageId: string }>('chat_peer_send', {
-        args: { threadId, text, idempotencyKey },
+        args: { threadId, text, idempotencyKey, files },
       }),
     resendAsync: (messageId: string) =>
       invoke<null>('chat_peer_resend', { args: { messageId } }),

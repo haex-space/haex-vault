@@ -486,7 +486,12 @@
       "textDownload": "Download the text ({size})",
       "textRetry": "Try again",
       "textGone": "Text no longer available",
-      "ownRelaysInstead": "This contact's card names no Nostr-Relay. Messages go over your own Nostr-Relays."
+      "ownRelaysInstead": "This contact's card names no Nostr-Relay. Messages go over your own Nostr-Relays.",
+      "attach": "Attach a file",
+      "removeFile": "Remove {name}",
+      "sendingFile": "Sending …",
+      "noFileServer": "Files can only be sent once a Blossom-Server is set.",
+      "openChatSettings": "Open the chat settings"
     },
     "newContact": {
       "title": "Write to a contact",
@@ -515,7 +520,14 @@
       "changed": "The file changed while it was being sent. Send it again.",
       "unreadable": "The file cannot be read.",
       "noServer": "This text is too long for a single message and would have to be sent as a file. No Blossom server is set up for that.",
-      "damaged": "The file is damaged."
+      "damaged": "The file is damaged.",
+      "unnamed": "File",
+      "loading": "Loading …",
+      "loadingPercent": "Loading … {percent}%",
+      "failed": "Loading failed",
+      "retry": "Load again",
+      "download": "Download ({size})",
+      "gone": "File no longer available"
     },
     "error": {
       "tooLong": "The text is too long (at most 1,000,000 characters).",
