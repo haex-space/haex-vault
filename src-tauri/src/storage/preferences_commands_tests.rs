@@ -75,6 +75,24 @@ fn the_chat_file_server_is_none_or_an_address_a_file_may_go_to() {
 }
 
 #[test]
+fn the_chat_switches_take_true_or_false_and_the_download_limit_a_number() {
+    for key in ["chat.receipts.read", "chat.notifications"] {
+        for value in ["true", "false"] {
+            validate_value(key, value).expect("a switch");
+        }
+        for value in ["", "yes", "1", "True"] {
+            validate_value(key, value).expect_err("not a switch");
+        }
+    }
+    for value in ["0", "5000000", "209715200"] {
+        validate_value("chat.download.autoLimit", value).expect("a limit");
+    }
+    for value in ["", "-1", "25 MB", "1.5"] {
+        validate_value("chat.download.autoLimit", value).expect_err("not a limit");
+    }
+}
+
+#[test]
 fn the_background_takes_only_a_webp_data_url_within_the_limit() {
     let key = "appearance.background";
     validate_value(key, "data:image/webp;base64,UklGRg==").expect("a WebP data URL");
