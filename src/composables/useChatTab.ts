@@ -73,6 +73,7 @@ export function useChatTab(deps: {
       threadId: string,
       text: string,
       idempotencyKey: string,
+      files: string[],
     ) => Promise<{ messageId: string }>
     resendAsync: (messageId: string) => Promise<unknown>
     refresh: () => Promise<void>
@@ -297,6 +298,7 @@ export function useChatTab(deps: {
       String(input.threadId),
       String(input.text),
       String(input.idempotencyKey),
+      Array.isArray(input.files) ? input.files.map(String) : [],
     ),
   )
   handle('chat.peer.resend', async (input) => {
@@ -343,8 +345,12 @@ export function useChatTab(deps: {
         threadId: string,
         answer: 'accept' | 'decline' | 'block',
       ) => run(`chat.request.${answer}`, { threadId }),
-      sendPeer: (threadId: string, text: string, idempotencyKey: string) =>
-        attempt('chat.peer.send', { threadId, text, idempotencyKey }),
+      sendPeer: (
+        threadId: string,
+        text: string,
+        idempotencyKey: string,
+        files: string[],
+      ) => attempt('chat.peer.send', { threadId, text, idempotencyKey, files }),
       resendPeer: (messageId: string) =>
         attempt('chat.peer.resend', { messageId }),
       saveTitle: () =>

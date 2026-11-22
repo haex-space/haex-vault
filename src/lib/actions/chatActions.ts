@@ -199,6 +199,12 @@ export const CHAT_ACTIONS: readonly ActionDefinition[] = [
           type: 'string',
           description: 'A UUID made once per message; a retry sends it once.',
         },
+        files: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Files picked in the open dialog (a path, or a content address on Android); they go to the Blossom-Server with the message.',
+        },
       },
       required: ['threadId', 'text', 'idempotencyKey'],
     },

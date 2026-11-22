@@ -486,7 +486,12 @@
       "textDownload": "Text herunterladen ({size})",
       "textRetry": "Erneut versuchen",
       "textGone": "Text nicht mehr verfügbar",
-      "ownRelaysInstead": "Die Visitenkarte dieses Kontakts nennt keinen Nostr-Relay. Nachrichten gehen über deine eigenen Nostr-Relays."
+      "ownRelaysInstead": "Die Visitenkarte dieses Kontakts nennt keinen Nostr-Relay. Nachrichten gehen über deine eigenen Nostr-Relays.",
+      "attach": "Datei anhängen",
+      "removeFile": "{name} entfernen",
+      "sendingFile": "Wird gesendet …",
+      "noFileServer": "Dateien lassen sich erst senden, wenn ein Blossom-Server eingestellt ist.",
+      "openChatSettings": "Chat-Einstellungen öffnen"
     },
     "newContact": {
       "title": "Mit Kontakt schreiben",
@@ -515,7 +520,14 @@
       "changed": "Die Datei wurde beim Senden verändert. Sende sie noch einmal.",
       "unreadable": "Die Datei lässt sich nicht lesen.",
       "noServer": "Dieser Text ist zu lang für eine einzelne Nachricht und müsste als Datei gesendet werden. Dafür ist kein Blossom-Server eingestellt.",
-      "damaged": "Die Datei ist beschädigt."
+      "damaged": "Die Datei ist beschädigt.",
+      "unnamed": "Datei",
+      "loading": "Wird geladen …",
+      "loadingPercent": "Wird geladen … {percent} %",
+      "failed": "Laden fehlgeschlagen",
+      "retry": "Erneut laden",
+      "download": "Herunterladen ({size})",
+      "gone": "Datei nicht mehr verfügbar"
     },
     "error": {
       "tooLong": "Der Text ist zu lang (höchstens 1.000.000 Zeichen).",

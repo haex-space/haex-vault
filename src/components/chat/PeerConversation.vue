@@ -9,6 +9,7 @@
  */
 import { toast } from 'vue-sonner'
 import type { PeerConversationEntry } from '~/composables/useConversations'
+import type { PeerFile } from '~/components/chat/PeerFileChips.vue'
 import {
   COUNTER_FROM,
   MAX_TEXT_CHARS,
@@ -22,6 +23,7 @@ const props = defineProps<{
     threadId: string,
     text: string,
     idempotencyKey: string,
+    files: string[],
   ) => Promise<string | null>
   /** Runs `chat.peer.resend`; resolves with an error text when it failed. */
   resend: (messageId: string) => Promise<string | null>
@@ -29,13 +31,18 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   mute: [threadId: string, muted: boolean]
+  /** The hint without a Blossom-Server leads to the chat settings (FR-038). */
+  openChatSettings: []
   delete: [threadId: string]
   answer: [threadId: string, answer: 'accept' | 'decline' | 'block']
 }>()
 
 const { t } = useI18n()
 const { errString } = useErrorString()
+const { pickManyAsync, nameOfAsync } = usePickedFile()
+const { hasServer } = useChatFileServer()
 const draft = ref('')
+const files = ref<PeerFile[]>([])
 const confirmDelete = ref(false)
 const sending = ref(false)
 /** One key per message: a retry of the same draft sends it once (contracts/ipc.md). */
@@ -59,16 +66,41 @@ const canSend = computed(
   () =>
     !sending.value &&
     !tooLong.value &&
-    draft.value.trim().length > 0 &&
+    (draft.value.trim().length > 0 || files.value.length > 0) &&
     props.conversation !== null,
 )
+// Files go to the Blossom-Server, so a conversation offers them only with one (FR-038); notes stay
+// in the vault and take no files.
+const canAttach = computed(
+  () => hasServer.value && props.conversation?.kind !== 'note',
+)
+
+async function attach() {
+  if (sending.value) return
+  const picked = await pickManyAsync()
+  const known = new Set(files.value.map((file) => file.path))
+  for (const path of picked) {
+    if (known.has(path)) continue
+    files.value.push({ path, name: await nameOfAsync(path) })
+  }
+}
+
+function detach(path: string) {
+  files.value = files.value.filter((file) => file.path !== path)
+}
 
 async function submit() {
   const id = threadId.value
   if (!id || !canSend.value) return
   const text = draft.value
+  const sent = files.value
   sending.value = true
-  const error = await props.send(id, text, idempotencyKey)
+  const error = await props.send(
+    id,
+    text,
+    idempotencyKey,
+    sent.map((file) => file.path),
+  )
   sending.value = false
   if (error !== null) toast.error(error)
   if (threadId.value !== id) return
@@ -76,6 +108,7 @@ async function submit() {
   // its own key, so neither a success clears it nor a retry sends it under the old key.
   const draftChanged = draft.value !== text
   if (error === null && !draftChanged) draft.value = ''
+  if (error === null) files.value = []
   if (error === null || draftChanged) idempotencyKey = crypto.randomUUID()
 }
 
@@ -102,6 +135,7 @@ watch(
   () => props.conversation?.id,
   () => {
     draft.value = ''
+    files.value = []
     idempotencyKey = crypto.randomUUID()
     confirmDelete.value = false
   },
@@ -210,7 +244,45 @@ watch(
         @send="submit"
         @transcript="onTranscript"
       >
+        <template #attachments>
+          <ChatPeerFileChips
+            v-if="files.length > 0"
+            :files="files"
+            :sending="sending"
+            @remove="detach"
+          />
+        </template>
+        <template v-if="canAttach" #controls>
+          <UiButton
+            type="button"
+            variant="ghost"
+            size="icon"
+            :disabled="sending"
+            :aria-label="t('chat.peer.attach')"
+            :tooltip="t('chat.peer.attach')"
+            data-testid="chat-peer-attach"
+            @click="attach"
+          >
+            <Icon name="lucide:paperclip" class="h-4 w-4" />
+          </UiButton>
+        </template>
         <template #above>
+          <p
+            v-if="!hasServer && conversation.kind !== 'note'"
+            class="mb-2 flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground"
+            data-testid="chat-peer-no-server-hint"
+          >
+            <Icon name="lucide:info" class="h-3 w-3 shrink-0" />
+            {{ t('chat.peer.noFileServer') }}
+            <button
+              type="button"
+              class="underline underline-offset-2 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              data-testid="chat-peer-open-chat-settings"
+              @click="emit('openChatSettings')"
+            >
+              {{ t('chat.peer.openChatSettings') }}
+            </button>
+          </p>
           <p
             v-if="conversation.peerWithoutRelays"
             class="mb-2 flex items-start gap-1 text-xs text-muted-foreground"

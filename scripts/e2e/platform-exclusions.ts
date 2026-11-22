@@ -83,6 +83,14 @@ export const EXCLUSIONS: PlatformExclusion[] = [
     counterCase: 'chat-model-search',
   },
   {
+    scenario: 'chat-files',
+    platform: 'android',
+    kind: 'harness-limited',
+    reason:
+      'the files are given to the command by a path on the test host, which a phone cannot reach; the rig cannot produce the content address a phone picker returns',
+    counterCase: 'chat-two-vaults',
+  },
+  {
     scenario: 'files-split-restore',
     platform: 'android',
     kind: 'excluded',
