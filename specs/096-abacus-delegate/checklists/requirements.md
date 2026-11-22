@@ -34,9 +34,10 @@
 - Like specs 007 and 094, this spec names the vault's folders, the vault database and the per-run folder, because they are
   the operator's stated rules and the contract with those specs, not a choice of this feature. It names no language,
   framework or library.
-- Two clarifications were answered on 2026-11-22 (sign-in in a terminal view in the app; backend not offered if single
-  approvals are impossible) and are recorded in the spec's Clarifications section.
-- Facts about the tool (integrity information, headless mode, approvals, where it writes, platforms, terms) are unknown and
-  listed under Open risks as research; FR-003, FR-010 and FR-013 say what happens if the answer is unfavourable. Nothing
-  in the spec assumes a favourable answer.
+- Clarifications of 2026-11-22 are recorded in the spec: connecting from the app's UI without a terminal (this replaced
+  an earlier answer of the same day), the credential in the password manager, and the backend not being offered if
+  single approvals are impossible.
+- Facts about the tool were researched on 2026-11-22 (see the spec's Open risks and `research.md`); what needs a real
+  Abacus account stays open, and FR-003, FR-010 and FR-013 say what happens if an answer is unfavourable. Nothing in the
+  spec assumes a favourable answer.
 - Everything that needs the operator's real Abacus account is FR-015, to be spelled out as operator tasks in the quickstart.
