@@ -178,20 +178,22 @@ fn card_of(
     q: &mut impl Query,
     subject: &Subject,
     choice: &ContactShareHaexChoice,
-) -> Result<Option<Vec<u8>>> {
+) -> Result<(Option<Vec<u8>>, Option<u64>)> {
     match choice {
-        ContactShareHaexChoice::None => Ok(None),
+        ContactShareHaexChoice::None => Ok((None, None)),
         ContactShareHaexChoice::Card => subject
             .card
             .as_ref()
-            .map(|card| Some(card.bytes.clone()))
+            .map(|card| (Some(card.bytes.clone()), None))
             .ok_or_else(|| invalid("the contact has no confirmed HaexVault addresses")),
         ContactShareHaexChoice::Own { devices, relays } => {
             if !subject.contact.is_self {
                 return Err(invalid("only the own contact shares the own addresses"));
             }
             let card = own_card::build_for_share(q, &keys_of(devices)?, relays)?;
-            Ok(card.map(|card| card.bytes))
+            Ok(card.map_or((None, None), |card| {
+                (Some(card.bytes), Some(card.card.issued_at))
+            }))
         }
     }
 }
@@ -204,6 +206,16 @@ pub fn build(
     contact_id: &str,
     selection: &ContactShareSelection,
 ) -> Result<ContactShareOutput> {
+    build_with_card_issued_at(q, contact_id, selection).map(|(output, _)| output)
+}
+
+/// Builds a share and returns the issue time of a freshly signed own card, if any. A caller that
+/// can write the vault refreshes its full stored card past this time so later messages are current.
+pub(crate) fn build_with_card_issued_at(
+    q: &mut impl Query,
+    contact_id: &str,
+    selection: &ContactShareSelection,
+) -> Result<(ContactShareOutput, Option<u64>)> {
     let subject = subject(q, contact_id)?;
     let rows = rows_of(&subject);
     let mut values = Vec::new();
@@ -240,7 +252,8 @@ pub fn build(
             value: row.value.clone(),
         })
         .collect();
-    shared.card = card_of(q, &subject, &selection.haex)?;
+    let (card, issued_at) = card_of(q, &subject, &selection.haex)?;
+    shared.card = card;
 
     let nothing = shared.name.is_empty()
         && shared.values.is_empty()
@@ -259,11 +272,14 @@ pub fn build(
     let qr_svg = envelope::fits_qr(&link)
         .then(|| format::qr_svg(&link))
         .transpose()?;
-    Ok(ContactShareOutput {
-        size: u32::try_from(link.chars().count()).unwrap_or(u32::MAX),
-        link,
-        qr_svg,
-    })
+    Ok((
+        ContactShareOutput {
+            size: u32::try_from(link.chars().count()).unwrap_or(u32::MAX),
+            link,
+            qr_svg,
+        },
+        issued_at,
+    ))
 }
 
 #[cfg(test)]
