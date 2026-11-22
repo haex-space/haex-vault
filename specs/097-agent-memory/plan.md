@@ -141,6 +141,7 @@ src-tauri/src/
 │   ├── links.rs                     # pointers from the text, the map out and in
 │   ├── search.rs                    # the search over title, description and text
 │   ├── toc.rs                       # snapshot, the block, the cut by context, NO_START_TOC
+│   ├── turn.rs                      # what a turn gets: snapshot taken, block, offered memory tools
 │   ├── foreign.rs                   # is_foreign(source, scope), the mark on the thread
 │   ├── gate.rs                      # decide(mode, foreign)
 │   ├── executor.rs                  # NativeExecutor for the five actions, author of a call, the notice
