@@ -2,6 +2,8 @@
 
 Every decision names what was read in the code and what was rejected. File references are repository-relative.
 
+The decisions of R1, R3 and R4 (a plain-text log in the vault's folder, nothing before the unlock, one level per vault and device) are recorded as [ADR 0027](../../docs/adr/0027-vault-folder-log.md).
+
 ## R1: One logger, one swappable sink
 
 **Facts.** `tauri-plugin-log` 2.10 builds its `fern` dispatch once, when the plugin is created, from fixed targets. Its
