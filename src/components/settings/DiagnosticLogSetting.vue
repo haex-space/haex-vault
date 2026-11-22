@@ -64,6 +64,26 @@ async function chooseAsync(value: string) {
   }
 }
 
+// Showing the folder and sharing the log change nothing in the vault: the person asks, the system
+// answers (the file manager opens, the share sheet appears); only a failure has a text.
+async function passOnAsync(
+  command: 'diagnostic_log_reveal' | 'diagnostic_log_share',
+) {
+  if (busy.value) return
+  const failure =
+    command === 'diagnostic_log_reveal'
+      ? 'settings.diagnosticLog.revealFailed'
+      : 'settings.diagnosticLog.shareFailed'
+  busy.value = true
+  try {
+    await invoke(command)
+  } catch (error: unknown) {
+    toast.error(`${t(failure)}: ${errString(error)}`)
+  } finally {
+    busy.value = false
+  }
+}
+
 const unlisten: UnlistenFn[] = []
 
 onMounted(async () => {
@@ -145,6 +165,31 @@ onBeforeUnmount(() => {
       >
         {{ t('settings.diagnosticLog.unwritable') }}
       </p>
+      <div
+        v-if="status.canReveal || status.canShare"
+        class="flex flex-wrap items-center gap-2"
+      >
+        <UiButton
+          v-if="status.canReveal"
+          variant="outline"
+          size="sm"
+          :disabled="busy"
+          data-testid="diagnostic-log-reveal"
+          @click="passOnAsync('diagnostic_log_reveal')"
+        >
+          {{ t('settings.diagnosticLog.reveal') }}
+        </UiButton>
+        <UiButton
+          v-if="status.canShare"
+          variant="outline"
+          size="sm"
+          :disabled="busy"
+          data-testid="diagnostic-log-share"
+          @click="passOnAsync('diagnostic_log_share')"
+        >
+          {{ t('settings.diagnosticLog.share') }}
+        </UiButton>
+      </div>
       <p class="px-1 text-xs text-muted-foreground">
         {{ t('settings.diagnosticLog.location') }}
         {{ t('settings.diagnosticLog.moreLater') }}

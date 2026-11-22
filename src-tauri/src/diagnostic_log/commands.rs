@@ -1,18 +1,30 @@
 //! The commands of the setting "Protokoll" (spec 098; `contracts/commands.md`).
 
+use std::fs::File;
+use std::io;
+use std::path::{Path, PathBuf};
+
 use serde::Deserialize;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
+use tauri_plugin_haex_android::HaexAndroidExt;
+use tauri_plugin_opener::OpenerExt;
 
 use super::expiry::{self, DEADLINE};
 use super::level::LogLevel;
+use super::rotation::{files_oldest_first, FILE_NAME};
 use super::{
     apply_state, cancel_expiry, emitter, now_ms, schedule_expiry, status, DiagnosticLogStatus,
     Emitter, SINK,
 };
-use crate::error::Result;
+use crate::error::{HaexError, Result};
 use crate::state::AppState;
 use crate::state_utils::active_database;
 use crate::vault_gate::{VaultDb, VaultGate};
+
+/// The folder in the app's cache that holds the copy of the log handed to the share sheet, and the
+/// copy's name. The Android plugin's file provider exposes only this folder.
+const SNAPSHOT_DIR: &str = "diagnostic-log";
+const SNAPSHOT_FILE: &str = "haex-diagnostic-log.txt";
 
 static LEVEL_TRANSITION: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
@@ -135,6 +147,87 @@ pub async fn diagnostic_log_set(
 #[tauri::command]
 pub fn diagnostic_log_ui_message(session_id: String, level: UiLevel, message: String) {
     ui_message(&session_id, level, &message);
+}
+
+/// The error of a function this platform does not have.
+fn unsupported() -> HaexError {
+    HaexError::InvalidInput {
+        reason: "unsupported".to_string(),
+    }
+}
+
+fn require(supported: bool) -> Result<()> {
+    if supported {
+        Ok(())
+    } else {
+        Err(unsupported())
+    }
+}
+
+/// Joins the log files into `target`, in time order. The files stay as they are and the log keeps
+/// writing; a file that rotates away while this runs is skipped.
+pub(crate) fn snapshot_log(folder: &Path, target: &Path) -> io::Result<()> {
+    if let Some(parent) = target.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let mut out = File::create(target)?;
+    for file in files_oldest_first(folder) {
+        match File::open(&file) {
+            Ok(mut source) => {
+                io::copy(&mut source, &mut out)?;
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
+}
+
+/// The log folder of the vault that is open.
+fn log_folder(app: &AppHandle, state: &AppState) -> Result<PathBuf> {
+    let name = state.active_name()?.ok_or(HaexError::NoActiveInstance)?;
+    Ok(crate::instances::paths::vault_paths(app)?.logs_dir(&name))
+}
+
+/// Shows the current log file in the file manager (a computer only).
+#[tauri::command]
+pub async fn diagnostic_log_reveal(app: AppHandle, state: State<'_, AppState>) -> Result<()> {
+    require(super::can_reveal())?;
+    active_database(&state)?;
+    let file = log_folder(&app, &state)?.join(FILE_NAME);
+    app.opener()
+        .reveal_item_in_dir(&file)
+        .map_err(|error| HaexError::InvalidInput {
+            reason: format!("the log cannot be shown: {error}"),
+        })
+}
+
+/// Hands a copy of the log to the system's share sheet (Android only).
+#[tauri::command]
+pub async fn diagnostic_log_share(app: AppHandle, state: State<'_, AppState>) -> Result<()> {
+    require(super::can_share())?;
+    active_database(&state)?;
+    let folder = log_folder(&app, &state)?;
+    let target = app
+        .path()
+        .app_cache_dir()
+        .map_err(|error| HaexError::InvalidInput {
+            reason: format!("no cache folder: {error}"),
+        })?
+        .join(SNAPSHOT_DIR)
+        .join(SNAPSHOT_FILE);
+    let copy = target.clone();
+    tokio::task::spawn_blocking(move || {
+        SINK.flush_sync();
+        snapshot_log(&folder, &copy)
+    })
+    .await
+    .map_err(|error| HaexError::InvalidInput {
+        reason: format!("the log copy did not finish: {error}"),
+    })??;
+    app.haex_android()
+        .share_file(&target, "text/plain")
+        .map_err(|reason| HaexError::InvalidInput { reason })
 }
 
 #[cfg(test)]

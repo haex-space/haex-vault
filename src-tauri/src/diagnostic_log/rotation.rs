@@ -13,6 +13,31 @@ pub const FILE_NAME: &str = "haex.log";
 const COMPACT_READY: &str = "haex.log.compact-ready";
 const COMPACT_READY_TEMP: &str = "haex.log.compact-ready.tmp";
 
+/// The log files of `folder` in time order, the oldest first: `haex.log.N` down to `haex.log.1`,
+/// then `haex.log`. Only files that exist and are no compaction leftovers.
+pub fn files_oldest_first(folder: &Path) -> Vec<PathBuf> {
+    let mut archives: Vec<usize> = fs::read_dir(folder)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|entry| {
+            let name = entry.file_name();
+            let number = name.to_str()?.strip_prefix(FILE_NAME)?.strip_prefix('.')?;
+            number.parse::<usize>().ok().filter(|index| *index >= 1)
+        })
+        .collect();
+    archives.sort_unstable_by(|a, b| b.cmp(a));
+    let mut files: Vec<PathBuf> = archives
+        .into_iter()
+        .map(|index| folder.join(format!("{FILE_NAME}.{index}")))
+        .collect();
+    let current = folder.join(FILE_NAME);
+    if current.is_file() {
+        files.push(current);
+    }
+    files
+}
+
 /// How much a log may keep: `files` files (the current one and its archives) of `bytes` each.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {

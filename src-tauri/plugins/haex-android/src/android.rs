@@ -59,6 +59,12 @@ struct SharedFilesArgs {
 }
 
 #[derive(Serialize)]
+struct ShareFileArgs<'a> {
+    path: &'a str,
+    mime: &'a str,
+}
+
+#[derive(Serialize)]
 struct ShortcutArgs<'a> {
     id: &'a str,
     label: &'a str,
@@ -214,6 +220,15 @@ impl<R: Runtime> HaexAndroid<R> {
     pub fn pin_pass_shortcut(&self, id: &str, label: &str) -> Result<(), String> {
         self.0
             .run_mobile_plugin::<()>("pinPassShortcut", ShortcutArgs { id, label })
+            .map_err(|error| error.to_string())
+    }
+
+    /// Offers the file at `path` (a copy in the diagnostic log folder of the app's cache, spec 098)
+    /// to the system's share sheet. The Kotlin side refuses any other file.
+    pub fn share_file(&self, path: &std::path::Path, mime: &str) -> Result<(), String> {
+        let path = path.to_str().ok_or("the path is not text")?;
+        self.0
+            .run_mobile_plugin::<()>("shareFile", ShareFileArgs { path, mime })
             .map_err(|error| error.to_string())
     }
 

@@ -513,3 +513,81 @@ fn only_the_main_window_can_write_a_ui_message() {
         "registered once, in the handler of the app's window"
     );
 }
+fn write_file(folder: &Path, name: &str, text: &str) {
+    std::fs::create_dir_all(folder).unwrap();
+    std::fs::write(folder.join(name), text).unwrap();
+}
+
+#[test]
+fn a_snapshot_joins_the_files_in_time_order_and_leaves_them_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    let folder = dir.path().join("logs");
+    write_file(&folder, "haex.log.2", "older\n");
+    write_file(&folder, "haex.log.10", "oldest of all\n");
+    write_file(&folder, "haex.log.1", "old\n");
+    write_file(&folder, "haex.log", "current\n");
+    // Leftovers of a compaction and strangers are no part of the log.
+    write_file(&folder, "haex.log.compact-ready", "half done\n");
+    write_file(&folder, "notes.txt", "not the log\n");
+    let target = dir.path().join("cache").join("copy.txt");
+
+    snapshot_log(&folder, &target).unwrap();
+
+    // The highest number is the oldest file, so 10 comes before 2.
+    assert_eq!(
+        std::fs::read_to_string(&target).unwrap(),
+        "oldest of all\nolder\nold\ncurrent\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(folder.join("haex.log")).unwrap(),
+        "current\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(folder.join("haex.log.2")).unwrap(),
+        "older\n"
+    );
+}
+
+#[test]
+fn a_snapshot_of_an_empty_folder_is_an_empty_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("copy.txt");
+    snapshot_log(&dir.path().join("none"), &target).unwrap();
+    assert_eq!(std::fs::read_to_string(&target).unwrap(), "");
+}
+
+#[tokio::test]
+async fn the_log_keeps_writing_while_and_after_a_snapshot_is_taken() {
+    let f = Fixture::new().await;
+    f.start().await;
+    SINK.write_record(Level::Warn, "haex::sync", "before the snapshot");
+    SINK.flush_sync();
+    let target = f.logs.path().join("snapshot.txt");
+
+    snapshot_log(&f.folder(), &target).unwrap();
+    SINK.write_record(Level::Warn, "haex::sync", "after the snapshot");
+    SINK.flush_sync();
+
+    let copy = std::fs::read_to_string(&target).unwrap();
+    assert!(copy.contains("before the snapshot"));
+    assert!(!copy.contains("after the snapshot"));
+    let log = std::fs::read_to_string(f.folder().join("haex.log")).unwrap();
+    assert!(log.contains("before the snapshot") && log.contains("after the snapshot"));
+}
+
+#[test]
+fn only_the_platform_that_has_a_function_offers_it() {
+    assert!(require(true).is_ok());
+    assert!(matches!(
+        require(false),
+        Err(HaexError::InvalidInput { reason }) if reason == "unsupported"
+    ));
+    // The tests run on a computer: it reveals, it does not share.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        assert!(crate::diagnostic_log::can_reveal());
+        assert!(!crate::diagnostic_log::can_share());
+        let status = status();
+        assert!(status.can_reveal && !status.can_share);
+    }
+}

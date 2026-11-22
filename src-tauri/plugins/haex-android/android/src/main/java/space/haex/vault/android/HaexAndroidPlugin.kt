@@ -15,6 +15,7 @@ import android.provider.OpenableColumns
 import android.provider.Settings
 import android.view.WindowManager
 import android.webkit.WebView
+import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import app.tauri.annotation.Command
@@ -25,6 +26,7 @@ import app.tauri.plugin.Channel
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
+import java.io.File
 import java.util.concurrent.Executors
 
 @InvokeArg
@@ -55,6 +57,12 @@ class NetworkArgs {
 @InvokeArg
 class SharedFilesArgs {
     lateinit var channel: Channel
+}
+
+@InvokeArg
+class ShareFileArgs {
+    lateinit var path: String
+    lateinit var mime: String
 }
 
 @InvokeArg
@@ -160,6 +168,40 @@ class HaexAndroidPlugin(private val activity: Activity) : Plugin(activity) {
             val pinned = passShortcut.pin(args.id, args.label)
             activity.runOnUiThread {
                 if (pinned) invoke.resolve() else invoke.reject("unsupported")
+            }
+        }
+    }
+
+    /**
+     * Offers a copy of the diagnostic log (spec 098) to the system's share sheet. Only a file in
+     * the cache's `diagnostic-log` folder is shared, and the file provider exposes nothing else;
+     * any other path is refused (`unsupported`).
+     */
+    @Command
+    fun shareFile(invoke: Invoke) {
+        val args = invoke.parseArgs(ShareFileArgs::class.java)
+        val folder = File(activity.cacheDir, DiagnosticLogFileProvider.FOLDER).canonicalFile
+        val file = File(args.path).canonicalFile
+        if (!file.isFile || file.parentFile != folder) {
+            invoke.reject("unsupported")
+            return
+        }
+        activity.runOnUiThread {
+            try {
+                val uri = FileProvider.getUriForFile(
+                    activity,
+                    "${activity.packageName}.${DiagnosticLogFileProvider.AUTHORITY_SUFFIX}",
+                    file,
+                )
+                val send = Intent(Intent.ACTION_SEND).apply {
+                    type = args.mime
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                activity.startActivity(Intent.createChooser(send, null))
+                invoke.resolve()
+            } catch (error: Exception) {
+                invoke.reject(error.message ?: "the share sheet did not open")
             }
         }
     }

@@ -17,4 +17,12 @@ writable: boolean,
  * Fresh and opaque per unlock; the interface sends it with every message, so a message
  * queued for an earlier vault is dropped. `None` while no vault is attached.
  */
-sessionId: string | null, };
+sessionId: string | null,
+/**
+ * This platform can show the folder of the log in the file manager (a computer).
+ */
+canReveal: boolean,
+/**
+ * This platform can hand the log to the system's share sheet (Android).
+ */
+canShare: boolean, };

@@ -23,4 +23,17 @@
     <uses-permission
         android:name="android.permission.GET_ACCOUNTS"
         android:maxSdkVersion="22" />
+    <application>
+        <!-- Hands the copy of the diagnostic log to the share sheet (spec 098); see
+             DiagnosticLogFileProvider. Not exported: access comes only from the grant of the intent. -->
+        <provider
+            android:name=".DiagnosticLogFileProvider"
+            android:authorities="${applicationId}.diagnosticlog"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/diagnostic_log_paths" />
+        </provider>
+    </application>
 </manifest>
