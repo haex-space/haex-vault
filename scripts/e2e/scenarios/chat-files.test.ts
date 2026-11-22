@@ -147,6 +147,11 @@ scenario('chat-files', { timeoutMs: 420_000 }, async (ctx) => {
     async () => (await stateOf(SMALL))?.state === 'stored',
     { timeoutMs: 120_000, fixed: true },
   )
+  await ctx.waitFor(
+    'the 26 MB file to wait for a tap',
+    async () => (await stateOf(LARGE))?.state === 'pending',
+    { timeoutMs: 120_000, fixed: true },
+  )
   assert.equal(
     (await stateOf(LARGE))?.state,
     'pending',

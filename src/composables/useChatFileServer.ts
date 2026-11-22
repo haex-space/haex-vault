@@ -10,12 +10,15 @@ const KEY = 'chat.blossom.server'
 export function useChatFileServer() {
   const { getPrefAsync } = usePreferences()
   const address = ref('')
+  let latestRequest = 0
 
   async function refresh() {
+    const request = ++latestRequest
     try {
-      address.value = (await getPrefAsync({ kind: 'vault' }, KEY)) ?? ''
+      const value = (await getPrefAsync({ kind: 'vault' }, KEY)) ?? ''
+      if (request === latestRequest) address.value = value
     } catch {
-      address.value = ''
+      if (request === latestRequest) address.value = ''
     }
   }
   void refresh()

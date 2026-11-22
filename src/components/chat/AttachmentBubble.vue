@@ -20,7 +20,7 @@ const emit = defineEmits<{
   download: [attachmentId: string]
 }>()
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const { errString } = useErrorString()
 
 const control = computed(() =>
@@ -37,6 +37,13 @@ const icon = computed(() => {
   return 'lucide:file'
 })
 const name = computed(() => props.file.name ?? t('chat.file.unnamed'))
+const error = computed(() => {
+  const reason = props.file.error
+  if (!reason) return t('chat.file.failed')
+  if (reason.startsWith('chat.file.'))
+    return te(reason) ? t(reason) : t('chat.file.failed')
+  return errString(reason)
+})
 </script>
 
 <template>
@@ -77,7 +84,7 @@ const name = computed(() => props.file.name ?? t('chat.file.unnamed'))
         class="text-xs opacity-80"
         data-testid="chat-attachment-error"
       >
-        {{ file.error ? errString(file.error) : t('chat.file.failed') }}
+        {{ error }}
       </p>
       <p v-else class="text-xs opacity-80">
         {{ formatFileSize(file.size) }}
