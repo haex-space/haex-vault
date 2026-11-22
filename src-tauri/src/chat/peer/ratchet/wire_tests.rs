@@ -98,6 +98,14 @@ fn a_plaintext_over_the_limit_is_too_large() {
     };
     let error = over.encode().expect_err("one byte over");
     assert_eq!(error.to_string(), envelope::too_large().to_string());
+
+    let incoming = serde_json::to_vec(&Plaintext {
+        kind: 24120,
+        content: "a".repeat(MAX_PLAINTEXT_BYTES),
+    })
+    .expect("serialize incoming plaintext");
+    assert!(incoming.len() > MAX_PLAINTEXT_BYTES);
+    assert_eq!(Plaintext::decode(&incoming), Err(Drop::TooLarge));
 }
 
 /// Research "Checks done for tasks": the largest plaintext still wraps within the relay limit, also

@@ -128,6 +128,9 @@ impl Plaintext {
 
     /// Reads decrypted bytes; refuses an unknown kind.
     pub fn decode(bytes: &[u8]) -> std::result::Result<Self, Drop> {
+        if bytes.len() > MAX_PLAINTEXT_BYTES {
+            return Err(Drop::TooLarge);
+        }
         let plaintext: Self = serde_json::from_slice(bytes).map_err(|_| Drop::Malformed)?;
         if !known_kind(plaintext.kind) {
             return Err(Drop::UnknownKind);
