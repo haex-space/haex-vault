@@ -26,7 +26,7 @@ const emit = defineEmits<{
 const { t, te } = useI18n()
 const { errString } = useErrorString()
 const commands = useConversationCommands()
-const { capabilities, isAndroid } = useDeviceCapabilities()
+const { capabilities } = useDeviceCapabilities()
 
 const control = computed(() =>
   props.own && props.file.state === null ? null : textControl(props.file),
@@ -46,7 +46,8 @@ const openable = computed(
   () =>
     (control.value === null || control.value.kind === 'toggle') &&
     capabilities.value !== null &&
-    !isAndroid.value,
+    capabilities.value.platform !== 'android' &&
+    capabilities.value.platform !== 'ios',
 )
 const name = computed(() => props.file.name ?? t('chat.file.unnamed'))
 const error = computed(() => {
