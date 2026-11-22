@@ -433,6 +433,7 @@ onBeforeUnmount(() => {
         @select-agent="run(ui.openAgent)"
         @select-notes="run(ui.openNotes)"
         @select-peer="(id) => run(() => ui.openPeerConversation(id))"
+        @mute-peer="ui.mute"
         @select-hit="(hit) => run(() => openHit(hit))"
       />
     </template>

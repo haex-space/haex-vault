@@ -1,14 +1,16 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { scenario } from '../lib/scenario.ts'
-import { unwrap, type FlowInstance } from '../lib/flows.ts'
+import { openChat, unwrap, type FlowInstance } from '../lib/flows.ts'
 import { acceptCard } from '../lib/peers.ts'
+import { contextMenu } from '../lib/passwords.ts'
 import { ownCardText } from '../lib/share.ts'
 
 // Spec 072 (quickstart A13, task T106): two vaults that are contacts of each other talk through the
 // scenario's Nostr-Relay and Blossom-Server. A text goes both ways, a text too long for one message
 // goes as a file over the Blossom-Server and arrives whole, and the sender sees "read" once the
-// other side opened the conversation. The conversation is driven through the commands the window
+// other side opened the conversation; Ben then mutes and unmutes the conversation from the list's
+// context menu (task T103). The conversation is driven through the commands the window
 // uses; a native file dialog cannot be driven, so the file path is the one a long text takes.
 
 /** More than one message carries (FR-012), so it goes as `message.txt` over the Blossom-Server. */
@@ -22,6 +24,7 @@ interface Conversation {
   kind: string
   state: string
   unread: number
+  muted: boolean
 }
 
 interface Attachment {
@@ -166,4 +169,28 @@ scenario('chat-two-vaults', { timeoutMs: 420_000 }, async (ctx) => {
     { timeoutMs: 60_000, fixed: true },
   )
   ctx.step('Anna sees both of her messages as read')
+
+  await openChat(ben)
+  const mutedInList = async () =>
+    (await conversations(ben)).find((c) => c.id === benThread)?.muted
+  for (const [index, muted] of [true, false].entries()) {
+    if (index > 0) {
+      await ctx.waitFor(
+        'the list row to show the previous mute state',
+        async () =>
+          (await ben.exec<boolean>(
+            `return !!document.querySelector('[data-testid="chat-peer"] [data-testid="chat-peer-muted"]')`,
+          )) === true,
+        { timeoutMs: 30_000, fixed: true },
+      )
+    }
+    await contextMenu(ben, 'chat-peer')
+    await ben.click('chat-peer-menu-mute')
+    await ctx.waitFor(
+      muted ? 'the conversation to be muted' : 'the conversation to be unmuted',
+      async () => (await mutedInList()) === muted,
+      { timeoutMs: 30_000, fixed: true },
+    )
+  }
+  ctx.step('Ben mutes and unmutes the conversation from the list’s menu')
 })

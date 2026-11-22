@@ -37,6 +37,7 @@ const emit = defineEmits<{
   selectAgent: []
   selectNotes: []
   selectPeer: [id: string]
+  mutePeer: [id: string, muted: boolean]
   selectHit: [hit: ChatSearchHit]
 }>()
 
@@ -207,7 +208,9 @@ function resolveHit(hit: ChatSearchHit) {
             role="listitem"
             :peer="item.peer"
             :active="activePeerId === item.peer.id"
+            mutable
             @select="emit('selectPeer', item.peer.id)"
+            @mute="(muted) => emit('mutePeer', item.peer.id, muted)"
           />
         </template>
       </div>
