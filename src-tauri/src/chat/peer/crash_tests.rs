@@ -7,7 +7,7 @@
 
 use nostr::event::Event;
 
-use super::receiving::{prepare, receive_one};
+use super::receiving::{prepare, receive_one, Received};
 use super::sending::seal;
 use crate::chat::peer::outbox::{self, Entry};
 use crate::chat::peer::ratchet::store;
@@ -84,7 +84,7 @@ fn receive_on(device: &ChatDevice, wrap: &Event, fail: bool) -> bool {
         if fail {
             return Err(injected().into());
         }
-        Ok(stored.is_some_and(|(stored, _)| stored.new))
+        Ok(matches!(stored, Received::Message { stored, .. } if stored.new))
     });
     if fail {
         assert!(result.is_err());

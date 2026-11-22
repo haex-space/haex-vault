@@ -130,3 +130,14 @@ fn an_opening_message_with_the_largest_plaintext_fits_the_wrap_limit() {
     .expect("fits");
     assert!(event.as_json().len() <= MAX_WRAP_BYTES);
 }
+
+/// Contract "`chat.reset`": the content is `{ "v": 1 }` and nothing else.
+#[test]
+fn a_reset_carries_only_its_version() {
+    assert_eq!(reset_content(), r#"{"v":1}"#);
+    assert_eq!(check_reset(&reset_content()), Ok(()));
+    assert_eq!(check_reset(r#"{"v":2}"#), Err(Drop::UnknownVersion));
+    assert_eq!(check_reset(r#"{"v":1,"x":0}"#), Err(Drop::Malformed));
+    assert_eq!(check_reset("[1]"), Err(Drop::Malformed));
+    assert_eq!(check_reset("no json"), Err(Drop::Malformed));
+}

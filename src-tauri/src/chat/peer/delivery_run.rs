@@ -20,9 +20,8 @@ impl Delivery {
         let token = self.closing.clone();
         let mut outbox_tick = tokio::time::interval(OUTBOX_TICK);
         let mut receipt_tick = tokio::time::interval(RECEIPT_BATCH);
-        // The first tick fires at once: one catch-up at the start of the vault session, after
-        // which the chat key record is kept current (spec 095 T013).
-        let mut catch_up_tick = tokio::time::interval(CATCH_UP);
+        let mut catch_up_tick =
+            tokio::time::interval_at(tokio::time::Instant::now() + CATCH_UP, CATCH_UP);
         let prune_now = self.now();
         if let Err(error) = self
             .db
@@ -31,6 +30,13 @@ impl Delivery {
         {
             log::warn!("chat: seen wraps not pruned: {error}");
         }
+        // One catch-up at the start of the vault session, after which the chat key record is kept
+        // current (spec 095 T013). Live wraps wait meanwhile, so the stored ones are stored first,
+        // as one ordered batch.
+        if let Err(error) = self.catch_up_and_keep_record().await {
+            log::warn!("chat: no catch-up at the start: {error}");
+        }
+        wake_files(&session);
         if let Err(error) = self.retry_now().await {
             log::warn!("chat: the outbox was not tried at the start: {error}");
         }

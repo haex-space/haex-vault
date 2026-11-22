@@ -14,6 +14,12 @@
 //! session that this event opened is saved only when the event passed its checks; an event that
 //! fails them leaves an existing session advanced (its message key is used) and a new one unsaved.
 //! A keep-alive carries no card, so it counts only from a device on a stored card.
+//!
+//! A ratchet message that does not decrypt makes this device send its sender a reset once the
+//! batch was stored, so the sender's other messages in it still decrypt on the sessions the reset
+//! drops; a reset that arrives drops the sessions with its sender and wakes the outbox (spec 095
+//! T030, [`reset`]). A message stored more than [`REACK_AFTER_MS`] ago that arrives again is a resend
+//! whose receipt was lost: it is acknowledged again (T032).
 
 use std::collections::HashSet;
 use std::sync::PoisonError;
@@ -26,8 +32,8 @@ use vodozemac::olm::OlmMessage;
 use super::Delivery;
 use crate::chat::peer::envelope::{CHAT_KIND, RECEIPT_KIND};
 use crate::chat::peer::ratchet::session::{self, Decrypt, Decrypted};
-use crate::chat::peer::ratchet::wire::{Plaintext, RatchetRumor, KEEP_ALIVE};
-use crate::chat::peer::ratchet::{RATCHET_KIND, RESET_KIND};
+use crate::chat::peer::ratchet::wire::{self, Plaintext, RatchetRumor, KEEP_ALIVE};
+use crate::chat::peer::ratchet::{reset, RATCHET_KIND, REACK_AFTER_MS, RESET_KIND};
 use crate::chat::peer::receive::{self, Stored};
 use crate::chat::peer::session::Me;
 use crate::chat::peer::targets;
@@ -55,8 +61,24 @@ enum What {
         sender: [u8; 32],
         message: Box<OlmMessage>,
     },
-    /// A request to open a new session; acted on with spec 095 T030.
-    Reset,
+    /// A request from `sender` to open a new session.
+    Reset { sender: [u8; 32] },
+}
+
+/// What storing one wrap did.
+#[derive(Debug)]
+pub(crate) enum Received {
+    Nothing,
+    /// A message; its event id, and whether a delivery receipt goes back for it.
+    Message {
+        stored: Stored,
+        event_id: String,
+        acknowledge: bool,
+    },
+    /// A ratchet message from this device did not decrypt: it gets a reset after the batch.
+    Undecryptable([u8; 32]),
+    /// A reset was accepted: the outbox has rows to seal again.
+    ResetAccepted,
 }
 
 /// Sender device, opening (0) or not (1), session id or ratchet key, counter, place in the batch.
@@ -105,6 +127,8 @@ impl Delivery {
         }
         batch.sort_by(|a, b| a.order.cmp(&b.order));
         let mut stored = Vec::new();
+        let mut undecryptable = Vec::new();
+        let mut reset_accepted = false;
         let mut first_error = None;
         for prepared in batch {
             let (me, now) = (self.me.clone(), self.now());
@@ -113,24 +137,57 @@ impl Delivery {
                 .write(move |tx| Ok(receive_one(tx, &me, prepared, now)?))
                 .await
             {
-                Ok(Some((one, event_id))) => {
-                    if one.new && one.incoming {
+                Ok(Received::Message {
+                    stored: one,
+                    event_id,
+                    acknowledge,
+                }) => {
+                    if acknowledge {
                         self.receipts
                             .lock()
                             .unwrap_or_else(PoisonError::into_inner)
                             .entry(one.peer.clone())
                             .or_default()
                             .push(event_id);
+                    }
+                    if one.new && one.incoming {
                         // Nobody listening (tests, notifications not started) is fine.
                         let _ = self.arrived.send(one.clone());
                     }
                     stored.push(one);
                 }
-                Ok(None) => {}
+                Ok(Received::Undecryptable(device)) => {
+                    if !undecryptable.contains(&device) {
+                        undecryptable.push(device);
+                    }
+                }
+                Ok(Received::ResetAccepted) => reset_accepted = true,
+                Ok(Received::Nothing) => {}
                 Err(error) => {
                     log::warn!("chat: a received wrap was not stored: {error}");
                     first_error.get_or_insert(error);
                 }
+            }
+        }
+        for device in undecryptable {
+            let (me, now) = (self.me.clone(), self.now());
+            let send = self
+                .db
+                .write(move |tx| Ok(reset::undecryptable(tx, &me, &device, now)?))
+                .await;
+            let sent = match send {
+                Ok(true) => self.send_reset(device).await,
+                Ok(false) => Ok(()),
+                Err(error) => Err(error),
+            };
+            if let Err(error) = sent {
+                log::warn!("chat: a reset was not sent: {error}");
+                first_error.get_or_insert(error);
+            }
+        }
+        if reset_accepted {
+            if let Err(error) = self.pump().await {
+                first_error.get_or_insert(error);
             }
         }
         first_error.map_or(Ok(stored), Err)
@@ -165,7 +222,7 @@ pub(crate) fn prepare(
                 index,
             ),
         },
-        What::Dropped(_) | What::Reset => (0, [0; 32], 0, String::new(), 0, index),
+        What::Dropped(_) | What::Reset { .. } => (0, [0; 32], 0, String::new(), 0, index),
     };
     Prepared {
         wrap_id: event.id.to_hex(),
@@ -199,7 +256,12 @@ fn open(event: &Event, device_secret: &[u8; 32], now: i64) -> What {
         };
     }
     if opened.kind == RESET_KIND {
-        return What::Reset;
+        return match wire::check_reset(&opened.content) {
+            Ok(()) => What::Reset {
+                sender: opened.sender_device,
+            },
+            Err(drop) => What::Dropped(drop.code()),
+        };
     }
     if opened.kind == CHAT_KIND || opened.kind == RECEIPT_KIND {
         return What::Dropped(Drop::EarlierFormat.code());
@@ -208,16 +270,16 @@ fn open(event: &Event, device_secret: &[u8; 32], now: i64) -> What {
 }
 
 /// Stores one prepared wrap in the caller's write transaction: marks it seen, moves the relay
-/// cursor and, for a ratchet message, decrypts and stores the event; answers the message it stored
-/// with its event id.
+/// cursor and, for a ratchet message, decrypts and stores the event; for a reset, drops the
+/// sessions with its sender.
 pub(crate) fn receive_one(
     tx: &mut CrdtTransaction<'_>,
     me: &Me,
     prepared: Prepared,
     now: i64,
-) -> Result<Option<(Stored, String)>> {
+) -> Result<Received> {
     if !verify::first_sight(tx, &prepared.wrap_id, now)? {
-        return Ok(None);
+        return Ok(Received::Nothing);
     }
     if let Some(relay) = &prepared.relay {
         tx.execute(
@@ -230,12 +292,14 @@ pub(crate) fn receive_one(
     match prepared.what {
         What::Dropped(reason) => {
             log::info!("chat: dropped a wrap: {reason}");
-            Ok(None)
+            Ok(Received::Nothing)
         }
-        What::Reset => {
-            log::info!("chat: a reset is not acted on yet");
-            Ok(None)
-        }
+        What::Reset { sender } => Ok(if reset::received(tx, me, &sender, now)? {
+            Received::ResetAccepted
+        } else {
+            log::info!("chat: dropped a reset");
+            Received::Nothing
+        }),
         What::Ratchet { sender, message } => ratchet(tx, me, &sender, &message, now),
     }
 }
@@ -246,12 +310,12 @@ fn ratchet(
     sender: &[u8; 32],
     message: &OlmMessage,
     now: i64,
-) -> Result<Option<(Stored, String)>> {
+) -> Result<Received> {
     let decrypted = match session::decrypt(tx, me, &hex(sender), message, now)? {
         Decrypt::Decrypted(decrypted) => *decrypted,
         Decrypt::Undecryptable => {
             log::info!("chat: a ratchet message did not decrypt");
-            return Ok(None);
+            return Ok(Received::Undecryptable(*sender));
         }
     };
     let plaintext = match Plaintext::decode(decrypted.plaintext()) {
@@ -261,10 +325,10 @@ fn ratchet(
     if plaintext.kind == KEEP_ALIVE {
         if targets::vault_of_device(tx, me, sender)?.is_none() {
             log::info!("chat: dropped a keep-alive: {}", Drop::UnknownDevice.code());
-            return Ok(None);
+            return Ok(Received::Nothing);
         }
         decrypted.confirm(tx, me)?;
-        return Ok(None);
+        return Ok(Received::Nothing);
     }
     let opened = Opened {
         sender_device: *sender,
@@ -275,18 +339,39 @@ fn ratchet(
         Ok(verified) => verified,
         Err(drop) => return dropped(tx, me, decrypted, drop),
     };
-    let stored = match &verified.incoming {
+    let received = match &verified.incoming {
         Incoming::Message(envelope) => {
-            receive::message(tx, me.receiver(), &verified.sender_device, envelope, now)?
-                .map(|stored| (stored, envelope.id.clone()))
+            match receive::message(tx, me.receiver(), &verified.sender_device, envelope, now)? {
+                Some(stored) => {
+                    let acknowledge = stored.incoming && (stored.new || resent(tx, &stored, now)?);
+                    Received::Message {
+                        stored,
+                        event_id: envelope.id.clone(),
+                        acknowledge,
+                    }
+                }
+                None => Received::Nothing,
+            }
         }
         Incoming::Receipt(receipt) => {
             receive::receipt(tx, &me.vault_hex, receipt, now)?;
-            None
+            Received::Nothing
         }
     };
     decrypted.confirm(tx, me)?;
-    Ok(stored)
+    Ok(received)
+}
+
+/// Whether a message stored already was received more than [`REACK_AFTER_MS`] ago: then it is a
+/// resend whose receipt was lost. A copy within that time is the one another own device stored and
+/// acknowledged.
+fn resent(tx: &mut CrdtTransaction<'_>, stored: &Stored, now: i64) -> Result<bool> {
+    let received_at: Option<i64> = tx.query_row(
+        "SELECT received_at FROM chat_peer_messages WHERE id = ?1",
+        params![stored.message_id.to_string()],
+        |row| row.get(0),
+    )?;
+    Ok(received_at.is_some_and(|at| now - at > REACK_AFTER_MS))
 }
 
 /// A decrypted event failed a check: an existing session stays advanced, a new one is not saved.
@@ -295,10 +380,10 @@ fn dropped(
     me: &Me,
     decrypted: Decrypted,
     drop: Drop,
-) -> Result<Option<(Stored, String)>> {
+) -> Result<Received> {
     log::info!("chat: dropped a rumor: {}", drop.code());
     if !decrypted.opened() {
         decrypted.confirm(tx, me)?;
     }
-    Ok(None)
+    Ok(Received::Nothing)
 }

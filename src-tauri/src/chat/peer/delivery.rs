@@ -7,7 +7,7 @@
 //!
 //! Contact relay changes are picked up on catch-up; own relay changes apply on catch-up as well.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::num::NonZeroUsize;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
@@ -194,9 +194,12 @@ impl Delivery {
         Ok(filter)
     }
 
-    /// Subscribes to [`Self::filter`] on the listening Nostr-Relays.
+    /// Subscribes to new wraps of [`Self::filter`] on the listening Nostr-Relays. The stored ones
+    /// come only from [`Self::catch_up`], as one batch it orders before storing (spec 095 T022): a
+    /// subscription would hand them out again, in the relay's order and mixed with new ones, and a
+    /// session keeps only 40 skipped message keys per chain.
     async fn subscribe(&self) -> Result<()> {
-        let filter = self.filter().await?;
+        let filter = self.filter().await?.limit(0);
         let _ = self.client.unsubscribe_all().await;
         self.client
             .subscribe(filter)
@@ -272,12 +275,20 @@ impl Delivery {
     }
 
     /// New connections and a new subscription, after the app came back or the network changed;
-    /// the outbox is tried again at once.
+    /// what arrived meanwhile is caught up, and the outbox is tried again at once.
     pub async fn reconnect(&self) -> Result<()> {
         self.refresh_read_relays().await?;
         self.client.disconnect().await;
         self.client.connect().and_wait(CONNECT_TIMEOUT).await;
+        // A relay still closing from the disconnect ignores a connect as if it were connecting
+        // and then stays without a connection; asking again brings it back.
+        let deadline = tokio::time::Instant::now() + CONNECT_TIMEOUT;
+        while !self.any_relay_connected().await && tokio::time::Instant::now() < deadline {
+            self.client.connect().await;
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
         self.subscribe().await?;
+        self.catch_up_and_keep_record().await?;
         self.retry_now().await
     }
 
@@ -314,10 +325,26 @@ impl Delivery {
     pub async fn pump(&self) -> Result<()> {
         let now = self.now();
         let due = self.db.read(move |r| Ok(outbox::due(r, now)?)).await?;
+        let mut refreshed_devices = HashSet::new();
         for entry in due {
             if self.closing.is_cancelled() {
                 break;
             }
+            let entry = if entry.is_resend() {
+                let me = self.me.clone();
+                let Some(entry) = self
+                    .db
+                    .write(move |tx| Ok(outbox::start_resend(tx, &me, &entry)?))
+                    .await?
+                else {
+                    continue;
+                };
+                self.refresh_quiet_records(&entry, &mut refreshed_devices)
+                    .await?;
+                entry
+            } else {
+                entry
+            };
             let attempt = self.attempt(&entry).await?;
             let now = self.now();
             self.db
@@ -339,7 +366,19 @@ impl Delivery {
             match self.publish(entry, vault, &target).await {
                 Published::Accepted => attempt.accepted.push(vault.clone()),
                 Published::Failed(reason) => attempt.failed.push((vault.clone(), reason)),
-                Published::NotYet(error) => attempt.error = Some(error),
+                Published::NotYet {
+                    error,
+                    partial_accepted,
+                    none_accepted,
+                } => {
+                    if partial_accepted {
+                        attempt.partial_accepted.push(vault.clone());
+                    }
+                    if none_accepted {
+                        attempt.unaccepted.push(vault.clone());
+                    }
+                    attempt.error = Some(error);
+                }
             }
         }
         Ok(attempt)
@@ -407,7 +446,12 @@ impl Delivery {
 enum Published {
     Accepted,
     Failed(FailReason),
-    NotYet(String),
+    /// Not done yet; `partial_accepted` separates relay acceptance from vault completion.
+    NotYet {
+        error: String,
+        partial_accepted: bool,
+        none_accepted: bool,
+    },
 }
 
 fn invalid(reason: &str) -> HaexError {
