@@ -71,14 +71,14 @@ macOS x64 archive to such a host and report the platform as unsupported.
 
 ## 3. Abacus credential (a password-manager entry, per vault)
 
-| Field                 | Value                                                                                          |
-| --------------------- | ---------------------------------------------------------------------------------------------- |
-| owner                 | `delegate` (`Caller::Internal { feature: "delegate" }`; only that feature and the user see it) |
-| title                 | `Delegate: Abacus AI`                                                                          |
-| `password`            | the secret: the device code the vendor's sign-in returned                                      |
-| custom field `kind`   | `device_code` (decides the environment variable, see below)                                    |
+| Field                 | Value                                                                                                        |
+| --------------------- | ------------------------------------------------------------------------------------------------------------ |
+| owner                 | `delegate` (`Caller::Internal { feature: "delegate" }`; only that feature and the user see it)               |
+| title                 | `Delegate: Abacus AI`                                                                                        |
+| `password`            | the secret: the device code the vendor's sign-in returned                                                    |
+| custom field `kind`   | `device_code` (decides the environment variable, see below)                                                  |
 | custom field `device` | `vault` for a shared credential, or the installation ID for a device-bound credential (see "Device binding") |
-| tags                  | `haex-delegate-abacusai`                                                                       |
+| tags                  | `haex-delegate-abacusai`                                                                                     |
 
 - One shared entry per vendor per vault when the credential is portable; otherwise one entry per installation. The provider
   table still has at most one Abacus row per vault; see the duplicate-row recovery rule in the command contract. `read`
