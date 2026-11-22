@@ -142,6 +142,7 @@ export function usePeerConversation(
   // text of a long message appears when its file is stored (FR-012a).
   let unlistenTransfers: UnlistenFn | null = null
   let disposed = false
+  const downloading = new Set<string>()
   if (typeof window !== 'undefined') {
     listen<{
       attachmentId: string
@@ -174,12 +175,16 @@ export function usePeerConversation(
 
   /** Fetches a file now (retry, or above the automatic limit); its state follows by event. */
   async function download(attachmentId: string) {
+    if (downloading.has(attachmentId)) return
+    downloading.add(attachmentId)
     try {
       await commands.downloadAsync(attachmentId)
     } catch (e: unknown) {
       error.value = errString(e)
+    } finally {
+      downloading.delete(attachmentId)
+      await refresh()
     }
-    await refresh()
   }
 
   onScopeDispose(() => {

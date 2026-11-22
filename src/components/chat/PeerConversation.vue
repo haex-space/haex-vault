@@ -45,6 +45,7 @@ const draft = ref('')
 const files = ref<PeerFile[]>([])
 const confirmDelete = ref(false)
 const sending = ref(false)
+const preparingFiles = ref(false)
 /** One key per message: a retry of the same draft sends it once (contracts/ipc.md). */
 let idempotencyKey = crypto.randomUUID()
 
@@ -65,6 +66,7 @@ const tooLong = computed(() => length.value > MAX_TEXT_CHARS)
 const canSend = computed(
   () =>
     !sending.value &&
+    !preparingFiles.value &&
     !tooLong.value &&
     (draft.value.trim().length > 0 || files.value.length > 0) &&
     props.conversation !== null,
@@ -76,12 +78,29 @@ const canAttach = computed(
 )
 
 async function attach() {
-  if (sending.value) return
-  const picked = await pickManyAsync()
-  const known = new Set(files.value.map((file) => file.path))
-  for (const path of picked) {
-    if (known.has(path)) continue
-    files.value.push({ path, name: await nameOfAsync(path) })
+  const conversationId = threadId.value
+  if (
+    sending.value ||
+    preparingFiles.value ||
+    !conversationId ||
+    !canAttach.value
+  )
+    return
+  preparingFiles.value = true
+  try {
+    const picked = await pickManyAsync()
+    if (threadId.value !== conversationId || !canAttach.value) return
+    const known = new Set(files.value.map((file) => file.path))
+    for (const path of picked) {
+      if (known.has(path)) continue
+      const name = await nameOfAsync(path)
+      if (threadId.value !== conversationId || !canAttach.value) return
+      files.value.push({ path, name })
+    }
+  } catch (error: unknown) {
+    toast.error(errString(error))
+  } finally {
+    preparingFiles.value = false
   }
 }
 
@@ -257,7 +276,7 @@ watch(
             type="button"
             variant="ghost"
             size="icon"
-            :disabled="sending"
+            :disabled="sending || preparingFiles"
             :aria-label="t('chat.peer.attach')"
             :tooltip="t('chat.peer.attach')"
             data-testid="chat-peer-attach"
