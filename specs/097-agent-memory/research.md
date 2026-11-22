@@ -214,6 +214,14 @@ Seeing an Abo-Agent's own tools (PR C):
   already), and a command it runs sets the mark if the notifications show commands; what is left unseen goes to the
   operator before PR C lands.
 
+The delegate's stdout reader and haex MCP dispatch run independently, so dispatch cannot read the foreign mark
+immediately when `memory.write` arrives. Each delegate pass exposes a reader barrier: dispatch sends a fence to the
+stdout reader, which drains and classifies all complete records already emitted by the child in line order, then
+acknowledges the fence. The child flushes each stream record before issuing a later haex MCP call. Dispatch waits for the
+acknowledgement before reading `memory_foreign_at` and deciding the gate; if the barrier fails, the write asks. A dispatch
+test deliberately lets the MCP request arrive before the reader handles the earlier `tool_use` frame and verifies that
+the barrier still makes the write ask.
+
 **Why.** The operator decided that a local, a cloud and an Abo-Agent behave the same; the rule is the same, only where
 haex-vault learns of foreign content differs. A command counts as foreign because it can fetch anything.
 

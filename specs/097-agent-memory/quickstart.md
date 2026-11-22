@@ -54,3 +54,9 @@ HAEX_EVAL_MEMORY=specs/097-agent-memory/analysis/seed-memory.json HAEX_EVAL_ENGI
 
 Results go to `specs/097-agent-memory/results.md`: the memory set per model against SC-001, SC-003, SC-004 and SC-009, and
 the two everyday runs against 95 and 86 of 106 (SC-006).
+
+The `model_tool_eval` command covers hosted and local models, not CLI Abo-Agents. After PR C, run every request from
+`memoryset.json` through the app once with Claude Code and once with Codex, using the same seeded pages for each run.
+Score each request against its expected outcome and record the correct count and any safety failures separately for both
+vendors in `results.md` under SC-001 and SC-003. Keep these scores alongside, not in place of, the existing hosted and
+local model measurements.
