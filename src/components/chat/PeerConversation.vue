@@ -46,6 +46,8 @@ const files = ref<PeerFile[]>([])
 const confirmDelete = ref(false)
 const sending = ref(false)
 const preparingFiles = ref(false)
+/** Invalidates a pending picker when the user leaves and later returns to the same conversation. */
+let fileSelectionGeneration = 0
 /** One key per message: a retry of the same draft sends it once (contracts/ipc.md). */
 let idempotencyKey = crypto.randomUUID()
 
@@ -79,6 +81,7 @@ const canAttach = computed(
 
 async function attach() {
   const conversationId = threadId.value
+  const generation = fileSelectionGeneration
   if (
     sending.value ||
     preparingFiles.value ||
@@ -89,12 +92,22 @@ async function attach() {
   preparingFiles.value = true
   try {
     const picked = await pickManyAsync()
-    if (threadId.value !== conversationId || !canAttach.value) return
+    if (
+      fileSelectionGeneration !== generation ||
+      threadId.value !== conversationId ||
+      !canAttach.value
+    )
+      return
     const known = new Set(files.value.map((file) => file.path))
     for (const path of picked) {
       if (known.has(path)) continue
       const name = await nameOfAsync(path)
-      if (threadId.value !== conversationId || !canAttach.value) return
+      if (
+        fileSelectionGeneration !== generation ||
+        threadId.value !== conversationId ||
+        !canAttach.value
+      )
+        return
       files.value.push({ path, name })
     }
   } catch (error: unknown) {
@@ -153,6 +166,7 @@ function deleteConversation() {
 watch(
   () => props.conversation?.id,
   () => {
+    fileSelectionGeneration += 1
     draft.value = ''
     files.value = []
     idempotencyKey = crypto.randomUUID()
