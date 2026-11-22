@@ -6,7 +6,7 @@
 //! (`chat_attachment_files_no_sync`).
 
 use std::io::{self, Cursor, Read};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -29,6 +29,7 @@ use crate::chat::peer::envelope::{self, Attachment, BlobRef, FileAttachment, INL
 use crate::chat::peer::session::Me;
 use crate::chat::peer::{ids, send, settings, targets};
 use crate::error::{HaexError, Result};
+use crate::files::encrypted::opened;
 use crate::remote_storage::address::Resolver;
 use crate::storage::query::Query;
 use crate::sync::keys::hex;
@@ -632,7 +633,7 @@ impl ChatFiles {
     pub async fn copy_for_app(
         &self,
         id: &str,
-        root: &Path,
+        copies: &opened::OpenedCopies,
         confirmed: bool,
         dont_ask_again: bool,
     ) -> Result<Option<PathBuf>> {
@@ -654,7 +655,7 @@ impl ChatFiles {
             .copy_for_app(
                 id,
                 name.as_deref().unwrap_or_default(),
-                root,
+                copies,
                 confirmed,
                 dont_ask_again,
             )

@@ -15,7 +15,8 @@ async fn open_copy(
     let Route::Encrypted(at) = route(files, path).await.unwrap() else {
         panic!("{path} is in an encrypted folder");
     };
-    copy_for_app(files, &at, root, confirmed, dont_ask_again).await
+    let copies = OpenedCopies::new(root.to_path_buf());
+    copy_for_app(files, &at, &copies, confirmed, dont_ask_again).await
 }
 
 fn copies(root: &Path) -> usize {
@@ -120,7 +121,54 @@ fn the_sweep_removes_every_copy() {
     let root = cache.path().join(FOLDER);
     std::fs::create_dir_all(root.join("a")).unwrap();
     std::fs::write(root.join("a/brief.pdf"), "x").unwrap();
-    sweep(&root);
+    sweep(&root).unwrap();
     assert!(!root.exists());
-    sweep(&root);
+    sweep(&root).unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn close_waits_for_copies_then_rejects_new_copies() {
+    let cache = tempfile::tempdir().unwrap();
+    let root = cache.path().join(FOLDER);
+    std::fs::create_dir_all(root.join("active")).unwrap();
+    std::fs::write(root.join("active/file.txt"), "plaintext").unwrap();
+    let copies = std::sync::Arc::new(OpenedCopies::new(root.clone()));
+    let lease = copies.begin_copy().await.unwrap();
+    let closing = {
+        let copies = std::sync::Arc::clone(&copies);
+        tokio::spawn(async move { copies.close_and_sweep().await })
+    };
+    tokio::task::yield_now().await;
+    assert!(root.exists(), "close waits while a copy holds its lease");
+    drop(lease);
+    closing.await.unwrap().unwrap();
+    assert!(!root.exists());
+    assert_eq!(
+        copies.begin_copy().await.unwrap_err().code,
+        FilesErrorCode::NoAccess
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn dropping_a_partial_copy_removes_its_output() {
+    let cache = tempfile::tempdir().unwrap();
+    let dir = cache.path().join("partial");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("file.txt"), "partial plaintext").unwrap();
+    drop(PartialCopy(dir.clone()));
+    tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        while dir.exists() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+}
+
+#[test]
+fn sweep_reports_failures_other_than_missing_root() {
+    let cache = tempfile::tempdir().unwrap();
+    let root = cache.path().join("not-a-directory");
+    std::fs::write(&root, "file").unwrap();
+    assert!(sweep(&root).is_err());
 }

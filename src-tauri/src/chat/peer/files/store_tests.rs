@@ -116,9 +116,10 @@ async fn a_copy_for_the_system_app_waits_for_the_notice_and_keeps_to_its_folder(
     let files = store(&dir(data.path(), "anna"), &db);
     files.put("a1", MARKER).await.expect("put");
     let root = tempfile::tempdir().expect("tempdir");
+    let copies = crate::files::encrypted::opened::OpenedCopies::new(root.path().to_path_buf());
 
     let waiting = files
-        .copy_for_app("a1", "../bild.png", root.path(), false, false)
+        .copy_for_app("a1", "../bild.png", &copies, false, false)
         .await
         .expect("copy");
     assert_eq!(waiting, None, "the notice comes first");
@@ -131,7 +132,7 @@ async fn a_copy_for_the_system_app_waits_for_the_notice_and_keeps_to_its_folder(
     );
 
     let path = files
-        .copy_for_app("a1", "../bild.png", root.path(), true, true)
+        .copy_for_app("a1", "../bild.png", &copies, true, true)
         .await
         .expect("copy")
         .expect("a copy");
@@ -144,7 +145,7 @@ async fn a_copy_for_the_system_app_waits_for_the_notice_and_keeps_to_its_folder(
     assert!(path.extension().is_some_and(|ending| ending == "png"));
 
     let without_notice = files
-        .copy_for_app("a1", "x.txt", root.path(), false, false)
+        .copy_for_app("a1", "x.txt", &copies, false, false)
         .await
         .expect("copy");
     assert!(
@@ -160,8 +161,9 @@ async fn a_copy_of_a_file_this_device_does_not_hold_is_not_found() {
     let data = tempfile::tempdir().expect("tempdir");
     let files = store(&dir(data.path(), "anna"), &db);
     let root = tempfile::tempdir().expect("tempdir");
+    let copies = crate::files::encrypted::opened::OpenedCopies::new(root.path().to_path_buf());
     let before_any_file = files
-        .copy_for_app("a1", "a.txt", root.path(), true, false)
+        .copy_for_app("a1", "a.txt", &copies, true, false)
         .await;
     assert!(matches!(
         before_any_file,
@@ -169,7 +171,7 @@ async fn a_copy_of_a_file_this_device_does_not_hold_is_not_found() {
     ));
     files.put("a2", b"x").await.expect("put");
     let missing = files
-        .copy_for_app("a1", "a.txt", root.path(), true, false)
+        .copy_for_app("a1", "a.txt", &copies, true, false)
         .await;
     assert!(matches!(
         missing,

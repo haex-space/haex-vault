@@ -171,6 +171,6 @@ async fn the_sweep_of_spec_048_removes_every_copy() {
     let root = parent.path().join("files-opened-encrypted");
     write_copy(&root, "a.txt", b"1").await.unwrap();
     write_copy(&root, "b.txt", b"2").await.unwrap();
-    crate::files::encrypted::opened::sweep(&root);
+    crate::files::encrypted::opened::sweep(&root).unwrap();
     assert!(!root.exists());
 }
