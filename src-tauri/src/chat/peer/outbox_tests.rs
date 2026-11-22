@@ -22,6 +22,7 @@ fn queued(db: &VaultDb, now: i64) -> Entry {
                 content: "{}".into(),
             },
             &[PEER.to_owned()],
+            &[],
             now,
         )?;
         Ok(())
@@ -195,4 +196,104 @@ fn after_reconnecting_waiting_rows_are_due_at_once_but_parked_ones_stay() {
         due(&anna.db, 2_000 + GIVE_UP_MS).is_empty(),
         "a failed row waits for resend"
     );
+}
+
+/// Spec 095 T019: a message's row stays, parked, after a Nostr-Relay took it until the receipt of
+/// every awaited vault came; then it goes with its stored wraps.
+#[test]
+fn an_accepted_row_waits_for_the_receipt_and_goes_with_its_wraps() {
+    let anna = ChatDevice::genesis(&[]);
+    anna.db
+        .write_blocking(|tx| {
+            ensure_delivery(tx, MESSAGE.parse().expect("uuid"), PEER)?;
+            enqueue(
+                tx,
+                "e1",
+                "t1",
+                Some(MESSAGE),
+                &Rumor {
+                    kind: 24120,
+                    content: "{}".into(),
+                },
+                &[PEER.to_owned()],
+                &[PEER.to_owned()],
+                1_000,
+            )?;
+            Ok(())
+        })
+        .expect("enqueue");
+    let entry = due(&anna.db, 1_000).remove(0);
+    assert_eq!(entry.awaiting, [PEER.to_owned()]);
+
+    let wrap = {
+        let keys = crate::sync::keys::DeviceKeys::generate();
+        crate::chat::peer::wrap::wrap(
+            nostr::event::Kind::Custom(24122),
+            "{}",
+            &keys.device_secret,
+            &anna.me.keys.device_pubkey,
+            1_000,
+        )
+        .expect("wrap")
+    };
+    let stored = wrap.clone();
+    anna.db
+        .write_blocking(move |tx| Ok(store_sealed(tx, "e1", PEER, &stored)?))
+        .expect("store");
+    let sealed_now = |db: &VaultDb| {
+        db.read_blocking(|r| Ok(sealed(r, "e1", PEER)?))
+            .expect("sealed")
+    };
+    assert_eq!(
+        sealed_now(&anna.db),
+        Some(Sealed {
+            wrap: wrap.clone(),
+            accepted_at: None
+        })
+    );
+    anna.db
+        .write_blocking(|tx| Ok(mark_sealed_accepted(tx, "e1", PEER, 1_500)?))
+        .expect("accepted");
+    assert_eq!(sealed_now(&anna.db).expect("kept").accepted_at, Some(1_500));
+
+    attempt(
+        &anna.db,
+        &entry,
+        Attempt {
+            accepted: vec![PEER.to_owned()],
+            ..Attempt::default()
+        },
+        2_000,
+    );
+    assert_eq!(delivery(&anna.db).0, Some(2_000));
+    assert!(due(&anna.db, i64::MAX - 1).is_empty(), "parked");
+    let accepted_at: Option<i64> = anna
+        .db
+        .read_blocking(|r| {
+            Ok(r.query_row(
+                "SELECT accepted_at FROM chat_outbox_no_sync WHERE id = 'e1'",
+                &[],
+                |row| row.get(0),
+            )?
+            .flatten())
+        })
+        .expect("row");
+    assert_eq!(accepted_at, Some(2_000));
+
+    anna.db
+        .write_blocking(|tx| Ok(delivered(tx, MESSAGE, PEER)?))
+        .expect("receipt");
+    let rows: i64 = anna
+        .db
+        .read_blocking(|r| {
+            Ok(r.query_row(
+                "SELECT (SELECT COUNT(*) FROM chat_outbox_no_sync) \
+                   + (SELECT COUNT(*) FROM chat_outbox_sealed_no_sync)",
+                &[],
+                |row| row.get(0),
+            )?
+            .unwrap_or_default())
+        })
+        .expect("count");
+    assert_eq!(rows, 0, "the row and its wraps are gone");
 }

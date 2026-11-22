@@ -4,7 +4,6 @@
 
 use std::sync::Arc;
 
-use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 use vodozemac::olm::{Account, OlmMessage, SessionConfig};
 
@@ -14,23 +13,8 @@ use crate::chat::peer::test_support::{mock_relay, two_vaults, ChatDevice};
 
 const DAY_MS: i64 = 24 * 60 * 60 * 1000;
 
-/// A delivery of `device` that the test drives step by step (no loop runs).
 async fn delivery_of(device: &ChatDevice) -> Arc<Delivery> {
-    let relays = device
-        .db
-        .read_blocking(|r| Ok(targets::listening_relays(r)?))
-        .expect("relays");
-    let (delivery, _incoming, forward) = Delivery::connect(
-        device.db.clone(),
-        device.me.clone(),
-        device.clock.clock(),
-        relays,
-        CancellationToken::new(),
-    )
-    .await
-    .expect("connect");
-    forward.abort();
-    delivery
+    device.delivery().await
 }
 
 fn account_row(device: &ChatDevice) -> Option<(i64, Option<i64>, Vec<String>)> {

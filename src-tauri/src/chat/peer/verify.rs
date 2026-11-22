@@ -37,6 +37,8 @@ pub enum Drop {
     UnknownSender,
     NotForUs,
     TooManyAttachments,
+    /// A chat event or receipt directly in a seal, outside a ratchet message (spec 095 FR-016).
+    EarlierFormat,
 }
 
 impl Drop {
@@ -53,6 +55,7 @@ impl Drop {
             Self::UnknownSender => "unknownSender",
             Self::NotForUs => "notForUs",
             Self::TooManyAttachments => "tooManyAttachments",
+            Self::EarlierFormat => "earlierFormat",
         }
     }
 }

@@ -211,7 +211,8 @@ pub fn ensure_delivery(
 }
 
 /// Applies a verified receipt of `receipt.from` to the own messages it names: `delivered_at`, and
-/// for read ones also `read_at`, each set once. Answers how many states changed.
+/// for read ones also `read_at`, each set once; their outbox rows no longer await that vault (spec
+/// 095). Answers how many states changed.
 pub fn receipt(
     tx: &mut CrdtTransaction<'_>,
     own: &str,
@@ -226,6 +227,7 @@ pub fn receipt(
     let read = receipt.read.iter().map(|id| (id, true));
     for (event_id, is_read) in receipt.delivered.iter().map(|id| (id, false)).chain(read) {
         let message_id = ids::message_id(thread_id, own, event_id);
+        super::outbox::delivered(tx, &message_id.to_string(), &receipt.from)?;
         let delivery = ids::delivery_id(message_id, &receipt.from).to_string();
         let columns: &[&str] = if is_read {
             &["delivered_at", "read_at"]

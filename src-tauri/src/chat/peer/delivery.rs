@@ -1,7 +1,9 @@
 //! The delivery service of the chat with contacts (spec 072 research R3, R4, R6): its own Nostr
 //! client per vault session. It listens for kind 1059 wraps to this device on the own and stored
 //! contacts' Nostr-Relays, stores what passes the receiver checks, answers new messages with
-//! batched delivery receipts and publishes the outbox with back-off.
+//! batched delivery receipts and publishes the outbox with back-off. Since spec 095 every event
+//! travels as a ratchet message on the session with the receiving device: sending in
+//! `delivery_send.rs`, receiving in `delivery_receive.rs`.
 //!
 //! Contact relay changes are picked up on catch-up; own relay changes apply on catch-up as well.
 
@@ -22,8 +24,7 @@ use tokio_util::sync::CancellationToken;
 use super::outbox::{self, Attempt, Entry, FailReason};
 use super::receive;
 use super::targets::{self, Target};
-use super::verify::{self, Incoming};
-use super::wrap::{self, BACKDATE_SECS};
+use super::wrap::BACKDATE_SECS;
 use super::{send, session::Me};
 use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
@@ -215,10 +216,9 @@ impl Delivery {
             .timeout(CONNECT_TIMEOUT * 4)
             .await
             .map_err(|e| invalid(&e.to_string()))?;
-        for event in events {
-            self.receive(event, None).await?;
-        }
-        Ok(())
+        self.receive_batch(events.into_iter().map(|event| (event, None)).collect())
+            .await
+            .map(|_| ())
     }
 
     /// Tracks cards added or removed while the vault stayed open, so the fallback route can be
@@ -290,84 +290,6 @@ impl Delivery {
         self.pump().await
     }
 
-    /// Stores a received wrap; answers the message it stored, if any. `relay` is where it came
-    /// from live; its cursor moves on.
-    pub async fn receive(
-        &self,
-        event: Event,
-        relay: Option<String>,
-    ) -> Result<Option<receive::Stored>> {
-        let wrap_id = event.id.to_hex();
-        let seen = self
-            .db
-            .read(move |r| {
-                Ok(r.query_row(
-                    "SELECT 1 FROM chat_wraps_seen_no_sync WHERE wrap_id = ?1",
-                    params![wrap_id],
-                    |row| row.get::<_, i64>(0),
-                )?
-                .is_some())
-            })
-            .await?;
-        if seen {
-            return Ok(None);
-        }
-        let me = self.me.clone();
-        let now = self.now();
-        let stored = self
-            .db
-            .write(move |tx| {
-                if !verify::first_sight(tx, &event.id.to_hex(), now)? {
-                    return Ok(None);
-                }
-                if let Some(relay) = relay {
-                    let created = i64::try_from(event.created_at.as_secs()).unwrap_or(i64::MAX);
-                    tx.execute(
-                        "INSERT INTO chat_relay_cursors_no_sync (relay, newest_created_at) \
-                         VALUES (?1, ?2) ON CONFLICT (relay) DO UPDATE SET newest_created_at = \
-                         MAX(newest_created_at, excluded.newest_created_at)",
-                        params![relay, created],
-                    )?;
-                }
-                let Ok(opened) = wrap::unwrap(&event, &me.keys.device_secret) else {
-                    log::info!("chat: dropped a wrap: undecryptable");
-                    return Ok(None);
-                };
-                let verified = match verify::check(tx, &me.vault, &opened)? {
-                    Ok(verified) => verified,
-                    Err(drop) => {
-                        log::info!("chat: dropped a rumor: {}", drop.code());
-                        return Ok(None);
-                    }
-                };
-                Ok(match &verified.incoming {
-                    Incoming::Message(envelope) => {
-                        receive::message(tx, me.receiver(), &verified.sender_device, envelope, now)?
-                            .map(|stored| (stored, envelope.id.clone()))
-                    }
-                    Incoming::Receipt(receipt) => {
-                        receive::receipt(tx, &me.vault_hex, receipt, now)?;
-                        None
-                    }
-                })
-            })
-            .await?;
-        let Some((stored, event_id)) = stored else {
-            return Ok(None);
-        };
-        if stored.new && stored.incoming {
-            self.receipts
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .entry(stored.peer.clone())
-                .or_default()
-                .push(event_id);
-            // Nobody listening (tests, notifications not started) is fine.
-            let _ = self.arrived.send(stored.clone());
-        }
-        Ok(Some(stored))
-    }
-
     /// Queues the collected delivery receipts, one per other vault, and publishes them.
     pub async fn flush_receipts(&self) -> Result<()> {
         let batch =
@@ -436,40 +358,7 @@ impl Delivery {
             return Published::Failed(FailReason::NoRelay);
         }
         self.use_relays(&target.relays).await;
-        let kind = Kind::from(entry.rumor.kind);
-        let mut accepted = false;
-        let mut error = String::from("no Nostr-Relay accepted");
-        for device in &target.devices {
-            let event = match wrap::wrap(
-                kind,
-                &entry.rumor.content,
-                &self.me.keys.device_secret,
-                device,
-                self.now(),
-            ) {
-                Ok(event) => event,
-                Err(_) => return Published::Failed(FailReason::TooLarge),
-            };
-            match self
-                .client
-                .send_event(&event)
-                .to(target.relays.iter().map(String::as_str))
-                .await
-            {
-                Ok(output) if !output.success.is_empty() => accepted = true,
-                Ok(output) => {
-                    if let Some(reason) = output.failed.values().next() {
-                        error = reason.clone();
-                    }
-                }
-                Err(e) => error = e.to_string(),
-            }
-        }
-        if accepted {
-            Published::Accepted
-        } else {
-            Published::NotYet(error)
-        }
+        self.publish_to_devices(entry, target).await
     }
 
     /// Ensures the target relays are available for publishing and receiving.
@@ -533,6 +422,20 @@ mod run;
 #[path = "delivery_records.rs"]
 mod records;
 
+#[path = "delivery_send.rs"]
+mod sending;
+
+#[path = "delivery_receive.rs"]
+mod receiving;
+
 #[cfg(test)]
 #[path = "delivery_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "forward_secrecy_tests.rs"]
+mod forward_secrecy_tests;
+
+#[cfg(test)]
+#[path = "crash_tests.rs"]
+mod crash_tests;

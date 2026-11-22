@@ -6,7 +6,7 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 
-use super::envelope::{self, Attachment, Envelope, Receipt, To, CHAT_KIND, RECEIPT_KIND, VERSION};
+use super::envelope::{self, Attachment, Receipt, To, CHAT_KIND, RECEIPT_KIND, VERSION};
 use super::outbox::{self, Rumor};
 use super::ratchet::wire::Plaintext;
 use super::receive::{self, MessageRow};
@@ -26,23 +26,17 @@ pub fn own_card_text(tx: &mut impl Query) -> Result<String> {
         })
 }
 
-/// The rumor content of `envelope`, checked against everything it has to fit: the rumor limit, the
-/// plaintext of a ratchet message (spec 095, the stricter one once it carries chat events) and a
-/// trial wrap to this device, which is what the Nostr-Relays will see (research R2).
-fn queued_content(envelope: &Envelope, me: &Me, now: i64) -> Result<String> {
-    let content = envelope::encode(envelope)?;
+/// The JSON of an event or receipt of `kind`, refused with "chat.error.tooLarge" when the plaintext
+/// of the ratchet message that carries it would be over its limit (spec 095). An opening message
+/// with the largest plaintext still wraps within the size a Nostr-Relay accepts, so only the
+/// plaintext counts; the event's quotes are escaped once more inside it.
+fn queued_content<T: serde::Serialize>(kind: nostr::event::Kind, event: &T) -> Result<String> {
+    let content = envelope::encode(event)?;
     Plaintext {
-        kind: CHAT_KIND.as_u16(),
+        kind: kind.as_u16(),
         content: content.clone(),
     }
     .encode()?;
-    super::wrap::wrap(
-        CHAT_KIND,
-        &content,
-        &me.keys.device_secret,
-        &me.keys.device_pubkey,
-        now,
-    )?;
     Ok(content)
 }
 
@@ -68,7 +62,7 @@ pub fn fits_inline(
         To::Direct(peer),
         now,
     )?;
-    match queued_content(&envelope, me, now) {
+    match queued_content(CHAT_KIND, &envelope) {
         Ok(_) => Ok(true),
         Err(HaexError::InvalidInput { reason }) if reason == "chat.error.tooLarge" => Ok(false),
         Err(error) => Err(error),
@@ -169,7 +163,7 @@ pub fn message(
         now,
     )?;
     envelope.id = event_id.to_owned();
-    let content = queued_content(&envelope, me, now)?;
+    let content = queued_content(CHAT_KIND, &envelope)?;
     let envelope::Body::Message(body) = &envelope.body;
     store_own(tx, me, message_id, thread_id, event_id, &body.text, now)?;
     receive::insert_attachments(tx, message_id, &body.attachments)?;
@@ -183,7 +177,8 @@ pub fn message(
             kind: CHAT_KIND.as_u16(),
             content,
         },
-        &[peer, me.vault_hex.clone()],
+        &[peer.clone(), me.vault_hex.clone()],
+        &[peer],
         now,
     )?;
     Ok(message_id)
@@ -254,9 +249,10 @@ pub fn receipt(
         None,
         &Rumor {
             kind: RECEIPT_KIND.as_u16(),
-            content: envelope::encode(&rumor)?,
+            content: queued_content(RECEIPT_KIND, &rumor)?,
         },
         &[peer.to_owned()],
+        &[],
         now,
     )
 }

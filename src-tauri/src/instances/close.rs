@@ -255,3 +255,7 @@ pub async fn close_instance(app: AppHandle) -> Result<()> {
     start_close(&app, close_policy());
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "close_tests.rs"]
+mod tests;
