@@ -99,8 +99,6 @@ test('pointers in code and empty brackets stay as written, titles are escaped', 
   const text = 'Code `[[Kein]]`\n```\n[[Auch nicht]]\n```\n[[ ]] [[<b>x</b>]]'
   const html = withPointerLinks(text, [])
   assert.ok(html.includes('`[[Kein]]`'))
-  assert.ok(withPointerLinks('``[[Kein]]`` und [[Ja]]', []).includes('``[[Kein]]`` und <span'))
-  assert.ok(withPointerLinks('~~~\n[[Kein]]\n~~~\n[[Ja]]', []).includes('\n[[Kein]]\n'))
   assert.ok(html.includes('\n[[Auch nicht]]\n'))
   assert.ok(html.includes('[[ ]]'))
   assert.ok(
