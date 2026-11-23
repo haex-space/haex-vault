@@ -101,7 +101,11 @@ function linkLine(line: string, ids: Map<string, string>): string {
     const opening = ticks[cursor]!
     const length = opening[0].length
     let closingIndex = cursor + 1
-    while (closingIndex < ticks.length && ticks[closingIndex]![0].length !== length) closingIndex++
+    while (
+      closingIndex < ticks.length &&
+      ticks[closingIndex]![0].length !== length
+    )
+      closingIndex++
     if (closingIndex === ticks.length) {
       cursor++
       continue
@@ -146,7 +150,8 @@ export function withPointerLinks(
           fence.marker === marker &&
           length >= fence.length &&
           trimmed.slice(length).trim() === ''
-        ) fence = null
+        )
+          fence = null
         else if (!fence) fence = { marker, length }
         return line
       }
