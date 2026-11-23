@@ -16,10 +16,10 @@ pub fn pointers(body: &str) -> Vec<String> {
     let mut seen = HashSet::new();
     let mut fence: Option<(u8, usize)> = None;
     for line in body.lines() {
-        if let Some((marker, length)) = fence_marker(line) {
+        if let Some((marker, length, closes)) = fence_marker(line) {
             match fence {
                 Some((open_marker, open_length))
-                    if marker == open_marker && length >= open_length =>
+                    if marker == open_marker && length >= open_length && closes =>
                 {
                     fence = None
                 }
@@ -40,14 +40,15 @@ pub fn pointers(body: &str) -> Vec<String> {
     found
 }
 
-fn fence_marker(line: &str) -> Option<(u8, usize)> {
+fn fence_marker(line: &str) -> Option<(u8, usize, bool)> {
     let trimmed = line.trim_start();
     let marker = *trimmed.as_bytes().first()?;
     if marker != b'`' && marker != b'~' {
         return None;
     }
     let length = trimmed.bytes().take_while(|byte| *byte == marker).count();
-    (length >= 3).then_some((marker, length))
+    let closes = trimmed[length..].trim().is_empty();
+    (length >= 3).then_some((marker, length, closes))
 }
 
 /// The pointers of one line, outside inline code spans.
