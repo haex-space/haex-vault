@@ -180,6 +180,7 @@ function cancelEdit() {
   startDraft(page.value)
 }
 
+// action-exempt: the store runs the settings.agentMemory.remove guardrail through the action catalog.
 async function deleteAsync() {
   leaving = true
   try {
