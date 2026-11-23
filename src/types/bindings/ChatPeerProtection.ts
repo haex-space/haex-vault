@@ -10,6 +10,6 @@ export type ChatPeerProtection = {
  */
 state: ChatPeerProtectionState,
 /**
- * The oldest last renewal over the devices with a session; `None` without one.
+ * The oldest renewal of the session used to send on, across devices; `None` without one.
  */
 renewedAt: number | null, };
