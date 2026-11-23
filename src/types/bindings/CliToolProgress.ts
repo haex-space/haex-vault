@@ -4,7 +4,7 @@ import type { CliToolPhase } from "./CliToolPhase";
 /**
  * The payload of the `cli-tool-progress` event.
  */
-export type CliToolProgress = { vendor: string, phase: CliToolPhase, bytesDone: number,
+export type CliToolProgress = { vendor: string, phase: CliToolPhase, bytesDone: number, 
 /**
  * 0 outside the download phase.
  */

@@ -6,15 +6,15 @@ import type { SiteLevel } from "./SiteLevel";
 /**
  * The rights group `browser` (spec 065 data-model.md). Present means on.
  */
-export type BrowserRights = {
+export type BrowserRights = { 
 /**
  * Handed-over tabs in the user's own browser (US6).
  */
-userBrowser: boolean, sites: { [key in string]: SiteGrant },
+userBrowser: boolean, sites: { [key in string]: SiteGrant }, 
 /**
  * Rules for the requests a page sends to a website (FR-044), by the website they go to.
  */
-requests: { [key in string]: RequestRule },
+requests: { [key in string]: RequestRule }, 
 /**
  * What the agent may do on every website not listed in `sites` (FR-043); `None` is nothing,
  * and `Blocked` is no valid level here (`validate`, FR-047). A website of `sites` is an

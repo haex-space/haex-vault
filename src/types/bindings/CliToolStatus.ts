@@ -5,41 +5,41 @@ import type { CliToolState } from "./CliToolState";
 /**
  * One vendor's tool in the open vault.
  */
-export type CliToolStatus = { vendor: string, displayName: string, state: CliToolState,
+export type CliToolStatus = { vendor: string, displayName: string, state: CliToolState, 
 /**
  * The version in use, when there is one.
  */
-installedVersion: string | null,
+installedVersion: string | null, 
 /**
  * The newest listed version that has a program for this device.
  */
-latestListedVersion: string | null,
+latestListedVersion: string | null, 
 /**
  * Whether a run with the version in use has ended normally (spec FR-022).
  */
-confirmed: boolean,
+confirmed: boolean, 
 /**
  * While the version in use is unconfirmed and an older complete one is still on disk: that
  * older version, which "go back" returns to.
  */
-previousVersion: string | null,
+previousVersion: string | null, 
 /**
  * The version in use is not on the list and newer than it: a vault from a newer haex-vault. It
  * is still started.
  */
-untested: boolean,
+untested: boolean, 
 /**
  * The version in use is older than the oldest listed one; the update is offered.
  */
-outdated: boolean,
+outdated: boolean, 
 /**
  * The size of the download an install would fetch.
  */
-downloadBytes: number | null,
+downloadBytes: number | null, 
 /**
  * The space an install takes in the vault.
  */
-unpackedBytes: number | null, isolation: CliToolIsolation,
+unpackedBytes: number | null, isolation: CliToolIsolation, 
 /**
  * For `needs_reinstall`: `platform` or `incomplete`.
  */

@@ -4,7 +4,7 @@ import type { RegistrationQuestion } from "./RegistrationQuestion";
 /**
  * The payload of [`EVENT_REGISTRATION_REQUEST`].
  */
-export type RegistrationPromptEvent = { requestId: string,
+export type RegistrationPromptEvent = { requestId: string, 
 /**
  * Unix milliseconds.
  */

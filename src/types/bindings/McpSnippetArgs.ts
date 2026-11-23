@@ -2,7 +2,7 @@
 import type { SnippetClient } from "./SnippetClient";
 import type { SnippetWay } from "./SnippetWay";
 
-export type McpSnippetArgs = { client: SnippetClient,
+export type McpSnippetArgs = { client: SnippetClient, 
 /**
  * The program way when left out.
  */
