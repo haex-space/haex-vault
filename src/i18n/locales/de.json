@@ -505,7 +505,7 @@
           "recovering": "Ein Gerät konnte eine Nachricht nicht entschlüsseln, deshalb vereinbaren die Geräte gerade neue Schlüssel. Noch nicht bestätigte Nachrichten werden danach neu verschlüsselt und noch einmal gesendet; dafür ist nichts zu tun.",
           "waitingForKeys": "Ein Gerät hat noch keine Schlüssel veröffentlicht. Nachrichten an dieses Gerät warten, bis seine Schlüssel da sind; ohne sie wird ihm nichts gesendet."
         },
-        "renewedAt": "Zuletzt mit allen Geräten erneuert: {date}",
+        "renewedAt": "Älteste bekannte Erneuerung: {date}",
         "relays": "Nostr-Relays sehen nicht, was du schreibst, aber an welches Gerät etwas geht, wann, wie groß es ist und von welcher Netzwerkadresse. Sie können Nachrichten auch ablehnen, zurückhalten oder löschen; unbestätigte Nachrichten werden dann noch einmal gesendet.",
         "history": "Dieser Schutz gilt für die Kopien auf den Nostr-Relays. Nachrichten, die in deinem Vault gespeichert sind, kann jeder lesen, der den Vault öffnen kann.",
         "show": "Schutz erklären",
