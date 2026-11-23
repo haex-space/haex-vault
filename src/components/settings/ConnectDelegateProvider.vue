@@ -6,7 +6,8 @@ import type { DelegateVendor, Provider } from '~/composables/useProviders'
 const { t } = useI18n()
 const { capabilities } = useDeviceCapabilities()
 const { errString } = useErrorString()
-const { listAsync, onDelegateConnectProgress } = useProviders()
+const { listAsync, onDelegateConnectProgress, cancelConnectCliDelegateAsync } =
+  useProviders()
 // Spec 020 FR-024: provider writes run catalog actions (connect/submit are guardrails).
 const cliTools = useCliTools()
 const refreshModels = useActionOrThrow('settings.delegate.refreshModels')
@@ -63,6 +64,17 @@ const signInOpen = reactive<Record<DelegateVendor, boolean>>({
   claude: false,
   codex: false,
   abacusai: false,
+})
+// A provider that signs in with the account's own credentials asks for the e-mail address first.
+const emailOpen = reactive<Record<DelegateVendor, boolean>>({
+  claude: false,
+  codex: false,
+  abacusai: false,
+})
+const emailInput = reactive<Record<DelegateVendor, string>>({
+  claude: '',
+  codex: '',
+  abacusai: '',
 })
 const removing = reactive<Record<DelegateVendor, boolean>>({
   claude: false,
@@ -126,8 +138,28 @@ async function onRefreshModels(vendor: DelegateVendor) {
   }
 }
 
+/** The vendors whose sign-in starts with the e-mail address of the account. */
+function asksForEmail(vendor: DelegateVendor): boolean {
+  return vendor === 'abacusai'
+}
+
+/** The backend's code for a sign-in the person ended by closing the dialog. */
+function isSigninCancelled(e: unknown): boolean {
+  return (
+    typeof e === 'object' &&
+    e !== null &&
+    'reason' in e &&
+    typeof e.reason === 'string' &&
+    e.reason.startsWith('delegate.signin_cancelled')
+  )
+}
+
 async function onConnect(vendor: DelegateVendor) {
   resetVendorState(vendor)
+  if (asksForEmail(vendor)) {
+    emailOpen[vendor] = true
+    return
+  }
   connecting[vendor] = true
   try {
     const result = (await connect({ vendor, name: vendorLabel(vendor) })) as {
@@ -145,6 +177,37 @@ async function onConnect(vendor: DelegateVendor) {
     connecting[vendor] = false
   }
 }
+
+async function onSubmitEmail(vendor: DelegateVendor) {
+  const email = emailInput[vendor].trim()
+  if (!email || connecting[vendor]) return
+  emailOpen[vendor] = false
+  connecting[vendor] = true
+  try {
+    await connect({ vendor, name: vendorLabel(vendor), email })
+    await reloadAsync()
+  } catch (e) {
+    // Closing the sign-in dialog ends the wait; that is the person's own choice, not a failure.
+    if (!isSigninCancelled(e)) connectFailed(errString(e))
+  } finally {
+    resetVendorState(vendor)
+    emailInput[vendor] = ''
+    connecting[vendor] = false
+  }
+}
+
+/** Closing the sign-in dialog while the service waits for the person ends that wait. */
+watch(
+  () => signInOpen.abacusai,
+  async (open) => {
+    if (open || !connecting.abacusai) return
+    try {
+      await cancelConnectCliDelegateAsync('abacusai')
+    } catch {
+      // Nothing waits any more: the flow has ended by itself.
+    }
+  },
+)
 
 /** The backend's code for a sign-in code the program did not accept (`providers/connect.rs`). */
 const CODE_REJECTED = 'cli_delegate.code_rejected'
@@ -206,7 +269,9 @@ onMounted(async () => {
     } else if (event.status === 'error') {
       awaitingCode[event.vendor] = false
       signInOpen[event.vendor] = false
-      if (event.message) connectFailed(event.message)
+      // The sign-in of an account vendor reports its failure with the rejected call itself.
+      if (event.message && !asksForEmail(event.vendor))
+        connectFailed(event.message)
       connecting[event.vendor] = false
     }
   })
@@ -262,6 +327,18 @@ async function onRemove(vendor: DelegateVendor) {
             @show-sign-in="signInOpen[vendor] = true"
             @refresh="onRefreshModels(vendor)"
             @remove="onRemove(vendor)"
+          />
+          <SettingsDelegateEmailDialog
+            v-if="asksForEmail(vendor)"
+            v-model:open="emailOpen[vendor]"
+            v-model:email="emailInput[vendor]"
+            :title="
+              t('settings.cliDelegate.signInTitle', {
+                name: vendorLabel(vendor),
+              })
+            "
+            :submitting="connecting[vendor]"
+            @submit="onSubmitEmail(vendor)"
           />
           <SettingsDelegateSignInDialog
             v-model:open="signInOpen[vendor]"

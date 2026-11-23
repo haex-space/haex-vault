@@ -52,6 +52,13 @@ pub fn lives_in_password_manager(vendor: &str) -> bool {
     vendor == "abacusai"
 }
 
+/// The scope the credential of `vendor` is saved and read in: shared by every device of the vault
+/// until the operator's device-binding check (spec 096 T030) shows a vendor's code to be bound to
+/// the device it was obtained on; then that vendor answers with the installation id.
+pub fn scope_of(_vendor: &str) -> &'static str {
+    VAULT_SCOPE
+}
+
 /// The tag of the entries of `vendor`; the one place of its name.
 pub fn tag_of(vendor: &str) -> String {
     format!("haex-delegate-{vendor}")
@@ -206,6 +213,17 @@ pub async fn delete(db: &VaultDb, vendor: &str) -> Result<()> {
     let passwords = PasswordsService::new(db.clone());
     for (_, item) in entries(&passwords, vendor).await? {
         remove(&passwords, item.id).await?;
+    }
+    Ok(())
+}
+
+/// Deletes the credential of `vendor` in `scope` only; other scopes stay. Nothing to delete is fine.
+pub async fn delete_scope(db: &VaultDb, vendor: &str, scope: &str) -> Result<()> {
+    let passwords = PasswordsService::new(db.clone());
+    for (entry_scope, item) in entries(&passwords, vendor).await? {
+        if entry_scope.as_deref() == Some(scope) {
+            remove(&passwords, item.id).await?;
+        }
     }
     Ok(())
 }

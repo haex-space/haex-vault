@@ -265,3 +265,22 @@ fn a_credential_prints_no_secret() {
     assert!(!alone.contains(SECRET), "{alone}");
     assert!(!wrapped.contains(SECRET), "{wrapped}");
 }
+
+#[tokio::test]
+async fn deleting_one_scope_leaves_the_others() {
+    let (_dir, db) = vault();
+    save(&db, VENDOR, KIND_DEVICE_CODE, "code-of-a", "installation-a")
+        .await
+        .unwrap();
+    save(&db, VENDOR, KIND_DEVICE_CODE, SECRET, VAULT_SCOPE)
+        .await
+        .unwrap();
+
+    delete_scope(&db, VENDOR, "installation-a").await.unwrap();
+    delete_scope(&db, VENDOR, "installation-b")
+        .await
+        .expect("nothing to delete");
+
+    assert_eq!(secret_of(&db, "installation-a").await, None);
+    assert_eq!(secret_of(&db, VAULT_SCOPE).await.as_deref(), Some(SECRET));
+}

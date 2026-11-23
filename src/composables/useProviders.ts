@@ -62,6 +62,8 @@ export interface RefreshProviderModelsResult {
 export interface ConnectCliDelegateArgs {
   vendor: DelegateVendor
   name: string
+  /** The e-mail address of the account; `abacusai` signs in with it (spec 096). */
+  email?: string
 }
 
 /**
@@ -152,6 +154,13 @@ export function useProviders() {
     })
   }
 
+  /** Stops a sign-in that waits for the person in the browser (the dialog was closed). */
+  async function cancelConnectCliDelegateAsync(
+    vendor: DelegateVendor,
+  ): Promise<void> {
+    await invoke('cancel_cli_delegate_connect', { vendor })
+  }
+
   /** Completes a Claude connect flow with the code copied from the browser. */
   async function submitCliDelegateCodeAsync(
     args: SubmitCliDelegateCodeArgs,
@@ -177,6 +186,7 @@ export function useProviders() {
     listModelsAsync,
     setModelCapabilitiesAsync,
     connectCliDelegateAsync,
+    cancelConnectCliDelegateAsync,
     submitCliDelegateCodeAsync,
     onDelegateConnectProgress,
   }
