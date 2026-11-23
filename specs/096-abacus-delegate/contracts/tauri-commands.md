@@ -52,6 +52,14 @@ logged and appear only in the event (address and code) and in the entry (device 
 Stops a running connect flow of `vendor` (the polling loop; idempotent). The UI calls it when the dialog is closed. For
 `claude` and `codex` it does nothing new (their flows end with their processes).
 
+### `cli_delegate_unverified_approvals()` (new)
+
+Returns the delegate vendors that are not offered under the approving posture ("always ask") because it is not yet shown that
+every tool of theirs asks first (plan D6): `["abacusai"]` while the release gate
+`READ_ONLY_TOOLS_REACH_APPROVAL_BRIDGE` in `adapters/cli_delegate/abacus.rs` is `false`, otherwise `[]`. The model picker lists
+such a vendor's entry as unavailable (`chat.model.delegateApprovalsUnverified`), Settings says why, and a request ends with the
+reason `delegate.approvals_unverified: abacusai` before anything is started. A stub program of a test is not held to the gate.
+
 ### `delete_provider(id)` (existing command, extended)
 
 Disconnecting is deleting the provider row. For a `cli_delegate` row whose `adapter` is `abacusai`, the command deletes all

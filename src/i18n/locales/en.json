@@ -295,6 +295,7 @@
       },
       "delegateNotConnected": "Not connected — connect in Settings",
       "delegateNotInstalled": "Not installed in this vault — install it in Settings",
+      "delegateApprovalsUnverified": "Not available yet — its approvals are not verified",
       "answeredByDelegate": "Answered by {name}"
     },
     "newChat": "New chat",
@@ -2102,7 +2103,7 @@
     "delegate": {
       "not_connected": "{name} is not connected on this device yet. Connect it in Settings. If you just connected it on another device, wait a moment for the sync.",
       "credential_refused": "{name} was refused by the service. Connect it again in Settings.",
-      "approvals_unverified": "{name} is unavailable until its tool approval coverage is verified.",
+      "approvals_unverified": "{name} is not available while Haex asks before every action: it is not yet verified that every tool of it waits for your approval.",
       "signin_refused": "The sign-in was not accepted: {detail}",
       "signin_expired": "The code was not confirmed in time. Start the sign-in again.",
       "signin_network": "The sign-in service cannot be reached. Check the connection and try again.",

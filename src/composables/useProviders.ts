@@ -161,6 +161,14 @@ export function useProviders() {
     await invoke('cancel_cli_delegate_connect', { vendor })
   }
 
+  /**
+   * The delegate vendors that are not offered under the approving posture because it is not yet
+   * shown that every tool of theirs asks first (spec 096 plan D6, FR-010).
+   */
+  async function unverifiedApprovalsAsync(): Promise<DelegateVendor[]> {
+    return invoke<DelegateVendor[]>('cli_delegate_unverified_approvals')
+  }
+
   /** Completes a Claude connect flow with the code copied from the browser. */
   async function submitCliDelegateCodeAsync(
     args: SubmitCliDelegateCodeArgs,
@@ -187,6 +195,7 @@ export function useProviders() {
     setModelCapabilitiesAsync,
     connectCliDelegateAsync,
     cancelConnectCliDelegateAsync,
+    unverifiedApprovalsAsync,
     submitCliDelegateCodeAsync,
     onDelegateConnectProgress,
   }

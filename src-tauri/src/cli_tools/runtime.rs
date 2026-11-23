@@ -252,6 +252,13 @@ impl DelegateRuntime {
         }
     }
 
+    /// Whether the program is an installed version of the vault (a run holds its claim) and not a
+    /// stub a test speaks for. A release gate that rests on what the real program was measured to
+    /// do (spec 096 D6) applies to an installed version only.
+    pub fn is_installed_version(&self) -> bool {
+        self.lease.is_some()
+    }
+
     /// A new folder for one run or connect flow.
     pub fn run_folder(&self) -> io::Result<RunFolder> {
         RunFolder::create(&self.run_root, &self.home)

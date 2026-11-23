@@ -6,8 +6,12 @@ import type { DelegateVendor, Provider } from '~/composables/useProviders'
 const { t } = useI18n()
 const { capabilities } = useDeviceCapabilities()
 const { errString } = useErrorString()
-const { listAsync, onDelegateConnectProgress, cancelConnectCliDelegateAsync } =
-  useProviders()
+const {
+  listAsync,
+  onDelegateConnectProgress,
+  cancelConnectCliDelegateAsync,
+  unverifiedApprovalsAsync,
+} = useProviders()
 // Spec 020 FR-024: provider writes run catalog actions (connect/submit are guardrails).
 const cliTools = useCliTools()
 const refreshModels = useActionOrThrow('settings.delegate.refreshModels')
@@ -246,8 +250,16 @@ async function onSubmitCode(vendor: DelegateVendor) {
   }
 }
 
+/** The vendors that are not offered until their approvals are verified (spec 096 FR-010). */
+const unverifiedApprovals = ref<DelegateVendor[]>([])
+
 onMounted(async () => {
   await reloadAsync()
+  try {
+    unverifiedApprovals.value = await unverifiedApprovalsAsync()
+  } catch {
+    unverifiedApprovals.value = []
+  }
   // The tools of this vault: a connect needs the vault's own installation (spec 094 FR-004).
   void cliTools.startAsync()
   unlisten = await onDelegateConnectProgress(async (event) => {
@@ -336,6 +348,17 @@ async function onRemove(vendor: DelegateVendor) {
             @refresh="onRefreshModels(vendor)"
             @remove="onRemove(vendor)"
           />
+          <p
+            v-if="unverifiedApprovals.includes(vendor)"
+            class="px-4 pb-3 text-sm text-muted-foreground"
+            :data-testid="`delegate-approvals-unverified-${vendor}`"
+          >
+            {{
+              t('errors.delegate.approvals_unverified', {
+                name: vendorLabel(vendor),
+              })
+            }}
+          </p>
           <SettingsDelegateEmailDialog
             v-if="asksForEmail(vendor)"
             v-model:open="emailOpen[vendor]"

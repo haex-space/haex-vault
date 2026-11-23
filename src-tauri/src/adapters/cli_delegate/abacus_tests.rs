@@ -27,6 +27,7 @@ use crate::cli_tools::runtime::{DelegateRuntime, RunFolder};
 use crate::instances::vault_paths::VaultPaths;
 use crate::passwords::test_support::open_test_vault;
 use crate::providers::delegate_credential::{self, KIND_DEVICE_CODE, VAULT_SCOPE};
+use crate::storage::preferences::{self, PrefScope};
 use crate::vault_gate::{VaultDb, VaultGate};
 
 const CODE: &str = "placeholder-device-code-of-abacus-tests";
@@ -831,4 +832,214 @@ fn a_provider_model_list_is_the_one_default_entry() {
     let models = [default_model()];
     assert_eq!(models.len(), 1);
     assert_eq!(models[0].display_name, "Abacus AI");
+}
+
+// ---- US3: the approval posture (spec 096, T031, T032) ----
+
+/// A stub that asks to run `tool` with the request line `request` (the JSON of the whole
+/// `control_request`), waits for the answer and writes it to `answer`.
+fn asking_body(answer: &Path, request: &str) -> String {
+    format!(
+        "cat <<'EOF'\n{INIT}\n{request}\nEOF\nIFS= read -r reply\nprintf '%s\\n' \"$reply\" > '{answer}'\ncat <<'EOF'\n{OK_RESULT}\nEOF",
+        answer = answer.display(),
+    )
+}
+
+fn tool_request(tool: &str) -> String {
+    format!(
+        "{{\"type\":\"control_request\",\"request_id\":\"perm-1\",\"request\":{{\"subtype\":\"can_use_tool\",\"tool_call_id\":\"t1\",\"request\":{{\"tool_name\":\"{tool}\",\"tool_input\":{{\"path\":\"notes.txt\"}}}}}}}}"
+    )
+}
+
+/// The words of a decision that would outlive the one call; the adapter never sends any.
+const PERSISTENT_WORDS: [&str; 4] = [
+    "allowAlways",
+    "allowYolo",
+    "allow_always_with_rules",
+    "question_answers",
+];
+
+#[tokio::test]
+async fn a_read_only_and_a_changing_tool_are_each_asked_once_and_answered_without_a_persistent_variant(
+) {
+    for tool in ["Read", "Bash"] {
+        for (decision, expected) in [
+            (ApprovalDecision::Allow, "accept"),
+            (ApprovalDecision::Deny, "reject"),
+        ] {
+            let fixture = Fixture::new().await;
+            let answer = fixture.path("answer");
+            let program = fixture.stub(&asking_body(&answer, &tool_request(tool)));
+            let seen = Arc::new(Mutex::new(Vec::new()));
+            let adapter = fixture.adapter(&program, fixture.answering(decision, seen.clone()));
+
+            let (_, done, error) =
+                collect(adapter.stream_chat(request("abacusai")).await.unwrap()).await;
+
+            assert!(
+                done.is_some() && error.is_none(),
+                "{tool}: the stream continues after the answer ({error:?})"
+            );
+            let raw = fixture.read("answer");
+            let reply: Value = serde_json::from_str(raw.trim()).unwrap();
+            assert_eq!(
+                reply["response"]["response"]["decision"], expected,
+                "{tool}"
+            );
+            for word in PERSISTENT_WORDS {
+                assert!(!raw.contains(word), "{tool}: the answer holds {word}");
+            }
+            assert_eq!(seen.lock().unwrap().len(), 1, "{tool}: asked once");
+        }
+    }
+}
+
+#[tokio::test]
+async fn a_request_without_tool_fields_is_still_asked_for_and_never_allowed_on_its_own() {
+    let fixture = Fixture::new().await;
+    let answer = fixture.path("answer");
+    let malformed = r#"{"type":"control_request","request_id":"perm-1","request":{"subtype":"can_use_tool","request":{}}}"#;
+    let program = fixture.stub(&asking_body(&answer, malformed));
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let adapter = fixture.adapter(
+        &program,
+        fixture.answering(ApprovalDecision::Deny, seen.clone()),
+    );
+
+    let (_, done, error) = collect(adapter.stream_chat(request("abacusai")).await.unwrap()).await;
+
+    assert!(done.is_some() && error.is_none(), "{error:?}");
+    let reply: Value = serde_json::from_str(fixture.read("answer").trim()).unwrap();
+    assert_eq!(reply["response"]["response"]["decision"], "reject");
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen.len(), 1, "the person was asked");
+    assert_eq!(seen[0]["toolName"], "Abacus tool");
+}
+
+#[tokio::test]
+async fn a_program_that_closes_its_input_before_the_answer_ends_the_request_without_an_accept() {
+    let fixture = Fixture::new().await;
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    // The program asks and ends at once: the answer has nowhere to go.
+    let program = fixture.stub(&format!(
+        "cat <<'EOF'\n{INIT}\n{}\nEOF\nexit 0",
+        tool_request("Bash")
+    ));
+    let adapter = fixture.adapter(
+        &program,
+        fixture.answering(ApprovalDecision::Allow, seen.clone()),
+    );
+
+    let (_, done, error) = collect(adapter.stream_chat(request("abacusai")).await.unwrap()).await;
+
+    assert!(done.is_none(), "no result was reached");
+    assert!(error.is_some(), "the request ends with an error");
+}
+
+/// Sets the vault's permission mode (`chat.permission_mode`).
+async fn set_permission_mode(db: &VaultDb, mode: &str) {
+    let mode = mode.to_owned();
+    db.write(move |tx| {
+        preferences::insert_or_update(tx, PrefScope::Vault, "chat.permission_mode", &mode)?;
+        Ok(())
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn under_the_posture_that_blocks_sensitive_actions_a_changing_tool_gets_no_accept() {
+    let fixture = Fixture::new().await;
+    set_permission_mode(&fixture.db, "plan").await;
+    let answer = fixture.path("answer");
+    let program = fixture.stub(&asking_body(&answer, &tool_request("Bash")));
+    let requests = Arc::new(Mutex::new(Vec::new()));
+    let seen = requests.clone();
+    let context = DelegateChatContext {
+        emit: Arc::new(move |event: &str, _payload: Value| {
+            seen.lock().unwrap().push(event.to_owned());
+        }),
+        ..fixture.context()
+    };
+    let adapter = fixture.adapter(&program, context);
+
+    let (_, done, error) = collect(adapter.stream_chat(request("abacusai")).await.unwrap()).await;
+
+    assert!(done.is_some() && error.is_none(), "{error:?}");
+    let reply: Value = serde_json::from_str(fixture.read("answer").trim()).unwrap();
+    assert_eq!(reply["response"]["response"]["decision"], "reject");
+    assert!(
+        !requests
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|event| event == "tool-permission-request"),
+        "the posture refuses without asking"
+    );
+}
+
+/// Whether the process `pid` is still alive.
+fn alive(pid: &str) -> bool {
+    std::process::Command::new("kill")
+        .args(["-0", pid])
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success())
+}
+
+async fn wait_until_gone(pid: &str) -> bool {
+    for _ in 0..100 {
+        if !alive(pid) {
+            return true;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+    false
+}
+
+#[tokio::test]
+async fn a_stop_ends_the_running_program() {
+    let fixture = Fixture::new().await;
+    let pidfile = fixture.path("pid");
+    let program = fixture.stub(&format!(
+        "echo $$ > '{pid}'\ncat <<'EOF'\n{INIT}\nEOF\nsleep 30",
+        pid = pidfile.display()
+    ));
+    let adapter = fixture.adapter(&program, fixture.context());
+    let stream = adapter.stream_chat(request("abacusai")).await.unwrap();
+    let pid = fixture.read("pid").trim().to_owned();
+    assert!(alive(&pid), "the program runs");
+
+    stream.abort_handle().abort();
+
+    assert!(
+        wait_until_gone(&pid).await,
+        "the program was ended by the stop"
+    );
+}
+
+#[tokio::test]
+async fn a_closing_vault_ends_the_running_program_and_the_request() {
+    let fixture = Fixture::new().await;
+    let pidfile = fixture.path("pid");
+    let program = fixture.stub(&format!(
+        "echo $$ > '{pid}'\ncat <<'EOF'\n{INIT}\nEOF\nsleep 30",
+        pid = pidfile.display()
+    ));
+    let context = fixture.context();
+    let children = context.children.clone();
+    let adapter = fixture.adapter(&program, context);
+    let stream = adapter.stream_chat(request("abacusai")).await.unwrap();
+    let pid = fixture.read("pid").trim().to_owned();
+    assert!(alive(&pid), "the program runs");
+
+    // What the close of the vault does to every child it started.
+    children.kill_all();
+
+    let (_, done, error) = collect(stream).await;
+    assert!(
+        done.is_none() && error.is_some(),
+        "the request ends, not finished"
+    );
+    assert!(wait_until_gone(&pid).await, "the program is gone");
 }
