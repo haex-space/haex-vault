@@ -75,6 +75,7 @@ export function useModelInventory(deps: ModelInventoryDeps) {
     toolInstalled.value !== null && toolInstalled.value[vendor] === false
   /** The delegate vendors held back until their approvals are verified (spec 096 D6). */
   const unverifiedVendors = ref<string[]>([])
+  const approvalStatusKnown = ref(false)
 
   // A connected `cli_delegate` provider's one cached model
   // (`refreshProviders` below) already lands in `providerModels`, the
@@ -92,7 +93,8 @@ export function useModelInventory(deps: ModelInventoryDeps) {
 
   const isHeldBack = (p: Provider) =>
     p.kind === 'cli_delegate' &&
-    unverifiedVendors.value.includes(p.adapter ?? '')
+    (!approvalStatusKnown.value ||
+      unverifiedVendors.value.includes(p.adapter ?? ''))
 
   /** Groups selectable models by provider for the picker's <optgroup>. */
   const modelGroups = computed<ModelGroup[]>(() => {
@@ -275,9 +277,14 @@ export function useModelInventory(deps: ModelInventoryDeps) {
       toolInstalled.value = null
     }
     try {
-      unverifiedVendors.value = (await deps.approvalsUnverified?.()) ?? []
+      const result = await deps.approvalsUnverified?.()
+      if (result !== undefined) {
+        unverifiedVendors.value = result
+        approvalStatusKnown.value = true
+      }
     } catch {
-      unverifiedVendors.value = []
+      // Keep delegate models held back until the first successful response, then preserve the
+      // last verified posture when a later refresh fails.
     }
   }
 
