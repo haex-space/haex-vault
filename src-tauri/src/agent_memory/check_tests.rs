@@ -71,6 +71,8 @@ fn secrets_are_refused() {
         "Der Schlüssel ist sk-proj-Ab12Cd34Ef56Gh78",
         "ghp_aB3dE6gH9jK2mN5pQ8sT1vW4yZ7",
         "xoxb-1234567890-abcdefghij",
+        "Authorization: Basic dXNlcjpwYXNz",
+        "Proxy-Authorization: Bearer abc",
         "nsec1qy352euf40x77qfrg4ncn27dauqjx3t83x4ummcpydzk0zdtehhst6lfl",
         "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U",
         "Schlüssel: QWxhZGRpbjpvcGVuIHNlc2FtZQ4mK7pZ2rT9",

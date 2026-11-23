@@ -137,6 +137,9 @@ fn holds_secret(text: &str) -> bool {
     if text.contains("-----BEGIN") && text.contains("PRIVATE KEY") {
         return true;
     }
+    if authorization_credential(text) {
+        return true;
+    }
     // `redact_text` hides the word after "Bearer" and "Basic" whatever it is, which would refuse
     // "the basic idea"; a real token after them is caught by the prefixes and the key run.
     let without_schemes: Vec<&str> = text
@@ -149,6 +152,21 @@ fn holds_secret(text: &str) -> bool {
     }
     let words: Vec<&str> = text.split_whitespace().collect();
     words.iter().any(|word| token_like(word)) || key_run(text) || password_value(&words)
+}
+
+/// The general redactor recognizes `Basic` and `Bearer` as schemes, but the ordinary word "basic"
+/// is removed below to avoid refusing phrases like "the basic idea". Keep credentials in an
+/// authorization header detectable even when their value is too short to look like a token.
+fn authorization_credential(text: &str) -> bool {
+    let words: Vec<&str> = text.split_whitespace().collect();
+    words.windows(3).any(|header| {
+        let name = header[0].trim_end_matches(':');
+        (name.eq_ignore_ascii_case("authorization")
+            || name.eq_ignore_ascii_case("proxy-authorization"))
+            && header[0].ends_with(':')
+            && (header[1].eq_ignore_ascii_case("basic") || header[1].eq_ignore_ascii_case("bearer"))
+            && !header[2].is_empty()
+    })
 }
 
 fn token_like(word: &str) -> bool {
