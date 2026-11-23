@@ -111,6 +111,21 @@ impl ChatFileStore {
             .map_err(store_error)
     }
 
+    /// Reads the entire local copy without retaining it. Save commands call this before opening
+    /// the chosen destination so a missing or unreadable attachment cannot truncate that file.
+    pub async fn check_readable(&self, id: &str) -> Result<()> {
+        let file = self.open(id).await?.ok_or_else(|| HaexError::NotFound {
+            name: "chat file".into(),
+        })?;
+        let mut at = 0;
+        while at < file.size() {
+            let end = file.size().min(at + WINDOW);
+            file.read(at, end).await.map_err(store_error)?;
+            at = end;
+        }
+        Ok(())
+    }
+
     /// Writes the file of attachment `id` to `out` one window at a time, so a file of the largest
     /// size (FR-034) is never held whole; `NotFound` while this device has none.
     pub async fn save_to(&self, id: &str, mut out: tokio::fs::File) -> Result<()> {
