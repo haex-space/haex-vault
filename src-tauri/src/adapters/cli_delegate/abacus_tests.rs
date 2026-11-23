@@ -439,7 +439,7 @@ async fn standard_requests_stay_unavailable_until_approval_coverage_is_verified(
     };
 
     assert!(
-        matches!(error, AdapterError::Unavailable { reason } if reason == APPROVALS_UNVERIFIED),
+        matches!(&error, AdapterError::Unavailable { reason } if reason == APPROVALS_UNVERIFIED),
         "{error:?}"
     );
     assert!(!fixture.path("started").exists(), "nothing was spawned");
