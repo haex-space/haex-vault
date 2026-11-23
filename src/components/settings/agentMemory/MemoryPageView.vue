@@ -37,6 +37,7 @@ const confirmDelete = ref(false)
 const draft = reactive({ title: '', description: '', body: '' })
 /** Set from deleting on: the deletion's change event would reload a page that is gone. */
 let leaving = false
+let loadRevision = 0
 
 function startDraft(from: AgentMemoryPage | null) {
   const title = router.route.query.title
@@ -46,8 +47,10 @@ function startDraft(from: AgentMemoryPage | null) {
 }
 
 async function reloadAsync() {
+  const revision = ++loadRevision
+  const id = pageId.value
   confirmDelete.value = false
-  if (isNew.value) {
+  if (id === 'new') {
     page.value = null
     editing.value = true
     startDraft(null)
@@ -55,13 +58,16 @@ async function reloadAsync() {
     return
   }
   try {
-    page.value = await store.pageAsync(pageId.value)
+    const loadedPage = await store.pageAsync(id)
+    if (revision !== loadRevision || id !== pageId.value) return
+    page.value = loadedPage
     if (!editing.value) startDraft(page.value)
   } catch (error) {
+    if (revision !== loadRevision || id !== pageId.value) return
     page.value = null
     if (!leaving && !memoryRefusal(error)) toast.error(errString(error))
   } finally {
-    loaded.value = true
+    if (revision === loadRevision && id === pageId.value) loaded.value = true
   }
 }
 
@@ -189,6 +195,7 @@ async function deleteAsync() {
 onMounted(reloadAsync)
 onBeforeUnmount(() => {
   leaving = true
+  loadRevision += 1
 })
 watch(pageId, () => {
   editing.value = false
