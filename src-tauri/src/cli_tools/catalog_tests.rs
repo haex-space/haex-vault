@@ -68,10 +68,13 @@ fn a_valid_catalog_reads_and_answers_by_vendor_version_and_platform() {
     assert_eq!(tool.executable_for(PlatformKey::Win32X64), Some("tool.exe"));
     assert_eq!(tool.executable_for(PlatformKey::LinuxArm64), None);
     assert_eq!(
-        tool.newest_for(PlatformKey::LinuxX64).unwrap().version,
+        tool.newest_for(PlatformKey::LinuxX64, true)
+            .unwrap()
+            .version
+            .version,
         "2.0.0"
     );
-    assert!(tool.newest_for(PlatformKey::Win32X64).is_none());
+    assert!(tool.newest_for(PlatformKey::Win32X64, true).is_none());
 }
 
 #[test]
@@ -95,7 +98,6 @@ fn versions_must_be_strictly_descending_by_semver() {
 
 #[test]
 fn a_vendor_needs_a_version_a_host_and_a_known_shape() {
-    rejected(&catalog(vec![vendor("tool", &[])]), "no version");
     let mut no_host = vendor("tool", &["1.0.0"]);
     no_host["download_hosts"] = json!([]);
     rejected(&catalog(vec![no_host]), "no download host");
@@ -178,11 +180,11 @@ fn a_package_names_its_unpacked_size_and_a_file_does_not() {
 }
 
 #[test]
-fn the_shipped_catalog_is_valid_and_lists_the_two_delegate_tools() {
+fn the_shipped_catalog_is_valid_and_lists_the_delegate_tools() {
     let shipped = Catalog::shipped();
     let ids: Vec<_> = shipped.vendors.iter().map(|v| v.vendor.as_str()).collect();
-    assert_eq!(ids, ["claude", "codex"]);
-    for vendor in &shipped.vendors {
+    assert_eq!(ids, ["claude", "codex", "abacusai"]);
+    for vendor in shipped.vendors.iter().filter(|v| !v.versions.is_empty()) {
         // Every platform of the first listed version has a program path, and the listed
         // versions are the ones an install may choose from.
         let newest = &vendor.versions[0];
@@ -206,4 +208,100 @@ fn the_shipped_catalog_is_valid_and_lists_the_two_delegate_tools() {
         .config_args
         .windows(2)
         .any(|pair| pair == ["-c", "check_for_update_on_startup=false"]));
+}
+
+#[test]
+fn a_zip_names_its_unpacked_size_like_a_tar_gz() {
+    let mut package = vendor("tool", &["1.0.0"]);
+    package["versions"][0]["platforms"]["linux-x64"]["kind"] = json!("zip");
+    rejected(&catalog(vec![package.clone()]), "a zip needs unpacked_size");
+    package["versions"][0]["platforms"]["linux-x64"]["unpacked_size"] = json!(5000);
+    let parsed = parse(&catalog(vec![package])).unwrap();
+    let artifact = parsed
+        .vendor("tool")
+        .unwrap()
+        .artifact("1.0.0", PlatformKey::LinuxX64)
+        .unwrap();
+    assert_eq!(artifact.kind, ArtifactKind::Zip);
+    assert_eq!(artifact.unpacked_size, Some(5000));
+}
+
+#[test]
+fn an_artifact_may_require_avx2_and_does_not_by_default() {
+    let mut entry = vendor("tool", &["1.0.0"]);
+    let parsed = parse(&catalog(vec![entry.clone()])).unwrap();
+    let artifact = parsed
+        .vendor("tool")
+        .unwrap()
+        .artifact("1.0.0", PlatformKey::LinuxX64);
+    assert!(!artifact.unwrap().requires_avx2);
+
+    entry["versions"][0]["platforms"]["linux-x64"]["requires_avx2"] = json!(true);
+    let parsed = parse(&catalog(vec![entry])).unwrap();
+    let tool = parsed.vendor("tool").unwrap();
+    assert!(
+        tool.artifact("1.0.0", PlatformKey::LinuxX64)
+            .unwrap()
+            .requires_avx2
+    );
+    assert!(tool.newest_for(PlatformKey::LinuxX64, true).is_some());
+    assert!(tool.newest_for(PlatformKey::LinuxX64, false).is_none());
+}
+
+fn with_variant() -> Value {
+    let mut entry = vendor("tool", &["1.0.0"]);
+    entry["executable"]["linux-x64-baseline"] = json!("tool-baseline");
+    entry["versions"][0]["platforms"]["linux-x64-baseline"] = artifact("dl.example.com", HASH_B);
+    entry
+}
+
+#[test]
+fn a_variant_key_is_valid_and_wins_for_a_host_without_avx2() {
+    let parsed = parse(&catalog(vec![with_variant()])).unwrap();
+    let tool = parsed.vendor("tool").unwrap();
+    let variant = PlatformKey::LinuxX64Baseline;
+    let found = tool.newest_for(variant, false).unwrap();
+    assert_eq!(found.platform, variant);
+    assert_eq!(found.artifact.sha256, HASH_B);
+    assert_eq!(tool.executable_for(variant), Some("tool-baseline"));
+    // The base key keeps its own program.
+    let base = tool.newest_for(PlatformKey::LinuxX64, true).unwrap();
+    assert_eq!(base.platform, PlatformKey::LinuxX64);
+    assert_eq!(tool.executable_for(PlatformKey::LinuxX64), Some("tool"));
+}
+
+#[test]
+fn a_vendor_without_the_variant_falls_back_to_the_base_key() {
+    let parsed = parse(&catalog(vec![vendor("tool", &["1.0.0"])])).unwrap();
+    let tool = parsed.vendor("tool").unwrap();
+    let found = tool
+        .newest_for(PlatformKey::LinuxX64Baseline, false)
+        .unwrap();
+    assert_eq!(found.platform, PlatformKey::LinuxX64);
+    assert_eq!(found.artifact.sha256, HASH_A);
+    assert_eq!(
+        tool.executable_for(PlatformKey::LinuxX64Baseline),
+        Some("tool")
+    );
+    assert!(tool
+        .artifact("1.0.0", PlatformKey::LinuxX64Baseline)
+        .is_some());
+}
+
+#[test]
+fn a_variant_entry_needs_its_executable_path_like_any_other_key() {
+    let mut entry = with_variant();
+    entry["executable"]
+        .as_object_mut()
+        .unwrap()
+        .remove("linux-x64-baseline");
+    rejected(&catalog(vec![entry]), "no executable path");
+}
+
+#[test]
+fn a_vendor_may_ship_without_a_tested_version() {
+    let parsed = parse(&catalog(vec![vendor("tool", &[])])).unwrap();
+    let tool = parsed.vendor("tool").unwrap();
+    assert!(tool.versions.is_empty());
+    assert!(tool.newest_for(PlatformKey::LinuxX64, true).is_none());
 }

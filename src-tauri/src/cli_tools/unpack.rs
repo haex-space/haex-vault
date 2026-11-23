@@ -1,11 +1,12 @@
 //! Placing a downloaded tool into a staging folder (spec 094 FR-005, FR-007).
 //!
-//! A tool comes as the program itself (`file`) or as a `tar.gz` package. The archive is the
-//! vendor's, checked against its SHA-256 before it is opened here, but it is still opened
-//! defensively: only regular files and folders are unpacked, an entry that would land outside the
-//! target is refused, and so is anything that is a link or a device, because the packages of the
-//! supported vendors hold none and a link is how an archive writes outside its folder. The
-//! total is capped at the size the catalog lists, so a decompression bomb ends early.
+//! A tool comes as the program itself (`file`), as a `tar.gz` package or as a `zip` package (the
+//! Windows builds). The archive is the vendor's, checked against its SHA-256 before it is opened
+//! here, but it is still opened defensively: only regular files and folders are unpacked, an entry
+//! that would land outside the target is refused, and so is anything that is a link or a device,
+//! because the packages of the supported vendors hold none and a link is how an archive writes
+//! outside its folder. The total is capped at the size the catalog lists, so a decompression bomb
+//! ends early.
 //!
 //! The functions block: callers on the async executor run them in `spawn_blocking`.
 
@@ -141,6 +142,114 @@ pub fn unpack_tar_gz(
         }
     }
     Ok(written)
+}
+
+/// Unpacks the zip at `archive` into `target` (an existing folder) with the refusals of
+/// [`unpack_tar_gz`] and returns the bytes of regular files written. `limit` is the unpacked size
+/// the catalog lists; the bytes actually written are counted, not the sizes the archive declares.
+pub fn unpack_zip(
+    archive: &Path,
+    target: &Path,
+    limit: u64,
+    cancel: &CancellationToken,
+) -> Result<u64, UnpackError> {
+    let file = File::open(archive).map_err(|e| io("open the archive", e))?;
+    let mut package =
+        zip::ZipArchive::new(BufReader::new(file)).map_err(|e| io("read the archive", e))?;
+    let cap = limit.saturating_add(SLACK_BYTES);
+    let mut written: u64 = 0;
+    for index in 0..package.len() {
+        if cancel.is_cancelled() {
+            return Err(UnpackError::Cancelled);
+        }
+        let mut entry = package
+            .by_index(index)
+            .map_err(|e| io("read an entry", e))?;
+        let inside = entry
+            .enclosed_name()
+            .filter(|path| {
+                path.components()
+                    .all(|part| matches!(part, Component::Normal(_) | Component::CurDir))
+            })
+            .filter(|_| !entry.name().starts_with('/') && !entry.name().contains('\\'))
+            .ok_or_else(|| UnpackError::Refused("an entry path that leaves the target".into()))?;
+        let mode = entry.unix_mode();
+        match mode.map(|bits| bits & 0o170_000) {
+            None | Some(0o100_000) | Some(0o040_000) => {}
+            Some(other) => {
+                return Err(UnpackError::Refused(format!(
+                    "an entry of mode {other:o} (links and devices are not unpacked)"
+                )))
+            }
+        }
+        let destination = target.join(&inside);
+        if entry.is_dir() {
+            fs::create_dir_all(&destination).map_err(|e| io("create a folder", e))?;
+            continue;
+        }
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent).map_err(|e| io("create a folder", e))?;
+        }
+        let mut output = match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&destination)
+        {
+            Ok(output) => output,
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                return Err(UnpackError::Refused("an entry listed twice".into()))
+            }
+            Err(error) => return Err(io("create a file", error)),
+        };
+        written = copy_bounded(&mut entry, &mut output, cap, written, cancel)?;
+        drop(output);
+        set_entry_permissions(&destination, mode)?;
+    }
+    Ok(written)
+}
+
+/// Copies `from` to `to` while `already` plus the bytes copied stays within `cap`; returns the new
+/// total.
+fn copy_bounded(
+    from: &mut impl Read,
+    to: &mut impl io::Write,
+    cap: u64,
+    already: u64,
+    cancel: &CancellationToken,
+) -> Result<u64, UnpackError> {
+    let mut total = already;
+    let mut buffer = vec![0u8; 64 * 1024];
+    loop {
+        if cancel.is_cancelled() {
+            return Err(UnpackError::Cancelled);
+        }
+        let read = from.read(&mut buffer).map_err(|e| io("read an entry", e))?;
+        if read == 0 {
+            return Ok(total);
+        }
+        total = total.saturating_add(read as u64);
+        if total > cap {
+            return Err(UnpackError::Refused(
+                "the archive is larger than the catalog lists".into(),
+            ));
+        }
+        to.write_all(&buffer[..read])
+            .map_err(|e| io("write a file", e))?;
+    }
+}
+
+#[cfg(unix)]
+fn set_entry_permissions(path: &Path, mode: Option<u32>) -> Result<(), UnpackError> {
+    use std::os::unix::fs::PermissionsExt;
+    let executable = mode.is_some_and(|bits| bits & 0o111 != 0);
+    let bits = if executable { 0o755 } else { 0o644 };
+    fs::set_permissions(path, fs::Permissions::from_mode(bits))
+        .map_err(|e| io("set the file permissions", e))
+}
+
+#[cfg(not(unix))]
+fn set_entry_permissions(_path: &Path, _mode: Option<u32>) -> Result<(), UnpackError> {
+    Ok(())
 }
 
 /// Moves the downloaded program `downloaded` to `target` and makes it executable where the

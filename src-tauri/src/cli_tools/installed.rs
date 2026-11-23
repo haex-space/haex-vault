@@ -179,7 +179,9 @@ fn inspect(dir: &Path, name: &str, vendor: &VendorDefinition, host: Option<Platf
     let Some(installed_for) = PlatformKey::parse(&marker.platform) else {
         return unusable(Misfit::Incomplete);
     };
-    if host != Some(installed_for) {
+    // A tool installed for the host's own key, or for the key the host falls back to (a Linux
+    // x86-64 host without AVX2 runs what was installed for `linux-x64`), fits this device.
+    if !host.is_some_and(|key| key.candidates().contains(&installed_for)) {
         return unusable(Misfit::Platform);
     }
     let Some(relative) = vendor.executable_for(installed_for) else {

@@ -59,7 +59,8 @@ pub struct VendorDefinition {
     /// Further variables that point at the run's temp folder (a tool's own temp location).
     #[serde(default)]
     pub tmp_env: Vec<String>,
-    /// The tested versions, newest first.
+    /// The tested versions, newest first. Empty while a vendor's definition ships before its first
+    /// measured version (spec 096 D8): the status reads `no_tested_version` and nothing installs.
     pub versions: Vec<CatalogVersion>,
 }
 
@@ -89,9 +90,13 @@ pub struct Artifact {
     /// The size of the download in bytes.
     pub size: u64,
     pub kind: ArtifactKind,
-    /// Bytes on disk after unpacking, for the free-space check; required for a `tar.gz`.
+    /// Bytes on disk after unpacking, for the free-space check; required for a `tar.gz` and a `zip`.
     #[serde(default)]
     pub unpacked_size: Option<u64>,
+    /// The program needs a CPU with AVX2, so a host without it gets no offer for this artifact
+    /// (spec 096 D3: a vendor whose only other build for the platform is not offered).
+    #[serde(default)]
+    pub requires_avx2: bool,
 }
 
 /// How a download becomes an installation.
@@ -103,6 +108,18 @@ pub enum ArtifactKind {
     /// A package, unpacked into the installation folder.
     #[serde(rename = "tar.gz")]
     TarGz,
+    /// A zip package, unpacked into the installation folder (the Windows builds, spec 096).
+    #[serde(rename = "zip")]
+    Zip,
+}
+
+/// The newest listed version that has a program this device may run.
+#[derive(Debug, Clone, Copy)]
+pub struct Resolved<'a> {
+    pub version: &'a CatalogVersion,
+    /// The key the program is listed under: the device's own, or the key it falls back to.
+    pub platform: PlatformKey,
+    pub artifact: &'a Artifact,
 }
 
 impl Catalog {
@@ -163,26 +180,51 @@ impl Catalog {
     }
 }
 
+impl CatalogVersion {
+    /// The artifact this version offers a device of key `host`, and the key it is listed under:
+    /// the host's variant when the vendor lists one, else the base key. An artifact that needs
+    /// AVX2 is not offered to a device without it (`avx2` is that device's answer).
+    pub fn artifact_for(&self, host: PlatformKey, avx2: bool) -> Option<(PlatformKey, &Artifact)> {
+        host.candidates().into_iter().find_map(|key| {
+            let artifact = self.platforms.get(key.as_str())?;
+            (avx2 || !artifact.requires_avx2).then_some((key, artifact))
+        })
+    }
+}
+
 impl VendorDefinition {
-    /// The artifact of `version` for `platform`, `None` when the vendor has none for it.
+    /// The artifact of `version` listed for `platform` or the key it falls back to, `None` when the
+    /// vendor has none for it.
     pub fn artifact(&self, version: &str, platform: PlatformKey) -> Option<&Artifact> {
-        self.versions
+        let entry = self
+            .versions
             .iter()
-            .find(|entry| entry.version == version)?
-            .platforms
-            .get(platform.as_str())
+            .find(|entry| entry.version == version)?;
+        platform
+            .candidates()
+            .into_iter()
+            .find_map(|key| entry.platforms.get(key.as_str()))
     }
 
-    /// The program's path inside an installation on `platform`.
+    /// The program's path inside an installation on `platform`, looked up like [`Self::artifact`].
     pub fn executable_for(&self, platform: PlatformKey) -> Option<&str> {
-        self.executable.get(platform.as_str()).map(String::as_str)
+        platform
+            .candidates()
+            .into_iter()
+            .find_map(|key| self.executable.get(key.as_str()))
+            .map(String::as_str)
     }
 
-    /// The newest listed version that has an artifact for `platform`.
-    pub fn newest_for(&self, platform: PlatformKey) -> Option<&CatalogVersion> {
-        self.versions
-            .iter()
-            .find(|entry| entry.platforms.contains_key(platform.as_str()))
+    /// The newest listed version that has a program a device of key `host` may run.
+    pub fn newest_for(&self, host: PlatformKey, avx2: bool) -> Option<Resolved<'_>> {
+        self.versions.iter().find_map(|version| {
+            let (platform, artifact) = version.artifact_for(host, avx2)?;
+            Some(Resolved {
+                version,
+                platform,
+                artifact,
+            })
+        })
     }
 
     fn validate(&self, loopback: bool) -> Result<(), CatalogError> {
@@ -195,9 +237,6 @@ impl VendorDefinition {
             return Err(fail(format!(
                 "vendor id {name:?} is not lowercase letters and digits"
             )));
-        }
-        if self.versions.is_empty() {
-            return Err(fail(format!("{name}: no version listed")));
         }
         if self.download_hosts.is_empty() {
             return Err(fail(format!("{name}: no download host listed")));
@@ -279,6 +318,7 @@ impl Artifact {
         }
         match (self.kind, self.unpacked_size) {
             (ArtifactKind::TarGz, None) => Err(fail(format!("{at}: a tar.gz needs unpacked_size"))),
+            (ArtifactKind::Zip, None) => Err(fail(format!("{at}: a zip needs unpacked_size"))),
             (ArtifactKind::File, Some(_)) => {
                 Err(fail(format!("{at}: a file has no unpacked_size")))
             }

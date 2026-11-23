@@ -30,6 +30,8 @@ pub enum CliToolState {
     NeedsReinstall,
     /// No program of this vendor is listed for this device; nothing is offered.
     Unsupported,
+    /// The vendor is in the catalog but has no tested version yet; nothing is offered (spec 096).
+    NoTestedVersion,
 }
 
 /// One vendor's tool in the open vault.
@@ -100,22 +102,24 @@ pub struct CliToolChanged {
 }
 
 /// The status of `vendor` whose installations lie in `vendor_dir`. `installing` is whether an
-/// install of this vendor runs in this vault right now (held in memory only).
+/// install of this vendor runs in this vault right now (held in memory only); `avx2` is whether
+/// this device's CPU has AVX2, which decides whether an artifact that needs it is offered.
 pub fn derive(
     vendor: &VendorDefinition,
     vendor_dir: &Path,
     host: Option<PlatformKey>,
+    avx2: bool,
     installing: bool,
     isolation: IsolationLevel,
 ) -> CliToolStatus {
-    let newest = host.and_then(|key| vendor.newest_for(key).map(|entry| (key, entry)));
-    let artifact = newest.and_then(|(key, entry)| entry.platforms.get(key.as_str()));
+    let newest = host.and_then(|key| vendor.newest_for(key, avx2));
+    let artifact = newest.map(|found| found.artifact);
     let mut status = CliToolStatus {
         vendor: vendor.vendor.clone(),
         display_name: vendor.display_name.clone(),
         state: CliToolState::NotInstalled,
         installed_version: None,
-        latest_listed_version: newest.map(|(_, entry)| entry.version.clone()),
+        latest_listed_version: newest.map(|found| found.version.version.clone()),
         confirmed: false,
         previous_version: None,
         untested: false,
@@ -123,7 +127,7 @@ pub fn derive(
         download_bytes: artifact.map(|a| a.size),
         unpacked_bytes: artifact.map(|a| match a.kind {
             ArtifactKind::File => a.size,
-            ArtifactKind::TarGz => a.unpacked_size.unwrap_or(a.size),
+            ArtifactKind::TarGz | ArtifactKind::Zip => a.unpacked_size.unwrap_or(a.size),
         }),
         isolation,
         reason: None,
@@ -153,7 +157,7 @@ pub fn derive(
                 (Some(have), Some(newest)) if have > newest
             );
             // The update offered is the newest one that has a program for this device.
-            let offered = newest.and_then(|(_, entry)| Version::parse(&entry.version).ok());
+            let offered = newest.and_then(|found| Version::parse(&found.version.version).ok());
             if matches!((&current, &offered), (Some(have), Some(offered)) if have < offered) {
                 status.state = CliToolState::UpdateAvailable;
             }
@@ -176,7 +180,11 @@ pub fn derive(
         CliToolState::Installed | CliToolState::UpdateAvailable
     );
     if !in_use && newest.is_none() {
-        status.state = CliToolState::Unsupported;
+        status.state = if vendor.versions.is_empty() {
+            CliToolState::NoTestedVersion
+        } else {
+            CliToolState::Unsupported
+        };
         status.reason = None;
     }
     if installing {

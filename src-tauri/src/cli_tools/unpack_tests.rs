@@ -234,3 +234,146 @@ fn a_raw_program_is_moved_to_its_name_and_made_executable() {
     place_file(&target, &target).unwrap();
     assert!(target.is_file());
 }
+
+// ---- zip (spec 096) ----
+
+use zip::write::SimpleFileOptions;
+use zip::ZipWriter;
+
+use super::unpack_zip;
+
+fn zip_of(dir: &Path, build: impl FnOnce(&mut ZipWriter<File>)) -> std::path::PathBuf {
+    let path = dir.join("package.zip");
+    let mut writer = ZipWriter::new(File::create(&path).unwrap());
+    build(&mut writer);
+    writer.finish().unwrap();
+    path
+}
+
+fn add_zip_file(writer: &mut ZipWriter<File>, path: &str, mode: u32, data: &[u8]) {
+    let options = SimpleFileOptions::default().unix_permissions(mode);
+    writer.start_file(path, options).unwrap();
+    writer.write_all(data).unwrap();
+}
+
+fn unpack_zipped(archive: &Path, target: &Path, limit: u64) -> Result<u64, UnpackError> {
+    unpack_zip(archive, target, limit, &CancellationToken::new())
+}
+
+#[test]
+fn a_zip_is_unpacked_with_its_folders_files_and_sizes() {
+    let dir = TempDir::new().unwrap();
+    let archive = zip_of(dir.path(), |writer| {
+        add_zip_file(writer, "abacusai.exe", 0o755, &[7u8; 100]);
+        add_zip_file(writer, "abacusai-win32-x64.sigstore", 0o644, &[1u8; 20]);
+        writer
+            .add_directory("docs/", SimpleFileOptions::default())
+            .unwrap();
+        add_zip_file(writer, "docs/readme.txt", 0o644, b"hello");
+    });
+    let target = target(&dir);
+
+    let written = unpack_zipped(&archive, &target, 125).unwrap();
+
+    assert_eq!(written, 100 + 20 + 5);
+    assert_eq!(
+        fs::metadata(target.join("abacusai.exe")).unwrap().len(),
+        100
+    );
+    assert_eq!(fs::read(target.join("docs/readme.txt")).unwrap(), b"hello");
+}
+
+#[cfg(unix)]
+#[test]
+fn the_executable_bit_of_a_zip_entry_is_kept() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = TempDir::new().unwrap();
+    let archive = zip_of(dir.path(), |writer| {
+        add_zip_file(writer, "bin/tool", 0o755, b"x");
+        add_zip_file(writer, "plain.txt", 0o644, b"x");
+    });
+    let target = target(&dir);
+    unpack_zipped(&archive, &target, 2).unwrap();
+    let mode = |p: &str| fs::metadata(target.join(p)).unwrap().permissions().mode() & 0o111;
+    assert_ne!(mode("bin/tool"), 0);
+    assert_eq!(mode("plain.txt"), 0);
+}
+
+#[test]
+fn a_zip_entry_that_leaves_the_target_is_refused_and_nothing_is_written_outside() {
+    for path in ["../escape.txt", "a/../../escape.txt", "/tmp/escape.txt"] {
+        let dir = TempDir::new().unwrap();
+        let archive = zip_of(dir.path(), |writer| {
+            add_zip_file(writer, path, 0o644, b"evil");
+        });
+        let target = target(&dir);
+        let result = unpack_zipped(&archive, &target, 100);
+        assert!(
+            matches!(result, Err(UnpackError::Refused(_))),
+            "{path}: {result:?}"
+        );
+        assert!(!dir.path().join("escape.txt").exists(), "{path}");
+        assert!(!Path::new("/tmp/escape.txt").exists());
+    }
+}
+
+#[test]
+fn a_zip_symlink_or_device_entry_is_refused() {
+    let dir = TempDir::new().unwrap();
+    let archive = zip_of(dir.path(), |writer| {
+        writer
+            .add_symlink("link", "target", SimpleFileOptions::default())
+            .unwrap();
+    });
+    let result = unpack_zipped(&archive, &target(&dir), 100);
+    assert!(matches!(result, Err(UnpackError::Refused(_))), "{result:?}");
+
+    let dir = TempDir::new().unwrap();
+    let archive = zip_of(dir.path(), |writer| {
+        add_zip_file(writer, "null", 0o644, b"");
+    });
+    // The writer only makes regular files and links, so the entry is made a character device
+    // (file type bits 0o020000) in the central directory: the "made by" host is Unix and the
+    // upper half of the external attributes holds the mode.
+    let mut bytes = fs::read(&archive).unwrap();
+    let header = bytes
+        .windows(4)
+        .position(|window| window == [0x50, 0x4b, 0x01, 0x02])
+        .expect("a central directory header");
+    bytes[header + 5] = 3;
+    bytes[header + 38..header + 42].copy_from_slice(&(0o020_644u32 << 16).to_le_bytes());
+    fs::write(&archive, bytes).unwrap();
+    let result = unpack_zipped(&archive, &target(&dir), 100);
+    assert!(matches!(result, Err(UnpackError::Refused(_))), "{result:?}");
+}
+
+#[test]
+fn a_zip_larger_than_the_catalog_lists_is_refused() {
+    let dir = TempDir::new().unwrap();
+    let archive = zip_of(dir.path(), |writer| {
+        add_zip_file(writer, "big.bin", 0o644, &vec![0u8; 3 * 1024 * 1024]);
+    });
+    let result = unpack_zipped(&archive, &target(&dir), 10);
+    assert!(matches!(result, Err(UnpackError::Refused(_))), "{result:?}");
+}
+
+#[test]
+fn a_foreign_file_is_an_io_error_not_a_zip() {
+    let dir = TempDir::new().unwrap();
+    let archive = dir.path().join("not.zip");
+    fs::write(&archive, b"this is not a zip archive").unwrap();
+    let result = unpack_zipped(&archive, &target(&dir), 100);
+    assert!(matches!(result, Err(UnpackError::Io(_))), "{result:?}");
+}
+
+#[test]
+fn a_cancelled_zip_unpack_stops() {
+    let dir = TempDir::new().unwrap();
+    let archive = zip_of(dir.path(), |writer| {
+        add_zip_file(writer, "a.txt", 0o644, b"one");
+    });
+    let cancel = CancellationToken::new();
+    cancel.cancel();
+    let result = unpack_zip(&archive, &target(&dir), 100, &cancel);
+    assert_eq!(result, Err(UnpackError::Cancelled));
+}

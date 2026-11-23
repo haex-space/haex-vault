@@ -233,6 +233,7 @@ async fn an_imported_vault_arrives_without_the_tools_of_the_other_device() {
             Catalog::shipped().vendor(vendor).expect("a shipped vendor"),
             &paths.cli_tool_dir(&name, vendor),
             PlatformKey::host(),
+            haex_lib::cli_tools::platform::host_has_avx2(),
             false,
             EnvContainment.level(),
         );

@@ -43,6 +43,7 @@ fn artifact(url: &str, body: &[u8], kind: ArtifactKind, unpacked: Option<u64>) -
         size: body.len() as u64,
         kind,
         unpacked_size: unpacked,
+        requires_avx2: false,
     }
 }
 
@@ -744,4 +745,110 @@ async fn a_program_that_cannot_be_started_fails_at_once_and_the_record_says_why(
     assert!(record.contains("start_check_failed"), "{record}");
     assert!(record.contains("kind=NotFound"), "{record}");
     assert!(!record.contains('/'), "{record}");
+}
+
+// A zip package, as the Windows builds of a vendor come (spec 096).
+
+fn zipped(build: impl FnOnce(&mut zip::ZipWriter<std::io::Cursor<Vec<u8>>>)) -> Vec<u8> {
+    let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    build(&mut writer);
+    writer.finish().unwrap().into_inner()
+}
+
+fn add_zipped(
+    writer: &mut zip::ZipWriter<std::io::Cursor<Vec<u8>>>,
+    name: &str,
+    mode: u32,
+    data: &[u8],
+) {
+    use std::io::Write;
+    let options = zip::write::SimpleFileOptions::default().unix_permissions(mode);
+    writer.start_file(name, options).unwrap();
+    writer.write_all(data).unwrap();
+}
+
+#[tokio::test]
+async fn a_zip_package_is_unpacked_and_its_program_found_at_the_catalog_path() {
+    let fixture = Fixture::new();
+    let program = reports(VERSION);
+    let archive = zipped(|w| {
+        add_zipped(w, "codex-package.json", 0o644, b"{}");
+        add_zipped(w, "bin/codex", 0o755, &program);
+    });
+    let (_server, url) = serve(archive.clone()).await;
+    let unpacked = 2 + program.len() as u64;
+    let ctx = fixture.context(
+        "codex",
+        artifact(&url, &archive, ArtifactKind::Zip, Some(unpacked)),
+    );
+
+    let installation = run(&ctx).await.unwrap();
+
+    assert_eq!(
+        installation.executable,
+        installation.dir.join("bin").join("codex")
+    );
+    assert!(installation.dir.join("codex-package.json").is_file());
+    assert!(
+        !installation.dir.join(DOWNLOAD_FILE).exists(),
+        "the archive is removed"
+    );
+    assert_eq!(fixture.entries("codex"), [VERSION]);
+}
+
+#[tokio::test]
+async fn a_zip_with_an_entry_that_leaves_the_folder_is_refused_and_leaves_nothing() {
+    let fixture = Fixture::new();
+    let program = reports(VERSION);
+    let archive = zipped(|w| {
+        add_zipped(w, "bin/codex", 0o755, &program);
+        add_zipped(w, "../escape.txt", 0o644, b"evil");
+    });
+    let (_server, url) = serve(archive.clone()).await;
+    let ctx = fixture.context(
+        "codex",
+        artifact(
+            &url,
+            &archive,
+            ArtifactKind::Zip,
+            Some(program.len() as u64 + 4),
+        ),
+    );
+
+    let error = run(&ctx).await.err().unwrap();
+
+    assert!(
+        matches!(error, InstallError::UnpackRefused { .. }),
+        "{error:?}"
+    );
+    assert!(fixture.entries("codex").is_empty());
+    assert!(!fixture.dir.path().join("escape.txt").exists());
+}
+
+#[tokio::test]
+async fn a_zip_larger_than_the_catalog_lists_is_refused() {
+    let fixture = Fixture::new();
+    let program = reports(VERSION);
+    let archive = zipped(|w| {
+        add_zipped(w, "bin/codex", 0o755, &program);
+        add_zipped(w, "big.bin", 0o644, &vec![0u8; 3 * 1024 * 1024]);
+    });
+    let (_server, url) = serve(archive.clone()).await;
+    let ctx = fixture.context(
+        "codex",
+        artifact(
+            &url,
+            &archive,
+            ArtifactKind::Zip,
+            Some(program.len() as u64),
+        ),
+    );
+
+    let error = run(&ctx).await.err().unwrap();
+
+    assert!(
+        matches!(error, InstallError::UnpackRefused { .. }),
+        "{error:?}"
+    );
+    assert!(fixture.entries("codex").is_empty());
 }

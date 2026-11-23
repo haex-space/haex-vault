@@ -6,10 +6,13 @@ use std::sync::Arc;
 
 use tempfile::TempDir;
 
-use super::{plan_for, plan_install, registry_key, remove_tool, revert_tool, status_of_all, Plan};
+use super::{
+    plan_for, plan_for_host, plan_install, registry_key, remove_tool, revert_tool, status_of_all,
+    Plan,
+};
 use crate::cli_tools::catalog::{Catalog, CatalogVersion, VendorDefinition};
 use crate::cli_tools::containment::IsolationLevel;
-use crate::cli_tools::install::InstallError;
+use crate::cli_tools::install::{InstallContext, InstallError};
 use crate::cli_tools::installed::{InstallMarker, InstalledFile, CONFIRMED_FILE};
 use crate::cli_tools::platform::PlatformKey;
 use crate::cli_tools::runtime::DelegateTools;
@@ -31,10 +34,12 @@ fn every_vendor_of_the_catalog_is_listed_in_catalog_order_and_nothing_touches_th
     let data = TempDir::new().unwrap();
     let statuses = status_of_all(&tools(&data), &DownloadRegistry::default());
     let ids: Vec<_> = statuses.iter().map(|s| s.vendor.as_str()).collect();
-    assert_eq!(ids, ["claude", "codex"]);
-    assert!(statuses
+    assert_eq!(ids, ["claude", "codex", "abacusai"]);
+    // Abacus is listed before it has a tested version (spec 096).
+    assert!(statuses[..2]
         .iter()
         .all(|s| s.state == CliToolState::NotInstalled));
+    assert_eq!(statuses[2].state, CliToolState::NoTestedVersion);
     assert_eq!(
         fs::read_dir(data.path()).unwrap().count(),
         0,
@@ -315,6 +320,7 @@ fn going_back_deletes_the_unconfirmed_newest_and_the_status_follows() {
         &vendor,
         &vendor_dir,
         PlatformKey::host(),
+        crate::cli_tools::platform::host_has_avx2(),
         false,
         IsolationLevel::BestEffort,
     );
@@ -398,4 +404,113 @@ fn removing_a_tool_is_refused_while_a_run_of_it_is_in_progress() {
 
     remove_tool(&tools, &vendor).unwrap();
     assert!(!vendor_dir.exists());
+}
+
+// The variant of a platform, the AVX2 rule and a vendor with no tested version (spec 096).
+
+const AVX_VENDOR: &str = r#"{"schema":1,"vendors":[{"vendor":"avxtool","display_name":"Avx","download_hosts":["dl.example.com"],
+    "executable":{"linux-x64":"t","linux-x64-baseline":"t","darwin-x64":"t"},"config_env":"T_HOME",
+    "versions":[{"version":"1.0.0","platforms":{
+    "linux-x64":{"url":"https://dl.example.com/x64.tgz","sha256":"0000000000000000000000000000000000000000000000000000000000000001","size":10,"kind":"tar.gz","unpacked_size":20,"requires_avx2":true},
+    "linux-x64-baseline":{"url":"https://dl.example.com/base.tgz","sha256":"0000000000000000000000000000000000000000000000000000000000000002","size":11,"kind":"tar.gz","unpacked_size":21},
+    "darwin-x64":{"url":"https://dl.example.com/mac.tgz","sha256":"0000000000000000000000000000000000000000000000000000000000000003","size":12,"kind":"tar.gz","unpacked_size":22,"requires_avx2":true}}}]}]}"#;
+
+fn avx_vendor() -> VendorDefinition {
+    Catalog::parse(AVX_VENDOR)
+        .unwrap()
+        .vendor("avxtool")
+        .unwrap()
+        .clone()
+}
+
+fn planned(
+    vendor: &VendorDefinition,
+    version: Option<&str>,
+    host: PlatformKey,
+    avx2: bool,
+) -> Result<Box<InstallContext>, InstallError> {
+    let data = TempDir::new().unwrap();
+    match plan_for_host(&tools(&data), vendor, version, Some(host), avx2)? {
+        Plan::Install(context) => Ok(context),
+        Plan::AlreadyInstalled => panic!("nothing is installed yet"),
+    }
+}
+
+#[test]
+fn a_host_without_avx2_gets_the_variant_of_a_vendor_that_lists_one() {
+    let vendor = avx_vendor();
+    let context = planned(&vendor, None, PlatformKey::LinuxX64Baseline, false).unwrap();
+    assert_eq!(context.platform, PlatformKey::LinuxX64Baseline);
+    assert_eq!(context.artifact.size, 11);
+
+    // A host with AVX2 keeps the base key.
+    let context = planned(&vendor, None, PlatformKey::LinuxX64, true).unwrap();
+    assert_eq!(context.platform, PlatformKey::LinuxX64);
+    assert_eq!(context.artifact.size, 10);
+}
+
+#[test]
+fn a_vendor_without_the_variant_installs_the_base_key_on_a_host_without_avx2() {
+    let data = TempDir::new().unwrap();
+    let Plan::Install(context) = plan_for_host(
+        &tools(&data),
+        Catalog::shipped().vendor("claude").unwrap(),
+        None,
+        Some(PlatformKey::LinuxX64Baseline),
+        false,
+    )
+    .ok()
+    .unwrap() else {
+        panic!("nothing is installed yet");
+    };
+    assert_eq!(context.platform, PlatformKey::LinuxX64);
+}
+
+#[test]
+fn an_artifact_that_needs_avx2_is_not_offered_to_a_host_without_it() {
+    let vendor = avx_vendor();
+    assert_eq!(
+        planned(&vendor, None, PlatformKey::DarwinX64, false).err(),
+        Some(InstallError::UnsupportedPlatform)
+    );
+    assert_eq!(
+        planned(&vendor, Some("1.0.0"), PlatformKey::DarwinX64, false).err(),
+        Some(InstallError::UnsupportedPlatform)
+    );
+    let context = planned(&vendor, None, PlatformKey::DarwinX64, true).unwrap();
+    assert_eq!(context.platform, PlatformKey::DarwinX64);
+    // Claude Code and Codex set no such requirement and stay installable on the same host.
+    let data = TempDir::new().unwrap();
+    for name in ["claude", "codex"] {
+        let vendor = Catalog::shipped().vendor(name).unwrap();
+        let plan = plan_for_host(
+            &tools(&data),
+            vendor,
+            None,
+            Some(PlatformKey::DarwinX64),
+            false,
+        );
+        assert!(plan.is_ok(), "{name}");
+    }
+}
+
+#[test]
+fn a_vendor_with_no_tested_version_is_listed_and_refuses_the_install() {
+    let data = TempDir::new().unwrap();
+    let statuses = status_of_all(&tools(&data), &DownloadRegistry::default());
+    let abacus = statuses
+        .iter()
+        .find(|status| status.vendor == "abacusai")
+        .expect("the vendor is listed");
+    assert_eq!(abacus.state, CliToolState::NoTestedVersion);
+    assert_eq!(abacus.download_bytes, None);
+    assert_eq!(abacus.latest_listed_version, None);
+
+    let error = plan_install(&tools(&data), "abacusai", None).err().unwrap();
+    assert_eq!(error, InstallError::NoTestedVersion);
+    assert_eq!(error.code(), "cli_tools.no_tested_version");
+    let error = plan_install(&tools(&data), "abacusai", Some("2.10.23"))
+        .err()
+        .unwrap();
+    assert_eq!(error, InstallError::NoTestedVersion);
 }
