@@ -1,5 +1,6 @@
 pub mod adapters;
 pub mod agent_browser;
+pub mod agent_memory;
 pub mod agent_profiles;
 #[cfg(feature = "voice")]
 pub mod assistant;
@@ -818,6 +819,11 @@ pub fn run() {
             agent_profiles::commands::agent_profile_active_get,
             agent_profiles::commands::agent_profile_active_set,
             agent_profiles::commands::agent_subjects_list,
+            agent_memory::commands::agent_memory_list,
+            agent_memory::commands::agent_memory_page,
+            agent_memory::commands::agent_memory_add,
+            agent_memory::commands::agent_memory_change,
+            agent_memory::commands::agent_memory_remove,
             mcp_server::manage_commands::mcp_agent_revoke,
             mcp_server::manage_commands::mcp_agent_unblock,
             mcp_server::manage_commands::mcp_agent_log_clear,
