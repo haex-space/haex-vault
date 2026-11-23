@@ -264,6 +264,7 @@ pub async fn chat_attachment_save(app: AppHandle, args: SaveArgs) -> Result<()> 
     let id = attachment_uuid(&args.attachment_id)?;
     let session = session(&app)?;
     let files = chat_files(&session)?;
+    files.store.check_readable(&id.to_string()).await?;
     let opener = app.clone();
     let file = args.file;
     let out = tokio::task::spawn_blocking(move || picked::open_write(&opener, &file))
