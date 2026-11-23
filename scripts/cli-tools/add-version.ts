@@ -396,15 +396,20 @@ async function measureContainment(
   executable: Record<string, string>,
   unpacked?: Partial<Record<CatalogPlatformKey, string>>,
 ) {
-  const key = `${process.platform}-${process.arch === 'arm64' ? 'arm64' : 'x64'}`
-  const artifact = entry.platforms[key as CatalogPlatformKey]
-  if (process.platform !== 'linux' || !artifact) {
+  const hostKey = `${process.platform}-${process.arch === 'arm64' ? 'arm64' : 'x64'}`
+  const candidates: CatalogPlatformKey[] =
+    process.platform === 'linux' && process.arch === 'x64'
+      ? ['linux-x64-baseline', 'linux-x64']
+      : [hostKey as CatalogPlatformKey]
+  const selectedKey = candidates.find((candidate) => entry.platforms[candidate])
+  const artifact = selectedKey && entry.platforms[selectedKey]
+  if (process.platform !== 'linux' || !selectedKey || !artifact) {
     throw new Error(
-      `the containment measurement needs Linux and an entry for ${key}; measure on a Linux machine or pass --skip-containment`,
+      `the containment measurement needs Linux and an entry for ${hostKey}; measure on a Linux machine or pass --skip-containment`,
     )
   }
-  console.log(`${vendor}: containment measurement with ${key} ...`)
-  const measuredProgram = unpacked?.[key as CatalogPlatformKey]
+  console.log(`${vendor}: containment measurement with ${selectedKey} ...`)
+  const measuredProgram = unpacked?.[selectedKey]
   if (measuredProgram) {
     // The platform was downloaded, verified and unpacked for the entry: measure that program.
     runContainmentCheck(vendor, measuredProgram)
@@ -413,11 +418,11 @@ async function measureContainment(
   const body = await fetchBytes(artifact.url)
   const sha = createHash('sha256').update(body).digest('hex')
   if (sha !== artifact.sha256) {
-    throw new Error(`the download for ${key} does not match its catalog entry`)
+    throw new Error(`the download for ${selectedKey} does not match its catalog entry`)
   }
   const directory = mkdtempSync(join(tmpdir(), 'haex-containment-'))
   try {
-    const program = join(directory, executable[key]!)
+    const program = join(directory, executable[selectedKey]!)
     if (artifact.kind === 'tar.gz') {
       writeFileSync(join(directory, 'package.tar.gz'), body)
       const unpacked = spawnSync(

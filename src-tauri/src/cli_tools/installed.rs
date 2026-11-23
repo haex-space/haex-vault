@@ -179,9 +179,21 @@ fn inspect(dir: &Path, name: &str, vendor: &VendorDefinition, host: Option<Platf
     let Some(installed_for) = PlatformKey::parse(&marker.platform) else {
         return unusable(Misfit::Incomplete);
     };
-    // A tool installed for the host's own key, or for the key the host falls back to (a Linux
-    // x86-64 host without AVX2 runs what was installed for `linux-x64`), fits this device.
-    if !host.is_some_and(|key| key.candidates().contains(&installed_for)) {
+    // The generic linux-x64 key remains a valid fallback only when that exact version's artifact
+    // does not require AVX2. Otherwise it could mask the baseline artifact on this host.
+    let base_artifact_requires_avx2 = vendor
+        .versions
+        .iter()
+        .find(|entry| entry.version == name)
+        .and_then(|entry| entry.platforms.get(installed_for.as_str()))
+        .map_or(true, |artifact| artifact.requires_avx2);
+    let fits_host = host.is_some_and(|key| {
+        key.candidates().contains(&installed_for)
+            && !(key == PlatformKey::LinuxX64Baseline
+                && installed_for == PlatformKey::LinuxX64
+                && base_artifact_requires_avx2)
+    });
+    if !fits_host {
         return unusable(Misfit::Platform);
     }
     let Some(relative) = vendor.executable_for(installed_for) else {

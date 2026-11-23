@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process'
 import { runInNewContext } from 'node:vm'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
+import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 
 import {
@@ -747,7 +748,7 @@ const verifyFixture = (sha256: string, version = '2.10.23') => {
   const [, ...args] = abacusVerifyCommand(
     'sigstore',
     version,
-    new URL('abacusai-2.10.23-linux-x64.sigstore', FIXTURE).pathname,
+    fileURLToPath(new URL('abacusai-2.10.23-linux-x64.sigstore', FIXTURE)),
     { sha256, file: '' },
   )
   return spawnSync(SIGSTORE_BIN, args, { encoding: 'utf8' })

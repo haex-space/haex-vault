@@ -14,7 +14,7 @@ use crate::cli_tools::catalog::{Catalog, CatalogVersion, VendorDefinition};
 use crate::cli_tools::containment::IsolationLevel;
 use crate::cli_tools::install::{InstallContext, InstallError};
 use crate::cli_tools::installed::{InstallMarker, InstalledFile, CONFIRMED_FILE};
-use crate::cli_tools::platform::PlatformKey;
+use crate::cli_tools::platform::{host_has_avx2, PlatformKey};
 use crate::cli_tools::runtime::DelegateTools;
 use crate::cli_tools::status::{derive, CliToolState};
 use crate::cli_tools::uses::Lease;
@@ -83,8 +83,11 @@ fn an_install_takes_the_newest_listed_version_for_this_device_and_stays_in_the_v
     };
     let listed = &Catalog::shipped().vendor("claude").unwrap().versions[0];
     assert_eq!(context.version, listed.version);
-    assert_eq!(context.artifact, listed.platforms[host().as_str()]);
-    assert_eq!(context.platform, host());
+    let (platform, artifact) = listed
+        .artifact_for(host(), host_has_avx2())
+        .expect("Claude has an artifact for this host");
+    assert_eq!(&context.artifact, artifact);
+    assert_eq!(context.platform, platform);
     let paths = VaultPaths::new(data.path());
     assert_eq!(context.vendor_dir, paths.cli_tool_dir("anna", "claude"));
     assert_eq!(context.home, paths.home("anna"));
@@ -152,12 +155,15 @@ fn the_version_already_in_use_is_not_downloaded_again() {
 /// The Claude definition with exactly `versions` listed, newest first, all for this device.
 fn claude_listing(versions: &[&str]) -> VendorDefinition {
     let mut vendor = Catalog::shipped().vendor("claude").unwrap().clone();
-    let artifact = vendor.versions[0].platforms[host().as_str()].clone();
+    let (platform, artifact) = vendor.versions[0]
+        .artifact_for(host(), host_has_avx2())
+        .expect("Claude has an artifact for this host");
+    let artifact = artifact.clone();
     vendor.versions = versions
         .iter()
         .map(|version| CatalogVersion {
             version: (*version).to_string(),
-            platforms: [(host().as_str().to_string(), artifact.clone())].into(),
+            platforms: [(platform.as_str().to_string(), artifact.clone())].into(),
         })
         .collect();
     vendor

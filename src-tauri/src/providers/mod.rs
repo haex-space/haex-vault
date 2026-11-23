@@ -466,26 +466,37 @@ pub async fn delete_provider(state: State<'_, AppState>, id: Uuid) -> Result<()>
 /// vault-wide. Removing a duplicate row while another survives removes no credential. An entry
 /// that is already gone is fine.
 pub(crate) async fn delete_provider_in(db: &VaultDb, id: Uuid) -> Result<()> {
-    let emptied = db
+    let (provider, emptied) = db
         .write(move |tx| {
-            let removed = storage::get_provider(tx, id)?;
-            storage::delete_provider(tx, id)?;
-            Ok(match removed {
+            let provider = storage::get_provider(tx, id)?;
+            let emptied = match provider.as_ref() {
                 Some(provider) if provider.kind == ProviderKind::CliDelegate => provider
                     .adapter
+                    .as_deref()
                     .filter(|vendor| delegate_credential::lives_in_password_manager(vendor))
+                    .map(str::to_owned)
                     .map(|vendor| {
                         storage::cli_delegate_provider_ids(tx, &vendor)
-                            .map(|rows| rows.is_empty().then_some(vendor))
+                            .map(|rows| (rows.len() == 1).then_some(vendor))
                     })
                     .transpose()?
                     .flatten(),
                 _ => None,
-            })
+            };
+            Ok((provider, emptied))
         })
         .await?;
     if let Some(vendor) = emptied {
+        // Keep the provider row until cleanup succeeds. If deleting credentials fails partway,
+        // retrying by provider id will still find the vendor and can finish the cleanup.
         delegate_credential::delete(db, &vendor).await?;
+    }
+    if provider.is_some() {
+        db.write(move |tx| {
+            storage::delete_provider(tx, id)?;
+            Ok(())
+        })
+        .await?;
     }
     Ok(())
 }
