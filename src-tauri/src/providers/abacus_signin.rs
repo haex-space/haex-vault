@@ -276,8 +276,13 @@ impl Client {
             if cancel.is_cancelled() {
                 return Err(SigninError::Cancelled);
             }
+            if Instant::now() >= deadline {
+                return Err(SigninError::Expired);
+            }
             let answer = tokio::select! {
+                biased;
                 () = cancel.cancelled() => return Err(SigninError::Cancelled),
+                () = tokio::time::sleep_until(deadline) => return Err(SigninError::Expired),
                 answer = self.post::<PollAnswer>(POLL_PATH, &body) => answer,
             };
             match answer {
@@ -295,11 +300,10 @@ impl Client {
                 Err(error) => failures = note_failure(failures, error)?,
             }
             tokio::select! {
+                biased;
                 () = cancel.cancelled() => return Err(SigninError::Cancelled),
+                () = tokio::time::sleep_until(deadline) => return Err(SigninError::Expired),
                 () = tokio::time::sleep(prompt.interval) => {}
-            }
-            if Instant::now() >= deadline {
-                return Err(SigninError::Expired);
             }
         }
     }

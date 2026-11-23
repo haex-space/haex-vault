@@ -15,7 +15,7 @@ use crate::adapters::cli_delegate::connect_claude::{ClaudeConnectSession, Reader
 
 use super::connect::{
     watch_claude_auto_completion, write_delegate_provider, ClaudeAutoCompleteOutcome,
-    DelegateConnectState,
+    ConnectCliDelegateArgs, DelegateConnectProgress, DelegateConnectState,
 };
 
 #[test]
@@ -43,6 +43,27 @@ fn finishing_an_old_abacus_connect_does_not_cancel_a_new_one() {
     );
     state.cancel_abacus();
     assert!(new_token.is_cancelled());
+}
+
+#[test]
+fn connect_debug_outputs_redact_email_and_user_code() {
+    let args = ConnectCliDelegateArgs {
+        vendor: "abacusai".into(),
+        name: "Abacus AI".into(),
+        email: Some("person@example.invalid".into()),
+    };
+    let progress = DelegateConnectProgress {
+        vendor: "abacusai",
+        status: "awaiting_browser",
+        url: Some("https://signin.example.invalid/device".into()),
+        code: Some("SECRET-CODE".into()),
+        message: None,
+    };
+
+    let printed = format!("{args:?} {progress:?}");
+    assert!(!printed.contains("person@example.invalid"));
+    assert!(!printed.contains("SECRET-CODE"));
+    assert!(printed.contains("[redacted]"));
 }
 
 #[tokio::test]
