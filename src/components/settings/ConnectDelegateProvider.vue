@@ -2,6 +2,7 @@
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { toast } from 'vue-sonner'
 import type { DelegateVendor, Provider } from '~/composables/useProviders'
+import { usable } from '~/lib/cli-tools'
 
 const { t } = useI18n()
 const { capabilities } = useDeviceCapabilities()
@@ -349,7 +350,11 @@ async function onRemove(vendor: DelegateVendor) {
             @remove="onRemove(vendor)"
           />
           <p
-            v-if="unverifiedApprovals.includes(vendor)"
+            v-if="
+              unverifiedApprovals.includes(vendor) &&
+              cliTools.statusOf(vendor) &&
+              usable(cliTools.statusOf(vendor)!)
+            "
             class="px-4 pb-3 text-sm text-muted-foreground"
             :data-testid="`delegate-approvals-unverified-${vendor}`"
           >
