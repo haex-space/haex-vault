@@ -14,13 +14,21 @@ mod tests;
 pub fn pointers(body: &str) -> Vec<String> {
     let mut found = Vec::new();
     let mut seen = HashSet::new();
-    let mut fenced = false;
+    let mut fence: Option<(u8, usize)> = None;
     for line in body.lines() {
-        if line.trim_start().starts_with("```") {
-            fenced = !fenced;
+        if let Some((marker, length)) = fence_marker(line) {
+            match fence {
+                Some((open_marker, open_length))
+                    if marker == open_marker && length >= open_length =>
+                {
+                    fence = None
+                }
+                None => fence = Some((marker, length)),
+                _ => {}
+            }
             continue;
         }
-        if fenced {
+        if fence.is_some() {
             continue;
         }
         for title in line_pointers(line) {
@@ -32,26 +40,71 @@ pub fn pointers(body: &str) -> Vec<String> {
     found
 }
 
+fn fence_marker(line: &str) -> Option<(u8, usize)> {
+    let trimmed = line.trim_start();
+    let marker = *trimmed.as_bytes().first()?;
+    if marker != b'`' && marker != b'~' {
+        return None;
+    }
+    let length = trimmed.bytes().take_while(|byte| *byte == marker).count();
+    (length >= 3).then_some((marker, length))
+}
+
 /// The pointers of one line, outside inline code spans.
 fn line_pointers(line: &str) -> Vec<String> {
     let mut found = Vec::new();
-    for (index, part) in line.split('`').enumerate() {
-        if index % 2 == 1 {
+    let bytes = line.as_bytes();
+    let mut outside_start = 0;
+    let mut cursor = 0;
+    while cursor < bytes.len() {
+        if bytes[cursor] != b'`' {
+            cursor += 1;
             continue;
         }
-        let mut rest = part;
-        while let Some(start) = rest.find("[[") {
-            let after = &rest[start + 2..];
-            let Some(end) = after.find("]]") else { break };
-            let inner = &after[..end];
-            let title = inner.split('|').next().unwrap_or("").trim();
-            if !title.is_empty() {
-                found.push(title.to_owned());
+        let run_start = cursor;
+        while cursor < bytes.len() && bytes[cursor] == b'`' {
+            cursor += 1;
+        }
+        let run_length = cursor - run_start;
+        let mut search = cursor;
+        let mut close_end = None;
+        while search < bytes.len() {
+            let Some(offset) = line[search..].find('`') else {
+                break;
+            };
+            let start = search + offset;
+            let mut end = start;
+            while end < bytes.len() && bytes[end] == b'`' {
+                end += 1;
             }
-            rest = &after[end + 2..];
+            if end - start == run_length {
+                close_end = Some(end);
+                break;
+            }
+            search = end;
+        }
+        if let Some(end) = close_end {
+            collect_pointers(&line[outside_start..run_start], &mut found);
+            outside_start = end;
+            cursor = end;
         }
     }
+    collect_pointers(&line[outside_start..], &mut found);
     found
+}
+
+fn collect_pointers(part: &str, found: &mut Vec<String>) {
+    let mut rest = part;
+    while let Some(start) = rest.find("[[") {
+        let after = &rest[start + 2..];
+        let Some(end) = after.find("]]") else { break };
+        let inner = &after[..end];
+        let title = inner.split('|').next().unwrap_or("").trim();
+        if !title.is_empty() {
+            found.push(title.to_owned());
+        }
+        rest = &after[end + 2..];
+    }
 }
 
 /// A pointer out of a page.

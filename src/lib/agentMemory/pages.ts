@@ -89,16 +89,32 @@ function pointerHtml(inner: string, ids: Map<string, string>): string | null {
 }
 
 function linkLine(line: string, ids: Map<string, string>): string {
-  return line
-    .split('`')
-    .map((part, index) =>
-      index % 2 === 1
-        ? part
-        : part.replace(/\[\[([^\]\n]*)\]\]/g, (whole, inner: string) => {
-            return pointerHtml(inner, ids) ?? whole
-          }),
-    )
-    .join('`')
+  const linkPointers = (part: string) =>
+    part.replace(/\[\[([^\]\n]*)\]\]/g, (whole, inner: string) => {
+      return pointerHtml(inner, ids) ?? whole
+    })
+  const ticks = [...line.matchAll(/`+/g)]
+  let output = ''
+  let outsideStart = 0
+  let cursor = 0
+  while (cursor < ticks.length) {
+    const opening = ticks[cursor]!
+    const length = opening[0].length
+    let closingIndex = cursor + 1
+    while (closingIndex < ticks.length && ticks[closingIndex]![0].length !== length) closingIndex++
+    if (closingIndex === ticks.length) {
+      cursor++
+      continue
+    }
+    const closing = ticks[closingIndex]!
+    const openingAt = opening.index ?? 0
+    const closingAt = closing.index ?? openingAt
+    output += linkPointers(line.slice(outsideStart, openingAt))
+    output += line.slice(openingAt, closingAt + closing[0].length)
+    outsideStart = closingAt + closing[0].length
+    cursor = closingIndex + 1
+  }
+  return output + linkPointers(line.slice(outsideStart))
 }
 
 /**
@@ -114,15 +130,22 @@ export function withPointerLinks(
   for (const pointer of pointers) {
     if (pointer.id) ids.set(titleKey(pointer.title), pointer.id)
   }
-  let fenced = false
+  let fence: { marker: string; length: number } | null = null
   return markdown
     .split('\n')
     .map((line) => {
-      if (line.trimStart().startsWith('```')) {
-        fenced = !fenced
+      const trimmed = line.trimStart()
+      const marker = trimmed[0]
+      let length = 0
+      if (marker === '`' || marker === '~') {
+        while (trimmed[length] === marker) length++
+      }
+      if (length >= 3) {
+        if (fence && fence.marker === marker && length >= fence.length) fence = null
+        else if (!fence) fence = { marker, length }
         return line
       }
-      return fenced ? line : linkLine(line, ids)
+      return fence ? line : linkLine(line, ids)
     })
     .join('\n')
 }

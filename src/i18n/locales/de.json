@@ -1861,7 +1861,7 @@
       }
     },
     "agentMemory": {
-      "intro": "Was du und deine Agenten euch gemerkt habt. Agenten lesen beim Start eines Gesprächs das Inhaltsverzeichnis und öffnen Seiten, wenn sie sie brauchen. Verweise auf andere Seiten schreibst du als [[Titel]].",
+      "intro": "Seiten für dich und deine Agenten. Du kannst sie hier ansehen, durchsuchen und bearbeiten. Verweise auf andere Seiten schreibst du als [[Titel]].",
       "search": "Suchen",
       "searchPlaceholder": "Titel, Beschreibung oder Text",
       "count": "{count} von {limit} Seiten",

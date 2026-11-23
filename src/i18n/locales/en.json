@@ -1861,7 +1861,7 @@
       }
     },
     "agentMemory": {
-      "intro": "What you and your agents remembered. Agents read the table of contents when a conversation starts and open pages when they need them. Point to another page by writing [[Title]].",
+      "intro": "Pages for you and your agents to share. Browse, search, and edit them here. Point to another page by writing [[Title]].",
       "search": "Search",
       "searchPlaceholder": "Title, description or text",
       "count": "{count} of {limit} pages",

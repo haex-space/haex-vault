@@ -21,6 +21,7 @@ export const useAgentMemoryStore = defineStore('agentMemory', () => {
   const query = ref('')
   const wm = useWindowManagerStore()
   let searchRevision = 0
+  let pendingRefresh = false
 
   /** Loads the list for `next` (empty: every page); throws what the command throws. */
   async function searchAsync(next: string): Promise<void> {
@@ -31,7 +32,15 @@ export const useAgentMemoryStore = defineStore('agentMemory', () => {
     })
     // Ignore an earlier request even when the query text is the same: a later refresh may have
     // loaded newer pages after a write or sync.
-    if (revision === searchRevision) list.value = loaded
+    if (revision === searchRevision) {
+      list.value = loaded
+      if (pendingRefresh) {
+        pendingRefresh = false
+        void searchAsync(query.value).catch((error) => {
+          console.error('[agent-memory] reloading after a change failed', error)
+        })
+      }
+    }
   }
 
   /** The page `id` with its pointers; throws `InvalidInput` `not_found` when it is gone. */
@@ -78,7 +87,10 @@ export const useAgentMemoryStore = defineStore('agentMemory', () => {
   }
 
   onVaultTablesChanged(AGENT_MEMORY_TABLES, async () => {
-    if (list.value === null) return
+    if (list.value === null) {
+      pendingRefresh = true
+      return
+    }
     try {
       await searchAsync(query.value)
     } catch (error) {
