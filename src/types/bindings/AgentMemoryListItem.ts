@@ -3,19 +3,19 @@
 /**
  * A page in the list.
  */
-export type AgentMemoryListItem = { id: string, title: string, description: string, 
+export type AgentMemoryListItem = { id: string, title: string, description: string,
 /**
  * `user`, `model`, or a value a newer build wrote.
  */
-authorKind: string, 
+authorKind: string,
 /**
  * The model's name when it wrote; empty for the user.
  */
-authorName: string, 
+authorName: string,
 /**
  * The current alias of the device it was written on; `None` when unknown.
  */
-deviceName: string | null, createdAt: number, changedName: string | null, changedAt: number | null, 
+deviceName: string | null, createdAt: number, changedName: string | null, changedAt: number | null,
 /**
  * Another page has the same title (a sync made it).
  */
