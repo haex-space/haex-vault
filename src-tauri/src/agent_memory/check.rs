@@ -197,7 +197,7 @@ fn password_value(words: &[&str]) -> bool {
             if !CONNECTORS.contains(&word) {
                 break;
             }
-            assigned |= matches!(word, "=" | ":" | "is:");
+            assigned |= matches!(word, "=" | ":" | "is:" | "ist" | "is" | "lautet");
             next = rest.next().map(|w| w.to_lowercase());
         }
         next.is_some_and(|value| assigned || value.chars().any(|c| c.is_ascii_digit()))
