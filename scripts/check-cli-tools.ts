@@ -2,10 +2,28 @@
 // CLI tools. The pure module is loaded with Node type stripping; the composable, the row and the
 // language files are read as text, because they need Vue and Tauri to run.
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { runInNewContext } from 'node:vm'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import ts from 'typescript'
+
+import {
+  ABACUS_OIDC_ISSUER,
+  PLATFORM_KEYS,
+  abacusAssetUrl,
+  abacusEntry,
+  abacusIdentity,
+  abacusIdentityPattern,
+  abacusVerifyCommand,
+  catalogToWrite,
+  selectPlatforms,
+  summariseTarListing,
+  summariseZipListing,
+  type AbacusMeasured,
+  type Catalog,
+  type CatalogPlatformKey,
+} from './cli-tools/lib/entry.ts'
 
 import { downloadSpeed, formatSpeed } from '../src/lib/transferSpeed.ts'
 import {
@@ -428,3 +446,327 @@ test('removing a provider takes the program and the connection, and only the use
   assert.match(handlers, /'cli_tools_remove'/)
   assert.match(handlers, /providers\.deleteAsync\(connected\.id\)/)
 })
+
+// ---- scripts/cli-tools/add-version.ts, Abacus AI (spec 096 T012) ---------------------------
+
+const HASH = (n: number) => n.toString(16).padStart(64, '0')
+
+test('the signing identity accepts the tag of its version and no other', () => {
+  const pattern = new RegExp(abacusIdentityPattern('2.10.23'))
+  const identity = (tag: string, workflow = 'release-cli-native.yml') =>
+    `https://github.com/abacusai/codellm/.github/workflows/${workflow}@refs/tags/${tag}`
+  assert.ok(pattern.test(identity('cli-v2.10.23')))
+  assert.equal(abacusIdentity('2.10.23'), identity('cli-v2.10.23'))
+  assert.ok(!pattern.test(identity('cli-v2.10.230')))
+  assert.ok(!pattern.test(identity('cli-v12.10.23')))
+  assert.ok(!pattern.test(identity('cli-v2.10.2')))
+  assert.ok(!pattern.test(identity('cli-v2x10x23')), 'the dots are literal')
+  assert.ok(!pattern.test(identity('cli-v2.10.24')))
+  assert.ok(!pattern.test(identity('cli-v2.10.23', 'other.yml')))
+  assert.ok(!pattern.test(`${identity('cli-v2.10.23')}/extra`))
+  assert.ok(!pattern.test(identity('v2.10.23')))
+  assert.throws(() => abacusIdentityPattern('2.10.23|.*'), /semver/)
+  assert.equal(
+    abacusIdentityPattern('2.10.23'),
+    '^https://github\\.com/abacusai/codellm/\\.github/workflows/release-cli-native\\.yml@refs/tags/cli-v2\\.10\\.23$',
+  )
+})
+
+test('the verify command pins identity and issuer for sigstore and for cosign', () => {
+  const subject = { sha256: HASH(7), file: '/tmp/x/abacusai' }
+  assert.deepEqual(
+    abacusVerifyCommand('sigstore', '2.10.23', 'b.sigstore', subject),
+    [
+      'sigstore',
+      'verify',
+      'identity',
+      '--bundle',
+      'b.sigstore',
+      '--cert-identity',
+      abacusIdentity('2.10.23'),
+      '--cert-oidc-issuer',
+      'https://token.actions.githubusercontent.com',
+      `sha256:${HASH(7)}`,
+    ],
+  )
+  const cosign = abacusVerifyCommand('cosign', '2.10.23', 'b.sigstore', subject)
+  assert.deepEqual(cosign.slice(0, 2), ['cosign', 'verify-blob'])
+  assert.equal(
+    cosign[cosign.indexOf('--certificate-identity-regexp') + 1],
+    abacusIdentityPattern('2.10.23'),
+  )
+  assert.equal(
+    cosign[cosign.indexOf('--certificate-oidc-issuer') + 1],
+    ABACUS_OIDC_ISSUER,
+  )
+  assert.equal(cosign.at(-1), subject.file)
+})
+
+test('Abacus needs a platform selector and processes only the selected keys; the others keep all six', () => {
+  assert.deepEqual(selectPlatforms('abacusai', ['win32-x64', 'linux-x64']), [
+    'linux-x64',
+    'win32-x64',
+  ])
+  assert.deepEqual(selectPlatforms('abacusai', ['linux-x64', 'linux-x64']), [
+    'linux-x64',
+  ])
+  assert.deepEqual(selectPlatforms('abacusai', ['linux-x64-baseline']), [
+    'linux-x64-baseline',
+  ])
+  assert.throws(
+    () => selectPlatforms('abacusai', []),
+    /at least one --platform/,
+  )
+  assert.throws(
+    () => selectPlatforms('abacusai', ['linux-x64-musl']),
+    /no such abacusai platform: linux-x64-musl/,
+  )
+  assert.deepEqual(selectPlatforms('claude', []), [...PLATFORM_KEYS])
+  assert.deepEqual(selectPlatforms('codex', []), [...PLATFORM_KEYS])
+  assert.throws(
+    () => selectPlatforms('claude', ['linux-x64']),
+    /only for abacusai/,
+  )
+})
+
+const tarSummary = (program: string, bundle: string, size = 1000) =>
+  summariseTarListing(
+    [
+      'drwxr-xr-x runner/runner 0 2026-11-20 15:18 ./',
+      `-rwxr-xr-x runner/runner ${size} 2026-11-20 15:18 ./${program}`,
+      `-rw------- runner/runner 11 2026-11-20 15:18 ./${bundle}`,
+    ].join('\n'),
+  )
+
+const zipSummary = (program: string, bundle: string) =>
+  summariseZipListing([
+    { name: program, size: 2000, mode: 0 },
+    { name: bundle, size: 11, mode: 0o100644 },
+  ])
+
+const measuredFor = (
+  key: CatalogPlatformKey,
+  index: number,
+  verified = true,
+): AbacusMeasured => ({
+  sha256: HASH(index + 1),
+  size: 500 + index,
+  summary: key.startsWith('win32')
+    ? zipSummary('abacusai.exe', `abacusai-${key}.sigstore`)
+    : tarSummary('abacusai', `abacusai-${key}.sigstore`),
+  signature: { verified, tool: 'sigstore' },
+})
+
+const ABACUS_EXECUTABLES: Partial<Record<CatalogPlatformKey, string>> = {
+  'linux-x64': 'abacusai',
+  'linux-x64-baseline': 'abacusai',
+  'linux-arm64': 'abacusai',
+  'darwin-x64': 'abacusai',
+  'darwin-arm64': 'abacusai',
+  'win32-x64': 'abacusai.exe',
+  'win32-arm64': 'abacusai.exe',
+}
+
+test('an Abacus entry lists only measured keys, with zip for Windows and requires_avx2 where AVX2 is needed', () => {
+  const keys: CatalogPlatformKey[] = [
+    'linux-x64',
+    'linux-x64-baseline',
+    'linux-arm64',
+    'darwin-x64',
+    'darwin-arm64',
+    'win32-x64',
+    'win32-arm64',
+  ]
+  const entry = abacusEntry(
+    '2.10.23',
+    Object.fromEntries(keys.map((key, i) => [key, measuredFor(key, i)])),
+    ABACUS_EXECUTABLES,
+  )
+  assert.deepEqual(Object.keys(entry.platforms), keys)
+  assert.deepEqual(entry.platforms['linux-x64'], {
+    url: 'https://static.abacus.ai/cli/releases/2.10.23/abacusai-linux-x64.tar.gz',
+    sha256: HASH(1),
+    size: 500,
+    kind: 'tar.gz',
+    unpacked_size: 1011,
+    requires_avx2: true,
+  })
+  assert.equal(
+    entry.platforms['linux-x64-baseline']?.url,
+    abacusAssetUrl('2.10.23', 'linux-x64-baseline'),
+  )
+  assert.equal(entry.platforms['win32-arm64']?.kind, 'zip')
+  assert.equal(entry.platforms['win32-arm64']?.unpacked_size, 2011)
+  assert.equal(
+    entry.platforms['win32-arm64']?.url,
+    'https://static.abacus.ai/cli/releases/2.10.23/abacusai-win32-arm64.zip',
+  )
+  const needsAvx2 = Object.entries(entry.platforms)
+    .filter(([, artifact]) => artifact?.requires_avx2 === true)
+    .map(([key]) => key)
+  assert.deepEqual(needsAvx2, ['linux-x64', 'darwin-x64', 'win32-x64'])
+  assert.ok(
+    !('requires_avx2' in entry.platforms['linux-arm64']!),
+    'false is not written',
+  )
+
+  const only = abacusEntry(
+    '2.10.23',
+    { 'darwin-arm64': measuredFor('darwin-arm64', 4) },
+    ABACUS_EXECUTABLES,
+  )
+  assert.deepEqual(Object.keys(only.platforms), ['darwin-arm64'])
+  assert.throws(
+    () => abacusEntry('2.10.23', {}, ABACUS_EXECUTABLES),
+    /no platform/,
+  )
+})
+
+test('an Abacus entry is refused for a bundle that did not verify, unsafe entries and a missing program or bundle', () => {
+  const entry = (item: AbacusMeasured) =>
+    abacusEntry('2.10.23', { 'linux-x64': item }, ABACUS_EXECUTABLES)
+  assert.throws(
+    () => entry(measuredFor('linux-x64', 0, false)),
+    /did not verify.*who released the file, not what it contains/,
+  )
+  const good = measuredFor('linux-x64', 0)
+  assert.throws(
+    () =>
+      entry({
+        ...good,
+        summary: summariseTarListing(
+          'lrwxrwxrwx runner/runner 0 2026-11-20 15:18 ./abacusai -> /bin/sh',
+        ),
+      }),
+    /refuses/,
+  )
+  assert.throws(
+    () =>
+      entry({
+        ...good,
+        summary: tarSummary('other', 'abacusai-linux-x64.sigstore'),
+      }),
+    /does not hold abacusai/,
+  )
+  assert.throws(
+    () => entry({ ...good, summary: tarSummary('abacusai', 'other.sigstore') }),
+    /does not hold its Sigstore bundle/,
+  )
+  assert.throws(() => entry({ ...good, sha256: 'ABC' }), /SHA-256/)
+  assert.throws(
+    () => abacusEntry('2.10.23|x', { 'linux-x64': good }, ABACUS_EXECUTABLES),
+    /semver/,
+  )
+})
+
+test('the archive listing of the real linux-x64 release adds up to the unpacked size of its entry', () => {
+  const summary = summariseTarListing(
+    [
+      'drwxr-xr-x runner/runner 0 2026-11-20 15:18 ./',
+      '-rwxr-xr-x runner/runner 157563056 2026-11-20 15:18 ./abacusai',
+      '-rw------- runner/runner 10411 2026-11-20 15:18 ./abacusai-linux-x64.sigstore',
+    ].join('\n'),
+  )
+  assert.equal(summary.unpackedSize, 157_573_467)
+  assert.deepEqual(summary.unsafe, [])
+})
+
+test('a zip listing gives the unpacked size and flags links, devices and escaping paths', () => {
+  assert.deepEqual(
+    summariseZipListing([
+      { name: 'bin/', size: 0, mode: 0o040755 },
+      { name: 'abacusai.exe', size: 2000, mode: 0 },
+      { name: 'notes.txt', size: 24, mode: 0o100644 },
+    ]),
+    {
+      unpackedSize: 2024,
+      paths: ['bin/', 'abacusai.exe', 'notes.txt'],
+      unsafe: [],
+    },
+  )
+  const bad = summariseZipListing([
+    { name: 'link', size: 5, mode: 0o120777 },
+    { name: 'dev', size: 0, mode: 0o020666 },
+    { name: '../escape', size: 1, mode: 0o100644 },
+    { name: '/absolute', size: 1, mode: 0o100644 },
+    { name: 'a\\..\\b', size: 1, mode: 0 },
+    { name: 'C:/drive', size: 1, mode: 0 },
+  ])
+  assert.equal(bad.unsafe.length, 6)
+})
+
+test('measure-only never gives a catalog to write; a run that writes is checked first', () => {
+  const catalog: Catalog = {
+    schema: 1,
+    vendors: [{ vendor: 'abacusai', versions: [] }],
+  }
+  const before = structuredClone(catalog)
+  const entry = abacusEntry(
+    '2.10.23',
+    { 'linux-x64': measuredFor('linux-x64', 0) },
+    ABACUS_EXECUTABLES,
+  )
+  assert.equal(catalogToWrite(catalog, 'abacusai', entry, true), null)
+  assert.deepEqual(catalog, before, 'the catalog is untouched')
+  const next = catalogToWrite(catalog, 'abacusai', entry, false)
+  assert.deepEqual(
+    next?.vendors[0]?.versions.map((v) => v.version),
+    ['2.10.23'],
+  )
+  assert.deepEqual(catalog, before, 'the input is not changed either way')
+  assert.throws(
+    () =>
+      catalogToWrite(
+        catalog,
+        'abacusai',
+        {
+          version: '2.10.23',
+          platforms: {
+            'win32-x64': {
+              url: 'https://static.abacus.ai/x.zip',
+              sha256: HASH(1),
+              size: 1,
+              kind: 'zip',
+            },
+          },
+        },
+        false,
+      ),
+    /unpacked_size/,
+  )
+})
+
+const FIXTURE = new URL('./cli-tools/fixtures/', import.meta.url)
+const SIGSTORE_BIN = process.env.HAEX_SIGSTORE_BIN ?? 'sigstore'
+const sigstoreMissing =
+  spawnSync(SIGSTORE_BIN, ['--version']).error === undefined
+    ? false
+    : 'sigstore is not on PATH and HAEX_SIGSTORE_BIN is not set: the signed fixture is not verified'
+
+const verifyFixture = (sha256: string, version = '2.10.23') => {
+  const [, ...args] = abacusVerifyCommand(
+    'sigstore',
+    version,
+    new URL('abacusai-2.10.23-linux-x64.sigstore', FIXTURE).pathname,
+    { sha256, file: '' },
+  )
+  return spawnSync(SIGSTORE_BIN, args, { encoding: 'utf8' })
+}
+
+test(
+  'the signed fixture verifies against the pinned identity and a changed digest or tag fails',
+  { skip: sigstoreMissing },
+  () => {
+    const sha256 = readFileSync(
+      new URL('abacusai-2.10.23-linux-x64.sha256', FIXTURE),
+      'utf8',
+    ).trim()
+    assert.equal(
+      sha256,
+      '108c4ba6e4076fc911959169bb7b94e64106af89ff83c3a8e32a050f91591d56',
+    )
+    assert.equal(verifyFixture(sha256).status, 0)
+    assert.notEqual(verifyFixture(HASH(1)).status, 0, 'another digest')
+    assert.notEqual(verifyFixture(sha256, '2.10.24').status, 0, 'another tag')
+  },
+)
