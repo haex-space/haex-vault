@@ -671,7 +671,7 @@ async fn an_init_in_another_mode_ends_the_run() {
         collect(adapter.stream_chat(request("abacusai")).await.unwrap()).await;
 
     assert!(text.is_empty() && done.is_none());
-    assert!(matches!(error, Some(StreamError::Internal(_))), "{error:?}");
+    assert!(matches!(error, Some(StreamError::Model(_))), "{error:?}");
 }
 
 /// A stub that asks to run a tool, waits for the answer and writes the answer's line to `answer`.
