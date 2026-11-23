@@ -202,10 +202,16 @@ pub fn copy_into(opener: &(impl Opener + ?Sized), file: &PickedFile, target: &Pa
     Ok(copied)
 }
 
+/// Opens the file chosen in the save dialog for writing, replacing what was there; a file too large
+/// to hold whole is written to this one piece by piece.
+pub fn open_write(opener: &(impl Opener + ?Sized), file: &PickedFile) -> Result<File> {
+    let path = resolve(opener, file)?;
+    opener.open(path, true).map_err(write_failed)
+}
+
 /// Writes `bytes` to the file chosen in the save dialog, replacing what was there.
 pub fn write(opener: &(impl Opener + ?Sized), file: &PickedFile, bytes: &[u8]) -> Result<()> {
-    let path = resolve(opener, file)?;
-    let mut target = opener.open(path, true).map_err(write_failed)?;
+    let mut target = open_write(opener, file)?;
     target.write_all(bytes).map_err(write_failed)?;
     target.sync_all().map_err(write_failed)
 }

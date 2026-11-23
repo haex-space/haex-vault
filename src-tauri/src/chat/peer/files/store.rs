@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, Weak};
 
+use tokio::io::AsyncWriteExt;
 use tokio::sync::{Mutex as AsyncMutex, OwnedMutexGuard, Semaphore};
 use tokio_util::sync::CancellationToken;
 
@@ -21,7 +22,7 @@ use crate::files::encrypted::manage;
 use crate::files::encrypted::opened;
 use crate::files::encrypted::ops::{create_encrypted_folder, file_at};
 use crate::files::encrypted::route::{route, Route};
-use crate::files::encrypted::source::EncryptedFile;
+use crate::files::encrypted::source::{EncryptedFile, WINDOW};
 use crate::files::encrypted::transfer::PutStream;
 use crate::files::encrypted::{EncryptedFolders, Scope, VaultSource};
 use crate::files::storage_source::StorageFiles;
@@ -77,8 +78,8 @@ impl ChatFileStore {
         self.root.view_of(&path)
     }
 
-    /// The file of attachment `id`; `None` when this device has none.
-    pub async fn get(&self, id: &str) -> Result<Option<Vec<u8>>> {
+    /// The file of attachment `id` opened for reading; `None` when this device has none.
+    pub async fn open(&self, id: &str) -> Result<Option<EncryptedFile>> {
         if !self.dir.is_dir() {
             return Ok(None);
         }
@@ -93,13 +94,38 @@ impl ChatFileStore {
             Err(error) if error.code == FilesErrorCode::NotFound => return Ok(None),
             Err(error) => return Err(store_error(error)),
         };
-        let file = EncryptedFile::open(&self.files, folder, &version)
+        EncryptedFile::open(&self.files, folder, &version)
             .await
-            .map_err(store_error)?;
+            .map(Some)
+            .map_err(store_error)
+    }
+
+    /// The file of attachment `id`; `None` when this device has none.
+    pub async fn get(&self, id: &str) -> Result<Option<Vec<u8>>> {
+        let Some(file) = self.open(id).await? else {
+            return Ok(None);
+        };
         file.read(0, file.size())
             .await
             .map(Some)
             .map_err(store_error)
+    }
+
+    /// Writes the file of attachment `id` to `out` one window at a time, so a file of the largest
+    /// size (FR-034) is never held whole; `NotFound` while this device has none.
+    pub async fn save_to(&self, id: &str, mut out: tokio::fs::File) -> Result<()> {
+        let file = self.open(id).await?.ok_or_else(|| HaexError::NotFound {
+            name: "chat file".into(),
+        })?;
+        let mut at = 0;
+        while at < file.size() {
+            let end = file.size().min(at + WINDOW);
+            let plain = file.read(at, end).await.map_err(store_error)?;
+            out.write_all(&plain).await?;
+            at = end;
+        }
+        out.sync_all().await?;
+        Ok(())
     }
 
     /// A decrypted copy of the file of attachment `id` for the system's app (spec 048 FR-028, spec 072

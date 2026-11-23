@@ -30,6 +30,7 @@ use crate::chat::peer::session::Me;
 use crate::chat::peer::{ids, send, settings, targets};
 use crate::error::{HaexError, Result};
 use crate::files::encrypted::opened;
+use crate::files::encrypted::source::EncryptedFile;
 use crate::remote_storage::address::Resolver;
 use crate::storage::query::Query;
 use crate::sync::keys::hex;
@@ -628,6 +629,47 @@ impl ChatFiles {
         String::from_utf8(bytes).map_err(|_| invalid("chat.file.damaged"))
     }
 
+    /// The name and media type the sender gave the file of attachment `id`; `NotFound` for an id
+    /// that is no file.
+    async fn name_and_mime(&self, id: &str) -> Result<(Option<String>, Option<String>)> {
+        let attachment_id = id.to_owned();
+        self.db
+            .read(move |r| {
+                r.query_row(
+                    "SELECT name, mime FROM chat_attachments WHERE id = ?1 AND kind = 'file'",
+                    params![attachment_id],
+                    |row| {
+                        Ok((
+                            row.get::<_, Option<String>>(0)?,
+                            row.get::<_, Option<String>>(1)?,
+                        ))
+                    },
+                )
+            })
+            .await?
+            .ok_or_else(|| HaexError::NotFound {
+                name: "chat attachment".into(),
+            })
+    }
+
+    /// The file of attachment `id` for the viewer: its name, its media type and the file opened for
+    /// reading, a window at a time. `NotFound` while this device holds no copy.
+    pub async fn view(&self, id: &str) -> Result<(String, String, EncryptedFile)> {
+        let (name, mime) = self.name_and_mime(id).await?;
+        let file = self
+            .store
+            .open(id)
+            .await?
+            .ok_or_else(|| HaexError::NotFound {
+                name: "chat file".into(),
+            })?;
+        Ok((
+            name.unwrap_or_default(),
+            mime.unwrap_or_else(|| "application/octet-stream".to_owned()),
+            file,
+        ))
+    }
+
     /// A decrypted copy of the file of attachment `id` for the system's app, named as the sender
     /// named it (see [`ChatFileStore::copy_for_app`]); `None` while the notice has to be shown first.
     pub async fn copy_for_app(
@@ -637,20 +679,7 @@ impl ChatFiles {
         confirmed: bool,
         dont_ask_again: bool,
     ) -> Result<Option<PathBuf>> {
-        let attachment_id = id.to_owned();
-        let name = self
-            .db
-            .read(move |r| {
-                r.query_row(
-                    "SELECT name FROM chat_attachments WHERE id = ?1 AND kind = 'file'",
-                    params![attachment_id],
-                    |row| row.get::<_, Option<String>>(0),
-                )
-            })
-            .await?
-            .ok_or_else(|| HaexError::NotFound {
-                name: "chat attachment".into(),
-            })?;
+        let (name, _) = self.name_and_mime(id).await?;
         self.store
             .copy_for_app(
                 id,

@@ -5,14 +5,18 @@
 use std::io::Read;
 use std::sync::Arc;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
+use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::chat::peer::files::transfers::{ChatFiles, Picked, Source};
 use crate::chat::peer::session::{PeerRegistry, Session};
 use crate::error::{HaexError, Result};
-use crate::files::kind::mime_for;
+use crate::files::encrypted::source::EncryptedFileSource;
+use crate::files::kind::{mime_for, streams, viewer_kind, ViewerKind};
+use crate::files::local::text::{text_from, TextContent, TEXT_LIMIT};
+use crate::files::media::MediaServer;
 use crate::files::picked::{self, PickedFile};
 use crate::files::state::FilesState;
 use crate::passwords::commands::attachments::OpenSystemOutcome;
@@ -28,6 +32,32 @@ pub struct DownloadArgs {
 #[serde(rename_all = "camelCase")]
 pub struct TextArgs {
     pub attachment_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenArgs {
+    pub attachment_id: String,
+    /// The tab whose viewer shows the file; its URL ends with the tab.
+    pub tab_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveArgs {
+    pub attachment_id: String,
+    /// The file chosen in the save dialog.
+    pub file: PickedFile,
+}
+
+/// How the viewer shows a file of a message: its kind, and for an image, video, audio or PDF the
+/// media server's URL (spec 044 FR-016: the window releases it with `files_release`).
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct ChatAttachmentOpened {
+    pub kind: ViewerKind,
+    pub url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -182,4 +212,67 @@ pub async fn chat_attachment_open_system(
         }
         Ok(OpenSystemOutcome::Opened)
     }
+}
+
+fn attachment_uuid(raw: &str) -> Result<Uuid> {
+    Uuid::parse_str(raw).map_err(|_| HaexError::InvalidInput {
+        reason: "attachmentId must be a valid UUID".into(),
+    })
+}
+
+/// Opens a file of a message for the viewer (spec 072 US3 scenario 4), the way the file browser's
+/// `files_open` does: an image, video, audio or PDF is streamed from this device's encrypted copy
+/// through the media server, text is read with [`chat_attachment_read_text`], the rest has the info
+/// view only.
+#[tauri::command]
+pub async fn chat_attachment_open(
+    app: AppHandle,
+    media: State<'_, MediaServer>,
+    args: OpenArgs,
+) -> Result<ChatAttachmentOpened> {
+    let id = attachment_uuid(&args.attachment_id)?;
+    let session = session(&app)?;
+    let (name, mime, file) = chat_files(&session)?.view(&id.to_string()).await?;
+    let kind = viewer_kind(&name);
+    let url = streams(kind)
+        .then(|| media.register(&args.tab_id, Arc::new(EncryptedFileSource::new(file, mime))));
+    Ok(ChatAttachmentOpened { kind, url })
+}
+
+/// The text of a file of a message for the viewer, at most 5 MB; a binary file is `binary`.
+#[tauri::command]
+pub async fn chat_attachment_read_text(app: AppHandle, args: TextArgs) -> Result<TextContent> {
+    let id = attachment_uuid(&args.attachment_id)?;
+    let session = session(&app)?;
+    let (_, _, file) = chat_files(&session)?.view(&id.to_string()).await?;
+    let end = file.size().min(TEXT_LIMIT.saturating_add(1));
+    let bytes = file
+        .read(0, end)
+        .await
+        .map_err(|error| HaexError::InvalidInput {
+            reason: format!("chat files: {}", error.message),
+        })?;
+    text_from(bytes, TEXT_LIMIT).map_err(|_| HaexError::InvalidInput {
+        reason: "binary".to_owned(),
+    })
+}
+
+/// "Speichern unter" for a file of a message: writes this device's copy to the file chosen in the
+/// save dialog, a window at a time (FR-034), so a file of the largest size is never held whole.
+#[tauri::command]
+pub async fn chat_attachment_save(app: AppHandle, args: SaveArgs) -> Result<()> {
+    let id = attachment_uuid(&args.attachment_id)?;
+    let session = session(&app)?;
+    let files = chat_files(&session)?;
+    let opener = app.clone();
+    let file = args.file;
+    let out = tokio::task::spawn_blocking(move || picked::open_write(&opener, &file))
+        .await
+        .map_err(|e| HaexError::InvalidInput {
+            reason: e.to_string(),
+        })??;
+    files
+        .store
+        .save_to(&id.to_string(), tokio::fs::File::from_std(out))
+        .await
 }

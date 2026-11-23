@@ -19,6 +19,15 @@ pub enum ViewerKind {
     Info,
 }
 
+/// Whether the viewer shows `kind` from the media server (images, video, audio, PDF); text is read
+/// and the rest goes to the info view.
+pub fn streams(kind: ViewerKind) -> bool {
+    matches!(
+        kind,
+        ViewerKind::Image | ViewerKind::Video | ViewerKind::Audio | ViewerKind::Pdf
+    )
+}
+
 /// The lower-case extension of `name`, without the dot; empty when there is none. A leading dot
 /// alone (`.bashrc`) is a hidden name, not an extension.
 pub fn extension(name: &str) -> String {

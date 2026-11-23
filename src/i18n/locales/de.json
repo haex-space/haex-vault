@@ -529,7 +529,13 @@
       "download": "Herunterladen ({size})",
       "gone": "Datei nicht mehr verfügbar",
       "openSystem": "Mit System-App öffnen",
-      "openSystemNoApp": "Für diese Datei ist keine App installiert."
+      "openSystemNoApp": "Für diese Datei ist keine App installiert.",
+      "view": "Öffnen",
+      "save": "Speichern unter",
+      "saved": "Gespeichert.",
+      "viewer": {
+        "binary": "Diese Datei lässt sich nicht als Text anzeigen."
+      }
     },
     "error": {
       "tooLong": "Der Text ist zu lang (höchstens 1.000.000 Zeichen).",

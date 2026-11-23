@@ -15,6 +15,7 @@ import { ownCardText } from '../lib/share.ts'
 const SMALL = 5 * 1024 * 1024
 /** Above the automatic limit of 25 MB (FR-036). */
 const LARGE = 26_000_000
+const NOTE = 'Hallo aus der Textdatei'
 
 interface Conversation {
   id: string
@@ -113,9 +114,11 @@ scenario('chat-files', { timeoutMs: 420_000 }, async (ctx) => {
   ctx.onTeardown(() => folder.remove())
   const small = folder.path('klein.bin')
   const large = folder.path('gross.bin')
-  folder.write('klein.bin', randomBytes(SMALL))
+  const smallBytes = randomBytes(SMALL)
+  folder.write('klein.bin', smallBytes)
   folder.write('gross.bin', randomBytes(LARGE))
-  for (const path of [small, large]) {
+  folder.write('notiz.txt', NOTE)
+  for (const path of [small, large, folder.path('notiz.txt')]) {
     unwrap(
       'chat_peer_send',
       await anna.invoke('chat_peer_send', {
@@ -131,12 +134,12 @@ scenario('chat-files', { timeoutMs: 420_000 }, async (ctx) => {
 
   let benThread = ''
   await ctx.waitFor(
-    'both files to reach Ben',
+    'all three files to reach Ben',
     async () => {
       const found = (await conversations(ben)).find((c) => c.kind === 'direct')
       if (found === undefined) return false
       benThread = found.id
-      return (await filesOf(ben, benThread)).length === 2
+      return (await filesOf(ben, benThread)).length === 3
     },
     { timeoutMs: 120_000, fixed: true },
   )
@@ -164,7 +167,7 @@ scenario('chat-files', { timeoutMs: 420_000 }, async (ctx) => {
   await openChat(ben)
   await ben.click('chat-peer')
   await ben.waitForDisplayed('chat-attachment-download')
-  assert.equal(await count(ben, 'chat-attachment-bubble'), 2)
+  assert.equal(await count(ben, 'chat-attachment-bubble'), 3)
   await ben.click('chat-attachment-download')
   await ctx.waitFor(
     'the large file to be stored after the tap',
@@ -173,6 +176,39 @@ scenario('chat-files', { timeoutMs: 420_000 }, async (ctx) => {
   )
   assert.equal(await count(ben, 'chat-attachment-download'), 0)
   ctx.step('a tap on "Herunterladen" fetches the large file')
+
+  // Only the text file has a view of its own; the binary ones have the info view alone, so they
+  // offer no "Öffnen".
+  await ben.waitForDisplayed('chat-attachment-view')
+  assert.equal(await count(ben, 'chat-attachment-view'), 1)
+  await ben.click('chat-attachment-view')
+  await ben.waitForDisplayed('chat-attachment-viewer')
+  await ben.waitForDisplayed('files-viewer-text')
+  const shown = await ben.exec<string>(
+    `return document.querySelector('[data-testid="files-viewer-text"]').textContent`,
+  )
+  assert.ok(
+    shown.includes(NOTE),
+    `the viewer must show the text, got "${shown}"`,
+  )
+  await ben.click('chat-attachment-viewer-close')
+  ctx.step('"Öffnen" shows the text file in the viewer')
+
+  // The save dialog cannot be driven; the command gets the target the dialog would return.
+  const saved = folder.path('gespeichert.bin')
+  const smallId = (await stateOf(SMALL))?.id
+  assert.ok(smallId, 'the small file has an id')
+  unwrap(
+    'chat_attachment_save',
+    await ben.invoke('chat_attachment_save', {
+      args: { attachmentId: smallId, file: saved },
+    }),
+  )
+  assert.ok(
+    folder.readBytes('gespeichert.bin').equals(smallBytes),
+    'the saved file must equal the file that was sent',
+  )
+  ctx.step('"Speichern unter" writes the file as it was sent')
 
   // The first time a decrypted copy goes to another app, the notice about it comes first; the
   // app itself is not started here.
