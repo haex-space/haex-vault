@@ -505,7 +505,7 @@
           "recovering": "A device could not decrypt a message, so the devices are agreeing on new keys. Messages not confirmed yet are then encrypted again and sent once more; there is nothing to do.",
           "waitingForKeys": "A device has not published its keys yet. Messages to that device wait until its keys are there; without them nothing is sent to it."
         },
-        "renewedAt": "Last renewed with all devices: {date}",
+        "renewedAt": "Oldest known renewal: {date}",
         "relays": "Nostr-Relays do not see what you write, but they see which device something goes to, when, how large it is and from which network address. They can also refuse, withhold or delete messages; messages not confirmed are then sent again.",
         "history": "This protection covers the copies on the Nostr-Relays. Messages kept in your vault can be read by anyone who can open the vault.",
         "show": "Explain the protection",
