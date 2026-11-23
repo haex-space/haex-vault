@@ -4,8 +4,9 @@
     check-containment.py --vendor claude --program ./claude -- -p ping
 
 The program runs in an empty tree under `strace -f -y`, with an environment of only `PATH` plus
-what HaexVault's base layer sets for that vendor (`HOME`, `TMPDIR`, the vendor's configuration and
-temp variables, the fixed variables of the catalog). Every path the tool created, wrote, renamed
+what HaexVault's base layer sets for that vendor (`HOME`, `TMPDIR`, the XDG folders, the vendor's
+configuration and temp variables, the fixed variables of the catalog). No variable of the host is
+passed on, so none of a vendor's own (`ABACUS_*`, `CLAUDE_CODE_*`, ...) reaches the tool. Every path the tool created, wrote, renamed
 or removed is listed; the ones outside the tree must match `allowed-residuals.json`, otherwise
 the script exits with 1 and the version must not enter the tested-version list.
 
@@ -38,6 +39,21 @@ TRACED = (
     "chown,fchown,fchownat,utimensat,futimesat,fchmodat2,mknod,mknodat,bind"
 )
 WRITE_FLAGS = ("O_WRONLY", "O_RDWR", "O_CREAT", "O_TRUNC", "O_APPEND")
+
+# The XDG base directories and where below the home the base layer points each one (the
+# `XDG_BELOW_HOME` table of cli_tools/containment.rs); a tool that honours them stays in the tree.
+XDG_BELOW_HOME = {
+    "XDG_CONFIG_HOME": (".config",),
+    "XDG_CACHE_HOME": (".cache",),
+    "XDG_DATA_HOME": (".local", "share"),
+    "XDG_STATE_HOME": (".local", "state"),
+}
+
+# The exit codes a vendor's probe (the arguments after `--`) reaches when the tool started.
+# Claude's unauthenticated `-p ping` probe exits 1 after successfully starting the CLI; Abacus'
+# `--version` and Codex' app-server probe exit 0. Other exits mean the probe did not reach its
+# expected terminal state.
+EXPECTED_EXIT_CODES = {"claude": {0, 1}, "codex": {0}, "abacusai": {0}}
 
 LINE = re.compile(r"^(?:\[pid\s+\d+\]\s+|\d+\s+)?(?P<call>\w+)\((?P<args>.*)\)\s+=\s+(?P<ret>-?\d+|\?)(?P<result>.*)$")
 # A quoted path, or a directory handle strace named with -y: `5</some/dir>`.
@@ -210,6 +226,10 @@ def environment(vendor, tree):
     for folder in (home, tmp, config):
         folder.mkdir(parents=True, exist_ok=True)
     env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(home), "TMPDIR": str(tmp)}
+    for name, below in XDG_BELOW_HOME.items():
+        folder = home.joinpath(*below)
+        folder.mkdir(parents=True, exist_ok=True)
+        env[name] = str(folder)
     env[vendor["config_env"]] = str(config)
     for name in vendor.get("tmp_env", []):
         env[name] = str(tmp)
@@ -293,10 +313,7 @@ def main():
         print(f"outside the tree: {op} {path}")
     bad = offences(found, allowed_patterns(allowed, options.vendor))
     print(f"exit code of the tool: {code if code is not None else 'timeout (stopped)'}")
-    # Claude's unauthenticated `-p ping` probe exits 1 after successfully starting the CLI.
-    # Other exits indicate that the probe did not reach its expected terminal state.
-    expected_exit_codes = {"claude": {0, 1}, "codex": {0}}
-    if code not in expected_exit_codes[options.vendor]:
+    if code not in EXPECTED_EXIT_CODES.get(options.vendor, {0}):
         print("containment measurement failed or timed out; the version must not be added")
         return 1
     if bad:

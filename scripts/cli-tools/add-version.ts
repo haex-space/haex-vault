@@ -3,6 +3,8 @@
 //
 //   node scripts/cli-tools/add-version.ts --vendor claude --version 2.1.311
 //   node scripts/cli-tools/add-version.ts --vendor codex  --version 0.169.0
+//   node scripts/cli-tools/add-version.ts --vendor abacusai --version 2.10.23 \
+//        --platform linux-x64 --platform linux-arm64 [--measure-only]
 //
 // The app never asks a vendor what the latest version is and never trusts a vendor's server at
 // install time: what it checks is the SHA-256 written here. So this script is where trust is
@@ -16,6 +18,20 @@
 //   measured on the download itself. (A Sigstore bundle exists only for some assets; it is not
 //   checked here, and this script says so.) The download is streamed through `tar -t`, which
 //   yields the unpacked size and refuses archives with links, devices or paths that escape.
+// - Abacus AI: every archive holds the program and a Sigstore bundle, a signature over the
+//   program's SHA-256. Each `--platform` (repeatable, at least one; only those are processed)
+//   is downloaded into an operator-only temporary folder, its SHA-256 and size measured on the
+//   stream, its entries listed (`tar -t` / the zip's central directory) for the unpacked size,
+//   which refuses links, devices and paths that escape, and unpacked. The bundle is then checked
+//   against the unpacked program with `sigstore verify identity` or `cosign verify-blob`
+//   (whichever is on `PATH`; the script says which) and the pinned identity
+//   `^https://github\.com/abacusai/codellm/\.github/workflows/release-cli-native\.yml@refs/tags/cli-v<version>$`
+//   of GitHub Actions, so a file signed for another tag or workflow is refused. Note that a
+//   signature by a private repository's workflow shows who released the file, not what it
+//   contains. `requires_avx2` is written for the programs that need AVX2 (spec 096, D3).
+//   `--measure-only` stops after the measurements and the signature check: it prints the entry,
+//   keeps the unpacked platforms in the temporary folder (for the containment measurement by
+//   hand) and never writes the catalog.
 //
 // Then the containment measurement of FR-021 (`check-containment.py`) is the second gate: the
 // download of this device's platform is checked against the entry, started under `strace`, and a
@@ -26,6 +42,8 @@ import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import {
   chmodSync,
+  createWriteStream,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -34,23 +52,36 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
-import { Readable } from 'node:stream'
+import { Readable, Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 
 import {
   CLAUDE_DOWNLOAD_BASE,
   PLATFORM_KEYS,
-  catalogProblems,
+  abacusAssetName,
+  abacusAssetUrl,
+  abacusBundleName,
+  abacusEntry,
+  abacusIdentityPattern,
+  abacusVerifyCommand,
+  catalogToWrite,
   claudeEntry,
   codexAssetName,
   codexAssetUrl,
   codexEntry,
   githubDigests,
-  insertVersion,
   parseSha256Sums,
+  selectPlatforms,
+  summariseTarListing,
+  summariseZipListing,
+  type AbacusMeasured,
+  type ArchiveSummary,
   type Artifact as CatalogArtifact,
   type Catalog,
+  type CatalogPlatformKey,
   type CodexMeasured,
   type PlatformKey,
+  type SigstoreTool,
 } from './lib/entry.ts'
 
 /** The fingerprint of Anthropic's Claude Code release signing key (code.claude.com/docs/en/setup). */
@@ -182,10 +213,176 @@ async function codexRelease(
   return codexEntry(version, sums, digests, measured, executables)
 }
 
+const ZIP_LISTING = `import json, sys, zipfile
+with zipfile.ZipFile(sys.argv[1]) as z:
+    print(json.dumps([{"name": i.filename, "size": i.file_size, "mode": i.external_attr >> 16} for i in z.infolist()]))`
+const ZIP_EXTRACT = `import sys, zipfile
+zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])`
+
+function run(command: string, args: string[], what: string): string {
+  const done = spawnSync(command, args, {
+    encoding: 'utf8',
+    maxBuffer: 1 << 26,
+  })
+  if (done.status !== 0) {
+    throw new Error(`${what}: ${done.error?.message ?? done.stderr}`)
+  }
+  return done.stdout
+}
+
+/** Downloads `url` to `file`; the SHA-256 and the size are measured on the stream. */
+async function downloadMeasured(url: string, file: string) {
+  const response = await fetch(url)
+  if (!response.ok || !response.body) {
+    throw new Error(`${url}: HTTP ${response.status}`)
+  }
+  const hash = createHash('sha256')
+  let size = 0
+  const tap = new Transform({
+    transform(chunk: Buffer, _encoding, done) {
+      hash.update(chunk)
+      size += chunk.length
+      done(null, chunk)
+    },
+  })
+  await pipeline(
+    Readable.fromWeb(response.body as never),
+    tap,
+    createWriteStream(file),
+  )
+  return { sha256: hash.digest('hex'), size }
+}
+
+/** The entries of an archive: `tar -t` for a tar.gz, the central directory for a zip. */
+function listArchive(zip: boolean, file: string): ArchiveSummary {
+  if (!zip) return summariseTarListing(run('tar', ['-tvzf', file], 'tar -t'))
+  const rows = JSON.parse(
+    run('python3', ['-I', '-c', ZIP_LISTING, file], 'zip listing'),
+  )
+  return summariseZipListing(rows)
+}
+
+function unpackArchive(zip: boolean, file: string, into: string) {
+  mkdirSync(into)
+  if (zip) run('python3', ['-I', '-c', ZIP_EXTRACT, file, into], 'unzip')
+  else run('tar', ['-xzf', file, '-C', into], 'tar -x')
+}
+
+/** `HAEX_SIGSTORE_BIN` names the `sigstore` program when it is not on `PATH` (a virtual environment). */
+const sigstoreBinary = (tool: SigstoreTool): string =>
+  tool === 'sigstore' ? (process.env.HAEX_SIGSTORE_BIN ?? tool) : tool
+
+/** The Sigstore verifier on `PATH`: `sigstore` first, then `cosign`; none is an error. */
+function sigstoreTool(): SigstoreTool {
+  for (const tool of ['sigstore', 'cosign'] as const) {
+    const probe = spawnSync(sigstoreBinary(tool), [
+      tool === 'cosign' ? 'version' : '--version',
+    ])
+    if (probe.error === undefined) return tool
+  }
+  throw new Error(
+    'neither `sigstore` (sigstore-python) nor `cosign` is on PATH; one is needed to verify the vendor bundle',
+  )
+}
+
+/** Verifies the bundle of the unpacked platform against its program; `tool` says what was used. */
+function verifyBundle(
+  tool: SigstoreTool,
+  version: string,
+  folder: string,
+  key: CatalogPlatformKey,
+  executable: string,
+): AbacusMeasured['signature'] {
+  const file = join(folder, executable)
+  const sha256 = createHash('sha256').update(readFileSync(file)).digest('hex')
+  const [, ...args] = abacusVerifyCommand(
+    tool,
+    version,
+    join(folder, abacusBundleName(key)),
+    { sha256, file },
+  )
+  const done = spawnSync(sigstoreBinary(tool), args, { encoding: 'utf8' })
+  if (done.status !== 0) {
+    console.error(`${key}: ${tool} says:\n${done.stderr || done.stdout}`)
+  }
+  return { verified: done.status === 0, tool }
+}
+
+/**
+ * Downloads, lists, unpacks and signature-checks each selected Abacus platform below `folder`.
+ * Returns the entry and where each program was unpacked.
+ */
+async function abacusRelease(
+  version: string,
+  keys: CatalogPlatformKey[],
+  executables: Partial<Record<CatalogPlatformKey, string>>,
+  folder: string,
+) {
+  const tool = sigstoreTool()
+  console.log(
+    `abacusai ${version}: bundles are verified with ${tool} against ${abacusIdentityPattern(version)}`,
+  )
+  const measured: Partial<Record<CatalogPlatformKey, AbacusMeasured>> = {}
+  const programs: Partial<Record<CatalogPlatformKey, string>> = {}
+  for (const key of keys) {
+    const executable = executables[key]
+    if (!executable) throw new Error(`the catalog has no executable for ${key}`)
+    const zip = key.startsWith('win32')
+    const archive = join(folder, abacusAssetName(key))
+    console.log(`abacusai ${version}: measuring ${abacusAssetName(key)} ...`)
+    const { sha256, size } = await downloadMeasured(
+      abacusAssetUrl(version, key),
+      archive,
+    )
+    const summary = listArchive(zip, archive)
+    if (summary.unsafe.length > 0) {
+      throw new Error(
+        `${key}: the archive holds entries HaexVault refuses: ${summary.unsafe.slice(0, 3).join(', ')}`,
+      )
+    }
+    const unpacked = join(folder, key)
+    unpackArchive(zip, archive, unpacked)
+    const signature = verifyBundle(tool, version, unpacked, key, executable)
+    console.log(
+      `${key}: sha256 ${sha256}, ${size} bytes, ${summary.unpackedSize} bytes unpacked, bundle ${signature.verified ? 'verified' : 'NOT verified'} (${signature.tool})`,
+    )
+    measured[key] = { sha256, size, summary, signature }
+    programs[key] = join(unpacked, executable)
+  }
+  console.log(
+    "abacusai: a signature by a private repository's workflow shows who released the file, not what it contains",
+  )
+  return { entry: abacusEntry(version, measured, executables), programs }
+}
+
 /** What each tool is started with for the measurement: its start-up, with no login and no turn. */
 const CONTAINMENT_PROBES: Record<string, string[]> = {
   claude: ['-p', 'ping'],
   codex: ['app-server', '--stdio'],
+  abacusai: ['--version'],
+}
+
+/** Starts `program` under `check-containment.py`; a write outside the vault refuses the version. */
+function runContainmentCheck(vendor: string, program: string) {
+  const done = spawnSync(
+    'python3',
+    [
+      '-I',
+      new URL('./check-containment.py', import.meta.url).pathname,
+      '--vendor',
+      vendor,
+      '--program',
+      program,
+      '--',
+      ...CONTAINMENT_PROBES[vendor]!,
+    ],
+    { stdio: 'inherit' },
+  )
+  if (done.status !== 0) {
+    throw new Error(
+      `${vendor}: the tool writes outside the vault beyond the listed residuals; the version is not added`,
+    )
+  }
 }
 
 /**
@@ -195,17 +392,24 @@ const CONTAINMENT_PROBES: Record<string, string[]> = {
  */
 async function measureContainment(
   vendor: string,
-  entry: { platforms: Partial<Record<PlatformKey, CatalogArtifact>> },
+  entry: { platforms: Partial<Record<CatalogPlatformKey, CatalogArtifact>> },
   executable: Record<string, string>,
+  unpacked?: Partial<Record<CatalogPlatformKey, string>>,
 ) {
   const key = `${process.platform}-${process.arch === 'arm64' ? 'arm64' : 'x64'}`
-  const artifact = entry.platforms[key as PlatformKey]
+  const artifact = entry.platforms[key as CatalogPlatformKey]
   if (process.platform !== 'linux' || !artifact) {
     throw new Error(
       `the containment measurement needs Linux and an entry for ${key}; measure on a Linux machine or pass --skip-containment`,
     )
   }
   console.log(`${vendor}: containment measurement with ${key} ...`)
+  const measuredProgram = unpacked?.[key as CatalogPlatformKey]
+  if (measuredProgram) {
+    // The platform was downloaded, verified and unpacked for the entry: measure that program.
+    runContainmentCheck(vendor, measuredProgram)
+    return
+  }
   const body = await fetchBytes(artifact.url)
   const sha = createHash('sha256').update(body).digest('hex')
   if (sha !== artifact.sha256) {
@@ -226,25 +430,7 @@ async function measureContainment(
       writeFileSync(program, body)
       chmodSync(program, 0o755)
     }
-    const run = spawnSync(
-      'python3',
-      [
-        '-I',
-        new URL('./check-containment.py', import.meta.url).pathname,
-        '--vendor',
-        vendor,
-        '--program',
-        program,
-        '--',
-        ...CONTAINMENT_PROBES[vendor]!,
-      ],
-      { stdio: 'inherit' },
-    )
-    if (run.status !== 0) {
-      throw new Error(
-        `${vendor}: the tool writes outside the vault beyond the listed residuals; the version is not added`,
-      )
-    }
+    runContainmentCheck(vendor, program)
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
@@ -255,49 +441,92 @@ async function main() {
     options: {
       vendor: { type: 'string' },
       version: { type: 'string' },
+      platform: { type: 'string', multiple: true },
+      'measure-only': { type: 'boolean' },
       'skip-containment': { type: 'boolean' },
     },
   })
   const { vendor, version } = values
-  if (!vendor || !version || !['claude', 'codex'].includes(vendor)) {
-    console.error(
-      'usage: add-version.ts --vendor claude|codex --version <x.y.z> [--skip-containment]',
-    )
+  const measureOnly = values['measure-only'] === true
+  const usage =
+    'usage: add-version.ts --vendor claude|codex --version <x.y.z> [--skip-containment]\n' +
+    '       add-version.ts --vendor abacusai --version <x.y.z> --platform <key> [--platform <key> ...] [--measure-only] [--skip-containment]'
+  if (
+    !vendor ||
+    !version ||
+    !['claude', 'codex', 'abacusai'].includes(vendor) ||
+    (measureOnly && vendor !== 'abacusai')
+  ) {
+    console.error(usage)
+    process.exit(2)
+  }
+  let keys: CatalogPlatformKey[]
+  try {
+    keys = selectPlatforms(vendor, values.platform ?? [])
+  } catch (error) {
+    console.error(`${(error as Error).message}\n${usage}`)
     process.exit(2)
   }
   const catalog = JSON.parse(readFileSync(CATALOG, 'utf8')) as Catalog
   const definition = catalog.vendors.find((v) => v.vendor === vendor)
   if (!definition) throw new Error(`the catalog has no vendor ${vendor}`)
+  const executables = definition.executable as Record<string, string>
 
-  const entry =
-    vendor === 'claude'
-      ? claudeEntry(version, (await claudeManifest(version)) as never)
-      : await codexRelease(
-          version,
-          definition.executable as Record<PlatformKey, string>,
-        )
+  // Abacus is measured in an operator-only folder (mode 0700) that `--measure-only` keeps.
+  const folder =
+    vendor === 'abacusai'
+      ? mkdtempSync(join(tmpdir(), 'haex-abacus-'))
+      : undefined
+  let keep = false
+  try {
+    let unpacked: Partial<Record<CatalogPlatformKey, string>> | undefined
+    let entry
+    if (vendor === 'claude') {
+      entry = claudeEntry(version, (await claudeManifest(version)) as never)
+    } else if (vendor === 'codex') {
+      entry = await codexRelease(
+        version,
+        definition.executable as Record<PlatformKey, string>,
+      )
+    } else {
+      const release = await abacusRelease(version, keys, executables, folder!)
+      entry = release.entry
+      unpacked = release.programs
+    }
 
-  if (values['skip-containment']) {
-    console.warn(
-      `${vendor} ${version}: containment NOT measured (--skip-containment); measure it on Linux before this entry ships`,
-    )
-  } else {
-    await measureContainment(
-      vendor,
-      entry,
-      definition.executable as Record<string, string>,
-    )
+    // Checked before the slow containment run; `null` is the measure-only run.
+    const next = catalogToWrite(catalog, vendor, entry, measureOnly)
+    if (next === null) {
+      keep = true
+      console.log(JSON.stringify(entry, null, 2))
+      console.log(
+        `measure-only: the catalog is not written; the unpacked platforms are in ${folder}`,
+      )
+      console.log(
+        `containment by hand: python3 -I scripts/cli-tools/check-containment.py --vendor ${vendor} --program <program below> -- ${CONTAINMENT_PROBES[vendor]!.join(' ')}`,
+      )
+      for (const [key, program] of Object.entries(unpacked ?? {})) {
+        console.log(`  ${key}: ${program}`)
+      }
+      return
+    }
+
+    if (values['skip-containment']) {
+      console.warn(
+        `${vendor} ${version}: containment NOT measured (--skip-containment); measure it on Linux before this entry ships`,
+      )
+    } else {
+      await measureContainment(vendor, entry, executables, unpacked)
+    }
+
+    writeFileSync(CATALOG, `${JSON.stringify(next, null, 2)}\n`)
+    spawnSync('pnpm', ['exec', 'prettier', '--write', CATALOG.pathname], {
+      stdio: 'inherit',
+    })
+    console.log(`${vendor} ${version} added to the catalog`)
+  } finally {
+    if (folder && !keep) rmSync(folder, { recursive: true, force: true })
   }
-
-  const next = insertVersion(catalog, vendor, entry)
-  // Only the edited vendor: the other one may still be waiting for its first entry.
-  const problems = catalogProblems(next, vendor)
-  if (problems.length > 0) throw new Error(problems.join('\n'))
-  writeFileSync(CATALOG, `${JSON.stringify(next, null, 2)}\n`)
-  spawnSync('pnpm', ['exec', 'prettier', '--write', CATALOG.pathname], {
-    stdio: 'inherit',
-  })
-  console.log(`${vendor} ${version} added to the catalog`)
 }
 
 await main()

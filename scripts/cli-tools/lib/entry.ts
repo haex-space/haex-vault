@@ -10,6 +10,7 @@ export type PlatformKey =
   | 'win32-x64'
   | 'win32-arm64'
 
+/** The six keys Claude Code and Codex list; their entry builders produce exactly these. */
 export const PLATFORM_KEYS: readonly PlatformKey[] = [
   'linux-x64',
   'linux-arm64',
@@ -19,17 +20,22 @@ export const PLATFORM_KEYS: readonly PlatformKey[] = [
   'win32-arm64',
 ]
 
+/** A key a catalog entry may list: the six, and the x64 build without AVX2 (spec 096, D3). */
+export type CatalogPlatformKey = PlatformKey | 'linux-x64-baseline'
+
 export interface Artifact {
   url: string
   sha256: string
   size: number
-  kind: 'file' | 'tar.gz'
+  kind: 'file' | 'tar.gz' | 'zip'
   unpacked_size?: number
+  /** The program needs a CPU with AVX2; absent means false. */
+  requires_avx2?: boolean
 }
 
 export interface CatalogVersion {
   version: string
-  platforms: Partial<Record<PlatformKey, Artifact>>
+  platforms: Partial<Record<CatalogPlatformKey, Artifact>>
 }
 
 export interface VendorDefinition {
@@ -270,6 +276,238 @@ export function codexEntry(
   return { version, platforms }
 }
 
+// ---- Abacus AI: release archives with a Sigstore bundle ------------------------------------
+
+export const ABACUS_DOWNLOAD_BASE = 'https://static.abacus.ai/cli/releases'
+
+/** The keys the vendor builds and the app can offer (musl and `win32-x64-baseline` are not). */
+export const ABACUS_PLATFORM_KEYS: readonly CatalogPlatformKey[] = [
+  'linux-x64',
+  'linux-x64-baseline',
+  'linux-arm64',
+  'darwin-x64',
+  'darwin-arm64',
+  'win32-x64',
+  'win32-arm64',
+]
+
+/**
+ * The programs that need AVX2. The vendor's `-baseline` sibling of `darwin-x64` and `win32-x64`
+ * is not offered (spec 096, D3), and a `linux-x64` host without AVX2 would otherwise get a
+ * program for a CPU it does not have: it waits for the `linux-x64-baseline` entry.
+ */
+const ABACUS_REQUIRES_AVX2: readonly CatalogPlatformKey[] = [
+  'linux-x64',
+  'darwin-x64',
+  'win32-x64',
+]
+
+export const ABACUS_OIDC_ISSUER = 'https://token.actions.githubusercontent.com'
+
+const abacusKind = (key: CatalogPlatformKey): 'tar.gz' | 'zip' =>
+  key.startsWith('win32') ? 'zip' : 'tar.gz'
+
+export const abacusAssetName = (key: CatalogPlatformKey): string =>
+  `abacusai-${key}.${abacusKind(key)}`
+
+export const abacusAssetUrl = (
+  version: string,
+  key: CatalogPlatformKey,
+): string => `${ABACUS_DOWNLOAD_BASE}/${version}/${abacusAssetName(key)}`
+
+/** The Sigstore bundle that sits next to the program inside the archive. */
+export const abacusBundleName = (key: CatalogPlatformKey): string =>
+  `abacusai-${key}.sigstore`
+
+function assertSemver(version: string): void {
+  if (!SEMVER.test(version)) throw new Error(`not a semver version: ${version}`)
+}
+
+/** The signing identity of a release: its workflow at its own tag, nothing else. */
+export function abacusIdentity(version: string): string {
+  assertSemver(version)
+  return `https://github.com/abacusai/codellm/.github/workflows/release-cli-native.yml@refs/tags/cli-v${version}`
+}
+
+const escapeRegExp = (text: string): string =>
+  text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/** `abacusIdentity` as the anchored pattern `cosign verify-blob` takes. */
+export const abacusIdentityPattern = (version: string): string =>
+  `^${escapeRegExp(abacusIdentity(version))}$`
+
+export type SigstoreTool = 'sigstore' | 'cosign'
+
+/**
+ * The command that checks a bundle against the pinned identity and issuer. `sigstore` takes the
+ * program's SHA-256 (its `identity` check matches the identity exactly); `cosign verify-blob`
+ * takes the program file and hashes it itself, with the identity as a pattern.
+ */
+export function abacusVerifyCommand(
+  tool: SigstoreTool,
+  version: string,
+  bundle: string,
+  subject: { sha256: string; file: string },
+): string[] {
+  if (tool === 'sigstore') {
+    return [
+      'sigstore',
+      'verify',
+      'identity',
+      '--bundle',
+      bundle,
+      '--cert-identity',
+      abacusIdentity(version),
+      '--cert-oidc-issuer',
+      ABACUS_OIDC_ISSUER,
+      `sha256:${subject.sha256}`,
+    ]
+  }
+  return [
+    'cosign',
+    'verify-blob',
+    '--new-bundle-format',
+    '--bundle',
+    bundle,
+    '--certificate-identity-regexp',
+    abacusIdentityPattern(version),
+    '--certificate-oidc-issuer',
+    ABACUS_OIDC_ISSUER,
+    subject.file,
+  ]
+}
+
+/**
+ * The platform keys a run works on. Abacus needs at least one `--platform` and only those are
+ * processed; the other vendors list all six platforms and take no selector.
+ */
+export function selectPlatforms(
+  vendor: string,
+  requested: readonly string[],
+): CatalogPlatformKey[] {
+  if (vendor !== 'abacusai') {
+    if (requested.length > 0) {
+      throw new Error(`--platform is only for abacusai, not ${vendor}`)
+    }
+    return [...PLATFORM_KEYS]
+  }
+  if (requested.length === 0) {
+    throw new Error(
+      `abacusai needs at least one --platform of ${ABACUS_PLATFORM_KEYS.join(', ')}`,
+    )
+  }
+  const unknown = requested.filter(
+    (key) => !ABACUS_PLATFORM_KEYS.includes(key as CatalogPlatformKey),
+  )
+  if (unknown.length > 0) {
+    throw new Error(`no such abacusai platform: ${unknown.join(', ')}`)
+  }
+  return ABACUS_PLATFORM_KEYS.filter((key) => requested.includes(key))
+}
+
+/** One row of a zip's central directory: `mode` is its Unix mode, 0 when the zip has none. */
+export interface ZipListingEntry {
+  name: string
+  size: number
+  mode: number
+}
+
+/** What an archive listing says: the bytes of the regular files, every path, what is refused. */
+export interface ArchiveSummary {
+  unpackedSize: number
+  paths: string[]
+  unsafe: string[]
+}
+
+/** `summariseTarListing` for a zip: refuses links, devices and paths that escape. */
+export function summariseZipListing(
+  entries: ZipListingEntry[],
+): ArchiveSummary {
+  let unpackedSize = 0
+  const paths: string[] = []
+  const unsafe: string[] = []
+  for (const { name, size, mode } of entries) {
+    paths.push(name)
+    const type = mode & 0o170000
+    if (type === 0 || type === 0o100000) {
+      if (!name.endsWith('/')) unpackedSize += size
+    } else if (type !== 0o040000) {
+      unsafe.push(`mode ${mode.toString(8)} ${name}`)
+    }
+    if (
+      name.startsWith('/') ||
+      name.includes('\\') ||
+      /^[A-Za-z]:/.test(name) ||
+      name.split('/').includes('..')
+    ) {
+      unsafe.push(`path ${name}`)
+    }
+  }
+  return { unpackedSize, paths, unsafe }
+}
+
+export interface AbacusMeasured {
+  sha256: string
+  size: number
+  summary: ArchiveSummary
+  /** Whether the bundle verified against the program, and with which tool. */
+  signature: { verified: boolean; tool: string }
+}
+
+/**
+ * The catalog entry for an Abacus release, from the platforms that were downloaded, listed and
+ * signature-checked. Only the measured keys are in it.
+ */
+export function abacusEntry(
+  version: string,
+  measured: Partial<Record<CatalogPlatformKey, AbacusMeasured>>,
+  executables: Partial<Record<CatalogPlatformKey, string>>,
+): CatalogVersion {
+  assertSemver(version)
+  const platforms: CatalogVersion['platforms'] = {}
+  for (const key of ABACUS_PLATFORM_KEYS) {
+    const item = measured[key]
+    if (!item) continue
+    const asset = abacusAssetName(key)
+    if (!item.signature.verified) {
+      throw new Error(
+        `${asset}: the Sigstore bundle did not verify (a signature by a private repository's workflow shows who released the file, not what it contains)`,
+      )
+    }
+    if (!isSha256(item.sha256)) throw new Error(`${asset}: not a SHA-256`)
+    if (!Number.isSafeInteger(item.size) || item.size <= 0) {
+      throw new Error(`${asset}: the size is not a positive integer`)
+    }
+    if (item.summary.unsafe.length > 0) {
+      throw new Error(
+        `${asset}: the archive holds entries HaexVault refuses: ${item.summary.unsafe.slice(0, 3).join(', ')}`,
+      )
+    }
+    const paths = item.summary.paths.map((p) => p.replace(/^\.\//, ''))
+    const executable = executables[key]
+    if (!executable || !paths.includes(executable)) {
+      throw new Error(
+        `${asset}: the archive does not hold ${String(executable)}`,
+      )
+    }
+    if (!paths.includes(abacusBundleName(key))) {
+      throw new Error(`${asset}: the archive does not hold its Sigstore bundle`)
+    }
+    platforms[key] = {
+      url: abacusAssetUrl(version, key),
+      sha256: item.sha256,
+      size: item.size,
+      kind: abacusKind(key),
+      unpacked_size: item.summary.unpackedSize,
+      ...(ABACUS_REQUIRES_AVX2.includes(key) ? { requires_avx2: true } : {}),
+    }
+  }
+  if (Object.keys(platforms).length === 0) {
+    throw new Error('no platform was measured')
+  }
+  return { version, platforms }
+}
+
 // ---- catalog.json --------------------------------------------------------------------------
 
 /**
@@ -297,14 +535,30 @@ export function insertVersion(
   }
 }
 
+/**
+ * What a run does with its entry: the catalog to write, or `null` for `--measure-only`, which
+ * never changes the catalog (the entry is only reported). Throws on a catalog with problems.
+ */
+export function catalogToWrite(
+  catalog: Catalog,
+  vendorId: string,
+  entry: CatalogVersion,
+  measureOnly: boolean,
+): Catalog | null {
+  if (measureOnly) return null
+  const next = insertVersion(catalog, vendorId, entry)
+  // Only the edited vendor: the others may still be waiting for their first entry.
+  const problems = catalogProblems(next, vendorId)
+  if (problems.length > 0) throw new Error(problems.join('\n'))
+  return next
+}
+
 /** The problems of a catalog, in the terms of the Rust validation (`catalog.rs`). */
 export function catalogProblems(catalog: Catalog, only?: string): string[] {
   const problems: string[] = []
   for (const vendor of catalog.vendors) {
     if (only !== undefined && vendor.vendor !== only) continue
-    if (vendor.versions.length === 0) {
-      problems.push(`${vendor.vendor}: no version`)
-    }
+    // No version is fine: a vendor's definition ships before its first measured version.
     vendor.versions.forEach((entry, index) => {
       const previous = vendor.versions[index - 1]
       if (previous && compareSemver(previous.version, entry.version) <= 0) {
@@ -315,7 +569,7 @@ export function catalogProblems(catalog: Catalog, only?: string): string[] {
         if (!isSha256(artifact?.sha256)) problems.push(`${at}: sha256`)
         if (!artifact?.url.startsWith('https://')) problems.push(`${at}: url`)
         if (
-          artifact?.kind === 'tar.gz' &&
+          (artifact?.kind === 'tar.gz' || artifact?.kind === 'zip') &&
           artifact.unpacked_size === undefined
         ) {
           problems.push(`${at}: unpacked_size`)

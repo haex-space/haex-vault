@@ -256,7 +256,7 @@ test('the problems of a catalog are found', () => {
   )
 })
 
-test('the shipped catalog has no problems and lists each tool at least once', () => {
+test('the shipped catalog has no problems; Claude Code and Codex are listed, Abacus waits for its first measured version', () => {
   const shipped = JSON.parse(
     readFileSync(
       new URL('../src-tauri/src/cli_tools/catalog.json', import.meta.url),
@@ -266,6 +266,9 @@ test('the shipped catalog has no problems and lists each tool at least once', ()
   assert.deepEqual(catalogProblems(shipped), [])
   assert.deepEqual(
     shipped.vendors.map((v) => v.vendor),
-    ['claude', 'codex'],
+    ['claude', 'codex', 'abacusai'],
   )
+  for (const vendor of shipped.vendors.filter((v) => v.vendor !== 'abacusai')) {
+    assert.ok(vendor.versions.length > 0, vendor.vendor)
+  }
 })
