@@ -141,7 +141,12 @@ export function withPointerLinks(
         while (trimmed[length] === marker) length++
       }
       if (length >= 3) {
-        if (fence && fence.marker === marker && length >= fence.length) fence = null
+        if (
+          fence &&
+          fence.marker === marker &&
+          length >= fence.length &&
+          trimmed.slice(length).trim() === ''
+        ) fence = null
         else if (!fence) fence = { marker, length }
         return line
       }
