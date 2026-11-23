@@ -295,8 +295,8 @@ impl ProviderAdapter for CliDelegateAdapter {
                         })?;
                 codex_models::list_models(runtime, self.credentials.clone()).await
             }
-            // The adapter of spec 096 (T020) answers with the account's default model.
-            DelegateVendor::Abacus => Err(abacus::not_implemented()),
+            // The account's own default; the program picks the model (spec 096 plan D7).
+            DelegateVendor::Abacus => Ok(vec![abacus::default_model()]),
         }
     }
 
@@ -351,7 +351,10 @@ impl ProviderAdapter for CliDelegateAdapter {
                 )
                 .await
             }
-            DelegateVendor::Abacus => Err(abacus::not_implemented()),
+            DelegateVendor::Abacus => {
+                // The credential is read at the start from the password manager: the row has none.
+                abacus::spawn_abacus_invocation(runtime, req, context, model).await
+            }
         }
     }
 

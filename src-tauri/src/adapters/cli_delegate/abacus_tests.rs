@@ -1,1 +1,770 @@
-//! The Abacus delegate adapter against a stub program (spec 096, T016).
+//! The Abacus delegate adapter against a shell stub that speaks the JSON-lines protocol of
+//! `data-model.md` §4 (spec 096, T016). No real Abacus account is used: the stub stands in for the
+//! program, the credential is a placeholder entry of a test vault.
+#![cfg(unix)]
+
+use std::fs;
+use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+
+use serde_json::{json, Value};
+use tempfile::TempDir;
+
+use super::{
+    approval_answer, build_command, chosen_model, default_model, fatal_reason, parse_line,
+    startup_error, user_line, Line, CREDENTIAL_REFUSED, NOT_CONNECTED,
+};
+use crate::adapters::cli_delegate::autonomy::AutonomyMode;
+use crate::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
+use crate::adapters::types::{ChatMessage, ChatRequest, ChatRole, StreamChunk, StreamError};
+use crate::adapters::{AdapterError, ProviderAdapter};
+use crate::chat::tools::ApprovalDecision;
+use crate::cli_tools::runtime::DelegateRuntime;
+use crate::instances::vault_paths::VaultPaths;
+use crate::passwords::test_support::open_test_vault;
+use crate::providers::delegate_credential::{self, KIND_DEVICE_CODE, VAULT_SCOPE};
+use crate::vault_gate::{VaultDb, VaultGate};
+
+const CODE: &str = "placeholder-device-code-of-abacus-tests";
+
+// ---- the pure parts ----
+
+#[test]
+fn text_events_become_text_and_unknown_events_are_ignored() {
+    let line = r#"{"type":"event","event":{"type":"text_delta","content":"Hel"},"session_id":null,"uuid":"u"}"#;
+    assert_eq!(parse_line(line), Line::Text("Hel".into()));
+    for other in [
+        r#"{"type":"event","event":{"type":"credits","creditsUsed":1}}"#,
+        r#"{"type":"event","event":{"type":"conversation_info","title":"x"}}"#,
+        r#"{"type":"system","subtype":"skills_loaded"}"#,
+        r#"{"type":"brand_new_message_type"}"#,
+        "not json at all",
+        "",
+    ] {
+        assert_eq!(parse_line(other), Line::Other, "{other}");
+    }
+    // A sub-task's text is not the answer.
+    let nested = r#"{"type":"event","event":{"type":"text_delta","content":"x","subtaskId":"s1"}}"#;
+    assert_eq!(parse_line(nested), Line::Other);
+}
+
+#[test]
+fn the_init_message_reports_the_mode() {
+    let line =
+        r#"{"type":"system","subtype":"init","permission_mode":"supervise","protocol_version":1}"#;
+    assert_eq!(
+        parse_line(line),
+        Line::Init {
+            permission_mode: Some("supervise".into())
+        }
+    );
+}
+
+#[test]
+fn a_tool_request_carries_its_id_name_and_input() {
+    let line = r#"{"type":"control_request","request_id":"perm-1","request":{"subtype":"can_use_tool","tool_call_id":"t1","request":{"tool_name":"Bash","tool_input":{"command":"ls"}}}}"#;
+    assert_eq!(
+        parse_line(line),
+        Line::Approval {
+            request_id: "perm-1".into(),
+            tool_name: "Bash".into(),
+            input: json!({"command": "ls"}),
+        }
+    );
+}
+
+#[test]
+fn a_tool_request_with_unknown_fields_still_asks_and_never_allows_on_its_own() {
+    let line = r#"{"type":"control_request","request_id":"perm-2","request":{"subtype":"can_use_tool","tool_call_id":"t2","request":{"something":"else"}}}"#;
+    match parse_line(line) {
+        Line::Approval {
+            request_id,
+            tool_name,
+            input,
+        } => {
+            assert_eq!(request_id, "perm-2");
+            assert_eq!(tool_name, "Abacus tool");
+            assert_eq!(input, json!({"something": "else"}));
+        }
+        other => panic!("{other:?}"),
+    }
+    // Not even an object: still a request, with the raw value.
+    let bare = r#"{"type":"control_request","request_id":"perm-3","request":{"subtype":"can_use_tool","request":"text"}}"#;
+    assert!(matches!(parse_line(bare), Line::Approval { .. }));
+}
+
+#[test]
+fn other_control_requests_are_told_apart_and_one_without_an_id_is_ignored() {
+    let line =
+        r#"{"type":"control_request","request_id":"x","request":{"subtype":"something_new"}}"#;
+    assert_eq!(
+        parse_line(line),
+        Line::UnknownRequest {
+            request_id: "x".into()
+        }
+    );
+    let no_id = r#"{"type":"control_request","request":{"subtype":"can_use_tool"}}"#;
+    assert_eq!(parse_line(no_id), Line::Other);
+}
+
+#[test]
+fn a_successful_result_has_its_text_and_token_counts() {
+    let line = r#"{"type":"result","subtype":"success","is_error":false,"result":"Hello","token_usage":{"inputTokens":12,"outputTokens":34,"totalTokens":46},"errors":[]}"#;
+    assert_eq!(
+        parse_line(line),
+        Line::Result {
+            success: true,
+            text: "Hello".into(),
+            message: "Hello".into(),
+            prompt_tokens: Some(12),
+            completion_tokens: Some(34),
+        }
+    );
+}
+
+#[test]
+fn a_failed_result_carries_the_first_error() {
+    let line = r#"{"type":"result","subtype":"error_during_execution","is_error":true,"result":"x","errors":["the model refused","other"]}"#;
+    match parse_line(line) {
+        Line::Result {
+            success, message, ..
+        } => {
+            assert!(!success);
+            assert_eq!(message, "the model refused");
+        }
+        other => panic!("{other:?}"),
+    }
+    // An error subtype is never a success, whatever `is_error` says.
+    let odd = r#"{"type":"result","subtype":"prompt_blocked","is_error":false,"result":"blocked"}"#;
+    assert!(matches!(
+        parse_line(odd),
+        Line::Result { success: false, .. }
+    ));
+}
+
+#[test]
+fn the_answers_to_a_request_are_accept_or_reject_and_nothing_persistent() {
+    let accepted = approval_answer("perm-1", true);
+    assert_eq!(accepted["type"], "control_response");
+    assert_eq!(accepted["response"]["subtype"], "success");
+    assert_eq!(accepted["response"]["request_id"], "perm-1");
+    assert_eq!(accepted["response"]["response"]["decision"], "accept");
+    let rejected = approval_answer("perm-1", false);
+    assert_eq!(rejected["response"]["response"]["decision"], "reject");
+    for answer in [accepted, rejected] {
+        let text = answer.to_string();
+        for persistent in [
+            "allowAlways",
+            "allowYolo",
+            "allow_always_with_rules",
+            "question_answers",
+        ] {
+            assert!(!text.contains(persistent), "{text}");
+        }
+    }
+}
+
+#[test]
+fn the_user_line_has_the_documented_shape() {
+    assert_eq!(
+        user_line("hi"),
+        json!({"type": "user", "message": {"role": "user", "content": "hi"}})
+    );
+}
+
+#[test]
+fn a_fatal_reason_is_read_from_the_last_line_of_stderr() {
+    let stderr = "some diagnostics\n{\"type\":\"fatal\",\"reason\":\"not_authenticated\"}\n";
+    assert_eq!(fatal_reason(stderr).as_deref(), Some("not_authenticated"));
+    assert_eq!(fatal_reason("nothing structured"), None);
+}
+
+#[test]
+fn a_program_that_ends_at_once_is_classified_from_its_fatal_reason() {
+    let fatal = |reason: &str| format!("{{\"type\":\"fatal\",\"reason\":\"{reason}\"}}\n");
+    for reason in ["not_authenticated", "access_denied"] {
+        match startup_error(fatal(reason).as_bytes()) {
+            AdapterError::Unavailable { reason } => assert_eq!(reason, CREDENTIAL_REFUSED),
+            other => panic!("{other:?}"),
+        }
+    }
+    match startup_error(fatal("network_unreachable").as_bytes()) {
+        AdapterError::Http { reason } => assert!(reason.contains("cannot be reached"), "{reason}"),
+        other => panic!("{other:?}"),
+    }
+    match startup_error(fatal("no_models").as_bytes()) {
+        AdapterError::Http { reason } => assert_eq!(reason, "abacusai: no_models"),
+        other => panic!("{other:?}"),
+    }
+    // Text of the program that is not a plain reason is never repeated.
+    match startup_error(b"{\"type\":\"fatal\",\"reason\":\"/home/someone/secret path\"}\n") {
+        AdapterError::Http { reason } => assert!(!reason.contains("someone"), "{reason}"),
+        other => panic!("{other:?}"),
+    }
+    assert!(matches!(startup_error(b""), AdapterError::Http { .. }));
+}
+
+#[test]
+fn the_default_model_is_the_account_default() {
+    let model = default_model();
+    assert_eq!(model.remote_id, "abacusai");
+    assert_eq!(chosen_model("abacusai"), None);
+    assert_eq!(chosen_model(""), None);
+    assert_eq!(chosen_model("  "), None);
+    assert_eq!(chosen_model("some-model"), Some("some-model"));
+}
+
+// ---- the program as a stub ----
+
+struct Fixture {
+    dir: TempDir,
+    db: VaultDb,
+    _vault_dir: TempDir,
+}
+
+impl Fixture {
+    async fn new() -> Self {
+        let (vault_dir, database) = open_test_vault();
+        let db = VaultGate::new().vault_db(Arc::new(database)).unwrap();
+        delegate_credential::save(&db, "abacusai", KIND_DEVICE_CODE, CODE, VAULT_SCOPE)
+            .await
+            .unwrap();
+        Self {
+            dir: TempDir::new().unwrap(),
+            db,
+            _vault_dir: vault_dir,
+        }
+    }
+
+    fn path(&self, name: &str) -> PathBuf {
+        self.dir.path().join(name)
+    }
+
+    /// A stub program with the body `body`; it writes its arguments to `args`, its environment to
+    /// `env` and the first line of its input to `input` of this fixture's folder first.
+    fn stub(&self, body: &str) -> PathBuf {
+        let script = format!(
+            "#!/bin/sh\necho \"$@\" > '{args}'\nenv > '{env}'\nIFS= read -r first\nprintf '%s\\n' \"$first\" > '{input}'\n{body}\n",
+            args = self.path("args").display(),
+            env = self.path("env").display(),
+            input = self.path("input").display(),
+        );
+        let path = self.path("abacusai");
+        fs::write(&path, script).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+        path
+    }
+
+    fn adapter(&self, program: &Path, context: DelegateChatContext) -> CliDelegateAdapter {
+        CliDelegateAdapter::new(
+            DelegateVendor::Abacus,
+            Vec::new(),
+            DelegateRuntime::for_stub("abacusai", program, self.dir.path()),
+            Some(context),
+        )
+    }
+
+    fn context(&self) -> DelegateChatContext {
+        DelegateChatContext {
+            pending_tool_approvals: Default::default(),
+            emit: Arc::new(|_event: &str, _payload: Value| {}),
+            database: Some(self.db.clone()),
+            children: Default::default(),
+            haex: None,
+            deny_rules: Vec::new(),
+            tools: None,
+        }
+    }
+
+    /// A context whose approval question is answered at once with `decision`; the requests that
+    /// reached the bridge are recorded.
+    fn answering(
+        &self,
+        decision: ApprovalDecision,
+        seen: Arc<Mutex<Vec<Value>>>,
+    ) -> DelegateChatContext {
+        let context = self.context();
+        let pending = context.pending_tool_approvals.clone();
+        DelegateChatContext {
+            emit: Arc::new(move |event: &str, payload: Value| {
+                if event != "tool-permission-request" {
+                    return;
+                }
+                let id = payload["requestId"].as_str().unwrap().parse().unwrap();
+                seen.lock().unwrap().push(payload);
+                let sender = pending
+                    .lock()
+                    .unwrap()
+                    .remove(&id)
+                    .expect("a pending request");
+                let _ = sender.send(decision);
+            }),
+            ..context
+        }
+    }
+
+    fn read(&self, name: &str) -> String {
+        fs::read_to_string(self.path(name)).unwrap_or_default()
+    }
+
+    fn run_root(&self) -> PathBuf {
+        VaultPaths::new(self.dir.path()).run_root("stub")
+    }
+}
+
+fn request(model_id: &str) -> ChatRequest {
+    ChatRequest {
+        sampling: Default::default(),
+        model_id: model_id.to_string(),
+        thread_id: None,
+        system_prompt: None,
+        messages: vec![ChatMessage {
+            role: ChatRole::User,
+            content: "say hi".to_string(),
+            attachments: Vec::new(),
+        }],
+        reasoning_requested: false,
+        max_new_tokens: None,
+        tools: Vec::new(),
+        autonomy_mode: Default::default(),
+        autonomy_deny: Default::default(),
+        reasoning_option: Default::default(),
+        capabilities: Default::default(),
+    }
+}
+
+/// The text of a stream and how it ended.
+async fn collect(
+    mut stream: crate::adapters::AdapterStream,
+) -> (String, Option<StreamChunk>, Option<StreamError>) {
+    let mut text = String::new();
+    while let Some(next) = stream.next().await {
+        match next {
+            Ok(StreamChunk::Delta { content, .. }) => text.push_str(&content),
+            Ok(done @ StreamChunk::Done { .. }) => return (text, Some(done), None),
+            Ok(StreamChunk::ToolCalls(_)) => panic!("a delegate never emits ToolCalls"),
+            Ok(StreamChunk::AgentActivity { .. }) => {}
+            Err(error) => return (text, None, Some(error)),
+        }
+    }
+    (text, None, None)
+}
+
+const INIT: &str =
+    r#"{"type":"system","subtype":"init","permission_mode":"supervise","protocol_version":1}"#;
+const HELLO: &str = r#"{"type":"event","event":{"type":"text_delta","content":"Hel"}}
+{"type":"event","event":{"type":"text_delta","content":"lo"}}"#;
+const OK_RESULT: &str = r#"{"type":"result","subtype":"success","is_error":false,"result":"Hello","token_usage":{"inputTokens":3,"outputTokens":2},"errors":[]}"#;
+
+fn happy_body() -> String {
+    format!("cat <<'EOF'\n{INIT}\n{HELLO}\n{OK_RESULT}\nEOF")
+}
+
+#[tokio::test]
+async fn the_command_line_is_the_contract_and_the_child_has_the_device_code_and_no_key() {
+    let fixture = Fixture::new().await;
+    let program = fixture.stub(&happy_body());
+    let adapter = fixture.adapter(&program, fixture.context());
+
+    let stream = adapter.stream_chat(request("abacusai")).await.unwrap();
+    collect(stream).await;
+
+    assert_eq!(
+        fixture.read("args").trim(),
+        "-p --input-format stream-json --output-format stream-json --include-partial-messages \
+         --permission-mode supervise --no-agents-md"
+    );
+    let env = fixture.read("env");
+    assert!(
+        env.contains(&format!("CODELLM_DEVICE_CODE={CODE}")),
+        "the device code is set"
+    );
+    assert!(!env.contains("ABACUS_API_KEY"), "an API key is never set");
+    assert!(env.contains("ABACUS_AUTO_UPDATE=off"));
+}
+
+#[tokio::test]
+async fn a_chosen_model_is_passed_on_and_the_account_default_is_not() {
+    let fixture = Fixture::new().await;
+    let program = fixture.stub(&happy_body());
+    let adapter = fixture.adapter(&program, fixture.context());
+
+    collect(adapter.stream_chat(request("some-model")).await.unwrap()).await;
+
+    assert!(fixture.read("args").contains("--model some-model"));
+}
+
+#[tokio::test]
+async fn the_user_line_is_written_and_text_and_the_result_become_the_chat_stream() {
+    let fixture = Fixture::new().await;
+    let program = fixture.stub(&happy_body());
+    let adapter = fixture.adapter(&program, fixture.context());
+
+    let (text, done, error) =
+        collect(adapter.stream_chat(request("abacusai")).await.unwrap()).await;
+
+    let sent: Value = serde_json::from_str(fixture.read("input").trim()).unwrap();
+    assert_eq!(sent["type"], "user");
+    assert!(sent["message"]["content"]
+        .as_str()
+        .unwrap()
+        .contains("say hi"));
+    assert_eq!(text, "Hello");
+    assert!(error.is_none(), "{error:?}");
+    match done {
+        Some(StreamChunk::Done {
+            prompt_tokens,
+            completion_tokens,
+            finish_reason,
+            ..
+        }) => {
+            assert_eq!(prompt_tokens, Some(3));
+            assert_eq!(completion_tokens, Some(2));
+            assert_eq!(finish_reason.as_deref(), Some("complete"));
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn a_turn_answered_without_partial_events_still_has_its_text() {
+    let fixture = Fixture::new().await;
+    let program = fixture.stub(&format!("cat <<'EOF'\n{INIT}\n{OK_RESULT}\nEOF"));
+    let adapter = fixture.adapter(&program, fixture.context());
+
+    let (text, done, _) = collect(adapter.stream_chat(request("abacusai")).await.unwrap()).await;
+
+    assert_eq!(text, "Hello");
+    assert!(done.is_some());
+}
+
+#[tokio::test]
+async fn unknown_message_types_and_garbage_are_ignored() {
+    let fixture = Fixture::new().await;
+    let program = fixture.stub(&format!(
+        "cat <<'EOF'\n{INIT}\n{{\"type\":\"never_seen_before\"}}\nnot json\n{HELLO}\n{OK_RESULT}\nEOF"
+    ));
+    let adapter = fixture.adapter(&program, fixture.context());
+
+    let (text, done, error) =
+        collect(adapter.stream_chat(request("abacusai")).await.unwrap()).await;
+
+    assert_eq!(text, "Hello");
+    assert!(done.is_some() && error.is_none());
+}
+
+#[tokio::test]
+async fn an_errored_result_ends_the_stream_with_the_model_error() {
+    let fixture = Fixture::new().await;
+    let program = fixture.stub(&format!(
+        "cat <<'EOF'\n{INIT}\n{{\"type\":\"result\",\"subtype\":\"error_during_execution\",\"is_error\":true,\"result\":\"x\",\"errors\":[\"out of credits\"]}}\nEOF"
+    ));
+    let adapter = fixture.adapter(&program, fixture.context());
+
+    let (_, done, error) = collect(adapter.stream_chat(request("abacusai")).await.unwrap()).await;
+
+    assert!(done.is_none());
+    assert!(matches!(error, Some(StreamError::Model(message)) if message == "out of credits"));
+}
+
+#[tokio::test]
+async fn a_refused_credential_ends_as_invalid_credentials_and_nothing_is_retried() {
+    let fixture = Fixture::new().await;
+    let program =
+        fixture.stub("echo '{\"type\":\"fatal\",\"reason\":\"not_authenticated\"}' >&2\nexit 1");
+    let adapter = fixture.adapter(&program, fixture.context());
+
+    let error = adapter
+        .stream_chat(request("abacusai"))
+        .await
+        .err()
+        .unwrap();
+
+    assert!(
+        matches!(&error, AdapterError::Unavailable { reason } if reason == CREDENTIAL_REFUSED),
+        "{error:?}"
+    );
+    assert!(!error.is_transient());
+}
+
+#[tokio::test]
+async fn an_unreachable_service_ends_as_a_network_failure() {
+    let fixture = Fixture::new().await;
+    let program =
+        fixture.stub("echo '{\"type\":\"fatal\",\"reason\":\"network_unreachable\"}' >&2\nexit 1");
+    let adapter = fixture.adapter(&program, fixture.context());
+
+    let error = adapter
+        .stream_chat(request("abacusai"))
+        .await
+        .err()
+        .unwrap();
+
+    assert!(
+        matches!(&error, AdapterError::Http { reason } if reason.contains("cannot be reached")),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn without_a_credential_the_request_ends_as_not_connected_and_nothing_starts() {
+    let fixture = Fixture::new().await;
+    delegate_credential::delete(&fixture.db, "abacusai")
+        .await
+        .unwrap();
+    let program = fixture.stub(&happy_body());
+    let adapter = fixture.adapter(&program, fixture.context());
+
+    let error = adapter
+        .stream_chat(request("abacusai"))
+        .await
+        .err()
+        .unwrap();
+
+    assert!(
+        matches!(&error, AdapterError::Unavailable { reason } if reason == NOT_CONNECTED),
+        "{error:?}"
+    );
+    assert!(
+        !fixture.path("args").exists(),
+        "the program was not started"
+    );
+    assert!(
+        !fixture.run_root().exists() || fs::read_dir(fixture.run_root()).unwrap().next().is_none()
+    );
+}
+
+#[tokio::test]
+async fn a_context_without_the_vault_cannot_read_a_credential_and_starts_nothing() {
+    let fixture = Fixture::new().await;
+    let program = fixture.stub(&happy_body());
+    let context = DelegateChatContext {
+        database: None,
+        ..fixture.context()
+    };
+    let adapter = fixture.adapter(&program, context);
+
+    let error = adapter
+        .stream_chat(request("abacusai"))
+        .await
+        .err()
+        .unwrap();
+
+    assert!(matches!(&error, AdapterError::Unavailable { reason } if reason == NOT_CONNECTED));
+    assert!(!fixture.path("args").exists());
+}
+
+#[tokio::test]
+async fn the_run_folder_is_removed_when_the_run_ends() {
+    let fixture = Fixture::new().await;
+    let program = fixture.stub(&happy_body());
+    let adapter = fixture.adapter(&program, fixture.context());
+
+    collect(adapter.stream_chat(request("abacusai")).await.unwrap()).await;
+
+    // The folder goes with the spawned task, a moment after the last frame.
+    for _ in 0..50 {
+        let left = fs::read_dir(fixture.run_root()).map_or(0, Iterator::count);
+        if left == 0 {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    panic!("the run folder is still there");
+}
+
+#[tokio::test]
+async fn the_two_autonomy_modes_are_not_served_and_nothing_starts() {
+    let fixture = Fixture::new().await;
+    let program = fixture.stub(&happy_body());
+    let adapter = fixture.adapter(&program, fixture.context());
+    for mode in [AutonomyMode::Ungated, AutonomyMode::GatedPermissive] {
+        let mut asked = request("abacusai");
+        asked.autonomy_mode = mode;
+
+        let error = adapter.stream_chat(asked).await.err().unwrap();
+
+        match error {
+            AdapterError::Unavailable { reason } => {
+                assert!(
+                    reason.starts_with("autonomy mode unavailable: vendor=abacusai"),
+                    "{reason}"
+                );
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+    assert!(!fixture.path("args").exists());
+}
+
+#[tokio::test]
+async fn an_init_in_another_mode_ends_the_run() {
+    let fixture = Fixture::new().await;
+    let program = fixture.stub(
+        "cat <<'EOF'\n{\"type\":\"system\",\"subtype\":\"init\",\"permission_mode\":\"unsupervised\"}\nEOF\nsleep 5",
+    );
+    let adapter = fixture.adapter(&program, fixture.context());
+
+    let (text, done, error) =
+        collect(adapter.stream_chat(request("abacusai")).await.unwrap()).await;
+
+    assert!(text.is_empty() && done.is_none());
+    assert!(matches!(error, Some(StreamError::Internal(_))), "{error:?}");
+}
+
+/// A stub that asks to run a tool, waits for the answer and writes the answer's line to `answer`.
+fn approval_body(answer: &Path, tool: &str) -> String {
+    format!(
+        "cat <<'EOF'\n{INIT}\n{{\"type\":\"control_request\",\"request_id\":\"perm-1\",\"request\":{{\"subtype\":\"can_use_tool\",\"tool_call_id\":\"t1\",\"request\":{{\"tool_name\":\"{tool}\",\"tool_input\":{{\"command\":\"ls\"}}}}}}}}\nEOF\nIFS= read -r reply\nprintf '%s\\n' \"$reply\" > '{answer}'\ncat <<'EOF'\n{OK_RESULT}\nEOF",
+        answer = answer.display(),
+    )
+}
+
+#[tokio::test]
+async fn a_tool_request_is_forwarded_to_the_approval_bridge_and_accepted_or_rejected() {
+    for (decision, expected) in [
+        (ApprovalDecision::Allow, "accept"),
+        (ApprovalDecision::Deny, "reject"),
+    ] {
+        let fixture = Fixture::new().await;
+        let answer = fixture.path("answer");
+        let program = fixture.stub(&approval_body(&answer, "Bash"));
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let adapter = fixture.adapter(&program, fixture.answering(decision, seen.clone()));
+
+        let (_, done, error) =
+            collect(adapter.stream_chat(request("abacusai")).await.unwrap()).await;
+
+        assert!(
+            done.is_some() && error.is_none(),
+            "the stream continues after the answer"
+        );
+        let reply: Value = serde_json::from_str(fixture.read("answer").trim()).unwrap();
+        assert_eq!(reply["response"]["request_id"], "perm-1");
+        assert_eq!(reply["response"]["response"]["decision"], expected);
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen.len(), 1, "the bridge was asked once");
+        assert_eq!(seen[0]["toolName"], "Bash");
+    }
+}
+
+#[tokio::test]
+async fn a_control_request_the_adapter_does_not_answer_gets_an_error_response() {
+    let fixture = Fixture::new().await;
+    let answer = fixture.path("answer");
+    let program = fixture.stub(&format!(
+        "cat <<'EOF'\n{INIT}\n{{\"type\":\"control_request\",\"request_id\":\"q-1\",\"request\":{{\"subtype\":\"something_new\"}}}}\nEOF\nIFS= read -r reply\nprintf '%s\\n' \"$reply\" > '{answer}'\ncat <<'EOF'\n{OK_RESULT}\nEOF",
+        answer = answer.display(),
+    ));
+    let adapter = fixture.adapter(&program, fixture.context());
+
+    let (_, done, _) = collect(adapter.stream_chat(request("abacusai")).await.unwrap()).await;
+
+    assert!(done.is_some());
+    let reply: Value = serde_json::from_str(fixture.read("answer").trim()).unwrap();
+    assert_eq!(reply["response"]["subtype"], "error");
+    assert_eq!(reply["response"]["request_id"], "q-1");
+}
+
+#[tokio::test]
+async fn a_disconnect_during_a_response_does_not_disturb_it_and_the_next_request_is_refused() {
+    let fixture = Fixture::new().await;
+    // The program holds its own copy of the device code (in its environment), so deleting the entry
+    // while it answers changes nothing for this response.
+    let program = fixture.stub(&format!(
+        "cat <<'EOF'\n{INIT}\nEOF\nsleep 1\ncat <<'EOF'\n{HELLO}\n{OK_RESULT}\nEOF"
+    ));
+    let adapter = fixture.adapter(&program, fixture.context());
+    let stream = adapter.stream_chat(request("abacusai")).await.unwrap();
+
+    delegate_credential::delete(&fixture.db, "abacusai")
+        .await
+        .unwrap();
+    let (text, done, error) = collect(stream).await;
+
+    assert_eq!(text, "Hello");
+    assert!(done.is_some() && error.is_none(), "{error:?}");
+    let next = adapter
+        .stream_chat(request("abacusai"))
+        .await
+        .err()
+        .unwrap();
+    assert!(
+        matches!(&next, AdapterError::Unavailable { reason } if reason == NOT_CONNECTED),
+        "{next:?}"
+    );
+}
+
+#[tokio::test]
+async fn no_file_of_the_vault_folder_holds_the_device_code_after_a_run() {
+    let fixture = Fixture::new().await;
+    // A program that does not record its own environment, as the stubs above do.
+    let path = fixture.path("abacusai");
+    fs::write(
+        &path,
+        format!("#!/bin/sh\nIFS= read -r first\ncat <<'EOF'\n{INIT}\n{HELLO}\n{OK_RESULT}\nEOF\n"),
+    )
+    .unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+    let adapter = fixture.adapter(&path, fixture.context());
+
+    collect(adapter.stream_chat(request("abacusai")).await.unwrap()).await;
+    // The run folder goes with the task, a moment after the last frame.
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+    fn files(dir: &Path, found: &mut Vec<PathBuf>) {
+        for entry in fs::read_dir(dir).into_iter().flatten().flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                files(&path, found);
+            } else {
+                found.push(path);
+            }
+        }
+    }
+    let mut found = Vec::new();
+    files(fixture.dir.path(), &mut found);
+    for file in found {
+        let bytes = fs::read(&file).unwrap_or_default();
+        assert!(
+            !bytes
+                .windows(CODE.len())
+                .any(|window| window == CODE.as_bytes()),
+            "{} holds the device code",
+            file.display()
+        );
+    }
+}
+
+#[test]
+fn the_command_names_the_vaults_program_and_never_a_host_lookup() {
+    let dir = TempDir::new().unwrap();
+    let runtime =
+        DelegateRuntime::for_stub("abacusai", dir.path().join("vault-abacusai"), dir.path());
+    let run = runtime.run_folder().unwrap();
+
+    let command = build_command(&runtime, "abacusai", None, &run);
+
+    assert_eq!(
+        command.as_std().get_program(),
+        dir.path().join("vault-abacusai").as_os_str()
+    );
+    let env: Vec<_> = command
+        .as_std()
+        .get_envs()
+        .map(|(name, _)| name.to_string_lossy().into_owned())
+        .collect();
+    assert!(!env.iter().any(|name| name == "ABACUS_API_KEY"));
+    assert!(
+        !env.iter().any(|name| name == "CODELLM_DEVICE_CODE"),
+        "set after containment, not here"
+    );
+}
+
+#[test]
+fn a_provider_model_list_is_the_one_default_entry() {
+    let models = [default_model()];
+    assert_eq!(models.len(), 1);
+    assert_eq!(models[0].display_name, "Abacus AI");
+}
