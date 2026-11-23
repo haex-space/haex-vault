@@ -400,6 +400,22 @@ pub async fn cancel_cli_delegate_connect(
     Ok(())
 }
 
+/// The delegate vendors that are not offered under the approving posture because it is not yet
+/// shown that every tool of theirs asks first (spec 096 plan D6, FR-010). The model picker and the
+/// settings page say why.
+#[tauri::command]
+pub fn cli_delegate_unverified_approvals() -> Vec<String> {
+    unverified_vendors(crate::adapters::cli_delegate::abacus_approvals_verified())
+}
+
+pub(super) fn unverified_vendors(abacus_verified: bool) -> Vec<String> {
+    if abacus_verified {
+        Vec::new()
+    } else {
+        vec![DelegateVendor::Abacus.as_str().to_owned()]
+    }
+}
+
 /// Appends a connect event to the record of the open vault (spec 094 FR-019). Best effort: a
 /// vault that is gone or a record that cannot be written changes nothing.
 fn record_connect(app: &AppHandle, event: &'static str, vendor: &'static str) {

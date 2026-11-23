@@ -47,6 +47,12 @@ const PERMISSION_MODE: &str = "supervise";
 /// tools both reach the approval bridge.
 pub(super) const READ_ONLY_TOOLS_REACH_APPROVAL_BRIDGE: bool = false;
 
+/// Whether the gate lets requests through; the model picker and Settings ask the backend for it
+/// (`cli_delegate_unverified_approvals`), so the flag has one home.
+pub fn approvals_verified() -> bool {
+    READ_ONLY_TOOLS_REACH_APPROVAL_BRIDGE
+}
+
 /// How long the program may take to write its first line (or to end) after it started.
 const STARTUP_PROBE_TIMEOUT: Duration = Duration::from_secs(60);
 

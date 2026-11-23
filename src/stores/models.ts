@@ -90,6 +90,8 @@ export const useModelsStore = defineStore('models', () => {
         tools.map((tool) => [tool.vendor, usable(tool)]),
       )
     },
+    approvalsUnverified: () =>
+      invoke<string[]>('cli_delegate_unverified_approvals'),
   })
 
   const downloadingId = ref<string | null>(null)

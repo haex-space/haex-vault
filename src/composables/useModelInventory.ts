@@ -29,9 +29,6 @@ export type Translate = (key: string, named?: Record<string, unknown>) => string
  * (spec.md FR-004, Acceptance Scenario 2).
  */
 const DELEGATE_VENDORS = ['claude', 'codex', 'abacusai'] as const
-// Spec 096 T034: the backend release gate stays closed until T035 records measured approval
-// coverage for both read-only and changing tools.
-const ABACUS_APPROVALS_UNVERIFIED = true
 
 export interface ModelInventoryDeps {
   models: ReturnType<typeof useModels>
@@ -50,6 +47,12 @@ export interface ModelInventoryDeps {
    * Without it, or when it fails, nothing is known and no delegate is marked as missing its tool.
    */
   cliToolInstalled?: () => Promise<Record<string, boolean>>
+  /**
+   * The delegate vendors that are not offered because it is not yet shown that every tool of
+   * theirs asks before it acts (spec 096 plan D6, FR-010). Without it, or when it fails, none is
+   * held back here (the request itself is refused all the same).
+   */
+  approvalsUnverified?: () => Promise<string[]>
 }
 
 /**
@@ -70,6 +73,8 @@ export function useModelInventory(deps: ModelInventoryDeps) {
   const toolInstalled = ref<Record<string, boolean> | null>(null)
   const toolMissing = (vendor: string) =>
     toolInstalled.value !== null && toolInstalled.value[vendor] === false
+  /** The delegate vendors held back until their approvals are verified (spec 096 D6). */
+  const unverifiedVendors = ref<string[]>([])
 
   // A connected `cli_delegate` provider's one cached model
   // (`refreshProviders` below) already lands in `providerModels`, the
@@ -84,6 +89,10 @@ export function useModelInventory(deps: ModelInventoryDeps) {
         list.every((m) => kindOf(m.capabilities) !== 'text'),
       ),
   )
+
+  const isHeldBack = (p: Provider) =>
+    p.kind === 'cli_delegate' &&
+    unverifiedVendors.value.includes(p.adapter ?? '')
 
   /** Groups selectable models by provider for the picker's <optgroup>. */
   const modelGroups = computed<ModelGroup[]>(() => {
@@ -128,17 +137,17 @@ export function useModelInventory(deps: ModelInventoryDeps) {
         // (spec 012 FR-024); the provider's settings page lists it.
         models: (providerModels.value[p.id] ?? [])
           .filter((m) => kindOf(m.capabilities) === 'text')
-          .map((m) => {
-            const approvalsUnverified =
-              p.adapter === 'abacusai' && ABACUS_APPROVALS_UNVERIFIED
-            return {
-              id: m.id,
-              name: approvalsUnverified
-                ? `${m.name} — ${t('errors.delegate.approvals_unverified', { name: p.name })}`
-                : m.name,
-              disabled: approvalsUnverified,
-            }
-          }),
+          .map((m) => ({
+            id: m.id,
+            name: m.name,
+            // A delegate whose approvals are not verified cannot be chosen (spec 096 FR-010).
+            ...(isHeldBack(p)
+              ? {
+                  name: t('chat.model.delegateApprovalsUnverified'),
+                  disabled: true,
+                }
+              : {}),
+          })),
       }))
       .filter((g) => g.models.length > 0)
 
@@ -166,8 +175,8 @@ export function useModelInventory(deps: ModelInventoryDeps) {
           {
             id: `delegate-${vendor}:not-connected`,
             name:
-              vendor === 'abacusai' && ABACUS_APPROVALS_UNVERIFIED
-                ? t('errors.delegate.approvals_unverified', { name: label })
+              unverifiedVendors.value.includes(vendor)
+                ? t('chat.model.delegateApprovalsUnverified')
                 : t('chat.model.delegateNotConnected'),
             disabled: true,
           },
@@ -265,6 +274,11 @@ export function useModelInventory(deps: ModelInventoryDeps) {
       toolInstalled.value = (await deps.cliToolInstalled?.()) ?? null
     } catch {
       toolInstalled.value = null
+    }
+    try {
+      unverifiedVendors.value = (await deps.approvalsUnverified?.()) ?? []
+    } catch {
+      unverifiedVendors.value = []
     }
   }
 

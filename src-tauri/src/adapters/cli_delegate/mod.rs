@@ -16,6 +16,7 @@
 //! "approval_bridge.rs").
 
 mod abacus;
+pub use abacus::approvals_verified as abacus_approvals_verified;
 pub mod approval_bridge;
 #[cfg(test)]
 mod approval_bridge_tests;

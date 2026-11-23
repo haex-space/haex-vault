@@ -295,6 +295,7 @@
       },
       "delegateNotConnected": "Nicht verbunden — in den Einstellungen verbinden",
       "delegateNotInstalled": "Nicht in diesem Vault installiert — in den Einstellungen installieren",
+      "delegateApprovalsUnverified": "Noch nicht verfügbar — die Freigaben sind nicht geprüft",
       "answeredByDelegate": "Beantwortet von {name}"
     },
     "newChat": "Neuer Chat",
@@ -2102,7 +2103,7 @@
     "delegate": {
       "not_connected": "{name} ist auf diesem Gerät noch nicht verbunden. Verbinde es in den Einstellungen. Hast du es gerade auf einem anderen Gerät verbunden, warte einen Moment auf den Abgleich.",
       "credential_refused": "{name} wurde vom Dienst abgelehnt. Verbinde es in den Einstellungen erneut.",
-      "approvals_unverified": "{name} ist nicht verfügbar, bis die Werkzeugfreigaben überprüft sind.",
+      "approvals_unverified": "{name} ist nicht verfügbar, solange Haex vor jeder Aktion fragt: Es ist noch nicht geprüft, dass jedes seiner Werkzeuge auf deine Freigabe wartet.",
       "signin_refused": "Die Anmeldung wurde nicht angenommen: {detail}",
       "signin_expired": "Der Code wurde nicht rechtzeitig bestätigt. Starte die Anmeldung neu.",
       "signin_network": "Der Anmeldedienst ist nicht erreichbar. Prüfe die Verbindung und versuche es erneut.",

@@ -14,8 +14,9 @@ use tokio::sync::{mpsc, Notify};
 use crate::adapters::cli_delegate::connect_claude::{ClaudeConnectSession, ReaderEvent};
 
 use super::connect::{
-    watch_claude_auto_completion, write_delegate_provider, ClaudeAutoCompleteOutcome,
-    ConnectCliDelegateArgs, DelegateConnectProgress, DelegateConnectState,
+    unverified_vendors, watch_claude_auto_completion, write_delegate_provider,
+    ClaudeAutoCompleteOutcome, ConnectCliDelegateArgs, DelegateConnectProgress,
+    DelegateConnectState,
 };
 
 #[test]
@@ -394,4 +395,10 @@ async fn the_rows_of_claude_and_codex_are_not_reduced() {
         2,
         "the codex rows are left as they were"
     );
+}
+
+#[test]
+fn abacus_is_listed_as_unverified_until_its_approvals_are_shown_to_reach_the_bridge() {
+    assert_eq!(unverified_vendors(false), ["abacusai"]);
+    assert!(unverified_vendors(true).is_empty());
 }
