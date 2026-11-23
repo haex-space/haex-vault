@@ -6,11 +6,13 @@
 //! Adding a provider (its checks and first refresh) lives in `add.rs`.
 
 pub mod abacus_signin;
+pub mod abacus_stand_in;
 mod add;
 #[cfg(test)]
 mod add_tests;
 pub mod capabilities;
 pub mod connect;
+mod connect_abacus;
 #[cfg(test)]
 mod connect_tests;
 pub mod delegate_credential;
@@ -339,13 +341,19 @@ pub(crate) fn build_adapter_with_tools(
                 .ok_or_else(|| HaexError::InvalidInput {
                     reason: "cli_delegate provider has an invalid or missing adapter".into(),
                 })?;
-            let credentials =
-                provider
-                    .credentials
-                    .clone()
-                    .ok_or_else(|| HaexError::InvalidInput {
+            // A vendor whose credential is an entry of the password manager has none in its row:
+            // the adapter reads the entry from the open vault at each start (spec 096).
+            let credentials = match provider.credentials.clone() {
+                Some(credentials) => credentials,
+                None if delegate_credential::lives_in_password_manager(vendor.as_str()) => {
+                    Vec::new()
+                }
+                None => {
+                    return Err(HaexError::InvalidInput {
                         reason: "cli_delegate provider is missing credentials".into(),
-                    })?;
+                    })
+                }
+            };
             // The tool is the vault's own installation, looked up at each start (spec 094); a
             // context without the vault's tools (a model refresh) never starts one.
             let runtime = match delegate_chat_ctx

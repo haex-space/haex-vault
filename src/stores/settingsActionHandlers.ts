@@ -456,6 +456,7 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     const result = await providers.connectCliDelegateAsync({
       vendor: input.vendor as DelegateVendor,
       name: String(input.name),
+      email: typeof input.email === 'string' ? input.email : undefined,
     })
     return { status: result.status }
   })

@@ -539,7 +539,11 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
     description: 'Start connecting a CLI delegate provider. User only.',
     input: {
       type: 'object',
-      properties: { vendor: VENDOR, name: { type: 'string' } },
+      properties: {
+        vendor: VENDOR,
+        name: { type: 'string' },
+        email: { type: 'string' },
+      },
       required: ['vendor', 'name'],
     },
     result: {

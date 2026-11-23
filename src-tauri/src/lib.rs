@@ -217,7 +217,10 @@ use passwords::commands::trash::{
 };
 use passwords::commands::usage::passwords_item_usage;
 use providers::capabilities::set_model_user_capabilities;
-use providers::connect::{connect_cli_delegate, submit_cli_delegate_code, DelegateConnectState};
+use providers::connect::{
+    cancel_cli_delegate_connect, connect_cli_delegate, submit_cli_delegate_code,
+    DelegateConnectState,
+};
 use providers::{
     add_provider, delete_provider, list_provider_models, list_providers, refresh_provider_models,
 };
@@ -849,6 +852,7 @@ pub fn run() {
             list_providers,
             delete_provider,
             connect_cli_delegate,
+            cancel_cli_delegate_connect,
             submit_cli_delegate_code,
             refresh_provider_models,
             set_model_user_capabilities,
@@ -863,6 +867,7 @@ pub fn run() {
             model_download_check,
             e2e_stand_in_models,
             cli_tools::stand_in::e2e_stand_in_cli_tools,
+            providers::abacus_stand_in::e2e_stand_in_abacus_signin,
             cli_tools::stand_in::e2e_confirm_cli_tool,
             download_model_from_hf,
             import_model_from_file,

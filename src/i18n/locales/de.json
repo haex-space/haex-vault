@@ -741,6 +741,9 @@
       "codeInputLabel": "Autorisierungscode",
       "submitCode": "Code einreichen",
       "error": "Verbindung fehlgeschlagen",
+      "emailHint": "Gib die E-Mail-Adresse deines Kontos ein. HaexVault zeigt dir dann einen Link und einen Code, die du im Browser bestätigst. Ein Passwort wird hier nicht eingegeben.",
+      "emailLabel": "E-Mail-Adresse",
+      "emailContinue": "Weiter",
       "refreshModels": "Modelle aktualisieren",
       "refreshing": "Wird aktualisiert…",
       "refreshFailed": "Modelle konnten nicht aktualisiert werden"
@@ -2096,6 +2099,14 @@
     "invalidIdempotencyKey": "Der Sendevorgang ist ungültig.",
     "idempotencyKeyConflict": "Dieser Sendevorgang wurde bereits mit anderen Daten verwendet.",
     "autonomyUnavailable": "Dieser Autonomie-Modus ist für das verbundene Backend nicht verfügbar. Aktualisiere es oder nutze stattdessen Standard.",
+    "delegate": {
+      "not_connected": "{name} ist auf diesem Gerät noch nicht verbunden. Verbinde es in den Einstellungen. Hast du es gerade auf einem anderen Gerät verbunden, warte einen Moment auf den Abgleich.",
+      "credential_refused": "{name} wurde vom Dienst abgelehnt. Verbinde es in den Einstellungen erneut.",
+      "signin_refused": "Die Anmeldung wurde nicht angenommen: {detail}",
+      "signin_expired": "Der Code wurde nicht rechtzeitig bestätigt. Starte die Anmeldung neu.",
+      "signin_network": "Der Anmeldedienst ist nicht erreichbar. Prüfe die Verbindung und versuche es erneut.",
+      "signin_unexpected": "Der Anmeldedienst hat in einer Form geantwortet, die HaexVault nicht versteht."
+    },
     "cliTools": {
       "notInstalled": "{name} ist in diesem Vault nicht installiert. Installiere es in den Einstellungen und versuche es erneut.",
       "needsReinstall": "{name} ist in diesem Vault beschädigt oder für ein anderes Gerät erstellt. Installiere es in den Einstellungen erneut.",
