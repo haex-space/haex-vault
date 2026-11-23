@@ -13,20 +13,43 @@ use tempfile::TempDir;
 
 use super::{
     approval_answer, build_command, chosen_model, default_model, fatal_reason, parse_line,
-    startup_error, user_line, Line, CREDENTIAL_REFUSED, NOT_CONNECTED,
+    startup_error, user_line, write_attachments, Line, CREDENTIAL_REFUSED, NOT_CONNECTED,
 };
 use crate::adapters::cli_delegate::autonomy::AutonomyMode;
 use crate::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
-use crate::adapters::types::{ChatMessage, ChatRequest, ChatRole, StreamChunk, StreamError};
+use crate::adapters::types::{
+    Attachment, AttachmentKind, ChatMessage, ChatRequest, ChatRole, StreamChunk, StreamError,
+};
 use crate::adapters::{AdapterError, ProviderAdapter};
 use crate::chat::tools::ApprovalDecision;
-use crate::cli_tools::runtime::DelegateRuntime;
+use crate::cli_tools::runtime::{DelegateRuntime, RunFolder};
 use crate::instances::vault_paths::VaultPaths;
 use crate::passwords::test_support::open_test_vault;
 use crate::providers::delegate_credential::{self, KIND_DEVICE_CODE, VAULT_SCOPE};
 use crate::vault_gate::{VaultDb, VaultGate};
 
 const CODE: &str = "placeholder-device-code-of-abacus-tests";
+
+#[tokio::test]
+async fn attachment_names_cannot_escape_the_run_folder() {
+    let temp = TempDir::new().unwrap();
+    let run = RunFolder::create(&temp.path().join("run"), &temp.path().join("home")).unwrap();
+    let mut req = request(DelegateVendor::Abacus.as_str());
+    req.messages[0].attachments.push(Attachment {
+        name: "../../outside.txt".to_string(),
+        kind: AttachmentKind::Text,
+        media_type: "text/plain".to_string(),
+        bytes: b"inside the run folder".to_vec(),
+    });
+
+    write_attachments(&req, &run).await.unwrap();
+
+    assert_eq!(
+        fs::read(run.path().join("attachment-0-.._.._outside.txt")).unwrap(),
+        b"inside the run folder"
+    );
+    assert!(!temp.path().join("outside.txt").exists());
+}
 
 // ---- the pure parts ----
 
@@ -178,6 +201,11 @@ fn a_fatal_reason_is_read_from_the_last_line_of_stderr() {
     let stderr = "some diagnostics\n{\"type\":\"fatal\",\"reason\":\"not_authenticated\"}\n";
     assert_eq!(fatal_reason(stderr).as_deref(), Some("not_authenticated"));
     assert_eq!(fatal_reason("nothing structured"), None);
+    assert_eq!(
+        fatal_reason("{\"type\":\"fatal\",\"reason\":\"user@example.com\"}"),
+        None,
+        "unknown vendor text is never returned as an error reason"
+    );
 }
 
 #[test]
@@ -200,6 +228,10 @@ fn a_program_that_ends_at_once_is_classified_from_its_fatal_reason() {
     // Text of the program that is not a plain reason is never repeated.
     match startup_error(b"{\"type\":\"fatal\",\"reason\":\"/home/someone/secret path\"}\n") {
         AdapterError::Http { reason } => assert!(!reason.contains("someone"), "{reason}"),
+        other => panic!("{other:?}"),
+    }
+    match startup_error(b"{\"type\":\"fatal\",\"reason\":\"user@example.com\"}\n") {
+        AdapterError::Http { reason } => assert_eq!(reason, "abacusai ended before it answered"),
         other => panic!("{other:?}"),
     }
     assert!(matches!(startup_error(b""), AdapterError::Http { .. }));
