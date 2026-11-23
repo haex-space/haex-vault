@@ -672,7 +672,17 @@ fn an_installation_for_the_base_key_fits_a_host_without_avx2() {
 #[test]
 fn an_avx2_only_base_install_does_not_fit_a_host_without_avx2() {
     let dir = TempDir::new().unwrap();
-    let vendor = abacus();
+    let vendor = Catalog::parse(
+        r#"{"schema":1,"vendors":[{"vendor":"abacusai","display_name":"Abacus AI","download_hosts":["static.abacus.ai"],
+        "executable":{"linux-x64":"abacusai","linux-x64-baseline":"abacusai"},"config_env":"ABACUSAI_HOME",
+        "versions":[{"version":"2.10.23","platforms":{
+        "linux-x64":{"url":"https://static.abacus.ai/x64.tgz","sha256":"0000000000000000000000000000000000000000000000000000000000000001","size":10,"kind":"tar.gz","unpacked_size":20,"requires_avx2":true},
+        "linux-x64-baseline":{"url":"https://static.abacus.ai/base.tgz","sha256":"0000000000000000000000000000000000000000000000000000000000000002","size":11,"kind":"tar.gz","unpacked_size":21}}}]}]}"#,
+    )
+    .unwrap()
+    .vendor("abacusai")
+    .unwrap()
+    .clone();
     let version = vendor
         .versions
         .iter()
