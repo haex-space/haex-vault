@@ -491,7 +491,26 @@
       "removeFile": "Remove {name}",
       "sendingFile": "Sending …",
       "noFileServer": "Files can only be sent once a Blossom-Server is set.",
-      "openChatSettings": "Open the chat settings"
+      "openChatSettings": "Open the chat settings",
+      "protection": {
+        "state": {
+          "protected": "Protected",
+          "renewalOutstanding": "Renewal outstanding",
+          "recovering": "Recovering",
+          "waitingForKeys": "Waiting for keys"
+        },
+        "explain": {
+          "protected": "Every message has a key of its own, and the devices renew their keys regularly by themselves. Someone who later gets hold of a device's key reads no earlier message with it, and a copied key state is of no use after the next renewal.",
+          "renewalOutstanding": "With at least one device the keys have not been renewed for more than 7 days, mostly because it was not online for that long. Someone who copied a device's key state can read future messages until the renewal succeeds.",
+          "recovering": "A device could not decrypt a message, so the devices are agreeing on new keys. Messages not confirmed yet are then encrypted again and sent once more; there is nothing to do.",
+          "waitingForKeys": "A device has not published its keys yet. Messages to that device wait until its keys are there; without them nothing is sent to it."
+        },
+        "renewedAt": "Last renewed with all devices: {date}",
+        "relays": "Nostr-Relays do not see what you write, but they see which device something goes to, when, how large it is and from which network address. They can also refuse, withhold or delete messages; messages not confirmed are then sent again.",
+        "history": "This protection covers the copies on the Nostr-Relays. Messages kept in your vault can be read by anyone who can open the vault.",
+        "show": "Explain the protection",
+        "hide": "Close the explanation"
+      }
     },
     "newContact": {
       "title": "Write to a contact",
@@ -501,14 +520,14 @@
     },
     "delivery": {
       "state": {
-        "waiting": "Waiting",
-        "sent": "Sent",
-        "delivered": "Delivered",
+        "waiting": "Waiting: no Nostr-Relay accepted it yet",
+        "sent": "Sent: a Nostr-Relay accepted it",
+        "delivered": "Delivered: a device of the recipient confirmed it",
         "read": "Read",
         "failed": "Not delivered"
       },
       "reason": {
-        "noRelay": "No Nostr-Relay accepted the message.",
+        "noRelay": "No Nostr-Relay accepted the message. It is tried again.",
         "noDevices": "The card names no device.",
         "tooLarge": "The message is too large.",
         "unknown": "The delivery failed."

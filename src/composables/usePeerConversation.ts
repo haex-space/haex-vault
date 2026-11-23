@@ -1,6 +1,7 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { computed, onScopeDispose, ref, watch, type Ref } from 'vue'
 import type { ChatPeerMessage } from '@bindings/ChatPeerMessage'
+import type { ChatPeerProtection } from '@bindings/ChatPeerProtection'
 import { useConversationCommands } from '~/composables/useConversations'
 import { useWmTab } from '~/composables/useWmTab'
 import { useWindowManagerStore } from '~/stores/windowManager'
@@ -17,7 +18,8 @@ export const COUNTER_FROM = MAX_TEXT_CHARS - 10_000
  * The messages of one contact conversation (spec 072 US2, FR-021–FR-024): loaded by `sortAt`,
  * refreshed whenever chat rows change (here, on another own device or by a delivery), and marked
  * read while the conversation is the active tab of a visible, focused window. While it is, haex-vault
- * shows no notification for it (FR-023): the view tells Rust under an id of its own.
+ * shows no notification for it (FR-023): the view tells Rust under an id of its own. Its protection
+ * state (spec 095 US4) is read with the messages, so it follows the same changes.
  */
 export function usePeerConversation(
   threadId: Ref<string | null>,
@@ -28,6 +30,8 @@ export function usePeerConversation(
   const wm = useWindowManagerStore()
 
   const messages = ref<ChatPeerMessage[]>([])
+  /** `null` for the notes, a conversation with a model, or before it was read. */
+  const protection = ref<ChatPeerProtection | null>(null)
   const error = ref<string | null>(null)
   const loading = ref(false)
   let refreshSeq = 0
@@ -99,15 +103,20 @@ export function usePeerConversation(
     if (!id) {
       refreshSeq++
       messages.value = []
+      protection.value = null
       loading.value = false
       return
     }
     const request = ++refreshSeq
     loading.value = true
     try {
-      const list = await commands.messagesAsync(id)
+      const [list, state] = await Promise.all([
+        commands.messagesAsync(id),
+        commands.protectionAsync(id),
+      ])
       if (request !== refreshSeq || threadId.value !== id) return
       messages.value = list
+      protection.value = state
       error.value = null
       await markRead()
     } catch (e: unknown) {
@@ -126,6 +135,7 @@ export function usePeerConversation(
     () => {
       readUpTo = 0
       messages.value = []
+      protection.value = null
       void refresh()
     },
     { immediate: true },
@@ -198,5 +208,5 @@ export function usePeerConversation(
     }
   })
 
-  return { messages, error, loading, refresh, download }
+  return { messages, protection, error, loading, refresh, download }
 }

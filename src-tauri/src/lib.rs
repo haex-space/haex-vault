@@ -81,7 +81,7 @@ use chat::default_model::{model_load_status, resolve_default_model, use_session_
 use chat::model_loading::{active_model_info, load_model, select_model};
 use chat::peer::commands::conversations::{
     chat_conversation_delete, chat_conversation_mute, chat_conversation_open_direct,
-    chat_conversation_open_note, chat_conversations_list,
+    chat_conversation_open_note, chat_conversation_protection, chat_conversations_list,
 };
 use chat::peer::commands::files::{
     chat_attachment_download, chat_attachment_open_system, chat_attachment_text,
@@ -907,6 +907,7 @@ pub fn run() {
             chat_conversation_open_note,
             chat_conversation_mute,
             chat_conversation_delete,
+            chat_conversation_protection,
             chat_request_card,
             chat_request_answer,
             chat_attachment_download,
