@@ -85,9 +85,12 @@ In `agent_memory/commands.rs`. The user is the author; FR-003 and FR-022 apply, 
 | `agent_memory_remove` | `{ id }`                           | nothing                                   |
 
 `AgentMemoryListItem { id, title, description, authorKind, authorName, deviceName, createdAt, changedName?, changedAt?,
-sameTitle }`; `AgentMemoryPage` adds `body`, `changedKind?`, `changedDeviceName?`, `pointsTo`, `pointedFrom`. Exported
-with ts-rs. A refused write is an error with the codes above, shown as a toast in the user's language. The window
-addresses pages by id, so it can reach both pages of a doubled title.
+sameTitle }`; `AgentMemoryPage` adds `body`, `changedKind?`, `changedDeviceName?`, `pointsTo`, `pointedFrom`, each a list
+of `AgentMemoryPointer { title, id }` whose `id` is the page the title resolves to and `null` when there is none.
+Exported with ts-rs. A refused write is `InvalidInput` whose reason is the code above, with the field for a refusal of a
+form (`too_long:title`, `empty:description`, `line_break:title`), shown as a toast in the user's language. The window
+addresses pages by id, so it can reach both pages of a doubled title. The commands raise no event themselves: the
+database announces every commit as `vault-data-changed`.
 
 Window actions (`src/lib/actions/settingsAgentMemoryActions.ts`): `settings.agentMemory.add`, `.change`, `.remove`, each
 `scope: 'guardrails', agentCallable: false`.
