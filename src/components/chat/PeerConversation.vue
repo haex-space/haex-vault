@@ -8,6 +8,7 @@
  * its answers in place of the composer: nothing is sent to its sender before it is accepted.
  */
 import { toast } from 'vue-sonner'
+import type { ChatPeerAttachment } from '@bindings/ChatPeerAttachment'
 import type { PeerConversationEntry } from '~/composables/useConversations'
 import type { PeerFile } from '~/components/chat/PeerFileChips.vue'
 import {
@@ -43,6 +44,9 @@ const { pickManyAsync, nameOfAsync } = usePickedFile()
 const { hasServer } = useChatFileServer()
 const draft = ref('')
 const files = ref<PeerFile[]>([])
+/** The file of a message shown over the conversation. */
+const viewing = ref<ChatPeerAttachment | null>(null)
+const fileActions = useChatFileActions()
 const confirmDelete = ref(false)
 const sending = ref(false)
 const preparingFiles = ref(false)
@@ -169,6 +173,7 @@ watch(
     fileSelectionGeneration += 1
     draft.value = ''
     files.value = []
+    viewing.value = null
     idempotencyKey = crypto.randomUUID()
     confirmDelete.value = false
   },
@@ -177,7 +182,7 @@ watch(
 
 <template>
   <section
-    class="flex min-h-0 min-w-0 flex-1 flex-col"
+    class="relative flex min-h-0 min-w-0 flex-1 flex-col"
     data-testid="chat-peer-conversation"
   >
     <template v-if="conversation">
@@ -245,6 +250,9 @@ watch(
           :peer-photo="conversation.photo"
           @resend="resendMessage"
           @download="peer.download"
+          @view="viewing = $event"
+          @save="fileActions.saveAsync"
+          @open-system="fileActions.openSystem"
         />
         <p v-else class="m-auto text-sm text-muted-foreground">
           {{
@@ -372,5 +380,16 @@ watch(
         </div>
       </template>
     </UiDrawerModal>
+    <ChatAttachmentViewer
+      v-if="viewing"
+      :file="viewing"
+      @close="viewing = null"
+      @save="fileActions.saveAsync"
+      @open-system="fileActions.openSystem"
+    />
+    <FilesOpenSystemNotice
+      v-model:open="fileActions.noticing.value"
+      @confirm="fileActions.confirmOpenSystem"
+    />
   </section>
 </template>

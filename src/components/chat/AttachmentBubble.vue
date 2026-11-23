@@ -7,9 +7,9 @@
  * A file on this device opens with the system's app on a computer (scenario 4), through the same
  * notice about the decrypted copy as the file browser and the password manager.
  */
-import { toast } from 'vue-sonner'
 import type { ChatPeerAttachment } from '@bindings/ChatPeerAttachment'
 import { textControl } from '~/lib/chat/longText'
+import { viewerKind } from '~/lib/files/viewerKind'
 import { formatFileSize } from '~/lib/passwords/format'
 
 const props = defineProps<{
@@ -21,11 +21,14 @@ const props = defineProps<{
 const emit = defineEmits<{
   /** Fetch this file now (above the automatic limit, or after a failure). */
   download: [attachmentId: string]
+  /** Show the file in the viewer. */
+  view: [file: ChatPeerAttachment]
+  openSystem: [attachmentId: string]
+  save: [file: ChatPeerAttachment]
 }>()
 
 const { t, te } = useI18n()
 const { errString } = useErrorString()
-const commands = useConversationCommands()
 const { capabilities } = useDeviceCapabilities()
 
 const control = computed(() =>
@@ -41,10 +44,16 @@ const icon = computed(() => {
     return 'lucide:file-text'
   return 'lucide:file'
 })
-/** The copy is on this device; a phone has no app to hand a copy to yet (spec 044 R11). */
+/** The copy is on this device. */
+const here = computed(
+  () => control.value === null || control.value.kind === 'toggle',
+)
+/** The viewer shows this kind of file (the info view alone would add nothing). */
+const viewable = computed(() => here.value && viewerKind(name.value) !== 'info')
+/** A phone has no app to hand a copy to yet (spec 044 R11). */
 const openable = computed(
   () =>
-    (control.value === null || control.value.kind === 'toggle') &&
+    here.value &&
     capabilities.value !== null &&
     capabilities.value.platform !== 'android' &&
     capabilities.value.platform !== 'ios',
@@ -57,23 +66,6 @@ const error = computed(() => {
     return te(reason) ? t(reason) : t('chat.file.failed')
   return errString(reason)
 })
-
-/** The reasons of `chat_attachment_open_system` in words; anything else as usual. */
-function openSystemError(cause: unknown): string {
-  const reason = (cause as { reason?: unknown } | null)?.reason
-  if (reason === 'no_app') return t('chat.file.openSystemNoApp')
-  return errString(cause)
-}
-
-const {
-  noticing,
-  openAsync: openSystem,
-  confirmAsync: confirmOpenSystem,
-} = useOpenSystemNotice(
-  (id: string, confirmed, dontAskAgain) =>
-    commands.openSystemAsync(id, confirmed, dontAskAgain),
-  (cause) => toast.error(openSystemError(cause)),
-)
 </script>
 
 <template>
@@ -135,6 +127,30 @@ const {
       }}
     </UiButton>
     <UiButton
+      v-if="viewable"
+      type="button"
+      variant="ghost"
+      size="icon"
+      :aria-label="t('chat.file.view')"
+      :tooltip="t('chat.file.view')"
+      data-testid="chat-attachment-view"
+      @click="emit('view', file)"
+    >
+      <Icon name="lucide:eye" class="h-4 w-4" />
+    </UiButton>
+    <UiButton
+      v-if="here"
+      type="button"
+      variant="ghost"
+      size="icon"
+      :aria-label="t('chat.file.save')"
+      :tooltip="t('chat.file.save')"
+      data-testid="chat-attachment-save"
+      @click="emit('save', file)"
+    >
+      <Icon name="lucide:save" class="h-4 w-4" />
+    </UiButton>
+    <UiButton
       v-if="openable"
       type="button"
       variant="ghost"
@@ -142,13 +158,9 @@ const {
       :aria-label="t('chat.file.openSystem')"
       :tooltip="t('chat.file.openSystem')"
       data-testid="chat-attachment-open-system"
-      @click="openSystem(file.id)"
+      @click="emit('openSystem', file.id)"
     >
       <Icon name="lucide:external-link" class="h-4 w-4" />
     </UiButton>
-    <FilesOpenSystemNotice
-      v-model:open="noticing"
-      @confirm="confirmOpenSystem"
-    />
   </div>
 </template>

@@ -16,7 +16,7 @@ use crate::files::encrypted::ops::file_at;
 use crate::files::encrypted::redacted::Redacted;
 use crate::files::encrypted::route::{plain_by_memory, route, Located, Route};
 use crate::files::encrypted::source::{EncryptedFile, EncryptedFileSource};
-use crate::files::kind::{viewer_kind, ViewerKind};
+use crate::files::kind::{streams, viewer_kind, ViewerKind};
 use crate::files::local::ops;
 use crate::files::local::text::{read_text, text_from, TextContent, TEXT_LIMIT};
 use crate::files::media::MediaServer;
@@ -135,14 +135,6 @@ pub async fn files_open(
         )
     });
     Ok(Opened { kind, url, entry })
-}
-
-/// Whether the viewer shows `kind` from the media server.
-fn streams(kind: ViewerKind) -> bool {
-    matches!(
-        kind,
-        ViewerKind::Image | ViewerKind::Video | ViewerKind::Audio | ViewerKind::Pdf
-    )
 }
 
 /// The largest image of a storage haex-vault downloads for a thumbnail.

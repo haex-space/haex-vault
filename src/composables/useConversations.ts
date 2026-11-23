@@ -5,6 +5,8 @@ import type { ChatConversationKind } from '@bindings/ChatConversationKind'
 import type { ContactHeader } from '@bindings/ContactHeader'
 import type { ChatPeerMessage } from '@bindings/ChatPeerMessage'
 import type { OpenSystemOutcome } from '@bindings/OpenSystemOutcome'
+import type { ChatAttachmentOpened } from '@bindings/ChatAttachmentOpened'
+import type { TextContent } from '@bindings/TextContent'
 
 /** A contact or group conversation with the name and photo the list shows (spec 072 US1). */
 export interface PeerConversationEntry extends ChatConversation {
@@ -61,6 +63,19 @@ export function useConversationCommands() {
       invoke<OpenSystemOutcome>('chat_attachment_open_system', {
         args: { attachmentId, confirmed, dontAskAgain },
       }),
+    // Spec 072 US3 scenario 4: a file of a message in the viewer (text is read, the rest streams
+    // from the media server; the window releases the URL with `files_release`), and saved to the
+    // file chosen in the save dialog.
+    openAsync: (attachmentId: string, tabId: string) =>
+      invoke<ChatAttachmentOpened>('chat_attachment_open', {
+        args: { attachmentId, tabId },
+      }),
+    readTextAsync: (attachmentId: string) =>
+      invoke<TextContent>('chat_attachment_read_text', {
+        args: { attachmentId },
+      }),
+    saveAsync: (attachmentId: string, file: string) =>
+      invoke<null>('chat_attachment_save', { args: { attachmentId, file } }),
     downloadAsync: (attachmentId: string) =>
       invoke<null>('chat_attachment_download', { args: { attachmentId } }),
     messagesAsync: (threadId: string, before?: number) =>

@@ -178,3 +178,31 @@ async fn a_copy_of_a_file_this_device_does_not_hold_is_not_found() {
         Err(crate::error::HaexError::NotFound { .. })
     ));
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_file_is_saved_to_a_target_whole_and_a_missing_one_is_not_found() {
+    let (_vault, db) = vault();
+    give_key(&db, 1);
+    let data = tempfile::tempdir().expect("tempdir");
+    let files = store(&dir(data.path(), "anna"), &db);
+    files.put("a1", MARKER).await.expect("put");
+    let target = tempfile::tempdir().expect("tempdir");
+    let path = target.path().join("copy.bin");
+
+    let out = tokio::fs::File::create(&path).await.expect("create");
+    files.save_to("a1", out).await.expect("save");
+    assert_eq!(std::fs::read(&path).expect("read"), MARKER);
+
+    let out = tokio::fs::File::create(target.path().join("none.bin"))
+        .await
+        .expect("create");
+    assert!(matches!(
+        files.save_to("a2", out).await,
+        Err(crate::error::HaexError::NotFound { .. })
+    ));
+    assert!(files.open("a2").await.expect("open").is_none());
+    assert_eq!(
+        files.open("a1").await.expect("open").map(|f| f.size()),
+        Some(MARKER.len() as u64)
+    );
+}

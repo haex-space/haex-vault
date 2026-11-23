@@ -84,7 +84,8 @@ use chat::peer::commands::conversations::{
     chat_conversation_open_note, chat_conversations_list,
 };
 use chat::peer::commands::files::{
-    chat_attachment_download, chat_attachment_open_system, chat_attachment_text,
+    chat_attachment_download, chat_attachment_open, chat_attachment_open_system,
+    chat_attachment_read_text, chat_attachment_save, chat_attachment_text,
 };
 use chat::peer::commands::messages::{
     chat_conversation_read, chat_conversation_viewing, chat_peer_messages_list, chat_peer_resend,
@@ -910,7 +911,10 @@ pub fn run() {
             chat_request_card,
             chat_request_answer,
             chat_attachment_download,
+            chat_attachment_open,
             chat_attachment_open_system,
+            chat_attachment_read_text,
+            chat_attachment_save,
             chat_attachment_text,
             chat_blossom_check,
             chat_peer_send,

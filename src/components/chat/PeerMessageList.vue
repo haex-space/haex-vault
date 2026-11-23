@@ -5,6 +5,7 @@
  * its reason and can be sent again. _Read_ only appears while read receipts are on (Rust leaves
  * it out otherwise, FR-024).
  */
+import type { ChatPeerAttachment } from '@bindings/ChatPeerAttachment'
 import type { ChatPeerMessage } from '@bindings/ChatPeerMessage'
 import type { ChatDeliveryState } from '@bindings/ChatDeliveryState'
 import { textFile } from '~/lib/chat/longText'
@@ -19,6 +20,10 @@ const emit = defineEmits<{
   resend: [messageId: string]
   /** Fetch the file of this attachment now (a long text's file, FR-012a). */
   download: [attachmentId: string]
+  /** The viewer shows this file; "Speichern unter" and "Mit System-App öffnen" act on it. */
+  view: [file: ChatPeerAttachment]
+  save: [file: ChatPeerAttachment]
+  openSystem: [attachmentId: string]
 }>()
 
 const { t, locale } = useI18n()
@@ -100,6 +105,9 @@ function reason(code: string | null) {
           :file="file"
           :own="message.own"
           @download="emit('download', $event)"
+          @view="emit('view', $event)"
+          @save="emit('save', $event)"
+          @open-system="emit('openSystem', $event)"
         />
         <span
           class="flex items-center justify-end gap-1 text-[0.7rem] opacity-70"

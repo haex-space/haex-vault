@@ -51,7 +51,6 @@ const shown = computed(() => {
 const text = ref<TextContent | null>(null)
 const url = ref<string | null>(null)
 const failed = ref<string | null>(null)
-const zoomed = ref(false)
 
 function dropUrl() {
   const current = url.value
@@ -65,7 +64,6 @@ watch(
     text.value = null
     dropUrl()
     failed.value = null
-    zoomed.value = false
     unplayable.value = false
     try {
       if (shown.value === 'text') {
@@ -187,35 +185,12 @@ onMounted(() => panel.value?.focus())
       >
         {{ failed }}
       </p>
-      <div v-else-if="shown === 'text' && text" data-testid="files-viewer-text">
-        <FilesTextContent :text="text" />
-      </div>
-      <div
-        v-else-if="shown === 'image' && url"
-        class="flex min-h-full items-center justify-center p-2"
-        data-testid="files-viewer-image"
-      >
-        <img
-          :src="url"
-          :alt="entry.name"
-          class="cursor-zoom-in"
-          :class="
-            zoomed
-              ? 'max-w-none cursor-zoom-out'
-              : 'max-h-full max-w-full object-contain'
-          "
-          @click="zoomed = !zoomed"
-        />
-      </div>
-      <FilesMediaViewer
-        v-else-if="(shown === 'video' || shown === 'audio') && url"
-        :url="url"
+      <FilesViewerContent
+        v-else-if="shown !== 'info'"
         :kind="shown"
-        @failed="unplayable = true"
-      />
-      <LazyFilesPdfViewer
-        v-else-if="shown === 'pdf' && url"
+        :text="text"
         :url="url"
+        :name="entry.name"
         @failed="unplayable = true"
       />
       <p
