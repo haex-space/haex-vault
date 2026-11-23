@@ -39,15 +39,15 @@ pub const DELEGATE_CONNECT_PROGRESS_EVENT: &str = "delegate-connect-progress";
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-struct DelegateConnectProgress {
-    vendor: &'static str,
-    status: &'static str,
+pub(super) struct DelegateConnectProgress {
+    pub(super) vendor: &'static str,
+    pub(super) status: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
-    url: Option<String>,
+    pub(super) url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    code: Option<String>,
+    pub(super) code: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    message: Option<String>,
+    pub(super) message: Option<String>,
 }
 
 impl fmt::Debug for DelegateConnectProgress {
@@ -84,12 +84,12 @@ pub struct DelegateConnectState {
     pub(super) pending_claude: AsyncMutex<Option<ClaudeConnectSession>>,
     /// The sign-in of Abacus that is waiting for the person (spec 096): ended by
     /// `cancel_cli_delegate_connect`, by a newer sign-in, or when it ends by itself.
-    abacus: std::sync::Mutex<Option<AbacusCancellation>>,
+    pub(super) abacus: std::sync::Mutex<Option<AbacusCancellation>>,
 }
 
-struct AbacusCancellation {
-    id: Uuid,
-    token: CancellationToken,
+pub(super) struct AbacusCancellation {
+    pub(super) id: Uuid,
+    pub(super) token: CancellationToken,
 }
 
 impl DelegateConnectState {
@@ -98,7 +98,7 @@ impl DelegateConnectState {
     }
 
     /// The token of a new Abacus sign-in; one that was still waiting is ended.
-    fn begin_abacus(&self) -> (Uuid, CancellationToken) {
+    pub(super) fn begin_abacus(&self) -> (Uuid, CancellationToken) {
         let id = Uuid::new_v4();
         let token = CancellationToken::new();
         let mut slot = self.abacus.lock().unwrap_or_else(|p| p.into_inner());
@@ -113,7 +113,7 @@ impl DelegateConnectState {
 
     /// Clears a completed sign-in only if it still owns the slot. A newer connect may have
     /// replaced it while this command was returning from the vault gate.
-    fn finish_abacus(&self, id: Uuid) {
+    pub(super) fn finish_abacus(&self, id: Uuid) {
         let mut slot = self.abacus.lock().unwrap_or_else(|p| p.into_inner());
         if slot.as_ref().is_some_and(|active| active.id == id) {
             slot.take();
@@ -121,7 +121,7 @@ impl DelegateConnectState {
     }
 
     /// Ends the sign-in of Abacus that is waiting, if any. Idempotent.
-    fn cancel_abacus(&self) {
+    pub(super) fn cancel_abacus(&self) {
         let mut slot = self.abacus.lock().unwrap_or_else(|p| p.into_inner());
         if let Some(active) = slot.take() {
             active.token.cancel();

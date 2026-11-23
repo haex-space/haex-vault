@@ -433,7 +433,10 @@ async fn standard_requests_stay_unavailable_until_approval_coverage_is_verified(
         Some(fixture.context()),
     );
 
-    let error = adapter.stream_chat(request("abacusai")).await.unwrap_err();
+    let error = match adapter.stream_chat(request("abacusai")).await {
+        Err(error) => error,
+        Ok(_) => panic!("Abacus must stay gated until tool approval coverage is verified"),
+    };
 
     assert!(
         matches!(error, AdapterError::Unavailable { reason } if reason == APPROVALS_UNVERIFIED),
