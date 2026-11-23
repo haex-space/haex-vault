@@ -5,6 +5,7 @@ import { WM_NAVIGATION_ACTIONS, WM_OPEN_ACTIONS } from './wmActions.ts'
 import { ASSISTANT_ACTIONS } from './assistantActions.ts'
 import { BROWSER_ACTIONS } from './browserActions.ts'
 import { AGENT_BROWSER_ACTIONS } from './settingsAgentBrowserActions.ts'
+import { AGENT_MEMORY_ACTIONS } from './settingsAgentMemoryActions.ts'
 import { WM_LAYOUT_ACTIONS, WM_READ_ACTIONS } from './wmLayoutActions.ts'
 import { CHAT_ACTIONS, CHAT_MODEL_ACTIONS } from './chatActions.ts'
 import { CONTACTS_ACTIONS } from './contactsActions.ts'
@@ -28,6 +29,7 @@ export const ALL_ACTIONS: readonly ActionDefinition[] = [
   ...MCP_AGENT_ACTIONS,
   ...AGENT_PROFILE_ACTIONS,
   ...AGENT_BROWSER_ACTIONS,
+  ...AGENT_MEMORY_ACTIONS,
   ...PASSWORDS_ACTIONS,
   ...FILES_ACTIONS,
   ...FILE_SHARE_ACTIONS,

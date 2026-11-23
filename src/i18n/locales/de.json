@@ -854,6 +854,14 @@
           "profile": {
             "title": "Agentenprofil"
           }
+        },
+        "memory": {
+          "title": "Gedächtnis",
+          "description": "Was sich die Agenten über dich gemerkt haben: lesen, suchen, ändern",
+          "keywords": "Gedächtnis Erinnerung merken Notizen Seiten Wissen Agenten Memory",
+          "page": {
+            "title": "Seite"
+          }
         }
       },
       "federation": {
@@ -1851,6 +1859,53 @@
         },
         "loadFailed": "Das Wake Word konnte nicht geladen werden: {reason}"
       }
+    },
+    "agentMemory": {
+      "intro": "Was du und deine Agenten euch gemerkt habt. Agenten lesen beim Start eines Gesprächs das Inhaltsverzeichnis und öffnen Seiten, wenn sie sie brauchen. Verweise auf andere Seiten schreibst du als [[Titel]].",
+      "search": "Suchen",
+      "searchPlaceholder": "Titel, Beschreibung oder Text",
+      "count": "{count} von {limit} Seiten",
+      "add": "Seite hinzufügen",
+      "empty": "Noch keine Seiten.",
+      "noMatches": "Keine Seite passt zur Suche.",
+      "byUser": "Du",
+      "unknownAuthor": "Unbekannt",
+      "unknownDevice": "unbekanntes Gerät",
+      "sameTitle": "Titel doppelt",
+      "sameTitleHint": "Eine zweite Seite hat denselben Titel, entstanden beim Abgleich zweier Geräte. Verweise führen zu der zuletzt geänderten.",
+      "written": "Geschrieben von {name} auf {device}, {at}",
+      "changed": "Zuletzt geändert von {name} auf {device}, {at}",
+      "gone": "Diese Seite gibt es nicht mehr.",
+      "noText": "Diese Seite hat noch keinen Text.",
+      "pointsTo": "Verweist auf",
+      "pointedFrom": "Verwiesen von",
+      "noPointers": "Keine Verweise.",
+      "missing": "Seite fehlt",
+      "createMissing": "Anlegen",
+      "edit": "Bearbeiten",
+      "save": "Speichern",
+      "cancel": "Abbrechen",
+      "delete": "Löschen",
+      "deleteConfirm": "Seite auf allen Geräten löschen?",
+      "counter": "{count}/{max}",
+      "bodyHint": "Markdown; [[Titel]] verweist auf eine andere Seite",
+      "fields": {
+        "title": "Titel",
+        "description": "Beschreibung",
+        "body": "Text"
+      },
+      "refused": {
+        "empty": "{field} darf nicht leer sein.",
+        "line_break": "{field} muss eine Zeile sein.",
+        "too_long": "{field} ist zu lang.",
+        "invisible_characters": "Der Text enthält unsichtbare Zeichen und wurde nicht gespeichert.",
+        "secret": "Passwörter, Schlüssel und Tokens kommen nie ins Gedächtnis.",
+        "instruction": "Der Text liest sich wie eine Anweisung an einen Agenten. Schreib die Tatsache auf, nicht den Befehl.",
+        "title_taken": "Eine andere Seite hat schon diesen Titel.",
+        "memory_full": "Das Gedächtnis ist voll. Fasse Seiten zusammen oder lösche welche.",
+        "page_too_long": "Die Seite würde zu lang.",
+        "not_found": "Diese Seite gibt es nicht mehr."
+      }
     }
   },
   "models": {
@@ -2400,6 +2455,11 @@
         "cookieDelete": "Cookies im Profil des Agenten-Browsers löschen",
         "dnsSet": "Namensauflösung des Agenten-Browsers einstellen",
         "consentSet": "Umgang des Agenten-Browsers mit Cookie-Bannern einstellen"
+      },
+      "agentMemory": {
+        "add": "Seite im Gedächtnis hinzufügen",
+        "change": "Seite im Gedächtnis ändern",
+        "remove": "Seite aus dem Gedächtnis entfernen"
       }
     },
     "scopes": {

@@ -37,6 +37,7 @@
     "check:file-icons": "node --test scripts/check-file-icons.ts",
     "check:platform-probe": "node --test scripts/check-platform-probe.ts",
     "check:diagnostic-log": "node --test scripts/check-diagnostic-log.ts",
+    "check:agent-memory": "node --test scripts/check-agent-memory.ts",
     "check:cli-tools-catalog": "node --test scripts/check-cli-tools-catalog.ts",
     "check:cli-tools": "node --test scripts/check-cli-tools.ts",
     "check:assistant": "node --test scripts/check-assistant-*.ts",

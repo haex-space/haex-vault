@@ -99,6 +99,12 @@ const SETTINGS_VIEWS: Record<string, Component> = {
   'ai.profiles.profile': defineAsyncComponent(
     () => import('~/components/settings/agentProfiles/ProfileView.vue'),
   ),
+  'ai.memory': defineAsyncComponent(
+    () => import('~/components/settings/agentMemory/MemoryView.vue'),
+  ),
+  'ai.memory.page': defineAsyncComponent(
+    () => import('~/components/settings/agentMemory/MemoryPageView.vue'),
+  ),
   'ai.access': defineAsyncComponent(
     () => import('~/components/settings/agents/AccessView.vue'),
   ),
