@@ -233,6 +233,13 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
     settingKeys: ['agentProfiles.toolRounds.label'],
   }),
   subView('ai.profiles.profile', 'ai/profiles/:profileId', 'ai.profiles'),
+  // Spec 097: the pages of the agents' shared memory; the user reads, searches and edits them here.
+  subView('ai.memory', 'ai/memory', 'ai', {
+    icon: 'lucide:brain',
+    group: 'agents',
+    overviewRow: true,
+  }),
+  subView('ai.memory.page', 'ai/memory/:pageId', 'ai.memory'),
   // Spec 021 + 083 PR M2: the switch of the MCP access on this device, the setup snippets, and the
   // registered external agents with their log and revoking them.
   subView('ai.access', 'ai/access', 'ai', {
