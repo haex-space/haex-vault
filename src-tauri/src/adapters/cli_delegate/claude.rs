@@ -356,7 +356,10 @@ pub(super) async fn spawn_claude_invocation(
     let mut attachment_index = 0;
     for message in &req.messages {
         for attachment in &message.attachments {
-            let sandbox_name = format!("attachment-{attachment_index}-{}", attachment.name);
+            let sandbox_name = format!(
+                "attachment-{attachment_index}-{}",
+                crate::passwords::binaries::sanitize_file_name(&attachment.name)
+            );
             attachment_index += 1;
             tokio::fs::write(tmp.path().join(&sandbox_name), &attachment.bytes)
                 .await

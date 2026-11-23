@@ -70,6 +70,12 @@ fn transcript_gives_duplicate_attachment_names_unique_sandbox_names() {
                     media_type: "text/plain".to_string(),
                     bytes: b"second".to_vec(),
                 },
+                Attachment {
+                    name: "../../outside.txt".to_string(),
+                    kind: AttachmentKind::Text,
+                    media_type: "text/plain".to_string(),
+                    bytes: b"third".to_vec(),
+                },
             ],
         }],
         reasoning_requested: false,
@@ -84,6 +90,7 @@ fn transcript_gives_duplicate_attachment_names_unique_sandbox_names() {
     let prompt = build_transcript_prompt(&request);
     assert!(prompt.contains("attachment-0-report.txt"));
     assert!(prompt.contains("attachment-1-report.txt"));
+    assert!(prompt.contains("attachment-2-.._.._outside.txt"));
 }
 
 fn sample_provider(adapter: Option<&str>) -> Provider {
