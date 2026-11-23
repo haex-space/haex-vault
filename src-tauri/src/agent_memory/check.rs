@@ -66,7 +66,10 @@ pub fn check(field: Field, text: &str) -> Result<(), CheckError> {
         if text.trim().is_empty() {
             return Err(CheckError::Empty);
         }
-        if text.contains(['\n', '\r']) {
+        if text
+            .chars()
+            .any(|c| matches!(c, '\n' | '\r' | '\u{2028}' | '\u{2029}'))
+        {
             return Err(CheckError::LineBreak);
         }
     }
