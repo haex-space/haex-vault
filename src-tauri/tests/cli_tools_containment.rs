@@ -161,6 +161,7 @@ impl Vault {
                 size: body.len() as u64,
                 kind: ArtifactKind::File,
                 unpacked_size: None,
+                requires_avx2: false,
             },
             platform: PlatformKey::host().expect("a platform with a catalog entry"),
             vendor_dir: self.paths.cli_tool_dir(&self.name, "claude"),

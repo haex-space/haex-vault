@@ -21,7 +21,14 @@ fn status(
     host: Option<PlatformKey>,
     installing: bool,
 ) -> super::CliToolStatus {
-    derive(&claude(), dir, host, installing, IsolationLevel::BestEffort)
+    derive(
+        &claude(),
+        dir,
+        host,
+        true,
+        installing,
+        IsolationLevel::BestEffort,
+    )
 }
 
 fn install(dir: &std::path::Path, version: &str, platform: PlatformKey) -> std::path::PathBuf {
@@ -69,7 +76,14 @@ fn nothing_installed_offers_the_install_with_its_size_and_the_newest_listed_vers
 fn a_package_names_its_unpacked_size_for_the_space_it_takes() {
     let dir = TempDir::new().unwrap();
     let codex = Catalog::shipped().vendor("codex").unwrap().clone();
-    let shown = derive(&codex, dir.path(), HOST, false, IsolationLevel::BestEffort);
+    let shown = derive(
+        &codex,
+        dir.path(),
+        HOST,
+        true,
+        false,
+        IsolationLevel::BestEffort,
+    );
     let artifact = &codex.versions[0].platforms["linux-x64"];
     assert_eq!(shown.download_bytes, Some(artifact.size));
     assert_eq!(shown.unpacked_bytes, artifact.unpacked_size);
@@ -133,7 +147,14 @@ fn a_device_no_program_is_listed_for_is_unsupported_and_offers_nothing() {
     )
     .unwrap();
     let winonly = catalog.vendor("winonly").unwrap();
-    let shown = derive(winonly, dir.path(), HOST, false, IsolationLevel::BestEffort);
+    let shown = derive(
+        winonly,
+        dir.path(),
+        HOST,
+        true,
+        false,
+        IsolationLevel::BestEffort,
+    );
     assert_eq!(shown.state, CliToolState::Unsupported);
 }
 
@@ -175,7 +196,7 @@ fn listing(versions: &[&str]) -> VendorDefinition {
 }
 
 fn status_for(vendor: &VendorDefinition, dir: &std::path::Path) -> super::CliToolStatus {
-    derive(vendor, dir, HOST, false, IsolationLevel::BestEffort)
+    derive(vendor, dir, HOST, true, false, IsolationLevel::BestEffort)
 }
 
 #[test]
@@ -276,8 +297,131 @@ fn an_installing_tool_with_an_update_available_shows_as_installing() {
     let vendor = listing(&["1.1.0", "1.0.0"]);
     install(dir.path(), "1.0.0", PlatformKey::LinuxX64);
 
-    let shown = derive(&vendor, dir.path(), HOST, true, IsolationLevel::BestEffort);
+    let shown = derive(
+        &vendor,
+        dir.path(),
+        HOST,
+        true,
+        true,
+        IsolationLevel::BestEffort,
+    );
 
     assert_eq!(shown.state, CliToolState::Installing);
     assert_eq!(shown.installed_version.as_deref(), Some("1.0.0"));
+}
+
+// The variant of a platform, the AVX2 rule and a vendor with no tested version (spec 096).
+
+const AVX_VENDOR: &str = r#"{"schema":1,"vendors":[{"vendor":"avxtool","display_name":"Avx","download_hosts":["dl.example.com"],
+    "executable":{"linux-x64":"t","linux-x64-baseline":"t","darwin-x64":"t","win32-x64":"t.exe"},"config_env":"T_HOME",
+    "versions":[{"version":"1.0.0","platforms":{
+    "linux-x64":{"url":"https://dl.example.com/x64.tgz","sha256":"0000000000000000000000000000000000000000000000000000000000000001","size":10,"kind":"tar.gz","unpacked_size":20,"requires_avx2":true},
+    "linux-x64-baseline":{"url":"https://dl.example.com/base.tgz","sha256":"0000000000000000000000000000000000000000000000000000000000000002","size":11,"kind":"tar.gz","unpacked_size":21},
+    "darwin-x64":{"url":"https://dl.example.com/mac.tgz","sha256":"0000000000000000000000000000000000000000000000000000000000000003","size":12,"kind":"tar.gz","unpacked_size":22,"requires_avx2":true},
+    "win32-x64":{"url":"https://dl.example.com/win.zip","sha256":"0000000000000000000000000000000000000000000000000000000000000004","size":13,"kind":"zip","unpacked_size":23,"requires_avx2":true}}}]}]}"#;
+
+fn avx_vendor() -> VendorDefinition {
+    Catalog::parse(AVX_VENDOR)
+        .unwrap()
+        .vendor("avxtool")
+        .unwrap()
+        .clone()
+}
+
+fn avx_status(host: PlatformKey, avx2: bool) -> super::CliToolStatus {
+    let dir = TempDir::new().unwrap();
+    derive(
+        &avx_vendor(),
+        dir.path(),
+        Some(host),
+        avx2,
+        false,
+        IsolationLevel::BestEffort,
+    )
+}
+
+#[test]
+fn a_linux_host_without_avx2_is_offered_the_variant() {
+    let shown = avx_status(PlatformKey::LinuxX64Baseline, false);
+    assert_eq!(shown.state, CliToolState::NotInstalled);
+    assert_eq!(shown.download_bytes, Some(11));
+    assert_eq!(shown.unpacked_bytes, Some(21));
+
+    let shown = avx_status(PlatformKey::LinuxX64, true);
+    assert_eq!(shown.download_bytes, Some(10));
+}
+
+#[test]
+fn a_macos_or_windows_x64_host_without_avx2_reads_unsupported_where_the_program_needs_it() {
+    for host in [PlatformKey::DarwinX64, PlatformKey::Win32X64] {
+        let shown = avx_status(host, false);
+        assert_eq!(shown.state, CliToolState::Unsupported, "{host}");
+        assert_eq!(shown.download_bytes, None, "{host}");
+        let shown = avx_status(host, true);
+        assert_eq!(shown.state, CliToolState::NotInstalled, "{host}");
+    }
+    // A zip's size on disk is the unpacked size, like a tar.gz.
+    assert_eq!(
+        avx_status(PlatformKey::Win32X64, true).unpacked_bytes,
+        Some(23)
+    );
+}
+
+#[test]
+fn claude_code_stays_installable_on_a_host_without_avx2() {
+    let dir = TempDir::new().unwrap();
+    for host in [PlatformKey::LinuxX64Baseline, PlatformKey::DarwinX64] {
+        let shown = derive(
+            &claude(),
+            dir.path(),
+            Some(host),
+            false,
+            false,
+            IsolationLevel::BestEffort,
+        );
+        assert_eq!(shown.state, CliToolState::NotInstalled, "{host}");
+        assert!(shown.download_bytes.is_some(), "{host}");
+    }
+}
+
+#[test]
+fn a_vendor_with_no_tested_version_reads_no_tested_version_whatever_the_host() {
+    let catalog = Catalog::parse(
+        r#"{"schema":1,"vendors":[{"vendor":"newtool","display_name":"New","download_hosts":["dl.example.com"],
+        "executable":{"linux-x64":"t"},"config_env":"T_HOME","versions":[]}]}"#,
+    )
+    .unwrap();
+    let vendor = catalog.vendor("newtool").unwrap();
+    let dir = TempDir::new().unwrap();
+    for host in [HOST, None] {
+        let shown = derive(
+            vendor,
+            dir.path(),
+            host,
+            true,
+            false,
+            IsolationLevel::BestEffort,
+        );
+        assert_eq!(shown.state, CliToolState::NoTestedVersion);
+        assert_eq!(shown.latest_listed_version, None);
+        assert_eq!(shown.download_bytes, None);
+    }
+}
+
+#[test]
+fn an_installation_for_the_base_key_is_in_use_on_a_host_without_avx2() {
+    let dir = TempDir::new().unwrap();
+    install(dir.path(), "2.1.311", PlatformKey::LinuxX64);
+
+    let shown = derive(
+        &claude(),
+        dir.path(),
+        Some(PlatformKey::LinuxX64Baseline),
+        false,
+        false,
+        IsolationLevel::BestEffort,
+    );
+
+    assert_eq!(shown.installed_version.as_deref(), Some("2.1.311"));
+    assert_ne!(shown.state, CliToolState::NeedsReinstall);
 }

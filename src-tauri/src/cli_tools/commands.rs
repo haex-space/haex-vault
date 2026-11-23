@@ -12,7 +12,7 @@ use tauri::{AppHandle, Emitter, State};
 use super::catalog::{Catalog, VendorDefinition};
 use super::install::{self, InstallContext, InstallError, Phase, Progress};
 use super::installed::{self, Resolution};
-use super::platform::PlatformKey;
+use super::platform::{self, PlatformKey};
 use super::runtime::DelegateTools;
 use super::status::{self, CliToolChanged, CliToolPhase, CliToolProgress, CliToolStatus};
 use super::uses;
@@ -67,6 +67,7 @@ fn status_of(
         vendor,
         &tools.paths().cli_tool_dir(tools.vault(), vendor_id),
         PlatformKey::host(),
+        platform::host_has_avx2(),
         running.is_running(&registry_key(vendor_id)),
         tools.containment().level(),
     )
@@ -99,26 +100,51 @@ pub(crate) fn plan_for(
     vendor: &VendorDefinition,
     version: Option<&str>,
 ) -> std::result::Result<Plan, InstallError> {
+    plan_for_host(
+        tools,
+        vendor,
+        version,
+        PlatformKey::host(),
+        platform::host_has_avx2(),
+    )
+}
+
+/// [`plan_for`] for a device given by its key and its CPU's AVX2 answer (a test names its own).
+pub(crate) fn plan_for_host(
+    tools: &DelegateTools,
+    vendor: &VendorDefinition,
+    version: Option<&str>,
+    host: Option<PlatformKey>,
+    avx2: bool,
+) -> std::result::Result<Plan, InstallError> {
     let vendor_id = vendor.vendor.as_str();
-    let platform = PlatformKey::host().ok_or(InstallError::UnsupportedPlatform)?;
-    let entry = match version {
-        Some(wanted) => vendor
-            .versions
-            .iter()
-            .find(|entry| entry.version == wanted)
-            .ok_or(InstallError::UnknownVersion)?,
-        None => vendor
-            .newest_for(platform)
-            .ok_or(InstallError::UnsupportedPlatform)?,
+    if vendor.versions.is_empty() {
+        return Err(InstallError::NoTestedVersion);
+    }
+    let host = host.ok_or(InstallError::UnsupportedPlatform)?;
+    let (entry, platform, artifact) = match version {
+        Some(wanted) => {
+            let entry = vendor
+                .versions
+                .iter()
+                .find(|entry| entry.version == wanted)
+                .ok_or(InstallError::UnknownVersion)?;
+            let (platform, artifact) = entry
+                .artifact_for(host, avx2)
+                .ok_or(InstallError::UnsupportedPlatform)?;
+            (entry, platform, artifact)
+        }
+        None => {
+            let found = vendor
+                .newest_for(host, avx2)
+                .ok_or(InstallError::UnsupportedPlatform)?;
+            (found.version, found.platform, found.artifact)
+        }
     };
-    let artifact = entry
-        .platforms
-        .get(platform.as_str())
-        .ok_or(InstallError::UnsupportedPlatform)?
-        .clone();
+    let artifact = artifact.clone();
 
     let vendor_dir = tools.paths().cli_tool_dir(tools.vault(), vendor_id);
-    let mut found = installed::scan(&vendor_dir, vendor, Some(platform));
+    let mut found = installed::scan(&vendor_dir, vendor, Some(host));
     if let Resolution::Usable(current) = installed::resolve_found(&found) {
         // An install never switches to an older version: that is the revert's job (FR-022).
         let wanted = Version::parse(&entry.version).ok();
@@ -133,8 +159,8 @@ pub(crate) fn plan_for(
         }
         if current.confirmed && installed::older_remains(&found) {
             // A deletion that an earlier run's end or a failure left pending may be doable now.
-            uses::prune(&vendor_dir, vendor, Some(platform));
-            found = installed::scan(&vendor_dir, vendor, Some(platform));
+            uses::prune(&vendor_dir, vendor, Some(host));
+            found = installed::scan(&vendor_dir, vendor, Some(host));
             if installed::older_remains(&found) {
                 return Err(InstallError::VersionInUse);
             }

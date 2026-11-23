@@ -29,7 +29,7 @@ use super::installed::{
 use super::platform::PlatformKey;
 use super::record::Record;
 use super::runtime::DelegateRuntime;
-use super::unpack::{place_file, unpack_tar_gz, UnpackError};
+use super::unpack::{place_file, unpack_tar_gz, unpack_zip, UnpackError};
 use crate::error::HaexError;
 use crate::models::{download, download_check, hash};
 
@@ -70,6 +70,8 @@ pub enum InstallError {
     UnknownVersion,
     #[error("cli_tools.unsupported_platform: no program of this vendor for this device")]
     UnsupportedPlatform,
+    #[error("cli_tools.no_tested_version: this tool has no tested version yet")]
+    NoTestedVersion,
     #[error("cli_tools.locked: another install of this tool runs in this vault")]
     Locked,
     #[error("cli_tools.no_space: {needed} bytes needed, {free} free")]
@@ -105,6 +107,7 @@ impl InstallError {
             Self::UnknownVendor => "cli_tools.unknown_vendor",
             Self::UnknownVersion => "cli_tools.unknown_version",
             Self::UnsupportedPlatform => "cli_tools.unsupported_platform",
+            Self::NoTestedVersion => "cli_tools.no_tested_version",
             Self::Locked => "cli_tools.locked",
             Self::NoSpace { .. } => "cli_tools.no_space",
             Self::Offline => "cli_tools.offline",
@@ -235,7 +238,7 @@ where
     let executable = staging.join(relative);
     let downloaded = match ctx.artifact.kind {
         ArtifactKind::File => executable.clone(),
-        ArtifactKind::TarGz => staging.join(DOWNLOAD_FILE),
+        ArtifactKind::TarGz | ArtifactKind::Zip => staging.join(DOWNLOAD_FILE),
     };
 
     download_artifact(ctx, &downloaded, cancel, progress).await?;
@@ -412,12 +415,14 @@ async fn unpack(
                 .await
                 .map_err(|e| io_error("place the program", e))?
         }
-        ArtifactKind::TarGz => {
+        ArtifactKind::TarGz | ArtifactKind::Zip => {
             let (archive, target) = (downloaded.to_path_buf(), staging.to_path_buf());
             let limit = ctx.artifact.unpacked_size.unwrap_or(0);
             let token = cancel.clone();
-            let unpacked = tokio::task::spawn_blocking(move || {
-                unpack_tar_gz(&archive, &target, limit, &token)
+            let kind = ctx.artifact.kind;
+            let unpacked = tokio::task::spawn_blocking(move || match kind {
+                ArtifactKind::Zip => unpack_zip(&archive, &target, limit, &token),
+                _ => unpack_tar_gz(&archive, &target, limit, &token),
             })
             .await
             .map_err(|e| io_error("unpack the package", e))?;

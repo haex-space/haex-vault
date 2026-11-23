@@ -144,6 +144,35 @@
           }
         }
       ]
+    },
+    {
+      "vendor": "abacusai",
+      "display_name": "Abacus AI",
+      "download_hosts": ["static.abacus.ai"],
+      "executable": {
+        "linux-x64": "abacusai",
+        "linux-x64-baseline": "abacusai",
+        "linux-arm64": "abacusai",
+        "darwin-x64": "abacusai",
+        "darwin-arm64": "abacusai",
+        "win32-x64": "abacusai.exe",
+        "win32-arm64": "abacusai.exe"
+      },
+      "env_set": [
+        {
+          "name": "ABACUS_AUTO_UPDATE",
+          "value": "off"
+        },
+        {
+          "name": "ABACUS_DISABLE_AUTO_MEMORY",
+          "value": "1"
+        }
+      ],
+      "config_args": [],
+      "env_remove_prefixes": ["ABACUS_", "ABACUSAI_", "CODELLM_"],
+      "config_env": "ABACUSAI_CODING_AGENT_DIR",
+      "tmp_env": [],
+      "versions": []
     }
   ]
 }

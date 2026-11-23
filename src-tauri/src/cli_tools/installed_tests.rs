@@ -613,3 +613,89 @@ fn a_damaged_older_version_is_no_way_back() {
     );
     assert_eq!(folders(dir.path()), ["2.1.310", "2.1.311"]);
 }
+
+// The variant of a platform (spec 096): what was installed for it fits the host that falls back.
+
+fn abacus() -> VendorDefinition {
+    Catalog::shipped().vendor("abacusai").unwrap().clone()
+}
+
+#[test]
+fn an_installation_for_the_variant_fits_a_host_whose_candidates_include_it() {
+    let dir = TempDir::new().unwrap();
+    let vendor = abacus();
+    install_for(
+        dir.path(),
+        &vendor,
+        "2.10.23",
+        PlatformKey::LinuxX64Baseline,
+        40,
+    );
+
+    let found = scan(dir.path(), &vendor, Some(PlatformKey::LinuxX64Baseline));
+
+    assert_eq!(usable_versions(&found), ["2.10.23"]);
+}
+
+#[test]
+fn an_installation_for_the_variant_does_not_fit_a_host_that_has_avx2() {
+    let dir = TempDir::new().unwrap();
+    let vendor = abacus();
+    install_for(
+        dir.path(),
+        &vendor,
+        "2.10.23",
+        PlatformKey::LinuxX64Baseline,
+        40,
+    );
+
+    let found = scan(dir.path(), &vendor, HOST);
+
+    assert_eq!(
+        resolve(dir.path(), &vendor, HOST),
+        Resolution::NeedsReinstall(Misfit::Platform)
+    );
+    assert!(usable_versions(&found).is_empty());
+}
+
+#[test]
+fn an_installation_for_the_base_key_fits_a_host_without_avx2() {
+    let dir = TempDir::new().unwrap();
+    let vendor = claude();
+    install(dir.path(), &vendor, "2.1.311", 40);
+
+    let found = scan(dir.path(), &vendor, Some(PlatformKey::LinuxX64Baseline));
+
+    assert_eq!(usable_versions(&found), ["2.1.311"]);
+}
+
+#[test]
+fn an_installation_for_another_platform_family_still_needs_a_reinstall_on_the_variant_host() {
+    let dir = TempDir::new().unwrap();
+    let vendor = claude();
+    install_for(dir.path(), &vendor, "2.1.311", PlatformKey::LinuxArm64, 40);
+
+    assert_eq!(
+        resolve(dir.path(), &vendor, Some(PlatformKey::LinuxX64Baseline)),
+        Resolution::NeedsReinstall(Misfit::Platform)
+    );
+}
+
+#[test]
+fn the_signature_file_next_to_the_program_does_not_break_the_completeness_check() {
+    let dir = TempDir::new().unwrap();
+    let vendor = abacus();
+    let version_dir = install(dir.path(), &vendor, "2.10.23", 40);
+    // The release archive carries the Sigstore bundle beside the program; the marker lists it.
+    fs::write(version_dir.join("abacusai-linux-x64.sigstore"), b"bundle").unwrap();
+    let mut marker = InstallMarker::read(&version_dir).unwrap();
+    marker.files.push(InstalledFile {
+        path: "abacusai-linux-x64.sigstore".into(),
+        size: 6,
+    });
+    marker.write(&version_dir).unwrap();
+
+    let found = scan(dir.path(), &vendor, HOST);
+
+    assert_eq!(usable_versions(&found), ["2.10.23"]);
+}
