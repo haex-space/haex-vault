@@ -39,10 +39,26 @@ fn protection(device: &ChatDevice, thread: Uuid, now: i64) -> Option<Protection>
 /// Gives `device` a session with `peer` made at `created_at`, renewed at `renewed_at`. The pickle
 /// is never read here.
 fn session(device: &ChatDevice, peer: &ChatDevice, created_at: i64, renewed_at: Option<i64>) {
+    session_with_id(
+        device,
+        peer,
+        &Uuid::new_v4().to_string(),
+        created_at,
+        renewed_at,
+    );
+}
+
+fn session_with_id(
+    device: &ChatDevice,
+    peer: &ChatDevice,
+    session_id: &str,
+    created_at: i64,
+    renewed_at: Option<i64>,
+) {
     let installation = device.me.installation;
     let row = SessionRow {
         peer_device: peer.me.device_hex(),
-        session_id: Uuid::new_v4().to_string(),
+        session_id: session_id.to_owned(),
         session: Zeroizing::new(String::from("{}")),
         peer_identity_key: String::from("key"),
         created_at,
@@ -92,6 +108,28 @@ fn queued_for(device: &ChatDevice, thread: Uuid, vault: &ChatDevice) {
         .expect("outbox");
 }
 
+fn accepted_for(device: &ChatDevice, thread: Uuid, vault: &ChatDevice) {
+    let awaiting = vec![vault.me.vault_hex.clone()];
+    device
+        .db
+        .write_blocking(move |tx| {
+            Ok(outbox::enqueue(
+                tx,
+                &Uuid::new_v4().to_string(),
+                &thread.to_string(),
+                Some(&Uuid::new_v4().to_string()),
+                &Rumor {
+                    kind: 24120,
+                    content: String::from("{}"),
+                },
+                &[],
+                &awaiting,
+                now_ms(),
+            )?)
+        })
+        .expect("outbox");
+}
+
 fn state(device: &ChatDevice, thread: Uuid, now: i64) -> ProtectionState {
     protection(device, thread, now)
         .expect("a direct conversation has a protection")
@@ -118,18 +156,46 @@ async fn renewal_outstanding_after_more_than_seven_days() {
     let (anna, phone, ben, thread) = anna_phone_ben().await;
     let now = now_ms();
     session(&anna, &phone, now, None);
-    session(&anna, &ben, now - 8 * DAY_MS, None);
+    session_with_id(
+        &anna,
+        &ben,
+        "00000000-0000-4000-8000-000000000001",
+        now - 8 * DAY_MS,
+        None,
+    );
     assert_eq!(
         state(&anna, thread, now),
         ProtectionState::RenewalOutstanding,
         "created more than seven days ago, never renewed"
     );
-    session(&anna, &ben, now - 30 * DAY_MS, Some(now - DAY_MS));
-    assert_eq!(
-        state(&anna, thread, now),
-        ProtectionState::Protected,
-        "the newest renewal over the device's sessions counts"
+    session_with_id(
+        &anna,
+        &ben,
+        "00000000-0000-4000-8000-000000000002",
+        now - 30 * DAY_MS,
+        Some(now - DAY_MS),
     );
+    assert_eq!(
+        protection(&anna, thread, now),
+        Some(Protection {
+            state: ProtectionState::RenewalOutstanding,
+            renewed_at: Some(now - 8 * DAY_MS),
+        }),
+        "a newer session does not hide the session used for sending"
+    );
+}
+
+#[tokio::test]
+async fn awaiting_recipient_still_waits_for_keys_after_partial_acceptance() {
+    let (anna, phone, ben, thread) = anna_phone_ben().await;
+    let now = now_ms();
+    session(&anna, &phone, now, None);
+    accepted_for(&anna, thread, &ben);
+
+    assert_eq!(state(&anna, thread, now), ProtectionState::WaitingForKeys);
+
+    session(&anna, &ben, now, None);
+    assert_eq!(state(&anna, thread, now), ProtectionState::Protected);
 }
 
 #[tokio::test]

@@ -23,9 +23,7 @@ const view = computed(() => PROTECTION_VIEWS[props.protection.state])
     class="gap-1 px-2"
     :class="view.warning ? 'text-warning' : 'text-muted-foreground'"
     :aria-expanded="open"
-    :aria-label="
-      open ? t('chat.peer.protection.hide') : t('chat.peer.protection.show')
-    "
+    :aria-label="`${t(view.label)}. ${t(open ? 'chat.peer.protection.hide' : 'chat.peer.protection.show')}`"
     :tooltip="
       open ? t('chat.peer.protection.hide') : t('chat.peer.protection.show')
     "
