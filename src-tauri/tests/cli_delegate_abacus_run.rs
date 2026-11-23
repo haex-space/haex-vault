@@ -95,7 +95,7 @@ async fn requests_stay_gated_until_tool_approval_coverage_is_verified() {
     };
 
     assert!(
-        matches!(error, AdapterError::Unavailable { reason } if reason == "delegate.approvals_unverified: abacusai"),
+        matches!(&error, AdapterError::Unavailable { reason } if reason == "delegate.approvals_unverified: abacusai"),
         "{error:?}"
     );
     assert!(!dir.path().join("who-ran").exists(), "nothing was spawned");
