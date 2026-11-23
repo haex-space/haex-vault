@@ -174,10 +174,9 @@ export function useModelInventory(deps: ModelInventoryDeps) {
         models: [
           {
             id: `delegate-${vendor}:not-connected`,
-            name:
-              unverifiedVendors.value.includes(vendor)
-                ? t('chat.model.delegateApprovalsUnverified')
-                : t('chat.model.delegateNotConnected'),
+            name: unverifiedVendors.value.includes(vendor)
+              ? t('chat.model.delegateApprovalsUnverified')
+              : t('chat.model.delegateNotConnected'),
             disabled: true,
           },
         ],
