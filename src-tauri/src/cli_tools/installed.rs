@@ -186,7 +186,7 @@ fn inspect(dir: &Path, name: &str, vendor: &VendorDefinition, host: Option<Platf
         .iter()
         .find(|entry| entry.version == name)
         .and_then(|entry| entry.platforms.get(installed_for.as_str()))
-        .map_or(true, |artifact| artifact.requires_avx2);
+        .is_none_or(|artifact| artifact.requires_avx2);
     let fits_host = host.is_some_and(|key| {
         key.candidates().contains(&installed_for)
             && !(key == PlatformKey::LinuxX64Baseline
