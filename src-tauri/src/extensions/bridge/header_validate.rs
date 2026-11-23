@@ -47,8 +47,9 @@ const CATALOG: &[&str] = &[
     "separator",
 ];
 const FORMS: &[&str] = &["overflow", "icon", "shrink", "keep"];
-/// Bidirectional formatting characters: they would reorder the text around them.
-const BIDI: &[char] = &[
+/// Bidirectional formatting characters: they would reorder the text around them. The memory's
+/// check on writing refuses them too (`agent_memory::check`).
+pub(crate) const BIDI: &[char] = &[
     '\u{061C}', '\u{200E}', '\u{200F}', '\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}',
     '\u{2066}', '\u{2067}', '\u{2068}', '\u{2069}',
 ];

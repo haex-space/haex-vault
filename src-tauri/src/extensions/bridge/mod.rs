@@ -9,7 +9,7 @@ pub mod events;
 pub mod frames;
 pub mod header;
 pub mod header_icons;
-mod header_validate;
+pub(crate) mod header_validate;
 pub mod methods;
 pub(crate) mod model_jobs;
 pub(crate) mod openers;
