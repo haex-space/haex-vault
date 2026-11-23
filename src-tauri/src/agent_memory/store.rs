@@ -265,7 +265,7 @@ pub fn change_page(
 ) -> Result<Page, MemoryError> {
     let stored = get(tx, id)?.ok_or(MemoryError::NotFound)?;
     checked_page(new, Some(&stored))?;
-    if title_taken(tx, new.title, Some(id))? {
+    if title_key(new.title) != title_key(&stored.title) && title_taken(tx, new.title, Some(id))? {
         return Err(MemoryError::TitleTaken);
     }
     write_change(tx, author, now, id, new)
@@ -298,6 +298,7 @@ pub fn append(
     } else {
         format!("{}\n\n{}", page.body.trim_end(), text.trim())
     };
+    check(Field::Body, &body).map_err(|error| MemoryError::Check(Field::Body, error))?;
     appended_fits(&page.body, &body).map_err(MemoryError::Limit)?;
     let new = NewPage {
         title: &page.title,

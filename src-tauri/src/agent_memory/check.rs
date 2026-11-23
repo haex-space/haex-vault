@@ -204,16 +204,19 @@ fn key_run(text: &str) -> bool {
 fn password_value(words: &[&str]) -> bool {
     words.iter().enumerate().any(|(at, word)| {
         let lower = word.to_lowercase();
-        let (name, colon) = match lower.strip_suffix(':') {
-            Some(name) => (name, true),
-            None => (lower.as_str(), false),
+        let (name, inline_value, assigned) = match lower.find([':', '=']) {
+            Some(separator) => (&lower[..separator], Some(&lower[separator + 1..]), true),
+            None => (lower.as_str(), None, false),
         };
         if !names_a_password(name) {
             return false;
         }
         let mut rest = words[at + 1..].iter();
-        let mut next = rest.next().map(|w| w.to_lowercase());
-        let mut assigned = colon;
+        let mut next = inline_value
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+            .or_else(|| rest.next().map(|w| w.to_lowercase()));
+        let mut assigned = assigned;
         while let Some(word) = next.as_deref() {
             if !CONNECTORS.contains(&word) {
                 break;

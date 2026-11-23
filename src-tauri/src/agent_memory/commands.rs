@@ -13,7 +13,7 @@ use tauri::{AppHandle, Runtime, State};
 use ts_rs::TS;
 
 use super::limits::MAX_PAGES;
-use super::links::LinkMap;
+use super::links::pointers;
 use super::search::{search, SearchPage};
 use super::store::{self, settle, MemoryError, NewPage, Page};
 use super::{title_key, Author};
@@ -207,7 +207,6 @@ pub fn page_view(q: &mut impl Query, id: &str) -> haex_crdt::Result<Option<Agent
     };
     let names = device_names(q)?;
     let doubled = doubled(&pages);
-    let links = LinkMap::build(pages.iter().map(|p| (p.title.as_str(), p.body.as_str())));
     // A title leads to the page changed last, as `store::by_title` resolves it.
     let mut ids: HashMap<String, String> = HashMap::new();
     for p in &pages {
@@ -236,15 +235,21 @@ pub fn page_view(q: &mut impl Query, id: &str) -> haex_crdt::Result<Option<Agent
             .and_then(|device| names.get(device).cloned().flatten()),
         changed_at: listed.changed_at,
         same_title: listed.same_title,
-        points_to: links
-            .points_to(&page.title)
-            .into_iter()
-            .map(|p| pointer(p.title))
-            .collect(),
-        pointed_from: links
-            .pointed_from(&page.title)
-            .into_iter()
-            .map(pointer)
+        points_to: pointers(&page.body).into_iter().map(pointer).collect(),
+        pointed_from: pages
+            .iter()
+            .filter(|source| {
+                ids.get(&title_key(&page.title))
+                    .is_some_and(|resolved| resolved == &page.id)
+                    && ids
+                        .get(&title_key(&source.title))
+                        .is_some_and(|resolved| resolved == &source.id)
+                    && source.id != page.id
+                    && pointers(&source.body)
+                        .iter()
+                        .any(|target| title_key(target) == title_key(&page.title))
+            })
+            .map(|source| pointer(source.title.clone()))
             .collect(),
     }))
 }

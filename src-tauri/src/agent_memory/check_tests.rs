@@ -83,6 +83,8 @@ fn secrets_are_refused() {
         "my password is sunshine",
         "Das Kennwort lautet sonnenschein",
         "Password: sunshine",
+        "Passwort:geheim",
+        "PIN=4711",
         "Kennwort = sonnenschein",
         "PIN 4711",
         "Die PIN lautet 4711",
