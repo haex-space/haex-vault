@@ -77,7 +77,8 @@ A request answered by Abacus:
 
    ```text
    <vault>/cli-tools/abacusai/<version>/abacusai -p --input-format stream-json --output-format stream-json
-       --permission-mode supervise --no-agents-md [--model <id>] [--mcp-config <run folder>/mcp.json]
+       --include-partial-messages --permission-mode supervise --no-agents-md [--model <id>]
+       [--mcp-config <run folder>/mcp-config.json]
    ```
 
    runs it through `Containment` (the base layer sets `HOME`, `TMPDIR`, the XDG variables, `ABACUSAI_CODING_AGENT_DIR` and

@@ -127,19 +127,20 @@ Input to the program (one JSON object per line on stdin):
 Output from the program (one JSON object per line on stdout; stderr carries diagnostics and, on exit 1, a last line
 `{"type":"fatal","reason":...}`):
 
-| `type`                                           | What the adapter does with it                                                                                                |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| `system` (`init`)                                | records `cli_version`, `protocol_version`, `permission_mode`; refuses a `permission_mode` other than `supervise`             |
-| `event`                                          | turned into the stream deltas of the chat (text, tool use, tool result); unknown events are ignored                          |
-| `control_request` with `subtype: "can_use_tool"` | calls `approval_bridge::request_approval`, answers with `accept` or `reject` (with the user's note as `reject_with_message`) |
-| `result`                                         | ends the turn: `success` finishes, `is_error` ends with the fatal reason mapped to a chat error (below)                      |
-| anything else                                    | ignored (the vendor adds message types between versions)                                                                     |
+| `type`                                           | What the adapter does with it                                                                                                                                                                                                                                             |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `system` (`init`)                                | records `cli_version`, `protocol_version`, `permission_mode`; refuses a `permission_mode` other than `supervise`                                                                                                                                                          |
+| `event`                                          | `event.type = "text_delta"` (field `content`, not from a sub-task) becomes a stream delta; an `error` event is noted; every other event is ignored (read from the program's own code, not yet from an authenticated run)                                                  |
+| `control_request` with `subtype: "can_use_tool"` | calls `approval_bridge::request_approval`, answers with `accept` or `reject` (with the user's note as `reject_with_message`)                                                                                                                                              |
+| `result`                                         | ends the turn: `subtype = success` with `is_error = false` finishes (`token_usage.inputTokens`/`outputTokens` are the counts); anything else ends with the first of `errors` as a chat error. A turn that streamed no `text_delta` still gets the text of `result.result` |
+| anything else                                    | ignored (the vendor adds message types between versions)                                                                                                                                                                                                                  |
 
 The adapter never sends `allowAlways`, `allowYolo`, `allow_always_with_rules`, `accept_with_message` for a tool the user
 refused, or `question_answers` it did not collect from the user.
 
-Fatal reasons (exit 1) mapped to the delegate errors that spec 007 and the existing adapters already show: `not_authenticated` and
-`access_denied` lead back to connecting (FR-007); `network_unreachable` is "network"; `no_models`, `invalid_config`,
+Fatal reasons (exit 1) mapped to the delegate errors: `not_authenticated` and
+`access_denied` end as `Unavailable` with `delegate.credential_refused: abacusai` (not retried, no other backend), which the
+frontend words as "connect again" (FR-007); `network_unreachable` is "network"; `no_models`, `invalid_config`,
 `startup_timeout`, `internal` are shown as "the tool failed" with the reason text.
 
 ## 5. Per-run folder

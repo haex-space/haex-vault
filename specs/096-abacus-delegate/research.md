@@ -193,6 +193,14 @@ would persist a permission outside HaexVault's posture). `--no-agents-md` and `A
 instructions and memory out (spec 007 FR-009). The set of tools Abacus uses beyond its own is given with `--mcp-config`
 (the HaexVault MCP server, as for Claude Code and Codex).
 
+**Read from the program's own code** (the bun binary carries its JavaScript as text; no run needed): the output line
+`{"type":"event","event":{...}}` carries the conversation events of the turn, among them `text_delta` (field `content`,
+`subtaskId` for a sub-task), `turn_complete`, `error` (`error.message`), `credits`, `token_usage` (`inputTokens`,
+`outputTokens`, ...); without `--include-partial-messages` the program merges consecutive text deltas, so the adapter passes
+it; the `result` line has `subtype`, `is_error`, `result` (the whole text), `stop_reason`, `errors[]`, `token_usage`,
+`credits_used`; a `can_use_tool` request carries `tool_call_id` and `request` (the call as the permission system holds it,
+whose fields are not typed there); a host that closes stdin ends the program.
+
 **Not verified (operator)**: a real approval round trip (the fields of `request` in `can_use_tool`, how a rejection with a
 message reads in the transcript), that `supervise` asks for every changing tool, and the user-message block format for
 attachments. Until verified, FR-010 is "satisfiable by the protocol", not "measured".
