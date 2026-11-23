@@ -142,6 +142,25 @@ async fn start_with_a_refusal_carries_the_vendors_text() {
 }
 
 #[tokio::test]
+async fn start_with_a_refusal_that_echoes_the_email_does_not_expose_it() {
+    let server = MockServer::start().await;
+    mount_start(
+        &server,
+        json!({ "success": false, "error": format!("No account for {EMAIL}") }),
+    )
+    .await;
+
+    let error = client(&server)
+        .start(&email(), DEVICE_ID)
+        .await
+        .unwrap_err();
+
+    assert_eq!(error, SigninError::Refused("no reason given".to_string()));
+    assert!(!error.to_string().contains(EMAIL));
+    assert!(!format!("{error:?}").contains(EMAIL));
+}
+
+#[tokio::test]
 async fn start_with_a_refusal_without_text_uses_a_fixed_one() {
     let server = MockServer::start().await;
     mount_start(&server, json!({ "success": false })).await;

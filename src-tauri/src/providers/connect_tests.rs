@@ -18,6 +18,33 @@ use super::connect::{
     DelegateConnectState,
 };
 
+#[test]
+fn finishing_an_old_abacus_connect_does_not_cancel_a_new_one() {
+    let state = DelegateConnectState::new();
+    let (old_id, old_token) = state.begin_abacus();
+    let (new_id, new_token) = state.begin_abacus();
+
+    assert!(
+        old_token.is_cancelled(),
+        "a new connect cancels the old one"
+    );
+    state.finish_abacus(old_id);
+
+    assert!(!new_token.is_cancelled());
+    assert_eq!(
+        state
+            .abacus
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|active| active.id),
+        Some(new_id),
+        "the newer connect remains cancellable"
+    );
+    state.cancel_abacus();
+    assert!(new_token.is_cancelled());
+}
+
 #[tokio::test]
 /// Completes the pending flow when the browser round-trip produces a token.
 async fn completes_when_the_token_arrives_without_a_manual_submission() {
