@@ -4,12 +4,19 @@
 
 **Created**: 2026-10-16
 
-**Status**: Draft
+**Status**: Implemented (2026-11-23)
 
 **Input**: User description: „ich möchte holzi auf haex-vault umbenennen und auch in das
 entsprechende repo https://github.com/haex-space/haex-vault umziehen“ (Betreiber, 2026-10-16),
 mit den Entscheidungen aus der Planung vom selben Tag (siehe Clarifications). Das Eichhörnchen-Logo
 aus haex-vault ist als Vorarbeit mit PR #474 eingebaut.
+
+**Lage am 2026-11-23**: Die Umbenennung ist umgesetzt (S1 bis S11). Das Repo heißt
+`haex-space/haex-vault`, die alte App liegt archiviert in `haex-space/haex-vault-legacy`, alle
+Geschwister-Repos sind umgestellt, und der lokale Ordner heißt `~/Projekte/haex-vault`. Die echte
+alte Vault-Datei hat der Betreiber in haex-vault 3 geöffnet. Aus dem Umfang genommen: der iOS-Build
+bis zur Apple-Lizenz (SC-002). Offen bleibt T070, das Neuverknüpfen der
+Geräte des Betreibers.
 
 ## Clarifications
 
@@ -151,7 +158,7 @@ synchronisieren; eine Erweiterung lädt über `haex-ext://`.
 **Acceptance Scenarios**:
 
 1. **Given** der umbenannte Stand, **When** die CI läuft, **Then** sind alle bisherigen Prüfungen
-   grün, auch die Builds für Android und iOS.
+   grün, auch die Builds für Android (iOS ist zurückgestellt, siehe SC-002).
 2. **Given** zwei frische Installationen von haex-vault 3, **When** der Betreiber sie verknüpft,
    **Then** synchronisieren sie Vault-Daten wie zuvor.
 3. **Given** eine installierte Erweiterung, **When** sie geöffnet wird, **Then** lädt sie über das
@@ -379,8 +386,9 @@ den alten Namen oder auf Typen, die es nicht mehr gibt.
 - **SC-001**: Die Suche nach „holzi“ über das Repo liefert außerhalb der Ausnahmeliste null
   Treffer, und ein PR, der den Namen neu einführt, scheitert in der CI.
 - **SC-002**: Nach der Umbenennung sind alle Pflichtprüfungen auf `main` grün, einschließlich der
-  End-to-End-Tests auf dem Desktop und der Builds für Android und iOS, ohne dass ein Test gelöscht
-  oder abgeschwächt wurde.
+  End-to-End-Tests auf dem Desktop und der Builds für Android, ohne dass ein Test gelöscht oder
+  abgeschwächt wurde. iOS bleibt auf der Roadmap, hat aber bis zur Apple-Lizenz keinen Build in der
+  CI und ist bis dahin aus diesem Kriterium genommen (Betreiber, 2026-11-23).
 - **SC-003**: Der Betreiber öffnet die Kopie der alten Vault-Datei in haex-vault 3 und findet alle
   Passwort-Einträge (gleiche Anzahl wie in holzi) lesbar.
 - **SC-004**: Zwei Geräte mit haex-vault 3 verknüpfen sich und gleichen eine Änderung ab; die

@@ -54,3 +54,4 @@
 - [x] SC-006: T088 belegt Weiterleitung, Archivierung und Verweis des Legacy-Repos.
 - [x] SC-007: T071 bis T078 belegen die aktualisierten Geschwister-Repos und deren Prüfung;
       atoms hat keine CI.
+- Abschluss 2026-11-23: alle Erfolgskriterien sind belegt (Nachweise in `tasks.md`, T089); der iOS-Build ist bis zur Apple-Lizenz aus SC-002 genommen.
