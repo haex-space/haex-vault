@@ -13,9 +13,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use haex_lib::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
-use haex_lib::adapters::{
-    AdapterError, ChatMessage, ChatRequest, ChatRole, ProviderAdapter,
-};
+use haex_lib::adapters::{AdapterError, ChatMessage, ChatRequest, ChatRole, ProviderAdapter};
 use haex_lib::cli_tools::runtime::DelegateRuntime;
 use haex_lib::providers::delegate_credential::{self, KIND_DEVICE_CODE, VAULT_SCOPE};
 
