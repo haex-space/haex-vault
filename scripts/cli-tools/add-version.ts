@@ -418,7 +418,9 @@ async function measureContainment(
   const body = await fetchBytes(artifact.url)
   const sha = createHash('sha256').update(body).digest('hex')
   if (sha !== artifact.sha256) {
-    throw new Error(`the download for ${selectedKey} does not match its catalog entry`)
+    throw new Error(
+      `the download for ${selectedKey} does not match its catalog entry`,
+    )
   }
   const directory = mkdtempSync(join(tmpdir(), 'haex-containment-'))
   try {
