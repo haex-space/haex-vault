@@ -4,6 +4,7 @@ import type { ChatConversation } from '@bindings/ChatConversation'
 import type { ChatConversationKind } from '@bindings/ChatConversationKind'
 import type { ContactHeader } from '@bindings/ContactHeader'
 import type { ChatPeerMessage } from '@bindings/ChatPeerMessage'
+import type { ChatPeerProtection } from '@bindings/ChatPeerProtection'
 import type { OpenSystemOutcome } from '@bindings/OpenSystemOutcome'
 import type { ChatAttachmentOpened } from '@bindings/ChatAttachmentOpened'
 import type { TextContent } from '@bindings/TextContent'
@@ -81,6 +82,11 @@ export function useConversationCommands() {
     messagesAsync: (threadId: string, before?: number) =>
       invoke<ChatPeerMessage[]>('chat_peer_messages_list', {
         args: { threadId, before: before ?? null, limit: null },
+      }),
+    /** `null` for the notes and conversations with a model (spec 095 US4). */
+    protectionAsync: (threadId: string) =>
+      invoke<ChatPeerProtection | null>('chat_conversation_protection', {
+        args: { threadId },
       }),
     readAsync: (threadId: string) =>
       invoke<null>('chat_conversation_read', { args: { threadId } }),

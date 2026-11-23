@@ -3,7 +3,9 @@
  * The messages of a contact conversation (spec 072 US2, FR-021, FR-024): ordered by `sortAt`, the
  * other side's with name and picture, own ones with their delivery state. A failed message names
  * its reason and can be sent again. _Read_ only appears while read receipts are on (Rust leaves
- * it out otherwise, FR-024).
+ * it out otherwise, FR-024). _Sent_ means a Nostr-Relay accepted it, _delivered_ that a device of
+ * the recipient confirmed it; a message no relay accepted for a day is still tried, and its reason
+ * says so (spec 095 US4 scenario 3, T033).
  */
 import type { ChatPeerAttachment } from '@bindings/ChatPeerAttachment'
 import type { ChatPeerMessage } from '@bindings/ChatPeerMessage'

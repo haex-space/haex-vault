@@ -54,7 +54,7 @@ pub struct ListArgs {
     pub limit: Option<u32>,
 }
 
-fn session(app: &AppHandle) -> Result<Arc<Session>> {
+pub(super) fn session(app: &AppHandle) -> Result<Arc<Session>> {
     app.try_state::<Arc<PeerRegistry>>()
         .ok_or_else(|| HaexError::NotFound {
             name: "chat session".into(),

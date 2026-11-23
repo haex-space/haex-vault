@@ -1,9 +1,12 @@
-//! The conversation list and its entries (spec 072 US1, FR-001, FR-002, FR-004, FR-005, FR-008).
+//! The conversation list and its entries (spec 072 US1, FR-001, FR-002, FR-004, FR-005, FR-008),
+//! and a conversation's protection state (spec 095 US4).
 
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{AppHandle, State};
 use uuid::Uuid;
 
+use super::messages::session;
+use crate::chat::peer::ratchet::protection::{self, Protection};
 use crate::chat::peer::store::{self, Conversation, ListFilter};
 use crate::contacts::card::received;
 use crate::contacts::ids::is_self;
@@ -118,6 +121,21 @@ pub async fn chat_conversation_delete(state: State<'_, AppState>, args: ThreadAr
     let db = active_database(&state)?;
     let found = db.write(move |tx| Ok(store::delete(tx, id)?)).await?;
     found.then_some(()).ok_or_else(|| not_found(id))
+}
+
+/// The protection state of a conversation (spec 095 US4, FR-013); `None` for the notes and a
+/// conversation with a model.
+#[tauri::command]
+pub async fn chat_conversation_protection(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    args: ThreadArgs,
+) -> Result<Option<Protection>> {
+    let id = thread_id(&args.thread_id)?;
+    let me = session(&app)?.me.clone();
+    let db = active_database(&state)?;
+    let now = now_ms();
+    db.read(move |r| Ok(protection::of(r, &me, id, now)?)).await
 }
 
 fn own_vault(q: &mut impl Query) -> Result<String> {

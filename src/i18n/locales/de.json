@@ -491,7 +491,26 @@
       "removeFile": "{name} entfernen",
       "sendingFile": "Wird gesendet …",
       "noFileServer": "Dateien lassen sich erst senden, wenn ein Blossom-Server eingestellt ist.",
-      "openChatSettings": "Chat-Einstellungen öffnen"
+      "openChatSettings": "Chat-Einstellungen öffnen",
+      "protection": {
+        "state": {
+          "protected": "Geschützt",
+          "renewalOutstanding": "Erneuerung ausstehend",
+          "recovering": "Wird wiederhergestellt",
+          "waitingForKeys": "Wartet auf Schlüssel"
+        },
+        "explain": {
+          "protected": "Jede Nachricht hat einen eigenen Schlüssel, und die Geräte erneuern ihre Schlüssel regelmäßig von selbst. Wer später an einen Schlüssel eines Geräts kommt, liest damit keine früheren Nachrichten, und eine kopierte Schlüsselkopie nützt nach der nächsten Erneuerung nichts mehr.",
+          "renewalOutstanding": "Mit mindestens einem Gerät wurden die Schlüssel seit mehr als 7 Tagen nicht erneuert, meist weil es so lange nicht online war. Hat jemand den Schlüsselstand eines Geräts kopiert, kann er künftige Nachrichten lesen, bis die Erneuerung gelingt.",
+          "recovering": "Ein Gerät konnte eine Nachricht nicht entschlüsseln, deshalb vereinbaren die Geräte gerade neue Schlüssel. Noch nicht bestätigte Nachrichten werden danach neu verschlüsselt und noch einmal gesendet; dafür ist nichts zu tun.",
+          "waitingForKeys": "Ein Gerät hat noch keine Schlüssel veröffentlicht. Nachrichten an dieses Gerät warten, bis seine Schlüssel da sind; ohne sie wird ihm nichts gesendet."
+        },
+        "renewedAt": "Zuletzt mit allen Geräten erneuert: {date}",
+        "relays": "Nostr-Relays sehen nicht, was du schreibst, aber an welches Gerät etwas geht, wann, wie groß es ist und von welcher Netzwerkadresse. Sie können Nachrichten auch ablehnen, zurückhalten oder löschen; unbestätigte Nachrichten werden dann noch einmal gesendet.",
+        "history": "Dieser Schutz gilt für die Kopien auf den Nostr-Relays. Nachrichten, die in deinem Vault gespeichert sind, kann jeder lesen, der den Vault öffnen kann.",
+        "show": "Schutz erklären",
+        "hide": "Erklärung schließen"
+      }
     },
     "newContact": {
       "title": "Mit Kontakt schreiben",
@@ -501,14 +520,14 @@
     },
     "delivery": {
       "state": {
-        "waiting": "Wartet",
-        "sent": "Gesendet",
-        "delivered": "Zugestellt",
+        "waiting": "Wartet: noch hat kein Nostr-Relay sie angenommen",
+        "sent": "Gesendet: ein Nostr-Relay hat sie angenommen",
+        "delivered": "Zugestellt: ein Gerät des Empfängers hat sie bestätigt",
         "read": "Gelesen",
         "failed": "Nicht zugestellt"
       },
       "reason": {
-        "noRelay": "Kein Nostr-Relay hat die Nachricht angenommen.",
+        "noRelay": "Kein Nostr-Relay hat die Nachricht angenommen. Sie wird weiter versucht.",
         "noDevices": "Die Visitenkarte nennt kein Gerät.",
         "tooLarge": "Die Nachricht ist zu groß.",
         "unknown": "Die Zustellung ist fehlgeschlagen."

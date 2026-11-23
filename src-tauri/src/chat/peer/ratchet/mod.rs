@@ -12,6 +12,7 @@
 use nostr::event::Kind;
 
 pub mod account;
+pub mod protection;
 pub mod record;
 pub mod reset;
 pub mod session;

@@ -6,6 +6,7 @@
  * Sending and sending again run their catalog actions (`chat.peer.send`, `chat.peer.resend`);
  * the message appears at once as _waiting_ and moves on as the delivery goes. A request (US5) shows
  * its answers in place of the composer: nothing is sent to its sender before it is accepted.
+ * The header names the conversation's protection state and explains it on demand (spec 095 US4).
  */
 import { toast } from 'vue-sonner'
 import type { ChatPeerAttachment } from '@bindings/ChatPeerAttachment'
@@ -48,6 +49,8 @@ const files = ref<PeerFile[]>([])
 const viewing = ref<ChatPeerAttachment | null>(null)
 const fileActions = useChatFileActions()
 const confirmDelete = ref(false)
+/** The explanation of the protection state is open (spec 095 US4). */
+const showProtection = ref(false)
 const sending = ref(false)
 const preparingFiles = ref(false)
 /** Invalidates a pending picker when the user leaves and later returns to the same conversation. */
@@ -176,6 +179,7 @@ watch(
     viewing.value = null
     idempotencyKey = crypto.randomUUID()
     confirmDelete.value = false
+    showProtection.value = false
   },
 )
 </script>
@@ -205,6 +209,12 @@ watch(
             {{ t('chat.list.muted') }}
           </p>
         </div>
+        <!-- Notes and conversations with a model have no protection state (spec 095 US4). -->
+        <ChatProtectionState
+          v-if="peer.protection.value"
+          v-model:open="showProtection"
+          :protection="peer.protection.value"
+        />
         <!-- Notes never notify, so they have nothing to mute (FR-002b); a request is answered. -->
         <UiButton
           v-if="
@@ -239,6 +249,10 @@ watch(
           <Icon name="lucide:trash-2" class="h-4 w-4" />
         </UiButton>
       </header>
+      <ChatProtectionExplanation
+        v-if="showProtection && peer.protection.value"
+        :protection="peer.protection.value"
+      />
 
       <div
         class="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto px-4 py-6 md:px-8"
