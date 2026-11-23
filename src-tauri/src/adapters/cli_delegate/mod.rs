@@ -59,6 +59,7 @@ use uuid::Uuid;
 use super::{AdapterError, AdapterStream, ChatRequest, ChatRole, ProviderAdapter, ProviderModel};
 use crate::chat::tools::ApprovalDecision;
 use crate::cli_tools::runtime::{DelegateTools, RuntimeSource};
+use crate::passwords::binaries::sanitize_file_name;
 use crate::vault_gate::{ChildRegistry, VaultDb};
 
 /// Builds the plain-text transcript both `claude -p` and `codex`'s
@@ -82,7 +83,7 @@ pub(super) fn build_transcript_prompt(req: &ChatRequest) -> String {
                 for attachment in &message.attachments {
                     prompt.push_str(&format!(
                         "\n[Attached file: attachment-{attachment_index}-{}]",
-                        attachment.name
+                        sanitize_file_name(&attachment.name)
                     ));
                     attachment_index += 1;
                 }

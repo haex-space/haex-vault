@@ -27,6 +27,7 @@ use crate::adapters::types::{StreamChunk, StreamError};
 use crate::adapters::{AdapterError, AdapterStream, ChatRequest, ProviderModel};
 use crate::cli_tools::runtime::{DelegateRuntime, RunFolder};
 use crate::model_capabilities::ModelCapabilities;
+use crate::passwords::binaries::sanitize_file_name;
 use crate::providers::delegate_credential::{self, Read, KIND_DEVICE_CODE};
 
 use super::autonomy::{ApprovalRequestPayload, AutonomyMode, AutonomyUnavailable};
@@ -274,7 +275,7 @@ pub(super) fn user_line(prompt: &str) -> Value {
 /// The reason the program gave for ending with exit 1: the `reason` of the last line of stderr
 /// that is `{"type":"fatal","reason":...}`.
 pub(super) fn fatal_reason(stderr: &str) -> Option<String> {
-    stderr
+    let reason = stderr
         .lines()
         .rev()
         .filter_map(|line| serde_json::from_str::<Value>(line.trim()).ok())
@@ -284,7 +285,18 @@ pub(super) fn fatal_reason(stderr: &str) -> Option<String> {
                 .get("reason")
                 .and_then(Value::as_str)
                 .map(str::to_owned)
-        })
+        })?;
+    matches!(
+        reason.as_str(),
+        "not_authenticated"
+            | "access_denied"
+            | "network_unreachable"
+            | "no_models"
+            | "invalid_config"
+            | "startup_timeout"
+            | "internal"
+    )
+    .then_some(reason)
 }
 
 /// What a program that ended before its first line comes to for the person: a refused credential
@@ -296,7 +308,7 @@ pub(super) fn startup_error(stderr: &[u8]) -> AdapterError {
         Some("network_unreachable") => AdapterError::Http {
             reason: "abacusai: the Abacus service cannot be reached".into(),
         },
-        Some(reason) if reason.chars().all(|c| c.is_ascii_lowercase() || c == '_') => {
+        Some(reason @ ("no_models" | "invalid_config" | "startup_timeout" | "internal")) => {
             AdapterError::Http {
                 reason: format!("abacusai: {reason}"),
             }
@@ -320,7 +332,10 @@ async fn write_attachments(req: &ChatRequest, run: &RunFolder) -> Result<(), Ada
     let mut index = 0;
     for message in &req.messages {
         for attachment in &message.attachments {
-            let name = format!("attachment-{index}-{}", attachment.name);
+            let name = format!(
+                "attachment-{index}-{}",
+                sanitize_file_name(&attachment.name)
+            );
             index += 1;
             tokio::fs::write(run.path().join(&name), &attachment.bytes)
                 .await
