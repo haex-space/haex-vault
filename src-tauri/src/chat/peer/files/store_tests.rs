@@ -186,6 +186,11 @@ async fn a_file_is_saved_to_a_target_whole_and_a_missing_one_is_not_found() {
     let data = tempfile::tempdir().expect("tempdir");
     let files = store(&dir(data.path(), "anna"), &db);
     files.put("a1", MARKER).await.expect("put");
+    files.check_readable("a1").await.expect("readable");
+    assert!(matches!(
+        files.check_readable("a2").await,
+        Err(crate::error::HaexError::NotFound { .. })
+    ));
     let target = tempfile::tempdir().expect("tempdir");
     let path = target.path().join("copy.bin");
 
