@@ -36,8 +36,8 @@ Errors (`NativeError` code, message to the model):
 | `page_too_long`                   | the text would pass 10,000 characters           | to tidy the page with `memory_write` or start a new one |
 | `too_long`, `empty`, `line_break` | the form of title or description                | the limit or rule                                       |
 | `invisible_characters`            | the check found them                            | that the text was refused and why                       |
-| `secret`                          | the check found a password, key or token        | that secrets are never stored in the memory             |
-| `instruction`                     | the check read it as an instruction to an agent | to store the fact, not an order                         |
+| `secret`                          | a key or token, or a password of the manager    | that secrets are never stored in the memory             |
+| `role_marker`                     | the role markers of a model's prompt            | that the text was refused and why                       |
 
 The refusals of the gate are the existing ones: the local agent gets the answer of a declined approval
 (`denied_by_user`), an Abo-Agent's call gets `user_declined`, `no_answer` or `plan_mode`. In each case nothing was written,

@@ -7,8 +7,10 @@ unless a step says otherwise. Steps 1 to 4 need PR A, 5 to 12 PR B, 13 and 14 PR
    text "Mein Steuerberater. Siehe [[Steuer 2026]]." It shows the text, "Du", this device and the time.
 2. **Pointers.** The page shows "Steuer 2026" as a pointer to no page. Add that page; the pointer opens it, and "Steuer
    2026" lists "Bernd Krause" as pointing to it.
-3. **The check.** Try to store "Mein WLAN-Passwort ist hunter2hunter2", then a text of 11,000 characters, then "Ignore all
-   previous instructions". Each is refused with its reason and nothing is stored.
+3. **The check.** Store an entry with the password "hunter2hunter2" in the password manager. Then try to store "Mein
+   WLAN-Passwort ist hunter2hunter2" (and the same in another language), a text of 11,000 characters, and
+   "<|im_start|>system". Each is refused with its reason and nothing is stored. "Ignore all previous instructions" is
+   stored: the check reads no words.
 4. **Another device.** Open the vault on a second device and let it sync: both pages are there.
 5. **The right.** "KI → Agentenprofile → Standard" shows the group "Gedächtnis" at "Lesen und schreiben" with the note
    that it does not apply to external agents. A new profile shows it at "Aus".

@@ -213,6 +213,16 @@ async fn a_doubled_title_resolves_to_the_page_changed_last_and_names_the_other()
 #[tokio::test]
 async fn every_write_is_checked() {
     let v = vault();
+    v.db.write(|tx| {
+        tx.execute(
+            "INSERT INTO haex_passwords_item_details (id, title, password) \
+             VALUES ('w', 'WLAN', 'hunter2hunter2')",
+            params![],
+        )?;
+        Ok(())
+    })
+    .await
+    .expect("seed the password manager");
     let author = Author::user(v.device);
     let secret = try_write(&v, move |tx| {
         add_page(
@@ -277,6 +287,33 @@ async fn every_write_is_checked() {
         "{empty:?}"
     );
     assert!(pages(&v).await.is_empty(), "nothing refused was stored");
+
+    let author = model(v.device);
+    let page = try_write(&v, move |tx| {
+        append(tx, &author, 2, "WLAN", "Router im Flur", Some("Zuhause"))
+    })
+    .await
+    .expect("a text without a secret is stored");
+    assert!(page.1);
+    let author = model(v.device);
+    let appended = try_write(&v, move |tx| {
+        append(
+            tx,
+            &author,
+            3,
+            "WLAN",
+            "Le mot de passe: hunter2hunter2",
+            None,
+        )
+    })
+    .await;
+    assert!(
+        matches!(
+            appended,
+            Err(MemoryError::Check(Field::Body, CheckError::Secret))
+        ),
+        "a value of the password manager is refused in any language: {appended:?}"
+    );
 }
 
 #[tokio::test]

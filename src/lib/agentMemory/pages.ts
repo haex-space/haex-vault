@@ -12,7 +12,7 @@ const REFUSAL_CODES = [
   'too_long',
   'invisible_characters',
   'secret',
-  'instruction',
+  'role_marker',
   'title_taken',
   'memory_full',
   'page_too_long',

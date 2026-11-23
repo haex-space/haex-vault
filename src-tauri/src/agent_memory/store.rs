@@ -7,7 +7,7 @@ use haex_crdt::rusqlite::{params, Row};
 use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 
-use super::check::{check, CheckError, Field};
+use super::check::{check, holds_vault_secret, CheckError, Field, VAULT_SECRET_MIN_CHARS};
 use super::limits::{appended_fits, fits, room_for_page, LimitError};
 use super::{title_key, Author};
 use crate::storage::query::Query;
@@ -182,19 +182,61 @@ fn title_taken(q: &mut impl Query, title: &str, except: Option<&str>) -> haex_cr
         .any(|(id, title)| Some(id.as_str()) != except && title_key(title) == key))
 }
 
-fn checked(field: Field, text: &str, stored: Option<&str>) -> Result<(), MemoryError> {
+/// The passwords and one-time-password secrets of the user's password manager, which never go into
+/// the memory (FR-022). Read for every write: the password manager may have changed since the last.
+pub fn vault_secrets(q: &mut impl Query) -> haex_crdt::Result<Vec<String>> {
+    let rows: Vec<(Option<String>, Option<String>)> = q.query_map(
+        "SELECT password, otp_secret FROM haex_passwords_item_details",
+        params![],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    Ok(rows
+        .into_iter()
+        .flat_map(|(password, otp)| [password, otp])
+        .flatten()
+        .map(|value| value.trim().to_owned())
+        .filter(|value| value.chars().count() >= VAULT_SECRET_MIN_CHARS)
+        .collect())
+}
+
+/// `text` for `field` passes the check, holds no value of the password manager, and fits.
+fn checked(
+    field: Field,
+    text: &str,
+    stored: Option<&str>,
+    secrets: &[String],
+) -> Result<(), MemoryError> {
     check(field, text).map_err(|error| MemoryError::Check(field, error))?;
+    if holds_vault_secret(text, secrets) {
+        return Err(MemoryError::Check(field, CheckError::Secret));
+    }
     fits(field, text, stored).map_err(MemoryError::Limit)
 }
 
-fn checked_page(new: &NewPage<'_>, stored: Option<&Page>) -> Result<(), MemoryError> {
-    checked(Field::Title, new.title, stored.map(|p| p.title.as_str()))?;
+fn checked_page(
+    q: &mut impl Query,
+    new: &NewPage<'_>,
+    stored: Option<&Page>,
+) -> Result<(), MemoryError> {
+    let secrets = vault_secrets(q)?;
+    checked(
+        Field::Title,
+        new.title,
+        stored.map(|p| p.title.as_str()),
+        &secrets,
+    )?;
     checked(
         Field::Description,
         new.description,
         stored.map(|p| p.description.as_str()),
+        &secrets,
     )?;
-    checked(Field::Body, new.body, stored.map(|p| p.body.as_str()))
+    checked(
+        Field::Body,
+        new.body,
+        stored.map(|p| p.body.as_str()),
+        &secrets,
+    )
 }
 
 /// Adds a page.
@@ -204,7 +246,7 @@ pub fn add_page(
     now: i64,
     new: &NewPage<'_>,
 ) -> Result<Page, MemoryError> {
-    checked_page(new, None)?;
+    checked_page(tx, new, None)?;
     if title_taken(tx, new.title, None)? {
         return Err(MemoryError::TitleTaken);
     }
@@ -264,7 +306,7 @@ pub fn change_page(
     new: &NewPage<'_>,
 ) -> Result<Page, MemoryError> {
     let stored = get(tx, id)?.ok_or(MemoryError::NotFound)?;
-    checked_page(new, Some(&stored))?;
+    checked_page(tx, new, Some(&stored))?;
     if title_key(new.title) != title_key(&stored.title) && title_taken(tx, new.title, Some(id))? {
         return Err(MemoryError::TitleTaken);
     }
@@ -292,7 +334,11 @@ pub fn append(
         };
         return Ok((add_page(tx, author, now, &new)?, true));
     };
+    // The added text is checked on its own; the length is the whole page's, checked below.
     check(Field::Body, text).map_err(|error| MemoryError::Check(Field::Body, error))?;
+    if holds_vault_secret(text, &vault_secrets(tx)?) {
+        return Err(MemoryError::Check(Field::Body, CheckError::Secret));
+    }
     let body = if page.body.trim().is_empty() {
         text.trim().to_owned()
     } else {
