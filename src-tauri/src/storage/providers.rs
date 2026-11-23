@@ -218,6 +218,37 @@ pub fn find_cli_delegate_provider(
     Ok(raw.map(|value| uuid::parse(&value, 0)).transpose()?)
 }
 
+/// Ids of every `cli_delegate` row of `vendor`, the lexicographically smallest first: the same
+/// order on every device, which `created_at` is not.
+pub fn cli_delegate_provider_ids(q: &mut impl Query, vendor: &str) -> haex_crdt::Result<Vec<Uuid>> {
+    let raw: Vec<String> = q.query_map(
+        "SELECT id FROM providers WHERE kind = ?1 AND adapter = ?2 ORDER BY id ASC",
+        params![ProviderKind::CliDelegate.as_str(), vendor],
+        |r| r.get(0),
+    )?;
+    raw.into_iter()
+        .map(|value| uuid::parse(&value, 0).map_err(Into::into))
+        .collect()
+}
+
+/// Reduces the `cli_delegate` rows of `vendor` to one, as a sync of two devices that connected at
+/// the same time can leave several: the row with the smallest id survives with its values, every
+/// reference of the others is pointed at it, and the others are deleted. Returns the survivor.
+pub fn reduce_cli_delegate_duplicates(
+    tx: &mut CrdtTransaction<'_>,
+    vendor: &str,
+) -> haex_crdt::Result<Option<Uuid>> {
+    let ids = cli_delegate_provider_ids(tx, vendor)?;
+    let Some((&survivor, duplicates)) = ids.split_first() else {
+        return Ok(None);
+    };
+    for &duplicate in duplicates {
+        move_provider_references(tx, duplicate, survivor)?;
+        delete_provider(tx, duplicate)?;
+    }
+    Ok(Some(survivor))
+}
+
 /// Finds the singleton row for one `(kind, capability)` pair, if any —
 /// shared by `providers::local::find_local_provider` (capability `chat`)
 /// and `find_local_transcription_provider` (capability `transcription`).

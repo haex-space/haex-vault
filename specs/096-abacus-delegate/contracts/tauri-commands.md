@@ -70,8 +70,9 @@ as the Codex flow emits them.
 A request answered by Abacus:
 
 1. `build_adapter` builds `CliDelegateAdapter` with `DelegateVendor::Abacus` and no credential bytes.
-2. `stream_chat` resolves the `DelegateRuntime` (the vault's copy, spec 094), reads the credential (`Ready`, `Missing` or
-   `Syncing`; the last two end the request with `not_connected`, the second saying the vault is still syncing), creates the
+2. `stream_chat` resolves the `DelegateRuntime` (the vault's copy, spec 094), reads the credential (`Ready` or `Missing`;
+   `Missing` ends the request with `not_connected`, whose text says the entry may still be syncing: an entry has no id that
+   a row could name, so "deleted" and "not arrived yet" cannot be told apart), creates the
    run folder, builds the command:
 
    ```text

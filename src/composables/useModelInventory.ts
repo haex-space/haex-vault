@@ -22,13 +22,13 @@ export type ModelGroup = {
 export type Translate = (key: string, named?: Record<string, unknown>) => string
 
 /**
- * The two `cli_delegate` vendors (spec 007-cli-delegate). Always shown in
+ * The `cli_delegate` vendors (spec 007-cli-delegate, spec 096). Always shown in
  * the picker, connected or not — unlike `api_key` providers, which only
  * appear once a row (and models) exist, a delegate vendor is a fixed,
  * known option the user can discover before ever connecting one
  * (spec.md FR-004, Acceptance Scenario 2).
  */
-const DELEGATE_VENDORS = ['claude', 'codex'] as const
+const DELEGATE_VENDORS = ['claude', 'codex', 'abacusai'] as const
 
 export interface ModelInventoryDeps {
   models: ReturnType<typeof useModels>

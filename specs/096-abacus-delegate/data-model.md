@@ -55,8 +55,9 @@ only what Abacus adds or fixes to a value.
 code runs against test vendor definitions.
 
 - Validation additions: `kind` accepts `zip` (needs `unpacked_size`, like `tar.gz`); a platform key may be
-  `linux-x64-baseline`; an artifact may set `requires_avx2: true` (default false; `darwin-x64` and `win32-x64` of Abacus
-  do, so a host without AVX2 reads `unsupported` for them); `versions` may be empty (status `no_tested_version`, install
+  `linux-x64-baseline`; an artifact may set `requires_avx2: true` (default false; `linux-x64`, `darwin-x64` and `win32-x64` of
+  Abacus do, so a host without AVX2 reads `unsupported` for them, except on Linux once a `linux-x64-baseline` entry is
+  listed: that variant is tried first); `versions` may be empty (status `no_tested_version`, install
   refused) so the vendor definition can ship before its first measured version.
 
 ## 2. Platform key (`platform.rs`)
@@ -82,8 +83,8 @@ macOS x64 archive to such a host and report the platform as unsupported.
 
 - One shared entry per vendor per vault when the credential is portable; otherwise one entry per installation. The provider
   table still has at most one Abacus row per vault; see the duplicate-row recovery rule in the command contract. `read`
-  selects the exact scope and returns `Ready(kind, secret)`, `Missing` (no entry) or `Syncing` (the vault's sync has not
-  delivered it yet, from the deleted-row marker as the marketplace does). Saving on one installation never replaces another
+  selects the exact scope and returns `Ready(kind, secret)` or `Missing` (no entry: deleted, or the vault's sync has not delivered
+  it yet; the marketplace tells the two apart by the entry's id, which no row here can name). Saving on one installation never replaces another
   installation's entry. Duplicate resolution is newest `updated_at` within the same scope. Disconnecting the provider is
   vault-wide and removes every scope; deleting a duplicate provider row while another survives removes no credentials.
 - `kind` selects what the adapter sets after containment: `device_code` is `CODELLM_DEVICE_CODE=<secret>`. An API key is

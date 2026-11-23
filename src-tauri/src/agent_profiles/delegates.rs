@@ -19,6 +19,7 @@ fn vendor_of(kind: AgentKind) -> Option<&'static str> {
     match kind {
         AgentKind::ClaudeCodeDelegate => Some("claude"),
         AgentKind::CodexDelegate => Some("codex"),
+        AgentKind::AbacusDelegate => Some("abacusai"),
         AgentKind::External => None,
     }
 }

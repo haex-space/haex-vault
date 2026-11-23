@@ -15,6 +15,7 @@
 //! `crate::chat::tools::ApprovalDecision` (data-model.md
 //! "approval_bridge.rs").
 
+mod abacus;
 pub mod approval_bridge;
 #[cfg(test)]
 mod approval_bridge_tests;
@@ -150,6 +151,8 @@ pub struct DelegateChatContext {
 pub enum DelegateVendor {
     Claude,
     Codex,
+    /// The Abacus AI CLI (`abacusai`, spec 096).
+    Abacus,
 }
 
 impl DelegateVendor {
@@ -158,6 +161,7 @@ impl DelegateVendor {
         match self {
             DelegateVendor::Claude => "claude",
             DelegateVendor::Codex => "codex",
+            DelegateVendor::Abacus => "abacusai",
         }
     }
 
@@ -166,6 +170,7 @@ impl DelegateVendor {
         match s {
             "claude" => Some(DelegateVendor::Claude),
             "codex" => Some(DelegateVendor::Codex),
+            "abacusai" => Some(DelegateVendor::Abacus),
             _ => None,
         }
     }
@@ -290,6 +295,8 @@ impl ProviderAdapter for CliDelegateAdapter {
                         })?;
                 codex_models::list_models(runtime, self.credentials.clone()).await
             }
+            // The adapter of spec 096 (T020) answers with the account's default model.
+            DelegateVendor::Abacus => Err(abacus::not_implemented()),
         }
     }
 
@@ -344,6 +351,7 @@ impl ProviderAdapter for CliDelegateAdapter {
                 )
                 .await
             }
+            DelegateVendor::Abacus => Err(abacus::not_implemented()),
         }
     }
 

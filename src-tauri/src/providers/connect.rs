@@ -217,6 +217,10 @@ pub async fn connect_cli_delegate(
                 provider: provider.into(),
             })
         }
+        // The sign-in flow of spec 096 (T019) replaces this arm; until then nothing is started.
+        DelegateVendor::Abacus => Err(HaexError::InvalidInput {
+            reason: "backend unavailable: abacusai: connecting is not implemented yet".into(),
+        }),
     }
 }
 
@@ -476,7 +480,13 @@ pub(super) async fn write_delegate_provider(
 ) -> Result<Provider> {
     let vendor_owned = vendor.to_string();
     db.write(move |tx| {
-        let existing = storage::find_cli_delegate_provider(tx, &vendor_owned)?;
+        // A vendor whose credential is in the password manager has one row per vault: rows that
+        // a sync of two devices left side by side are reduced to the one with the smallest id.
+        let existing = if super::delegate_credential::lives_in_password_manager(&vendor_owned) {
+            storage::reduce_cli_delegate_duplicates(tx, &vendor_owned)?
+        } else {
+            storage::find_cli_delegate_provider(tx, &vendor_owned)?
+        };
         match existing {
             Some(id) => {
                 let mut provider =

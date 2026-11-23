@@ -4,7 +4,7 @@ import type { ModelCapabilities } from '~/composables/useModels'
 
 export type ProviderKind = 'local' | 'api_key' | 'cli_delegate'
 
-export type DelegateVendor = 'claude' | 'codex'
+export type DelegateVendor = 'claude' | 'codex' | 'abacusai'
 
 export interface Provider {
   id: string

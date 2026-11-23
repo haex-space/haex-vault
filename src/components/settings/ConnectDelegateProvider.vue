@@ -22,43 +22,52 @@ const loading = ref(true)
 const connecting = reactive<Record<DelegateVendor, boolean>>({
   claude: false,
   codex: false,
+  abacusai: false,
 })
 // A submitted code is being exchanged: the button shows it, since the program may take a while.
 const submitting = reactive<Record<DelegateVendor, boolean>>({
   claude: false,
   codex: false,
+  abacusai: false,
 })
 const awaitingCode = reactive<Record<DelegateVendor, boolean>>({
   claude: false,
   codex: false,
+  abacusai: false,
 })
 const progressUrl = reactive<Record<DelegateVendor, string | null>>({
   claude: null,
   codex: null,
+  abacusai: null,
 })
 const progressCode = reactive<Record<DelegateVendor, string | null>>({
   claude: null,
   codex: null,
+  abacusai: null,
 })
 const codeInput = reactive<Record<DelegateVendor, string>>({
   claude: '',
   codex: '',
+  abacusai: '',
 })
 // "Refresh models" (spec 012 FR-022): re-fetches a connected provider's
 // models and their capabilities without a new sign-in.
 const refreshing = reactive<Record<DelegateVendor, boolean>>({
   claude: false,
   codex: false,
+  abacusai: false,
 })
 
 // The sign-in of a vendor needs more room than its row has: it opens in a dialog of its own.
 const signInOpen = reactive<Record<DelegateVendor, boolean>>({
   claude: false,
   codex: false,
+  abacusai: false,
 })
 const removing = reactive<Record<DelegateVendor, boolean>>({
   claude: false,
   codex: false,
+  abacusai: false,
 })
 
 let unlisten: UnlistenFn | null = null
