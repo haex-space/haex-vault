@@ -150,7 +150,11 @@ async fn start_error(
 async fn without_an_installation_in_the_vault_a_start_ends_before_anything_runs() {
     let data = tempfile::TempDir::new().unwrap();
     let tools = DelegateTools::new(VaultPaths::new(data.path()), "anna");
-    for vendor in [DelegateVendor::Claude, DelegateVendor::Codex] {
+    for vendor in [
+        DelegateVendor::Claude,
+        DelegateVendor::Codex,
+        DelegateVendor::Abacus,
+    ] {
         let source = RuntimeSource::Vault {
             tools: tools.clone(),
             vendor: vendor.as_str(),
