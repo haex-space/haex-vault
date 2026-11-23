@@ -20,15 +20,18 @@ export const useAgentMemoryStore = defineStore('agentMemory', () => {
   const list = ref<AgentMemoryList | null>(null)
   const query = ref('')
   const wm = useWindowManagerStore()
+  let searchRevision = 0
 
   /** Loads the list for `next` (empty: every page); throws what the command throws. */
   async function searchAsync(next: string): Promise<void> {
     query.value = next
+    const revision = ++searchRevision
     const loaded = await invoke<AgentMemoryList>('agent_memory_list', {
       args: { query: next.trim() || null },
     })
-    // A later search may have started while this one ran; its answer counts.
-    if (query.value === next) list.value = loaded
+    // Ignore an earlier request even when the query text is the same: a later refresh may have
+    // loaded newer pages after a write or sync.
+    if (revision === searchRevision) list.value = loaded
   }
 
   /** The page `id` with its pointers; throws `InvalidInput` `not_found` when it is gone. */
