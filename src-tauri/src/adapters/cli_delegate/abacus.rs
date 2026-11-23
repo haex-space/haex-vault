@@ -560,7 +560,7 @@ async fn spawn_abacus_invocation_with_coverage(
             // The program ended without a result: its last words explain why.
             let stderr = stderr_task.await.unwrap_or_default();
             let reason = fatal_reason(&String::from_utf8_lossy(&stderr));
-            let _ = tx.send(Err(match reason {
+            let _ = tx.send(Err(match reason.as_deref() {
                 Some("not_authenticated" | "access_denied") => {
                     StreamError::Model(CREDENTIAL_REFUSED.to_owned())
                 }
@@ -686,18 +686,20 @@ async fn drive(
                     ) => decision,
                 };
                 let allow = matches!(decision, crate::chat::tools::ApprovalDecision::Allow);
+                let answer = approval_answer(&request_id, allow);
                 let write = tokio::select! {
                     () = cancel.cancelled() => return Outcome::Done,
-                    write = write_line(stdin, &approval_answer(&request_id, allow)) => write,
+                    write = write_line(stdin, &answer) => write,
                 };
                 if write.is_err() {
                     return Outcome::Ended;
                 }
             }
             Line::UnknownRequest { request_id } => {
+                let answer = unsupported_answer(&request_id);
                 let write = tokio::select! {
                     () = cancel.cancelled() => return Outcome::Done,
-                    write = write_line(stdin, &unsupported_answer(&request_id)) => write,
+                    write = write_line(stdin, &answer) => write,
                 };
                 if write.is_err() {
                     return Outcome::Ended;
