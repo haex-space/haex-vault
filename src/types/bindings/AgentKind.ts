@@ -3,4 +3,4 @@
 /**
  * What kind of agent a row is.
  */
-export type AgentKind = "external" | "claudeCodeDelegate" | "codexDelegate";
+export type AgentKind = "external" | "claudeCodeDelegate" | "codexDelegate" | "abacusDelegate";

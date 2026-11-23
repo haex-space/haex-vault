@@ -5,6 +5,7 @@
 //! `cli_delegate` live invocation is spec 007-cli-delegate.
 //! Adding a provider (its checks and first refresh) lives in `add.rs`.
 
+pub mod abacus_signin;
 mod add;
 #[cfg(test)]
 mod add_tests;
@@ -12,6 +13,7 @@ pub mod capabilities;
 pub mod connect;
 #[cfg(test)]
 mod connect_tests;
+pub mod delegate_credential;
 pub mod local;
 #[cfg(test)]
 mod openai_compatible_tests;
@@ -456,11 +458,35 @@ fn format_haex_error(err: &HaexError) -> String {
 #[tauri::command]
 pub async fn delete_provider(state: State<'_, AppState>, id: Uuid) -> Result<()> {
     let db = active_database(&state)?;
-    db.write(move |tx| {
-        storage::delete_provider(tx, id)?;
-        Ok(())
-    })
-    .await?;
+    delete_provider_in(&db, id).await
+}
+
+/// [`delete_provider`] on a vault at hand. A vendor whose credential is an entry of the password
+/// manager (spec 096) loses that entry with its last row, in every scope: disconnecting is
+/// vault-wide. Removing a duplicate row while another survives removes no credential. An entry
+/// that is already gone is fine.
+pub(crate) async fn delete_provider_in(db: &VaultDb, id: Uuid) -> Result<()> {
+    let emptied = db
+        .write(move |tx| {
+            let removed = storage::get_provider(tx, id)?;
+            storage::delete_provider(tx, id)?;
+            Ok(match removed {
+                Some(provider) if provider.kind == ProviderKind::CliDelegate => provider
+                    .adapter
+                    .filter(|vendor| delegate_credential::lives_in_password_manager(vendor))
+                    .map(|vendor| {
+                        storage::cli_delegate_provider_ids(tx, &vendor)
+                            .map(|rows| rows.is_empty().then_some(vendor))
+                    })
+                    .transpose()?
+                    .flatten(),
+                _ => None,
+            })
+        })
+        .await?;
+    if let Some(vendor) = emptied {
+        delegate_credential::delete(db, &vendor).await?;
+    }
     Ok(())
 }
 

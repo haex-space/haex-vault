@@ -29,6 +29,7 @@ pub enum AgentKind {
     External,
     ClaudeCodeDelegate,
     CodexDelegate,
+    AbacusDelegate,
 }
 
 impl AgentKind {
@@ -37,6 +38,7 @@ impl AgentKind {
             Self::External => "external",
             Self::ClaudeCodeDelegate => "claude_code_delegate",
             Self::CodexDelegate => "codex_delegate",
+            Self::AbacusDelegate => "abacus_delegate",
         }
     }
 
@@ -45,6 +47,7 @@ impl AgentKind {
             "external" => Some(Self::External),
             "claude_code_delegate" => Some(Self::ClaudeCodeDelegate),
             "codex_delegate" => Some(Self::CodexDelegate),
+            "abacus_delegate" => Some(Self::AbacusDelegate),
             _ => None,
         }
     }
@@ -526,7 +529,7 @@ pub fn subject_of(agent: &Agent) -> crate::agent_profiles::Subject {
     use crate::agent_profiles::Subject;
     match agent.kind {
         AgentKind::External => Subject::Agent(agent.id),
-        AgentKind::ClaudeCodeDelegate | AgentKind::CodexDelegate => {
+        AgentKind::ClaudeCodeDelegate | AgentKind::CodexDelegate | AgentKind::AbacusDelegate => {
             match super::delegates::live_model(agent.id) {
                 Some(model) => Subject::Model(model),
                 None => Subject::Agent(agent.id),

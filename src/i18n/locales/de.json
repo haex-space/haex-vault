@@ -290,7 +290,8 @@
       "none": "Keins",
       "delegate": {
         "claude": "Claude Code",
-        "codex": "Codex"
+        "codex": "Codex",
+        "abacusai": "Abacus AI"
       },
       "delegateNotConnected": "Nicht verbunden — in den Einstellungen verbinden",
       "delegateNotInstalled": "Nicht in diesem Vault installiert — in den Einstellungen installieren",
@@ -708,7 +709,8 @@
         "installing": "Wird installiert",
         "needsReinstallPlatform": "Für ein anderes Gerät erstellt — erneut installieren",
         "needsReinstallIncomplete": "Unvollständig — erneut installieren",
-        "unsupported": "Für dieses Gerät nicht verfügbar"
+        "unsupported": "Für dieses Gerät nicht verfügbar",
+        "noTestedVersion": "Noch keine getestete Version"
       },
       "isolation": {
         "bestEffort": "Soweit das Programm es zulässt, in diesem Vault gehalten. Es wird nicht vom Rest dieses Geräts abgeschirmt.",
@@ -2101,6 +2103,7 @@
       "unknown_vendor": "Dieses Programm wird nicht angeboten.",
       "unknown_version": "Diese Version wird nicht angeboten.",
       "unsupported_platform": "Dieses Programm gibt es für dieses Gerät nicht.",
+      "no_tested_version": "Für dieses Programm gibt es noch keine von HaexVault getestete Version.",
       "locked": "In diesem Vault läuft bereits eine Installation dieses Programms.",
       "no_space": "Für dieses Programm ist nicht genug freier Speicher vorhanden.",
       "offline": "Der Download-Server ist nicht erreichbar. Prüfe die Verbindung und versuche es erneut.",

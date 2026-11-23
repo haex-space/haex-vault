@@ -19,6 +19,7 @@ const notices = createToolNotices()
 const DELEGATE_NAMES: Partial<Record<AgentKind, string>> = {
   claudeCodeDelegate: 'Claude Code',
   codexDelegate: 'Codex',
+  abacusDelegate: 'Abacus AI',
 }
 
 /** The notice the chat shows now. */

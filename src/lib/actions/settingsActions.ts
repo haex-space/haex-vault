@@ -13,7 +13,10 @@ const DONE: JsonSchema = {
 }
 const ANY_OBJECT: JsonSchema = { type: 'object' }
 const NO_INPUT: JsonSchema = { type: 'object', properties: {} }
-const VENDOR: JsonSchema = { type: 'string', enum: ['claude', 'codex'] }
+const VENDOR: JsonSchema = {
+  type: 'string',
+  enum: ['claude', 'codex', 'abacusai'],
+}
 const RESTORE_STATE: JsonSchema = {
   type: 'object',
   description:

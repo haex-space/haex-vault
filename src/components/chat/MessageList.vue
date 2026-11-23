@@ -76,7 +76,8 @@ function delegateAnsweredByLabel(modelId: string | null): string | null {
   )
   if (!provider) return null
   const vendor = provider.adapter
-  if (vendor !== 'claude' && vendor !== 'codex') return null
+  if (vendor !== 'claude' && vendor !== 'codex' && vendor !== 'abacusai')
+    return null
   return t('chat.model.answeredByDelegate', {
     name: t(`chat.model.delegate.${vendor}`),
   })

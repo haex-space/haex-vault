@@ -200,3 +200,27 @@ async fn a_cli_delegate_row_needs_no_address_and_keeps_none() {
     assert_eq!(rows.len(), 2);
     assert!(rows.iter().all(|row| row.base_url.is_none()));
 }
+
+#[tokio::test]
+async fn an_unknown_delegate_vendor_is_refused_and_names_the_three_that_exist() {
+    let dir = tempfile::tempdir().expect("tmp dir");
+    let db = open_vault(dir.path());
+    let mut unknown = delegate_args(None);
+    unknown.adapter = Some("nobody".into());
+
+    let error = add(&gate(&db), unknown, 1).await.expect_err("refused");
+
+    match error {
+        HaexError::InvalidInput { reason } => {
+            for vendor in ["claude", "codex", "abacusai"] {
+                assert!(reason.contains(vendor), "{reason}");
+            }
+        }
+        other => panic!("{other:?}"),
+    }
+    let rows = query::read(&db, |r| {
+        Ok(providers_store::list_providers(r).expect("list"))
+    })
+    .expect("read");
+    assert!(rows.is_empty(), "nothing is stored");
+}

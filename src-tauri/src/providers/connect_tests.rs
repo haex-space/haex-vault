@@ -223,3 +223,127 @@ async fn a_flow_that_ends_on_its_own_without_a_token_confirms_nothing() {
     assert!(matches!(outcome, ClaudeAutoCompleteOutcome::Failed(_)));
     assert!(!version_dir.join(".confirmed").exists());
 }
+
+// The provider row of a vendor whose credential is in the password manager (spec 096).
+
+const SMALLER: &str = "00000000-0000-4000-8000-000000000001";
+const LARGER: &str = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+
+fn delegate_row(id: &str, vendor: &str, name: &str) -> crate::storage::providers::Provider {
+    use crate::storage::providers::{Provider, ProviderCapability, ProviderKind};
+    Provider {
+        id: uuid::Uuid::parse_str(id).expect("uuid"),
+        kind: ProviderKind::CliDelegate,
+        adapter: Some(vendor.to_owned()),
+        name: name.to_owned(),
+        base_url: None,
+        credentials: Some(Vec::new()),
+        created_at: 0,
+        capability: ProviderCapability::Chat,
+    }
+}
+
+fn seed(db: &Arc<haex_crdt::Database>, rows: Vec<crate::storage::providers::Provider>) {
+    use crate::storage::providers as providers_store;
+    db.write(move |tx| {
+        for row in &rows {
+            providers_store::insert_provider(tx, row)?;
+        }
+        Ok(())
+    })
+    .expect("seed");
+}
+
+fn rows_of(db: &Arc<haex_crdt::Database>) -> Vec<crate::storage::providers::Provider> {
+    use crate::storage::providers as providers_store;
+    crate::storage::query::read(
+        db,
+        |r| Ok(providers_store::list_providers(r).expect("list")),
+    )
+    .expect("read")
+}
+
+#[tokio::test]
+async fn two_abacus_rows_from_a_sync_reduce_to_the_row_with_the_smallest_id() {
+    use super::providers_tests::open_vault;
+    use crate::vault_gate::VaultGate;
+
+    let dir = tempfile::tempdir().expect("tmp dir");
+    let db = open_vault(dir.path());
+    let gate = VaultGate::new()
+        .vault_db(Arc::clone(&db))
+        .expect("vault gate");
+    seed(
+        &db,
+        vec![
+            delegate_row(LARGER, "abacusai", "Abacus B"),
+            delegate_row(SMALLER, "abacusai", "Abacus A"),
+        ],
+    );
+
+    let survivor = write_delegate_provider(&gate, "abacusai", "Abacus AI".into(), Vec::new())
+        .await
+        .expect("connected");
+
+    assert_eq!(survivor.id.to_string(), SMALLER);
+    let rows = rows_of(&db);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].id.to_string(), SMALLER);
+}
+
+#[tokio::test]
+async fn a_connect_of_abacus_makes_one_row_and_a_second_connect_reuses_it() {
+    use super::providers_tests::open_vault;
+    use crate::vault_gate::VaultGate;
+
+    let dir = tempfile::tempdir().expect("tmp dir");
+    let db = open_vault(dir.path());
+    let gate = VaultGate::new()
+        .vault_db(Arc::clone(&db))
+        .expect("vault gate");
+
+    let first = write_delegate_provider(&gate, "abacusai", "Abacus AI".into(), Vec::new())
+        .await
+        .expect("first");
+    let again = write_delegate_provider(&gate, "abacusai", "Abacus AI".into(), Vec::new())
+        .await
+        .expect("again");
+
+    assert_eq!(first.id, again.id);
+    assert_eq!(rows_of(&db).len(), 1);
+}
+
+#[tokio::test]
+async fn the_rows_of_claude_and_codex_are_not_reduced() {
+    use super::providers_tests::open_vault;
+    use crate::vault_gate::VaultGate;
+
+    let dir = tempfile::tempdir().expect("tmp dir");
+    let db = open_vault(dir.path());
+    let gate = VaultGate::new()
+        .vault_db(Arc::clone(&db))
+        .expect("vault gate");
+    seed(
+        &db,
+        vec![
+            delegate_row(SMALLER, "codex", "Codex"),
+            delegate_row(LARGER, "codex", "Codex"),
+        ],
+    );
+
+    write_delegate_provider(&gate, "abacusai", "Abacus AI".into(), Vec::new())
+        .await
+        .expect("abacus");
+    write_delegate_provider(&gate, "codex", "Codex".into(), b"auth".to_vec())
+        .await
+        .expect("codex");
+
+    let rows = rows_of(&db);
+    assert_eq!(
+        rows.iter()
+            .filter(|row| row.adapter.as_deref() == Some("codex"))
+            .count(),
+        2,
+        "the codex rows are left as they were"
+    );
+}

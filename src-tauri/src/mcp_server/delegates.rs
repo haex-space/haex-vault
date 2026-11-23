@@ -32,6 +32,7 @@ pub fn kind_of(vendor: DelegateVendor) -> AgentKind {
     match vendor {
         DelegateVendor::Claude => AgentKind::ClaudeCodeDelegate,
         DelegateVendor::Codex => AgentKind::CodexDelegate,
+        DelegateVendor::Abacus => AgentKind::AbacusDelegate,
     }
 }
 
@@ -40,6 +41,7 @@ pub fn slug_of(kind: AgentKind) -> Option<&'static str> {
     match kind {
         AgentKind::ClaudeCodeDelegate => Some("claude-code-delegate"),
         AgentKind::CodexDelegate => Some("codex-delegate"),
+        AgentKind::AbacusDelegate => Some("abacus-delegate"),
         AgentKind::External => None,
     }
 }
@@ -48,6 +50,7 @@ pub fn slug_of(kind: AgentKind) -> Option<&'static str> {
 fn name_of(kind: AgentKind) -> &'static str {
     match kind {
         AgentKind::CodexDelegate => "Codex",
+        AgentKind::AbacusDelegate => "Abacus AI",
         _ => "Claude Code",
     }
 }

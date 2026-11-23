@@ -356,6 +356,9 @@ pub fn classify_autonomy_spawn_error(
                 || raw_error.contains("-32602");
             names_field && rejected_as_unknown
         }
+        // The tool is started with its per-call approval mode (spec 096): the autonomy fields
+        // of the other two vendors do not exist on it, so no error text means "mode unavailable".
+        DelegateVendor::Abacus => false,
     };
     recognized.then_some(AutonomyUnavailable { vendor, mode })
 }

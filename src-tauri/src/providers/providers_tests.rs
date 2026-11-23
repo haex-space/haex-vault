@@ -240,3 +240,133 @@ async fn a_failed_refresh_keeps_the_stored_capabilities() {
     assert!(result.is_err(), "the listing failed");
     assert_eq!(stored_capabilities(&db, &provider), Some(learned));
 }
+
+// Deleting a provider row removes the credential entry of a vendor that keeps it in the
+// password manager, with the last row only (spec 096).
+
+mod delegate_rows {
+    use super::*;
+    use crate::providers::delegate_credential::{self, Read, KIND_DEVICE_CODE, VAULT_SCOPE};
+    use crate::providers::delete_provider_in;
+    use crate::storage::providers::{self as providers_store, ProviderCapability};
+    use crate::vault_gate::VaultDb;
+
+    const FIRST: &str = "00000000-0000-4000-8000-000000000001";
+    const SECOND: &str = "00000000-0000-4000-8000-000000000002";
+
+    fn row(id: &str, vendor: &str) -> Provider {
+        Provider {
+            id: Uuid::parse_str(id).expect("uuid"),
+            kind: ProviderKind::CliDelegate,
+            adapter: Some(vendor.to_owned()),
+            name: vendor.to_owned(),
+            base_url: None,
+            credentials: Some(Vec::new()),
+            created_at: 0,
+            capability: ProviderCapability::Chat,
+        }
+    }
+
+    fn vault_with(rows: Vec<Provider>) -> (tempfile::TempDir, VaultDb) {
+        let dir = tempfile::tempdir().expect("tmp dir");
+        let db = open_vault(dir.path());
+        let seeded = rows.clone();
+        db.write(move |tx| {
+            for row in &seeded {
+                providers_store::insert_provider(tx, row)?;
+            }
+            Ok(())
+        })
+        .expect("seed");
+        let gate = VaultGate::new().vault_db(db).expect("vault gate");
+        (dir, gate)
+    }
+
+    async fn has_entry(db: &VaultDb) -> bool {
+        matches!(
+            delegate_credential::read(db, "abacusai", VAULT_SCOPE)
+                .await
+                .expect("read"),
+            Read::Ready(_)
+        )
+    }
+
+    async fn store_entry(db: &VaultDb) {
+        delegate_credential::save(
+            db,
+            "abacusai",
+            KIND_DEVICE_CODE,
+            "a-device-code",
+            VAULT_SCOPE,
+        )
+        .await
+        .expect("save");
+    }
+
+    #[tokio::test]
+    async fn deleting_the_last_abacus_row_deletes_the_credential_entry() {
+        let (_dir, db) = vault_with(vec![row(FIRST, "abacusai")]);
+        store_entry(&db).await;
+
+        delete_provider_in(&db, Uuid::parse_str(FIRST).unwrap())
+            .await
+            .expect("delete");
+
+        assert!(!has_entry(&db).await);
+    }
+
+    #[tokio::test]
+    async fn deleting_a_duplicate_row_keeps_the_entry() {
+        let (_dir, db) = vault_with(vec![row(FIRST, "abacusai"), row(SECOND, "abacusai")]);
+        store_entry(&db).await;
+
+        delete_provider_in(&db, Uuid::parse_str(SECOND).unwrap())
+            .await
+            .expect("delete the duplicate");
+        assert!(has_entry(&db).await, "a row survives, so does the entry");
+
+        delete_provider_in(&db, Uuid::parse_str(FIRST).unwrap())
+            .await
+            .expect("delete the last");
+        assert!(!has_entry(&db).await);
+    }
+
+    #[tokio::test]
+    async fn a_missing_entry_is_not_an_error() {
+        let (_dir, db) = vault_with(vec![row(FIRST, "abacusai")]);
+
+        delete_provider_in(&db, Uuid::parse_str(FIRST).unwrap())
+            .await
+            .expect("no entry to delete");
+    }
+
+    #[tokio::test]
+    async fn deleting_a_claude_or_codex_row_touches_no_credential_entry() {
+        let (_dir, db) = vault_with(vec![
+            row(FIRST, "abacusai"),
+            row(SECOND, "claude"),
+            row("00000000-0000-4000-8000-000000000003", "codex"),
+        ]);
+        store_entry(&db).await;
+
+        for id in [SECOND, "00000000-0000-4000-8000-000000000003"] {
+            delete_provider_in(&db, Uuid::parse_str(id).unwrap())
+                .await
+                .expect("delete");
+        }
+
+        assert!(has_entry(&db).await);
+    }
+
+    #[tokio::test]
+    async fn deleting_an_unknown_row_changes_nothing() {
+        let (_dir, db) = vault_with(vec![row(FIRST, "abacusai")]);
+        store_entry(&db).await;
+
+        delete_provider_in(&db, Uuid::parse_str(SECOND).unwrap())
+            .await
+            .expect("nothing to delete");
+
+        assert!(has_entry(&db).await);
+    }
+}

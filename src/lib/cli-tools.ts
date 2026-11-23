@@ -11,6 +11,7 @@ export type CliToolState =
   | 'installing'
   | 'needs_reinstall'
   | 'unsupported'
+  | 'no_tested_version'
 
 export type CliToolIsolation = 'best_effort' | 'enforced'
 
@@ -32,7 +33,7 @@ interface CliToolProgress {
 }
 
 /** The tools the Settings page lists, in the order of the catalog. */
-export type CliToolVendor = 'claude' | 'codex'
+export type CliToolVendor = 'claude' | 'codex' | 'abacusai'
 
 /** The install is offered in these two states, and only in these. */
 export function installable(status: Pick<CliToolStatus, 'state'>): boolean {
@@ -116,6 +117,7 @@ export function stateKey(
     installing: 'settings.cliTools.state.installing',
     needs_reinstall: 'settings.cliTools.state.needsReinstallIncomplete',
     unsupported: 'settings.cliTools.state.unsupported',
+    no_tested_version: 'settings.cliTools.state.noTestedVersion',
   }
   return keys[status.state]
 }

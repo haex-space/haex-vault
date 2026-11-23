@@ -16,9 +16,25 @@ use crate::storage::providers::{Provider, ProviderCapability, ProviderKind};
 
 #[test]
 fn delegate_vendor_round_trips() {
-    for vendor in [DelegateVendor::Claude, DelegateVendor::Codex] {
+    for vendor in [
+        DelegateVendor::Claude,
+        DelegateVendor::Codex,
+        DelegateVendor::Abacus,
+    ] {
         let parsed = DelegateVendor::parse(vendor.as_str());
         assert_eq!(parsed, Some(vendor));
+    }
+    assert_eq!(DelegateVendor::Abacus.as_str(), "abacusai");
+}
+
+#[test]
+fn every_vendor_of_the_catalog_is_a_delegate_vendor() {
+    for vendor in &crate::cli_tools::catalog::Catalog::shipped().vendors {
+        assert!(
+            DelegateVendor::parse(&vendor.vendor).is_some(),
+            "{} has no DelegateVendor",
+            vendor.vendor
+        );
     }
 }
 
@@ -27,6 +43,8 @@ fn delegate_vendor_rejects_unknown_strings() {
     assert_eq!(DelegateVendor::parse("anthropic"), None);
     assert_eq!(DelegateVendor::parse(""), None);
     assert_eq!(DelegateVendor::parse("Claude"), None);
+    assert_eq!(DelegateVendor::parse("abacus"), None);
+    assert_eq!(DelegateVendor::parse("Abacusai"), None);
 }
 
 #[test]

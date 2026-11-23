@@ -300,7 +300,7 @@ Precedent: the marketplace login (`marketplace/credentials.rs`), an entry of the
 
 **Decision**: a module `providers/delegate_credential.rs` (or beside the adapter) with `FEATURE = "delegate"`,
 `CALLER = Caller::Internal { feature: FEATURE }`, one tag per vendor (`haex-delegate-abacusai`), and scope-aware functions
-`save(db, vendor, kind, secret, scope)`, `read(db, vendor, scope) -> Credential | Missing | Syncing`, and scoped deletion.
+`save(db, vendor, kind, secret, scope)`, `read(db, vendor, scope) -> Credential | Missing`, and scoped deletion.
 The title is `Delegate: Abacus AI`, the secret is `password`, and the kind and scope are custom fields `kind` (`device_code`)
 and `device`. Portable credentials use scope `vault`; device-bound credentials use the installation ID. Concurrent duplicate
 entries in one scope resolve to newest `updated_at` and only same-scope duplicates are purged at the next save. A save on

@@ -100,7 +100,8 @@ pub(crate) async fn add_with(
                 _ => {
                     return Err(HaexError::InvalidInput {
                         reason:
-                            "cli_delegate provider requires adapter to be \"claude\" or \"codex\""
+                            "cli_delegate provider requires adapter to be \"claude\", \"codex\" \
+                                 or \"abacusai\""
                                 .into(),
                     });
                 }
