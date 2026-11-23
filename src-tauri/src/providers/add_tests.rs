@@ -202,6 +202,25 @@ async fn a_cli_delegate_row_needs_no_address_and_keeps_none() {
 }
 
 #[tokio::test]
+async fn abacus_cannot_be_added_with_provider_row_credentials() {
+    let dir = tempfile::tempdir().expect("tmp dir");
+    let db = open_vault(dir.path());
+    let mut abacus = delegate_args(None);
+    abacus.adapter = Some("abacusai".into());
+
+    let error = add(&gate(&db), abacus, 1)
+        .await
+        .expect_err("use sign-in flow");
+
+    assert!(matches!(error, HaexError::InvalidInput { .. }));
+    let rows = query::read(&db, |r| {
+        Ok(providers_store::list_providers(r).expect("list"))
+    })
+    .expect("read");
+    assert!(rows.is_empty(), "the credential is never persisted");
+}
+
+#[tokio::test]
 async fn an_unknown_delegate_vendor_is_refused_and_names_the_three_that_exist() {
     let dir = tempfile::tempdir().expect("tmp dir");
     let db = open_vault(dir.path());

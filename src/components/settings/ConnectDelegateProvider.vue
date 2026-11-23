@@ -14,7 +14,7 @@ const connect = useActionOrThrow('settings.delegate.connectProvider')
 const submitCode = useActionOrThrow('settings.delegate.submitCode')
 const removeDelegate = useActionOrThrow('settings.delegate.remove')
 
-const VENDORS: DelegateVendor[] = ['claude', 'codex']
+const VENDORS: DelegateVendor[] = ['claude', 'codex', 'abacusai']
 
 const providerList = ref<Provider[]>([])
 const loading = ref(true)

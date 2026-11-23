@@ -670,6 +670,28 @@ fn an_installation_for_the_base_key_fits_a_host_without_avx2() {
 }
 
 #[test]
+fn an_avx2_only_base_install_does_not_fit_a_host_without_avx2() {
+    let dir = TempDir::new().unwrap();
+    let vendor = abacus();
+    let version = vendor
+        .versions
+        .iter()
+        .find(|entry| entry.version == "2.10.23")
+        .unwrap();
+    assert!(version.platforms["linux-x64"].requires_avx2);
+    assert!(version.platforms.contains_key("linux-x64-baseline"));
+    install_for(dir.path(), &vendor, "2.10.23", PlatformKey::LinuxX64, 40);
+
+    let found = scan(dir.path(), &vendor, Some(PlatformKey::LinuxX64Baseline));
+
+    assert!(usable_versions(&found).is_empty());
+    assert_eq!(
+        resolve(dir.path(), &vendor, Some(PlatformKey::LinuxX64Baseline)),
+        Resolution::NeedsReinstall(Misfit::Platform)
+    );
+}
+
+#[test]
 fn an_installation_for_another_platform_family_still_needs_a_reinstall_on_the_variant_host() {
     let dir = TempDir::new().unwrap();
     let vendor = claude();

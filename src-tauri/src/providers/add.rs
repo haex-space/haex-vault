@@ -70,6 +70,11 @@ pub(crate) async fn add_with(
             reason: "name is empty".into(),
         });
     }
+    if args.kind == ProviderKind::CliDelegate && args.adapter.as_deref() == Some("abacusai") {
+        return Err(HaexError::InvalidInput {
+            reason: "Abacus must be connected through its sign-in flow".into(),
+        });
+    }
     match args.kind {
         ProviderKind::ApiKey => {
             validate_adapter(args.adapter.as_deref())?;
