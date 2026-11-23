@@ -168,6 +168,16 @@ export function useErrorString() {
             ? t(key, { status: /status (\d+)/.exec(reason)?.[1] ?? '' })
             : t('errors.cliTools.failed')
         }
+        // Spec 096: a delegate names its cause by a stable code (`delegate.<code>: <vendor>`).
+        const delegate = /delegate\.([a-z_]+): ([a-z0-9]+)(?:: )?(.*)/s.exec(
+          reason,
+        )
+        if (delegate && te(`errors.delegate.${delegate[1]}`)) {
+          return t(`errors.delegate.${delegate[1]}`, {
+            name: t(`chat.model.delegate.${delegate[2]}`),
+            detail: delegate[3] ?? '',
+          })
+        }
         const missingTool = unavailableTool(reason)
         if (missingTool) {
           const toolKeys = {

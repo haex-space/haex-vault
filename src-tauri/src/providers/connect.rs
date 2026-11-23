@@ -18,6 +18,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::{Mutex as AsyncMutex, Notify};
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::adapters::cli_delegate::connect_claude::{
@@ -68,11 +69,32 @@ fn emit_progress(app: &AppHandle, progress: DelegateConnectProgress) {
 #[derive(Default)]
 pub struct DelegateConnectState {
     pub(super) pending_claude: AsyncMutex<Option<ClaudeConnectSession>>,
+    /// The sign-in of Abacus that is waiting for the person (spec 096): ended by
+    /// `cancel_cli_delegate_connect`, by a newer sign-in, or when it ends by itself.
+    abacus: std::sync::Mutex<Option<CancellationToken>>,
 }
 
 impl DelegateConnectState {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// The token of a new Abacus sign-in; one that was still waiting is ended.
+    fn begin_abacus(&self) -> CancellationToken {
+        let token = CancellationToken::new();
+        let mut slot = self.abacus.lock().unwrap_or_else(|p| p.into_inner());
+        if let Some(previous) = slot.replace(token.clone()) {
+            previous.cancel();
+        }
+        token
+    }
+
+    /// Ends the sign-in of Abacus that is waiting, if any. Idempotent.
+    fn cancel_abacus(&self) {
+        let mut slot = self.abacus.lock().unwrap_or_else(|p| p.into_inner());
+        if let Some(token) = slot.take() {
+            token.cancel();
+        }
     }
 }
 
@@ -81,6 +103,9 @@ impl DelegateConnectState {
 pub struct ConnectCliDelegateArgs {
     pub vendor: String,
     pub name: String,
+    /// The e-mail address of the Abacus account; required for `abacusai`, unused otherwise.
+    #[serde(default)]
+    pub email: Option<String>,
 }
 
 /// `rename_all = "snake_case"` (not `camelCase`) so the `status` tag value
@@ -217,11 +242,121 @@ pub async fn connect_cli_delegate(
                 provider: provider.into(),
             })
         }
-        // The sign-in flow of spec 096 (T019) replaces this arm; until then nothing is started.
-        DelegateVendor::Abacus => Err(HaexError::InvalidInput {
-            reason: "backend unavailable: abacusai: connecting is not implemented yet".into(),
-        }),
+        DelegateVendor::Abacus => {
+            connect_abacus_command(&app, &state, &gate, &connect_state, args).await
+        }
     }
+}
+
+/// The Abacus branch of [`connect_cli_delegate`]: the device sign-in, run to its end (spec 096).
+async fn connect_abacus_command(
+    app: &AppHandle,
+    state: &State<'_, AppState>,
+    gate: &State<'_, VaultGate>,
+    connect_state: &State<'_, DelegateConnectState>,
+    args: ConnectCliDelegateArgs,
+) -> Result<ConnectCliDelegateResult> {
+    let email = args
+        .email
+        .as_deref()
+        .map(str::trim)
+        .filter(|email| !email.is_empty())
+        .ok_or_else(|| HaexError::InvalidInput {
+            reason: "abacusai needs the e-mail address of the account".into(),
+        })?;
+    let email = super::abacus_signin::Secret::new(email.to_owned());
+    // The tool must be in this vault first: without it the flow ends here with the install action
+    // (spec 094 FR-004), before any request goes out.
+    let runtime = delegate_runtime(app, state, "abacusai")?;
+    let db = active_database(state)?;
+    // An e2e run points the sign-in at a server on this device (debug builds only).
+    let client = match super::abacus_stand_in::active() {
+        Some(base) => super::abacus_signin::Client::with_base(&base),
+        None => super::abacus_signin::Client::new(),
+    }
+    .map_err(|e| super::connect_abacus::failure(&e))?;
+    let cancel = connect_state.begin_abacus();
+    let app_for_prompt = app.clone();
+    let result = gate
+        .run(super::connect_abacus::connect(
+            &client,
+            &db,
+            &runtime.record,
+            args.name,
+            &email,
+            &cancel,
+            |prompt| {
+                emit_progress(
+                    &app_for_prompt,
+                    DelegateConnectProgress {
+                        vendor: "abacusai",
+                        status: "awaiting_browser",
+                        url: Some(prompt.uri.clone()),
+                        code: Some(prompt.code.expose().to_owned()),
+                        message: None,
+                    },
+                );
+            },
+        ))
+        .await;
+    connect_state.cancel_abacus();
+    let provider = match result {
+        Ok(Ok(provider)) => provider,
+        Ok(Err(error)) => {
+            emit_progress(
+                app,
+                DelegateConnectProgress {
+                    vendor: "abacusai",
+                    status: "error",
+                    url: None,
+                    code: None,
+                    message: connect_failure_code(&error),
+                },
+            );
+            return Err(error);
+        }
+        Err(error) => return Err(error),
+    };
+    // Best effort, as for the other vendors: the model list is the account's default.
+    let tools = crate::cli_tools::tools_of_open_vault(app, state).ok();
+    if super::do_refresh_with(&db, &provider, tools).await.is_err() {
+        log::warn!("cli_delegate model refresh after connect failed");
+    }
+    emit_progress(
+        app,
+        DelegateConnectProgress {
+            vendor: "abacusai",
+            status: "success",
+            url: None,
+            code: None,
+            message: None,
+        },
+    );
+    Ok(ConnectCliDelegateResult::Connected {
+        provider: provider.into(),
+    })
+}
+
+/// The short code the progress event of a failed sign-in carries: what the dialog words.
+fn connect_failure_code(error: &HaexError) -> Option<String> {
+    let HaexError::InvalidInput { reason } = error else {
+        return None;
+    };
+    let code = reason.strip_prefix("delegate.")?.split(':').next()?;
+    Some(code.to_owned())
+}
+
+/// Stops the sign-in of `vendor` that is waiting for the person (the dialog was closed). Idempotent;
+/// the flows of Claude Code and Codex end with their processes and need nothing.
+#[tauri::command]
+pub async fn cancel_cli_delegate_connect(
+    connect_state: State<'_, DelegateConnectState>,
+    vendor: String,
+) -> Result<()> {
+    if DelegateVendor::parse(&vendor) == Some(DelegateVendor::Abacus) {
+        connect_state.cancel_abacus();
+    }
+    Ok(())
 }
 
 /// Appends a connect event to the record of the open vault (spec 094 FR-019). Best effort: a

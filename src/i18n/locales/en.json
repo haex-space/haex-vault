@@ -718,7 +718,10 @@
       "error": "Connection failed",
       "refreshModels": "Refresh models",
       "refreshing": "Refreshing…",
-      "refreshFailed": "Could not refresh models"
+      "refreshFailed": "Could not refresh models",
+      "emailHint": "Enter the e-mail address of your account. HaexVault then shows a link and a code to confirm in the browser. No password is typed here.",
+      "emailLabel": "E-mail address",
+      "emailContinue": "Continue"
     },
     "autonomyMode": {
       "standardDescription": "Tool calls go through the same approval rule as every other model (Manual/Auto/Plan, adjustable in chat).",
@@ -2071,6 +2074,14 @@
     "invalidIdempotencyKey": "The send request is invalid.",
     "idempotencyKeyConflict": "This send request was already used with different data.",
     "autonomyUnavailable": "This autonomy mode is not available for the connected backend. Update it, or use Standard instead.",
+    "delegate": {
+      "not_connected": "{name} is not connected on this device yet. Connect it in Settings. If you just connected it on another device, wait a moment for the sync.",
+      "credential_refused": "{name} was refused by the service. Connect it again in Settings.",
+      "signin_refused": "The sign-in was not accepted: {detail}",
+      "signin_expired": "The code was not confirmed in time. Start the sign-in again.",
+      "signin_network": "The sign-in service cannot be reached. Check the connection and try again.",
+      "signin_unexpected": "The sign-in service answered in a way HaexVault does not understand."
+    },
     "cliTools": {
       "notInstalled": "{name} is not installed in this vault. Install it in Settings, then try again.",
       "needsReinstall": "{name} in this vault is damaged or made for another device. Install it again in Settings.",
