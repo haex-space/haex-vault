@@ -54,7 +54,7 @@ pub enum ProtectionState {
 pub struct Protection {
     /// The weakest state over the conversation's devices.
     pub state: ProtectionState,
-    /// The oldest last renewal over the devices with a session; `None` without one.
+    /// The oldest renewal of the session used to send on, across devices; `None` without one.
     #[ts(type = "number | null")]
     pub renewed_at: Option<i64>,
 }
@@ -79,10 +79,11 @@ pub fn of(q: &mut impl Query, me: &Me, thread_id: Uuid, now: i64) -> Result<Opti
         for device in targets::of(q, me, vault)?.devices {
             let device = hex(&device);
             let sessions = store::sessions(q, me.installation, &device)?;
+            // The smallest session id is the one `session::encrypt` sends on. A newer session
+            // must not hide that sending session's overdue renewal.
             let last_renewal = sessions
-                .iter()
-                .map(|row| row.renewed_at.unwrap_or(row.created_at))
-                .max();
+                .first()
+                .map(|row| row.renewed_at.unwrap_or(row.created_at));
             let of_device = if store::peer(q, me.installation, &device)?
                 .recovering_since
                 .is_some()
@@ -110,18 +111,22 @@ pub fn of(q: &mut impl Query, me: &Me, thread_id: Uuid, now: i64) -> Result<Opti
 
 /// The vaults an event of `thread_id` still waits for in this device's outbox.
 fn waiting_vaults(q: &mut impl Query, thread_id: Uuid) -> Result<Vec<String>> {
-    let rows: Vec<String> = q.query_map(
-        "SELECT pending FROM chat_outbox_no_sync WHERE thread_id = ?1",
+    let rows: Vec<(String, String)> = q.query_map(
+        "SELECT pending, awaiting FROM chat_outbox_no_sync WHERE thread_id = ?1",
         &[&thread_id.to_string()],
-        |row| row.get(0),
+        |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
     let mut vaults = Vec::new();
-    for pending in rows {
+    for (pending, awaiting) in rows {
         let pending: Vec<String> =
             serde_json::from_str(&pending).map_err(|e| HaexError::InvalidInput {
                 reason: format!("outbox pending: {e}"),
             })?;
-        for vault in pending {
+        let awaiting: Vec<String> =
+            serde_json::from_str(&awaiting).map_err(|e| HaexError::InvalidInput {
+                reason: format!("outbox awaiting: {e}"),
+            })?;
+        for vault in pending.into_iter().chain(awaiting) {
             if !vaults.contains(&vault) {
                 vaults.push(vault);
             }
