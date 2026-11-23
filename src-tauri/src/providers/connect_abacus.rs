@@ -75,19 +75,17 @@ pub(super) async fn save_connection(
 ) -> Result<Provider> {
     let scope = delegate_credential::scope_of(VENDOR);
     let prior = prior_credential(db, scope).await?;
+    // Commit the provider row first. VaultGate may drop this future when the vault closes, while
+    // the password-manager write runs on a blocking thread and can still commit. Having the row
+    // in place first ensures that such a late credential commit is never orphaned.
+    let provider = write_delegate_provider(db, VENDOR, name, Vec::new()).await?;
     if let Err(error) =
         delegate_credential::save(db, VENDOR, KIND_DEVICE_CODE, device_code.expose(), scope).await
     {
         restore(db, scope, prior).await;
         return Err(error);
     }
-    match write_delegate_provider(db, VENDOR, name, Vec::new()).await {
-        Ok(provider) => Ok(provider),
-        Err(error) => {
-            restore(db, scope, prior).await;
-            Err(error)
-        }
-    }
+    Ok(provider)
 }
 
 /// Runs the sign-in: `start`, the prompt to `on_prompt`, polling until the person confirms in the
@@ -121,10 +119,14 @@ async fn sign_in(
 ) -> Result<Provider> {
     // A random id per sign-in: the service tells devices apart by it.
     let device_id = Uuid::new_v4().to_string();
-    let prompt = client
-        .start(email, &device_id)
-        .await
-        .map_err(|e| failure(&e))?;
+    let prompt = tokio::select! {
+        biased;
+        () = cancel.cancelled() => return Err(failure(&SigninError::Cancelled)),
+        prompt = client.start(email, &device_id) => prompt.map_err(|e| failure(&e))?,
+    };
+    if cancel.is_cancelled() {
+        return Err(failure(&SigninError::Cancelled));
+    }
     on_prompt(&prompt);
     let device_code = client
         .poll(&prompt, cancel)

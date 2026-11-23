@@ -13,7 +13,8 @@ use tempfile::TempDir;
 
 use super::{
     approval_answer, build_command, chosen_model, default_model, fatal_reason, parse_line,
-    startup_error, user_line, write_attachments, Line, CREDENTIAL_REFUSED, NOT_CONNECTED,
+    startup_error, user_line, write_attachments, Line, APPROVALS_UNVERIFIED, CREDENTIAL_REFUSED,
+    NOT_CONNECTED,
 };
 use crate::adapters::cli_delegate::autonomy::AutonomyMode;
 use crate::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
@@ -295,6 +296,7 @@ impl Fixture {
             DelegateRuntime::for_stub("abacusai", program, self.dir.path()),
             Some(context),
         )
+        .with_abacus_approval_coverage_for_test()
     }
 
     fn context(&self) -> DelegateChatContext {
@@ -414,6 +416,30 @@ async fn the_command_line_is_the_contract_and_the_child_has_the_device_code_and_
     );
     assert!(!env.contains("ABACUS_API_KEY"), "an API key is never set");
     assert!(env.contains("ABACUS_AUTO_UPDATE=off"));
+}
+
+#[tokio::test]
+async fn standard_requests_stay_unavailable_until_approval_coverage_is_verified() {
+    let fixture = Fixture::new().await;
+    let program = fixture.stub(&format!(
+        "echo started > '{}'\n{happy}",
+        fixture.path("started").display(),
+        happy = happy_body(),
+    ));
+    let adapter = CliDelegateAdapter::new(
+        DelegateVendor::Abacus,
+        Vec::new(),
+        DelegateRuntime::for_stub("abacusai", &program, fixture.dir.path()),
+        Some(fixture.context()),
+    );
+
+    let error = adapter.stream_chat(request("abacusai")).await.unwrap_err();
+
+    assert!(
+        matches!(error, AdapterError::Unavailable { reason } if reason == APPROVALS_UNVERIFIED),
+        "{error:?}"
+    );
+    assert!(!fixture.path("started").exists(), "nothing was spawned");
 }
 
 #[tokio::test]
@@ -704,8 +730,10 @@ async fn a_disconnect_during_a_response_does_not_disturb_it_and_the_next_request
     let fixture = Fixture::new().await;
     // The program holds its own copy of the device code (in its environment), so deleting the entry
     // while it answers changes nothing for this response.
+    let release = fixture.path("release-response");
     let program = fixture.stub(&format!(
-        "cat <<'EOF'\n{INIT}\nEOF\nsleep 1\ncat <<'EOF'\n{HELLO}\n{OK_RESULT}\nEOF"
+        "cat <<'EOF'\n{INIT}\nEOF\nfor i in $(seq 1 500); do [ -e '{release}' ] && break; sleep 0.01; done\n[ -e '{release}' ] || exit 2\ncat <<'EOF'\n{HELLO}\n{OK_RESULT}\nEOF",
+        release = release.display(),
     ));
     let adapter = fixture.adapter(&program, fixture.context());
     let stream = adapter.stream_chat(request("abacusai")).await.unwrap();
@@ -713,6 +741,7 @@ async fn a_disconnect_during_a_response_does_not_disturb_it_and_the_next_request
     delegate_credential::delete(&fixture.db, "abacusai")
         .await
         .unwrap();
+    fs::write(&release, "deleted").unwrap();
     let (text, done, error) = collect(stream).await;
 
     assert_eq!(text, "Hello");

@@ -2077,6 +2077,7 @@
     "delegate": {
       "not_connected": "{name} is not connected on this device yet. Connect it in Settings. If you just connected it on another device, wait a moment for the sync.",
       "credential_refused": "{name} was refused by the service. Connect it again in Settings.",
+      "approvals_unverified": "{name} is unavailable until its tool approval coverage is verified.",
       "signin_refused": "The sign-in was not accepted: {detail}",
       "signin_expired": "The code was not confirmed in time. Start the sign-in again.",
       "signin_network": "The sign-in service cannot be reached. Check the connection and try again.",
