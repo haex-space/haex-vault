@@ -1,10 +1,31 @@
 {
   "schema_version": 1,
   "checked": {
-    "source_hash": "48db6e93766bb09e31fc947645ac8813b67d221e51a7cf0530d566bc2b109cc7",
+    "source_hash": "3a17cea00120478072be4f3ca368732b0c7cec62a2443b313166e7d9f87e8ae9",
     "prompt_hash": "aad1b9eb44b8d38d2bb92a30d9806c85710edad91159543012d0d3a0c686372a"
   },
   "decisions": {
+    "0d2cd399b9a119a03b600e3c906bec535f03641b52dd6e089d8956afaee1d350": {
+      "kind": "duplicate",
+      "summary": "Both fragments give the same instruction on abstraction: don't abstract merely because things look similar or speculatively, but do abstract when a real shared behavior/concrete evidence justifies it, scoped close to its domain.",
+      "passages": [
+        {
+          "scoped_id": "com.github.haexmas.atoms.general-coding/general-coding",
+          "text_hash": "6741ac35c27b221471f2f91306fe80065e5e5d29ced544301b771bdec89f53b8",
+          "text": "- Do not abstract two things merely because they look similar. First establish\n  that they have the same behavior, ownership, change reason, and invariants.\n  A small amount of local duplication is preferable to a premature generic\n  abstraction that couples unrelated callers.\n- Refactor repeated behavior when the shared rule is real and the abstraction\n  makes both callers clearer. Keep the abstraction close to the domain that\n  owns it; avoid a generic utility module becoming a dumping ground."
+        },
+        {
+          "scoped_id": "com.github.haexmas.atoms.ponytail/ponytail",
+          "text_hash": "762e24a72676f77dd6c37bbe977676817ac4012c63ec2d09cff09a3b67f565eb",
+          "text": "- Do not introduce speculative abstractions or abstractions solely because a\n  change might be reusable. A concrete, domain-owned abstraction that\n  improves cohesion, removes real duplication, or makes a branch independently\n  testable is not premature; use it when the code evidence supports it, even\n  when the task did not name the extraction. Keep it as small as possible."
+        }
+      ],
+      "choice": {
+        "kind": "keep_all"
+      },
+      "asked_at": "2026-11-23T10:37:23Z",
+      "answered_at": "2026-11-23T10:37:23Z"
+    },
     "c97355e811a5542df4696e34001394201a40d3853da7953789e3adc1601b4aeb": {
       "kind": "duplicate",
       "summary": "Both passages require test implementations to live in files separate from production code, allowing only a language-required test-module declaration to remain in the production file.",
