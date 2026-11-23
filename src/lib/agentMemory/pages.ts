@@ -135,7 +135,7 @@ export function withPointerLinks(
     .split('\n')
     .map((line) => {
       const trimmed = line.trimStart()
-      const marker = trimmed[0]
+      const marker = trimmed[0] ?? ''
       let length = 0
       if (marker === '`' || marker === '~') {
         while (trimmed[length] === marker) length++
