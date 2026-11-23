@@ -71,7 +71,12 @@ pub struct DelegateConnectState {
     pub(super) pending_claude: AsyncMutex<Option<ClaudeConnectSession>>,
     /// The sign-in of Abacus that is waiting for the person (spec 096): ended by
     /// `cancel_cli_delegate_connect`, by a newer sign-in, or when it ends by itself.
-    abacus: std::sync::Mutex<Option<CancellationToken>>,
+    abacus: std::sync::Mutex<Option<AbacusCancellation>>,
+}
+
+struct AbacusCancellation {
+    id: Uuid,
+    token: CancellationToken,
 }
 
 impl DelegateConnectState {
@@ -80,20 +85,33 @@ impl DelegateConnectState {
     }
 
     /// The token of a new Abacus sign-in; one that was still waiting is ended.
-    fn begin_abacus(&self) -> CancellationToken {
+    fn begin_abacus(&self) -> (Uuid, CancellationToken) {
+        let id = Uuid::new_v4();
         let token = CancellationToken::new();
         let mut slot = self.abacus.lock().unwrap_or_else(|p| p.into_inner());
-        if let Some(previous) = slot.replace(token.clone()) {
-            previous.cancel();
+        if let Some(previous) = slot.replace(AbacusCancellation {
+            id,
+            token: token.clone(),
+        }) {
+            previous.token.cancel();
         }
-        token
+        (id, token)
+    }
+
+    /// Clears a completed sign-in only if it still owns the slot. A newer connect may have
+    /// replaced it while this command was returning from the vault gate.
+    fn finish_abacus(&self, id: Uuid) {
+        let mut slot = self.abacus.lock().unwrap_or_else(|p| p.into_inner());
+        if slot.as_ref().is_some_and(|active| active.id == id) {
+            slot.take();
+        }
     }
 
     /// Ends the sign-in of Abacus that is waiting, if any. Idempotent.
     fn cancel_abacus(&self) {
         let mut slot = self.abacus.lock().unwrap_or_else(|p| p.into_inner());
-        if let Some(token) = slot.take() {
-            token.cancel();
+        if let Some(active) = slot.take() {
+            active.token.cancel();
         }
     }
 }
@@ -275,7 +293,7 @@ async fn connect_abacus_command(
         None => super::abacus_signin::Client::new(),
     }
     .map_err(|e| super::connect_abacus::failure(&e))?;
-    let cancel = connect_state.begin_abacus();
+    let (connect_id, cancel) = connect_state.begin_abacus();
     let app_for_prompt = app.clone();
     let result = gate
         .run(super::connect_abacus::connect(
@@ -299,7 +317,7 @@ async fn connect_abacus_command(
             },
         ))
         .await;
-    connect_state.cancel_abacus();
+    connect_state.finish_abacus(connect_id);
     let provider = match result {
         Ok(Ok(provider)) => provider,
         Ok(Err(error)) => {

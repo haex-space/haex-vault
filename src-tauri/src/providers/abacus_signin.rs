@@ -167,7 +167,7 @@ fn interval_from(seconds: Option<f64>) -> Duration {
     }
 }
 
-fn vendor_text(error: Option<String>) -> String {
+fn vendor_text(error: Option<String>, email: &str) -> String {
     let text: String = error
         .as_deref()
         .map(str::trim)
@@ -175,6 +175,11 @@ fn vendor_text(error: Option<String>) -> String {
         .chars()
         .take(MAX_VENDOR_TEXT_CHARS)
         .collect();
+    // The service's refusal is shown to the user, but it may echo the address sent in `start`.
+    // Keep the useful vendor explanation only when it does not reveal that personal input.
+    if !email.is_empty() && text.to_lowercase().contains(&email.to_lowercase()) {
+        return REFUSED_FALLBACK.to_string();
+    }
     if text.is_empty() {
         REFUSED_FALLBACK.to_string()
     } else {
@@ -241,7 +246,10 @@ impl Client {
         let body = json!({ "email": email.expose(), "deviceId": device_id });
         let answer: StartAnswer = self.post(START_PATH, &body).await?;
         let Some(result) = answer.result.filter(|_| answer.success) else {
-            return Err(SigninError::Refused(vendor_text(answer.error)));
+            return Err(SigninError::Refused(vendor_text(
+                answer.error,
+                email.expose(),
+            )));
         };
         match (result.verification_uri, result.user_code) {
             (Some(uri), Some(code)) if !uri.is_empty() && !code.expose().is_empty() => Ok(Prompt {
