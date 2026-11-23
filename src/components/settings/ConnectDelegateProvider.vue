@@ -263,16 +263,19 @@ onMounted(async () => {
       // finishes, without any submitCliDelegateCodeAsync call ever
       // resolving — this event is the only signal for that case.
       awaitingCode[event.vendor] = false
-      connecting[event.vendor] = false
       signInOpen[event.vendor] = false
-      await reloadAsync()
+      if (!asksForEmail(event.vendor)) {
+        connecting[event.vendor] = false
+        await reloadAsync()
+      }
     } else if (event.status === 'error') {
       awaitingCode[event.vendor] = false
       signInOpen[event.vendor] = false
       // The sign-in of an account vendor reports its failure with the rejected call itself.
-      if (event.message && !asksForEmail(event.vendor))
+      if (event.message && !asksForEmail(event.vendor)) {
         connectFailed(event.message)
-      connecting[event.vendor] = false
+        connecting[event.vendor] = false
+      }
     }
   })
 })
@@ -281,6 +284,11 @@ onVaultTablesChanged(['providers'], () => reloadAsync(true))
 
 onBeforeUnmount(() => {
   unlisten?.()
+  if (connecting.abacusai) {
+    void cancelConnectCliDelegateAsync('abacusai').catch(() => {
+      // The flow may already have ended while this view was closing.
+    })
+  }
   cliTools.stop()
 })
 

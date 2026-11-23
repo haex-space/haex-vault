@@ -18,7 +18,7 @@ use std::process::Stdio;
 use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt, BufReader, Lines};
 use tokio::process::{ChildStdin, ChildStdout, Command};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -31,7 +31,7 @@ use crate::passwords::binaries::sanitize_file_name;
 use crate::providers::delegate_credential::{self, Read, KIND_DEVICE_CODE};
 
 use super::autonomy::{ApprovalRequestPayload, AutonomyMode, AutonomyUnavailable};
-use super::codex::read_limited;
+use super::codex::MAX_STDERR_BYTES;
 use super::process::{configure_process_group, map_spawn_error, ChildLifecycle};
 use super::{
     approval_bridge, build_transcript_prompt, haex_mcp, DelegateChatContext, DelegateVendor,
@@ -43,12 +43,17 @@ const DEVICE_CODE_ENV: &str = "CODELLM_DEVICE_CODE";
 /// The permission mode the program is started in and must report in its `init` message.
 const PERMISSION_MODE: &str = "supervise";
 
+/// The release gate of spec 096 T034. Flip only after T035 records that read-only and changing
+/// tools both reach the approval bridge.
+pub(super) const READ_ONLY_TOOLS_REACH_APPROVAL_BRIDGE: bool = false;
+
 /// How long the program may take to write its first line (or to end) after it started.
 const STARTUP_PROBE_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// The reasons an Abacus request ends with that the frontend words (`errors.delegate.*`).
 pub(super) const NOT_CONNECTED: &str = "delegate.not_connected: abacusai";
 pub(super) const CREDENTIAL_REFUSED: &str = "delegate.credential_refused: abacusai";
+pub(super) const APPROVALS_UNVERIFIED: &str = "delegate.approvals_unverified: abacusai";
 
 /// The `Unavailable` error of a request that has no credential in this scope.
 pub(super) fn not_connected() -> AdapterError {
@@ -62,6 +67,12 @@ pub(super) fn not_connected() -> AdapterError {
 pub(super) fn credential_refused() -> AdapterError {
     AdapterError::Unavailable {
         reason: CREDENTIAL_REFUSED.into(),
+    }
+}
+
+fn approvals_unverified() -> AdapterError {
+    AdapterError::Unavailable {
+        reason: APPROVALS_UNVERIFIED.into(),
     }
 }
 
@@ -299,6 +310,32 @@ pub(super) fn fatal_reason(stderr: &str) -> Option<String> {
     .then_some(reason)
 }
 
+/// Keeps the end of stderr, where the CLI writes its final fatal record, within the same bound as
+/// other delegate stderr readers.
+async fn read_stderr_tail<R: AsyncRead + Unpin>(mut reader: R) -> Vec<u8> {
+    let mut output = Vec::new();
+    let mut buffer = [0_u8; 4096];
+    while let Ok(read) = reader.read(&mut buffer).await {
+        if read == 0 {
+            break;
+        }
+        if read >= MAX_STDERR_BYTES {
+            output.clear();
+            output.extend_from_slice(&buffer[read - MAX_STDERR_BYTES..read]);
+            continue;
+        }
+        let overflow = output
+            .len()
+            .saturating_add(read)
+            .saturating_sub(MAX_STDERR_BYTES);
+        if overflow > 0 {
+            output.drain(..overflow);
+        }
+        output.extend_from_slice(&buffer[..read]);
+    }
+    output
+}
+
 /// What a program that ended before its first line comes to for the person: a refused credential
 /// leads back to connecting; the rest names the reason, never the program's own text.
 pub(super) fn startup_error(stderr: &[u8]) -> AdapterError {
@@ -381,6 +418,33 @@ pub(super) async fn spawn_abacus_invocation(
     // The model as a subject of the agent profiles (`<provider id>:<remote id>`).
     model: String,
 ) -> Result<AdapterStream, AdapterError> {
+    spawn_abacus_invocation_with_coverage(
+        runtime,
+        req,
+        context,
+        model,
+        READ_ONLY_TOOLS_REACH_APPROVAL_BRIDGE,
+    )
+    .await
+}
+
+#[cfg(test)]
+pub(super) async fn spawn_abacus_invocation_for_test(
+    runtime: DelegateRuntime,
+    req: ChatRequest,
+    context: DelegateChatContext,
+    model: String,
+) -> Result<AdapterStream, AdapterError> {
+    spawn_abacus_invocation_with_coverage(runtime, req, context, model, true).await
+}
+
+async fn spawn_abacus_invocation_with_coverage(
+    runtime: DelegateRuntime,
+    req: ChatRequest,
+    context: DelegateChatContext,
+    model: String,
+    approval_coverage_verified: bool,
+) -> Result<AdapterStream, AdapterError> {
     // Only the approving posture is served (see the module documentation); nothing is started for
     // another one.
     if req.autonomy_mode != AutonomyMode::Standard {
@@ -391,6 +455,9 @@ pub(super) async fn spawn_abacus_invocation(
             }
             .to_string(),
         });
+    }
+    if !approval_coverage_verified {
+        return Err(approvals_unverified());
     }
     let credential = read_credential(&context).await?;
     let run = runtime.run_folder().map_err(|error| AdapterError::Http {
@@ -435,15 +502,16 @@ pub(super) async fn spawn_abacus_invocation(
         .ok_or_else(|| AdapterError::Http {
             reason: "failed to capture abacusai stderr".into(),
         })?;
-    let stderr_task = tokio::spawn(read_limited(stderr));
+    let stderr_task = tokio::spawn(read_stderr_tail(stderr));
     let mut lines = BufReader::new(stdout).lines();
 
     // A program that ends at once (a refused credential, a bad installation) is classified from
     // what it said on stderr, before any stream is returned.
-    let first = match write_line(&mut stdin, &user_line(&prompt)).await {
-        Ok(()) => tokio::time::timeout(STARTUP_PROBE_TIMEOUT, lines.next_line()).await,
-        Err(_) => Ok(Ok(None)),
-    };
+    let first = tokio::time::timeout(STARTUP_PROBE_TIMEOUT, async {
+        write_line(&mut stdin, &user_line(&prompt)).await?;
+        lines.next_line().await
+    })
+    .await;
     let first = match first {
         Ok(Ok(Some(line))) => Some(line),
         Ok(Ok(None) | Err(_)) => {
@@ -493,6 +561,9 @@ pub(super) async fn spawn_abacus_invocation(
             let stderr = stderr_task.await.unwrap_or_default();
             let reason = fatal_reason(&String::from_utf8_lossy(&stderr));
             let _ = tx.send(Err(match reason {
+                Some("not_authenticated" | "access_denied") => {
+                    StreamError::Model(CREDENTIAL_REFUSED.to_owned())
+                }
                 Some(reason) => StreamError::Internal(format!("abacusai: {reason}")),
                 None => StreamError::UnexpectedEnd,
             }));
@@ -536,8 +607,12 @@ async fn drive(
     let start = Instant::now();
     let mut ttft_ms = None;
     let mut streamed = false;
+    let mut supervise_confirmed = false;
     let mut pending = first;
     loop {
+        if cancel.is_cancelled() {
+            return Outcome::Done;
+        }
         let line = match pending.take() {
             Some(line) => line,
             None => {
@@ -560,19 +635,19 @@ async fn drive(
         match parse_line(&line) {
             Line::Init { permission_mode } => {
                 // The posture rests on this mode; a program that reports another one is not used.
-                if permission_mode
-                    .as_deref()
-                    .is_some_and(|mode| mode != PERMISSION_MODE)
-                {
-                    let _ = tx.send(Err(StreamError::Internal(
+                if permission_mode.as_deref() != Some(PERMISSION_MODE) {
+                    let _ = tx.send(Err(StreamError::Model(
                         "abacusai did not start in its approving mode".into(),
                     )));
                     return Outcome::Done;
                 }
+                supervise_confirmed = true;
             }
             Line::Text(content) => {
-                ttft_ms.get_or_insert_with(|| start.elapsed().as_millis() as u64);
-                streamed = true;
+                if !content.is_empty() {
+                    ttft_ms.get_or_insert_with(|| start.elapsed().as_millis() as u64);
+                    streamed = true;
+                }
                 if tx
                     .send(Ok(StreamChunk::Delta {
                         content,
@@ -611,18 +686,20 @@ async fn drive(
                     ) => decision,
                 };
                 let allow = matches!(decision, crate::chat::tools::ApprovalDecision::Allow);
-                if write_line(stdin, &approval_answer(&request_id, allow))
-                    .await
-                    .is_err()
-                {
+                let write = tokio::select! {
+                    () = cancel.cancelled() => return Outcome::Done,
+                    write = write_line(stdin, &approval_answer(&request_id, allow)) => write,
+                };
+                if write.is_err() {
                     return Outcome::Ended;
                 }
             }
             Line::UnknownRequest { request_id } => {
-                if write_line(stdin, &unsupported_answer(&request_id))
-                    .await
-                    .is_err()
-                {
+                let write = tokio::select! {
+                    () = cancel.cancelled() => return Outcome::Done,
+                    write = write_line(stdin, &unsupported_answer(&request_id)) => write,
+                };
+                if write.is_err() {
                     return Outcome::Ended;
                 }
             }
@@ -633,12 +710,19 @@ async fn drive(
                 prompt_tokens,
                 completion_tokens,
             } => {
+                if !supervise_confirmed {
+                    let _ = tx.send(Err(StreamError::Model(
+                        "abacusai did not confirm its approving mode".into(),
+                    )));
+                    return Outcome::Done;
+                }
                 if !success {
                     let _ = tx.send(Err(StreamError::Model(message)));
                     return Outcome::Done;
                 }
                 // A turn the program answered without partial events still has its text.
                 if !streamed && !text.is_empty() {
+                    ttft_ms.get_or_insert_with(|| start.elapsed().as_millis() as u64);
                     let _ = tx.send(Ok(StreamChunk::Delta {
                         content: text,
                         reasoning: None,

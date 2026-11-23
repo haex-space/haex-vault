@@ -13,6 +13,7 @@
 //! `submit_cli_delegate_code` still exists as a fallback for a code shown by
 //! some other `claude` CLI version/build.
 
+use std::fmt;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -36,7 +37,7 @@ use super::{map_adapter_error, ProviderPayload};
 
 pub const DELEGATE_CONNECT_PROGRESS_EVENT: &str = "delegate-connect-progress";
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct DelegateConnectProgress {
     vendor: &'static str,
@@ -47,6 +48,18 @@ struct DelegateConnectProgress {
     code: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     message: Option<String>,
+}
+
+impl fmt::Debug for DelegateConnectProgress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DelegateConnectProgress")
+            .field("vendor", &self.vendor)
+            .field("status", &self.status)
+            .field("url", &self.url)
+            .field("code", &self.code.as_ref().map(|_| "[redacted]"))
+            .field("message", &self.message)
+            .finish()
+    }
 }
 
 fn emit_progress(app: &AppHandle, progress: DelegateConnectProgress) {
@@ -116,7 +129,7 @@ impl DelegateConnectState {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectCliDelegateArgs {
     pub vendor: String,
@@ -124,6 +137,16 @@ pub struct ConnectCliDelegateArgs {
     /// The e-mail address of the Abacus account; required for `abacusai`, unused otherwise.
     #[serde(default)]
     pub email: Option<String>,
+}
+
+impl fmt::Debug for ConnectCliDelegateArgs {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ConnectCliDelegateArgs")
+            .field("vendor", &self.vendor)
+            .field("name", &self.name)
+            .field("email", &self.email.as_ref().map(|_| "[redacted]"))
+            .finish()
+    }
 }
 
 /// `rename_all = "snake_case"` (not `camelCase`) so the `status` tag value

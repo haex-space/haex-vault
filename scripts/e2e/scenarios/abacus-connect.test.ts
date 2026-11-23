@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { InvokeResult } from '../lib/platform/host.ts'
+import { reachFromDevice } from '../lib/platform/reach.ts'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, unwrap } from '../lib/flows.ts'
 
@@ -80,6 +81,7 @@ scenario('abacus-connect', { timeoutMs: 240_000 }, async (ctx) => {
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as AddressInfo
+  reachFromDevice(port)
   try {
     const artifact = {
       url: `http://127.0.0.1:${port}/abacusai`,

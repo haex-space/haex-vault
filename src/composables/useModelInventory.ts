@@ -29,6 +29,9 @@ export type Translate = (key: string, named?: Record<string, unknown>) => string
  * (spec.md FR-004, Acceptance Scenario 2).
  */
 const DELEGATE_VENDORS = ['claude', 'codex', 'abacusai'] as const
+// Spec 096 T034: the backend release gate stays closed until T035 records measured approval
+// coverage for both read-only and changing tools.
+const ABACUS_APPROVALS_UNVERIFIED = true
 
 export interface ModelInventoryDeps {
   models: ReturnType<typeof useModels>
@@ -125,10 +128,17 @@ export function useModelInventory(deps: ModelInventoryDeps) {
         // (spec 012 FR-024); the provider's settings page lists it.
         models: (providerModels.value[p.id] ?? [])
           .filter((m) => kindOf(m.capabilities) === 'text')
-          .map((m) => ({
-            id: m.id,
-            name: m.name,
-          })),
+          .map((m) => {
+            const approvalsUnverified =
+              p.adapter === 'abacusai' && ABACUS_APPROVALS_UNVERIFIED
+            return {
+              id: m.id,
+              name: approvalsUnverified
+                ? `${m.name} — ${t('errors.delegate.approvals_unverified', { name: p.name })}`
+                : m.name,
+              disabled: approvalsUnverified,
+            }
+          }),
       }))
       .filter((g) => g.models.length > 0)
 
@@ -155,7 +165,10 @@ export function useModelInventory(deps: ModelInventoryDeps) {
         models: [
           {
             id: `delegate-${vendor}:not-connected`,
-            name: t('chat.model.delegateNotConnected'),
+            name:
+              vendor === 'abacusai' && ABACUS_APPROVALS_UNVERIFIED
+                ? t('errors.delegate.approvals_unverified', { name: label })
+                : t('chat.model.delegateNotConnected'),
             disabled: true,
           },
         ],
