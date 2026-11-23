@@ -16,6 +16,14 @@ fn a_title_or_description_is_one_line_and_not_empty() {
             refused(field, "Zwei\r\nZeilen"),
             Some(CheckError::LineBreak)
         );
+        assert_eq!(
+            refused(field, "Zwei\u{2028}Zeilen"),
+            Some(CheckError::LineBreak)
+        );
+        assert_eq!(
+            refused(field, "Zwei\u{2029}Zeilen"),
+            Some(CheckError::LineBreak)
+        );
     }
     assert_eq!(
         refused(Field::Body, ""),
