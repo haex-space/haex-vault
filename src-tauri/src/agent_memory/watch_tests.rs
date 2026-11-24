@@ -81,6 +81,33 @@ async fn a_fence_without_a_reader_fails_and_a_dropped_reader_ends_its_fences() {
 }
 
 #[tokio::test]
+async fn an_unrecorded_foreign_mark_fails_closed_until_a_retry_stores_it() {
+    let v = vault();
+    let thread = thread(&v).await;
+    let mut watch = Watch::start(Some(thread), Some(v.db.clone()));
+    mark_unrecorded(thread);
+
+    assert!(!fence(thread, Duration::from_millis(50)).await);
+    assert!(retry_unrecorded(&v.db, thread).await);
+    assert!(!is_unrecorded(thread));
+    assert!(v
+        .db
+        .read(move |q| memory_foreign_at(q, thread))
+        .await
+        .expect("read the mark")
+        .is_some());
+
+    let mut fence = tokio::spawn(fence(thread, FENCE_WAIT));
+    tokio::task::yield_now().await;
+    let (_agent, output) = tokio::io::duplex(64);
+    let mut lines = BufReader::new(output).lines();
+    tokio::select! {
+        acknowledged = &mut fence => assert!(acknowledged.expect("join")),
+        _ = watch.next_line(&mut lines) => panic!("the agent wrote nothing"),
+    }
+}
+
+#[tokio::test]
 async fn a_pass_without_a_thread_is_not_watched() {
     let (_agent, output) = tokio::io::duplex(64);
     let mut lines = BufReader::new(output).lines();

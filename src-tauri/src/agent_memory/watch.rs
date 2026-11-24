@@ -6,7 +6,7 @@
 //! about its tool before its next call reaches haex-vault, so the write is judged with everything
 //! the agent read before it. A fence that is not acknowledged counts as foreign, and the write asks.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
@@ -24,9 +24,9 @@ use crate::vault_gate::VaultDb;
 mod tests;
 
 /// How long the reader waits for one more line before it takes the output as read up to a fence.
-/// The lines the agent wrote before its call have long been in the pipe when the call arrives.
+/// If lines keep arriving until this deadline, unread output makes the fence fail.
 const QUIET: Duration = Duration::from_millis(25);
-/// The longest a fence waits while the agent keeps writing; what comes after it is later anyway.
+/// The longest a fence waits while the agent keeps writing; after that its output is unread.
 const MOST_DRAIN: Duration = Duration::from_secs(1);
 /// The longest the server waits for an acknowledgement before the write asks.
 pub const FENCE_WAIT: Duration = Duration::from_secs(5);
@@ -39,7 +39,70 @@ struct Reader {
 }
 
 static READERS: Mutex<Option<HashMap<Uuid, Reader>>> = Mutex::new(None);
+/// Foreign content that could not yet be persisted must keep memory writes on the approval path.
+static UNRECORDED_FOREIGN: Mutex<Option<HashSet<Uuid>>> = Mutex::new(None);
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
+
+fn mark_unrecorded(thread: Uuid) {
+    UNRECORDED_FOREIGN
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .get_or_insert_with(HashSet::new)
+        .insert(thread);
+}
+
+fn clear_unrecorded(thread: Uuid) {
+    if let Some(threads) = UNRECORDED_FOREIGN
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_mut()
+    {
+        threads.remove(&thread);
+    }
+}
+
+fn is_unrecorded(thread: Uuid) -> bool {
+    UNRECORDED_FOREIGN
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_ref()
+        .is_some_and(|threads| threads.contains(&thread))
+}
+
+/// Persists a foreign-content mark. A failed write stays fail-closed in this process; later memory
+/// decisions retry it and still ask for the current write even if the retry succeeds.
+pub async fn persist_foreign_mark(db: &VaultDb, thread: Uuid) -> bool {
+    mark_unrecorded(thread);
+    let now = crate::passwords::clock::unix_millis(std::time::SystemTime::now());
+    if let Err(error) = db
+        .write(move |tx| chat_threads::mark_foreign_once(tx, thread, now))
+        .await
+    {
+        log::warn!("agent memory: the mark of foreign content was not written: {error}");
+        return false;
+    }
+
+    let stored = db
+        .read(move |q| chat_threads::memory_foreign_at(q, thread))
+        .await
+        .is_ok_and(|at| at.is_some());
+    if stored {
+        clear_unrecorded(thread);
+    } else {
+        log::warn!("agent memory: the mark of foreign content was not stored");
+    }
+    stored
+}
+
+/// Retries a failed mark before a memory decision. Returns true if this thread was fail-closed, so
+/// the current write must ask even when this retry stores the durable mark.
+pub async fn retry_unrecorded(db: &VaultDb, thread: Uuid) -> bool {
+    if !is_unrecorded(thread) {
+        return false;
+    }
+    let _ = persist_foreign_mark(db, thread).await;
+    true
+}
 
 /// The reader's side for one pass: it reads lines, answers fences and marks the thread.
 pub struct Watch {
@@ -80,22 +143,29 @@ impl Watch {
         }
     }
 
-    /// The next line of the output. A fence that arrived meanwhile is acknowledged once no line
-    /// follows within [`QUIET`], or after [`MOST_DRAIN`]: every line before it has then been
-    /// returned, and judged by the caller before it asked for this one.
+    /// The next line of the output. A fence that arrived meanwhile is acknowledged only once no
+    /// line follows within [`QUIET`]. If output does not go quiet before [`MOST_DRAIN`], the pending
+    /// fences fail because unread lines may still contain foreign content.
     pub async fn next_line<R: AsyncBufRead + Unpin>(
         &mut self,
         lines: &mut Lines<R>,
     ) -> std::io::Result<Option<String>> {
         loop {
             if let Some(since) = self.since {
-                if since.elapsed() < MOST_DRAIN {
-                    if let Ok(line) = tokio::time::timeout(QUIET, lines.next_line()).await {
-                        return line;
-                    }
+                let remaining = MOST_DRAIN.saturating_sub(since.elapsed());
+                if let Ok(line) = tokio::time::timeout(QUIET.min(remaining), lines.next_line()).await
+                {
+                    return line;
                 }
-                for fence in self.pending.drain(..) {
-                    let _ = fence.send(());
+                if since.elapsed() < MOST_DRAIN {
+                    // A quiet interval means every line before the fence was read and judged.
+                    for fence in self.pending.drain(..) {
+                        let _ = fence.send(());
+                    }
+                } else {
+                    // Continuous output can leave a foreign line unread. Dropping the senders
+                    // makes `fence` fail closed instead of treating that output as judged.
+                    self.pending.clear();
                 }
                 self.since = None;
                 continue;
@@ -123,20 +193,12 @@ impl Watch {
         let (Some(thread), Some(db)) = (self.thread, self.db.as_ref()) else {
             return;
         };
-        let now = crate::passwords::clock::unix_millis(std::time::SystemTime::now());
-        match db
-            .write(move |tx| chat_threads::mark_foreign_once(tx, thread, now))
-            .await
-        {
-            Ok(_) => self.marked = true,
-            Err(error) => {
-                // Not marked: the fence still succeeds, so the write would run unasked. Close the
-                // fences instead, so every later write of this pass asks.
-                log::warn!("agent memory: the mark of foreign content was not written: {error}");
-                self.fences = None;
-                self.pending.clear();
-                self.unregister();
-            }
+        if persist_foreign_mark(db, thread).await {
+            self.marked = true;
+        } else {
+            self.fences = None;
+            self.pending.clear();
+            self.unregister();
         }
     }
 
@@ -165,6 +227,9 @@ impl Drop for Watch {
 /// Waits until the reader of the pass in `thread` has judged every line written so far. `false`
 /// when no reader watches the thread or it does not answer within `wait`: the write then asks.
 pub async fn fence(thread: Uuid, wait: Duration) -> bool {
+    if is_unrecorded(thread) {
+        return false;
+    }
     let (sender, receiver) = oneshot::channel();
     let sent = READERS
         .lock()
