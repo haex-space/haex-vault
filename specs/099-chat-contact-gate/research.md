@@ -64,6 +64,9 @@ Decisions for [plan.md](plan.md). Code references are to the state of `main` at 
 - **Rationale**: the contacts code that stores a card (`received::save`) runs without the chat session's
   device keys; a synced column would make every own device send the same notice. The outbox is
   device-local by design (spec 095).
+- **Accepted as is**: `accept_requests_of` runs on three routes (`received::save`, a contact's message on
+  a request thread in `receive.rs`, `chat_conversation_open_direct`); more than one own device may then
+  send an accepted notice. A repeated notice changes nothing on the sender's side.
 - **Alternatives considered**: enqueuing the receipt directly in `accept_requests_of` — needs the device
   keys inside the contacts transaction.
 
@@ -97,6 +100,8 @@ PARKED`, as `noDevices` does). While it is set, a new message to that vault is s
   own device: the thread deletion syncs. Receiving reads the preference in the same transaction as R1.
 - **Alternatives considered**: deleting requests when the preference row changes — the preference is
   written by a generic command that knows nothing of the chat.
+- **Guard**: `validate_value` refuses `chat.requests.allowStrangers` through the generic preferences
+  command, so neither the window nor the agent can switch requests off without removing them.
 
 ## R9. Notification once per request (FR-004)
 
