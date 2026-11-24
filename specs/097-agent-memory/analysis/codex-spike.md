@@ -75,7 +75,7 @@ The `item/completed` of the command carries `"aggregatedOutput": "Linux\n", "exi
    `dynamicToolCall`, `collabAgentToolCall`, `subAgentActivity`, `webSearch`, `imageView`, `sleep`, `imageGeneration`,
    `enteredReviewMode`, `exitedReviewMode`, `contextCompaction`.
 
-## Decision (proposed, for the operator before T071)
+## Decision (operator, 2026-11-24)
 
 **Read the item events; do not switch off Codex's web search.** On `item/started` (the earliest line, before any output),
 the reader marks the delegate thread foreign for:
@@ -99,5 +99,4 @@ reader marks `Bash` the same way.
 
 - Whether the items of a sub-agent arrive on the same stream (with its own `threadId`) was not tested; no sub-agent
   started in this turn. The reader therefore does not filter by `threadId`. T077 checks it with the real Codex.
-- `codex_apps` could be switched off for haex-vault's passes (a `-c` switch in the catalog's `config_args`). It is not
-  needed for the mark, and it is left to the operator.
+- `codex_apps` stays on (operator, 2026-11-24): its calls count as foreign content, so it needs no switch.
