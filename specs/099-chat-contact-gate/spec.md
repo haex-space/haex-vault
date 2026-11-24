@@ -276,6 +276,7 @@ a contact with the card of its request.
   the contact's devices, and hide the contact from the address book and from every list, search and
   choice of contacts, keeping all its data. Hidden means for every reader of contacts: the agent, share
   dialogs and extensions with contact access too; only the blocked list and the conversation name it.
+  The phone's own address book (spec 051 sync) keeps the contact.
 - **FR-015**: A conversation with a blocked vault MUST keep its messages, MUST leave the chat list and the
   chat search, and MUST open from its entry of the blocked list ("Verlauf ansehen") with "Entsperren" in
   place of the input field; blocking MUST NOT delete history. Unblocking MUST bring it back to the list.
