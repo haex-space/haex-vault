@@ -1,6 +1,7 @@
-//! Spec 083 US7 (T063, FR-024, FR-025, SC-004): every agent has exactly the factory rights of
-//! "Standard"; its registration stays; the local agent's two old settings are deleted; a profile
-//! the user made after the update survives a second run of the cleanup.
+//! Spec 083 US7 (T063, FR-024, FR-025, SC-004): every external agent has the factory rights of
+//! "Standard", except that spec 097 FR-020 keeps shared memory unavailable to external agents;
+//! its registration stays; the local agent's two old settings are deleted; a profile the user made
+//! after the update survives a second run of the cleanup.
 
 #[path = "common/mcp_fixture.rs"]
 mod mcp_fixture;
@@ -12,7 +13,7 @@ use uuid::Uuid;
 use haex_lib::agent_profiles::resolve::normalized;
 use haex_lib::agent_profiles::{store, Subject};
 use haex_lib::mcp_server::delegates::delegate_id;
-use haex_lib::mcp_server::grants::default_rights;
+use haex_lib::mcp_server::grants::{default_rights, MemoryLevel};
 use haex_lib::mcp_server::registry::{self, AgentKind, AgentMode, NewAgent, Transport};
 use haex_lib::storage::maintenance::delete_local_agent_rights;
 use haex_lib::storage::preferences::{self, PrefScope};
@@ -77,9 +78,11 @@ async fn every_agent_starts_in_standard_and_the_old_settings_are_gone() {
         .read(move |q| registry::load_rights(q, device, agent.id))
         .await
         .expect("rights");
+    let mut expected = default_rights();
+    expected.memory = MemoryLevel::Off;
     assert_eq!(
         normalized(&rights),
-        normalized(&default_rights()),
+        normalized(&expected),
         "factory rights only"
     );
     // A delegate has the rights of the model of its running start (spec 083 FR-028); with none
