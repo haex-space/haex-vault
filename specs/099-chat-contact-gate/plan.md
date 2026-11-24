@@ -122,11 +122,11 @@ scripts/e2e/scenarios/chat-contact-gate.test.ts
 **Structure Decision**: the existing Tauri layout; one new chat module (`gate.rs`) for the notices, the
 rest extends the modules that own the rows.
 
-## Open point for the operator
+## Decided with the operator
 
-- **Phone address book (spec 051)**: a blocked contact stays in the phone's own address book (research
-  R11). Hiding it there would delete the phone's copy through the phone sync, and unblocking could not
-  bring back what was on the phone. Confirm, or decide that blocking also removes it from the phone.
+- **Phone address book (spec 051)**, 2026-11-25: a blocked contact stays in the phone's own address book
+  (research R11). Hiding it there would delete the phone's copy through the phone sync, and unblocking
+  could not bring back what was on the phone.
 
 ## Complexity Tracking
 

@@ -47,6 +47,8 @@
 - Q: What happens to messages the sender writes after a blocked notice? → A: They are kept and shown _not
   delivered_ with the reason "blocked" but not sent; an accepted notice later sends them with the older
   ones.
+- Q: Does a blocked contact leave the phone's address book (spec 051 sync)? → A: No, it stays on the
+  phone; it is hidden only in HaexVault.
 - Q: Where does the conversation with a blocked contact show? → A: Only through the blocked list: it leaves
   the chat list and the chat search; each entry of the blocked list offers "Verlauf ansehen", which opens it
   with "Entsperren" in place of the input field.

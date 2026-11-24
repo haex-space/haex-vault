@@ -126,7 +126,7 @@ PARKED`, as `noDevices` does). While it is set, a new message to that vault is s
 - **Exception**: the phone address-book sync of spec 051 (`phone/run.rs`, `phone/sides.rs`,
   `phone/apply.rs`) keeps reading unfiltered. If it saw a hidden contact as missing it would delete the
   phone's copy, and unblocking would not restore what was on the phone. A blocked contact therefore
-  stays in the phone's own address book; open point for the operator (plan.md).
+  stays in the phone's own address book (confirmed by the operator 2026-11-25).
 - **Rationale**: one flag computed where the cards are loaded anyway; one filter in the service most
   readers already go through. No new column, so nothing to keep in sync with the block list.
 - **Alternatives considered**: a `hidden` column on `haex_contacts` — a second truth next to the block list
