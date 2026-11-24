@@ -35,6 +35,22 @@
   Visitenkarte its block entry kept); it is told it may write again. A vault is always exactly one of
   contact, blocked or unknown.
 
+### Session 2026-11-25 (clarify)
+
+- Q: What hint does the sender see while its messages are not delivered? → A: Only when nothing ever came
+  back from that vault (no message, no receipt) and a message has not been delivered for one minute: "Noch
+  nicht zugestellt. <Name> ist offline oder hat dich noch nicht angenommen." The recipient sends nothing
+  for a request.
+- Q: Who still sees a blocked (hidden) contact? → A: Nobody but the blocked list and its conversation: the
+  address book, every search, the agent, share dialogs and extensions with contact access all leave it
+  out.
+- Q: What happens to messages the sender writes after a blocked notice? → A: They are kept and shown _not
+  delivered_ with the reason "blocked" but not sent; an accepted notice later sends them with the older
+  ones.
+- Q: Where does the conversation with a blocked contact show? → A: Only through the blocked list: it leaves
+  the chat list and the chat search; each entry of the blocked list offers "Verlauf ansehen", which opens it
+  with "Entsperren" in place of the input field.
+
 ## Relationship to existing specs
 
 - **Spec 072** (unified chat): this spec replaces US5 and FR-040 to FR-043 there. A request no longer
@@ -82,8 +98,9 @@ attachment of B; B sees no _delivered_.
 3. **Given** a first request of a vault, **When** it arrives, **Then** Anna gets one notification "Neue
    Anfrage" without sound and without any text of the message.
 4. **Given** a request is open, **When** Ben looks at his messages to Anna, **Then** they show _sent_
-   (a Nostr-Relay took them) but never _delivered_ or _read_, with the hint that Anna has not accepted
-   him yet.
+   (a Nostr-Relay took them) but never _delivered_ or _read_; once one of them has not been delivered for
+   one minute and nothing ever came back from Anna's vault, the conversation shows "Noch nicht zugestellt.
+   Anna ist offline oder hat dich noch nicht angenommen."
 5. **Given** a vault on Anna's block list, **When** a message of it arrives, **Then** it is dropped
    without a trace, as today.
 
@@ -115,7 +132,8 @@ A's block list, B's conversation shows it, B's outbox stops sending, later attem
    list with the carried Visitenkarte, the request is gone, and Ben's devices get a blocked notice.
 5. **Given** Ben's devices learn of the block, **When** Ben looks at the conversation, **Then** it says
    that Anna does not take messages from him, his messages to her show _not delivered_ with that reason,
-   and they are no longer sent again.
+   and they are no longer sent again. What he writes afterwards is kept with the same state and not
+   sent.
 6. **Given** a vault was declined, **When** it writes again, **Then** nothing of it reaches Anna and no
    new request appears.
 7. **Given** a request is open, **When** Anna adds the vault as a contact another way (a shared card, a
@@ -174,7 +192,8 @@ a contact with the card of its request.
 1. **Given** a conversation with a contact, **When** Anna chooses "Sperren" and confirms, **Then** every
    vault of that contact is on the block list, the contact no longer shows in the address book or in any
    list or search of contacts, its data is kept, the contact's devices get a blocked notice, and the
-   conversation keeps its messages but offers "Entsperren" in place of the input field.
+   conversation keeps its messages but leaves the chat list and the chat search; the blocked list opens it
+   ("Verlauf ansehen"), with "Entsperren" in place of the input field.
 2. **Given** a contact in the address book, **When** Anna chooses "Sperren" there and confirms, **Then** the
    same happens as from the conversation.
 3. **Given** a blocked vault, **When** a message of it arrives, **Then** it is dropped without a trace and
@@ -226,6 +245,9 @@ a contact with the card of its request.
   content; further attempts of the same vault MUST NOT notify.
 - **FR-005**: No delivery or read receipt MUST go back for a message that became or updated a request, or
   that was dropped.
+- **FR-005a**: While nothing ever came back from a vault (no message, no receipt) and a message to it has
+  not been delivered for one minute, the sender's conversation MUST show that the recipient is offline or
+  has not accepted yet; it MUST NOT claim either. The recipient MUST NOT answer a request.
 - **FR-006**: A request MUST offer exactly "Annehmen" and "Ablehnen"; "Ablehnen" MUST be confirmed first.
 - **FR-007**: "Annehmen" MUST add the vault as a contact with the carried Visitenkarte through spec 060's
   preview. Whenever an open request ends because its vault became a contact (by this or any other way),
@@ -236,7 +258,9 @@ a contact with the card of its request.
   remove the request, and send a blocked notice to the sender's devices.
 - **FR-010**: On a blocked notice the sender's devices MUST mark their unconfirmed messages to that vault
   _not delivered_ with the reason "blocked", stop sending them again, and show in the conversation that
-  the recipient does not take messages from them. The input field MUST stay usable.
+  the recipient does not take messages from them. The input field MUST stay usable; a message written
+  afterwards MUST be kept with the same state and MUST NOT be sent until an accepted notice arrives
+  (FR-008 then sends it with the others).
 - **FR-011**: Accepted and blocked notices MUST be authenticated as coming from the recipient vault's
   devices (as messages are) and MUST be dropped otherwise.
 - **FR-012**: The vault setting "Anfragen von Fremden zulassen" MUST exist in the chat settings, be on for a
@@ -248,9 +272,11 @@ a contact with the card of its request.
 - **FR-014**: Users MUST be able to block a contact from its conversation and from the contact, after a
   confirmation. Blocking MUST put every vault of the contact on the block list, send a blocked notice to
   the contact's devices, and hide the contact from the address book and from every list, search and
-  choice of contacts (including the agent's), keeping all its data.
-- **FR-015**: A conversation with a blocked vault MUST keep its messages and MUST show "Entsperren" in
-  place of the input field; blocking MUST NOT delete history.
+  choice of contacts, keeping all its data. Hidden means for every reader of contacts: the agent, share
+  dialogs and extensions with contact access too; only the blocked list and the conversation name it.
+- **FR-015**: A conversation with a blocked vault MUST keep its messages, MUST leave the chat list and the
+  chat search, and MUST open from its entry of the blocked list ("Verlauf ansehen") with "Entsperren" in
+  place of the input field; blocking MUST NOT delete history. Unblocking MUST bring it back to the list.
 - **FR-016**: The settings MUST list the blocked vaults (spec 051's list), each with the contact's name or
   the name on the kept Visitenkarte and its address, and allow unblocking. Unblocking MUST make the vault a
   contact again: a hidden contact shows again with all its data, a vault with a kept Visitenkarte becomes a
