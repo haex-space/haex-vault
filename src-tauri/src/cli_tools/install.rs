@@ -148,7 +148,16 @@ pub struct InstallContext {
 }
 
 /// Held while an install of one vendor runs in one vault; the file lock ends with it.
-struct InstallLock(#[allow(dead_code)] File);
+struct InstallLock(File);
+
+impl Drop for InstallLock {
+    fn drop(&mut self) {
+        // A forked child can still hold the descriptor until it executes the next program.
+        if let Err(error) = self.0.unlock() {
+            log::warn!("could not release the CLI tool install lock: {error}");
+        }
+    }
+}
 
 fn lock(vendor_dir: &Path) -> Result<InstallLock, InstallError> {
     let file = OpenOptions::new()
