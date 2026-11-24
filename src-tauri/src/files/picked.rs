@@ -155,6 +155,15 @@ pub fn open_read(opener: &(impl Opener + ?Sized), file: &PickedFile) -> Result<F
     opener.open(path, false).map_err(unreadable)
 }
 
+/// The size of the chosen file as its provider reports it; for a check before anything is read,
+/// not a bound (a provider may report 0 for a stream).
+pub fn size(opener: &(impl Opener + ?Sized), file: &PickedFile) -> Result<u64> {
+    open_read(opener, file)?
+        .metadata()
+        .map(|meta| meta.len())
+        .map_err(unreadable)
+}
+
 /// Reads at most `limit + 1` bytes, so the caller sees whether the file is larger than its limit
 /// without reading all of it. The size a provider reports is not trusted.
 pub fn read(opener: &(impl Opener + ?Sized), file: &PickedFile, limit: u64) -> Result<Vec<u8>> {

@@ -10,7 +10,7 @@ use tauri::{AppHandle, Manager, State};
 use ts_rs::TS;
 use uuid::Uuid;
 
-use crate::chat::peer::files::transfers::{ChatFiles, Picked, Source};
+use crate::chat::peer::files::transfers::{ChatFiles, Picked, Source, MAX_MESSAGE_PLAINTEXT};
 use crate::chat::peer::session::{PeerRegistry, Session};
 use crate::error::{HaexError, Result};
 use crate::files::encrypted::source::EncryptedFileSource;
@@ -70,6 +70,33 @@ pub struct OpenSystemArgs {
     /// "Nicht mehr fragen" was ticked in the notice (this device only).
     #[serde(default)]
     pub dont_ask_again: bool,
+}
+
+/// How large a picked file is and how much the files of one message may total (FR-034), so the
+/// window refuses a file that is too large when it is attached, not when the message is sent.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct ChatAttachmentSize {
+    #[ts(type = "number")]
+    pub size: u64,
+    #[ts(type = "number")]
+    pub limit: u64,
+}
+
+/// The size of a picked file next to the limit of a message. The send command still refuses
+/// what is too large; this only lets the window say so first.
+#[tauri::command]
+pub async fn chat_attachment_size(app: AppHandle, file: PickedFile) -> Result<ChatAttachmentSize> {
+    let size = tokio::task::spawn_blocking(move || picked::size(&app, &file))
+        .await
+        .map_err(|e| HaexError::InvalidInput {
+            reason: e.to_string(),
+        })??;
+    Ok(ChatAttachmentSize {
+        size,
+        limit: MAX_MESSAGE_PLAINTEXT,
+    })
 }
 
 pub(super) fn session(app: &AppHandle) -> Result<Arc<Session>> {
