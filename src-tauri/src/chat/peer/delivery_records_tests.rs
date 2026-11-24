@@ -8,8 +8,11 @@ use uuid::Uuid;
 use vodozemac::olm::{Account, OlmMessage, SessionConfig};
 
 use super::*;
+use crate::chat::peer::messages::DeliveryState;
 use crate::chat::peer::ratchet::account::OwnKeys;
 use crate::chat::peer::test_support::{mock_relay, two_vaults, ChatDevice};
+use crate::contacts::card::own_card;
+use crate::sync::servers::{self, ServerConfig};
 
 const DAY_MS: i64 = 24 * 60 * 60 * 1000;
 
@@ -186,4 +189,72 @@ async fn nothing_is_made_renewed_or_published_without_a_connected_relay() {
     let (made_at, published, _) = account_row(&anna).expect("account");
     assert_eq!(made_at, made, "no renewal before a catch-up with a relay");
     assert_eq!(published, None);
+}
+
+/// A catch-up skipped without a connected relay is owed, so the run loop makes it up on its next
+/// outbox tick instead of waiting for the catch-up timer; one that ran is not.
+#[tokio::test]
+async fn a_catch_up_without_a_connected_relay_is_owed_until_one_runs() {
+    let (_relay, url) = mock_relay().await;
+    let anna = ChatDevice::genesis(std::slice::from_ref(&url));
+    let ben = ChatDevice::genesis(&[url]);
+    anna.learn(&ben).await;
+    delivery_of(&ben)
+        .await
+        .catch_up_and_keep_record()
+        .await
+        .expect("publish Ben's chat key before taking his relay away");
+    ben.db
+        .write(|tx| {
+            servers::write(tx, &ServerConfig::only(Vec::new(), Vec::new()))?;
+            Ok(own_card::refresh(tx)?)
+        })
+        .await
+        .expect("Ben has no listening relay at startup");
+    let closing = tokio_util::sync::CancellationToken::new();
+    let (delivery, incoming, forward) = Delivery::connect(
+        ben.db.clone(),
+        ben.me.clone(),
+        ben.clock.clock(),
+        Vec::new(),
+        closing.clone(),
+    )
+    .await
+    .expect("offline delivery");
+    let runner =
+        tokio::spawn(Arc::clone(&delivery).run(Arc::clone(&ben.session), incoming, forward));
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        while !delivery.catch_up_owed() {
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("initial catch-up skipped without a relay");
+
+    anna.start().await;
+    let text = "Stored while Ben had no listening relay";
+    anna.send(&ben, text);
+    anna.wait_for(&ben, "stored on the relay", |messages| {
+        messages.iter().any(|message| {
+            message.text.as_deref() == Some(text) && message.delivery == Some(DeliveryState::Sent)
+        })
+    })
+    .await;
+    assert!(ben.messages_with(&anna).is_empty());
+
+    ben.learn(&anna).await;
+    ben.wait_within(
+        std::time::Duration::from_secs(30),
+        &anna,
+        "archived message on an outbox tick",
+        |messages| {
+            messages
+                .iter()
+                .any(|message| message.text.as_deref() == Some(text))
+        },
+    )
+    .await;
+    closing.cancel();
+    runner.await.expect("delivery stopped");
+    assert!(!delivery.catch_up_owed());
 }
