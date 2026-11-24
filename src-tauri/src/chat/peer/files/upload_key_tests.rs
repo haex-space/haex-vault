@@ -85,7 +85,13 @@ async fn a_created_key_is_an_entry_that_holds_the_secret_and_uploads_find_it() {
 async fn a_second_key_is_refused_while_one_is_set() {
     let (_dir, db) = vault();
     let pw = passwords(&db);
-    create(&pw, &db).await.expect("create");
+    let (left, right) = tokio::join!(create(&pw, &db), create(&pw, &db));
+    let id = match (left, right) {
+        (Ok(id), Err(_)) | (Err(_), Ok(id)) => id,
+        other => panic!("one creation must succeed: {other:?}"),
+    };
+    assert_eq!(entry_id(&db).await.expect("setting"), Some(id));
+    assert_eq!(candidates(&db).await.expect("candidates").len(), 1);
     assert!(create(&pw, &db).await.is_err());
     let other = user_entry(
         &pw,
@@ -97,22 +103,22 @@ async fn a_second_key_is_refused_while_one_is_set() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn removing_deletes_the_entry_the_module_made_and_keeps_one_of_the_user() {
+async fn removing_the_setting_keeps_both_kinds_of_keys_for_pending_blob_deletions() {
     let (_dir, db) = vault();
     let pw = passwords(&db);
     let made = create(&pw, &db).await.expect("create");
-    remove(&pw, &db).await.expect("remove");
+    remove(&db).await.expect("remove");
     assert_eq!(entry_id(&db).await.expect("setting"), None);
     assert_eq!(
         state(&db, &made).await.expect("state"),
-        CredentialsState::Missing,
-        "the entry is gone for good"
+        CredentialsState::Present,
+        "other devices may still need the signing key"
     );
 
     let secret = Keys::generate().secret_key().to_bech32().unwrap();
     let mine = user_entry(&pw, "Mein Schlüssel", Some(&secret)).await;
     choose(&pw, &db, &mine).await.expect("choose");
-    remove(&pw, &db).await.expect("remove");
+    remove(&db).await.expect("remove");
     assert_eq!(entry_id(&db).await.expect("setting"), None);
     assert_eq!(
         state(&db, &mine).await.expect("state"),

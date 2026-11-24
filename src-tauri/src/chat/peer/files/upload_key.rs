@@ -18,11 +18,12 @@ use crate::error::{HaexError, Result};
 use crate::passwords::access::{Caller, Grant, GrantAction, Scope};
 use crate::passwords::model::{ItemInput, SecretItem};
 use crate::passwords::service::PasswordsService;
-use crate::passwords::usage::EntryUsage;
+use crate::passwords::{tags, usage::EntryUsage};
 use crate::remote_storage::credentials::{candidates_in, entry_for, state_in_with};
 use crate::remote_storage::model::{CredentialsCandidate, CredentialsEntry};
 use crate::remote_storage::CredentialsState;
 use crate::storage::preferences::{self, PrefScope};
+use crate::storage::query::Query;
 use crate::vault_gate::VaultDb;
 
 /// The haex-vault function that owns the entry this module creates and the name the delete
@@ -93,9 +94,13 @@ pub async fn entry_id(db: &VaultDb) -> Result<Option<String>> {
 
 /// The key uploads sign with: the entry's, a fresh one's absence, or why the entry cannot be read.
 pub async fn resolve(passwords: &PasswordsService, db: &VaultDb) -> Result<Resolved> {
-    let Some(id) = entry_id(db).await? else {
-        return Ok(Resolved::Unset);
-    };
+    match entry_id(db).await? {
+        Some(id) => resolve_entry(passwords, db, id).await,
+        None => Ok(Resolved::Unset),
+    }
+}
+
+async fn resolve_entry(passwords: &PasswordsService, db: &VaultDb, id: String) -> Result<Resolved> {
     match passwords
         .read_secret_item(&CALLER, &grants(), id.clone())
         .await
@@ -133,7 +138,7 @@ pub async fn describe(passwords: &PasswordsService, db: &VaultDb) -> Result<Chat
     let entry = db
         .read(move |q| entry_for(q, FEATURE, &entry_id).map_err(Into::into))
         .await?;
-    let (status, npub) = match resolve(passwords, db).await? {
+    let (status, npub) = match resolve_entry(passwords, db, id).await? {
         Resolved::Ready(keys, _) => (UploadKeyStatus::Present, Some(npub_of(&keys)?)),
         Resolved::Syncing => (UploadKeyStatus::Syncing, None),
         Resolved::Missing | Resolved::Unset => (UploadKeyStatus::Missing, None),
@@ -172,7 +177,7 @@ pub async fn create(passwords: &PasswordsService, db: &VaultDb) -> Result<String
         ..ItemInput::default()
     };
     let id = passwords.create_owned_item(&CALLER, input).await?;
-    if let Err(error) = set(db, Some(&id)).await {
+    if let Err(error) = set(db, &id, false).await {
         // The entry would be a key nothing uses.
         let _ = passwords.delete_owned_item(&CALLER, id).await;
         return Err(error);
@@ -192,28 +197,16 @@ pub async fn choose(passwords: &PasswordsService, db: &VaultDb, item_id: &str) -
             reason: "chat.blossom.keyEntry: the entry holds no key".to_owned(),
         });
     }
-    passwords
-        .set_tags(
-            &Caller::User,
-            vec![item_id.to_owned()],
-            vec![TAG.to_owned()],
-            Vec::new(),
-        )
-        .await?;
-    set(db, Some(item_id)).await
+    set(db, item_id, true).await
 }
 
-/// Unsets the upload key and deletes its entry for good when this module made it; an entry of the
-/// user stays. Uploads sign with a fresh key per file again.
-pub async fn remove(passwords: &PasswordsService, db: &VaultDb) -> Result<()> {
-    let Some(id) = entry_id(db).await? else {
-        return Ok(());
-    };
-    set(db, None).await?;
-    match passwords.delete_owned_item(&CALLER, id).await {
-        Ok(()) | Err(HaexError::PasswordsNotFound) => Ok(()),
-        Err(error) => Err(error),
-    }
+/// Unsets the upload key. Keep the entry for pending blob deletions on this or another device.
+pub async fn remove(db: &VaultDb) -> Result<()> {
+    db.write(|tx| {
+        preferences::delete(tx, PrefScope::Vault, settings::KEY_BLOSSOM_KEY_ENTRY)?;
+        Ok(())
+    })
+    .await
 }
 
 /// The entries that may be chosen: the user's own or created by this module, holding a key.
@@ -240,22 +233,19 @@ async fn refuse_when_set(db: &VaultDb) -> Result<()> {
     Ok(())
 }
 
-async fn set(db: &VaultDb, id: Option<&str>) -> Result<()> {
-    let id = id.map(str::to_owned);
+async fn set(db: &VaultDb, id: &str, tag_selected: bool) -> Result<()> {
+    let id = id.to_owned();
     db.write(move |tx| {
-        match &id {
-            Some(id) => {
-                preferences::insert_or_update(
-                    tx,
-                    PrefScope::Vault,
-                    settings::KEY_BLOSSOM_KEY_ENTRY,
-                    id,
-                )?;
+        if settings::blossom_key_entry(tx)?.is_some() {
+            return Err(HaexError::InvalidInput {
+                reason: "chat.blossom.keyEntry: an upload key is set already".to_owned(),
             }
-            None => {
-                preferences::delete(tx, PrefScope::Vault, settings::KEY_BLOSSOM_KEY_ENTRY)?;
-            }
+            .into());
         }
+        if tag_selected {
+            tags::bulk_set(tx, std::slice::from_ref(&id), &[TAG.to_owned()], &[])?;
+        }
+        preferences::insert_or_update(tx, PrefScope::Vault, settings::KEY_BLOSSOM_KEY_ENTRY, &id)?;
         Ok(())
     })
     .await
@@ -285,15 +275,23 @@ where
         FEATURE
     }
 
-    /// Whether the setting names the entry; false if the vault is unavailable or the lookup fails.
+    /// Whether the setting or any local blob names the entry.
     fn uses(&self, item_id: &str) -> bool {
         let Some(db) = (self.database)() else {
             return false;
         };
-        db.read_blocking(|q| Ok(settings::blossom_key_entry(q)?))
-            .ok()
-            .flatten()
-            .is_some_and(|id| id == item_id)
+        db.read_blocking(|q| {
+            if settings::blossom_key_entry(q)?.as_deref() == Some(item_id) {
+                return Ok(true);
+            }
+            Ok(q.query_row(
+                "SELECT EXISTS(SELECT 1 FROM chat_blobs_no_sync WHERE key_entry_id = ?1)",
+                haex_crdt::rusqlite::params![item_id],
+                |row| row.get(0),
+            )?
+            .unwrap_or(false))
+        })
+        .unwrap_or(false)
     }
 }
 

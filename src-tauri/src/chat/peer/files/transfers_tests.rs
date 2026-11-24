@@ -793,7 +793,7 @@ async fn uploads_are_signed_with_the_upload_key_and_a_missing_key_stops_the_send
     let (_relay, url) = mock_relay().await;
     let blossom = BlossomTestServer::start().await;
     let (anna, ben) = two_vaults(&[url]).await;
-    anna.enable_files(&blossom.url, None);
+    let files = anna.enable_files(&blossom.url, None);
     ben.enable_files(&blossom.url, None);
     anna.start().await;
     ben.start().await;
@@ -835,12 +835,28 @@ async fn uploads_are_signed_with_the_upload_key_and_a_missing_key_stops_the_send
         panic!("the key is ready");
     };
     assert_eq!(signer, keys.public_key().to_hex());
-    Server::new(&blossom.url, &SystemResolver)
+    let orphan = blob.clone();
+    anna.db
+        .write(move |tx| {
+            tx.execute(
+                "UPDATE chat_blobs_no_sync SET attachment_id = 'orphan-cleanup:upload-key' \
+                 WHERE blob_sha256 = ?1",
+                params![orphan],
+            )?;
+            Ok(())
+        })
         .await
-        .expect("server")
-        .delete(&keys, &blob, &SystemResolver)
+        .expect("mark the uploaded file for retry");
+    upload_key::remove(&anna.db).await.expect("unset the key");
+    files
+        .retry_orphan_deletes()
         .await
-        .expect("the server took the blob from the upload key, so it deletes it for that key");
+        .expect("retry the deletion after unsetting the key");
+    assert!(!blossom.has(&blob));
+    assert_eq!(orphan_rows(&files).await, 0);
+    upload_key::choose(&passwords, &anna.db, &entry)
+        .await
+        .expect("select the retained key");
 
     passwords
         .trash_targets(

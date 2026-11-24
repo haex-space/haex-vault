@@ -1634,8 +1634,7 @@
         "entryLabel": "Einträge mit einem Schlüssel",
         "onlyFitting": "Es erscheinen nur Einträge, deren Passwort ein Nostr-Schlüssel (nsec) ist.",
         "removeTitle": "Upload-Schlüssel entfernen?",
-        "removeOwned": "Der Schlüssel wird gelöscht. Hast du seinen öffentlichen Schlüssel bei einem Server registriert, kannst du dort erst wieder hochladen, wenn du einen neuen Schlüssel dort registrierst.",
-        "removeChosen": "Der Eintrag bleibt im Passwort-Manager; der Chat nutzt ihn nicht mehr."
+        "removeHint": "Der Schlüssel bleibt im Passwort-Manager, damit bereits hochgeladene Dateien noch gelöscht werden können. Für neue Uploads verwendet der Chat ihn nicht mehr."
       }
     },
     "modelServers": {

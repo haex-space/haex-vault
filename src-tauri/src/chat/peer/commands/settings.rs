@@ -91,10 +91,10 @@ pub async fn chat_blossom_key_choose(
     upload_key::describe(&passwords, &db).await
 }
 
-/// Unsets the upload key; the entry goes with it when the chat made it, one of the user stays.
+/// Unsets the upload key, keeping the entry for cleanup of already uploaded files.
 #[tauri::command]
 pub async fn chat_blossom_key_remove(state: State<'_, AppState>) -> Result<ChatUploadKey> {
     let (passwords, db) = passwords(&state)?;
-    upload_key::remove(&passwords, &db).await?;
+    upload_key::remove(&db).await?;
     upload_key::describe(&passwords, &db).await
 }

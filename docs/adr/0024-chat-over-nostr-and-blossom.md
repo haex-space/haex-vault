@@ -21,8 +21,9 @@ at the same time. Spec 051 US7 / ADR 0014 proposed stored Nostr gift wraps for i
 2. Messages and files use **only** Nostr-Relays and Blossom-Servers; there is no direct device-to-device
    path for the chat (operator, 2026-11-01).
 3. Files are encrypted on the device (AES-256-GCM, 1 MiB segments) with a per-file key carried in the
-   rumor, uploaded to a user-chosen Blossom-Server with a per-blob key, downloaded by **every** receiving
-   device, and deleted by the uploader once all those devices confirmed, or after 30 days.
+   rumor, uploaded to a user-chosen Blossom-Server with a per-blob signing key by default, downloaded by
+   **every** receiving device, and deleted by the uploader once all those devices confirmed, or after
+   30 days. A server that requires registration can use a fixed upload key from the password manager.
 4. Group membership is a set of ops with last-writer-wins per member, ordered by (sender time, op id);
    any member may add or remove; no admin, no server authority.
 5. Interop with other Nostr messengers is not a goal: rumor kinds 24120/24121 and the JSON envelope are
@@ -33,7 +34,8 @@ at the same time. Spec 051 US7 / ADR 0014 proposed stored Nostr gift wraps for i
 - Delivery works while the recipient's vault is closed; both sides need only Nostr-Relays and one
   Blossom-Server.
 - Nostr-Relays see recipient device keys, sizes and blurred times; Blossom-Servers see encrypted blobs,
-  their sizes and the uploader's one-time key. Neither sees text, names, groups or vault identities.
+  their sizes and the upload signing key. A fixed upload key lets a server link uploads signed with it.
+  Neither sees text, names, groups or vault identities.
 - File size is bounded by the chosen Blossom-Server; public servers may refuse encrypted blobs or limit
   free uploads (research R12). Without a Blossom-Server files cannot be sent.
 - A device added to a vault after a blob was deleted cannot get that file.

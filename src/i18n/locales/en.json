@@ -1634,8 +1634,7 @@
         "entryLabel": "Entries that hold a key",
         "onlyFitting": "Only entries whose password is a Nostr key (nsec) are listed.",
         "removeTitle": "Remove the upload key?",
-        "removeOwned": "The key is deleted. If you registered its public key at a server, you can only upload there again once you register a new key.",
-        "removeChosen": "The entry stays in the password manager; the chat no longer uses it."
+        "removeHint": "The key stays in the password manager so previously uploaded files can still be deleted. Chat stops using it for new uploads."
       }
     },
     "modelServers": {

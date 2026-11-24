@@ -20,12 +20,16 @@ const busy = ref(false)
 const choosing = ref(false)
 const chosenId = ref('')
 const removing = ref(false)
+let loadGeneration = 0
 
 async function loadAsync() {
+  if (busy.value) return
+  const generation = ++loadGeneration
   try {
-    key.value = await invoke<ChatUploadKey>('chat_blossom_key')
+    const current = await invoke<ChatUploadKey>('chat_blossom_key')
+    if (generation === loadGeneration) key.value = current
   } catch (cause) {
-    toast.error(errString(cause))
+    if (generation === loadGeneration) toast.error(errString(cause))
   }
 }
 
@@ -34,15 +38,16 @@ async function loadAsync() {
 async function runAsync(command: string, args?: Record<string, unknown>) {
   if (busy.value) return false
   busy.value = true
+  ++loadGeneration
   try {
     key.value = await invoke<ChatUploadKey>(command, args)
     return true
   } catch (cause) {
     toast.error(errString(cause))
-    await loadAsync()
     return false
   } finally {
     busy.value = false
+    void loadAsync()
   }
 }
 
@@ -203,11 +208,7 @@ onVaultTablesChanged(['preferences', 'haex_passwords_item_details'], loadAsync)
   >
     <template #content>
       <p class="px-6 py-2 text-sm">
-        {{
-          key?.entry?.owned
-            ? t('settings.chat.key.removeOwned')
-            : t('settings.chat.key.removeChosen')
-        }}
+        {{ t('settings.chat.key.removeHint') }}
       </p>
     </template>
     <template #footer>
