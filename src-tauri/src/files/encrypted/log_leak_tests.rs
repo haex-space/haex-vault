@@ -16,7 +16,8 @@ use crate::files::transfer::remote::Side;
 use crate::files::transfer::TransferOp;
 
 const FOLDER: &str = "Lohnzettel Qx7";
-const FILE: &str = "Vertrag Zk9.txt";
+const FILE_MARKER: &str = "Zk9EncryptedContractFixture";
+const FILE: &str = "Vertrag Zk9EncryptedContractFixture.txt";
 const RENAMED: &str = "Kuendigung Wy4.txt";
 const CONTENT: &str = "Inhalt Vb3";
 
@@ -142,11 +143,13 @@ async fn no_log_line_names_anything_of_an_encrypted_folder() {
         RENAMED.to_owned(),
         CONTENT.to_owned(),
         "Lohnzettel".to_owned(),
-        "Zk9".to_owned(),
+        FILE_MARKER.to_owned(),
         raw_name,
     ];
     secrets.extend(keys);
     for secret in secrets {
-        assert!(!logs.contains(&secret), "the log names {secret}:\n{logs}");
+        if let Some(line) = logs.lines().find(|line| line.contains(&secret)) {
+            panic!("the log names {secret}: {line}");
+        }
     }
 }
