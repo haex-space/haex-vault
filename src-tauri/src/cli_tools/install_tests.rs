@@ -852,3 +852,75 @@ async fn a_zip_larger_than_the_catalog_lists_is_refused() {
     );
     assert!(fixture.entries("codex").is_empty());
 }
+
+// ---- Abacus AI (spec 096 US5, T039) ----
+
+/// What `abacusai --version` prints.
+fn abacus_says(version: &str) -> Vec<u8> {
+    script(&format!("echo \"Abacus.AI CLI version {version}\""))
+}
+
+/// A release archive as the vendor ships it: the program and a Sigstore bundle next to it.
+fn abacus_release(program: &[u8]) -> Vec<u8> {
+    tar_gz(|b| {
+        add(b, "abacusai", 0o755, program);
+        add(
+            b,
+            "abacusai-linux-x64.sigstore",
+            0o644,
+            b"{\"bundle\":true}",
+        );
+    })
+}
+
+#[tokio::test]
+async fn an_abacus_release_is_installed_with_its_signature_file_and_the_version_line_of_the_tool() {
+    let fixture = Fixture::new();
+    let program = abacus_says(VERSION);
+    let archive = abacus_release(&program);
+    let (_server, url) = serve(archive.clone()).await;
+    let unpacked = program.len() as u64 + 15;
+    let ctx = fixture.context(
+        "abacusai",
+        artifact(&url, &archive, ArtifactKind::TarGz, Some(unpacked)),
+    );
+
+    let installation = run(&ctx).await.unwrap();
+
+    assert_eq!(installation.executable, installation.dir.join("abacusai"));
+    assert!(installation
+        .dir
+        .join("abacusai-linux-x64.sigstore")
+        .is_file());
+    assert_eq!(fixture.entries("abacusai"), [VERSION]);
+}
+
+#[tokio::test]
+async fn an_abacus_program_that_reports_another_version_is_discarded() {
+    let fixture = Fixture::new();
+    let program = abacus_says("9.9.9");
+    let archive = abacus_release(&program);
+    let (_server, url) = serve(archive.clone()).await;
+    let ctx = fixture.context(
+        "abacusai",
+        artifact(
+            &url,
+            &archive,
+            ArtifactKind::TarGz,
+            Some(program.len() as u64 + 15),
+        ),
+    );
+
+    let error = run(&ctx).await.unwrap_err();
+
+    assert!(
+        matches!(
+            error,
+            InstallError::SmokeFailed {
+                reason: "version_mismatch"
+            }
+        ),
+        "{error:?}"
+    );
+    assert!(fixture.entries("abacusai").is_empty(), "nothing is kept");
+}

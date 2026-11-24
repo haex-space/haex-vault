@@ -1043,3 +1043,113 @@ async fn a_closing_vault_ends_the_running_program_and_the_request() {
     );
     assert!(wait_until_gone(&pid).await, "the program is gone");
 }
+
+// ---- US4: no trace in the logs (spec 096, T037) ----
+
+const TRACE_EMAIL: &str = "trace.person@example.invalid";
+const TRACE_USER_CODE: &str = "TRACE-USER-CODE-5521";
+const TRACE_DEVICE_CODE: &str = "trace-device-code-of-the-log-search-8830";
+const TRACE_REQUEST: &str = "TRACE-REQUEST-TEXT-7741";
+
+fn trace_request() -> ChatRequest {
+    let mut asked = request("abacusai");
+    asked.messages[0].content = TRACE_REQUEST.to_owned();
+    asked
+}
+
+#[tokio::test]
+async fn after_a_connect_a_request_and_a_stop_no_log_line_holds_the_email_the_codes_or_the_request()
+{
+    use crate::providers::abacus_signin::{Client, Secret};
+    use crate::providers::connect_abacus::connect;
+    use tokio_util::sync::CancellationToken;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    crate::test_log::install();
+    let fixture = Fixture::new().await;
+
+    // Connect against a stand-in of the sign-in service.
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/_authenticateDeviceForCodeLlm"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "success": true,
+            "result": {
+                "verificationUri": "https://example.invalid/device",
+                "userCode": TRACE_USER_CODE,
+                "pollingInterval": 1,
+            },
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/_pollDeviceCode"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "success": true,
+            "result": { "deviceCode": TRACE_DEVICE_CODE, "chatWebUrl": "https://example.invalid/chat" },
+        })))
+        .mount(&server)
+        .await;
+    let client = Client::with_base(&server.uri()).unwrap();
+    let record = fixture_record(&fixture);
+    connect(
+        &client,
+        &fixture.db,
+        &record,
+        "Abacus AI".to_owned(),
+        &Secret::new(TRACE_EMAIL.to_owned()),
+        &CancellationToken::new(),
+        |_| {},
+    )
+    .await
+    .expect("the connect succeeds");
+
+    // A request that runs to its end, and one that is stopped on the way.
+    let program = fixture.stub(&happy_body());
+    let adapter = fixture.adapter(&program, fixture.context());
+    let (_, done, error) = collect(adapter.stream_chat(trace_request()).await.unwrap()).await;
+    assert!(done.is_some() && error.is_none(), "{error:?}");
+
+    let slow = fixture.stub(&format!("cat <<'EOF'\n{INIT}\nEOF\nsleep 30"));
+    let stopped = fixture.adapter(&slow, fixture.context());
+    let stream = stopped.stream_chat(trace_request()).await.unwrap();
+    stream.abort_handle().abort();
+    drop(stream);
+
+    // What the sign-in service and the HTTP stack log of their own is not haex-vault's trace: the
+    // service received the address by design.
+    let logs = crate::test_log::all_but(&["wiremock", "hyper", "reqwest"]);
+    for needle in [
+        TRACE_EMAIL,
+        TRACE_USER_CODE,
+        TRACE_DEVICE_CODE,
+        TRACE_REQUEST,
+    ] {
+        assert!(!logs.contains(needle), "a log line holds {needle}");
+    }
+    let dir = fixture.dir.path().display().to_string();
+    assert!(!logs.contains(&dir), "a log line names a path of the vault");
+
+    // The record of the vault keeps fixed text only.
+    let text = std::fs::read_dir(VaultPaths::new(fixture.dir.path()).records_dir("stub"))
+        .map(|entries| {
+            entries
+                .flatten()
+                .filter_map(|entry| fs::read_to_string(entry.path()).ok())
+                .collect::<String>()
+        })
+        .unwrap_or_default();
+    for needle in [
+        TRACE_EMAIL,
+        TRACE_USER_CODE,
+        TRACE_DEVICE_CODE,
+        TRACE_REQUEST,
+    ] {
+        assert!(!text.contains(needle), "the record holds {needle}");
+    }
+}
+
+fn fixture_record(fixture: &Fixture) -> crate::cli_tools::record::Record {
+    crate::cli_tools::record::Record::new(VaultPaths::new(fixture.dir.path()).records_dir("stub"))
+}
