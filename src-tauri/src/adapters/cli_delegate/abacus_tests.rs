@@ -372,8 +372,9 @@ fn request(model_id: &str) -> ChatRequest {
 
 /// The text of a stream and how it ended.
 async fn collect(
-    mut stream: crate::adapters::AdapterStream,
+    mut stream: impl std::borrow::BorrowMut<crate::adapters::AdapterStream>,
 ) -> (String, Option<StreamChunk>, Option<StreamError>) {
+    let stream = stream.borrow_mut();
     let mut text = String::new();
     while let Some(next) = stream.next().await {
         match next {
@@ -478,8 +479,13 @@ async fn the_user_line_is_written_and_text_and_the_result_become_the_chat_stream
     )
     .with_abacus_approval_coverage_for_test();
 
-    let (text, done, error) =
-        collect(adapter.stream_chat(request("abacusai")).await.unwrap()).await;
+    let mut stream = adapter.stream_chat(request("abacusai")).await.unwrap();
+    let (text, done, error) = collect(&mut stream).await;
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        while stream.next().await.is_some() {}
+    })
+    .await
+    .expect("the successful run finishes its cleanup");
 
     let sent: Value = serde_json::from_str(fixture.read("input").trim()).unwrap();
     assert_eq!(sent["type"], "user");
