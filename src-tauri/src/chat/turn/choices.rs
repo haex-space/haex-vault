@@ -20,7 +20,7 @@ impl TurnRunner<'_> {
     /// Replaces each result that asks to choose by what the user answered. Stops at once when the
     /// turn is cancelled while waiting; the round then ends without rows.
     pub(super) async fn resolve_choices(&mut self, executed: &mut [ExecutedCall]) {
-        for (call, result, _source) in executed.iter_mut() {
+        for (call, result, source) in executed.iter_mut() {
             let Some(mut choice) = result.choice.take() else {
                 continue;
             };
@@ -46,7 +46,9 @@ impl TurnRunner<'_> {
                     *result = ToolResult::error(format!("unknown tool: {}", call.name));
                     break;
                 };
-                let mut next = tool.execute(input.clone(), self.cancel.clone()).await;
+                let mut next = source
+                    .run(tool.as_ref(), input.clone(), self.cancel.clone())
+                    .await;
                 if let Some(again) = next.choice.take() {
                     choice = again;
                     continue;

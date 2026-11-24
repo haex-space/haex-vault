@@ -2,7 +2,13 @@
 //! user nor haex-vault wrote. The list names what is own and treats everything else as foreign, so a
 //! new tool asks once too often, never once too rarely.
 
+use std::cell::Cell;
+
 use serde_json::Value;
+
+tokio::task_local! {
+    pub(crate) static CONTACT_SHARE: Cell<bool>;
+}
 
 #[cfg(test)]
 #[path = "foreign_tests.rs"]
@@ -23,10 +29,10 @@ const OWN_SCOPES: [&str; 5] = [
 /// Scope families that are own as a whole.
 const OWN_SCOPE_PREFIXES: [&str; 4] = ["wm.", "settings.", "contacts.", "memory."];
 
-/// Whether a call of a tool from `source` in `scope` with `input` brought foreign content into the
+/// Whether a call of a tool from `source` in `scope` brought foreign content into the
 /// conversation. Every tool of an extension, a connected server or the command line is foreign, and
 /// so are the scopes `browser`, `chat.read`, `files.shares` and any this build does not know.
-pub fn is_foreign(source: &str, scope: Option<&str>, tool: &str, input: &Value) -> bool {
+pub fn is_foreign(source: &str, scope: Option<&str>, tool: &str, contact_share: bool) -> bool {
     if source != ACTION_SOURCE {
         return true;
     }
@@ -41,11 +47,11 @@ pub fn is_foreign(source: &str, scope: Option<&str>, tool: &str, input: &Value) 
         || OWN_SCOPE_PREFIXES
             .iter()
             .any(|prefix| scope.starts_with(prefix));
-    !own || (scope.starts_with("files.") && names_remote_storage(input))
+    !own || contact_share
 }
 
-/// Native file actions accept a storage ID or its display name. Both can resolve to a contact share.
-fn names_remote_storage(input: &Value) -> bool {
+/// Legacy tool rows contain the requested name but omit which storage it resolved to.
+pub(crate) fn names_remote_storage(input: &Value) -> bool {
     match input {
         Value::Object(map) => map.iter().any(|(key, value)| {
             (matches!(key.as_str(), "source" | "toSource")

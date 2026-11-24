@@ -54,10 +54,11 @@ pub(crate) fn excluded_calls<'a>(
         .filter(|row| {
             row.role == MessageRole::ToolCall
                 && row.tool_source.as_deref() == Some("action")
-                && row
-                    .tool_name
-                    .as_deref()
-                    .is_some_and(|name| !visible_at(level, name))
+                && row.tool_name.as_deref().is_some_and(|name| {
+                    !visible_at(level, name)
+                        || (name == crate::chat::tools::find_actions::FIND_ACTIONS_TOOL_NAME
+                            && level != MemoryLevel::ReadWrite)
+                })
         })
         .map(|row| row.id)
         .collect()

@@ -127,7 +127,7 @@ impl TurnRunner<'_> {
                     source.source,
                     source.scope.as_deref(),
                     &call.name,
-                    &call.input,
+                    source.contact_share,
                 )
         });
         if self.saw_foreign || !foreign {
@@ -197,12 +197,12 @@ impl TurnRunner<'_> {
                 match plan {
                     ToolPlan::Allow(tool) => {
                         let mut source = CallSource::of(tool.as_ref());
-                        source.ran = true;
-                        let work = tool.execute(call.input.clone(), cancel);
-                        let result = if source.source
+                        let catalog = source.source
                             == crate::chat::tools::action_tool::ACTION_SOURCE
-                            && call.name == crate::chat::tools::find_actions::FIND_ACTIONS_TOOL_NAME
-                        {
+                            && call.name
+                                == crate::chat::tools::find_actions::FIND_ACTIONS_TOOL_NAME;
+                        let work = source.run(tool.as_ref(), call.input.clone(), cancel);
+                        let result = if catalog {
                             let rights =
                                 crate::chat::tools::profile_gate::rights_of_session(db, session)
                                     .await;
@@ -242,8 +242,11 @@ impl TurnRunner<'_> {
                                     tool.as_ref(),
                                 ) {
                                     Ok(()) => {
-                                        source.ran = true;
-                                        let work = tool.execute(call.input.clone(), tool_cancel);
+                                        let work = source.run(
+                                            tool.as_ref(),
+                                            call.input.clone(),
+                                            tool_cancel,
+                                        );
                                         match memory_page {
                                             Some(page) => {
                                                 crate::agent_memory::gate::APPROVED_PAGE

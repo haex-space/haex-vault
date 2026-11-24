@@ -14,7 +14,7 @@
 //! a later split will move request construction into `send_request`, leaving admission and
 //! stream startup here with their existing cleanup boundary.
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use serde::Serialize;
 use serde_json::Value;
@@ -34,7 +34,7 @@ use crate::chat::tools::prompt::{system_prompt_with, SearchPrompt};
 use crate::chat::tools::route::{first_step_offer_in, last_turn_tools, RouteCall};
 use crate::error::{HaexError, Result};
 use crate::local_time::Clock;
-use crate::mcp_server::grants::MemoryLevel;
+use crate::mcp_server::grants::Rights;
 use crate::model_capabilities::ModelCapabilities;
 use crate::state::AppState;
 use crate::storage::chat_threads::ThreadOrigin;
@@ -398,11 +398,16 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
     .await;
     // Spec 083: the agent profile of the model decides which tools the first step offers, and
     // which extensions the system prompt names (spec 018, amendment 2026-11-09).
+    let rights = if session.provider_kind == ProviderKind::CliDelegate {
+        Rights::default()
+    } else {
+        crate::chat::tools::profile_gate::rights_of_session(&db, &session).await
+    };
+    let memory_level = rights.memory;
     let (tools, extensions_overview) = {
         let mut tools = tools;
         let mut overview = None;
         if !tools.is_empty() {
-            let rights = crate::chat::tools::profile_gate::rights_of_session(&db, &session).await;
             let registry = chat.tool_registry.lock().unwrap_or_else(|e| e.into_inner());
             crate::chat::tools::profile_gate::retain_permitted(&rights, &registry, &mut tools);
             // Spec 065 FR-063: a model that is shown no pictures works with element numbers.
@@ -467,13 +472,6 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             reason: format!("attachment read join: {e}"),
         })?;
 
-    let memory_level = if session.provider_kind == ProviderKind::CliDelegate {
-        MemoryLevel::Off
-    } else {
-        crate::chat::tools::profile_gate::rights_of_session(&db, &session)
-            .await
-            .memory
-    };
     // Older conversations can already contain tool results written before they had a foreign
     // content mark. Conservatively recover that mark before the model sees the history.
     if !is_new_thread
@@ -484,10 +482,17 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             .is_none()
     {
         let foreign = {
+            let had_result: HashSet<Uuid> = history
+                .iter()
+                .filter(|row| {
+                    row.role == MessageRole::ToolResult && row.tool_is_error != Some(true)
+                })
+                .filter_map(|row| row.parent_id)
+                .collect();
             let registry = chat.tool_registry.lock().unwrap_or_else(|e| e.into_inner());
             history
                 .iter()
-                .filter(|row| row.role == MessageRole::ToolCall)
+                .filter(|row| row.role == MessageRole::ToolCall && had_result.contains(&row.id))
                 .any(|row| {
                     let name = row.tool_name.as_deref().unwrap_or_default();
                     let scope = registry
@@ -501,7 +506,12 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
                         row.tool_source.as_deref().unwrap_or("unknown"),
                         scope.as_deref(),
                         name,
-                        input.as_ref().unwrap_or(&Value::Null),
+                        scope
+                            .as_deref()
+                            .is_some_and(|scope| scope.starts_with("files."))
+                            && input
+                                .as_ref()
+                                .is_some_and(crate::agent_memory::foreign::names_remote_storage),
                     )
                 })
         };
