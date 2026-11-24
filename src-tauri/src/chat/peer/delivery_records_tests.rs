@@ -187,3 +187,20 @@ async fn nothing_is_made_renewed_or_published_without_a_connected_relay() {
     assert_eq!(made_at, made, "no renewal before a catch-up with a relay");
     assert_eq!(published, None);
 }
+
+/// A catch-up skipped without a connected relay is owed, so the run loop makes it up on its next
+/// outbox tick instead of waiting for the catch-up timer; one that ran is not.
+#[tokio::test]
+async fn a_catch_up_without_a_connected_relay_is_owed_until_one_runs() {
+    let offline = ChatDevice::genesis(&["ws://127.0.0.1:9".to_owned()]);
+    let delivery = delivery_of(&offline).await;
+    assert!(!delivery.catch_up_owed(), "nothing owed before a catch-up");
+    delivery.catch_up_and_keep_record().await.expect("no step");
+    assert!(delivery.catch_up_owed(), "skipped without a relay");
+
+    let (_relay, url) = mock_relay().await;
+    let online = ChatDevice::genesis(std::slice::from_ref(&url));
+    let delivery = delivery_of(&online).await;
+    delivery.catch_up_and_keep_record().await.expect("catch-up");
+    assert!(!delivery.catch_up_owed(), "a catch-up ran");
+}

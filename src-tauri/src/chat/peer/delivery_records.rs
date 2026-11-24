@@ -10,6 +10,8 @@
 //! opening message waiting there for the current start key is processed before the start key two
 //! renewals back is forgotten.
 
+use std::sync::atomic::Ordering;
+
 use nostr::event::Event;
 use nostr::filter::Filter;
 
@@ -24,12 +26,15 @@ impl Delivery {
     /// Catches up, forgets the peer devices no longer addressed, then makes the account, renews the
     /// start key and publishes the own record as due. Without a connected Nostr-Relay none of it
     /// runs: a fetch would only wait for its timeout and find nothing, which must not count as a
-    /// catch-up.
+    /// catch-up. A catch-up skipped that way, or one that failed, is owed until one succeeds
+    /// ([`Self::catch_up_owed`]).
     pub(super) async fn catch_up_and_keep_record(&self) -> Result<()> {
+        self.catch_up_owed.store(true, Ordering::SeqCst);
         if !self.any_relay_connected().await {
             return Ok(());
         }
         self.catch_up().await?;
+        self.catch_up_owed.store(false, Ordering::SeqCst);
         self.forget_unaddressed().await?;
         self.keep_record().await
     }
@@ -45,6 +50,12 @@ impl Delivery {
             log::info!("chat: forgot {forgotten} peer devices no longer addressed");
         }
         Ok(())
+    }
+
+    /// Whether the last catch-up was skipped or failed, so the run loop makes it up soon (a wake
+    /// whose reconnect found no relay connected yet would otherwise wait for the next timer).
+    pub(super) fn catch_up_owed(&self) -> bool {
+        self.catch_up_owed.load(Ordering::SeqCst)
     }
 
     pub(super) async fn any_relay_connected(&self) -> bool {
