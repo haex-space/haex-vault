@@ -21,6 +21,7 @@ pub mod search;
 pub mod store;
 pub mod toc;
 pub mod turn;
+pub mod watch;
 
 use uuid::Uuid;
 

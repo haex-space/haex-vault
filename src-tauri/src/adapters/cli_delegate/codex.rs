@@ -659,6 +659,10 @@ pub(super) async fn spawn_codex_app_server(
         let start = Instant::now();
         let mut ttft_ms = None;
         let mut last_usage: Option<(Option<usize>, Option<usize>)> = None;
+        // Spec 097 R7 and the Codex spike: the items of Codex's own tools mark the conversation,
+        // and haex-vault's server waits for this reader before it decides a write of the memory.
+        let mut watch =
+            crate::agent_memory::watch::Watch::start(original_thread_id, context.database.clone());
         loop {
             let line = tokio::select! {
                 _ = task_cancellation.cancelled() => {
@@ -667,8 +671,15 @@ pub(super) async fn spawn_codex_app_server(
                     let _ = stderr_task.await;
                     return;
                 }
-                line = read_line(&mut lines) => line,
+                line = watch.next_line(&mut lines) => {
+                    line.map(|line| categorize_line(line.as_deref()))
+                }
             };
+            if let Ok(Line::Notification { method, params }) = &line {
+                if super::own_tools::codex_item_is_foreign(method, params) {
+                    watch.saw_foreign().await;
+                }
+            }
             match line {
                 Ok(Line::ServerRequest { id, method, params }) => {
                     let _ = respond_to_server_request(

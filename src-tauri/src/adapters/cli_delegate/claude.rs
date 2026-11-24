@@ -554,6 +554,7 @@ pub(super) async fn spawn_claude_invocation(
     let (tx, rx) = mpsc::unbounded_channel();
     let cancellation = CancellationToken::new();
     let task_cancellation = cancellation.clone();
+    let (thread_id, database) = (req.thread_id, context.database.clone());
     let join = tokio::spawn(async move {
         // Keep `tmp` alive for the whole process lifetime; it is removed
         // when this task ends, on every path below. The runtime stays as well: it holds the
@@ -567,6 +568,9 @@ pub(super) async fn spawn_claude_invocation(
         let mut saw_result = false;
         let mut peeked_line = peeked_line;
         let mut agent_tracker = subagents::Tracker::new();
+        // Spec 097 R7: the agent's own tools mark the conversation, and haex-vault's server waits
+        // for this reader before it decides a write of the memory.
+        let mut watch = crate::agent_memory::watch::Watch::start(thread_id, database);
 
         loop {
             // The line already consumed by the peek-ahead above (if any)
@@ -585,11 +589,14 @@ pub(super) async fn spawn_claude_invocation(
                         }
                         return;
                     }
-                    line = reader.next_line() => line,
+                    line = watch.next_line(&mut reader) => line,
                 }
             };
             match line {
                 Ok(Some(line)) => {
+                    if super::own_tools::claude_line_is_foreign(&line) {
+                        watch.saw_foreign().await;
+                    }
                     match parse_line(
                         &line,
                         ttft_ms,
