@@ -41,10 +41,15 @@ verfügbar".
 
 `DELETE /<sha256>` with `Authorization: Nostr <base64url-no-pad(event)>`; its kind 24242 event has
 `content: "Delete expired chat file"`, `t=delete`, `x=<sha256>`, and an `expiration` tag. It is signed by
-the same credential that signed the upload: the per-blob key in `chat_blobs_no_sync`, or the configured
-key loaded from password-manager entry `chat.blossom.keyEntry`. Delete only when `pending_devices` is
+the same credential that signed the upload: the per-blob key in `chat_blobs_no_sync`, or the
+password-manager entry recorded in that blob's `key_entry_id`. Clearing `chat.blossom.keyEntry`
+keeps the entry so deletions already queued can still be signed. Delete only when `pending_devices` is
 empty (every recipient device and the sender's other devices sent a `files` receipt), or in the 30-day
 sweep (R13). A failed delete is retried at the next sweep.
+
+If the password-manager entry is removed or its password is replaced, the deletion waits until the
+original signing key is available in that entry again. To rotate the upload key while keeping
+pending deletions working, select a different entry and retain the original key.
 
 ## HTTP client
 

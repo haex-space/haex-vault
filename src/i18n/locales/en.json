@@ -556,7 +556,9 @@
       "saved": "Saved.",
       "viewer": {
         "binary": "This file cannot be shown as text."
-      }
+      },
+      "keyMissing": "The upload key is missing from the password manager. Remove it in the chat settings and create a new one.",
+      "keySyncing": "The upload key has not arrived on this device yet. Try again in a moment."
     },
     "error": {
       "tooLong": "The text is too long (at most 1,000,000 characters).",
@@ -1614,6 +1616,25 @@
         "never": "Never",
         "all": "All (up to 200 MB)",
         "megabytes": "{count} MB"
+      },
+      "key": {
+        "label": "Upload key",
+        "hint": "For Blossom servers that only take files from registered keys. Without a key every file gets a key of its own.",
+        "create": "Create a key",
+        "choose": "Choose an entry …",
+        "remove": "Remove",
+        "copy": "Copy",
+        "copied": "Copied.",
+        "npubLabel": "Public key to register at the server",
+        "entry": "Entry in the password manager: {title}",
+        "missing": "The entry that holds the key is missing. Files cannot be sent until you remove the key and create a new one.",
+        "syncing": "The entry has not arrived on this device yet. Files can be sent once it is here.",
+        "chooseTitle": "Choose an entry that holds a key",
+        "chooseConfirm": "Use",
+        "entryLabel": "Entries that hold a key",
+        "onlyFitting": "Only entries whose password is a Nostr key (nsec) are listed.",
+        "removeTitle": "Remove the upload key?",
+        "removeHint": "The key stays in the password manager so previously uploaded files can still be deleted. Chat stops using it for new uploads."
       }
     },
     "modelServers": {
@@ -2665,7 +2686,8 @@
     "owner": "Belongs to: {name}",
     "owners": {
       "storage": "Cloud storage",
-      "marketplace": "Marketplace"
+      "marketplace": "Marketplace",
+      "chat": "Chat"
     },
     "menuTitle": "Menu",
     "menu": {

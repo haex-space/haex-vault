@@ -18,6 +18,9 @@ pub const KEY_NOTIFICATIONS: &str = "chat.notifications";
 pub const KEY_BLOSSOM_SERVER: &str = "chat.blossom.server";
 /// Files up to this many bytes download by themselves, per device (FR-036).
 pub const KEY_AUTO_LIMIT: &str = "chat.download.autoLimit";
+/// The id of the password-manager entry that holds the Blossom upload key, for the whole vault;
+/// missing or empty = none (FR-081). Written only by `files::upload_key`.
+pub const KEY_BLOSSOM_KEY_ENTRY: &str = "chat.blossom.keyEntry";
 /// The default of [`KEY_AUTO_LIMIT`]: 25 MB.
 pub const DEFAULT_AUTO_LIMIT: u64 = 25_000_000;
 
@@ -61,6 +64,15 @@ pub fn set_blossom_server(tx: &mut CrdtTransaction<'_>, address: Option<&str>) -
         address.unwrap_or_default().trim(),
     )?;
     Ok(())
+}
+
+/// The id of the entry that holds the Blossom upload key, `None` when none is set.
+pub fn blossom_key_entry(q: &mut impl Query) -> Result<Option<String>> {
+    Ok(
+        preferences::get(q, PrefScope::Vault, KEY_BLOSSOM_KEY_ENTRY)?
+            .map(|id| id.trim().to_owned())
+            .filter(|id| !id.is_empty()),
+    )
 }
 
 /// The largest file this device downloads by itself, in bytes.
