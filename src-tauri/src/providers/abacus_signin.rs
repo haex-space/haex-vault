@@ -293,9 +293,15 @@ impl Client {
                             device_code: Some(code),
                         }),
                 }) if !code.expose().is_empty() => return Ok(code),
-                // "Not confirmed yet".
-                Ok(PollAnswer { success: false, .. }) => failures = 0,
-                // `success` without a device code is not the documented shape.
+                // "Not confirmed yet": measured against the real service (research §12), it answers
+                // `success: true` with a result that holds only `chatWebUrl`; `success: false` is the
+                // shape the documentation of the flow implies.
+                Ok(PollAnswer { success: false, .. })
+                | Ok(PollAnswer {
+                    success: true,
+                    result: Some(PollResult { device_code: None }),
+                }) => failures = 0,
+                // Anything else, such as an empty device code, is not a shape of this flow.
                 Ok(_) => failures = note_failure(failures, SigninError::Unexpected)?,
                 Err(error) => failures = note_failure(failures, error)?,
             }

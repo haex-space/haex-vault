@@ -29,7 +29,13 @@ fn started(interval: Value) -> Value {
     })
 }
 
+/// What the real service answers before the confirmation (measured, research §12).
 fn not_yet() -> Value {
+    json!({ "success": true, "result": { "chatWebUrl": "https://chat.example.invalid" } })
+}
+
+/// The shape the documentation of the flow implies.
+fn not_yet_as_failure() -> Value {
     json!({ "success": false, "error": "not confirmed" })
 }
 
@@ -289,6 +295,47 @@ async fn poll_goes_on_until_the_code_is_confirmed_and_returns_the_device_code() 
     let requests = server.received_requests().await.unwrap();
     let sent: Value = serde_json::from_slice(&requests[0].body).unwrap();
     assert_eq!(sent, json!({ "userCode": USER_CODE }));
+}
+
+#[tokio::test]
+async fn poll_takes_both_shapes_of_not_confirmed_yet_for_longer_than_the_failure_limit() {
+    // More waiting answers than the three failures that end a poll: none of them counts as one.
+    let server = MockServer::start().await;
+    mount_poll(&server, not_yet(), Some(4)).await;
+    mount_poll(&server, not_yet_as_failure(), Some(4)).await;
+    mount_poll(&server, confirmed(), None).await;
+
+    let code = client(&server)
+        .poll(
+            &prompt(Duration::from_millis(10)),
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(code.expose(), DEVICE_CODE);
+    assert_eq!(poll_requests(&server).await, 9);
+}
+
+#[tokio::test]
+async fn poll_with_an_empty_device_code_is_not_a_confirmation_and_counts_as_a_failure() {
+    let server = MockServer::start().await;
+    mount_poll(
+        &server,
+        json!({ "success": true, "result": { "deviceCode": "" } }),
+        None,
+    )
+    .await;
+
+    let error = client(&server)
+        .poll(
+            &prompt(Duration::from_millis(10)),
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap_err();
+
+    assert_eq!(error, SigninError::Unexpected);
 }
 
 #[test]
