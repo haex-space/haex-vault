@@ -31,8 +31,9 @@ unless a step says otherwise. Steps 1 to 4 need PR A, 5 to 12 PR B, 13 and 14 PR
     group to "Lesen": it finds him, and "Merk dir …" is answered with that it cannot store it. Switch the model of a
     running conversation from a local model (in "Standard") to that one: from that turn on it has no memory.
 12. **Many pages (US6).** `cargo test --lib -- agent_memory::toc` covers the cut with 500 pages; by hand, generate 300
-    pages with the test command of the tasks and ask for a fact that only the text of one page holds: the agent finds it
-    by searching.
+    pages in a debug build from the developer tools of the window,
+    `window.__TAURI_INTERNALS__.invoke('agent_memory_debug_fill', { count: 300 })` (a release build refuses it), write
+    one page by hand whose text holds a fact, and ask for that fact: the agent finds it by searching.
 13. **An Abo-Agent knows it (US2).** In a conversation with Claude Code ask "Schreib einen Brief an meinen Steuerberater":
     it addresses Bernd Krause. Write "Merk dir, dass ich Briefe mit 'Viele Grüße' beende": no question. The local agent
     knows it in its next conversation. Then let Claude Code fetch a web page with its own web tool and ask it to remember

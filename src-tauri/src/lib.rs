@@ -673,9 +673,11 @@ pub fn run() {
             // Spec 097: the shared memory of the agents, for the built-in agent (Abo-Agents in PR C).
             app.state::<ChatState>()
                 .native_actions
-                .add(std::sync::Arc::new(agent_memory::executor::MemoryActions::new(
-                    agent_memory::executor::TauriMemoryEnv::new(app.handle().clone()),
-                )));
+                .add(std::sync::Arc::new(
+                    agent_memory::executor::MemoryActions::new(
+                        agent_memory::executor::TauriMemoryEnv::new(app.handle().clone()),
+                    ),
+                ));
             // Spec 060 US5: the share action for contacts, confirmed in the window every time.
             let contact_share_confirm =
                 contacts::agent_share_confirm::ContactShareConfirm::default();
@@ -828,6 +830,7 @@ pub fn run() {
             agent_memory::commands::agent_memory_list,
             agent_memory::commands::agent_memory_page,
             agent_memory::commands::agent_memory_page_by_title,
+            agent_memory::fill::agent_memory_debug_fill,
             agent_memory::commands::agent_memory_add,
             agent_memory::commands::agent_memory_change,
             agent_memory::commands::agent_memory_remove,
