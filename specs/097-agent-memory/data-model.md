@@ -38,7 +38,8 @@ Rules:
 ### Validation on every write (FR-003, FR-022)
 
 1. `agent_memory::check::check(field, text)` for title, description and body: `empty` (title, description), `too_long`,
-   `line_break` (title, description), `invisible_characters`, `secret`, `instruction`.
+   `line_break` (title, description), `invisible_characters`, `secret`, `role_marker`; then `secret` for a value of the
+   password manager (`store::vault_secrets`).
 2. `title_taken`: a new page, or a renamed one, whose title another page on this device has.
 3. `memory_full`: a new page beyond 1,000.
 4. `page_too_long`: `memory.add` whose result would pass 10,000 characters.

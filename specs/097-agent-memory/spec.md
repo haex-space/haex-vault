@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-19
 
-**Status**: Draft (amended 2026-11-22)
+**Status**: Draft (amended 2026-11-22, 2026-11-23)
 
 **Input**: User description: "wie kriegen wir den [Harness] noch verbessert? außerdem hätte ich gerne die fähigkeit wie bei
 hermes, dass wir self improving werden und uns auch erkenntnisse agent übergreifend merken und nutzen können" (operator,
@@ -49,6 +49,14 @@ Decided by the operator on 2026-11-22:
   without foreign content is stored without a question, also when the chat asks before every other action.
 - **External agents do not reach the memory.** The memory is for working from inside haex-vault; an external agent that
   steers haex-vault over its server gets nothing of it and cannot write to it.
+
+Decided by the operator on 2026-11-23:
+
+- **The check on writing recognises no words of a language.** Users talk to their agents in any language, and no list of
+  phrases covers them all. A write is refused for what the form of its characters shows (keys and tokens, invisible
+  characters, the role markers of a model's prompt) and for a password or one-time-password secret the user's password
+  manager holds, in whatever words it stands. What a text means is left to the model's instructions and to the question
+  after foreign content.
 
 ## User Scenarios & Testing
 
@@ -179,9 +187,9 @@ write in a conversation without foreign content and check that it does not ask.
 3. **Given** a conversation without foreign content, **When** the agent writes, **Then** no question is asked.
 4. **Given** an Abo-Agent that used its own tools to read from the web or to run a command, **When** it then wants to write,
    **Then** the user is asked, as for the local agent.
-5. **Given** a text that looks like an instruction to an agent, carries invisible characters or contains a password, key or
-   other secret, **When** an agent or the user tries to store it, **Then** it is refused with the reason, with or without
-   foreign content.
+5. **Given** a text that contains a password of the user's password manager, a key or token, invisible characters or the
+   role markers of a model's prompt, **When** an agent or the user tries to store it, **Then** it is refused with the
+   reason, with or without foreign content, whatever language the text is in.
 
 ---
 
@@ -293,7 +301,9 @@ limit and ask an agent to remember one more thing.
   text, for a change the old and the new text, for a removal the text that is removed. A declined or unanswered question
   MUST leave the memory unchanged, and the agent MUST be told that nothing was written.
 - **FR-022**: Every write, by an agent or by the user, MUST be checked before it is stored and refused with its reason when
-  the text reads as an instruction to an agent, carries invisible characters, or contains a password, key or other secret.
+  the text contains a password or one-time-password secret of the user's password manager, a key or token recognisable by
+  its form, invisible characters, or the role markers of a model's prompt. The check MUST NOT depend on words or phrases
+  of any language.
 - **FR-023**: After an agent wrote, changed or removed something, the window MUST show a notice with the text.
 
 **Finding**

@@ -58,7 +58,7 @@ test('every refusal and field has a text in both languages', () => {
     'too_long',
     'invisible_characters',
     'secret',
-    'instruction',
+    'role_marker',
     'title_taken',
     'memory_full',
     'page_too_long',

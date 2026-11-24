@@ -248,25 +248,31 @@ bearer tokens and passwords in URLs. `extensions/bridge/header_validate.rs` has 
 characters. Nothing checks zero-width characters, and nothing recognises instruction patterns; spec 098 rejected a
 redaction filter for the log as false comfort (`specs/098-diagnostic-log/research.md`).
 
-**Decision.** `agent_memory/check.rs::check(field, text)` runs over title, description and text of every write, of an agent
-and of the user, and refuses with one reason:
+**Decision (amended 2026-11-23: no words of a language).** `agent_memory/check.rs::check(field, text)` runs over title,
+description and text of every write, of an agent and of the user, and refuses with one reason. Every rule reads the form
+of the characters or what the vault holds, never words or phrases: users talk to their agents in any language, and a list
+for each language does not scale (operator, 2026-11-23).
 
 - `empty`, `too_long`, `line_break` (title and description are one line): the form.
 - `invisible_characters`: control characters other than line breaks and tabs in the text, zero-width characters (U+200B to
   U+200D, U+2060, U+FEFF), bidirectional controls and the Unicode tag block.
-- `secret`: whatever `redact_text` would change, a private key block, the usual token prefixes (`sk-`, `ghp_`, `xox`,
-  `nsec1`, a three-part JWT), a run of 32 or more characters that looks like a key, and a password word followed by a
-  value ("Passwort: …", "password is …", "PIN …").
-- `instruction`: text that addresses an agent's rules rather than a fact: "ignore/disregard … instructions",
-  "ignoriere … Anweisungen", "system prompt", role markers (`<|…|>`, `[INST]`, `### System`), "you are now", "du bist
-  jetzt", and requests to keep something from the user.
+- `secret`, by form: a private key block, the usual token prefixes (`sk-`, `ghp_`, `xox`, `nsec1`), a three-part JWT, a
+  run of 32 or more key characters with a letter and a digit, a password in a URL, and the command-line and
+  configuration syntax `redact_text` hides (`TOKEN=…`, `--password …`). "Bearer" and "Basic" are taken out first, since
+  `redact_text` hides whatever word follows them.
+- `secret`, by the vault: a password or one-time-password secret of the password manager
+  (`haex_passwords_item_details.password`, `otp_secret`) of at least 6 characters that stands in the text, matched as
+  written. Read for every write (`store::vault_secrets`).
+- `role_marker`: the role markers of a model's prompt format: a special token `<|name|>`, `[INST]`, `[/INST]`, `<<SYS>>`,
+  `<start_of_turn>`, `<end_of_turn>`, `<system>`. A pipe operator in code (`x |> f`) and a Markdown heading are none.
 
-The lists are tables in the one file, tested in German and English; "Ich beantworte Mails immer kurz und ohne Anrede"
-must pass.
+**Rejected.** Lists of password words with their connectors ("Passwort ist …", "PIN …") and of instruction phrases
+("ignore all previous instructions", "du bist jetzt", "sag dem Nutzer nichts"): the first version had them in German and
+English. They missed words ("Passphrase"), were easy to phrase around, and every further language would need its own.
 
-**Why this is not the barrier.** A preference is often phrased like an instruction, so the list can only catch text aimed
-at the agent itself. What keeps a poisoned page out of the memory is the question of R7, and what limits a poisoned page
-is the framing of the block (FR-014).
+**Why this is not the barrier.** A password the password manager does not know, or a sentence that orders an agent
+around, passes the check. The model is told in every language it understands not to store secrets (FR-017); what keeps a
+poisoned page out of the memory is the question of R7; what limits a poisoned page is the framing of the block (FR-014).
 
 ## R10: Notice and page
 

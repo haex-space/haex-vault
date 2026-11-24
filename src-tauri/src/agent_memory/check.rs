@@ -1,10 +1,13 @@
 //! The check on writing (spec 097 FR-022, research R9): every title, description and text that is
 //! stored, by an agent or by the user, is refused with one reason when it has the wrong form,
-//! carries invisible characters, holds a secret, or reads as an instruction to an agent.
+//! carries invisible characters, holds a secret, or carries the role markers of a model's prompt.
 //!
-//! This is not the barrier against foreign content: a preference is often phrased like an
-//! instruction, so the lists only catch text aimed at the agent itself. The question before a write
-//! after foreign content (FR-019) and the framing of the memory as notes (FR-014) are the barrier.
+//! Every rule reads the form of the characters, never words of a language: users talk to their
+//! agents in any language, and a list of phrases could never cover them all. What a text means is
+//! left to the model's instructions and to the user, who sees every write of an agent. The secrets
+//! of the user's password manager are matched by [`holds_vault_secret`] against what the vault
+//! holds. This check is not the barrier against foreign content: the question before a write after
+//! foreign content (FR-019) and the framing of the memory as notes (FR-014) are.
 
 use crate::extensions::bridge::header_validate::BIDI;
 use crate::mcp_server::redact::redact_text;
@@ -43,8 +46,8 @@ pub enum CheckError {
     InvisibleCharacters,
     #[error("the text holds a password, key or token")]
     Secret,
-    #[error("the text reads as an instruction to an agent")]
-    Instruction,
+    #[error("the text carries the role markers of a model's prompt")]
+    RoleMarker,
 }
 
 impl CheckError {
@@ -55,7 +58,7 @@ impl CheckError {
             Self::LineBreak => "line_break",
             Self::InvisibleCharacters => "invisible_characters",
             Self::Secret => "secret",
-            Self::Instruction => "instruction",
+            Self::RoleMarker => "role_marker",
         }
     }
 }
@@ -79,8 +82,8 @@ pub fn check(field: Field, text: &str) -> Result<(), CheckError> {
     if holds_secret(text) {
         return Err(CheckError::Secret);
     }
-    if addresses_an_agent(text) {
-        return Err(CheckError::Instruction);
+    if role_marker(text) {
+        return Err(CheckError::RoleMarker);
     }
     Ok(())
 }
@@ -116,23 +119,6 @@ const TOKEN_REST_CHARS: usize = 10;
 /// A run of key characters this long, with a letter and a digit, reads as a key.
 const KEY_RUN_CHARS: usize = 32;
 
-/// Words that name a password, German and English, compared lowercase; also as the end of a
-/// compound ("WLAN-Passwort", "Bankpasswort").
-const PASSWORD_WORDS: [&str; 4] = ["passwort", "kennwort", "password", "passcode"];
-
-/// Short words that name a PIN; only whole or after a hyphen ("SIM-PIN"), so "Rubin" is none.
-const PIN_WORDS: [&str; 3] = ["pin", "pincode", "pin-code"];
-
-fn names_a_password(word: &str) -> bool {
-    PASSWORD_WORDS.iter().any(|name| word.ends_with(name))
-        || PIN_WORDS
-            .iter()
-            .any(|name| word == *name || word.ends_with(&format!("-{name}")))
-}
-
-/// Words between a password word and its value ("mein Passwort ist …").
-const CONNECTORS: [&str; 6] = ["ist", "is", "lautet", "=", ":", "is:"];
-
 fn holds_secret(text: &str) -> bool {
     if text.contains("-----BEGIN") && text.contains("PRIVATE KEY") {
         return true;
@@ -150,8 +136,7 @@ fn holds_secret(text: &str) -> bool {
     if redact_text(&plain) != plain {
         return true;
     }
-    let words: Vec<&str> = text.split_whitespace().collect();
-    words.iter().any(|word| token_like(word)) || key_run(text) || password_value(&words)
+    text.split_whitespace().any(token_like) || key_run(text)
 }
 
 /// The general redactor recognizes `Basic` and `Bearer` as schemes, but the ordinary word "basic"
@@ -199,112 +184,45 @@ fn key_run(text: &str) -> bool {
         })
 }
 
-/// A password word followed by its value: after `:` or `=` any word, after "ist"/"is"/"lautet"
-/// or directly a word with a digit ("PIN 4711"), so "PIN vergessen" passes.
-fn password_value(words: &[&str]) -> bool {
-    words.iter().enumerate().any(|(at, word)| {
-        let lower = word.to_lowercase();
-        let (name, inline_value, assigned) = match lower.find([':', '=']) {
-            Some(separator) => (&lower[..separator], Some(&lower[separator + 1..]), true),
-            None => (lower.as_str(), None, false),
-        };
-        if !names_a_password(name) {
-            return false;
-        }
-        let mut rest = words[at + 1..].iter();
-        let mut next = inline_value
-            .filter(|value| !value.is_empty())
-            .map(str::to_owned)
-            .or_else(|| rest.next().map(|w| w.to_lowercase()));
-        let mut assigned = assigned;
-        while let Some(word) = next.as_deref() {
-            if !CONNECTORS.contains(&word) {
-                break;
-            }
-            assigned |= matches!(word, "=" | ":" | "is:" | "ist" | "is" | "lautet");
-            next = rest.next().map(|w| w.to_lowercase());
-        }
-        next.is_some_and(|value| assigned || value.chars().any(|c| c.is_ascii_digit()))
-    })
+/// The shortest value of the password manager that is matched; shorter ones ("2024") would match
+/// ordinary text.
+pub const VAULT_SECRET_MIN_CHARS: usize = 6;
+
+/// Whether `text` holds one of `secrets`, the passwords and one-time-password secrets the user's
+/// password manager stores (`store::vault_secrets`). Matched as written: a password is exact.
+pub fn holds_vault_secret(text: &str, secrets: &[String]) -> bool {
+    secrets
+        .iter()
+        .filter(|secret| secret.chars().count() >= VAULT_SECRET_MIN_CHARS)
+        .any(|secret| text.contains(secret.as_str()))
 }
 
-/// Phrases that speak to an agent about its rules or its role, lowercase.
-const INSTRUCTION_PHRASES: [&str; 20] = [
-    "system prompt",
-    "systemprompt",
-    "system-prompt",
-    "you are now",
-    "du bist jetzt",
-    "from now on you are",
-    "ab jetzt bist du",
-    "<|",
-    "|>",
+/// Markers that open or close a role in the prompt formats of models, compared without case.
+const ROLE_MARKERS: [&str; 8] = [
     "[inst]",
     "[/inst]",
-    "### system",
-    "### instruction",
+    "<<sys>>",
+    "<</sys>>",
+    "<start_of_turn>",
+    "<end_of_turn>",
     "<system>",
     "</system>",
-    "developer message",
-    "jailbreak",
-    "ignore previous",
-    "ignore all previous",
-    "ignore the above",
 ];
 
-/// Requests to keep something from the user, lowercase.
-const CONCEALMENT_PHRASES: [&str; 12] = [
-    "don't tell the user",
-    "do not tell the user",
-    "never tell the user",
-    "without telling the user",
-    "hide this from the user",
-    "keep this from the user",
-    "don't mention this",
-    "do not mention this",
-    "sag dem nutzer nichts",
-    "sag dem benutzer nichts",
-    "erzähl dem nutzer nichts",
-    "ohne dass der nutzer es merkt",
-];
-
-/// "ignore … instructions" in either language: a word of the first list followed within
-/// [`NEAR_CHARS`] by one of the second.
-const OVERRIDE_VERBS: [&str; 7] = [
-    "ignore",
-    "ignoriere",
-    "ignorier",
-    "disregard",
-    "forget",
-    "vergiss",
-    "missachte",
-];
-const OVERRIDE_OBJECTS: [&str; 6] = [
-    "instruction",
-    "anweisung",
-    "rules",
-    "regeln",
-    "prompt",
-    "guidelines",
-];
-const NEAR_CHARS: usize = 60;
-
-fn addresses_an_agent(text: &str) -> bool {
-    let lower = text
-        .to_lowercase()
-        .replace(['\u{2019}', '\u{2018}'], "'")
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
-    INSTRUCTION_PHRASES.iter().any(|p| lower.contains(p))
-        || CONCEALMENT_PHRASES.iter().any(|p| lower.contains(p))
-        || OVERRIDE_VERBS.iter().any(|verb| {
-            lower.match_indices(verb).any(|(at, _)| {
-                let after = &lower[at..];
-                let window: String = after.chars().take(NEAR_CHARS).collect();
-                OVERRIDE_OBJECTS
-                    .iter()
-                    .any(|object| window.contains(object))
-            })
+/// A role marker of a model's prompt: one of [`ROLE_MARKERS`], or a special token of the form
+/// `<|name|>` (`<|im_start|>`, `<|eot_id|>`). A pipe operator in code (`x |> f`) is none.
+fn role_marker(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    if ROLE_MARKERS.iter().any(|marker| lower.contains(marker)) {
+        return true;
+    }
+    lower.match_indices("<|").any(|(at, _)| {
+        let rest = &lower[at + 2..];
+        rest.find("|>").is_some_and(|end| {
+            end > 0
+                && rest[..end]
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_')
         })
+    })
 }
