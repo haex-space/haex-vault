@@ -130,9 +130,11 @@ An owned entry of the password manager (`providers/delegate_credential.rs`,
 caller `Internal`, feature `delegate`, tag `haex-delegate-<vendor>`) that holds
 the credential of a CLI delegate that signs in through haex-vault itself: today
 the device code of Abacus AI, in the `password` field, with the custom fields
-`kind` and `device`. A credential bound to one device is kept per installation;
-disconnecting the provider deletes every scope of it. The user sees it in the
-password manager like any entry; the built-in agent never reads it.
+`kind` and `device`. Credentials currently use the shared vault scope. If the
+device-binding check in spec 096 T030 confirms that a vendor binds its code to
+the originating device, that vendor can use an installation-specific scope;
+disconnecting the provider deletes every scope. The user sees it in the password
+manager like any entry; the built-in agent never reads it.
 _Avoid_: "token" for the device code, "API key" (Abacus is never used with a key).
 
 **Abacus sign-in** (spec 096):
