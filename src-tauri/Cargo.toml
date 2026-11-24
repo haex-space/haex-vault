@@ -218,7 +218,7 @@ subtle = "2.6"
 # `raw-connection` stays
 # for the few statements that cannot run in a CRDT transaction (PRAGMA,
 # VACUUM in `storage::maintenance`); `clippy.toml` bans it everywhere else.
-haex-crdt = { git = "https://github.com/haexmas/haex-crdt", rev = "9d59694603fe18093b91651e659ed1760b811a84", features = ["raw-connection"] }
+haex-crdt = { git = "https://github.com/haexmas/haex-crdt", rev = "91a2b47f2a3b289bdcc35a80e021eceb87d8c44c", features = ["raw-connection"] }
 
 # The bundle format of extensions (spec 017, research R3): its one implementation, shared with
 # the `haex` tool of the vault-sdk (which uses its WebAssembly build). Pinned to the merge commit

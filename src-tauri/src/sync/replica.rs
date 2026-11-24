@@ -14,7 +14,7 @@
 
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use haex_crdt::{device_uuid_to_hlc_node, Database};
+use haex_crdt::Database;
 use tokio_util::task::task_tracker::TaskTrackerToken;
 
 use crate::storage::query::{self, Query};
@@ -129,10 +129,7 @@ fn newest_own_cell(
     own: uuid::Uuid,
     since: Option<&str>,
 ) -> haex_crdt::Result<Option<String>> {
-    let Some(node) = device_uuid_to_hlc_node(&own.to_string()) else {
-        return Ok(None);
-    };
-    let own_suffix = format!("%/{node:x}");
+    let own_suffix = format!("%/{:x}", u128::from_le_bytes(*own.as_bytes()));
     let mut newest: Option<String> = None;
     for table in synced_tables(q)? {
         let found: Option<Option<String>> = q.query_row(
