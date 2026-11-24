@@ -8,6 +8,7 @@
 use std::collections::HashSet;
 use std::time::Duration;
 
+use haex_crdt::rusqlite::params;
 use nostr::event::Kind;
 use nostr::filter::Filter;
 use nostr_sdk::client::Client;
@@ -18,6 +19,7 @@ use crate::chat::peer::ratchet::store::{self, SessionRow};
 use crate::chat::peer::ratchet::wire::RatchetRumor;
 use crate::chat::peer::test_support::{mock_relay, two_vaults, ChatDevice, LIMIT};
 use crate::chat::peer::wrap;
+use crate::storage::query::Query;
 use crate::sync::presence;
 
 const HOUR_MS: i64 = 60 * 60 * 1000;
@@ -37,25 +39,6 @@ fn sessions(device: &ChatDevice, peer: &ChatDevice) -> Vec<SessionRow> {
         .db
         .read_blocking(move |r| Ok(store::sessions(r, installation, &peer)?))
         .expect("sessions")
-}
-
-fn last_received(device: &ChatDevice, peer: &ChatDevice) -> Option<i64> {
-    sessions(device, peer)
-        .iter()
-        .filter_map(|row| row.last_received_at)
-        .max()
-}
-
-/// Waits until `device` received something from `peer` after `before`.
-async fn wait_received(device: &ChatDevice, peer: &ChatDevice, before: Option<i64>) {
-    let deadline = tokio::time::Instant::now() + LIMIT;
-    while last_received(device, peer) == before {
-        assert!(
-            tokio::time::Instant::now() < deadline,
-            "timed out waiting for a keep-alive"
-        );
-        tokio::time::sleep(Duration::from_millis(50)).await;
-    }
 }
 
 /// An attacker's copy of a device's sessions, advanced with every wrap to the device it sees.
@@ -86,29 +69,78 @@ impl Copy {
     }
 }
 
-/// The ratchet rumors to `device` the relay holds and `seen` does not name yet.
-async fn new_rumors(
-    client: &Client,
-    device: &ChatDevice,
-    seen: &mut HashSet<nostr::event::EventId>,
-) -> Vec<RatchetRumor> {
+/// The wraps to `device` the relay holds.
+async fn wraps_to(client: &Client, device: &ChatDevice) -> Vec<nostr::event::Event> {
     let to_device = Filter::new()
         .kind(Kind::GiftWrap)
         .pubkey(presence::public_key(&device.me.keys.device_pubkey).expect("key"));
-    let events = client
+    client
         .fetch_events(to_device)
         .timeout(Duration::from_secs(5))
         .await
-        .expect("fetch");
-    let mut rumors = Vec::new();
-    for event in events {
-        if !seen.insert(event.id) {
-            continue;
+        .expect("fetch")
+        .into_iter()
+        .collect()
+}
+
+/// Whether `device` received every wrap of `ids` (its seen wraps are stored with what they carried).
+fn received_all(device: &ChatDevice, ids: Vec<String>) -> bool {
+    device
+        .db
+        .read_blocking(move |r| {
+            for id in &ids {
+                let found: Option<i64> = r.query_row(
+                    "SELECT 1 FROM chat_wraps_seen_no_sync WHERE wrap_id = ?1",
+                    params![id],
+                    |row| row.get(0),
+                )?;
+                if found.is_none() {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        })
+        .expect("seen wraps")
+}
+
+/// Waits until the relay holds at least `expected` wraps to `device` that `seen` does not name yet
+/// and `device` received all of them; answers their ratchet rumors and adds them to `seen`. The run
+/// loops answer a keep-alive request in the background, so a step is over only once the replies
+/// arrived too.
+async fn settle(
+    client: &Client,
+    device: &ChatDevice,
+    seen: &mut HashSet<nostr::event::EventId>,
+    expected: usize,
+) -> Vec<RatchetRumor> {
+    let deadline = tokio::time::Instant::now() + LIMIT;
+    loop {
+        let new: Vec<nostr::event::Event> = wraps_to(client, device)
+            .await
+            .into_iter()
+            .filter(|event| !seen.contains(&event.id))
+            .collect();
+        if new.len() >= expected
+            && received_all(device, new.iter().map(|event| event.id.to_hex()).collect())
+        {
+            return new
+                .into_iter()
+                .map(|event| {
+                    seen.insert(event.id);
+                    let opened = wrap::unwrap(&event, &device.me.keys.device_secret)
+                        .expect("the wrap opens");
+                    RatchetRumor::decode(&opened.content).expect("a ratchet rumor")
+                })
+                .collect();
         }
-        let opened = wrap::unwrap(&event, &device.me.keys.device_secret).expect("the wrap opens");
-        rumors.push(RatchetRumor::decode(&opened.content).expect("a ratchet rumor"));
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "timed out waiting for {expected} keep-alives to {}: {} there",
+            device.me.device_hex(),
+            new.len()
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
     }
-    rumors
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -128,11 +160,17 @@ async fn keep_alives_end_a_copied_key_state_within_48_hours_and_come_once_a_day(
     ben.wait_for(&anna, "delivered", |m| delivered(m, "zurück"))
         .await;
 
+    let archive = Client::builder().build();
+    archive.add_relay(url.as_str()).await.expect("relay");
+    archive.connect().and_wait(Duration::from_secs(5)).await;
+    let (mut seen_by_anna, mut seen_by_ben) = (HashSet::new(), HashSet::new());
+    settle(&archive, &anna, &mut seen_by_anna, 0).await;
+    settle(&archive, &ben, &mut seen_by_ben, 0).await;
+
     // A keep-alive gets an immediate bounded response even though Ben sent recently and is not
     // due for his own proactive request. This prevents a fresh ratchet key waiting at the daily
     // gate; the distinct reply kind does not ask Anna to answer again.
     let (anna_check, ben_check) = (anna.delivery().await, ben.delivery().await);
-    let (at_ben, at_anna) = (last_received(&ben, &anna), last_received(&anna, &ben));
     let ben_sent_before = sessions(&ben, &anna)[0]
         .last_sent_at
         .expect("Ben just sent");
@@ -143,8 +181,8 @@ async fn keep_alives_end_a_copied_key_state_within_48_hours_and_come_once_a_day(
         anna_check.send_keep_alives().await.expect("Anna's request"),
         1
     );
-    wait_received(&ben, &anna, at_ben).await;
-    wait_received(&anna, &ben, at_anna).await;
+    settle(&archive, &ben, &mut seen_by_ben, 1).await;
+    settle(&archive, &anna, &mut seen_by_anna, 1).await;
     assert!(
         sessions(&ben, &anna)[0]
             .last_sent_at
@@ -154,12 +192,6 @@ async fn keep_alives_end_a_copied_key_state_within_48_hours_and_come_once_a_day(
     );
     ben.clock
         .advance(crate::chat::peer::ratchet::KEEP_ALIVE_MS - 1);
-
-    let archive = Client::builder().build();
-    archive.add_relay(url.as_str()).await.expect("relay");
-    archive.connect().and_wait(Duration::from_secs(5)).await;
-    let mut seen = HashSet::new();
-    new_rumors(&archive, &ben, &mut seen).await;
 
     // The copy of Ben's key state, taken now.
     let copied_at = ben.clock.now();
@@ -175,24 +207,23 @@ async fn keep_alives_end_a_copied_key_state_within_48_hours_and_come_once_a_day(
         anna.clock.advance(STEP_MS);
         ben.clock.advance(STEP_MS);
         passed += STEP_MS;
-        let (at_ben, at_anna) = (last_received(&ben, &anna), last_received(&anna, &ben));
         let anna_sent = anna_check.send_keep_alives().await.expect("Anna's check");
         let ben_sent = ben_check.send_keep_alives().await.expect("Ben's check");
         from_anna += anna_sent;
         from_ben += ben_sent;
-        if ben_sent > 0 {
-            wait_received(&anna, &ben, at_anna).await;
+        if anna_sent + ben_sent == 0 {
+            continue;
         }
-        if anna_sent > 0 {
-            wait_received(&ben, &anna, at_ben).await;
-            for rumor in new_rumors(&archive, &ben, &mut seen).await {
-                let decrypted = copy.decrypts(&rumor);
-                if renewed_after.is_some() {
-                    after_renewal += 1;
-                    assert!(!decrypted, "the copy decrypts nothing after the renewal");
-                } else if decrypted {
-                    copy_decrypted += 1;
-                }
+        // Each side gets the other's requests and the replies to its own.
+        let to_ben = settle(&archive, &ben, &mut seen_by_ben, anna_sent + ben_sent).await;
+        settle(&archive, &anna, &mut seen_by_anna, ben_sent + anna_sent).await;
+        for rumor in to_ben {
+            let decrypted = copy.decrypts(&rumor);
+            if renewed_after.is_some() {
+                after_renewal += 1;
+                assert!(!decrypted, "the copy decrypts nothing after the renewal");
+            } else if decrypted {
+                copy_decrypted += 1;
             }
         }
         let renewed = sessions(&ben, &anna)

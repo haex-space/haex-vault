@@ -243,3 +243,144 @@ fn the_containment_changes_the_child_alone_and_never_the_process_environment() {
         );
     }
 }
+
+// ---- Abacus AI (spec 096 US4, T036) ----
+
+#[test]
+fn abacus_gets_its_config_variable_and_switches_and_loses_the_host_account_variables() {
+    let setup = setup("abacusai");
+    let run = setup.runtime.run_folder().unwrap();
+    let mut command = Command::new("true");
+    let environment = host(&[
+        ("ABACUS_API_KEY", "host-key"),
+        ("ABACUS_MODEL", "host-model"),
+        ("ABACUSAI_BASE_URL", "https://host.example"),
+        ("CODELLM_DEVICE_CODE", "host-device-code"),
+        ("ABACUSX", "not a prefix match"),
+        ("ANTHROPIC_API_KEY", "another vendor's"),
+    ]);
+    apply(&mut command, &run, &setup.runtime.vendor, &environment);
+    let changed = changes(&command);
+
+    for removed in [
+        "ABACUS_API_KEY",
+        "ABACUS_MODEL",
+        "ABACUSAI_BASE_URL",
+        "CODELLM_DEVICE_CODE",
+    ] {
+        assert_eq!(changed.get(OsStr::new(removed)), Some(&None), "{removed}");
+    }
+    for kept in ["ABACUSX", "ANTHROPIC_API_KEY"] {
+        assert!(!changed.contains_key(OsStr::new(kept)), "{kept}");
+    }
+    // The agent directory is the run folder; the switches are set after the removal by prefix.
+    assert_eq!(
+        set_to(&changed, "ABACUSAI_CODING_AGENT_DIR"),
+        Some(run.path())
+    );
+    for (name, value) in [
+        ("ABACUS_AUTO_UPDATE", "off"),
+        ("ABACUS_DISABLE_AUTO_MEMORY", "1"),
+    ] {
+        assert_eq!(
+            changed.get(OsStr::new(name)),
+            Some(&Some(OsString::from(value))),
+            "{name}"
+        );
+    }
+    for value in changed.values().flatten() {
+        let value = Path::new(value);
+        if value.is_absolute() {
+            assert!(value.starts_with(setup._dir.path()), "{value:?}");
+        }
+    }
+}
+
+/// A program that writes where the real tool writes (spec 096 research §5): a log and a pid file
+/// below its home, a config folder under `XDG_CONFIG_HOME`, and a 13 MB native module in the
+/// temp folder. It dumps its environment first.
+#[cfg(unix)]
+const WRITES_LIKE_THE_TOOL: &str = r#"
+env > "$HOME/seen-env.txt"
+mkdir -p "$HOME/.abacusai/logs" "$HOME/.abacusai/cli" "$XDG_CONFIG_HOME/abacusai"
+echo log > "$HOME/.abacusai/logs/abacusai.log"
+echo 4242 > "$HOME/.abacusai/cli/abacusai.pid"
+echo cfg > "$XDG_CONFIG_HOME/abacusai/config.json"
+head -c 13000000 /dev/zero > "$TMPDIR/.bun-1000-abcdef.node"
+"#;
+
+#[cfg(unix)]
+#[test]
+fn a_program_that_writes_like_abacusai_leaves_nothing_outside_the_vault_and_the_run_folder_goes() {
+    let setup = setup("abacusai");
+    let host_dir = TempDir::new().unwrap();
+    let host_home = host_dir.path().join("home");
+    let host_xdg = host_dir.path().join("xdg");
+    let host_tmp = host_dir.path().join("tmp");
+    for dir in [&host_home, &host_xdg, &host_tmp] {
+        std::fs::create_dir_all(dir).unwrap();
+    }
+    let environment = host(&[
+        ("HOME", host_home.to_str().unwrap()),
+        ("XDG_CONFIG_HOME", host_xdg.to_str().unwrap()),
+        ("TMPDIR", host_tmp.to_str().unwrap()),
+        ("ABACUS_API_KEY", "host-key"),
+        ("ABACUSAI_BASE_URL", "https://host.example"),
+        ("CODELLM_DEVICE_CODE", "host-device-code"),
+    ]);
+    let run = setup.runtime.run_folder().unwrap();
+    let script = setup._dir.path().join("writes.sh");
+    std::fs::write(&script, WRITES_LIKE_THE_TOOL).unwrap();
+    let mut command = Command::new("sh");
+    command.arg(&script);
+    // `apply` records the differences on a command that inherits this test process' environment,
+    // so the variables the host would have are put in as well, as the containment sees them.
+    for (name, value) in &environment {
+        command.env(name, value);
+    }
+    apply(&mut command, &run, &setup.runtime.vendor, &environment);
+    let status = command.status().expect("the stub runs");
+    assert!(status.success());
+
+    let home = run.home().to_path_buf();
+    let run_tmp = run.tmp().to_path_buf();
+    let seen = std::fs::read_to_string(home.join("seen-env.txt")).expect("the environment dump");
+    let value = |name: &str| -> Option<&str> {
+        seen.lines()
+            .find_map(|line| line.strip_prefix(&format!("{name}=")))
+    };
+    assert_eq!(value("HOME"), Some(home.to_str().unwrap()));
+    assert!(value("TMPDIR").is_some_and(|tmp| tmp.starts_with(home.to_str().unwrap())));
+    assert!(value("XDG_CONFIG_HOME").is_some_and(|dir| dir.starts_with(home.to_str().unwrap())));
+    assert_eq!(value("ABACUSAI_CODING_AGENT_DIR"), run.path().to_str());
+    assert_eq!(value("ABACUS_AUTO_UPDATE"), Some("off"));
+    assert_eq!(value("ABACUS_DISABLE_AUTO_MEMORY"), Some("1"));
+    for gone in ["ABACUS_API_KEY", "ABACUSAI_BASE_URL"] {
+        assert_eq!(value(gone), None, "{gone} reached the program");
+    }
+    // The only CODELLM_ variable a program gets is the device code the adapter sets after the
+    // containment, which is not part of this test.
+    assert_eq!(value("CODELLM_DEVICE_CODE"), None);
+
+    // What it wrote is in the vault's home and in the run's temp folder.
+    assert!(home.join(".abacusai/logs/abacusai.log").exists());
+    assert!(home.join(".abacusai/cli/abacusai.pid").exists());
+    assert!(run_tmp.join(".bun-1000-abcdef.node").exists());
+    let config_below_home = std::fs::read_dir(&home)
+        .unwrap()
+        .flatten()
+        .any(|entry| entry.path().join("abacusai/config.json").exists());
+    assert!(
+        config_below_home,
+        "the config folder is below the vault's home"
+    );
+    // Nothing of it is on the host.
+    for dir in [&host_home, &host_xdg, &host_tmp] {
+        assert_eq!(std::fs::read_dir(dir).unwrap().count(), 0, "{dir:?}");
+    }
+
+    let run_path = run.path().to_path_buf();
+    drop(run);
+    assert!(!run_path.exists(), "the run folder is removed");
+    assert!(!run_tmp.exists(), "and with it the 13 MB temp file");
+}

@@ -12,7 +12,7 @@ mod add;
 mod add_tests;
 pub mod capabilities;
 pub mod connect;
-mod connect_abacus;
+pub(crate) mod connect_abacus;
 #[cfg(test)]
 mod connect_tests;
 pub mod delegate_credential;

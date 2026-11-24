@@ -23,6 +23,7 @@ use crate::adapters::types::{
 };
 use crate::adapters::{AdapterError, ProviderAdapter};
 use crate::chat::tools::ApprovalDecision;
+use crate::cli_tools::installed::CONFIRMED_FILE;
 use crate::cli_tools::runtime::{DelegateRuntime, RunFolder};
 use crate::instances::vault_paths::VaultPaths;
 use crate::passwords::test_support::open_test_vault;
@@ -371,8 +372,9 @@ fn request(model_id: &str) -> ChatRequest {
 
 /// The text of a stream and how it ended.
 async fn collect(
-    mut stream: crate::adapters::AdapterStream,
+    mut stream: impl std::borrow::BorrowMut<crate::adapters::AdapterStream>,
 ) -> (String, Option<StreamChunk>, Option<StreamError>) {
+    let stream = stream.borrow_mut();
     let mut text = String::new();
     while let Some(next) = stream.next().await {
         match next {
@@ -461,10 +463,29 @@ async fn a_chosen_model_is_passed_on_and_the_account_default_is_not() {
 async fn the_user_line_is_written_and_text_and_the_result_become_the_chat_stream() {
     let fixture = Fixture::new().await;
     let program = fixture.stub(&happy_body());
-    let adapter = fixture.adapter(&program, fixture.context());
+    let runtime = DelegateRuntime::for_stub_version("abacusai", fixture.dir.path(), "1.0.0");
+    let version = VaultPaths::new(fixture.dir.path())
+        .cli_tool_dir("stub", "abacusai")
+        .join("1.0.0");
+    let confirmed = version.join(CONFIRMED_FILE);
+    fs::create_dir_all(runtime.executable.parent().expect("program directory")).unwrap();
+    fs::rename(program, &runtime.executable).unwrap();
+    assert!(!confirmed.exists());
+    let adapter = CliDelegateAdapter::new(
+        DelegateVendor::Abacus,
+        Vec::new(),
+        runtime,
+        Some(fixture.context()),
+    )
+    .with_abacus_approval_coverage_for_test();
 
-    let (text, done, error) =
-        collect(adapter.stream_chat(request("abacusai")).await.unwrap()).await;
+    let mut stream = adapter.stream_chat(request("abacusai")).await.unwrap();
+    let (text, done, error) = collect(&mut stream).await;
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        while stream.next().await.is_some() {}
+    })
+    .await
+    .expect("the successful run finishes its cleanup");
 
     let sent: Value = serde_json::from_str(fixture.read("input").trim()).unwrap();
     assert_eq!(sent["type"], "user");
@@ -473,6 +494,10 @@ async fn the_user_line_is_written_and_text_and_the_result_become_the_chat_stream
         .unwrap()
         .contains("say hi"));
     assert_eq!(text, "Hello");
+    assert!(
+        confirmed.is_file(),
+        "the first successful run confirms the version"
+    );
     assert!(error.is_none(), "{error:?}");
     match done {
         Some(StreamChunk::Done {
@@ -1042,4 +1067,127 @@ async fn a_closing_vault_ends_the_running_program_and_the_request() {
         "the request ends, not finished"
     );
     assert!(wait_until_gone(&pid).await, "the program is gone");
+}
+
+// ---- US4: no trace in the logs (spec 096, T037) ----
+
+const TRACE_EMAIL: &str = "trace.person@example.invalid";
+const TRACE_USER_CODE: &str = "TRACE-USER-CODE-5521";
+const TRACE_DEVICE_CODE: &str = "trace-device-code-of-the-log-search-8830";
+const TRACE_REQUEST: &str = "TRACE-REQUEST-TEXT-7741";
+
+fn trace_request() -> ChatRequest {
+    let mut asked = request("abacusai");
+    asked.messages[0].content = TRACE_REQUEST.to_owned();
+    asked
+}
+
+#[tokio::test]
+async fn after_a_connect_a_request_and_a_stop_no_log_line_holds_the_email_the_codes_or_the_request()
+{
+    use crate::providers::abacus_signin::{Client, Secret};
+    use crate::providers::connect_abacus::connect;
+    use tokio_util::sync::CancellationToken;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    crate::test_log::install();
+    let fixture = Fixture::new().await;
+
+    // Connect against a stand-in of the sign-in service.
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/_authenticateDeviceForCodeLlm"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "success": true,
+            "result": {
+                "verificationUri": "https://example.invalid/device",
+                "userCode": TRACE_USER_CODE,
+                "pollingInterval": 1,
+            },
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/_pollDeviceCode"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "success": true,
+            "result": { "deviceCode": TRACE_DEVICE_CODE, "chatWebUrl": "https://example.invalid/chat" },
+        })))
+        .mount(&server)
+        .await;
+    let client = Client::with_base(&server.uri()).unwrap();
+    let record = fixture_record(&fixture);
+    connect(
+        &client,
+        &fixture.db,
+        &record,
+        "Abacus AI".to_owned(),
+        &Secret::new(TRACE_EMAIL.to_owned()),
+        &CancellationToken::new(),
+        |_| {},
+    )
+    .await
+    .expect("the connect succeeds");
+
+    // A request that runs to its end, and one that is stopped on the way.
+    let program = fixture.stub(&happy_body());
+    let adapter = fixture.adapter(&program, fixture.context());
+    let (_, done, error) = collect(adapter.stream_chat(trace_request()).await.unwrap()).await;
+    assert!(done.is_some() && error.is_none(), "{error:?}");
+
+    let slow = fixture.stub(&format!(
+        "echo $$ > '{pid}'\ncat <<'EOF'\n{INIT}\nEOF\nsleep 30",
+        pid = fixture.path("pid").display()
+    ));
+    let stopped = fixture.adapter(&slow, fixture.context());
+    let stream = stopped.stream_chat(trace_request()).await.unwrap();
+    let pid = fixture.read("pid").trim().to_owned();
+    stream.abort_handle().abort();
+    assert!(wait_until_gone(&pid).await, "the stopped program exited");
+    drop(stream);
+
+    // What the sign-in service and the HTTP stack log of their own is not haex-vault's trace: the
+    // service received the address by design.
+    let logs = crate::test_log::all_but(&["wiremock", "hyper", "reqwest"]);
+    for needle in [
+        TRACE_EMAIL,
+        TRACE_USER_CODE,
+        TRACE_DEVICE_CODE,
+        TRACE_REQUEST,
+    ] {
+        assert!(!logs.contains(needle), "a log line holds {needle}");
+    }
+    let paths = [fixture.dir.path(), fixture._vault_dir.path()];
+    for path in paths {
+        let path = path.display().to_string();
+        assert!(
+            !logs.contains(&path),
+            "a log line names a path of the vault"
+        );
+    }
+
+    // The record of the vault keeps fixed text only.
+    let text = fs::read_to_string(record.path()).expect("read the vault record");
+    assert!(text.contains("connect_finished"));
+    assert_eq!(text.matches("run_started").count(), 2);
+    for needle in [
+        TRACE_EMAIL,
+        TRACE_USER_CODE,
+        TRACE_DEVICE_CODE,
+        TRACE_REQUEST,
+    ] {
+        assert!(!text.contains(needle), "the record holds {needle}");
+    }
+    for path in paths {
+        let path = path.display().to_string();
+        assert!(
+            !text.contains(&path),
+            "the record names a path of the vault"
+        );
+    }
+}
+
+fn fixture_record(fixture: &Fixture) -> crate::cli_tools::record::Record {
+    crate::cli_tools::record::Record::new(VaultPaths::new(fixture.dir.path()).records_dir("stub"))
 }
