@@ -394,9 +394,11 @@ async fn a_second_install_of_the_same_tool_in_the_vault_is_refused_while_one_run
     let held = lock(&ctx.vendor_dir).unwrap();
     assert_eq!(run(&ctx).await.unwrap_err(), InstallError::Locked);
     assert!(fixture.entries("claude").is_empty());
+    let inherited_descriptor = held.0.try_clone().unwrap();
     drop(held);
 
     run(&ctx).await.expect("the lock ends with its holder");
+    drop(inherited_descriptor);
 }
 
 #[tokio::test]

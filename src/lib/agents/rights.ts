@@ -76,6 +76,9 @@ export type FilesRights = {
 }
 
 /** `Rights` of the bindings. */
+/** The rights group `memory` (spec 097, Rust `MemoryLevel`); absent is off. */
+export type MemoryLevel = 'off' | 'read' | 'readWrite'
+
 export type Rights = {
   operate: { [scope in string]: OperateLevel }
   browser?: BrowserRights
@@ -88,6 +91,8 @@ export type Rights = {
   delegate?: DelegateRights
   contacts?: ContactsRights
   files?: FilesRights
+  /** What models reach of the shared memory (spec 097); external agents never reach it. */
+  memory?: MemoryLevel
 }
 
 /** The scopes of "haex-vault bedienen" (Rust `grants::OPERATE_SCOPES`), in the order they are shown. */
@@ -168,6 +173,7 @@ export type RightsDraft = {
   delegate: DelegateRights | null
   contacts: ContactsRights
   files: FilesRights
+  memory: MemoryLevel
 }
 
 /** The draft of stored rights; `null` stands for an agent without any. */
@@ -182,6 +188,7 @@ export function rightsDraftOf(rights: Rights | null | undefined): RightsDraft {
     delegate: rights?.delegate ?? null,
     contacts: rights?.contacts ?? {},
     files: rights?.files ?? {},
+    memory: rights?.memory ?? 'off',
   }
 }
 
@@ -215,6 +222,7 @@ export function rightsOf(draft: RightsDraft): Rights {
     delegate,
     contacts,
     files,
+    memory,
   } = draft
   return {
     operate,
@@ -226,6 +234,7 @@ export function rightsOf(draft: RightsDraft): Rights {
     ...(delegate ? { delegate } : {}),
     ...(contactsSet(contacts) ? { contacts } : {}),
     ...(filesSet(files) ? { files } : {}),
+    ...(memory !== 'off' ? { memory } : {}),
   }
 }
 

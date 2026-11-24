@@ -124,18 +124,25 @@ impl<E: AgentEnv> FilesAgent<E> {
             ));
         };
         let storages = self.env.storages().await.map_err(files_error)?;
-        if let Some(storage) = storages.iter().find(|s| s.id == wanted) {
-            return Ok(Place::Storage(storage.clone()));
+        let storage = if let Some(storage) = storages.iter().find(|s| s.id == wanted) {
+            storage
+        } else {
+            let named: Vec<&StorageSource> = storages.iter().filter(|s| s.name == wanted).collect();
+            match named.as_slice() {
+                [storage] => *storage,
+                [] => return Err(unavailable()),
+                _ => {
+                    return Err(NativeError::invalid_input(
+                        Some("source"),
+                        "several storages have that name",
+                    ))
+                }
+            }
+        };
+        if storage.id.starts_with(crate::files::share::SHARE_PREFIX) {
+            let _ = crate::agent_memory::foreign::CONTACT_SHARE.try_with(|seen| seen.set(true));
         }
-        let named: Vec<&StorageSource> = storages.iter().filter(|s| s.name == wanted).collect();
-        match named.as_slice() {
-            [storage] => Ok(Place::Storage((*storage).clone())),
-            [] => Err(unavailable()),
-            _ => Err(NativeError::invalid_input(
-                Some("source"),
-                "several storages have that name",
-            )),
-        }
+        Ok(Place::Storage(storage.clone()))
     }
 
     /// [`Self::place`] for `paths`: device paths into encrypted folders on the device (by their

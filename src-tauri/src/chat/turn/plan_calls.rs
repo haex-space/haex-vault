@@ -50,6 +50,21 @@ pub fn callable(tool: &dyn Tool, offered: &[ToolSpec]) -> bool {
     tool.source() != ACTION_SOURCE || offered.iter().any(|spec| spec.name == tool.name())
 }
 
+/// The permission decision for one call: a write of the memory by spec 097's rule (no question
+/// without foreign content in the conversation, refused in "Plan"), everything else by the mode.
+/// `foreign` is read only for a write of the memory.
+pub fn decide(
+    mode: permission::PermissionMode,
+    tool: &dyn Tool,
+    foreign: impl FnOnce() -> bool,
+) -> permission::Decision {
+    if tool.source() == ACTION_SOURCE && crate::agent_memory::gate::is_write_tool(tool.name()) {
+        crate::agent_memory::gate::decide(mode, foreign()).into()
+    } else {
+        permission::decide_call(mode, tool)
+    }
+}
+
 /// What to do with one tool call, decided before any concurrent
 /// waiting/execution begins (see [`TurnRunner::plan_calls`]).
 pub(super) enum ToolPlan {
@@ -58,6 +73,7 @@ pub(super) enum ToolPlan {
         tool: Arc<dyn Tool>,
         rx: tokio::sync::oneshot::Receiver<ApprovalDecision>,
         request_id: Uuid,
+        memory_page: Option<Box<Option<crate::agent_memory::store::Page>>>,
     },
     Deny(Arc<dyn Tool>),
     /// The guard refused the call before the dialog (spec 082 FR-011); the answer says why.
@@ -154,10 +170,54 @@ impl TurnRunner<'_> {
                 plans.push((call, ToolPlan::TurnedAway(tool, answer)));
                 continue;
             }
-            match permission::decide_call(mode, tool.as_ref()) {
+            let foreign = if crate::agent_memory::gate::is_write_tool(tool.name()) {
+                memory_foreign(self.saw_foreign, self.db, self.thread_id).await
+            } else {
+                false
+            };
+            match decide(mode, tool.as_ref(), || foreign) {
                 permission::Decision::Allow => plans.push((call, ToolPlan::Allow(tool))),
                 permission::Decision::Deny => plans.push((call, ToolPlan::Deny(tool))),
                 permission::Decision::Ask => {
+                    let memory_page = if tool.source() == ACTION_SOURCE
+                        && crate::agent_memory::gate::is_write_tool(tool.name())
+                    {
+                        let Some(title) = call.input["title"].as_str().map(str::to_owned) else {
+                            plans.push((call, ToolPlan::TurnedAway(tool, "invalid_input".into())));
+                            continue;
+                        };
+                        match self
+                            .db
+                            .read(move |q| {
+                                Ok(crate::agent_memory::store::by_title(q, &title)?
+                                    .map(|found| found.page))
+                            })
+                            .await
+                        {
+                            Ok(page) => Some(page),
+                            Err(error) => {
+                                log::warn!("chat: the memory page could not be read: {error}");
+                                plans.push((
+                                    call,
+                                    ToolPlan::TurnedAway(
+                                        tool,
+                                        "The page could not be read for approval. Nothing was written."
+                                            .into(),
+                                    ),
+                                ));
+                                continue;
+                            }
+                        }
+                    } else {
+                        None
+                    };
+                    let model_name = memory_page.as_ref().map(|_| {
+                        crate::chat::tools::agent_task::AgentTask::of_turn(
+                            &self.assistant_message_id.to_string(),
+                            self.session,
+                        )
+                        .model
+                    });
                     let request_id = Uuid::new_v4();
                     let (tx, rx) = tokio::sync::oneshot::channel();
                     self.chat_state
@@ -175,6 +235,15 @@ impl TurnRunner<'_> {
                             risk_class: risk_class_str(tool.risk_class()),
                             tool_source: tool.source(),
                             tool_origin: tool.origin(),
+                            memory_page: memory_page.as_ref().map(|page| {
+                                page.as_ref().map_or(serde_json::Value::Null, |page| {
+                                    serde_json::json!({
+                                        "description": page.description,
+                                        "body": page.body,
+                                    })
+                                })
+                            }),
+                            model_name,
                         },
                     );
                     plans.push((
@@ -183,12 +252,31 @@ impl TurnRunner<'_> {
                             tool,
                             rx,
                             request_id,
+                            memory_page: memory_page.map(Box::new),
                         },
                     ));
                 }
             }
         }
         plans
+    }
+}
+
+/// Whether the conversation saw foreign content (spec 097 FR-019); a failed read counts as foreign,
+/// so the write asks rather than slipping through. Takes fields, not the runner, which is not `Sync`.
+async fn memory_foreign(saw_foreign: bool, db: &crate::vault_gate::VaultDb, thread: Uuid) -> bool {
+    if saw_foreign {
+        return true;
+    }
+    match db
+        .read(move |q| crate::storage::chat_threads::memory_foreign_at(q, thread))
+        .await
+    {
+        Ok(at) => at.is_some(),
+        Err(error) => {
+            log::warn!("chat: the mark of foreign content could not be read: {error}");
+            true
+        }
     }
 }
 

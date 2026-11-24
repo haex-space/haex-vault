@@ -48,7 +48,7 @@ pub fn action_domain(action_id: &str) -> &str {
 }
 
 /// The prefix of an extension tool's name `x_<prefix>_<tool>`.
-fn extension_prefix(tool_name: &str) -> Option<&str> {
+pub(crate) fn extension_prefix(tool_name: &str) -> Option<&str> {
     tool_name.strip_prefix("x_")?.split('_').next()
 }
 

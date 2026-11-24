@@ -173,6 +173,56 @@ pub fn set_thread_model(
     )
 }
 
+/// The table of contents the conversation took when its first turn started (spec 097 FR-011);
+/// `None` until taken, empty for an empty memory. Not part of [`ChatThread`] or the thread list.
+pub fn memory_toc(q: &mut impl Query, id: Uuid) -> haex_crdt::Result<Option<String>> {
+    Ok(q.query_row(
+        "SELECT memory_toc FROM chat_threads WHERE id = ?1 AND kind = 'agent'",
+        params![id.to_string()],
+        |row| row.get::<_, Option<String>>(0),
+    )?
+    .flatten())
+}
+
+/// Stores `toc` as the conversation's table of contents unless it has one, and returns the one it
+/// holds now: taken once, never changed (spec 097 research R5).
+pub fn take_memory_toc(
+    tx: &mut CrdtTransaction<'_>,
+    id: Uuid,
+    toc: &str,
+) -> haex_crdt::Result<Option<String>> {
+    tx.execute(
+        "UPDATE chat_threads SET memory_toc = ?1 \
+         WHERE id = ?2 AND kind = 'agent' AND memory_toc IS NULL",
+        params![toc, id.to_string()],
+    )?;
+    memory_toc(tx, id)
+}
+
+/// When the conversation first saw foreign content (spec 097 FR-019, research R6); `None` while it
+/// has seen none.
+pub fn memory_foreign_at(q: &mut impl Query, id: Uuid) -> haex_crdt::Result<Option<i64>> {
+    Ok(q.query_row(
+        "SELECT memory_foreign_at FROM chat_threads WHERE id = ?1 AND kind = 'agent'",
+        params![id.to_string()],
+        |row| row.get::<_, Option<i64>>(0),
+    )?
+    .flatten())
+}
+
+/// Marks that the conversation saw foreign content at `at`, unless it was marked before.
+pub fn mark_foreign_once(
+    tx: &mut CrdtTransaction<'_>,
+    id: Uuid,
+    at: i64,
+) -> haex_crdt::Result<usize> {
+    tx.execute(
+        "UPDATE chat_threads SET memory_foreign_at = ?1 \
+         WHERE id = ?2 AND kind = 'agent' AND memory_foreign_at IS NULL",
+        params![at, id.to_string()],
+    )
+}
+
 /// Lists all threads, most-recently-updated first.
 pub fn list_threads(q: &mut impl Query) -> haex_crdt::Result<Vec<ChatThread>> {
     q.query_map(

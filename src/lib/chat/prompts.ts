@@ -16,6 +16,8 @@ export interface PendingApproval {
   toolSource?: 'mcp' | 'cli' | 'action' | 'haextension'
   /** An extension's tool (spec 018): named by its extension and title. */
   toolOrigin?: ToolOrigin
+  memoryPage?: { description: string; body: string } | null
+  modelName?: string
 }
 
 /** One proposed answer of a choice (spec 046). */

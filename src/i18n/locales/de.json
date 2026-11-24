@@ -1936,6 +1936,21 @@
         "memory_full": "Das Gedächtnis ist voll. Fasse Seiten zusammen oder lösche welche.",
         "page_too_long": "Die Seite würde zu lang.",
         "not_found": "Diese Seite gibt es nicht mehr."
+      },
+      "notice": {
+        "added": "{name} hat die Seite {title} ergänzt",
+        "changed": "{name} hat die Seite {title} geändert",
+        "removed": "{name} hat die Seite {title} entfernt",
+        "open": "Öffnen"
+      },
+      "preview": {
+        "newPage": "neue Seite",
+        "notFound": "Seite nicht gefunden",
+        "newTitle": "Neuer Titel",
+        "before": "Bisher",
+        "after": "Neu",
+        "added": "Wird angefügt",
+        "removed": "Wird entfernt"
       }
     }
   },
@@ -2533,6 +2548,10 @@
         "read": "Kontakte lesen",
         "write": "Kontakte ändern"
       },
+      "memory": {
+        "read": "Gedächtnis lesen",
+        "write": "Gedächtnis schreiben"
+      },
       "browser": "Webseiten im Agenten-Browser lesen und bedienen"
     },
     "passwords": {
@@ -2571,6 +2590,13 @@
       "get": "Kontakt lesen",
       "update": "Kontakt ändern",
       "share": "Kontakt als Link weitergeben"
+    },
+    "memory": {
+      "search": "Gedächtnis durchsuchen",
+      "open": "Seite im Gedächtnis öffnen",
+      "add": "Etwas merken",
+      "write": "Seite im Gedächtnis umschreiben",
+      "remove": "Seite aus dem Gedächtnis entfernen"
     },
     "browser": {
       "open": "Seite im Agenten-Browser öffnen",
@@ -4908,6 +4934,14 @@
       "fileSharesDescription": "Freigaben ansehen, ändern und entziehen; jedes Freigeben bestätigst du selbst",
       "syncRules": "Sync-Regeln verwalten",
       "syncRulesDescription": "Regeln und ihren Status lesen; jedes Anlegen, Ändern und Löschen bestätigst du selbst"
+    },
+    "memory": {
+      "title": "Gedächtnis",
+      "level": "Gedächtnis der Agenten",
+      "hint": "Was sich die Modelle dieses Profils merken und wieder nachlesen dürfen. Gilt nicht für externe Agenten: sie erreichen das Gedächtnis nie.",
+      "off": "Aus",
+      "read": "Lesen",
+      "readWrite": "Lesen und schreiben"
     }
   },
   "agentBrowser": {

@@ -64,6 +64,7 @@ fn every_group() -> Rights {
         extensions: [Uuid::from_u128(0x4d41_494c)].into_iter().collect(),
         all_extensions: true,
         commands: true,
+        memory: crate::mcp_server::grants::MemoryLevel::ReadWrite,
         delegate: Some(DelegateRights {
             autonomy: AutonomyMode::GatedPermissive,
             deny: [DenyCategory::NetworkAccess, DenyCategory::CredentialPaths]
@@ -218,12 +219,18 @@ fn every_group_round_trips_through_its_rows() {
 
 #[test]
 fn a_group_that_is_off_has_no_rows() {
-    assert!(rows_of(&Rights::default()).is_empty());
-    // The factory rights are "haex-vault bedienen" at read and the autonomy of today's default.
+    // The memory is written even when off (spec 097): "Standard" without its row reads and writes.
+    assert_eq!(
+        rows_of(&Rights::default()),
+        vec![row("memory", "", "off", None)]
+    );
+    // The factory rights are "haex-vault bedienen" at read, the autonomy of today's default and the
+    // memory at read and write.
     let rows = rows_of(&default_rights());
     assert!(rows
         .iter()
-        .all(|row| row.group == "operate" || row.group == "delegate"));
+        .all(|row| ["operate", "delegate", "memory"].contains(&row.group.as_str())));
+    assert!(rows.contains(&row("memory", "", "read_write", None)));
     assert!(rows.contains(&row("delegate", "autonomy", "ungated", None)));
 }
 
@@ -370,7 +377,7 @@ fn the_row_for_all_extensions_has_the_key_star_and_is_no_extension() {
         ..Rights::default()
     };
     let rows = rows_of(&rights);
-    assert_eq!(rows.len(), 1);
+    assert_eq!(rows.len(), 2, "the extension row and the memory row");
     assert_eq!(
         (rows[0].group.as_str(), rows[0].key.as_str()),
         ("extension", "*")

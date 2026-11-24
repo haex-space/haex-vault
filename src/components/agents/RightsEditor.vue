@@ -64,6 +64,11 @@ function set<Group extends keyof RightsDraft>(
     :disabled="disabled"
     @update:model-value="set('contacts', $event)"
   />
+  <AgentsMemoryRightsFields
+    :model-value="modelValue.memory"
+    :disabled="disabled"
+    @update:model-value="set('memory', $event)"
+  />
   <AgentsDelegateRightsFields
     :model-value="modelValue.delegate"
     :disabled="disabled"

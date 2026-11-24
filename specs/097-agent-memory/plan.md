@@ -80,7 +80,7 @@ _Checked against `.specify/memory/constitution.md` 1.4.0 and `.spaex/constitutio
 | Specs in English, chat in German                        | Followed.                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 No violation, so no entry in Complexity Tracking. The decision that agents write to a shared memory without approval, what
-keeps foreign content out of it, and that external agents do not reach it, is recorded as ADR 0028 in PR B.
+keeps foreign content out of it, and that external agents do not reach it, is recorded as ADR 0029 in PR B.
 
 **Re-check after design (Phase 1)**: unchanged, all rows still pass.
 
@@ -91,7 +91,7 @@ Each PR leaves the app working.
 | PR  | Content                                                                                                                                                                                                                                                                                                                   | Visible to the user                                                  | Stories                  |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------ |
 | A   | Migration 0069, `agent_memory` (store, limits, check, pointers, search, commands), "KI → Gedächtnis" with list, search, page view, editing, store, window actions and texts                                                                                                                                               | the user keeps pages; no agent reads them yet                        | US3 (user's part), US6.4 |
-| B   | The group `memory` in `Rights`, rows, resolver (external agents off), editor; the five actions and their executor (built-in agent only); the routing domain; snapshot and block in `start_turn`; the foreign mark from the local turn; the gate in `plan_calls`; the preview in the chat's approval; the notice; ADR 0028 | the local agent's models remember and find; the right in the profile | US1, US3, US4, US5, US6  |
+| B   | The group `memory` in `Rights`, rows, resolver (external agents off), editor; the five actions and their executor (built-in agent only); the routing domain; snapshot and block in `start_turn`; the foreign mark from the local turn; the gate in `plan_calls`; the preview in the chat's approval; the notice; ADR 0029 | the local agent's models remember and find; the right in the profile | US1, US3, US4, US5, US6  |
 | C   | Abo-Agents: the block in their system prompt; the executor serves their pass; the gate and the foreign mark in `dispatch.rs`; the Claude Code reader takes tool names; the Codex spike and its reader or config; the preview in `CallQuestionDetails.vue`; the integration test of the kinds                              | Claude Code and Codex remember and find, by the same rule            | US2, US5.4               |
 | D   | The memory request set, the runner's seeded memory, the new safety kind, `tools.json`; the runs and `results.md` for hosted models and Claude Code/Codex Abo-Agents; a small model that drops goes onto `NO_START_TOC`                                                                                                    | nothing new                                                          | FR-026, FR-027, SC-009   |
 | E   | e2e scenario, `CONTEXT.md` (Gedächtnis, Seite, Verweis, Inhaltsverzeichnis, fremder Inhalt), quickstart checked by hand                                                                                                                                                                                                   | nothing new                                                          | all                      |
@@ -192,7 +192,7 @@ scripts/
 ├── check-agent-memory.ts (new), check-mcp-actions.ts, check-settings.ts
 └── e2e/scenarios/agent-memory.test.ts (new)
 
-docs/adr/0028-agents-write-a-shared-memory.md
+docs/adr/0029-agents-write-a-shared-memory.md
 ```
 
 **Structure Decision**: a new top-level Rust module `agent_memory`, as `agent_profiles` is one: the chat turn, the MCP

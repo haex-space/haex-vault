@@ -394,6 +394,8 @@ export function useChatTranscript(
       riskClass: e.riskClass,
       toolSource: e.toolSource,
       toolOrigin: e.toolOrigin,
+      memoryPage: e.memoryPage,
+      modelName: e.modelName,
     })
   }
 

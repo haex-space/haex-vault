@@ -4,7 +4,10 @@
 use uuid::Uuid;
 
 use super::super::query;
-use super::{get_thread, insert_thread, set_thread_model, ChatThread};
+use super::{
+    get_thread, insert_thread, mark_foreign_once, memory_foreign_at, memory_toc, set_thread_model,
+    take_memory_toc, ChatThread,
+};
 use crate::chat::default_model::choose_model;
 use crate::passwords::test_support::open_test_vault as vault;
 
@@ -81,4 +84,45 @@ fn a_local_pick_clears_the_provider_of_the_session() {
         thread.last_model_id.as_deref(),
         Some("gemma-4-e4b-instruct-q4_k_m")
     );
+}
+
+/// Spec 097 T038: the table of contents and the mark of foreign content are written once.
+#[test]
+fn the_memory_columns_of_a_thread_are_written_once() {
+    let (_tmp, db) = vault();
+    let id = Uuid::new_v4();
+    db.write(|tx| {
+        insert_thread(
+            tx,
+            &ChatThread {
+                id,
+                title: "Mails".into(),
+                last_provider_id: None,
+                last_model_id: None,
+                created_at: 1,
+                updated_at: 1,
+                origin: None,
+            },
+        )
+    })
+    .expect("insert");
+    let read = |db: &haex_crdt::Database| {
+        query::read(db, |q| Ok((memory_toc(q, id)?, memory_foreign_at(q, id)?))).expect("read")
+    };
+    assert_eq!(read(&db), (None, None));
+    let first = db
+        .write(|tx| take_memory_toc(tx, id, "- A: a (the user, 2026-11-20)"))
+        .expect("take");
+    let second = db
+        .write(|tx| take_memory_toc(tx, id, "- B: b"))
+        .expect("take");
+    assert_eq!(first.as_deref(), Some("- A: a (the user, 2026-11-20)"));
+    assert_eq!(second, first, "the snapshot is taken once");
+    db.write(|tx| mark_foreign_once(tx, id, 5)).expect("mark");
+    db.write(|tx| mark_foreign_once(tx, id, 9)).expect("mark");
+    assert_eq!(read(&db).1, Some(5), "the first foreign content counts");
+    let listed = query::read(&db, |q| get_thread(q, id))
+        .expect("read")
+        .expect("found");
+    assert_eq!(listed.title, "Mails", "the thread reads as before");
 }

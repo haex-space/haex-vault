@@ -2,12 +2,13 @@ use std::sync::Arc;
 
 use serde_json::json;
 
-use super::{callable, denied_answer, unknown_tool_answer};
+use super::{callable, decide, denied_answer, unknown_tool_answer};
 use crate::adapters::types::ToolSpec;
 use crate::chat::tools::action_bridge::ActionBridge;
 use crate::chat::tools::action_tool::{ActionTool, AgentActionDef};
 use crate::chat::tools::cli::CliTool;
 use crate::chat::tools::offer::tool_spec;
+use crate::chat::tools::permission::{Decision, PermissionMode};
 use crate::chat::tools::Tool;
 
 fn spec(name: &str) -> ToolSpec {
@@ -63,4 +64,35 @@ fn a_declined_call_keeps_the_marker_and_says_not_to_repeat_it() {
     let answer = denied_answer();
     assert!(answer.starts_with("denied_by_user: "), "{answer}");
     assert!(answer.contains("Do not propose it again"), "{answer}");
+}
+
+/// Spec 097 T041: a write of the memory asks only after foreign content, in every mode but "Plan",
+/// which refuses it; other calls keep the mode's decision.
+#[test]
+fn a_write_of_the_memory_follows_its_own_rule() {
+    let add = action("memory.add");
+    assert_eq!(
+        decide(PermissionMode::Manual, add.as_ref(), || false),
+        Decision::Allow
+    );
+    assert_eq!(
+        decide(PermissionMode::Manual, add.as_ref(), || true),
+        Decision::Ask
+    );
+    assert_eq!(
+        decide(PermissionMode::Auto, add.as_ref(), || true),
+        Decision::Ask
+    );
+    assert_eq!(
+        decide(PermissionMode::Plan, add.as_ref(), || false),
+        Decision::Deny
+    );
+    let other = action("contacts.update");
+    assert_eq!(
+        decide(PermissionMode::Manual, other.as_ref(), || panic!(
+            "not read for other calls"
+        )),
+        Decision::Ask,
+        "Manual asks for every other write"
+    );
 }

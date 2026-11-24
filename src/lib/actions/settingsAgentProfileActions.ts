@@ -71,6 +71,12 @@ export const RIGHTS_SCHEMA = {
       description:
         'The rights group "Dateien": { device: true for the files of this device (off without it), storages: { "<storage id>": "read" | "readWrite" | "denied" }, folders: { "<storage id>/<folder id>": { level: "read" | "readWrite" | "denied", cloud: true when cloud models reach it too } }, fileShares: true to manage file shares, syncRules: true to manage sync rules }. A storage or an encrypted folder without an entry asks the user at the first access.',
     },
+    memory: {
+      type: 'string',
+      enum: ['off', 'read', 'readWrite'],
+      description:
+        'The rights group "Gedächtnis": what models in the profile reach of the shared memory of the agents. Absent is off. External agents never reach it.',
+    },
   },
   required: ['operate'],
 } as const

@@ -20,6 +20,8 @@ fn known_input(tool: &str) -> Value {
         "files_shares_ofContact" => json!({ "contactId": "c-anna" }),
         "contacts_get" => json!({ "id": "c-anna" }),
         "syncRules_status" => json!({ "id": "rule-1" }),
+        "memory_search" => json!({ "query": "Mietvertrag" }),
+        "memory_open" => json!({ "title": "Mietvertrag" }),
         _ => json!({ "tab": "t1" }),
     }
 }
@@ -39,6 +41,19 @@ fn every_reading_tool_answers_from_the_world_not_with_a_bare_success() {
             tool.tool_name
         );
     }
+}
+
+#[test]
+fn the_fixture_has_no_memory_pages() {
+    let world = embedded_world();
+    let results = world.answer("memory_search", &known_input("memory_search"));
+    assert!(!results.is_error);
+    assert_eq!(content(&results)["results"], json!([]));
+    assert!(
+        world
+            .answer("memory_open", &known_input("memory_open"))
+            .is_error
+    );
 }
 
 #[test]

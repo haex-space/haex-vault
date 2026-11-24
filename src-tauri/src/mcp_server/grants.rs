@@ -190,6 +190,8 @@ impl BrowserRights {
 /// The scopes of the group `passwords`: the search and the single secret.
 pub const PASSWORD_SCOPES: [&str; 2] = ["passwords.read", "passwords.secret"];
 
+pub use super::memory_rights::{MemoryLevel, MEMORY_READ_SCOPE, MEMORY_WRITE_SCOPE};
+
 /// What the group `passwords` lets an agent do with the entries in its tags (034 FR-028).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -289,6 +291,11 @@ pub struct Rights {
     #[serde(default, skip_serializing_if = "FilesRights::is_empty")]
     #[ts(as = "Option<FilesRights>", optional)]
     pub files: FilesRights,
+    /// What the agent reaches of the shared memory (spec 097); external agents never reach it
+    /// (FR-020, `registry::load_rights`).
+    #[serde(default, skip_serializing_if = "MemoryLevel::is_off")]
+    #[ts(as = "Option<MemoryLevel>", optional)]
+    pub memory: MemoryLevel,
 }
 
 /// The right for one encrypted folder: how far, and whether cloud models reach it too (spec 048
@@ -512,6 +519,8 @@ pub fn default_rights() -> Rights {
         }),
         contacts: ContactsRights::default(),
         files: FilesRights::default(),
+        // Spec 097 FR-006: a personal agent is one that remembers.
+        memory: MemoryLevel::ReadWrite,
     }
 }
 
@@ -675,6 +684,13 @@ fn covers_scope(rights: &Rights, data: DataRights, def: &AgentActionDef) -> bool
     // The password manager checks each entry against the group's tags (034 FR-029).
     if PASSWORD_SCOPES.contains(&def.scope.as_str()) {
         return rights.passwords.is_some();
+    }
+    // The memory: its group decides alone; its executor checks nothing further (spec 097 FR-005).
+    if def.scope == MEMORY_READ_SCOPE {
+        return !rights.memory.is_off();
+    }
+    if def.scope == MEMORY_WRITE_SCOPE {
+        return rights.memory == MemoryLevel::ReadWrite;
     }
     // Files and contacts: their executors check each call against the same rows.
     if let Some(open) = data.covers(&def.scope) {

@@ -11,10 +11,16 @@
 
 pub mod check;
 pub mod commands;
+pub mod executor;
+pub mod fill;
+pub mod foreign;
+pub mod gate;
 pub mod limits;
 pub mod links;
 pub mod search;
 pub mod store;
+pub mod toc;
+pub mod turn;
 
 use uuid::Uuid;
 

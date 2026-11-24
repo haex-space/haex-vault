@@ -205,3 +205,28 @@ test('a model needs no provider in its name inside the provider group', () => {
     'Other (X)',
   )
 })
+
+test('the memory group has its levels and the note on external agents in both languages (spec 097 T044)', () => {
+  for (const language of ['de', 'en']) {
+    const memory = JSON.parse(
+      readFileSync(
+        new URL(`../src/i18n/locales/${language}.json`, import.meta.url),
+        'utf8',
+      ),
+    ).mcpAgents.memory
+    for (const key of ['title', 'level', 'hint', 'off', 'read', 'readWrite']) {
+      assert.ok(memory[key], `${language}: ${key}`)
+    }
+  }
+  const de = JSON.parse(
+    readFileSync(
+      new URL('../src/i18n/locales/de.json', import.meta.url),
+      'utf8',
+    ),
+  ).mcpAgents.memory
+  assert.deepEqual(
+    [de.off, de.read, de.readWrite],
+    ['Aus', 'Lesen', 'Lesen und schreiben'],
+  )
+  assert.match(de.hint, /externe Agenten/)
+})

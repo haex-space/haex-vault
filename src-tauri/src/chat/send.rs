@@ -34,6 +34,7 @@ use crate::chat::tools::prompt::{system_prompt_with, SearchPrompt};
 use crate::chat::tools::route::{first_step_offer_in, last_turn_tools, RouteCall};
 use crate::error::{HaexError, Result};
 use crate::local_time::Clock;
+use crate::mcp_server::grants::Rights;
 use crate::model_capabilities::ModelCapabilities;
 use crate::state::AppState;
 use crate::storage::chat_threads::ThreadOrigin;
@@ -397,11 +398,16 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
     .await;
     // Spec 083: the agent profile of the model decides which tools the first step offers, and
     // which extensions the system prompt names (spec 018, amendment 2026-11-09).
+    let rights = if session.provider_kind == ProviderKind::CliDelegate {
+        Rights::default()
+    } else {
+        crate::chat::tools::profile_gate::rights_of_session(&db, &session).await
+    };
+    let memory_level = rights.memory;
     let (tools, extensions_overview) = {
         let mut tools = tools;
         let mut overview = None;
         if !tools.is_empty() {
-            let rights = crate::chat::tools::profile_gate::rights_of_session(&db, &session).await;
             let registry = chat.tool_registry.lock().unwrap_or_else(|e| e.into_inner());
             crate::chat::tools::profile_gate::retain_permitted(&rights, &registry, &mut tools);
             // Spec 065 FR-063: a model that is shown no pictures works with element numbers.
@@ -466,6 +472,29 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             reason: format!("attachment read join: {e}"),
         })?;
 
+    // Recover older foreign-content marks before the model sees the history.
+    if !is_new_thread && session.provider_kind != ProviderKind::CliDelegate {
+        if let Err(error) = crate::agent_memory::foreign::recover_mark(
+            &db,
+            &chat.tool_registry,
+            thread_id,
+            &history,
+        )
+        .await
+        {
+            if let Err(cleanup_error) =
+                cleanup_staged_send(db.clone(), user_message_id, thread_id, is_new_thread).await
+            {
+                return Err(HaexError::CrdtInit {
+                    reason: format!("memory foreign mark recovery: {error}; {cleanup_error}"),
+                });
+            }
+            return Err(error);
+        }
+    }
+    let mut history = history;
+    let excluded = crate::agent_memory::gate::excluded_calls(&history, memory_level);
+    history.retain(|row| !crate::agent_memory::gate::excluded_row(row, &excluded));
     let mut messages = history_to_messages(&history);
     if let Some(current_turn_message) = messages.last_mut() {
         current_turn_message.attachments = read_attachments;
@@ -491,9 +520,15 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         (AutonomyMode::Standard, Vec::new())
     };
     let clock = Clock::now(turn.utc_offset_minutes.unwrap_or(0));
+    let given = crate::chat::tools::prompt::with_memory(
+        turn.system_prompt.as_deref(),
+        crate::agent_memory::turn::block_for_session(&db, &session, thread_id, memory_level)
+            .await
+            .as_deref(),
+    );
     let prompt_for = |tools: &[crate::adapters::types::ToolSpec]| {
         system_prompt_with(
-            turn.system_prompt.as_deref(),
+            given.as_deref(),
             tools,
             Some(clock),
             reply_language,

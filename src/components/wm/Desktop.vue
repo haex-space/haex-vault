@@ -83,6 +83,7 @@ const backgroundStyle = computed(() =>
     <ExtensionsPeerInvitationDialog />
     <BrowserBridgePrompts />
     <AgentsPrompts />
+    <AgentsMemoryNotice />
     <ExtensionsEncryptedFolderChooser />
     <StorageCredentialsModal />
   </div>

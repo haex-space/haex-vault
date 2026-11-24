@@ -85,6 +85,9 @@ struct TurnRunner<'a> {
     /// The system prompt for the step that adds the tool search (spec 087 research R6.3); taken
     /// when it is used.
     search_prompt: Option<SearchPrompt>,
+    /// A call of this turn brought foreign content (spec 097 FR-019); held here too, so a failed
+    /// write of the conversation's mark never lets a write of the memory in this turn run unasked.
+    saw_foreign: bool,
 }
 
 /// Drives one `send_message` turn to completion: consumes the
@@ -126,6 +129,7 @@ pub async fn run_turn(
         told_restricted: false,
         checked_final: Default::default(),
         search_prompt,
+        saw_foreign: false,
     }
     .run(stream, initial_attempt)
     .await

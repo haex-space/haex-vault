@@ -6,18 +6,18 @@ Declared in `src/lib/actions/memoryActions.ts`, run by `agent_memory::executor` 
 model sees them as `memory_search`, `memory_open`, `memory_add`, `memory_write`, `memory_remove`. External agents are never
 offered them (their `memory` right is always off).
 
-| Action          | Scope          | Effect | Input                                     | Result                                                   |
-| --------------- | -------------- | ------ | ----------------------------------------- | -------------------------------------------------------- |
-| `memory.search` | `memory.read`  | read   | `{ query }`                               | `{ notice, results: [{ title, description, excerpt }] }` |
-| `memory.open`   | `memory.read`  | read   | `{ title }`                               | `{ notice, page, pointsTo, pointedFrom, alsoTitled? }`   |
-| `memory.add`    | `memory.write` | write  | `{ title, text, description? }`           | `{ title, created, pages, limit }`                       |
-| `memory.write`  | `memory.write` | write  | `{ title, description, text, newTitle? }` | `{ title, pages, limit }`                                |
-| `memory.remove` | `memory.write` | write  | `{ title }`                               | `{ pages, limit }`                                       |
+| Action          | Scope          | Effect | Input                                     | Result                                                           |
+| --------------- | -------------- | ------ | ----------------------------------------- | ---------------------------------------------------------------- |
+| `memory.search` | `memory.read`  | read   | `{ query }`                               | `{ notice, results: [{ title, description, excerpt, by, at }] }` |
+| `memory.open`   | `memory.read`  | read   | `{ title }`                               | `{ notice, page, pointsTo, pointedFrom, alsoTitled? }`           |
+| `memory.add`    | `memory.write` | write  | `{ title, text, description? }`           | `{ title, created, pages, limit }`                               |
+| `memory.write`  | `memory.write` | write  | `{ title, description, text, newTitle? }` | `{ title, pages, limit }`                                        |
+| `memory.remove` | `memory.write` | write  | `{ title }`                               | `{ pages, limit }`                                               |
 
 - `page` is `{ title, description, text, by, device, at, changedBy?, changedAt? }`; `by` is "the user" or the stored name
   of the model; times are ISO dates.
 - `pointsTo` and `pointedFrom` are titles; a title in `pointsTo` without a page is marked `{ title, missing: true }`.
-- `alsoTitled` says that a second page has the same title (a sync made it), with its description.
+- `alsoTitled` says that a second page has the same title (a sync made it), with its description, author and date.
 - `notice` is the fixed sentence of "The memory block" below, so what a model reads by an action is framed the same as the
   block (FR-014).
 - `memory.add` appends `text` as a paragraph. Without a page of that title it creates one; then `description` is required
@@ -30,6 +30,7 @@ Errors (`NativeError` code, message to the model):
 | Code                              | When                                            | The message tells the model                             |
 | --------------------------------- | ----------------------------------------------- | ------------------------------------------------------- |
 | `not_found`                       | no page with that title                         | to search for it, or to create it with `memory_add`     |
+| `page_changed`                    | the page changed while approval was pending     | to open it again before retrying                        |
 | `description_needed`              | `memory.add` creates a page without description | to give one line that says what the page is about       |
 | `title_taken`                     | a new or renamed page would repeat a title      | to add to that page instead                             |
 | `memory_full`                     | a new page beyond 1,000                         | to merge or remove pages first (FR-003, US6)            |
@@ -54,9 +55,11 @@ and the message says so (FR-021).
 | Manual, Auto | set                                     | Ask     |
 | Plan         | either                                  | Deny    |
 
-`agent_memory::foreign::is_foreign(source, scope) -> bool` (research R6): `false` only for `source == "action"` with a
-scope of the own list; `true` for every other source, every other scope and anything unknown. For an Abo-Agent's own
-tools, the readers of its output decide by tool name (research R7).
+`agent_memory::foreign::is_foreign` (research R6) treats tool results from other sources and unknown scopes as foreign.
+The built-in actions in the own list count as own data, except when a file access resolves to a share from a contact.
+`ask_user` and built-in catalog results count as own data. A `find_actions` result with an extension entry counts as
+foreign because descriptions and schemas can come from the extension. For an Abo-Agent's own tools, the readers of its
+output decide by tool name (research R7).
 
 ## The question
 
@@ -69,8 +72,10 @@ Abo-Agent's question appears in its thread) for the three write actions:
 | `memory.write`  | the stored and the new description and text, and the new title if any     |
 | `memory.remove` | the title and the stored text                                             |
 
-The stored text is read by the window from the memory store by title. A title that names no page shows "Seite nicht
-gefunden"; the call then fails with `not_found` if the user allows it.
+The built-in chat resolves the title before asking and sends the model name and the stored description and text with
+the approval request. An addition to an existing page shows its current text as well. The write compares the same page
+snapshot inside its transaction and returns `page_changed` if the page changed while the question was open.
+A title that names no page shows "Seite nicht gefunden"; a permitted rewrite or removal then returns `not_found`.
 
 ## Tauri commands (window only)
 
@@ -97,13 +102,13 @@ Window actions (`src/lib/actions/settingsAgentMemoryActions.ts`): `settings.agen
 
 ## Events
 
-| Event                  | Payload                                                                | Raised                                   |
-| ---------------------- | ---------------------------------------------------------------------- | ---------------------------------------- |
-| `agent-memory-written` | `{ kind: 'added' \| 'changed' \| 'removed', title, text, authorName }` | after a write of an agent on this device |
-| `vault-data-changed`   | existing; names `haex_agent_memory_pages`                              | after every write, local or synced       |
+| Event                  | Payload                                                                        | Raised                                   |
+| ---------------------- | ------------------------------------------------------------------------------ | ---------------------------------------- |
+| `agent-memory-written` | `{ kind: 'added' \| 'changed' \| 'removed', pageId, title, text, authorName }` | after a write of an agent on this device |
+| `vault-data-changed`   | existing; names `haex_agent_memory_pages`                                      | after every write, local or synced       |
 
-The window shows `agent-memory-written` as a toast: "<Modell> hat sich gemerkt (<Titel>): <Text>", "<Modell> hat die Seite
-<Titel> geändert", "<Modell> hat die Seite <Titel> entfernt" (German and English); a click opens the page.
+The toast names the model and page and shows the added, changed or removed text. Its button opens the affected
+page or, after removal, the list of pages.
 
 ## The memory block
 

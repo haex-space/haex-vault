@@ -201,6 +201,10 @@ pub(crate) struct ToolPermissionRequestEvent {
     pub(crate) tool_source: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) tool_origin: Option<ToolOrigin>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) memory_page: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) model_name: Option<String>,
 }
 
 /// Payload for `chat-choice-request` (spec 046, contracts/choice-contract.md).

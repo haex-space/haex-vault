@@ -3,6 +3,7 @@ import type { PendingPrompt } from '~/lib/chat/prompts'
 import { describeToolCall, type ResolveTarget } from '~/lib/actions/agentTools'
 import { ALL_ACTIONS } from '~/lib/actions/catalog'
 import { inputRows, originLabel } from '~/lib/chat/toolOrigin'
+import { isMemoryWrite } from '~/lib/agentMemory/pages'
 import { useWindowManagerStore } from '~/stores/windowManager'
 
 const { t, locale } = useI18n()
@@ -23,6 +24,11 @@ const approval = computed(() => {
   const first = props.pendingPrompts[0]
   return first?.kind === 'approval' ? first : undefined
 })
+const memoryWrite = computed(
+  () =>
+    approval.value?.toolSource === 'action' &&
+    isMemoryWrite(approval.value.toolName),
+)
 
 const wm = useWindowManagerStore()
 
@@ -127,7 +133,14 @@ const emit = defineEmits<{
         >
           {{ t(`chat.permission.${approval.riskClass}`) }}
         </div>
-        <dl v-if="description" class="space-y-1 text-sm">
+        <AgentsMemoryWritePreview
+          v-if="memoryWrite"
+          :tool-name="approval.toolName"
+          :tool-input="approval.toolInput as Record<string, unknown>"
+          :stored="approval.memoryPage ?? null"
+          :model-name="approval.modelName ?? ''"
+        />
+        <dl v-else-if="description" class="space-y-1 text-sm">
           <div v-if="description.target" class="flex gap-2">
             <dt class="text-muted-foreground">
               {{ t(`chat.permission.target.${description.target.kind}`) }}:
@@ -171,7 +184,11 @@ const emit = defineEmits<{
         >
           {{ t('chat.permission.deny') }}
         </UiButton>
-        <UiButton size="sm" @click="emit('allow', approval.requestId)">
+        <UiButton
+          size="sm"
+          :disabled="memoryWrite && approval.memoryPage === undefined"
+          @click="emit('allow', approval.requestId)"
+        >
           {{ t('chat.permission.allow') }}
         </UiButton>
       </div>

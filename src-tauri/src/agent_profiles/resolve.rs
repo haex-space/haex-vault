@@ -4,8 +4,8 @@
 use uuid::Uuid;
 
 use super::{store, Subject, STANDARD_PROFILE_ID};
-use crate::mcp_server::grant_rows::rights_of as rights_from_rows;
-use crate::mcp_server::grants::{default_rights, Rights};
+use crate::mcp_server::grant_rows::{names_memory, rights_of as rights_from_rows};
+use crate::mcp_server::grants::{default_rights, MemoryLevel, Rights};
 use crate::storage::query::Query;
 
 /// The profile that applies to `subject` now, or `None` when what is stored cannot be read.
@@ -140,7 +140,15 @@ pub fn profile_rights(q: &mut impl Query, profile: Uuid) -> haex_crdt::Result<Ri
         }
         return Ok(default_rights());
     }
-    Ok(rights_from_rows(store::rights_rows(q, profile)?))
+    let rows = store::rights_rows(q, profile)?;
+    // "Standard" edited before spec 097 has no row of the memory and keeps its factory level
+    // (FR-006); any other profile without the row has it off.
+    let keeps_factory_memory = profile == STANDARD_PROFILE_ID && !names_memory(&rows);
+    let mut rights = rights_from_rows(rows);
+    if keeps_factory_memory {
+        rights.memory = MemoryLevel::ReadWrite;
+    }
+    Ok(rights)
 }
 
 /// What "Standard" gives right now on this device: the factory rights until it is edited.

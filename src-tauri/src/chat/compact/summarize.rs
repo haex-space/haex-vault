@@ -217,9 +217,14 @@ pub async fn summarize(
         ));
     }
     // Rows that say nothing are skipped; `owners[i]` is the index in `rows` that line `i` came from.
+    let excluded = crate::agent_memory::gate::excluded_calls(
+        rows.iter().copied(),
+        crate::mcp_server::grants::MemoryLevel::Off,
+    );
     let (lines, owners): (Vec<String>, Vec<usize>) = rows
         .iter()
         .enumerate()
+        .filter(|(_, row)| !crate::agent_memory::gate::excluded_row(row, &excluded))
         .filter_map(|(at, row)| line(row).map(|line| (clipped(&line, budget), at)))
         .unzip();
     let mut written: Option<Written> = None;

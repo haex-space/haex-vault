@@ -100,7 +100,11 @@ impl Tool for FindActionsTool {
             Ok(input) => input,
             Err(_) => return ToolResult::error("invalid_input"),
         };
-        let entries = self.entries();
+        let level = crate::agent_memory::gate::CATALOG_LEVEL
+            .try_with(|level| *level)
+            .unwrap_or(crate::mcp_server::grants::MemoryLevel::Off);
+        let mut entries = self.entries();
+        entries.retain(|entry| crate::agent_memory::gate::visible_at(level, &entry.tool.name));
         let (found, next_cursor) = search_entries(
             &entries,
             input.query.as_deref(),
