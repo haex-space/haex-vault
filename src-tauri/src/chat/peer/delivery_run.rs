@@ -20,6 +20,7 @@ impl Delivery {
     ) {
         let token = self.closing.clone();
         let mut outbox_tick = tokio::time::interval(OUTBOX_TICK);
+        outbox_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         let mut receipt_tick = tokio::time::interval(RECEIPT_BATCH);
         let mut catch_up_tick =
             tokio::time::interval_at(tokio::time::Instant::now() + CATCH_UP, CATCH_UP);
@@ -41,7 +42,10 @@ impl Delivery {
         if let Err(error) = self.catch_up_and_keep_record().await {
             log::warn!("chat: no catch-up at the start: {error}");
         }
-        wake_files(&session);
+        let mut catch_up_before_live = self.catch_up_owed();
+        if !self.catch_up_owed() {
+            wake_files(&session);
+        }
         if let Err(error) = self.send_keep_alives().await {
             log::warn!("chat: no keep-alives at the start: {error}");
         }
@@ -52,18 +56,50 @@ impl Delivery {
             let result = tokio::select! {
                 () = token.cancelled() => break,
                 () = session.kick.notified() => self.pump().await,
-                _ = outbox_tick.tick() => self.pump().await,
+                _ = outbox_tick.tick() => {
+                    let pumped = self.pump().await;
+                    if self.catch_up_owed() {
+                        if let Err(error) = self.catch_up_and_keep_record().await {
+                            log::warn!("chat: an owed catch-up failed: {error}");
+                        }
+                        if !self.catch_up_owed() {
+                            wake_files(&session);
+                        } else if !self.any_relay_connected().await {
+                            catch_up_before_live = true;
+                        }
+                    }
+                    pumped
+                }
                 _ = receipt_tick.tick() => self.flush_receipts().await,
                 _ = catch_up_tick.tick() => {
                     let caught = self.catch_up_and_keep_record().await;
                     // Files of messages the catch-up stored, if any (US3).
-                    wake_files(&session);
+                    if !self.catch_up_owed() {
+                        wake_files(&session);
+                    }
                     caught
                 }
                 _ = keep_alive_tick.tick() => self.send_keep_alives().await.map(|_| ()),
-                () = session.wake.notified() => self.reconnect().await,
+                () = session.wake.notified() => {
+                    let reconnected = self.reconnect().await;
+                    catch_up_before_live = self.catch_up_owed();
+                    if !self.catch_up_owed() {
+                        wake_files(&session);
+                    }
+                    reconnected
+                },
                 received = incoming.recv() => {
                     let Some(first) = received else { break };
+                    // Give archived wraps the first chance on a returning connection. If the
+                    // relay keeps refusing catch-up, live wraps can still be delivered.
+                    if std::mem::take(&mut catch_up_before_live) && self.catch_up_owed() {
+                        if let Err(error) = self.catch_up_and_keep_record().await {
+                            log::warn!("chat: catch-up before live delivery failed: {error}");
+                        }
+                        if !self.catch_up_owed() {
+                            wake_files(&session);
+                        }
+                    }
                     // Everything waiting is one batch, ordered before it is stored (spec 095 T022).
                     let mut batch = vec![first];
                     while let Ok(next) = incoming.try_recv() {

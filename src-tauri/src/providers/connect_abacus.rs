@@ -90,7 +90,7 @@ pub(super) async fn save_connection(
 
 /// Runs the sign-in: `start`, the prompt to `on_prompt`, polling until the person confirms in the
 /// browser, then [`save_connection`]. `cancel` ends the polling at once without a further request.
-pub(super) async fn connect(
+pub(crate) async fn connect(
     client: &Client,
     db: &VaultDb,
     record: &Record,
