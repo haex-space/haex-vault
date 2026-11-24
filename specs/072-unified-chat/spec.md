@@ -277,6 +277,10 @@ and see it everywhere; let B leave and check B gets no further messages.
 
 ### User Story 5 - Messages from unknown senders, and blocking (Priority: P2)
 
+_Replaced 2026-11-25 (operator) by spec 099:_ a request keeps no text and no file of the sender, its answers
+are "Annehmen" and "Ablehnen" (which blocks and tells the sender), a contact can be blocked, and requests
+from strangers can be switched off. The text below is the state before.
+
 Someone Anna once gave her Visitenkarte to writes to her, but Anna has never saved that person's card.
 The conversation shows in "Anfragen", not in the main list. Anna sees the sender's name from the card
 and the first message and chooses "Annehmen", "Ablehnen" or "Blockieren".
@@ -564,6 +568,7 @@ where her files go and what others see.
 
 **Requests and blocking**
 
+- _FR-040 to FR-043 replaced 2026-11-25 (operator) by spec 099 FR-001 to FR-016._
 - **FR-040**: A direct conversation started by, or a group invitation from, a vault without a confirmed
   contact MUST show in "Anfragen" with the name from the carried Visitenkarte, without a notification
   sound and without the message text in system notifications.
