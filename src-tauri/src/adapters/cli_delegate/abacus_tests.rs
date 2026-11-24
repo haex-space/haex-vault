@@ -23,6 +23,7 @@ use crate::adapters::types::{
 };
 use crate::adapters::{AdapterError, ProviderAdapter};
 use crate::chat::tools::ApprovalDecision;
+use crate::cli_tools::installed::CONFIRMED_FILE;
 use crate::cli_tools::runtime::{DelegateRuntime, RunFolder};
 use crate::instances::vault_paths::VaultPaths;
 use crate::passwords::test_support::open_test_vault;
@@ -461,7 +462,21 @@ async fn a_chosen_model_is_passed_on_and_the_account_default_is_not() {
 async fn the_user_line_is_written_and_text_and_the_result_become_the_chat_stream() {
     let fixture = Fixture::new().await;
     let program = fixture.stub(&happy_body());
-    let adapter = fixture.adapter(&program, fixture.context());
+    let runtime = DelegateRuntime::for_stub_version("abacusai", fixture.dir.path(), "1.0.0");
+    let version = VaultPaths::new(fixture.dir.path())
+        .cli_tool_dir("stub", "abacusai")
+        .join("1.0.0");
+    let confirmed = version.join(CONFIRMED_FILE);
+    fs::create_dir_all(runtime.executable.parent().expect("program directory")).unwrap();
+    fs::rename(program, &runtime.executable).unwrap();
+    assert!(!confirmed.exists());
+    let adapter = CliDelegateAdapter::new(
+        DelegateVendor::Abacus,
+        Vec::new(),
+        runtime,
+        Some(fixture.context()),
+    )
+    .with_abacus_approval_coverage_for_test();
 
     let (text, done, error) =
         collect(adapter.stream_chat(request("abacusai")).await.unwrap()).await;
@@ -473,6 +488,10 @@ async fn the_user_line_is_written_and_text_and_the_result_become_the_chat_stream
         .unwrap()
         .contains("say hi"));
     assert_eq!(text, "Hello");
+    assert!(
+        confirmed.is_file(),
+        "the first successful run confirms the version"
+    );
     assert!(error.is_none(), "{error:?}");
     match done {
         Some(StreamChunk::Done {
