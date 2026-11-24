@@ -633,11 +633,32 @@ fn abacus_updates_goes_back_and_is_removed_like_the_other_tools() {
 fn a_version_of_abacus_outside_the_list_is_shown_as_untested_and_the_extra_file_does_not_matter() {
     let data = TempDir::new().unwrap();
     let vendor = abacus_listing(&["1.1.0", "1.0.0"]);
-    put_abacus(&data, "2.0.0", true);
+    let version = put_abacus(&data, "2.0.0", true);
 
     let shown = abacus_status(&vendor, &data);
 
     assert_eq!(shown.state, CliToolState::Installed);
     assert_eq!(shown.installed_version.as_deref(), Some("2.0.0"));
     assert!(shown.untested);
+
+    let mut marker = InstallMarker::read(&version).expect("installed marker");
+    let original_platform = marker.platform.clone();
+    marker.platform = if host() == PlatformKey::DarwinArm64 {
+        PlatformKey::Win32X64
+    } else {
+        PlatformKey::DarwinArm64
+    }
+    .as_str()
+    .to_owned();
+    marker.write(&version).unwrap();
+    let wrong_platform = abacus_status(&vendor, &data);
+    assert_eq!(wrong_platform.state, CliToolState::NeedsReinstall);
+    assert_eq!(wrong_platform.reason.as_deref(), Some("platform"));
+
+    marker.platform = original_platform;
+    marker.write(&version).unwrap();
+    fs::remove_file(version.join(vendor.executable_for(host()).unwrap())).unwrap();
+    let incomplete = abacus_status(&vendor, &data);
+    assert_eq!(incomplete.state, CliToolState::NeedsReinstall);
+    assert_eq!(incomplete.reason.as_deref(), Some("incomplete"));
 }
