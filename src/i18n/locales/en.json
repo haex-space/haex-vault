@@ -2533,6 +2533,10 @@
         "read": "Read contacts",
         "write": "Change contacts"
       },
+      "memory": {
+        "read": "Read memory",
+        "write": "Write memory"
+      },
       "browser": "Read and operate web pages in the agent browser"
     },
     "passwords": {

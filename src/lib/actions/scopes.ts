@@ -19,6 +19,8 @@ export const ACTION_SCOPE_IDS = [
   'files.syncRules',
   'contacts.read',
   'contacts.write',
+  'memory.read',
+  'memory.write',
   'browser',
   'guardrails',
 ] as const
@@ -61,6 +63,10 @@ const DESCRIPTIONS: Record<ActionScopeId, string> = {
     'Search and read contacts of the address book, as far as the user allowed.',
   'contacts.write':
     'Change names and values of contacts, as far as the user allowed; never groups or where a contact goes.',
+  'memory.read':
+    "Search and open the pages of the agents' shared memory (spec 097), as far as the agent profile allows.",
+  'memory.write':
+    "Add to, rewrite and remove pages of the agents' shared memory; never what a password manager holds.",
   guardrails:
     'Autonomy mode, delegate deny rules, provider connections, approvals and permission mode. Never callable by agents.',
 }

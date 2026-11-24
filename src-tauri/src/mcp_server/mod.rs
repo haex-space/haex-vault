@@ -51,6 +51,8 @@ mod grant_rows_tests;
 #[cfg(test)]
 mod grants_tests;
 #[cfg(test)]
+mod memory_rights_tests;
+#[cfg(test)]
 mod hello_tests;
 #[cfg(test)]
 mod helper_tests;

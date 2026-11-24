@@ -190,6 +190,45 @@ impl BrowserRights {
 /// The scopes of the group `passwords`: the search and the single secret.
 pub const PASSWORD_SCOPES: [&str; 2] = ["passwords.read", "passwords.secret"];
 
+/// The scope of the memory's reading actions (spec 097: `memory.search`, `memory.open`).
+pub const MEMORY_READ_SCOPE: &str = "memory.read";
+/// The scope of the memory's writing actions (`memory.add`, `memory.write`, `memory.remove`).
+pub const MEMORY_WRITE_SCOPE: &str = "memory.write";
+
+/// The rights group `memory` (spec 097 FR-005): what a model reaches of the agents' shared memory.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub enum MemoryLevel {
+    #[default]
+    Off,
+    Read,
+    ReadWrite,
+}
+
+impl MemoryLevel {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Read => "read",
+            Self::ReadWrite => "read_write",
+        }
+    }
+
+    /// The stored level; a level this build cannot read is [`Self::Off`] (FR-005).
+    pub fn parse(value: &str) -> Self {
+        match value {
+            "read" => Self::Read,
+            "read_write" => Self::ReadWrite,
+            _ => Self::Off,
+        }
+    }
+
+    pub fn is_off(&self) -> bool {
+        *self == Self::Off
+    }
+}
+
 /// What the group `passwords` lets an agent do with the entries in its tags (034 FR-028).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -289,6 +328,11 @@ pub struct Rights {
     #[serde(default, skip_serializing_if = "FilesRights::is_empty")]
     #[ts(as = "Option<FilesRights>", optional)]
     pub files: FilesRights,
+    /// What the agent reaches of the shared memory (spec 097); external agents never reach it
+    /// (FR-020, `registry::load_rights`).
+    #[serde(default, skip_serializing_if = "MemoryLevel::is_off")]
+    #[ts(as = "Option<MemoryLevel>", optional)]
+    pub memory: MemoryLevel,
 }
 
 /// The right for one encrypted folder: how far, and whether cloud models reach it too (spec 048
@@ -512,6 +556,8 @@ pub fn default_rights() -> Rights {
         }),
         contacts: ContactsRights::default(),
         files: FilesRights::default(),
+        // Spec 097 FR-006: a personal agent is one that remembers.
+        memory: MemoryLevel::ReadWrite,
     }
 }
 
@@ -675,6 +721,13 @@ fn covers_scope(rights: &Rights, data: DataRights, def: &AgentActionDef) -> bool
     // The password manager checks each entry against the group's tags (034 FR-029).
     if PASSWORD_SCOPES.contains(&def.scope.as_str()) {
         return rights.passwords.is_some();
+    }
+    // The memory: its group decides alone; its executor checks nothing further (spec 097 FR-005).
+    if def.scope == MEMORY_READ_SCOPE {
+        return !rights.memory.is_off();
+    }
+    if def.scope == MEMORY_WRITE_SCOPE {
+        return rights.memory == MemoryLevel::ReadWrite;
     }
     // Files and contacts: their executors check each call against the same rows.
     if let Some(open) = data.covers(&def.scope) {

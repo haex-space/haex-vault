@@ -40,6 +40,8 @@ mod remember_tests;
 #[cfg(test)]
 mod resolve_tests;
 #[cfg(test)]
+mod resolve_memory_tests;
+#[cfg(test)]
 mod store_tests;
 #[cfg(test)]
 mod subjects_tests;

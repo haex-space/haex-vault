@@ -30,8 +30,8 @@ use uuid::Uuid;
 
 use super::grants::{
     AccessLevel, BrowserRights, ContactsRights, DelegateRights, FilesRights, FolderRight,
-    OperateLevel, PasswordLevel, PasswordRights, RequestRule, Rights, SiteGrant, SiteLevel,
-    OPERATE_SCOPES,
+    MemoryLevel, OperateLevel, PasswordLevel, PasswordRights, RequestRule, Rights, SiteGrant,
+    SiteLevel, OPERATE_SCOPES,
 };
 use crate::adapters::cli_delegate::autonomy::{AutonomyMode, DenyCategory};
 use crate::agent_browser::sites::Site;
@@ -44,6 +44,8 @@ const GROUP_COMMANDS: &str = "commands";
 const GROUP_DELEGATE: &str = "delegate";
 const GROUP_CONTACTS: &str = "contacts";
 const GROUP_FILES: &str = "files";
+/// The group of the shared memory (spec 097); one row with the empty key, written at every level.
+const GROUP_MEMORY: &str = "memory";
 const FILES_DEVICE: &str = "device";
 const FILES_SHARES: &str = "shares";
 const FILES_SYNC: &str = "sync";
@@ -124,6 +126,7 @@ pub fn rows_of(rights: &Rights) -> Vec<GrantRow> {
     let delegate = rights.delegate.iter().flat_map(delegate_rows);
     let contacts = contact_rows(&rights.contacts);
     let files = file_rows(&rights.files);
+    let memory = GrantRow::new(GROUP_MEMORY, "", rights.memory.as_str());
     operate
         .chain(browser)
         .chain(extensions)
@@ -132,7 +135,14 @@ pub fn rows_of(rights: &Rights) -> Vec<GrantRow> {
         .chain(delegate)
         .chain(contacts)
         .chain(files)
+        .chain(std::iter::once(memory))
         .collect()
+}
+
+/// Whether `rows` hold the group `memory`: "Standard" stored before spec 097 has none and keeps the
+/// factory level (`agent_profiles::resolve::profile_rights`).
+pub fn names_memory(rows: &[GrantRow]) -> bool {
+    rows.iter().any(|row| row.group == GROUP_MEMORY)
 }
 
 /// The rights `rows` stand for.
@@ -163,6 +173,7 @@ pub fn rights_of(rows: impl IntoIterator<Item = GrantRow>) -> Rights {
             }
             // The commands row has the empty key; any other key is not this right.
             GROUP_COMMANDS if row.key.is_empty() => rights.commands = row.level == ON,
+            GROUP_MEMORY if row.key.is_empty() => rights.memory = MemoryLevel::parse(&row.level),
             _ => {}
         }
     }
