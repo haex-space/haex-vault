@@ -5,7 +5,7 @@ import { openSettings, waitForLocation } from '../lib/settings.ts'
 
 // Spec 072 US8 scenario 2 (FR-081, task T099, T101): a Blossom upload key is made in the chat
 // settings, kept as an entry of the password manager, shown as its public key to register at the
-// server, and removed again after a question. Choosing an entry of the user and what uploads sign
+// server, and unset again after a question (the entry stays for pending deletions). Choosing an entry of the user and what uploads sign
 // with are covered by `upload_key_tests.rs` and `transfers_tests.rs`.
 
 interface UploadKey {
@@ -68,8 +68,8 @@ scenario('chat-upload-key', {}, async (ctx) => {
   assert.equal((await status()).status, 'none')
   assert.equal(
     (await candidates()).length,
-    0,
-    'the entry the chat made goes with it',
+    1,
+    'the entry stays so files uploaded with the key can still be deleted',
   )
-  ctx.step('removing asks first and takes the entry with the key')
+  ctx.step('removing asks first and keeps the entry in the password manager')
 })
