@@ -11,6 +11,7 @@ Thumbs.db
 # AI agent scratch — may hold credentials or session state.
 # See specify init warning: keep out of the repository.
 .claude/
+.abacusai/
 
 # Spec Kit agent skills are generated per developer by `spaex install`.
 .agents/skills/speckit-*/
