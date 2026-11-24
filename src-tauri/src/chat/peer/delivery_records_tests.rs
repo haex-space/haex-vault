@@ -8,6 +8,7 @@ use uuid::Uuid;
 use vodozemac::olm::{Account, OlmMessage, SessionConfig};
 
 use super::*;
+use crate::chat::peer::messages::DeliveryState;
 use crate::chat::peer::ratchet::account::OwnKeys;
 use crate::chat::peer::test_support::{mock_relay, two_vaults, ChatDevice};
 
@@ -222,8 +223,7 @@ async fn a_catch_up_without_a_connected_relay_is_owed_until_one_runs() {
     anna.send(&ben, text);
     anna.wait_for(&ben, "stored on the relay", |messages| {
         messages.iter().any(|message| {
-            message.text.as_deref() == Some(text)
-                && message.delivery == Some(super::super::messages::DeliveryState::Sent)
+            message.text.as_deref() == Some(text) && message.delivery == Some(DeliveryState::Sent)
         })
     })
     .await;

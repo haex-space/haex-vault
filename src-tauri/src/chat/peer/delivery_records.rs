@@ -10,11 +10,13 @@
 //! opening message waiting there for the current start key is processed before the start key two
 //! renewals back is forgotten.
 
-use std::sync::atomic::Ordering;
+use std::{collections::BTreeSet, sync::atomic::Ordering};
 
+use futures::StreamExt;
 use nostr::event::Event;
 use nostr::filter::Filter;
-use nostr_sdk::relay::RelayCapabilities;
+use nostr::message::{RelayMessage, SubscriptionId};
+use nostr_sdk::relay::{Relay, RelayCapabilities, RelayNotification, SubscribeAutoCloseOptions};
 
 use super::{invalid, Delivery, CONNECT_TIMEOUT};
 use crate::chat::peer::ratchet::store::{self, RecordRow};
@@ -22,6 +24,59 @@ use crate::chat::peer::ratchet::{account, record, session, KEY_RECORD_KIND, STAR
 use crate::chat::peer::targets;
 use crate::error::Result;
 use crate::sync::presence;
+
+const MAX_CATCH_UP_EVENTS: usize = 10_000;
+
+/// The SDK may finish an event stream after a disconnect or timeout. Require the relay's
+/// end-of-stored-events for this subscription before using the batch to renew the start key.
+async fn fetch_stored(relay: &Relay, filter: Filter) -> Result<BTreeSet<Event>> {
+    let id = SubscriptionId::generate();
+    let mut notifications = relay.notifications();
+    let timeout = CONNECT_TIMEOUT * 4;
+    relay
+        .subscribe(filter)
+        .with_id(id.clone())
+        .close_on(SubscribeAutoCloseOptions::default().timeout(Some(timeout)))
+        .await
+        .map_err(|error| invalid(&error.to_string()))?;
+
+    tokio::time::timeout(timeout, async {
+        let mut events = BTreeSet::new();
+        while let Some(notification) = notifications.next().await {
+            match notification {
+                RelayNotification::Message { message } => match *message {
+                    RelayMessage::Event {
+                        subscription_id,
+                        event,
+                    } if subscription_id.as_ref() == &id => {
+                        events.insert(event.into_owned());
+                        if events.len() > MAX_CATCH_UP_EVENTS {
+                            return Err(invalid("too many stored wraps in a catch-up"));
+                        }
+                    }
+                    RelayMessage::EndOfStoredEvents(subscription_id)
+                        if subscription_id.as_ref() == &id =>
+                    {
+                        return Ok(events);
+                    }
+                    RelayMessage::Closed {
+                        subscription_id, ..
+                    } if subscription_id.as_ref() == &id => {
+                        return Err(invalid(
+                            "Nostr-Relay closed catch-up before sending stored wraps",
+                        ));
+                    }
+                    _ => {}
+                },
+                RelayNotification::RelayStatus { status } if !status.is_connected() => break,
+                _ => {}
+            }
+        }
+        Err(invalid("Nostr-Relay disconnected during catch-up"))
+    })
+    .await
+    .map_err(|_| invalid("Nostr-Relay did not finish catch-up in time"))?
+}
 
 impl Delivery {
     /// Catches up, forgets the peer devices no longer addressed, then makes the account, renews the
@@ -56,15 +111,9 @@ impl Delivery {
             return Ok(false);
         }
         let filter = self.filter().await?;
-        let fetches = connected.into_iter().map(|relay| {
-            let filter = filter.clone();
-            async move {
-                relay
-                    .fetch_events(filter)
-                    .timeout(CONNECT_TIMEOUT * 4)
-                    .await
-            }
-        });
+        let fetches = connected
+            .into_iter()
+            .map(|relay| fetch_stored(relay, filter.clone()));
         let replies = tokio::select! {
             () = self.closing.cancelled() => return Ok(false),
             replies = futures::future::join_all(fetches) => replies,
