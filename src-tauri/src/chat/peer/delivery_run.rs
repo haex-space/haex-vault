@@ -42,6 +42,7 @@ impl Delivery {
         if let Err(error) = self.catch_up_and_keep_record().await {
             log::warn!("chat: no catch-up at the start: {error}");
         }
+        let mut catch_up_before_live = self.catch_up_owed();
         if !self.catch_up_owed() {
             wake_files(&session);
         }
@@ -63,6 +64,8 @@ impl Delivery {
                         }
                         if !self.catch_up_owed() {
                             wake_files(&session);
+                        } else if !self.any_relay_connected().await {
+                            catch_up_before_live = true;
                         }
                     }
                     pumped
@@ -79,13 +82,24 @@ impl Delivery {
                 _ = keep_alive_tick.tick() => self.send_keep_alives().await.map(|_| ()),
                 () = session.wake.notified() => {
                     let reconnected = self.reconnect().await;
+                    catch_up_before_live = self.catch_up_owed();
                     if !self.catch_up_owed() {
                         wake_files(&session);
                     }
                     reconnected
                 },
-                received = incoming.recv(), if !self.catch_up_owed() => {
+                received = incoming.recv() => {
                     let Some(first) = received else { break };
+                    // Give archived wraps the first chance on a returning connection. If the
+                    // relay keeps refusing catch-up, live wraps can still be delivered.
+                    if std::mem::take(&mut catch_up_before_live) && self.catch_up_owed() {
+                        if let Err(error) = self.catch_up_and_keep_record().await {
+                            log::warn!("chat: catch-up before live delivery failed: {error}");
+                        }
+                        if !self.catch_up_owed() {
+                            wake_files(&session);
+                        }
+                    }
                     // Everything waiting is one batch, ordered before it is stored (spec 095 T022).
                     let mut batch = vec![first];
                     while let Ok(next) = incoming.try_recv() {
