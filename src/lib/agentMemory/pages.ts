@@ -165,6 +165,7 @@ export const EVENT_MEMORY_WRITTEN = 'agent-memory-written'
 
 /** The payload of {@link EVENT_MEMORY_WRITTEN} (Rust `MemoryWritten`). */
 export interface MemoryWritten {
+  pageId: string
   kind: 'added' | 'changed' | 'removed'
   title: string
   text: string
@@ -187,8 +188,7 @@ export function isMemoryWrite(toolName: string): boolean {
   return (MEMORY_WRITE_TOOLS as readonly string[]).includes(toolName)
 }
 
-/** What the question before an agent's write shows (spec 097 FR-021): the stored page is read by
- * the window, never taken from the agent. */
+/** What the question before an agent's write shows (spec 097 FR-021). */
 export interface MemoryWritePreview {
   kind: 'add' | 'write' | 'remove'
   title: string
@@ -198,7 +198,7 @@ export interface MemoryWritePreview {
   /** The added text, or the new text of a rewrite. */
   text?: string
   newTitle?: string
-  /** The stored description and text a rewrite or a removal replaces. */
+  /** The stored description and text. */
   stored?: { description: string; text: string }
 }
 
@@ -223,7 +223,7 @@ export function memoryWritePreview(
     title: field(input, 'title'),
     missing: stored === null,
   }
-  if (stored && kind !== 'add') {
+  if (stored) {
     preview.stored = { description: stored.description, text: stored.body }
   }
   if (kind === 'add') {

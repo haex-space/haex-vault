@@ -97,12 +97,14 @@ impl TurnRunner<'_> {
             return RoundOutcome::Ended;
         }
 
+        // Mark first so a persisted result cannot be replayed in a later turn without the mark.
+        if let Err(reason) = self.mark_foreign(&executed).await {
+            self.fail(reason.to_string());
+            return RoundOutcome::Ended;
+        }
         if self.persist_round(&executed).await.is_err() {
             return RoundOutcome::Ended;
         }
-        // Spec 097 FR-019: before the model reads what a foreign call returned, the conversation is
-        // marked, so a later write to the memory asks.
-        self.mark_foreign(&executed).await;
         self.append_round_to_request(&executed);
         self.gate_offer().await;
 
@@ -118,31 +120,28 @@ impl TurnRunner<'_> {
     }
 
     /// Marks the conversation once a call that ran brought foreign content (spec 097 research R6).
-    /// A failed write of the mark is logged; this turn still knows it (`saw_foreign`).
-    async fn mark_foreign(&mut self, executed: &[ExecutedCall]) {
-        let foreign = executed.iter().any(|(call, result, source)| {
-            !result.is_error
+    async fn mark_foreign(&mut self, executed: &[ExecutedCall]) -> crate::error::Result<()> {
+        let foreign = executed.iter().any(|(call, _, source)| {
+            source.ran
                 && crate::agent_memory::foreign::is_foreign(
                     source.source,
                     source.scope.as_deref(),
+                    &call.name,
                     &call.input,
                 )
         });
-        if !foreign {
-            return;
+        if self.saw_foreign || !foreign {
+            return Ok(());
         }
-        self.saw_foreign = true;
         let (thread, now) = (
             self.thread_id,
             crate::passwords::clock::unix_millis(std::time::SystemTime::now()),
         );
-        if let Err(error) = self
-            .db
+        self.db
             .write(move |tx| crate::storage::chat_threads::mark_foreign_once(tx, thread, now))
-            .await
-        {
-            log::warn!("chat: the mark of foreign content was not written: {error}");
-        }
+            .await?;
+        self.saw_foreign = true;
+        Ok(())
     }
 
     /// Any text the model emitted before its tool use becomes its own
@@ -197,14 +196,29 @@ impl TurnRunner<'_> {
             async move {
                 match plan {
                     ToolPlan::Allow(tool) => {
-                        let source = CallSource::of(tool.as_ref());
-                        let result = tool.execute(call.input.clone(), cancel).await;
+                        let mut source = CallSource::of(tool.as_ref());
+                        source.ran = true;
+                        let work = tool.execute(call.input.clone(), cancel);
+                        let result = if source.source
+                            == crate::chat::tools::action_tool::ACTION_SOURCE
+                            && call.name == crate::chat::tools::find_actions::FIND_ACTIONS_TOOL_NAME
+                        {
+                            let rights =
+                                crate::chat::tools::profile_gate::rights_of_session(db, session)
+                                    .await;
+                            crate::agent_memory::gate::CATALOG_LEVEL
+                                .scope(rights.memory, work)
+                                .await
+                        } else {
+                            work.await
+                        };
                         (call, result, source)
                     }
                     ToolPlan::Ask {
                         tool,
                         rx,
                         request_id,
+                        memory_page,
                     } => {
                         // `abort_turn` drops every pending sender
                         // (T032), so a dropped-without-answer `rx`
@@ -222,16 +236,31 @@ impl TurnRunner<'_> {
                                     db, session,
                                 )
                                 .await;
+                                let mut source = CallSource::of(tool.as_ref());
                                 let result = match crate::chat::tools::profile_gate::permits(
                                     &rights,
                                     tool.as_ref(),
                                 ) {
-                                    Ok(()) => tool.execute(call.input.clone(), tool_cancel).await,
+                                    Ok(()) => {
+                                        source.ran = true;
+                                        let work = tool.execute(call.input.clone(), tool_cancel);
+                                        match memory_page {
+                                            Some(page) => {
+                                                crate::agent_memory::gate::APPROVED_PAGE
+                                                    .scope(*page, work)
+                                                    .await
+                                            }
+                                            None => {
+                                                crate::agent_memory::gate::CATALOG_LEVEL
+                                                    .scope(rights.memory, work)
+                                                    .await
+                                            }
+                                        }
+                                    }
                                     Err(missing) => ToolExecResult::error(
                                         crate::chat::tools::profile_gate::refusal(&missing),
                                     ),
                                 };
-                                let source = CallSource::of(tool.as_ref());
                                 (call, result, source)
                             }
                             Ok(ApprovalDecision::Deny) => {

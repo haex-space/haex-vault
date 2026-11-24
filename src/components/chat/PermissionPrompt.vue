@@ -24,6 +24,11 @@ const approval = computed(() => {
   const first = props.pendingPrompts[0]
   return first?.kind === 'approval' ? first : undefined
 })
+const memoryWrite = computed(
+  () =>
+    approval.value?.toolSource === 'action' &&
+    isMemoryWrite(approval.value.toolName),
+)
 
 const wm = useWindowManagerStore()
 
@@ -129,11 +134,11 @@ const emit = defineEmits<{
           {{ t(`chat.permission.${approval.riskClass}`) }}
         </div>
         <AgentsMemoryWritePreview
-          v-if="
-            approval.toolSource === 'action' && isMemoryWrite(approval.toolName)
-          "
+          v-if="memoryWrite"
           :tool-name="approval.toolName"
           :tool-input="approval.toolInput as Record<string, unknown>"
+          :stored="approval.memoryPage ?? null"
+          :model-name="approval.modelName ?? ''"
         />
         <dl v-else-if="description" class="space-y-1 text-sm">
           <div v-if="description.target" class="flex gap-2">
@@ -179,7 +184,11 @@ const emit = defineEmits<{
         >
           {{ t('chat.permission.deny') }}
         </UiButton>
-        <UiButton size="sm" @click="emit('allow', approval.requestId)">
+        <UiButton
+          size="sm"
+          :disabled="memoryWrite && approval.memoryPage === undefined"
+          @click="emit('allow', approval.requestId)"
+        >
           {{ t('chat.permission.allow') }}
         </UiButton>
       </div>

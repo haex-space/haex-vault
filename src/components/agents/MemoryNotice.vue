@@ -2,7 +2,7 @@
 /**
  * The notice after an agent wrote to the shared memory (spec 097 FR-023, contracts "Events"): every
  * `agent-memory-written` of this device becomes a toast with the model, the page and the text, since
- * nothing else in the window shows what an agent stored. "Öffnen" opens "KI → Gedächtnis".
+ * nothing else in the window shows what an agent stored.
  */
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { toast } from 'vue-sonner'
@@ -15,37 +15,45 @@ import {
 const { t } = useI18n()
 const openApp = useAction('wm.app.open')
 let unlisten: UnlistenFn | undefined
+let disposed = false
 
 function show(notice: MemoryWritten) {
   toast.info(
     t(memoryNoticeKey(notice.kind), {
       name: notice.authorName || t('settings.agentMemory.unknownAuthor'),
       title: notice.title,
-      text: notice.text,
     }),
     {
+      description: notice.text,
       action: {
         label: t('settings.agentMemory.notice.open'),
-        onClick: openMemory,
+        onClick: () => openMemory(notice),
       },
     },
   )
 }
 
-function openMemory() {
-  void openApp({ appId: 'system.settings', at: '/ai/memory' })
+function openMemory(notice: MemoryWritten) {
+  const at =
+    notice.kind === 'removed' ? '/ai/memory' : `/ai/memory/${notice.pageId}`
+  void openApp({ appId: 'system.settings', at })
 }
 
 onMounted(async () => {
   try {
-    unlisten = await listen<MemoryWritten>(EVENT_MEMORY_WRITTEN, (event) =>
-      show(event.payload),
-    )
+    const stop = await listen<MemoryWritten>(EVENT_MEMORY_WRITTEN, (event) => {
+      if (!disposed) show(event.payload)
+    })
+    if (disposed) stop()
+    else unlisten = stop
   } catch (error) {
     console.error('[agent-memory] listening for notices failed', error)
   }
 })
-onBeforeUnmount(() => unlisten?.())
+onBeforeUnmount(() => {
+  disposed = true
+  unlisten?.()
+})
 </script>
 
 <template>

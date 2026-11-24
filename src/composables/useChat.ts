@@ -10,7 +10,7 @@
  * into a type-only `useChatTypes.ts` re-exported from here, leaving the
  * command and event wrappers in `useChat()`.
  */
-import type { RiskClass } from '~/lib/chat/prompts'
+import type { PendingApproval, RiskClass } from '~/lib/chat/prompts'
 import type {
   CompactionEvent,
   ProfileRestrictedEvent,
@@ -184,7 +184,10 @@ export interface AgentActivityEvent {
 
 /** Fires when the Manual/Auto/Plan gate needs a human decision (contracts/
  * tauri-commands.md). Answered via `respondToolPermissionAsync`. */
-export interface ToolPermissionRequestEvent {
+export interface ToolPermissionRequestEvent extends Pick<
+  PendingApproval,
+  'memoryPage' | 'modelName'
+> {
   requestId: string
   threadId: string
   toolName: string

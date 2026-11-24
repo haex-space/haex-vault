@@ -73,6 +73,7 @@ pub(super) enum ToolPlan {
         tool: Arc<dyn Tool>,
         rx: tokio::sync::oneshot::Receiver<ApprovalDecision>,
         request_id: Uuid,
+        memory_page: Option<Box<Option<crate::agent_memory::store::Page>>>,
     },
     Deny(Arc<dyn Tool>),
     /// The guard refused the call before the dialog (spec 082 FR-011); the answer says why.
@@ -178,6 +179,45 @@ impl TurnRunner<'_> {
                 permission::Decision::Allow => plans.push((call, ToolPlan::Allow(tool))),
                 permission::Decision::Deny => plans.push((call, ToolPlan::Deny(tool))),
                 permission::Decision::Ask => {
+                    let memory_page = if tool.source() == ACTION_SOURCE
+                        && crate::agent_memory::gate::is_write_tool(tool.name())
+                    {
+                        let Some(title) = call.input["title"].as_str().map(str::to_owned) else {
+                            plans.push((call, ToolPlan::TurnedAway(tool, "invalid_input".into())));
+                            continue;
+                        };
+                        match self
+                            .db
+                            .read(move |q| {
+                                Ok(crate::agent_memory::store::by_title(q, &title)?
+                                    .map(|found| found.page))
+                            })
+                            .await
+                        {
+                            Ok(page) => Some(page),
+                            Err(error) => {
+                                log::warn!("chat: the memory page could not be read: {error}");
+                                plans.push((
+                                    call,
+                                    ToolPlan::TurnedAway(
+                                        tool,
+                                        "The page could not be read for approval. Nothing was written."
+                                            .into(),
+                                    ),
+                                ));
+                                continue;
+                            }
+                        }
+                    } else {
+                        None
+                    };
+                    let model_name = memory_page.as_ref().map(|_| {
+                        crate::chat::tools::agent_task::AgentTask::of_turn(
+                            &self.assistant_message_id.to_string(),
+                            self.session,
+                        )
+                        .model
+                    });
                     let request_id = Uuid::new_v4();
                     let (tx, rx) = tokio::sync::oneshot::channel();
                     self.chat_state
@@ -195,6 +235,15 @@ impl TurnRunner<'_> {
                             risk_class: risk_class_str(tool.risk_class()),
                             tool_source: tool.source(),
                             tool_origin: tool.origin(),
+                            memory_page: memory_page.as_ref().map(|page| {
+                                page.as_ref().map_or(serde_json::Value::Null, |page| {
+                                    serde_json::json!({
+                                        "description": page.description,
+                                        "body": page.body,
+                                    })
+                                })
+                            }),
+                            model_name,
                         },
                     );
                     plans.push((
@@ -203,6 +252,7 @@ impl TurnRunner<'_> {
                             tool,
                             rx,
                             request_id,
+                            memory_page: memory_page.map(Box::new),
                         },
                     ));
                 }

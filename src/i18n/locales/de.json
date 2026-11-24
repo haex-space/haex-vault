@@ -1938,7 +1938,7 @@
         "not_found": "Diese Seite gibt es nicht mehr."
       },
       "notice": {
-        "added": "{name} hat sich gemerkt ({title}): {text}",
+        "added": "{name} hat die Seite {title} ergänzt",
         "changed": "{name} hat die Seite {title} geändert",
         "removed": "{name} hat die Seite {title} entfernt",
         "open": "Öffnen"

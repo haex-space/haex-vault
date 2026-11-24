@@ -33,14 +33,20 @@ pub fn prepare(
             take_memory_toc(tx, thread, &rendered)?.unwrap_or(rendered)
         }
     };
+    Ok(block_of(&snapshot, level, context_tokens, model))
+}
+
+fn block_of(
+    snapshot: &str,
+    level: MemoryLevel,
+    context_tokens: Option<usize>,
+    model: Option<&str>,
+) -> Option<String> {
     if level.is_off() || model.is_some_and(|model| !gives_start_toc(model)) {
-        return Ok(None);
+        return None;
     }
-    Ok(Some(block(
-        &snapshot,
-        context_tokens,
-        level == MemoryLevel::ReadWrite,
-    )))
+    let block = block(snapshot, context_tokens, level == MemoryLevel::ReadWrite);
+    (!block.is_empty()).then_some(block)
 }
 
 /// The memory block of the turn (spec 097 research R5): the conversation's table of contents for a
@@ -50,19 +56,20 @@ pub async fn block_for_session(
     db: &crate::vault_gate::VaultDb,
     session: &crate::chat::session::ActiveSession,
     thread_id: Uuid,
+    level: MemoryLevel,
 ) -> Option<String> {
     if session.provider_kind == crate::storage::providers::ProviderKind::CliDelegate {
         return None;
     }
-    let level = crate::chat::tools::profile_gate::rights_of_session(db, session)
-        .await
-        .memory;
     let context = session.adapter.context_limit().or_else(|| {
         session
             .context_window
             .and_then(|window| usize::try_from(window).ok())
     });
     let model = crate::agent_profiles::local::subject_of_session(session).map(|s| s.key());
+    if let Ok(Some(snapshot)) = db.read(move |q| memory_toc(q, thread_id)).await {
+        return block_of(&snapshot, level, context, model.as_deref());
+    }
     match db
         .write(move |tx| prepare(tx, thread_id, level, context, model.as_deref()))
         .await

@@ -34,6 +34,7 @@ use crate::chat::tools::prompt::{system_prompt_with, SearchPrompt};
 use crate::chat::tools::route::{first_step_offer_in, last_turn_tools, RouteCall};
 use crate::error::{HaexError, Result};
 use crate::local_time::Clock;
+use crate::mcp_server::grants::MemoryLevel;
 use crate::model_capabilities::ModelCapabilities;
 use crate::state::AppState;
 use crate::storage::chat_threads::ThreadOrigin;
@@ -466,6 +467,16 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             reason: format!("attachment read join: {e}"),
         })?;
 
+    let memory_level = if session.provider_kind == ProviderKind::CliDelegate {
+        MemoryLevel::Off
+    } else {
+        crate::chat::tools::profile_gate::rights_of_session(&db, &session)
+            .await
+            .memory
+    };
+    let mut history = history;
+    let excluded = crate::agent_memory::gate::excluded_calls(&history, memory_level);
+    history.retain(|row| !crate::agent_memory::gate::excluded_row(row, &excluded));
     let mut messages = history_to_messages(&history);
     if let Some(current_turn_message) = messages.last_mut() {
         current_turn_message.attachments = read_attachments;
@@ -493,7 +504,7 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
     let clock = Clock::now(turn.utc_offset_minutes.unwrap_or(0));
     let given = crate::chat::tools::prompt::with_memory(
         turn.system_prompt.as_deref(),
-        crate::agent_memory::turn::block_for_session(&db, &session, thread_id)
+        crate::agent_memory::turn::block_for_session(&db, &session, thread_id, memory_level)
             .await
             .as_deref(),
     );

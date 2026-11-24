@@ -9,6 +9,8 @@ pub(crate) struct CallSource {
     pub(crate) origin: Option<ToolOrigin>,
     /// The scope of one of haex-vault's own actions (spec 097: what counts as foreign content).
     pub(crate) scope: Option<String>,
+    /// Whether execution reached the tool. An executed tool can return foreign text as an error.
+    pub(crate) ran: bool,
 }
 
 impl CallSource {
@@ -17,6 +19,7 @@ impl CallSource {
             source: tool.source(),
             origin: tool.origin(),
             scope: tool.action_definition().map(|def| def.scope.clone()),
+            ran: false,
         }
     }
 
@@ -27,6 +30,7 @@ impl CallSource {
             source: "mcp",
             origin: None,
             scope: None,
+            ran: false,
         }
     }
 

@@ -66,6 +66,7 @@ pub enum WrittenKind {
 #[serde(rename_all = "camelCase")]
 pub struct MemoryWritten {
     pub kind: WrittenKind,
+    pub page_id: String,
     pub title: String,
     /// The added text, the new text, or the text that was removed.
     pub text: String,
@@ -132,6 +133,7 @@ fn refused(error: MemoryError) -> NativeError {
     use super::limits::LimitError;
     let (code, field, message) = match &error {
         MemoryError::NotFound => ("not_found", None, "No page has this title. Search for it with memory_search, or create it with memory_add.".to_owned()),
+        MemoryError::PageChanged => ("page_changed", None, "The page changed while approval was pending. Nothing was written. Open the page again before retrying.".to_owned()),
         MemoryError::DescriptionNeeded => ("description_needed", Some("description"), "A new page needs a description: give one line that says what the page is about.".to_owned()),
         MemoryError::TitleTaken => ("title_taken", Some("title"), "Another page has this title. Add to that page with memory_add instead.".to_owned()),
         MemoryError::Limit(LimitError::MemoryFull) => ("memory_full", None, format!("The memory is full ({MAX_PAGES} pages). Merge pages with memory_write or remove pages with memory_remove first.")),
@@ -285,71 +287,81 @@ impl<E: MemoryEnv> MemoryActions<E> {
         let author = author(self.env.device().await.map_err(internal)?);
         let name = author.name.clone();
         let now = now();
-        let (result, notice) = match action_id {
+        let approved = super::gate::APPROVED_PAGE.try_with(Clone::clone).ok();
+        enum Edit {
+            Add(AddInput),
+            Write(WriteInput),
+            Remove(TitleInput),
+        }
+
+        let (edit, kind, added_text) = match action_id {
             ADD => {
                 let input = parse::<AddInput>(input)?;
                 let text = input.text.clone();
-                let (page, created) = db
-                    .write(move |tx| {
-                        settle(store::append(
-                            tx,
-                            &author,
-                            now,
-                            &input.title,
-                            &input.text,
-                            input.description.as_deref(),
-                        ))
-                    })
-                    .await
-                    .map_err(internal)?
-                    .map_err(refused)?;
-                let notice = (WrittenKind::Added, page.title.clone(), text);
-                (json!({ "title": page.title, "created": created }), notice)
+                (Edit::Add(input), WrittenKind::Added, Some(text))
             }
-            WRITE => {
-                let input = parse::<WriteInput>(input)?;
-                let page = db
-                    .write(move |tx| {
-                        let Some(found) = store::by_title(tx, &input.title)? else {
-                            return Ok(Err(MemoryError::NotFound));
+            WRITE => (Edit::Write(parse(input)?), WrittenKind::Changed, None),
+            _ => (Edit::Remove(parse(input)?), WrittenKind::Removed, None),
+        };
+        let (page, created, pages) = db
+            .write(move |tx| {
+                let target = |tx: &mut haex_crdt::CrdtTransaction<'_>, title: &str| {
+                    let found = store::by_title(tx, title)?.map(|found| found.page);
+                    if approved.as_ref().is_some_and(|page| page != &found) {
+                        return Err(MemoryError::PageChanged);
+                    }
+                    Ok(found)
+                };
+                let change = match edit {
+                    Edit::Add(input) => {
+                        let approval_check = if approved.is_some() {
+                            target(tx, &input.title).map(|_| ())
+                        } else {
+                            Ok(())
                         };
+                        approval_check.and_then(|()| {
+                            store::append(
+                                tx,
+                                &author,
+                                now,
+                                &input.title,
+                                &input.text,
+                                input.description.as_deref(),
+                            )
+                        })
+                    }
+                    Edit::Write(input) => target(tx, &input.title).and_then(|found| {
+                        let found = found.ok_or(MemoryError::NotFound)?;
                         let new = NewPage {
-                            title: input.new_title.as_deref().unwrap_or(&found.page.title),
+                            title: input.new_title.as_deref().unwrap_or(&found.title),
                             description: &input.description,
                             body: &input.text,
                         };
-                        settle(store::change_page(tx, &author, now, &found.page.id, &new))
-                    })
-                    .await
-                    .map_err(internal)?
-                    .map_err(refused)?;
-                let notice = (WrittenKind::Changed, page.title.clone(), page.body.clone());
-                (json!({ "title": page.title }), notice)
-            }
-            _ => {
-                let title = parse::<TitleInput>(input)?.title;
-                let page = db
-                    .write(move |tx| {
-                        let Some(found) = store::by_title(tx, &title)? else {
-                            return Ok(Err(MemoryError::NotFound));
-                        };
-                        settle(store::remove_page(tx, &found.page.id))
-                    })
-                    .await
-                    .map_err(internal)?
-                    .map_err(refused)?;
-                (json!({}), (WrittenKind::Removed, page.title, page.body))
-            }
+                        store::change_page(tx, &author, now, &found.id, &new)
+                            .map(|page| (page, false))
+                    }),
+                    Edit::Remove(input) => target(tx, &input.title).and_then(|found| {
+                        let found = found.ok_or(MemoryError::NotFound)?;
+                        store::remove_page(tx, &found.id).map(|page| (page, false))
+                    }),
+                };
+                settle(change.and_then(|(page, created)| Ok((page, created, store::count(tx)?))))
+            })
+            .await
+            .map_err(internal)?
+            .map_err(refused)?;
+        let mut result = match kind {
+            WrittenKind::Added => json!({ "title": page.title, "created": created }),
+            WrittenKind::Changed => json!({ "title": page.title }),
+            WrittenKind::Removed => json!({}),
         };
-        let pages = db.read(|q| store::count(q)).await.map_err(internal)?;
-        let (kind, title, text) = notice;
         self.env.written(MemoryWritten {
             kind,
-            title,
-            text,
+            page_id: page.id,
+            title: page.title,
+            text: added_text.unwrap_or(page.body),
             author_name: name,
         });
-        let mut result = result;
         result["pages"] = json!(pages);
         result["limit"] = json!(MAX_PAGES);
         Ok(result)

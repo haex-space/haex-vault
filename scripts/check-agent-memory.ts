@@ -151,6 +151,16 @@ test('the question before a write shows the stored page, not what the agent says
     description: 'Wie ich schreibe',
   })
   const stored = { description: 'Steuerberater', body: 'Alt.' }
+  const append = memoryWritePreview(
+    'memory_add',
+    { title: 'Bernd', text: 'Ergänzung.' },
+    stored,
+  )
+  assert.deepEqual(append.stored, {
+    description: 'Steuerberater',
+    text: 'Alt.',
+  })
+  assert.equal(append.text, 'Ergänzung.')
   const rewritten = memoryWritePreview(
     'memory_write',
     { title: 'Bernd', description: 'Anwalt', text: 'Neu.', newTitle: 'B.' },

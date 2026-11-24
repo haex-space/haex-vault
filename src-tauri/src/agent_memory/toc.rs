@@ -80,13 +80,18 @@ pub fn block(snapshot: &str, context_tokens: Option<usize>, may_write: bool) -> 
     } else {
         String::new()
     };
-    if lines.is_empty() {
-        head.push('\n');
-        head.push_str(EMPTY);
-        return head + &tail;
-    }
     let budget = context_tokens.map(|tokens| tokens / SHARE * CHARS_PER_TOKEN);
     let fixed = head.chars().count() + tail.chars().count();
+    if budget.is_some_and(|budget| fixed > budget) {
+        return String::new();
+    }
+    if lines.is_empty() {
+        if budget.is_none_or(|budget| fixed + 1 + EMPTY.chars().count() <= budget) {
+            head.push('\n');
+            head.push_str(EMPTY);
+        }
+        return head + &tail;
+    }
     let mut shown = Vec::new();
     let mut used = fixed;
     for (index, line) in lines.iter().enumerate() {
@@ -110,8 +115,11 @@ pub fn block(snapshot: &str, context_tokens: Option<usize>, may_write: bool) -> 
         head.push_str(line);
     }
     if left > 0 {
-        head.push('\n');
-        head.push_str(&more(left));
+        let note = more(left);
+        if budget.is_none_or(|budget| used + 1 + note.chars().count() <= budget) {
+            head.push('\n');
+            head.push_str(&note);
+        }
     }
     head + &tail
 }
@@ -122,16 +130,9 @@ fn more(left: usize) -> String {
 
 /// The date of `millis` since the epoch, in UTC, as `YYYY-MM-DD`.
 pub fn iso_date(millis: i64) -> String {
-    let days = millis.div_euclid(86_400_000);
-    // Howard Hinnant's days-to-civil.
-    let z = days + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z.rem_euclid(146_097);
-    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = doy - (153 * mp + 2) / 5 + 1;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 };
-    let year = yoe + era * 400 + i64::from(month <= 2);
-    format!("{year:04}-{month:02}-{day:02}")
+    let mut date = crate::passwords::clock::format_millis(millis);
+    if let Some(time) = date.find('T') {
+        date.truncate(time);
+    }
+    date
 }

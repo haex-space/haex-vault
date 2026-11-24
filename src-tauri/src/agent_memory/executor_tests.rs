@@ -135,6 +135,11 @@ async fn a_page_is_rewritten_renamed_and_removed_by_title() {
     .await;
     assert_eq!(taken.expect_err("refused").code, "title_taken");
 
+    let approved =
+        v.db.read(|q| store::by_title(q, "Bernd Krause"))
+            .await
+            .expect("read the preview")
+            .map(|found| found.page);
     let rewritten = run(
         &actions,
         WRITE,
@@ -143,6 +148,13 @@ async fn a_page_is_rewritten_renamed_and_removed_by_title() {
     .await
     .expect("rewritten");
     assert_eq!(rewritten["title"], json!("Bernd Krause (Steuer)"));
+    let stale = super::super::gate::APPROVED_PAGE
+        .scope(
+            approved,
+            run(&actions, REMOVE, json!({ "title": "Bernd Krause" })),
+        )
+        .await;
+    assert_eq!(stale.expect_err("stale approval").code, "page_changed");
     let removed = run(&actions, REMOVE, json!({ "title": "Steuer 2026" }))
         .await
         .expect("removed");

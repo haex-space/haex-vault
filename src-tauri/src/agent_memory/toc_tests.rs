@@ -118,6 +118,14 @@ fn a_small_context_gets_the_pages_changed_last_and_the_count_of_the_rest() {
         );
     }
     assert!(!block(&snapshot, None, false).contains("more pages"));
+    for context in [0, 512, 1_500, 3_000] {
+        for snapshot in ["", &snapshot] {
+            assert!(
+                block(snapshot, Some(context), true).chars().count()
+                    <= context / SHARE * CHARS_PER_TOKEN
+            );
+        }
+    }
 }
 
 #[test]

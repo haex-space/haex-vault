@@ -1938,7 +1938,7 @@
         "not_found": "This page no longer exists."
       },
       "notice": {
-        "added": "{name} remembered ({title}): {text}",
+        "added": "{name} added to the page {title}",
         "changed": "{name} changed the page {title}",
         "removed": "{name} removed the page {title}",
         "open": "Open"

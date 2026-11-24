@@ -2,53 +2,32 @@
 /**
  * What an agent wants to write to the shared memory, inside the question before the write (spec 097
  * FR-021, contracts "The question"): for an addition the page and the added text, for a rewrite the
- * stored and the new text, for a removal the text that goes. The stored page is read here by its
- * title; a title without a page says so.
+ * stored and the new text, for a removal the text that goes. The approval carries the stored
+ * snapshot, which is checked again before writing.
  */
-import { invoke } from '@tauri-apps/api/core'
 import { memoryWritePreview } from '~/lib/agentMemory/pages'
-import type { AgentMemoryPage } from '~/types/bindings/AgentMemoryPage'
 
 const props = defineProps<{
   toolName: string
   toolInput: Record<string, unknown>
+  stored: { description: string; body: string } | null
+  modelName: string
 }>()
 
 const { t } = useI18n()
-const stored = ref<AgentMemoryPage | null>(null)
-const loaded = ref(false)
 
 const preview = computed(() =>
-  memoryWritePreview(props.toolName, props.toolInput, stored.value),
+  memoryWritePreview(props.toolName, props.toolInput, props.stored),
 )
-
-async function loadAsync() {
-  loaded.value = false
-  const title = props.toolInput.title
-  try {
-    stored.value =
-      typeof title === 'string'
-        ? await invoke<AgentMemoryPage | null>('agent_memory_page_by_title', {
-            args: { title },
-          })
-        : null
-  } catch (error) {
-    console.error('[agent-memory] the stored page could not be read', error)
-    stored.value = null
-  } finally {
-    loaded.value = true
-  }
-}
-
-watch(() => props.toolInput, loadAsync, { immediate: true })
 </script>
 
 <template>
   <div class="space-y-2 text-sm" data-testid="memory-write-preview">
+    <p class="text-muted-foreground">{{ modelName }}</p>
     <p class="font-medium">
       {{ preview.title }}
       <span
-        v-if="loaded && preview.missing"
+        v-if="preview.missing"
         class="text-muted-foreground"
         data-testid="memory-write-preview-missing"
       >

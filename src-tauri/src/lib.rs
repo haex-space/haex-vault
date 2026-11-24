@@ -829,7 +829,6 @@ pub fn run() {
             agent_profiles::commands::agent_subjects_list,
             agent_memory::commands::agent_memory_list,
             agent_memory::commands::agent_memory_page,
-            agent_memory::commands::agent_memory_page_by_title,
             agent_memory::fill::agent_memory_debug_fill,
             agent_memory::commands::agent_memory_add,
             agent_memory::commands::agent_memory_change,

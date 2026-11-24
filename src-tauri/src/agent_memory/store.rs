@@ -27,6 +27,8 @@ pub enum MemoryError {
     TitleTaken,
     #[error("no page has this title or id")]
     NotFound,
+    #[error("the page changed after the approval was requested")]
+    PageChanged,
     #[error("a new page needs a description")]
     DescriptionNeeded,
     #[error(transparent)]
@@ -46,6 +48,7 @@ impl MemoryError {
             Self::Limit(error) => error.code().to_owned(),
             Self::TitleTaken => "title_taken".to_owned(),
             Self::NotFound => "not_found".to_owned(),
+            Self::PageChanged => "page_changed".to_owned(),
             Self::DescriptionNeeded => "description_needed".to_owned(),
             Self::Db(_) => "db".to_owned(),
         }
