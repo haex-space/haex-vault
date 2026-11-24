@@ -252,7 +252,7 @@ async fn an_abo_agent_remembers_unasked_and_asks_once_its_own_tool_read_foreign_
     // Codex searched the web; its next write arrives before the reader has judged that line,
     // and still asks, showing the stored page.
     output.write_all(b"foreign\n").await.expect("write");
-    let asking = tokio::spawn({
+    let mut asking = tokio::spawn({
         let peer = agent.peer().clone();
         async move {
             call_with(
