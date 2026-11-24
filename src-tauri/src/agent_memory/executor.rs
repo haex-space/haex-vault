@@ -6,6 +6,7 @@
 //! built-in agent's calls are served.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::future::BoxFuture;
@@ -83,12 +84,12 @@ pub trait MemoryEnv: Send + Sync {
 }
 
 pub struct MemoryActions<E> {
-    env: E,
+    env: Arc<E>,
 }
 
 impl<E: MemoryEnv> MemoryActions<E> {
     pub fn new(env: E) -> Self {
-        Self { env }
+        Self { env: Arc::new(env) }
     }
 }
 
@@ -244,7 +245,7 @@ fn opened(
     result
 }
 
-impl<E: MemoryEnv> MemoryActions<E> {
+impl<E: MemoryEnv + 'static> MemoryActions<E> {
     async fn read(&self, action_id: &str, input: Value) -> Result<Value, NativeError> {
         let db = self.env.database().map_err(internal)?;
         match action_id {
@@ -318,68 +319,75 @@ impl<E: MemoryEnv> MemoryActions<E> {
             WRITE => (Edit::Write(parse(input)?), WrittenKind::Changed, None),
             _ => (Edit::Remove(parse(input)?), WrittenKind::Removed, None),
         };
-        let (page, created, pages) = db
-            .write(move |tx| {
-                let target = |tx: &mut haex_crdt::CrdtTransaction<'_>, title: &str| {
-                    let found = store::by_title(tx, title)?.map(|found| found.page);
-                    if approved.as_ref().is_some_and(|page| page != &found) {
-                        return Err(MemoryError::PageChanged);
-                    }
-                    Ok(found)
-                };
-                let change = match edit {
-                    Edit::Add(input) => {
-                        let approval_check = if approved.is_some() {
-                            target(tx, &input.title).map(|_| ())
-                        } else {
-                            Ok(())
-                        };
-                        approval_check.and_then(|()| {
-                            store::append(
-                                tx,
-                                &author,
-                                now,
-                                &input.title,
-                                &input.text,
-                                input.description.as_deref(),
-                            )
-                        })
-                    }
-                    Edit::Write(input) => target(tx, &input.title).and_then(|found| {
-                        let found = found.ok_or(MemoryError::NotFound)?;
-                        let new = NewPage {
-                            title: input.new_title.as_deref().unwrap_or(&found.title),
-                            description: &input.description,
-                            body: &input.text,
-                        };
-                        store::change_page(tx, &author, now, &found.id, &new)
-                            .map(|page| (page, false))
-                    }),
-                    Edit::Remove(input) => target(tx, &input.title).and_then(|found| {
-                        let found = found.ok_or(MemoryError::NotFound)?;
-                        store::remove_page(tx, &found.id).map(|page| (page, false))
-                    }),
-                };
-                settle(change.and_then(|(page, created)| Ok((page, created, store::count(tx)?))))
-            })
-            .await
-            .map_err(internal)?
-            .map_err(refused)?;
-        let mut result = match kind {
-            WrittenKind::Added => json!({ "title": page.title, "created": created }),
-            WrittenKind::Changed => json!({ "title": page.title }),
-            WrittenKind::Removed => json!({}),
-        };
-        self.env.written(MemoryWritten {
-            kind,
-            page_id: page.id,
-            title: page.title,
-            text: added_text.unwrap_or(page.body),
-            author_name: name,
-        });
-        result["pages"] = json!(pages);
-        result["limit"] = json!(MAX_PAGES);
-        Ok(result)
+        let env = Arc::clone(&self.env);
+        // Keep the notice with the database worker if the turn stops awaiting the result.
+        tauri::async_runtime::spawn_blocking(move || {
+            let (page, created, pages) = db
+                .write_blocking(move |tx| {
+                    let target = |tx: &mut haex_crdt::CrdtTransaction<'_>, title: &str| {
+                        let found = store::by_title(tx, title)?.map(|found| found.page);
+                        if approved.as_ref().is_some_and(|page| page != &found) {
+                            return Err(MemoryError::PageChanged);
+                        }
+                        Ok(found)
+                    };
+                    let change = match edit {
+                        Edit::Add(input) => {
+                            let approval_check = if approved.is_some() {
+                                target(tx, &input.title).map(|_| ())
+                            } else {
+                                Ok(())
+                            };
+                            approval_check.and_then(|()| {
+                                store::append(
+                                    tx,
+                                    &author,
+                                    now,
+                                    &input.title,
+                                    &input.text,
+                                    input.description.as_deref(),
+                                )
+                            })
+                        }
+                        Edit::Write(input) => target(tx, &input.title).and_then(|found| {
+                            let found = found.ok_or(MemoryError::NotFound)?;
+                            let new = NewPage {
+                                title: input.new_title.as_deref().unwrap_or(&found.title),
+                                description: &input.description,
+                                body: &input.text,
+                            };
+                            store::change_page(tx, &author, now, &found.id, &new)
+                                .map(|page| (page, false))
+                        }),
+                        Edit::Remove(input) => target(tx, &input.title).and_then(|found| {
+                            let found = found.ok_or(MemoryError::NotFound)?;
+                            store::remove_page(tx, &found.id).map(|page| (page, false))
+                        }),
+                    };
+                    settle(
+                        change.and_then(|(page, created)| Ok((page, created, store::count(tx)?))),
+                    )
+                })
+                .map_err(internal)?
+                .map_err(refused)?;
+            let mut result = match kind {
+                WrittenKind::Added => json!({ "title": page.title, "created": created }),
+                WrittenKind::Changed => json!({ "title": page.title }),
+                WrittenKind::Removed => json!({}),
+            };
+            env.written(MemoryWritten {
+                kind,
+                page_id: page.id,
+                title: page.title,
+                text: added_text.unwrap_or(page.body),
+                author_name: name,
+            });
+            result["pages"] = json!(pages);
+            result["limit"] = json!(MAX_PAGES);
+            Ok(result)
+        })
+        .await
+        .map_err(internal)?
     }
 }
 

@@ -4,10 +4,12 @@
 #![allow(clippy::disallowed_methods)]
 
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use futures::future::BoxFuture;
 use haex_crdt::rusqlite::params;
 use serde_json::{json, Value};
+use tokio::sync::{oneshot, Notify};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -18,11 +20,11 @@ use crate::chat::tools::agent_task::with_origin;
 use crate::chat::tools::permission::PermissionMode;
 use crate::files::access::Locality;
 
-#[derive(Clone)]
 struct Env {
     db: VaultDb,
     device: Uuid,
     written: Arc<Mutex<Vec<MemoryWritten>>>,
+    notice_ready: Notify,
 }
 
 impl MemoryEnv for Env {
@@ -36,6 +38,7 @@ impl MemoryEnv for Env {
 
     fn written(&self, notice: MemoryWritten) {
         self.written.lock().expect("lock").push(notice);
+        self.notice_ready.notify_one();
     }
 }
 
@@ -45,8 +48,50 @@ fn actions(v: &Vault) -> (MemoryActions<Env>, Arc<Mutex<Vec<MemoryWritten>>>) {
         db: v.db.clone(),
         device: v.device,
         written: Arc::clone(&written),
+        notice_ready: Notify::new(),
     };
     (MemoryActions::new(env), written)
+}
+
+#[tokio::test]
+async fn a_committed_write_notifies_after_the_turn_stops_awaiting_it() {
+    let v = vault();
+    let (actions, written) = actions(&v);
+    let (locked, lock_ready) = oneshot::channel();
+    let (release, unlocked) = std::sync::mpsc::channel();
+    let db = v.db.clone();
+    let holder = tokio::spawn(async move {
+        db.write(move |_| {
+            locked.send(()).unwrap();
+            unlocked.recv_timeout(Duration::from_secs(10)).unwrap();
+            Ok(())
+        })
+        .await
+        .unwrap();
+    });
+    lock_ready.await.unwrap();
+
+    let mut write = Box::pin(run(
+        &actions,
+        ADD,
+        json!({ "title": "Mail-Stil", "text": "Kurz.", "description": "Mail" }),
+    ));
+    assert!(futures::poll!(write.as_mut()).is_pending());
+    drop(write);
+    release.send(()).unwrap();
+    holder.await.unwrap();
+
+    tokio::time::timeout(Duration::from_secs(10), actions.env.notice_ready.notified())
+        .await
+        .expect("notice after commit");
+    let page =
+        v.db.read(|q| store::by_title(q, "Mail-Stil"))
+            .await
+            .unwrap();
+    assert!(page.is_some());
+    let notices = written.lock().unwrap();
+    assert_eq!(notices.len(), 1);
+    assert_eq!(notices[0].title, "Mail-Stil");
 }
 
 /// Runs `action` as the built-in agent in a turn of the model "Qwen3.5 4B".
