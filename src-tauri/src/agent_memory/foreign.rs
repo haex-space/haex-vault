@@ -3,8 +3,18 @@
 //! new tool asks once too often, never once too rarely.
 
 use std::cell::Cell;
+use std::collections::HashMap;
+use std::sync::Mutex;
 
 use serde_json::Value;
+use uuid::Uuid;
+
+use crate::chat::tools::ask_user::ASK_USER_TOOL_NAME;
+use crate::chat::tools::find_actions::FIND_ACTIONS_TOOL_NAME;
+use crate::chat::tools::ToolRegistry;
+use crate::storage::chat_messages::{ChatMessage, MessageRole};
+use crate::storage::chat_threads;
+use crate::vault_gate::VaultDb;
 
 tokio::task_local! {
     pub(crate) static CONTACT_SHARE: Cell<bool>;
@@ -32,22 +42,101 @@ const OWN_SCOPE_PREFIXES: [&str; 4] = ["wm.", "settings.", "contacts.", "memory.
 /// Whether a call of a tool from `source` in `scope` brought foreign content into the
 /// conversation. Every tool of an extension, a connected server or the command line is foreign, and
 /// so are the scopes `browser`, `chat.read`, `files.shares` and any this build does not know.
-pub fn is_foreign(source: &str, scope: Option<&str>, tool: &str, contact_share: bool) -> bool {
+pub fn is_foreign(
+    source: &str,
+    scope: Option<&str>,
+    tool: &str,
+    contact_share: bool,
+    result: &str,
+) -> bool {
     if source != ACTION_SOURCE {
         return true;
     }
     let Some(scope) = scope else {
-        return !matches!(
-            tool,
-            crate::chat::tools::find_actions::FIND_ACTIONS_TOOL_NAME
-                | crate::chat::tools::ask_user::ASK_USER_TOOL_NAME
-        );
+        return match tool {
+            ASK_USER_TOOL_NAME => false,
+            FIND_ACTIONS_TOOL_NAME => search_result_has_extension(result),
+            _ => true,
+        };
     };
     let own = OWN_SCOPES.contains(&scope)
         || OWN_SCOPE_PREFIXES
             .iter()
             .any(|prefix| scope.starts_with(prefix));
     !own || contact_share
+}
+
+/// The search can include descriptions and schemas supplied by extensions.
+fn search_result_has_extension(result: &str) -> bool {
+    let Ok(result) = serde_json::from_str::<Value>(result) else {
+        return false;
+    };
+    result["actions"].as_array().is_some_and(|actions| {
+        actions.iter().any(|action| {
+            action["tool"]
+                .as_str()
+                .and_then(crate::chat::tools::domains::extension_prefix)
+                .is_some()
+        })
+    })
+}
+
+/// Older conversations can already have tool results written before they had a foreign mark.
+pub(crate) async fn recover_mark(
+    db: &VaultDb,
+    registry: &Mutex<ToolRegistry>,
+    thread_id: Uuid,
+    history: &[ChatMessage],
+) -> crate::error::Result<()> {
+    if db
+        .read(move |q| chat_threads::memory_foreign_at(q, thread_id))
+        .await?
+        .is_some()
+    {
+        return Ok(());
+    }
+    let foreign = {
+        let results: HashMap<_, _> = history
+            .iter()
+            .filter(|row| row.role == MessageRole::ToolResult && row.tool_is_error != Some(true))
+            .filter_map(|row| Some((row.parent_id?, row.content.as_str())))
+            .collect();
+        let registry = registry.lock().unwrap_or_else(|e| e.into_inner());
+        history
+            .iter()
+            .filter(|row| row.role == MessageRole::ToolCall)
+            .any(|row| {
+                let Some(result) = results.get(&row.id) else {
+                    return false;
+                };
+                let name = row.tool_name.as_deref().unwrap_or_default();
+                let scope = registry
+                    .get(name)
+                    .and_then(|tool| tool.action_definition().map(|def| def.scope.clone()));
+                let contact_share = scope
+                    .as_deref()
+                    .is_some_and(|scope| scope.starts_with("files."))
+                    && row
+                        .tool_input
+                        .as_deref()
+                        .and_then(|input| serde_json::from_str(input).ok())
+                        .as_ref()
+                        .is_some_and(names_remote_storage);
+                is_foreign(
+                    row.tool_source.as_deref().unwrap_or("unknown"),
+                    scope.as_deref(),
+                    name,
+                    contact_share,
+                    result,
+                )
+            })
+    };
+    if foreign {
+        let now = crate::passwords::clock::unix_millis(std::time::SystemTime::now());
+        db.write(move |tx| chat_threads::mark_foreign_once(tx, thread_id, now))
+            .await?;
+    }
+    Ok(())
 }
 
 /// Legacy tool rows contain the requested name but omit which storage it resolved to.

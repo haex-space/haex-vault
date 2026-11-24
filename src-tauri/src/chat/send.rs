@@ -14,7 +14,7 @@
 //! a later split will move request construction into `send_request`, leaving admission and
 //! stream startup here with their existing cleanup boundary.
 
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 
 use serde::Serialize;
 use serde_json::Value;
@@ -472,52 +472,24 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             reason: format!("attachment read join: {e}"),
         })?;
 
-    // Older conversations can already contain tool results written before they had a foreign
-    // content mark. Conservatively recover that mark before the model sees the history.
-    if !is_new_thread
-        && session.provider_kind != ProviderKind::CliDelegate
-        && db
-            .read(move |q| thread_store::memory_foreign_at(q, thread_id))
-            .await?
-            .is_none()
-    {
-        let foreign = {
-            let had_result: HashSet<Uuid> = history
-                .iter()
-                .filter(|row| {
-                    row.role == MessageRole::ToolResult && row.tool_is_error != Some(true)
-                })
-                .filter_map(|row| row.parent_id)
-                .collect();
-            let registry = chat.tool_registry.lock().unwrap_or_else(|e| e.into_inner());
-            history
-                .iter()
-                .filter(|row| row.role == MessageRole::ToolCall && had_result.contains(&row.id))
-                .any(|row| {
-                    let name = row.tool_name.as_deref().unwrap_or_default();
-                    let scope = registry
-                        .get(name)
-                        .and_then(|tool| tool.action_definition().map(|def| def.scope.clone()));
-                    let input = row
-                        .tool_input
-                        .as_deref()
-                        .and_then(|input| serde_json::from_str(input).ok());
-                    crate::agent_memory::foreign::is_foreign(
-                        row.tool_source.as_deref().unwrap_or("unknown"),
-                        scope.as_deref(),
-                        name,
-                        scope
-                            .as_deref()
-                            .is_some_and(|scope| scope.starts_with("files."))
-                            && input
-                                .as_ref()
-                                .is_some_and(crate::agent_memory::foreign::names_remote_storage),
-                    )
-                })
-        };
-        if foreign {
-            db.write(move |tx| thread_store::mark_foreign_once(tx, thread_id, now_ms()))
-                .await?;
+    // Recover older foreign-content marks before the model sees the history.
+    if !is_new_thread && session.provider_kind != ProviderKind::CliDelegate {
+        if let Err(error) = crate::agent_memory::foreign::recover_mark(
+            &db,
+            &chat.tool_registry,
+            thread_id,
+            &history,
+        )
+        .await
+        {
+            if let Err(cleanup_error) =
+                cleanup_staged_send(db.clone(), user_message_id, thread_id, is_new_thread).await
+            {
+                return Err(HaexError::CrdtInit {
+                    reason: format!("memory foreign mark recovery: {error}; {cleanup_error}"),
+                });
+            }
+            return Err(error);
         }
     }
     let mut history = history;

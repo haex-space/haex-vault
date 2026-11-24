@@ -121,13 +121,14 @@ impl TurnRunner<'_> {
 
     /// Marks the conversation once a call that ran brought foreign content (spec 097 research R6).
     async fn mark_foreign(&mut self, executed: &[ExecutedCall]) -> crate::error::Result<()> {
-        let foreign = executed.iter().any(|(call, _, source)| {
+        let foreign = executed.iter().any(|(call, result, source)| {
             source.ran
                 && crate::agent_memory::foreign::is_foreign(
                     source.source,
                     source.scope.as_deref(),
                     &call.name,
                     source.contact_share,
+                    &result.content,
                 )
         });
         if self.saw_foreign || !foreign {

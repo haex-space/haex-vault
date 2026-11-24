@@ -55,9 +55,11 @@ and the message says so (FR-021).
 | Manual, Auto | set                                     | Ask     |
 | Plan         | either                                  | Deny    |
 
-`agent_memory::foreign::is_foreign(source, scope) -> bool` (research R6): `false` only for `source == "action"` with a
-scope of the own list; `true` for every other source, every other scope and anything unknown. For an Abo-Agent's own
-tools, the readers of its output decide by tool name (research R7).
+`agent_memory::foreign::is_foreign` (research R6) treats tool results from other sources and unknown scopes as foreign.
+The built-in actions in the own list count as own data, except when a file access resolves to a share from a contact.
+`ask_user` and built-in catalog results count as own data. A `find_actions` result with an extension entry counts as
+foreign because descriptions and schemas can come from the extension. For an Abo-Agent's own tools, the readers of its
+output decide by tool name (research R7).
 
 ## The question
 
