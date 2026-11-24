@@ -20,7 +20,7 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
 use haex_crdt::rusqlite::params;
-use haex_crdt::{compare_hlc_strings, hlc_node_id_suffix, parse_hlc_node_hex, CrdtTransaction};
+use haex_crdt::{compare_hlc_strings, hlc_origin, CrdtTransaction};
 use uuid::Uuid;
 
 use crate::storage::query::Query;
@@ -29,11 +29,10 @@ use crate::storage::query::Query;
 /// means "nothing".
 pub type Vector = BTreeMap<Uuid, String>;
 
-/// The origin of an HLC: its node id read back as the `vault_device_uuid`
-/// haex-crdt built it from (little-endian, `device_uuid_to_hlc_node`).
+/// The origin of an HLC: the `vault_device_uuid` haex-crdt built its node id
+/// from.
 pub fn origin_of(hlc: &str) -> Option<Uuid> {
-    let node = parse_hlc_node_hex(hlc_node_id_suffix(hlc)?)?;
-    Some(Uuid::from_bytes(node.to_le_bytes()))
+    hlc_origin(hlc)
 }
 
 /// Whether `hlc` lies beyond `cursor`; everything lies beyond "nothing".

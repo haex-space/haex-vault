@@ -14,7 +14,7 @@
 
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use haex_crdt::{device_uuid_to_hlc_node, Database};
+use haex_crdt::{hlc_is_from_node, Database};
 use tokio_util::task::task_tracker::TaskTrackerToken;
 
 use crate::storage::query::{self, Query};
@@ -122,29 +122,28 @@ impl Replica {
 /// at rows written after `since`.
 ///
 /// `MAX` compares the HLC strings as text. The node suffix is the same for
-/// every candidate, and the NTP64 time before it has 20 digits from 1973
-/// until its wrap in 2036, so text order is time order.
+/// each group, and the NTP64 time before it has 20 digits from 1973
+/// until its wrap in 2036. The crate checks the origin of each group's maximum.
 fn newest_own_cell(
     q: &mut impl Query,
     own: uuid::Uuid,
     since: Option<&str>,
 ) -> haex_crdt::Result<Option<String>> {
-    let Some(node) = device_uuid_to_hlc_node(&own.to_string()) else {
-        return Ok(None);
-    };
-    let own_suffix = format!("%/{node:x}");
     let mut newest: Option<String> = None;
     for table in synced_tables(q)? {
-        let found: Option<Option<String>> = q.query_row(
+        let candidates = q.query_map(
             &format!(
                 "SELECT MAX(j.value) FROM \"{table}\" AS t, json_each(t.haex_column_hlcs_no_sync) AS j \
-                 WHERE (?1 IS NULL OR t.haex_hlc_no_sync > ?1) AND j.value LIKE ?2"
+                 WHERE (?1 IS NULL OR t.haex_hlc_no_sync > ?1) AND j.type = 'text' \
+                 GROUP BY SUBSTR(j.value, INSTR(j.value, '/') + 1)"
             ),
-            haex_crdt::rusqlite::params![since, own_suffix],
-            |r| r.get(0),
+            haex_crdt::rusqlite::params![since],
+            |r| r.get::<_, String>(0),
         )?;
-        if let Some(Some(found)) = found {
-            progress::raise_option(&mut newest, found);
+        for candidate in candidates {
+            if hlc_is_from_node(&candidate, &own) {
+                progress::raise_option(&mut newest, candidate);
+            }
         }
     }
     Ok(newest)
