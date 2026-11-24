@@ -153,7 +153,8 @@ impl Watch {
         loop {
             if let Some(since) = self.since {
                 let remaining = MOST_DRAIN.saturating_sub(since.elapsed());
-                if let Ok(line) = tokio::time::timeout(QUIET.min(remaining), lines.next_line()).await
+                if let Ok(line) =
+                    tokio::time::timeout(QUIET.min(remaining), lines.next_line()).await
                 {
                     return line;
                 }
