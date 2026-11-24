@@ -11,6 +11,8 @@ use super::*;
 use crate::chat::peer::messages::DeliveryState;
 use crate::chat::peer::ratchet::account::OwnKeys;
 use crate::chat::peer::test_support::{mock_relay, two_vaults, ChatDevice};
+use crate::contacts::card::own_card;
+use crate::sync::servers::{self, ServerConfig};
 
 const DAY_MS: i64 = 24 * 60 * 60 * 1000;
 
@@ -194,10 +196,21 @@ async fn nothing_is_made_renewed_or_published_without_a_connected_relay() {
 #[tokio::test]
 async fn a_catch_up_without_a_connected_relay_is_owed_until_one_runs() {
     let (_relay, url) = mock_relay().await;
-    let anna = ChatDevice::genesis(&[url]);
-    let ben = ChatDevice::genesis(&[]);
+    let anna = ChatDevice::genesis(std::slice::from_ref(&url));
+    let ben = ChatDevice::genesis(&[url]);
     anna.learn(&ben).await;
-    anna.introduce(&ben);
+    delivery_of(&ben)
+        .await
+        .catch_up_and_keep_record()
+        .await
+        .expect("publish Ben's chat key before taking his relay away");
+    ben.db
+        .write(|tx| {
+            servers::write(tx, &ServerConfig::only(Vec::new(), Vec::new()))?;
+            Ok(own_card::refresh(tx)?)
+        })
+        .await
+        .expect("Ben has no listening relay at startup");
     let closing = tokio_util::sync::CancellationToken::new();
     let (delivery, incoming, forward) = Delivery::connect(
         ben.db.clone(),
