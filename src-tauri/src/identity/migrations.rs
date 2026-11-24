@@ -161,7 +161,9 @@ use super::migrations_voice::VOICE_0050;
 ///   `chat_attachments`.
 /// - 43: `0069_agent_memory` (spec 097) added the CRDT-tracked `haex_agent_memory_pages` and
 ///   `memory_toc` and `memory_foreign_at` to the CRDT-tracked `chat_threads`.
-pub const HAEX_TRIGGER_VERSION: i32 = 43;
+/// - 44: haex-crdt's binary comparisons track case-only edits even on columns with a
+///   case-insensitive collation. Rebuild the triggers in existing vaults.
+pub const HAEX_TRIGGER_VERSION: i32 = 44;
 
 /// Returns the frozen haex-vault migration set at the pinned haex-crdt revision.
 pub fn haex_migration_source() -> Arc<StaticMigrationSource> {

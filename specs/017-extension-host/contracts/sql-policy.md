@@ -34,6 +34,10 @@ Begründung: [research.md](../research.md) R6–R8. Gilt für `extension_databas
 
 ### Authorizer (haex-crdt `SqlGuard`, entscheidet)
 
+Für synchronisierte Tabellen gelten zusätzlich die CRDT-Schreibregeln. Der Primärschlüssel einer
+bestehenden Zeile kann nicht per `UPDATE` geändert werden. `INSERT OR REPLACE` ist nicht zulässig.
+Zum Aktualisieren können Erweiterungen die übrigen Spalten per `UPDATE` ändern.
+
 Oberste Ebene (`accessor = None`):
 
 | Aktion                       | erlaubt, wenn                                                                                    |
