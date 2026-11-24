@@ -378,6 +378,9 @@ architecture, and break an installed tool's file; open both in the UI.
 - A third vendor, the Abacus AI CLI, is spec 096. Known so far: its npm installer downloads
   `https://static.abacus.ai/cli/releases/<version>/abacusai-<platform>.tar.gz` and its tool honors `HOME`; this is a fact
   for spec 096, not a requirement here.
+- **Partly extended by spec 096** (the requirements above are unchanged): the third vendor is in, and the manager got four
+  additions for it: an x64 variant for CPUs without AVX2, a per-program requirement of AVX2, zip archives for Windows, and a
+  vendor with no tested version yet.
 
 ## Open risks
 

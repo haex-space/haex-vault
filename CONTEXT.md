@@ -125,6 +125,32 @@ each with a SHA-256 per platform (`cli_tools/catalog.json`, written by
 version from it and checks the download against that checksum. A version in a
 vault that is newer than the list is shown as untested and still started.
 
+**Delegate credential entry** (spec 096):
+An owned entry of the password manager (`providers/delegate_credential.rs`,
+caller `Internal`, feature `delegate`, tag `haex-delegate-<vendor>`) that holds
+the credential of a CLI delegate that signs in through haex-vault itself: today
+the device code of Abacus AI, in the `password` field, with the custom fields
+`kind` and `device`. A credential bound to one device is kept per installation;
+disconnecting the provider deletes every scope of it. The user sees it in the
+password manager like any entry; the built-in agent never reads it.
+_Avoid_: "token" for the device code, "API key" (Abacus is never used with a key).
+
+**Abacus sign-in** (spec 096):
+How a vault user connects Abacus AI without a terminal: haex-vault asks the
+vendor's sign-in service for a **user code** and a **device code**
+(`_authenticateDeviceForCodeLlm`), shows the user code and the address, and
+polls with the device code (`_pollDeviceCode`) until the user has confirmed in
+the browser. The device code is the credential; the e-mail address of the
+account is shown but never logged. These two calls are the vendor's private
+interface, so a change on its side ends in a clear "sign-in unavailable".
+_Avoid_: "login" for the flow (the tool's own login needs a terminal and is never run).
+
+**Credential place of a vendor** (specs 007 and 096):
+Where a delegate's credential lives. Abacus AI: the delegate credential entry
+above. Claude Code and Codex: with the provider row in the vault database
+(spec 007). Moving the latter two to the password manager is a follow-up
+(plan D9 of spec 096), not done.
+
 **Model ID**:
 Cross-provider unique string. For local models: catalog id. For api_key
 models: `<provider_uuid>:<remote_model_id>` composite. Persisted verbatim
@@ -273,6 +299,7 @@ the search hold nothing else. A **Verlaufsstand** (`SnapshotData`) is one
 saved state of an entry; restoring one makes it current and adds a state of
 its own, so no state is lost. Secrets sit unencrypted in the vault database
 (ADR 0007); they stay in the backend until the user asks to see or copy one.
+An owned `delegate` entry (spec 096) holds the credential of a CLI delegate.
 _Avoid_: "Version" for a Verlaufsstand, "Passwort" for an entry (an entry
 holds a password, a TOTP secret, custom fields, attachments and passkeys).
 
