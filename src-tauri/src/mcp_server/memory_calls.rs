@@ -39,6 +39,9 @@ async fn foreign(core: &Core, thread: Option<Uuid>) -> bool {
     let Some(thread) = thread else {
         return true;
     };
+    if watch::retry_unrecorded(&core.db, thread).await {
+        return true;
+    }
     if !watch::fence(thread, watch::FENCE_WAIT).await {
         return true;
     }
@@ -134,12 +137,5 @@ pub(super) async fn mark_after(
     if !is_foreign(source, scope, tool, contact_share, "") {
         return;
     }
-    let now = crate::passwords::clock::unix_millis(std::time::SystemTime::now());
-    if let Err(error) = core
-        .db
-        .write(move |tx| chat_threads::mark_foreign_once(tx, thread, now))
-        .await
-    {
-        log::warn!("mcp server: the mark of foreign content was not written: {error}");
-    }
+    let _ = watch::persist_foreign_mark(&core.db, thread).await;
 }

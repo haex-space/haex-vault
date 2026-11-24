@@ -7,10 +7,12 @@
 mod mcp_fixture;
 
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use futures::future::BoxFuture;
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, DuplexStream};
+use tokio::sync::oneshot;
 use uuid::Uuid;
 
 use haex_lib::adapters::cli_delegate::haex_mcp::HaexAccess;
@@ -156,6 +158,35 @@ fn reader(fx: &Fixture, thread: Uuid) -> DuplexStream {
     agent
 }
 
+/// Holds the reader after it sees foreign output, so a memory call cannot pass just because the
+/// reader won the scheduler race and marked the thread before the fence was checked.
+fn gated_reader(
+    fx: &Fixture,
+    thread: Uuid,
+) -> (DuplexStream, oneshot::Receiver<()>, oneshot::Sender<()>) {
+    let (output, agent) = tokio::io::duplex(1024);
+    let (seen, saw_foreign) = oneshot::channel();
+    let (release_reader, reader_released) = oneshot::channel();
+    let mut watch = Watch::start(Some(thread), Some(fx.db.clone()));
+    tokio::spawn(async move {
+        let mut lines = BufReader::new(output).lines();
+        let mut seen = Some(seen);
+        let mut reader_released = Some(reader_released);
+        while let Ok(Some(line)) = watch.next_line(&mut lines).await {
+            if line == "foreign" {
+                if let Some(seen) = seen.take() {
+                    let _ = seen.send(());
+                }
+                if let Some(reader_released) = reader_released.take() {
+                    let _ = reader_released.await;
+                }
+                watch.saw_foreign().await;
+            }
+        }
+    });
+    (agent, saw_foreign, release_reader)
+}
+
 async fn set_chat_mode(fx: &Fixture, mode: &'static str) {
     fx.db
         .write(move |tx| {
@@ -192,7 +223,7 @@ async fn an_abo_agent_remembers_unasked_and_asks_once_its_own_tool_read_foreign_
     let server = fx.server().await;
     profile_with_memory(&fx).await;
     let thread = thread(&fx).await;
-    let mut output = reader(&fx, thread);
+    let (mut output, reader_saw_foreign, release_reader) = gated_reader(&fx, thread);
     let haex = fx
         .delegates
         .server_for(DelegateVendor::Codex, Some(thread), MODEL)
@@ -232,6 +263,13 @@ async fn an_abo_agent_remembers_unasked_and_asks_once_its_own_tool_read_foreign_
             .await
         }
     });
+    reader_saw_foreign.await.expect("reader saw the line");
+    tokio::select! {
+        result = &mut asking => panic!("memory write completed before the fence: {result:?}"),
+        prompt = fx.next_call() => panic!("memory write asked before the reader was released: {:?}", prompt.1),
+        () = tokio::time::sleep(Duration::from_millis(50)) => {}
+    }
+    release_reader.send(()).expect("release the reader before its fence expires");
     let (id, question) = fx.next_call().await;
     assert_eq!(question.delegate_thread_id, Some(thread.to_string()));
     assert_eq!(
