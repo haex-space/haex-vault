@@ -269,7 +269,9 @@ async fn an_abo_agent_remembers_unasked_and_asks_once_its_own_tool_read_foreign_
         prompt = fx.next_call() => panic!("memory write asked before the reader was released: {:?}", prompt.1),
         () = tokio::time::sleep(Duration::from_millis(50)) => {}
     }
-    release_reader.send(()).expect("release the reader before its fence expires");
+    release_reader
+        .send(())
+        .expect("release the reader before its fence expires");
     let (id, question) = fx.next_call().await;
     assert_eq!(question.delegate_thread_id, Some(thread.to_string()));
     assert_eq!(
