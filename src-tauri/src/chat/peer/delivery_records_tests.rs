@@ -192,15 +192,56 @@ async fn nothing_is_made_renewed_or_published_without_a_connected_relay() {
 /// outbox tick instead of waiting for the catch-up timer; one that ran is not.
 #[tokio::test]
 async fn a_catch_up_without_a_connected_relay_is_owed_until_one_runs() {
-    let offline = ChatDevice::genesis(&["ws://127.0.0.1:9".to_owned()]);
-    let delivery = delivery_of(&offline).await;
-    assert!(!delivery.catch_up_owed(), "nothing owed before a catch-up");
-    delivery.catch_up_and_keep_record().await.expect("no step");
-    assert!(delivery.catch_up_owed(), "skipped without a relay");
-
     let (_relay, url) = mock_relay().await;
-    let online = ChatDevice::genesis(std::slice::from_ref(&url));
-    let delivery = delivery_of(&online).await;
-    delivery.catch_up_and_keep_record().await.expect("catch-up");
-    assert!(!delivery.catch_up_owed(), "a catch-up ran");
+    let anna = ChatDevice::genesis(&[url]);
+    let ben = ChatDevice::genesis(&[]);
+    anna.learn(&ben).await;
+    anna.introduce(&ben);
+    let closing = tokio_util::sync::CancellationToken::new();
+    let (delivery, incoming, forward) = Delivery::connect(
+        ben.db.clone(),
+        ben.me.clone(),
+        ben.clock.clock(),
+        Vec::new(),
+        closing.clone(),
+    )
+    .await
+    .expect("offline delivery");
+    let runner =
+        tokio::spawn(Arc::clone(&delivery).run(Arc::clone(&ben.session), incoming, forward));
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        while !delivery.catch_up_owed() {
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("initial catch-up skipped without a relay");
+
+    anna.start().await;
+    let text = "Stored while Ben had no listening relay";
+    anna.send(&ben, text);
+    anna.wait_for(&ben, "stored on the relay", |messages| {
+        messages.iter().any(|message| {
+            message.text.as_deref() == Some(text)
+                && message.delivery == Some(super::super::messages::DeliveryState::Sent)
+        })
+    })
+    .await;
+    assert!(ben.messages_with(&anna).is_empty());
+
+    ben.learn(&anna).await;
+    ben.wait_within(
+        std::time::Duration::from_secs(30),
+        &anna,
+        "archived message on an outbox tick",
+        |messages| {
+            messages
+                .iter()
+                .any(|message| message.text.as_deref() == Some(text))
+        },
+    )
+    .await;
+    closing.cancel();
+    runner.await.expect("delivery stopped");
+    assert!(!delivery.catch_up_owed());
 }

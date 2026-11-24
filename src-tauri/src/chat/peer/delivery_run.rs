@@ -20,6 +20,7 @@ impl Delivery {
     ) {
         let token = self.closing.clone();
         let mut outbox_tick = tokio::time::interval(OUTBOX_TICK);
+        outbox_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         let mut receipt_tick = tokio::time::interval(RECEIPT_BATCH);
         let mut catch_up_tick =
             tokio::time::interval_at(tokio::time::Instant::now() + CATCH_UP, CATCH_UP);
@@ -41,7 +42,9 @@ impl Delivery {
         if let Err(error) = self.catch_up_and_keep_record().await {
             log::warn!("chat: no catch-up at the start: {error}");
         }
-        wake_files(&session);
+        if !self.catch_up_owed() {
+            wake_files(&session);
+        }
         if let Err(error) = self.send_keep_alives().await {
             log::warn!("chat: no keep-alives at the start: {error}");
         }
@@ -53,24 +56,35 @@ impl Delivery {
                 () = token.cancelled() => break,
                 () = session.kick.notified() => self.pump().await,
                 _ = outbox_tick.tick() => {
+                    let pumped = self.pump().await;
                     if self.catch_up_owed() {
                         if let Err(error) = self.catch_up_and_keep_record().await {
                             log::warn!("chat: an owed catch-up failed: {error}");
                         }
-                        wake_files(&session);
+                        if !self.catch_up_owed() {
+                            wake_files(&session);
+                        }
                     }
-                    self.pump().await
+                    pumped
                 }
                 _ = receipt_tick.tick() => self.flush_receipts().await,
                 _ = catch_up_tick.tick() => {
                     let caught = self.catch_up_and_keep_record().await;
                     // Files of messages the catch-up stored, if any (US3).
-                    wake_files(&session);
+                    if !self.catch_up_owed() {
+                        wake_files(&session);
+                    }
                     caught
                 }
                 _ = keep_alive_tick.tick() => self.send_keep_alives().await.map(|_| ()),
-                () = session.wake.notified() => self.reconnect().await,
-                received = incoming.recv() => {
+                () = session.wake.notified() => {
+                    let reconnected = self.reconnect().await;
+                    if !self.catch_up_owed() {
+                        wake_files(&session);
+                    }
+                    reconnected
+                },
+                received = incoming.recv(), if !self.catch_up_owed() => {
                     let Some(first) = received else { break };
                     // Everything waiting is one batch, ordered before it is stored (spec 095 T022).
                     let mut batch = vec![first];

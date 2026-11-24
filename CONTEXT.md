@@ -668,8 +668,9 @@ The last runs of a rule with counters and one entry per file action. The **Proto
 
 **Device session** (Gerätesitzung):
 The key state between one device and one peer device (of a contact or of the own vault). It
-advances with every message and is renewed with every answer, so a device key taken later opens no
-earlier message. It belongs to the installation and is never synced to other devices.
+advances with every message and is renewed with every answer. A device key taken later cannot
+decrypt earlier message content whose keys were erased. The session belongs to the installation
+and is never synced to other devices.
 _Avoid_: "session" alone (that is the chat's **Active Session** or a **Sitzung (wm session)**).
 
 **Chat key record** (Chat-Schlüsseleintrag):

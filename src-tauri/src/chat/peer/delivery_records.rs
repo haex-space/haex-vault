@@ -14,6 +14,7 @@ use std::sync::atomic::Ordering;
 
 use nostr::event::Event;
 use nostr::filter::Filter;
+use nostr_sdk::relay::RelayCapabilities;
 
 use super::{invalid, Delivery, CONNECT_TIMEOUT};
 use crate::chat::peer::ratchet::store::{self, RecordRow};
@@ -30,13 +31,58 @@ impl Delivery {
     /// ([`Self::catch_up_owed`]).
     pub(super) async fn catch_up_and_keep_record(&self) -> Result<()> {
         self.catch_up_owed.store(true, Ordering::SeqCst);
-        if !self.any_relay_connected().await {
+        if !self.catch_up().await? {
             return Ok(());
         }
-        self.catch_up().await?;
         self.catch_up_owed.store(false, Ordering::SeqCst);
         self.forget_unaddressed().await?;
         self.keep_record().await
+    }
+
+    /// Fetches the stored wraps of [`Self::filter`] once more and stores the ones not seen yet: the
+    /// net under a live event a Nostr-Relay or the notification channel dropped under load.
+    async fn catch_up(&self) -> Result<bool> {
+        self.refresh_read_relays().await?;
+        let relays = self
+            .client
+            .relays()
+            .with_capabilities(RelayCapabilities::READ)
+            .await;
+        let connected: Vec<_> = relays
+            .values()
+            .filter(|relay| relay.status().is_connected())
+            .collect();
+        if connected.is_empty() {
+            return Ok(false);
+        }
+        let filter = self.filter().await?;
+        let fetches = connected.into_iter().map(|relay| {
+            let filter = filter.clone();
+            async move {
+                relay
+                    .fetch_events(filter)
+                    .timeout(CONNECT_TIMEOUT * 4)
+                    .await
+            }
+        });
+        let replies = tokio::select! {
+            () = self.closing.cancelled() => return Ok(false),
+            replies = futures::future::join_all(fetches) => replies,
+        };
+        let mut complete = replies.into_iter().filter_map(|reply| match reply {
+            Ok(events) => Some(events),
+            Err(error) => {
+                log::warn!("chat: a Nostr-Relay did not finish catch-up: {error}");
+                None
+            }
+        });
+        let Some(mut events) = complete.next() else {
+            return Err(invalid("no listening Nostr-Relay completed catch-up"));
+        };
+        events.extend(complete.flatten());
+        self.receive_batch(events.into_iter().map(|event| (event, None)).collect())
+            .await
+            .map(|_| true)
     }
 
     /// Forgets the peer devices this device no longer addresses (spec 095 T039).
