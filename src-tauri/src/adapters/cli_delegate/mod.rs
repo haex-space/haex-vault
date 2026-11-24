@@ -41,6 +41,9 @@ mod haex_mcp_tests;
 #[cfg(test)]
 #[path = "mod_tests.rs"]
 mod mod_tests;
+mod own_tools;
+#[cfg(test)]
+mod own_tools_tests;
 pub(crate) mod permission_mcp_server;
 mod process;
 #[cfg(test)]
