@@ -9,6 +9,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 use std::num::NonZeroUsize;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
@@ -71,6 +72,9 @@ pub struct Delivery {
     closing: CancellationToken,
     /// New messages from other vaults, for the notifications (FR-023).
     arrived: broadcast::Sender<receive::Stored>,
+    /// A catch-up was skipped without a connected Nostr-Relay or failed: the next outbox tick makes
+    /// it up instead of the next [`CATCH_UP`].
+    catch_up_owed: AtomicBool,
 }
 
 impl Delivery {
@@ -108,6 +112,7 @@ impl Delivery {
             receipts: Mutex::new(BTreeMap::new()),
             closing,
             arrived: broadcast::channel(ARRIVALS).0,
+            catch_up_owed: AtomicBool::new(false),
         });
         // Attach the notification reader before subscribing: relays may send stored wraps as soon
         // as the subscription is created, and Client::notifications() does not replay earlier ones.

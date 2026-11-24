@@ -52,7 +52,15 @@ impl Delivery {
             let result = tokio::select! {
                 () = token.cancelled() => break,
                 () = session.kick.notified() => self.pump().await,
-                _ = outbox_tick.tick() => self.pump().await,
+                _ = outbox_tick.tick() => {
+                    if self.catch_up_owed() {
+                        if let Err(error) = self.catch_up_and_keep_record().await {
+                            log::warn!("chat: an owed catch-up failed: {error}");
+                        }
+                        wake_files(&session);
+                    }
+                    self.pump().await
+                }
                 _ = receipt_tick.tick() => self.flush_receipts().await,
                 _ = catch_up_tick.tick() => {
                     let caught = self.catch_up_and_keep_record().await;
