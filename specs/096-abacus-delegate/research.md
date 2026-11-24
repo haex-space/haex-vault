@@ -323,3 +323,57 @@ start check, and a script that speaks the JSON-lines protocol of section 5 (emit
 request, reads the `control_response`, emits `result`) for the adapter, under the existing unix stub pattern in
 `src-tauri/tests/cli_delegate_*.rs`. The maintainer script is tested against a recorded Sigstore bundle and the archive it
 signs (the `linux-x64` 2.10.23 pair measured here), plus a tampered copy.
+
+## 12. Measured with the real account (2026-11-24)
+
+Linux x64, version 2.10.23, the operator's Pro account, a throwaway home below the scratchpad with an empty environment
+(`CODELLM_DEVICE_CODE`, `ABACUS_AUTO_UPDATE=off`, `ABACUS_DISABLE_AUTO_MEMORY=1`, `HOME`, `TMPDIR`, `XDG_CONFIG_HOME`), the
+release from `add-version.ts --measure-only` (bundle verified with `sigstore` 4.6.0). The device code was kept in a 0600 file
+outside the repository and printed nowhere; no file below the throwaway folders contains it.
+
+**3.0 Sign-in service (T025, first part).**
+
+- A plain `curl` without a user agent is answered: HTTP 200 in 0.44 s with `verificationUri`, `userCode`,
+  `pollingInterval: 5` and `expiresIn: 300`. The connect from the UI is possible.
+- **Not as the quickstart assumed:** before the confirmation `_pollDeviceCode` answers `success: true` with only
+  `result.chatWebUrl`, not `success: false`. After the confirmation `result` also holds `deviceCode` (confirmed between 45 s
+  and 51 s after the request). The client has to treat "no `deviceCode`" as "not confirmed yet" and must not look at `success`.
+- Not measured: the answer for a code that is not confirmed (the code is valid for 300 s), and the install time of SC-001 through
+  the app (no catalog entry yet).
+
+**3.1 `auth status`.** With the code: `Method: environment variable`, `Name`, `Email`, `Org`, exit 0. With a wrong code: only
+`Method: environment variable`, also exit 0. So a check of the code must read the `Name`/`Email` lines; the exit code does not tell.
+
+**3.2 A request.** `-p "say hi" --output-format json` answers in about 5 s with the model `ROUTE_LLM` (routed to "Smaug Flash
+(Thinking)") and **spends credits of the plan**: 2.29 for "say hi", 2.85 for a request with a file read and a command. The usage
+meter of the account showed `monthly_credits` 10523 of 30000 on the Pro tier. The run is not free; it draws on the plan's
+allowance. Whether `ROUTE_LLM_LOW` or another id costs less was not measured.
+
+**3.3 and 3.6 Files and network.**
+
+- `home/.abacusai/`: `account`, `account-skills`, `builtin-skills` (about 265 files, 36 MB with the skills), `checkpoints`,
+  `cli/<pid>.pid`, `history.jsonl`, `logs`, `projects`. No keystore file. `tmpdir`: one 12.9 MB native module
+  `.bun-1000-<hash>.node`. `xdgcfg`: the folder `abacusai-cli-nodejs`. Nothing was written to the working folder except what
+  the tool calls asked for.
+- `strace` on file and network calls: no write with an absolute path outside the throwaway folders. Network: port 443 to
+  addresses of the 13.226.244.x range, 172.66.161.95 and 104.20.35.251, and the local resolver sockets; host names were not
+  recorded, and a separate update check was not identified.
+
+**3.4 and 3.5 Approvals (T035).** With `--permission-mode supervise` and `--no-agents-md`:
+
+- A **changing** tool asks: `bash` with `touch other.txt` and the `write` tool each sent `can_use_tool` (fields
+  `subtype`, `tool_call_id`, `request`, `always_allow_rules`; `request.type` is `run_terminal` with `command` and `cwd`, or
+  `write_file` with `filePath`). `accept` ran them (files created). `reject_with_message` did not run them; the tool result was
+  "Tool was rejected by user: <message>" and the model reported both actions as rejected.
+- A **read-only** tool does not ask: the `read` tool ran without a `can_use_tool` request for a file in the working folder and
+  for `/etc/hostname` outside it, and `bash ls` ran without one. `bash cat /etc/os-release` did ask.
+- Result: read-only tools bypass the bridge. The flag of T034 stays `false`; the backend stays unavailable under "always ask"
+  until an enforcement path exists (spec FR-010, plan D6).
+- `get_model_catalog` answers with the group `abacus` and the models `ROUTE_LLM`, `ROUTE_LLM_LOW`, `CLAUDE_V5_5_OPUS`,
+  `CLAUDE_V5_5_SONNET`, `GEMINI_3_8_FLASH_THINKING`, `KIMI_K3` and others; the model list can come from the account (plan D7).
+
+**3.7 `kill -9` during a request.** The process and its children are gone. Left behind, all inside the throwaway folders:
+`cli/<pid>.pid`, three `.flock` files and the `.bun-*.node` in `tmpdir`.
+
+**Not measured here:** the device-binding check on a second machine and the SC-002 runs (T030), macOS and Windows (T043), the
+connect, request and removal through the app (needs the catalog entry of T044), the cost comparison on the account page.
