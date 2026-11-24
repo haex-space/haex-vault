@@ -69,8 +69,10 @@ Abo-Agent's question appears in its thread) for the three write actions:
 | `memory.write`  | the stored and the new description and text, and the new title if any     |
 | `memory.remove` | the title and the stored text                                             |
 
-The stored text is read by the window from the memory store by title. A title that names no page shows "Seite nicht
-gefunden"; the call then fails with `not_found` if the user allows it.
+The built-in chat resolves the title before asking and sends the model name and the stored description and text with
+the approval request. An addition to an existing page shows its current text as well. The write compares the same page
+snapshot inside its transaction and returns `page_changed` if the page changed while the question was open.
+A title that names no page shows "Seite nicht gefunden"; a permitted rewrite or removal then returns `not_found`.
 
 ## Tauri commands (window only)
 
@@ -97,13 +99,13 @@ Window actions (`src/lib/actions/settingsAgentMemoryActions.ts`): `settings.agen
 
 ## Events
 
-| Event                  | Payload                                                                | Raised                                   |
-| ---------------------- | ---------------------------------------------------------------------- | ---------------------------------------- |
-| `agent-memory-written` | `{ kind: 'added' \| 'changed' \| 'removed', title, text, authorName }` | after a write of an agent on this device |
-| `vault-data-changed`   | existing; names `haex_agent_memory_pages`                              | after every write, local or synced       |
+| Event                  | Payload                                                                        | Raised                                   |
+| ---------------------- | ------------------------------------------------------------------------------ | ---------------------------------------- |
+| `agent-memory-written` | `{ kind: 'added' \| 'changed' \| 'removed', pageId, title, text, authorName }` | after a write of an agent on this device |
+| `vault-data-changed`   | existing; names `haex_agent_memory_pages`                                      | after every write, local or synced       |
 
-The window shows `agent-memory-written` as a toast: "<Modell> hat sich gemerkt (<Titel>): <Text>", "<Modell> hat die Seite
-<Titel> geändert", "<Modell> hat die Seite <Titel> entfernt" (German and English); a click opens the page.
+The toast names the model and page and shows the added, changed or removed text. Its button opens the affected
+page or, after removal, the list of pages.
 
 ## The memory block
 
