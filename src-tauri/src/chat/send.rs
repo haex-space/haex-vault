@@ -474,6 +474,42 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             .await
             .memory
     };
+    // Older conversations can already contain tool results written before they had a foreign
+    // content mark. Conservatively recover that mark before the model sees the history.
+    if !is_new_thread
+        && session.provider_kind != ProviderKind::CliDelegate
+        && db
+            .read(move |q| thread_store::memory_foreign_at(q, thread_id))
+            .await?
+            .is_none()
+    {
+        let foreign = {
+            let registry = chat.tool_registry.lock().unwrap_or_else(|e| e.into_inner());
+            history
+                .iter()
+                .filter(|row| row.role == MessageRole::ToolCall)
+                .any(|row| {
+                    let name = row.tool_name.as_deref().unwrap_or_default();
+                    let scope = registry
+                        .get(name)
+                        .and_then(|tool| tool.action_definition().map(|def| def.scope.clone()));
+                    let input = row
+                        .tool_input
+                        .as_deref()
+                        .and_then(|input| serde_json::from_str(input).ok());
+                    crate::agent_memory::foreign::is_foreign(
+                        row.tool_source.as_deref().unwrap_or("unknown"),
+                        scope.as_deref(),
+                        name,
+                        input.as_ref().unwrap_or(&Value::Null),
+                    )
+                })
+        };
+        if foreign {
+            db.write(move |tx| thread_store::mark_foreign_once(tx, thread_id, now_ms()))
+                .await?;
+        }
+    }
     let mut history = history;
     let excluded = crate::agent_memory::gate::excluded_calls(&history, memory_level);
     history.retain(|row| !crate::agent_memory::gate::excluded_row(row, &excluded));
