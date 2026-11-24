@@ -8,6 +8,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use super::world_app::Conversation;
+use crate::agent_memory::toc::NOTICE;
 use crate::local_time::{Civil, Clock};
 
 #[derive(Debug, Clone, Deserialize)]
@@ -287,6 +288,15 @@ impl FixtureWorld {
                 "id": a.id, "title": a.title,
             })).collect::<Vec<_>>() })),
             "settings_get" => ok(self.settings.clone()),
+            // The everyday world has no pages from previous conversations.
+            "memory_search" if str_arg(input, "query").is_some() => {
+                ok(json!({ "notice": NOTICE, "results": [] }))
+            }
+            "memory_search" => error("query must be a string"),
+            "memory_open" if str_arg(input, "title").is_some() => {
+                error("No page has this title. Search for it with memory_search, or create it with memory_add.")
+            }
+            "memory_open" => error("title must be a string"),
             other => self
                 .answer_app(other, input)
                 .unwrap_or_else(|| ok(json!({ "ok": true }))),
