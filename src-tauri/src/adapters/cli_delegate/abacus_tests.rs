@@ -1111,10 +1111,15 @@ async fn after_a_connect_a_request_and_a_stop_no_log_line_holds_the_email_the_co
     let (_, done, error) = collect(adapter.stream_chat(trace_request()).await.unwrap()).await;
     assert!(done.is_some() && error.is_none(), "{error:?}");
 
-    let slow = fixture.stub(&format!("cat <<'EOF'\n{INIT}\nEOF\nsleep 30"));
+    let slow = fixture.stub(&format!(
+        "echo $$ > '{pid}'\ncat <<'EOF'\n{INIT}\nEOF\nsleep 30",
+        pid = fixture.path("pid").display()
+    ));
     let stopped = fixture.adapter(&slow, fixture.context());
     let stream = stopped.stream_chat(trace_request()).await.unwrap();
+    let pid = fixture.read("pid").trim().to_owned();
     stream.abort_handle().abort();
+    assert!(wait_until_gone(&pid).await, "the stopped program exited");
     drop(stream);
 
     // What the sign-in service and the HTTP stack log of their own is not haex-vault's trace: the
@@ -1128,18 +1133,19 @@ async fn after_a_connect_a_request_and_a_stop_no_log_line_holds_the_email_the_co
     ] {
         assert!(!logs.contains(needle), "a log line holds {needle}");
     }
-    let dir = fixture.dir.path().display().to_string();
-    assert!(!logs.contains(&dir), "a log line names a path of the vault");
+    let paths = [fixture.dir.path(), fixture._vault_dir.path()];
+    for path in paths {
+        let path = path.display().to_string();
+        assert!(
+            !logs.contains(&path),
+            "a log line names a path of the vault"
+        );
+    }
 
     // The record of the vault keeps fixed text only.
-    let text = std::fs::read_dir(VaultPaths::new(fixture.dir.path()).records_dir("stub"))
-        .map(|entries| {
-            entries
-                .flatten()
-                .filter_map(|entry| fs::read_to_string(entry.path()).ok())
-                .collect::<String>()
-        })
-        .unwrap_or_default();
+    let text = fs::read_to_string(record.path()).expect("read the vault record");
+    assert!(text.contains("connect_finished"));
+    assert_eq!(text.matches("run_started").count(), 2);
     for needle in [
         TRACE_EMAIL,
         TRACE_USER_CODE,
@@ -1147,6 +1153,13 @@ async fn after_a_connect_a_request_and_a_stop_no_log_line_holds_the_email_the_co
         TRACE_REQUEST,
     ] {
         assert!(!text.contains(needle), "the record holds {needle}");
+    }
+    for path in paths {
+        let path = path.display().to_string();
+        assert!(
+            !text.contains(&path),
+            "the record names a path of the vault"
+        );
     }
 }
 
