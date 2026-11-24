@@ -326,7 +326,7 @@ async fn a_full_memory_takes_no_new_page_but_an_old_one_grows() {
 }
 
 #[tokio::test]
-async fn only_the_built_in_agent_is_served_until_the_abo_agents_get_the_rule() {
+async fn an_agent_without_a_live_pass_is_refused() {
     let v = vault();
     let (actions, _) = actions(&v);
     let call = NativeCall {
@@ -345,4 +345,38 @@ async fn only_the_built_in_agent_is_served_until_the_abo_agents_get_the_rule() {
         .await
         .expect_err("refused");
     assert_eq!(refused.code, "forbidden_for_agents");
+}
+
+#[test]
+fn an_abo_agent_with_a_live_pass_writes_as_its_model() {
+    let agent = Uuid::new_v4();
+    let live = |id: Uuid| (id == agent).then(|| "p1:gpt-6.2-sol".to_owned());
+    let abo = super::served(
+        &Caller::ExternalAgent {
+            id: agent.to_string(),
+        },
+        live,
+    )
+    .expect("served")
+    .expect("an Abo-Agent");
+    assert_eq!(abo.name, "gpt-6.2-sol");
+    assert_eq!(abo.key, "model:p1:gpt-6.2-sol");
+    assert_eq!(
+        super::served(&Caller::BuiltinAgent, live).expect("served"),
+        None
+    );
+    for caller in [
+        Caller::ExternalAgent {
+            id: Uuid::new_v4().to_string(),
+        },
+        Caller::ExternalAgent {
+            id: "not an id".to_owned(),
+        },
+        Caller::User,
+    ] {
+        assert_eq!(
+            super::served(&caller, live).expect_err("refused").code,
+            "forbidden_for_agents"
+        );
+    }
 }

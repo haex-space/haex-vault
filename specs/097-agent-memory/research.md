@@ -212,7 +212,11 @@ Seeing an Abo-Agent's own tools (PR C):
   in the gated and the ungated mode. If its item events name them, the reader sets the mark from them as for Claude Code.
   If they do not, Codex's own web search is switched off in its `config.toml` (it is told to use haex-vault's browser
   already), and a command it runs sets the mark if the notifications show commands; what is left unseen goes to the
-  operator before PR C lands.
+  operator before PR C lands. **Outcome (2026-11-24, `analysis/codex-spike.md`)**: both are named in both modes
+  (`webSearch`, `commandExecution` items); the operator decided to read the item events and keep Codex's web search and
+  its `codex_apps` server.
+- **Abacus AI** (spec 096) has haex-vault's server but no reader of its own tools: no fence is answered for its pass, so
+  every write of the memory it makes asks.
 
 The delegate's stdout reader and haex MCP dispatch run independently, so dispatch cannot read the foreign mark
 immediately when `memory.write` arrives. Each delegate pass exposes a reader barrier: dispatch sends a fence to the

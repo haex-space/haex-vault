@@ -188,6 +188,18 @@ export function isMemoryWrite(toolName: string): boolean {
   return (MEMORY_WRITE_TOOLS as readonly string[]).includes(toolName)
 }
 
+/**
+ * The tool of an Abo-Agent's call question that writes the memory (spec 097 T075), or `null`. Only a
+ * question that carries the stored page (`memoryPage`, `null` for a new page) shows the preview.
+ */
+export function memoryWriteToolOf(question: {
+  actionId: string
+  memoryPage?: unknown
+}): string | null {
+  const tool = question.actionId.replace('.', '_')
+  return question.memoryPage !== undefined && isMemoryWrite(tool) ? tool : null
+}
+
 /** What the question before an agent's write shows (spec 097 FR-021). */
 export interface MemoryWritePreview {
   kind: 'add' | 'write' | 'remove'

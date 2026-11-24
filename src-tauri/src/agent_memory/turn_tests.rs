@@ -111,3 +111,18 @@ async fn a_model_without_the_right_leaves_the_snapshot_for_one_that_has_it() {
         "the snapshot is the one from the conversation's start"
     );
 }
+
+#[tokio::test]
+async fn an_abo_agent_is_given_the_level_of_its_model_s_profile() {
+    let v = vault();
+    let model = "6f3c0a52-0a47-4c0a-9a61-5d2d1a5b7e01:gpt-6.2-sol";
+    assert_eq!(
+        delegate_level(&v.db, model).await,
+        MemoryLevel::ReadWrite,
+        "a model in Standard reads and writes from the factory"
+    );
+    crate::agent_profiles::test_support::edit_standard(&v.db, |rights| {
+        rights.memory = MemoryLevel::Read;
+    });
+    assert_eq!(delegate_level(&v.db, model).await, MemoryLevel::Read);
+}

@@ -64,7 +64,9 @@ output decide by tool name (research R7).
 ## The question
 
 No new dialog. `MemoryWritePreview.vue` is shown inside the chat's approval and inside `CallQuestionDetails.vue` (where an
-Abo-Agent's question appears in its thread) for the three write actions:
+Abo-Agent's question appears in its thread) for the three write actions. The stored page comes with the question
+(`memoryPage` of the chat's approval and of `CallQuestion`, `null` for a new page), and an approved write is refused with
+`page_changed` when the page is no longer the one shown:
 
 | Action          | Shows                                                                     |
 | --------------- | ------------------------------------------------------------------------- |

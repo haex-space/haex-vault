@@ -49,24 +49,44 @@ fn block_of(
     (!block.is_empty()).then_some(block)
 }
 
+/// The memory level of an Abo-Agent's turn (spec 097 T074): that of the agent profile of the model
+/// it runs with (`<provider id>:<remote id>`), the subject its pass to haex-vault's server is judged
+/// as. A failed read gives none.
+pub async fn delegate_level(db: &crate::vault_gate::VaultDb, model: &str) -> MemoryLevel {
+    let subject = crate::agent_profiles::Subject::Model(model.to_owned());
+    match db
+        .read(move |q| crate::agent_profiles::resolve::rights_of(q, &subject))
+        .await
+    {
+        Ok(rights) => rights.memory,
+        Err(error) => {
+            log::warn!("chat: the memory right of the Abo-Agent could not be read: {error}");
+            MemoryLevel::Off
+        }
+    }
+}
+
 /// The memory block of the turn (spec 097 research R5): the conversation's table of contents for a
-/// model whose profile lets it read the memory. An Abo-Agent gets it with spec 097 PR C. A failure
-/// leaves the block out rather than the turn.
+/// model whose profile lets it read the memory, the built-in agent's or an Abo-Agent's (whose
+/// system prompt carries it, `cli_delegate::haex_mcp::with_instruction`). Without a known context
+/// window the whole table is given. A failure leaves the block out rather than the turn.
 pub async fn block_for_session(
     db: &crate::vault_gate::VaultDb,
     session: &crate::chat::session::ActiveSession,
     thread_id: Uuid,
     level: MemoryLevel,
 ) -> Option<String> {
-    if session.provider_kind == crate::storage::providers::ProviderKind::CliDelegate {
-        return None;
-    }
     let context = session.adapter.context_limit().or_else(|| {
         session
             .context_window
             .and_then(|window| usize::try_from(window).ok())
     });
-    let model = crate::agent_profiles::local::subject_of_session(session).map(|s| s.key());
+    let model = match session.provider_kind {
+        crate::storage::providers::ProviderKind::CliDelegate => {
+            Some(crate::agent_profiles::Subject::Model(session.model_id.clone()).key())
+        }
+        _ => crate::agent_profiles::local::subject_of_session(session).map(|s| s.key()),
+    };
     if let Ok(Some(snapshot)) = db.read(move |q| memory_toc(q, thread_id)).await {
         return block_of(&snapshot, level, context, model.as_deref());
     }

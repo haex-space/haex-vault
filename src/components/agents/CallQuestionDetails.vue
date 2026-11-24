@@ -5,6 +5,7 @@
  * Shared by the call dialog and the chat's prompt for a delegate (US6).
  */
 import type { CallQuestion } from '~/types/bindings/CallQuestion'
+import { memoryWriteToolOf } from '~/lib/agentMemory/pages'
 
 const props = defineProps<{
   question: CallQuestion
@@ -19,6 +20,9 @@ const actionName = computed(() => {
     locale.value === 'de' ? props.question.titles.de : props.question.titles.en
   return title || props.question.actionId
 })
+
+/** A write of the memory shows the stored and the new text instead of the inputs (spec 097 FR-021). */
+const memoryTool = computed(() => memoryWriteToolOf(props.question))
 
 const inputs = computed(() =>
   Object.entries(props.question.input ?? {}).map(([name, value]) => ({
@@ -67,7 +71,14 @@ const inputs = computed(() =>
       </template>
     </dl>
 
-    <SettingsGroup :label="t('mcpAgents.call.input')">
+    <AgentsMemoryWritePreview
+      v-if="memoryTool"
+      :tool-name="memoryTool"
+      :tool-input="question.input"
+      :stored="question.memoryPage ?? null"
+      :model-name="question.clientName"
+    />
+    <SettingsGroup v-else :label="t('mcpAgents.call.input')">
       <SettingsRow
         v-for="input in inputs"
         :key="input.name"

@@ -22,6 +22,7 @@ pub mod http_session;
 pub mod live;
 pub mod manage;
 pub mod manage_commands;
+mod memory_calls;
 pub mod memory_rights;
 pub mod oauth;
 mod oauth_flow;

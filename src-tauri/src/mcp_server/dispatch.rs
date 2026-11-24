@@ -25,6 +25,7 @@ use super::extension_tools;
 use super::grants::{DataRights, Reach};
 use super::hello::CloseReason;
 use super::live::Link;
+use super::memory_calls;
 use super::prompts::{
     call_gate, extension_gate, CallDecision, CallEffect, CallQuestion, PromptClosed,
     PromptClosedReason,
@@ -218,46 +219,87 @@ pub async fn call(
     } else {
         None
     };
-    let decision = combine(agent_decision, chat_decision);
-    let result = match decision {
+    let mut decision = combine(agent_decision, chat_decision);
+    // Spec 097 FR-018, FR-019: a delegate's write of the memory follows the rule of the built-in
+    // agent; an agent outside haex-vault has no right to it and never gets here.
+    let writes_memory = memory_calls::writes_memory(callee) && chat_mode_binds(kind);
+    if writes_memory {
+        decision = memory_calls::decide(core, agent.delegate_thread).await;
+    }
+    let (result, contact_share) = match decision {
         Decision::Deny => {
             entry.outcome = Outcome::DeniedPlan;
-            error_result(
+            let result = error_result(
                 "plan_mode",
                 "The approval mode of this agent only lets reading actions run.",
                 None,
-            )
+            );
+            (result, false)
         }
-        Decision::Allow => run(core, agent, callee, input, cancel, &mut entry).await,
+        Decision::Allow => {
+            memory_calls::tracing_shares(run(core, agent, callee, input, cancel, &mut entry)).await
+        }
         Decision::Ask => {
-            let question = question(agent, callee, entry.target.clone(), shown);
+            // The page as stored now: the question shows it and the answer is bound to it.
+            let approved = if writes_memory {
+                match memory_calls::snapshot(core, &input).await {
+                    Ok(page) => Some(page),
+                    Err(result) => {
+                        entry.outcome = Outcome::Error;
+                        record(core, agent.id, &entry).await;
+                        return *result;
+                    }
+                }
+            } else {
+                None
+            };
+            let mut question = question(agent, callee, entry.target.clone(), shown);
+            question.memory_page = approved.as_ref().map(memory_calls::shown);
             match ask(core, &question, cancel).await {
                 Ok(CallDecision::Allow) => {
                     entry.asked = true;
-                    run(core, agent, callee, input, cancel, &mut entry).await
+                    let work = run(core, agent, callee, input, cancel, &mut entry);
+                    memory_calls::tracing_shares(memory_calls::bound(approved, work)).await
                 }
                 Ok(CallDecision::Deny) => {
                     entry.asked = true;
                     entry.outcome = Outcome::DeniedUser;
-                    error_result("user_declined", "The user declined this call.", None)
+                    let message = if writes_memory {
+                        "The user declined this call. Nothing was written to the memory."
+                    } else {
+                        "The user declined this call."
+                    };
+                    (error_result("user_declined", message, None), false)
                 }
                 Err(PromptEnd::Expired) => {
                     entry.asked = true;
                     entry.outcome = Outcome::NoAnswer;
-                    error_result("no_answer", "The user did not answer in time.", None)
+                    let result =
+                        error_result("no_answer", "The user did not answer in time.", None);
+                    (result, false)
                 }
                 // A revocation ends the prompt with a refusal (FR-027).
                 Err(PromptEnd::Cancelled) if link.reason() == Some(CloseReason::Revoked) => {
                     entry.outcome = Outcome::DeniedRights;
-                    not_allowed()
+                    (not_allowed(), false)
                 }
                 Err(PromptEnd::Cancelled | PromptEnd::NoWindow) => {
                     entry.outcome = Outcome::Unavailable;
-                    unavailable()
+                    (unavailable(), false)
                 }
             }
         }
     };
+    // Spec 097 FR-019: what the call brought marks the delegate's conversation.
+    memory_calls::mark_after(
+        core,
+        agent.delegate_thread,
+        callee,
+        tool_name,
+        entry.outcome,
+        contact_share,
+    )
+    .await;
     record(core, agent.id, &entry).await;
     result
 }
@@ -316,6 +358,7 @@ fn question(
         input: shown,
         secret,
         delegate_thread_id: agent.delegate_thread.map(|thread| thread.to_string()),
+        memory_page: None,
     }
 }
 

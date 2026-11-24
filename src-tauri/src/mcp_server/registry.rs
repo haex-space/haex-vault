@@ -560,5 +560,11 @@ pub fn load_rights(q: &mut impl Query, device: Uuid, agent: Uuid) -> Result<Righ
     if found.kind != AgentKind::External && super::delegates::live_model(found.id).is_none() {
         return Ok(Rights::default());
     }
-    crate::agent_profiles::resolve::rights_of(q, &subject_of(&found))
+    let mut rights = crate::agent_profiles::resolve::rights_of(q, &subject_of(&found))?;
+    // Spec 097 FR-020: an agent outside haex-vault never reaches the memory, whatever its profile
+    // gives; haex-vault cannot see what it reads elsewhere.
+    if found.kind == AgentKind::External {
+        rights.memory = super::grants::MemoryLevel::Off;
+    }
+    Ok(rights)
 }

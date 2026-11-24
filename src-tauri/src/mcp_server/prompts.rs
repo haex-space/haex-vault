@@ -182,6 +182,11 @@ pub struct CallQuestion {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub delegate_thread_id: Option<String>,
+    /// A write of the memory (spec 097 FR-021): the page as stored when the question was asked,
+    /// `null` for a new page. The window shows it rather than what the agent says it was.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "{ description: string, body: string } | null")]
+    pub memory_page: Option<serde_json::Value>,
 }
 
 /// The effect of the called action, as the prompt names it.

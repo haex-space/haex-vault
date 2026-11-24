@@ -21,4 +21,9 @@ secret: boolean,
 /**
  * A delegate's call: the chat thread that shows the prompt instead of the dialog (US6, R6).
  */
-delegateThreadId?: string, };
+delegateThreadId?: string,
+/**
+ * A write of the memory (spec 097 FR-021): the page as stored when the question was asked,
+ * `null` for a new page. The window shows it rather than what the agent says it was.
+ */
+memoryPage?: { description: string, body: string } | null, };
