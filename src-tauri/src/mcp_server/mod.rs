@@ -22,6 +22,7 @@ pub mod http_session;
 pub mod live;
 pub mod manage;
 pub mod manage_commands;
+pub mod memory_rights;
 pub mod oauth;
 mod oauth_flow;
 mod oauth_http;
@@ -51,8 +52,6 @@ mod grant_rows_tests;
 #[cfg(test)]
 mod grants_tests;
 #[cfg(test)]
-mod memory_rights_tests;
-#[cfg(test)]
 mod hello_tests;
 #[cfg(test)]
 mod helper_tests;
@@ -60,6 +59,8 @@ mod helper_tests;
 mod http_tests;
 #[cfg(test)]
 mod manage_tests;
+#[cfg(test)]
+mod memory_rights_tests;
 #[cfg(test)]
 mod oauth_tests;
 #[cfg(test)]

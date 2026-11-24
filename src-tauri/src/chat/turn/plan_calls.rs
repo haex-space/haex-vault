@@ -170,7 +170,7 @@ impl TurnRunner<'_> {
                 continue;
             }
             let foreign = if crate::agent_memory::gate::is_write_tool(tool.name()) {
-                self.memory_foreign().await
+                memory_foreign(self.saw_foreign, self.db, self.thread_id).await
             } else {
                 false
             };
@@ -212,27 +212,25 @@ impl TurnRunner<'_> {
     }
 }
 
-impl TurnRunner<'_> {
-    /// Whether the conversation saw foreign content (spec 097 FR-019); a failed read counts as
-    /// foreign, so the write asks rather than slipping through.
-    async fn memory_foreign(&self) -> bool {
-        if self.saw_foreign {
-            return true;
-        }
-        let thread = self.thread_id;
-        match self
-            .db
-            .read(move |q| crate::storage::chat_threads::memory_foreign_at(q, thread))
-            .await
-        {
-            Ok(at) => at.is_some(),
-            Err(error) => {
-                log::warn!("chat: the mark of foreign content could not be read: {error}");
-                true
-            }
+/// Whether the conversation saw foreign content (spec 097 FR-019); a failed read counts as foreign,
+/// so the write asks rather than slipping through. Takes fields, not the runner, which is not `Sync`.
+async fn memory_foreign(saw_foreign: bool, db: &crate::vault_gate::VaultDb, thread: Uuid) -> bool {
+    if saw_foreign {
+        return true;
+    }
+    match db
+        .read(move |q| crate::storage::chat_threads::memory_foreign_at(q, thread))
+        .await
+    {
+        Ok(at) => at.is_some(),
+        Err(error) => {
+            log::warn!("chat: the mark of foreign content could not be read: {error}");
+            true
         }
     }
+}
 
+impl TurnRunner<'_> {
     /// Takes from the next step's offer what the agent profile of the model does not give, so a
     /// profile that changed between two steps is followed (spec 083 FR-017).
     pub(super) async fn gate_offer(&mut self) {

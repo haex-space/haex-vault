@@ -3,6 +3,7 @@ import type { BrowserRights } from "./BrowserRights";
 import type { ContactsRights } from "./ContactsRights";
 import type { DelegateRights } from "./DelegateRights";
 import type { FilesRights } from "./FilesRights";
+import type { MemoryLevel } from "./MemoryLevel";
 import type { OperateLevel } from "./OperateLevel";
 import type { PasswordRights } from "./PasswordRights";
 
@@ -37,4 +38,9 @@ contacts?: ContactsRights,
  * What the agent may do with files (spec 083 FR-033); the device is off without an entry, a
  * storage or an encrypted folder asks the user at the first access.
  */
-files?: FilesRights, };
+files?: FilesRights,
+/**
+ * What the agent reaches of the shared memory (spec 097); external agents never reach it
+ * (FR-020, `registry::load_rights`).
+ */
+memory?: MemoryLevel, };

@@ -190,44 +190,7 @@ impl BrowserRights {
 /// The scopes of the group `passwords`: the search and the single secret.
 pub const PASSWORD_SCOPES: [&str; 2] = ["passwords.read", "passwords.secret"];
 
-/// The scope of the memory's reading actions (spec 097: `memory.search`, `memory.open`).
-pub const MEMORY_READ_SCOPE: &str = "memory.read";
-/// The scope of the memory's writing actions (`memory.add`, `memory.write`, `memory.remove`).
-pub const MEMORY_WRITE_SCOPE: &str = "memory.write";
-
-/// The rights group `memory` (spec 097 FR-005): what a model reaches of the agents' shared memory.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "../../src/types/bindings/")]
-pub enum MemoryLevel {
-    #[default]
-    Off,
-    Read,
-    ReadWrite,
-}
-
-impl MemoryLevel {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Off => "off",
-            Self::Read => "read",
-            Self::ReadWrite => "read_write",
-        }
-    }
-
-    /// The stored level; a level this build cannot read is [`Self::Off`] (FR-005).
-    pub fn parse(value: &str) -> Self {
-        match value {
-            "read" => Self::Read,
-            "read_write" => Self::ReadWrite,
-            _ => Self::Off,
-        }
-    }
-
-    pub fn is_off(&self) -> bool {
-        *self == Self::Off
-    }
-}
+pub use super::memory_rights::{MemoryLevel, MEMORY_READ_SCOPE, MEMORY_WRITE_SCOPE};
 
 /// What the group `passwords` lets an agent do with the entries in its tags (034 FR-028).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

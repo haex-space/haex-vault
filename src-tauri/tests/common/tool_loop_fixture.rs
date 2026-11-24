@@ -41,7 +41,7 @@ use haex_lib::vault_gate::{VaultDb, VaultGate};
 const PREF_PERMISSION_MODE: &str = "chat.permission_mode";
 
 /// Sets the approval mode. These turns are about what the mode asks and refuses, so the agent
-/// profile of the model ("Standard") gives the commands, every extension and every topic here (spec 083); the
+/// profile of the model ("Standard") gives the commands, every extension, every topic and the memory here (spec 083); the
 /// profile's own gate is tested in `chat::tools::profile_gate` and `mcp_server_profiles`.
 pub fn set_permission_mode(db: &Database, mode: &str) {
     db.write(|tx| {
@@ -61,6 +61,7 @@ pub fn set_permission_mode(db: &Database, mode: &str) {
                     .collect(),
                 all_extensions: true,
                 commands: true,
+                memory: haex_lib::mcp_server::grants::MemoryLevel::ReadWrite,
                 ..Default::default()
             },
         )
