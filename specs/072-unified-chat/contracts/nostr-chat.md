@@ -1,5 +1,12 @@
 # Contract: chat events over Nostr
 
+> **Amended by spec 095** ([contract](../../095-chat-security/contracts/nostr-chat-ratchet.md)): a
+> rumor of kind 24120 or 24121 is no longer wrapped directly but travels encrypted inside a ratchet
+> message on the session between the two devices; a rumor in a seal carries a ratchet message or a
+> reset. Its plaintext is at most 20 KiB (instead of the 24 KiB below). An event no Nostr-Relay
+> accepted is not given up after 24 hours: it keeps being tried, and a message without a receipt is
+> sent again after 1, 3 and then every 7 days.
+
 Layers, keys and checks: [research R1, R2, R4, R5](../research.md). Every event below is the JSON
 content of a **rumor**; the rumor is sealed (kind 13, signed by the sender's device key) and gift-wrapped
 (kind 1059, one-time key, NIP-44 v2) to **one device key** of a recipient. One wrap per recipient
