@@ -2,8 +2,9 @@
 //! "Actions of agents"): `memory.search`, `memory.open`, `memory.add`, `memory.write`,
 //! `memory.remove`, addressed by title. Whether a write runs, asks or is refused was decided before
 //! the call reaches here (`super::gate`); the right decided whether the model was offered the action
-//! at all. The author of a write is the model of the running turn. Until spec 097 PR C only the
-//! built-in agent's calls are served.
+//! at all. The author of a write is the model of the running turn: the built-in agent's, or the
+//! model an Abo-Agent runs with over its pass (PR C). Every other caller is refused, as a second
+//! wall behind the right, which is off for agents outside haex-vault (FR-020).
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -22,10 +23,9 @@ use super::search::{search, SearchPage};
 use super::store::{self, settle, MemoryError, NewPage, Page};
 use super::toc::{iso_date, NOTICE};
 use super::{Author, AuthorKind};
+use crate::caller::Caller;
 use crate::chat::tools::agent_task;
-use crate::chat::tools::native_action::{
-    builtin_only, NativeCall, NativeError, NativeExecutor, NativeReply,
-};
+use crate::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
 use crate::error::HaexError;
 use crate::state::AppState;
 use crate::storage::known_devices;
@@ -163,8 +163,17 @@ fn field_name(field: super::check::Field) -> &'static str {
     }
 }
 
-/// The model of the running turn as the author of a write.
-fn author(device: Uuid) -> Author {
+/// The model of the running turn as the author of a write: an Abo-Agent's model when `abo` names
+/// it, else the built-in agent's.
+fn author(device: Uuid, abo: Option<&AboModel>) -> Author {
+    if let Some(abo) = abo {
+        return Author {
+            kind: AuthorKind::Model,
+            key: Some(abo.key.clone()),
+            name: abo.name.clone(),
+            device,
+        };
+    }
     let task = agent_task::current();
     Author {
         kind: AuthorKind::Model,
@@ -174,6 +183,45 @@ fn author(device: Uuid) -> Author {
             .map(|subject| subject.key()),
         name: task.map(|task| task.model).unwrap_or_default(),
         device,
+    }
+}
+
+/// The model an Abo-Agent's pass runs with.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AboModel {
+    /// The subject key of the model (`model:<provider id>:<remote id>`).
+    pub key: String,
+    /// The model's name as the user knows it, its remote id.
+    pub name: String,
+}
+
+/// Who may call: the built-in agent (`None`), or an Abo-Agent whose pass is live (its model). An
+/// agent outside haex-vault, or a delegate without a live pass, is refused.
+pub fn served(
+    caller: &Caller,
+    live_model: impl Fn(Uuid) -> Option<String>,
+) -> Result<Option<AboModel>, NativeError> {
+    let refused = || {
+        NativeError::new(
+            "forbidden_for_agents",
+            "This action is not available to this agent.",
+        )
+    };
+    match caller {
+        Caller::BuiltinAgent => Ok(None),
+        Caller::ExternalAgent { id } => {
+            let id = Uuid::parse_str(id).map_err(|_| refused())?;
+            let model = live_model(id).ok_or_else(refused)?;
+            let name = model
+                .split_once(':')
+                .map_or(model.as_str(), |(_, remote)| remote)
+                .to_owned();
+            Ok(Some(AboModel {
+                key: crate::agent_profiles::Subject::Model(model).key(),
+                name,
+            }))
+        }
+        _ => Err(refused()),
     }
 }
 
@@ -298,9 +346,14 @@ impl<E: MemoryEnv + 'static> MemoryActions<E> {
         }
     }
 
-    async fn write(&self, action_id: &str, input: Value) -> Result<Value, NativeError> {
+    async fn write(
+        &self,
+        action_id: &str,
+        input: Value,
+        abo: Option<&AboModel>,
+    ) -> Result<Value, NativeError> {
         let db = self.env.database().map_err(internal)?;
-        let author = author(self.env.device().await.map_err(internal)?);
+        let author = author(self.env.device().await.map_err(internal)?, abo);
         let name = author.name.clone();
         let now = now();
         let approved = super::gate::APPROVED_PAGE.try_with(Clone::clone).ok();
@@ -427,6 +480,12 @@ impl<E: MemoryEnv + 'static> NativeExecutor for MemoryActions<E> {
         MEMORY_ACTION_IDS
     }
 
+    /// Offered over MCP for the Abo-Agents (PR C); [`served`] refuses every other agent, whose
+    /// memory right is off besides (FR-020).
+    fn serves_external_agents(&self) -> bool {
+        true
+    }
+
     async fn run(
         &self,
         action_id: &str,
@@ -434,10 +493,10 @@ impl<E: MemoryEnv + 'static> NativeExecutor for MemoryActions<E> {
         call: &NativeCall,
         _cancel: &CancellationToken,
     ) -> Result<NativeReply, NativeError> {
-        builtin_only(call)?;
+        let abo = served(&call.caller, crate::mcp_server::delegates::live_model)?;
         let result = match action_id {
             SEARCH | OPEN => self.read(action_id, input).await?,
-            ADD | WRITE | REMOVE => self.write(action_id, input).await?,
+            ADD | WRITE | REMOVE => self.write(action_id, input, abo.as_ref()).await?,
             other => {
                 return Err(NativeError::new(
                     "unknown_action",

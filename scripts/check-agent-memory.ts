@@ -11,6 +11,7 @@ import {
   memoryWritePreview,
   isMemoryWrite,
   memoryRefusal,
+  memoryWriteToolOf,
   withPointerLinks,
 } from '../src/lib/agentMemory/pages.ts'
 import { ALL_ACTIONS } from '../src/lib/actions/catalog.ts'
@@ -221,5 +222,30 @@ test('saving another group of a profile keeps its memory level (spec 097 FR-006)
     'memory' in rightsOf(rightsDraftOf({ operate: {} })),
     false,
     'off is sent as absent, which the backend reads as off',
+  )
+})
+
+test("an Abo-Agent's question shows the preview only for a write with the stored page (T075)", () => {
+  const page = { description: 'Steuerberater', body: 'Alt.' }
+  assert.equal(
+    memoryWriteToolOf({ actionId: 'memory.add', memoryPage: null }),
+    'memory_add',
+  )
+  assert.equal(
+    memoryWriteToolOf({ actionId: 'memory.write', memoryPage: page }),
+    'memory_write',
+  )
+  assert.equal(
+    memoryWriteToolOf({ actionId: 'memory.remove', memoryPage: page }),
+    'memory_remove',
+  )
+  assert.equal(memoryWriteToolOf({ actionId: 'memory.add' }), null)
+  assert.equal(
+    memoryWriteToolOf({ actionId: 'memory.search', memoryPage: null }),
+    null,
+  )
+  assert.equal(
+    memoryWriteToolOf({ actionId: 'files.write', memoryPage: null }),
+    null,
   )
 })

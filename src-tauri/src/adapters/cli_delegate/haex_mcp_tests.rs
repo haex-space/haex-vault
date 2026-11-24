@@ -184,3 +184,17 @@ fn a_delegate_with_haex_reads_the_instruction_after_the_given_prompt() {
     assert_eq!(with_instruction(Some("x"), false).as_deref(), Some("x"));
     assert_eq!(with_instruction(None, false), None);
 }
+
+/// Spec 097 T068: the system prompt handed to Claude Code and Codex keeps the memory block of the
+/// turn, before the instruction about haex-vault's tools.
+#[test]
+fn the_memory_block_reaches_the_abo_agent() {
+    let given = crate::chat::tools::prompt::with_memory(
+        Some("Du bist hilfreich."),
+        Some("## Memory\n- Mail-Stil: Kurz (the user, 2026-11-20)"),
+    );
+    let handed = with_instruction(given.as_deref(), true).expect("a prompt");
+    let memory = handed.find("## Memory").expect("the block");
+    assert!(handed.contains("- Mail-Stil: Kurz"));
+    assert!(memory < handed.find(DELEGATE_INSTRUCTION).expect("the instruction"));
+}

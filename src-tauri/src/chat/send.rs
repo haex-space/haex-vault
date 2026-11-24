@@ -403,7 +403,11 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
     } else {
         crate::chat::tools::profile_gate::rights_of_session(&db, &session).await
     };
-    let memory_level = rights.memory;
+    let memory_level = if session.provider_kind == ProviderKind::CliDelegate {
+        crate::agent_memory::turn::delegate_level(&db, &session.model_id).await
+    } else {
+        rights.memory
+    };
     let (tools, extensions_overview) = {
         let mut tools = tools;
         let mut overview = None;

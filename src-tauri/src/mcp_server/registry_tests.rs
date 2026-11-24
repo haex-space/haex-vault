@@ -143,7 +143,11 @@ async fn an_agent_has_the_rights_of_its_profile() {
         v.db.read(move |q| load_rights(q, device, id))
             .await
             .expect("read"),
-        default_rights()
+        // Spec 097 FR-020: an agent outside haex-vault never has the memory, even in "Standard".
+        Rights {
+            memory: super::grants::MemoryLevel::Off,
+            ..default_rights()
+        }
     );
     // Spec 065 T008: the group `browser` is stored next to `operate` and reads back the same;
     // so do the groups `extension` (spec 021 US4) and `passwords` (US5).
@@ -192,7 +196,10 @@ async fn an_agent_has_the_rights_of_its_profile() {
         v.db.read(move |q| load_rights(q, device, id))
             .await
             .expect("read"),
-        narrow
+        Rights {
+            memory: super::grants::MemoryLevel::Off,
+            ..narrow
+        }
     );
 }
 
