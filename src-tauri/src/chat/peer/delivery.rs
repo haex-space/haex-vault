@@ -9,7 +9,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 use std::num::NonZeroUsize;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
@@ -215,22 +215,6 @@ impl Delivery {
         Ok(())
     }
 
-    /// Fetches the stored wraps of [`Self::filter`] once more and stores the ones not seen yet: the
-    /// net under a live event a Nostr-Relay or the notification channel dropped under load.
-    async fn catch_up(&self) -> Result<()> {
-        self.refresh_read_relays().await?;
-        let filter = self.filter().await?;
-        let events = self
-            .client
-            .fetch_events(filter)
-            .timeout(CONNECT_TIMEOUT * 4)
-            .await
-            .map_err(|e| invalid(&e.to_string()))?;
-        self.receive_batch(events.into_iter().map(|event| (event, None)).collect())
-            .await
-            .map(|_| ())
-    }
-
     /// Tracks cards added or removed while the vault stayed open, so the fallback route can be
     /// received even when the contact's own card lists no Nostr-Relays.
     async fn refresh_read_relays(&self) -> Result<()> {
@@ -284,6 +268,7 @@ impl Delivery {
     /// New connections and a new subscription, after the app came back or the network changed;
     /// what arrived meanwhile is caught up, and the outbox is tried again at once.
     pub async fn reconnect(&self) -> Result<()> {
+        self.catch_up_owed.store(true, Ordering::SeqCst);
         self.refresh_read_relays().await?;
         self.client.disconnect().await;
         self.client.connect().and_wait(CONNECT_TIMEOUT).await;
