@@ -926,3 +926,84 @@ async fn an_abacus_program_that_reports_another_version_is_discarded() {
     );
     assert!(fixture.entries("abacusai").is_empty(), "nothing is kept");
 }
+
+// ---- Abacus AI on Windows: the zip build (spec 096 US5, T041) ----
+
+/// The zip of the Windows build, with its program and the Sigstore file the release carries.
+fn abacus_windows_release(program: &[u8]) -> Vec<u8> {
+    zipped(|w| {
+        add_zipped(w, "abacusai.exe", 0o755, program);
+        add_zipped(
+            w,
+            "abacusai-win32-x64.sigstore",
+            0o644,
+            b"{\"bundle\":true}",
+        );
+    })
+}
+
+#[tokio::test]
+async fn an_abacus_windows_zip_is_installed_and_its_exe_found_by_the_platform_key() {
+    let fixture = Fixture::new();
+    let program = abacus_says(VERSION);
+    let archive = abacus_windows_release(&program);
+    let (_server, url) = serve(archive.clone()).await;
+    let mut ctx = fixture.context(
+        "abacusai",
+        artifact(
+            &url,
+            &archive,
+            ArtifactKind::Zip,
+            Some(program.len() as u64 + 15),
+        ),
+    );
+    ctx.platform = PlatformKey::Win32X64;
+
+    let installation = run(&ctx).await.unwrap();
+
+    assert_eq!(
+        installation.executable,
+        installation.dir.join("abacusai.exe")
+    );
+    assert!(installation
+        .dir
+        .join("abacusai-win32-x64.sigstore")
+        .is_file());
+    assert_eq!(fixture.entries("abacusai"), [VERSION]);
+}
+
+#[tokio::test]
+async fn an_abacus_windows_zip_with_an_entry_that_leaves_the_folder_is_refused_and_leaves_nothing()
+{
+    for escaping in ["../escape.txt", "/escape.txt"] {
+        let fixture = Fixture::new();
+        let program = abacus_says(VERSION);
+        let archive = zipped(|w| {
+            add_zipped(w, "abacusai.exe", 0o755, &program);
+            add_zipped(w, escaping, 0o644, b"evil");
+        });
+        let (_server, url) = serve(archive.clone()).await;
+        let mut ctx = fixture.context(
+            "abacusai",
+            artifact(
+                &url,
+                &archive,
+                ArtifactKind::Zip,
+                Some(program.len() as u64 + 4),
+            ),
+        );
+        ctx.platform = PlatformKey::Win32X64;
+
+        let error = run(&ctx).await.err().unwrap();
+
+        assert!(
+            matches!(error, InstallError::UnpackRefused { .. }),
+            "{escaping}: {error:?}"
+        );
+        assert!(fixture.entries("abacusai").is_empty(), "{escaping}");
+        assert!(
+            !fixture.dir.path().join("escape.txt").exists(),
+            "{escaping}"
+        );
+    }
+}
