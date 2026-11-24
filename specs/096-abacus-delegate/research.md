@@ -367,8 +367,15 @@ allowance. Whether `ROUTE_LLM_LOW` or another id costs less was not measured.
   "Tool was rejected by user: <message>" and the model reported both actions as rejected.
 - A **read-only** tool does not ask: the `read` tool ran without a `can_use_tool` request for a file in the working folder and
   for `/etc/hostname` outside it, and `bash ls` ran without one. `bash cat /etc/os-release` did ask.
-- Result: read-only tools bypass the bridge. The flag of T034 stays `false`; the backend stays unavailable under "always ask"
-  until an enforcement path exists (spec FR-010, plan D6).
+- Result without further settings: read-only tools bypass the bridge.
+- **The enforcement path:** with `--settings <file>` holding `{"permissions":{"ask":["*"]}}` (the `ask` list of the tool's
+  config, described in its bundled `doctor` reference) every call reaches the bridge: `read` in the working folder, `read
+  /etc/hostname` and `bash ls` each sent `can_use_tool` (`request.type` `generic` for `read`), and after
+  `reject_with_message` no file was read (the host name is nowhere in the transcript). The same holds with a list of names
+  (`Read`, `Grep`, `Glob`, `LS`, `Bash`, `WebFetch`, `WebSearch`) and with `*` while a `config.json` in the home asks for
+  `permissionMode: "YOLO"` and allows `*`. A `config.json` in the working folder is ignored with the warning "is not a
+  trusted folder" unless `ABACUS_TRUST_WORKSPACE=1` is set, which the containment removes from the host's environment. The
+  adapter now writes that file in every run (plan D6), and the flag of T034 is flipped on this evidence.
 - `get_model_catalog` answers with the group `abacus` and the models `ROUTE_LLM`, `ROUTE_LLM_LOW`, `CLAUDE_V5_5_OPUS`,
   `CLAUDE_V5_5_SONNET`, `GEMINI_3_8_FLASH_THINKING`, `KIMI_K3` and others; the model list can come from the account (plan D7).
 
