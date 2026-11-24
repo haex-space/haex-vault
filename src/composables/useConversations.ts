@@ -7,6 +7,7 @@ import type { ChatPeerMessage } from '@bindings/ChatPeerMessage'
 import type { ChatPeerProtection } from '@bindings/ChatPeerProtection'
 import type { OpenSystemOutcome } from '@bindings/OpenSystemOutcome'
 import type { ChatAttachmentOpened } from '@bindings/ChatAttachmentOpened'
+import type { ChatAttachmentSize } from '@bindings/ChatAttachmentSize'
 import type { TextContent } from '@bindings/TextContent'
 
 /** A contact or group conversation with the name and photo the list shows (spec 072 US1). */
@@ -77,6 +78,9 @@ export function useConversationCommands() {
       }),
     saveAsync: (attachmentId: string, file: string) =>
       invoke<null>('chat_attachment_save', { args: { attachmentId, file } }),
+    /** A picked file's size next to the limit of a message (FR-034). */
+    sizeAsync: (file: string) =>
+      invoke<ChatAttachmentSize>('chat_attachment_size', { file }),
     downloadAsync: (attachmentId: string) =>
       invoke<null>('chat_attachment_download', { args: { attachmentId } }),
     messagesAsync: (threadId: string, before?: number) =>

@@ -306,6 +306,11 @@ function openChatSettings() {
   void openSettings({ appId: 'system.settings', at: '/chat' })
 }
 
+// Spec 072 FR-034: a file too large for the chat is offered as a file share of the file browser.
+function openFiles() {
+  void openSettings({ appId: 'system.files' })
+}
+
 // Spec 083 US5: the notice about an agent profile opens that profile.
 function openProfile(profileId: string) {
   void openSettings({
@@ -450,6 +455,7 @@ onBeforeUnmount(() => {
       :resend="ui.resendPeer"
       @mute="ui.mute"
       @open-chat-settings="openChatSettings"
+      @open-files="openFiles"
       @delete="ui.deletePeer"
       @answer="ui.answerRequest"
     />

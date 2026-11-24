@@ -557,6 +557,8 @@
       "viewer": {
         "binary": "This file cannot be shown as text."
       },
+      "tooLargeTogether": "The files of one message may be 200 MB at most together. {name} does not fit.",
+      "shareInstead": "Share as a file share",
       "keyMissing": "The upload key is missing from the password manager. Remove it in the chat settings and create a new one.",
       "keySyncing": "The upload key has not arrived on this device yet. Try again in a moment."
     },

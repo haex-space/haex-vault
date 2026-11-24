@@ -8,6 +8,8 @@ export interface PeerFile {
   /** The choice of the open dialog: a path, or a `content://` address on Android. */
   path: string
   name: string
+  /** The bytes the files of one message add up with (FR-034). */
+  size: number
 }
 
 defineProps<{

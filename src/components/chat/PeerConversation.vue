@@ -35,6 +35,8 @@ const emit = defineEmits<{
   mute: [threadId: string, muted: boolean]
   /** The hint without a Blossom-Server leads to the chat settings (FR-038). */
   openChatSettings: []
+  /** A file too large for the chat is offered as a file share (FR-034). */
+  openFiles: []
   delete: [threadId: string]
   answer: [threadId: string, answer: 'accept' | 'decline' | 'block']
 }>()
@@ -48,6 +50,7 @@ const files = ref<PeerFile[]>([])
 /** The file of a message shown over the conversation. */
 const viewing = ref<ChatPeerAttachment | null>(null)
 const fileActions = useChatFileActions()
+const { sizeAsync } = useConversationCommands()
 const confirmDelete = ref(false)
 /** The explanation of the protection state is open (spec 095 US4). */
 const showProtection = ref(false)
@@ -115,13 +118,38 @@ async function attach() {
         !canAttach.value
       )
         return
-      files.value.push({ path, name })
+      const { size, limit } = await sizeAsync(path)
+      if (
+        fileSelectionGeneration !== generation ||
+        threadId.value !== conversationId ||
+        !canAttach.value
+      )
+        return
+      const taken = files.value.reduce((sum, file) => sum + file.size, 0)
+      if (taken + size > limit) {
+        refuseLarge(name, size > limit)
+        continue
+      }
+      files.value.push({ path, name, size })
     }
   } catch (error: unknown) {
     toast.error(errString(error))
   } finally {
     preparingFiles.value = false
   }
+}
+
+/** FR-034: a file the chat does not take is refused here, with the way to share it live. */
+function refuseLarge(name: string, alone: boolean) {
+  toast.error(
+    t(alone ? 'chat.file.tooLarge' : 'chat.file.tooLargeTogether', { name }),
+    {
+      action: {
+        label: t('chat.file.shareInstead'),
+        onClick: () => emit('openFiles'),
+      },
+    },
+  )
 }
 
 function detach(path: string) {

@@ -557,6 +557,8 @@
       "viewer": {
         "binary": "Diese Datei lässt sich nicht als Text anzeigen."
       },
+      "tooLargeTogether": "Die Dateien einer Nachricht dürfen zusammen höchstens 200 MB groß sein. {name} passt nicht mehr.",
+      "shareInstead": "Als Dateifreigabe teilen",
       "keyMissing": "Der Upload-Schlüssel fehlt im Passwort-Manager. Entferne ihn in den Chat-Einstellungen und lege einen neuen an.",
       "keySyncing": "Der Upload-Schlüssel ist noch nicht auf diesem Gerät angekommen. Versuche es gleich noch einmal."
     },

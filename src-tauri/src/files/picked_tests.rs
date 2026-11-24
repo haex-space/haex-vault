@@ -24,6 +24,16 @@ fn reads_a_chosen_path_up_to_one_byte_past_the_limit() {
 }
 
 #[test]
+fn size_is_the_length_of_the_chosen_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("a.bin");
+    std::fs::write(&path, vec![1u8; 1234]).unwrap();
+    assert_eq!(size(&desktop(), &picked(&path)).unwrap(), 1234);
+    let error = size(&desktop(), &picked(&dir.path().join("gone"))).unwrap_err();
+    assert!(matches!(error, HaexError::Unreadable), "{error:?}");
+}
+
+#[test]
 fn a_missing_file_is_unreadable() {
     let dir = tempfile::tempdir().unwrap();
     let error = read(&desktop(), &picked(&dir.path().join("gone")), 10).unwrap_err();
