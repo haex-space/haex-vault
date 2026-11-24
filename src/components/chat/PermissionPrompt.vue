@@ -3,6 +3,7 @@ import type { PendingPrompt } from '~/lib/chat/prompts'
 import { describeToolCall, type ResolveTarget } from '~/lib/actions/agentTools'
 import { ALL_ACTIONS } from '~/lib/actions/catalog'
 import { inputRows, originLabel } from '~/lib/chat/toolOrigin'
+import { isMemoryWrite } from '~/lib/agentMemory/pages'
 import { useWindowManagerStore } from '~/stores/windowManager'
 
 const { t, locale } = useI18n()
@@ -127,7 +128,14 @@ const emit = defineEmits<{
         >
           {{ t(`chat.permission.${approval.riskClass}`) }}
         </div>
-        <dl v-if="description" class="space-y-1 text-sm">
+        <AgentsMemoryWritePreview
+          v-if="
+            approval.toolSource === 'action' && isMemoryWrite(approval.toolName)
+          "
+          :tool-name="approval.toolName"
+          :tool-input="approval.toolInput as Record<string, unknown>"
+        />
+        <dl v-else-if="description" class="space-y-1 text-sm">
           <div v-if="description.target" class="flex gap-2">
             <dt class="text-muted-foreground">
               {{ t(`chat.permission.target.${description.target.kind}`) }}:

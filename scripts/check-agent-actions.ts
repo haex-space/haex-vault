@@ -186,6 +186,7 @@ function nativeExecutorIds(): string[] {
     ...ids('contacts/agent_share.rs', 'SHARE_ACTION_IDS'),
     ...ids('file_sync/agent.rs', 'SYNC_RULE_ACTION_IDS'),
     ...ids('agent_browser/executor_ids.rs', 'BROWSER_ACTION_IDS'),
+    ...ids('agent_memory/executor.rs', 'MEMORY_ACTION_IDS'),
   ]
 }
 

@@ -50,6 +50,21 @@ pub fn callable(tool: &dyn Tool, offered: &[ToolSpec]) -> bool {
     tool.source() != ACTION_SOURCE || offered.iter().any(|spec| spec.name == tool.name())
 }
 
+/// The permission decision for one call: a write of the memory by spec 097's rule (no question
+/// without foreign content in the conversation, refused in "Plan"), everything else by the mode.
+/// `foreign` is read only for a write of the memory.
+pub fn decide(
+    mode: permission::PermissionMode,
+    tool: &dyn Tool,
+    foreign: impl FnOnce() -> bool,
+) -> permission::Decision {
+    if tool.source() == ACTION_SOURCE && crate::agent_memory::gate::is_write_tool(tool.name()) {
+        crate::agent_memory::gate::decide(mode, foreign()).into()
+    } else {
+        permission::decide_call(mode, tool)
+    }
+}
+
 /// What to do with one tool call, decided before any concurrent
 /// waiting/execution begins (see [`TurnRunner::plan_calls`]).
 pub(super) enum ToolPlan {
@@ -154,7 +169,12 @@ impl TurnRunner<'_> {
                 plans.push((call, ToolPlan::TurnedAway(tool, answer)));
                 continue;
             }
-            match permission::decide_call(mode, tool.as_ref()) {
+            let foreign = if crate::agent_memory::gate::is_write_tool(tool.name()) {
+                self.memory_foreign().await
+            } else {
+                false
+            };
+            match decide(mode, tool.as_ref(), || foreign) {
                 permission::Decision::Allow => plans.push((call, ToolPlan::Allow(tool))),
                 permission::Decision::Deny => plans.push((call, ToolPlan::Deny(tool))),
                 permission::Decision::Ask => {
@@ -193,6 +213,26 @@ impl TurnRunner<'_> {
 }
 
 impl TurnRunner<'_> {
+    /// Whether the conversation saw foreign content (spec 097 FR-019); a failed read counts as
+    /// foreign, so the write asks rather than slipping through.
+    async fn memory_foreign(&self) -> bool {
+        if self.saw_foreign {
+            return true;
+        }
+        let thread = self.thread_id;
+        match self
+            .db
+            .read(move |q| crate::storage::chat_threads::memory_foreign_at(q, thread))
+            .await
+        {
+            Ok(at) => at.is_some(),
+            Err(error) => {
+                log::warn!("chat: the mark of foreign content could not be read: {error}");
+                true
+            }
+        }
+    }
+
     /// Takes from the next step's offer what the agent profile of the model does not give, so a
     /// profile that changed between two steps is followed (spec 083 FR-017).
     pub(super) async fn gate_offer(&mut self) {

@@ -7,10 +7,14 @@ import { test } from 'node:test'
 
 import {
   AGENT_MEMORY_TABLES,
+  memoryNoticeKey,
+  memoryWritePreview,
+  isMemoryWrite,
   memoryRefusal,
   withPointerLinks,
 } from '../src/lib/agentMemory/pages.ts'
 import { ALL_ACTIONS } from '../src/lib/actions/catalog.ts'
+import { rightsDraftOf, rightsOf } from '../src/lib/agents/rights.ts'
 import { concerns } from '../src/lib/sync/vaultData.ts'
 
 function localeTree(locale: 'de' | 'en'): unknown {
@@ -120,4 +124,92 @@ test('the writes of the page are guardrails no agent can call', () => {
     assert.equal(action.scope, 'guardrails', id)
     assert.equal(action.agentCallable, false, id)
   }
+})
+
+test('every kind of notice has its text in both languages (spec 097 FR-023)', () => {
+  for (const locale of ['de', 'en'] as const) {
+    const tree = localeTree(locale)
+    for (const kind of ['added', 'changed', 'removed'] as const) {
+      assert.ok(hasKey(tree, memoryNoticeKey(kind)), `${locale} ${kind}`)
+    }
+  }
+})
+
+test('the question before a write shows the stored page, not what the agent says (FR-021)', () => {
+  assert.equal(isMemoryWrite('memory_add'), true)
+  assert.equal(isMemoryWrite('memory_search'), false)
+  const added = memoryWritePreview(
+    'memory_add',
+    { title: 'Mail-Stil', text: 'Kurz.', description: 'Wie ich schreibe' },
+    null,
+  )
+  assert.deepEqual(added, {
+    kind: 'add',
+    title: 'Mail-Stil',
+    missing: true,
+    text: 'Kurz.',
+    description: 'Wie ich schreibe',
+  })
+  const stored = { description: 'Steuerberater', body: 'Alt.' }
+  const rewritten = memoryWritePreview(
+    'memory_write',
+    { title: 'Bernd', description: 'Anwalt', text: 'Neu.', newTitle: 'B.' },
+    stored,
+  )
+  assert.deepEqual(rewritten.stored, {
+    description: 'Steuerberater',
+    text: 'Alt.',
+  })
+  assert.equal(rewritten.text, 'Neu.')
+  assert.equal(rewritten.newTitle, 'B.')
+  const removed = memoryWritePreview(
+    'memory_remove',
+    { title: 'Bernd' },
+    stored,
+  )
+  assert.deepEqual(removed, {
+    kind: 'remove',
+    title: 'Bernd',
+    missing: false,
+    stored: { description: 'Steuerberater', text: 'Alt.' },
+  })
+  assert.equal(
+    memoryWritePreview('memory_remove', { title: 'X' }, null).missing,
+    true,
+  )
+})
+
+test('the preview names every part in both languages', () => {
+  for (const locale of ['de', 'en'] as const) {
+    const tree = localeTree(locale)
+    for (const key of [
+      'newPage',
+      'notFound',
+      'newTitle',
+      'before',
+      'after',
+      'added',
+      'removed',
+    ]) {
+      assert.ok(
+        hasKey(tree, `settings.agentMemory.preview.${key}`),
+        `${locale} ${key}`,
+      )
+    }
+  }
+})
+
+test('saving another group of a profile keeps its memory level (spec 097 FR-006)', () => {
+  for (const memory of ['read', 'readWrite'] as const) {
+    const stored = { operate: { 'wm.read': 'read' as const }, memory }
+    const draft = rightsDraftOf(stored)
+    assert.equal(draft.memory, memory)
+    assert.equal(rightsOf({ ...draft, commands: true }).memory, memory)
+  }
+  assert.equal(rightsDraftOf(null).memory, 'off')
+  assert.equal(
+    'memory' in rightsOf(rightsDraftOf({ operate: {} })),
+    false,
+    'off is sent as absent, which the backend reads as off',
+  )
 })

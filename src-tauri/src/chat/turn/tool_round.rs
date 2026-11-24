@@ -100,6 +100,9 @@ impl TurnRunner<'_> {
         if self.persist_round(&executed).await.is_err() {
             return RoundOutcome::Ended;
         }
+        // Spec 097 FR-019: before the model reads what a foreign call returned, the conversation is
+        // marked, so a later write to the memory asks.
+        self.mark_foreign(&executed).await;
         self.append_round_to_request(&executed);
         self.gate_offer().await;
 
@@ -112,6 +115,34 @@ impl TurnRunner<'_> {
         // top of the loop — including its own retry-on-transient-failure
         // handling (T037).
         RoundOutcome::Continue
+    }
+
+    /// Marks the conversation once a call that ran brought foreign content (spec 097 research R6).
+    /// A failed write of the mark is logged; this turn still knows it (`saw_foreign`).
+    async fn mark_foreign(&mut self, executed: &[ExecutedCall]) {
+        let foreign = executed.iter().any(|(call, result, source)| {
+            !result.is_error
+                && crate::agent_memory::foreign::is_foreign(
+                    source.source,
+                    source.scope.as_deref(),
+                    &call.input,
+                )
+        });
+        if !foreign {
+            return;
+        }
+        self.saw_foreign = true;
+        let (thread, now) = (
+            self.thread_id,
+            crate::passwords::clock::unix_millis(std::time::SystemTime::now()),
+        );
+        if let Err(error) = self
+            .db
+            .write(move |tx| crate::storage::chat_threads::mark_foreign_once(tx, thread, now))
+            .await
+        {
+            log::warn!("chat: the mark of foreign content was not written: {error}");
+        }
     }
 
     /// Any text the model emitted before its tool use becomes its own

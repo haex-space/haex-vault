@@ -7,6 +7,8 @@ use crate::chat::tools::{Tool, ToolOrigin};
 pub(crate) struct CallSource {
     pub(crate) source: &'static str,
     pub(crate) origin: Option<ToolOrigin>,
+    /// The scope of one of haex-vault's own actions (spec 097: what counts as foreign content).
+    pub(crate) scope: Option<String>,
 }
 
 impl CallSource {
@@ -14,6 +16,7 @@ impl CallSource {
         Self {
             source: tool.source(),
             origin: tool.origin(),
+            scope: tool.action_definition().map(|def| def.scope.clone()),
         }
     }
 
@@ -23,6 +26,7 @@ impl CallSource {
         Self {
             source: "mcp",
             origin: None,
+            scope: None,
         }
     }
 

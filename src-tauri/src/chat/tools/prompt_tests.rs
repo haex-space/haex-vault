@@ -1,8 +1,8 @@
 use serde_json::json;
 
 use super::prompt::{
-    now_line, system_prompt, system_prompt_with, SearchPrompt, DAY_BOUNDS, FINISH, NEXT_AREA,
-    TOOL_INSTRUCTION,
+    now_line, system_prompt, system_prompt_with, with_memory, SearchPrompt, DAY_BOUNDS, FINISH,
+    NEXT_AREA, TOOL_INSTRUCTION,
 };
 use crate::adapters::types::ToolSpec;
 use crate::local_time::{Civil, Clock};
@@ -309,4 +309,40 @@ fn the_step_with_the_search_gets_the_prompt_of_the_search() {
     assert!(next.contains("Extensions: mail"), "{next}");
     assert!(next.ends_with(summary), "{next}");
     assert_eq!(prompt.apply(Some("another prompt")), None);
+}
+
+/// Spec 097 research R5, T029: the memory block follows the given text and comes before the tool
+/// instruction; without a block the prompt is the one of before.
+#[test]
+fn the_memory_block_stands_between_the_given_text_and_the_tools() {
+    let tools = [tool("memory_search")];
+    let block = "## Memory\n- Mail-Stil: Kurz (the user, 2026-11-20)";
+    let prompt = system_prompt(
+        with_memory(Some("Be brief."), Some(block)).as_deref(),
+        &tools,
+        None,
+        None,
+        false,
+    )
+    .expect("prompt");
+    let given = prompt.find("Be brief.").expect("given");
+    let memory = prompt.find("## Memory").expect("block");
+    let instruction = prompt.find("You operate the app HaexVault").expect("tools");
+    assert!(given < memory && memory < instruction, "{prompt}");
+    assert_eq!(
+        with_memory(None, Some(block)).as_deref(),
+        Some(block),
+        "without a given text the block opens the prompt"
+    );
+    assert_eq!(
+        system_prompt(
+            with_memory(Some("Be brief."), None).as_deref(),
+            &tools,
+            None,
+            None,
+            false
+        ),
+        system_prompt(Some("Be brief."), &tools, None, None, false),
+        "without a block nothing changes"
+    );
 }

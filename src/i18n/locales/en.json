@@ -1936,6 +1936,21 @@
         "memory_full": "The memory is full. Merge or delete pages first.",
         "page_too_long": "The page would become too long.",
         "not_found": "This page no longer exists."
+      },
+      "notice": {
+        "added": "{name} remembered ({title}): {text}",
+        "changed": "{name} changed the page {title}",
+        "removed": "{name} removed the page {title}",
+        "open": "Open"
+      },
+      "preview": {
+        "newPage": "new page",
+        "notFound": "page not found",
+        "newTitle": "New title",
+        "before": "Before",
+        "after": "New",
+        "added": "Will be added",
+        "removed": "Will be removed"
       }
     }
   },
@@ -2575,6 +2590,13 @@
       "get": "Read a contact",
       "update": "Change a contact",
       "share": "Share a contact as a link"
+    },
+    "memory": {
+      "search": "Search the memory",
+      "open": "Open a page of the memory",
+      "add": "Remember something",
+      "write": "Rewrite a page of the memory",
+      "remove": "Remove a page from the memory"
     },
     "browser": {
       "open": "Open a page in the agent browser",
@@ -4912,6 +4934,14 @@
       "fileSharesDescription": "View, change and withdraw shares; you confirm every sharing yourself",
       "syncRules": "Manage sync rules",
       "syncRulesDescription": "Read rules and their status; you confirm every creating, changing and deleting yourself"
+    },
+    "memory": {
+      "title": "Memory",
+      "level": "Memory of the agents",
+      "hint": "What the models of this profile may remember and read again. Does not apply to external agents: they never reach the memory.",
+      "off": "Off",
+      "read": "Read",
+      "readWrite": "Read and write"
     }
   },
   "agentBrowser": {

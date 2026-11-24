@@ -9,6 +9,7 @@ import { AGENT_MEMORY_ACTIONS } from './settingsAgentMemoryActions.ts'
 import { WM_LAYOUT_ACTIONS, WM_READ_ACTIONS } from './wmLayoutActions.ts'
 import { CHAT_ACTIONS, CHAT_MODEL_ACTIONS } from './chatActions.ts'
 import { CONTACTS_ACTIONS } from './contactsActions.ts'
+import { MEMORY_ACTIONS } from './memoryActions.ts'
 import { FILE_SHARE_ACTIONS } from './fileShareActions.ts'
 import { FILES_ACTIONS } from './filesActions.ts'
 import { PASSWORDS_ACTIONS } from './passwordsActions.ts'
@@ -35,6 +36,7 @@ export const ALL_ACTIONS: readonly ActionDefinition[] = [
   ...FILE_SHARE_ACTIONS,
   ...SYNC_RULE_ACTIONS,
   ...CONTACTS_ACTIONS,
+  ...MEMORY_ACTIONS,
   ...BROWSER_ACTIONS,
   ...ASSISTANT_ACTIONS,
 ]

@@ -98,6 +98,14 @@ export const AGENT_DOMAINS: readonly AgentDomain[] = [
     alsoNeeds: ['wm_app_open'],
   },
   {
+    key: 'memory',
+    name: 'memory',
+    titles: { de: 'Gedächtnis', en: 'Memory' },
+    description:
+      'what the user told you to remember: their preferences, the people around them and lasting facts',
+    alsoNeeds: [],
+  },
+  {
     key: 'passwords',
     name: 'passwords',
     titles: { de: 'Passwörter', en: 'Passwords' },

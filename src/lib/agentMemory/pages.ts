@@ -159,3 +159,82 @@ export function withPointerLinks(
     })
     .join('\n')
 }
+
+/** Raised by the backend after an agent wrote to the memory (Rust `EVENT_MEMORY_WRITTEN`). */
+export const EVENT_MEMORY_WRITTEN = 'agent-memory-written'
+
+/** The payload of {@link EVENT_MEMORY_WRITTEN} (Rust `MemoryWritten`). */
+export interface MemoryWritten {
+  kind: 'added' | 'changed' | 'removed'
+  title: string
+  text: string
+  authorName: string
+}
+
+/** The language key of the notice for `kind`. */
+export function memoryNoticeKey(kind: MemoryWritten['kind']): string {
+  return `settings.agentMemory.notice.${kind}`
+}
+
+/** The tools of the memory that write (Rust `agent_memory::gate::WRITE_TOOLS`). */
+export const MEMORY_WRITE_TOOLS = [
+  'memory_add',
+  'memory_write',
+  'memory_remove',
+] as const
+
+export function isMemoryWrite(toolName: string): boolean {
+  return (MEMORY_WRITE_TOOLS as readonly string[]).includes(toolName)
+}
+
+/** What the question before an agent's write shows (spec 097 FR-021): the stored page is read by
+ * the window, never taken from the agent. */
+export interface MemoryWritePreview {
+  kind: 'add' | 'write' | 'remove'
+  title: string
+  /** No page has the title. For an addition that means a new page. */
+  missing: boolean
+  description?: string
+  /** The added text, or the new text of a rewrite. */
+  text?: string
+  newTitle?: string
+  /** The stored description and text a rewrite or a removal replaces. */
+  stored?: { description: string; text: string }
+}
+
+function field(input: Record<string, unknown>, name: string): string {
+  const value = input[name]
+  return typeof value === 'string' ? value : ''
+}
+
+export function memoryWritePreview(
+  toolName: string,
+  input: Record<string, unknown>,
+  stored: { description: string; body: string } | null,
+): MemoryWritePreview {
+  const kind =
+    toolName === 'memory_add'
+      ? 'add'
+      : toolName === 'memory_write'
+        ? 'write'
+        : 'remove'
+  const preview: MemoryWritePreview = {
+    kind,
+    title: field(input, 'title'),
+    missing: stored === null,
+  }
+  if (stored && kind !== 'add') {
+    preview.stored = { description: stored.description, text: stored.body }
+  }
+  if (kind === 'add') {
+    preview.text = field(input, 'text')
+    if (stored === null) preview.description = field(input, 'description')
+  }
+  if (kind === 'write') {
+    preview.description = field(input, 'description')
+    preview.text = field(input, 'text')
+    const newTitle = field(input, 'newTitle')
+    if (newTitle) preview.newTitle = newTitle
+  }
+  return preview
+}

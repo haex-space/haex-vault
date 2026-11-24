@@ -156,6 +156,17 @@ pub fn system_prompt_with(
     (!parts.is_empty()).then(|| parts.join("\n\n"))
 }
 
+/// The given text of a turn with the memory block of spec 097 after it: the block stands right after
+/// what the user gave and before the tool instruction, inside the beginning of the prompt that stays
+/// the same for the conversation (research R5). Without a block the given text is unchanged.
+pub fn with_memory(given: Option<&str>, memory: Option<&str>) -> Option<String> {
+    let given = given.filter(|given| !given.trim().is_empty());
+    match (given, memory) {
+        (Some(given), Some(memory)) => Some(format!("{given}\n\n{memory}")),
+        (given, memory) => given.or(memory).map(str::to_owned),
+    }
+}
+
 /// A turn's system prompt before and after the tool search joins its offer (spec 087 research
 /// R6.3): a first step that offers no search says nothing of it and leaves the extensions overview
 /// out; the step that adds the search gets both. Since 2026-11-11 a routed first step offers the

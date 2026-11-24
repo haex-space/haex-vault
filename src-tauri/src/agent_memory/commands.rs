@@ -327,6 +327,31 @@ pub async fn agent_memory_page(
         .ok_or_else(|| refused(MemoryError::NotFound))
 }
 
+#[derive(Debug, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct AgentMemoryTitleArgs {
+    pub title: String,
+}
+
+/// The page a title resolves to, for the question before an agent's write (spec 097 FR-021): the
+/// window shows the stored text itself, never what the agent says it was. `None` when no page has
+/// the title.
+#[tauri::command]
+pub async fn agent_memory_page_by_title(
+    state: State<'_, AppState>,
+    args: AgentMemoryTitleArgs,
+) -> Result<Option<AgentMemoryPage>> {
+    let title = args.title;
+    state
+        .database()?
+        .read(move |q| match store::by_title(q, &title)? {
+            Some(found) => page_view(q, &found.page.id),
+            None => Ok(None),
+        })
+        .await
+}
+
 /// Adds a page written by the user.
 #[tauri::command]
 pub async fn agent_memory_add<R: Runtime>(

@@ -491,9 +491,15 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         (AutonomyMode::Standard, Vec::new())
     };
     let clock = Clock::now(turn.utc_offset_minutes.unwrap_or(0));
+    let given = crate::chat::tools::prompt::with_memory(
+        turn.system_prompt.as_deref(),
+        crate::agent_memory::turn::block_for_session(&db, &session, thread_id)
+            .await
+            .as_deref(),
+    );
     let prompt_for = |tools: &[crate::adapters::types::ToolSpec]| {
         system_prompt_with(
-            turn.system_prompt.as_deref(),
+            given.as_deref(),
             tools,
             Some(clock),
             reply_language,
