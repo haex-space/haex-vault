@@ -8,6 +8,7 @@
 //! [`remove`] never deletes an entry of the user. With a key set, uploads sign with it instead of
 //! a fresh key per file; the blob row then keeps the entry's id instead of a secret.
 
+use haex_crdt::CrdtTransaction;
 use nostr::key::Keys;
 use nostr::nips::nip19::ToBech32;
 use serde::Serialize;
@@ -160,8 +161,7 @@ fn npub_of(keys: &Keys) -> Result<String> {
 
 /// Makes a new key, stores it as an entry "Blossom-Upload-Schlüssel" of the password manager and
 /// sets it as the upload key; refused while one is set. Returns the entry's id.
-pub async fn create(passwords: &PasswordsService, db: &VaultDb) -> Result<String> {
-    refuse_when_set(db).await?;
+pub async fn create(db: &VaultDb) -> Result<String> {
     let keys = Keys::generate();
     let secret = keys
         .secret_key()
@@ -176,28 +176,32 @@ pub async fn create(passwords: &PasswordsService, db: &VaultDb) -> Result<String
         tags: vec![TAG.to_owned()],
         ..ItemInput::default()
     };
-    let id = passwords.create_owned_item(&CALLER, input).await?;
-    if let Err(error) = set(db, &id, false).await {
-        // The entry would be a key nothing uses.
-        let _ = passwords.delete_owned_item(&CALLER, id).await;
-        return Err(error);
-    }
-    Ok(id)
+    db.write(move |tx| {
+        refuse_when_set(tx)?;
+        let id = PasswordsService::create_owned_item_in(tx, &CALLER, &input)?;
+        set(tx, &id)?;
+        Ok(id)
+    })
+    .await
 }
 
 /// Sets an entry of the user, one that holds a key, as the upload key; it gets the tag and keeps
 /// its owner and shares. Refused while one is set.
-pub async fn choose(passwords: &PasswordsService, db: &VaultDb, item_id: &str) -> Result<()> {
-    refuse_when_set(db).await?;
-    let item = passwords
-        .read_secret_item(&CALLER, &grants(), item_id.to_owned())
-        .await?;
-    if keys_of(&item).is_none() {
-        return Err(HaexError::InvalidInput {
-            reason: "chat.blossom.keyEntry: the entry holds no key".to_owned(),
-        });
-    }
-    set(db, item_id, true).await
+pub async fn choose(db: &VaultDb, item_id: &str) -> Result<()> {
+    let id = item_id.to_owned();
+    db.write(move |tx| {
+        refuse_when_set(tx)?;
+        let item = PasswordsService::read_secret_item_in(tx, &CALLER, &grants(), &id)?;
+        if keys_of(&item).is_none() {
+            return Err(HaexError::InvalidInput {
+                reason: "chat.blossom.keyEntry: the entry holds no key".to_owned(),
+            }
+            .into());
+        }
+        tags::bulk_set(tx, std::slice::from_ref(&id), &[TAG.to_owned()], &[])?;
+        Ok(set(tx, &id)?)
+    })
+    .await
 }
 
 /// Unsets the upload key. Keep the entry for pending blob deletions on this or another device.
@@ -224,8 +228,8 @@ pub async fn candidates(db: &VaultDb) -> Result<Vec<CredentialsCandidate>> {
     .await
 }
 
-async fn refuse_when_set(db: &VaultDb) -> Result<()> {
-    if entry_id(db).await?.is_some() {
+fn refuse_when_set(q: &mut impl Query) -> Result<()> {
+    if settings::blossom_key_entry(q)?.is_some() {
         return Err(HaexError::InvalidInput {
             reason: "chat.blossom.keyEntry: an upload key is set already".to_owned(),
         });
@@ -233,22 +237,9 @@ async fn refuse_when_set(db: &VaultDb) -> Result<()> {
     Ok(())
 }
 
-async fn set(db: &VaultDb, id: &str, tag_selected: bool) -> Result<()> {
-    let id = id.to_owned();
-    db.write(move |tx| {
-        if settings::blossom_key_entry(tx)?.is_some() {
-            return Err(HaexError::InvalidInput {
-                reason: "chat.blossom.keyEntry: an upload key is set already".to_owned(),
-            }
-            .into());
-        }
-        if tag_selected {
-            tags::bulk_set(tx, std::slice::from_ref(&id), &[TAG.to_owned()], &[])?;
-        }
-        preferences::insert_or_update(tx, PrefScope::Vault, settings::KEY_BLOSSOM_KEY_ENTRY, &id)?;
-        Ok(())
-    })
-    .await
+fn set(tx: &mut CrdtTransaction<'_>, id: &str) -> Result<()> {
+    preferences::insert_or_update(tx, PrefScope::Vault, settings::KEY_BLOSSOM_KEY_ENTRY, id)?;
+    Ok(())
 }
 
 /// Tells the password manager that the chat uses an entry (spec 034 FR-034), so deleting the upload

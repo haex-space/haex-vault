@@ -62,7 +62,7 @@ pub async fn chat_blossom_key(state: State<'_, AppState>) -> Result<ChatUploadKe
 #[tauri::command]
 pub async fn chat_blossom_key_create(state: State<'_, AppState>) -> Result<ChatUploadKey> {
     let (passwords, db) = passwords(&state)?;
-    upload_key::create(&passwords, &db).await?;
+    upload_key::create(&db).await?;
     upload_key::describe(&passwords, &db).await
 }
 
@@ -87,7 +87,7 @@ pub async fn chat_blossom_key_choose(
     args: BlossomKeyChooseArgs,
 ) -> Result<ChatUploadKey> {
     let (passwords, db) = passwords(&state)?;
-    upload_key::choose(&passwords, &db, &args.item_id).await?;
+    upload_key::choose(&db, &args.item_id).await?;
     upload_key::describe(&passwords, &db).await
 }
 

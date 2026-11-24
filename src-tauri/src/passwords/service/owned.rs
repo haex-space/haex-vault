@@ -5,7 +5,7 @@
 //! and the user's copy of such an entry keeps it (`copy.rs`). Deleting one for good does not turn
 //! the user's placeholders that point at it into own values (FR-048): they become "missing".
 
-use haex_crdt::rusqlite::params;
+use haex_crdt::{rusqlite::params, CrdtTransaction};
 
 use super::PasswordsService;
 use crate::error::{HaexError, Result};
@@ -24,17 +24,25 @@ fn feature_of(caller: &Caller) -> Result<&'static str> {
 impl PasswordsService {
     /// Creates an entry outside every folder that belongs to the calling haex-vault function.
     pub async fn create_owned_item(&self, caller: &Caller, input: ItemInput) -> Result<String> {
-        let feature = feature_of(caller)?;
+        let caller = caller.clone();
         self.db()
-            .write(move |tx| {
-                let id = items::create_item(tx, &input, None)?;
-                tx.execute(
-                    "UPDATE haex_passwords_item_details SET owner = ?2 WHERE id = ?1",
-                    params![id, feature],
-                )?;
-                Ok(id)
-            })
+            .write(move |tx| Ok(Self::create_owned_item_in(tx, &caller, &input)?))
             .await
+    }
+
+    /// Creates an owned entry within the transaction that links it to its feature.
+    pub(crate) fn create_owned_item_in(
+        tx: &mut CrdtTransaction<'_>,
+        caller: &Caller,
+        input: &ItemInput,
+    ) -> Result<String> {
+        let feature = feature_of(caller)?;
+        let id = items::create_item(tx, input, None)?;
+        tx.execute(
+            "UPDATE haex_passwords_item_details SET owner = ?2 WHERE id = ?1",
+            params![id, feature],
+        )?;
+        Ok(id)
     }
 
     /// Deletes an entry of the calling haex-vault function for good, without the trash: an exception to

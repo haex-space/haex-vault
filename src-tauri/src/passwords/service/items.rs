@@ -273,21 +273,21 @@ impl PasswordsService {
     ) -> Result<SecretItem> {
         let (caller, grants) = (caller.clone(), grants.to_vec());
         self.db()
-            .read(move |q| {
-                authorize_item_read(q, &caller, &grants, &item_id)?;
-                let mut item =
-                    reveal::secret_item(q, &item_id)?.ok_or(HaexError::PasswordsNotFound)?;
-                reveal::resolve_secret_item(
-                    q,
-                    Reader {
-                        caller: &caller,
-                        grants: &grants,
-                    },
-                    &mut item,
-                )?;
-                Ok(item)
-            })
+            .read(move |q| Ok(Self::read_secret_item_in(q, &caller, &grants, &item_id)?))
             .await
+    }
+
+    /// Reads and authorizes an entry in an existing read or write transaction.
+    pub(crate) fn read_secret_item_in(
+        q: &mut impl Query,
+        caller: &Caller,
+        grants: &[Grant],
+        item_id: &str,
+    ) -> Result<SecretItem> {
+        authorize_item_read(q, caller, grants, item_id)?;
+        let mut item = reveal::secret_item(q, item_id)?.ok_or(HaexError::PasswordsNotFound)?;
+        reveal::resolve_secret_item(q, Reader { caller, grants }, &mut item)?;
+        Ok(item)
     }
 
     /// The value of a secret for the moment the user asks to see it. Z11.

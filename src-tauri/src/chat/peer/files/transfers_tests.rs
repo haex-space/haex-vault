@@ -798,9 +798,7 @@ async fn uploads_are_signed_with_the_upload_key_and_a_missing_key_stops_the_send
     anna.start().await;
     ben.start().await;
     let passwords = PasswordsService::new(anna.db.clone());
-    let entry = upload_key::create(&passwords, &anna.db)
-        .await
-        .expect("an upload key");
+    let entry = upload_key::create(&anna.db).await.expect("an upload key");
 
     send_file(&anna, &ben, "Hier der Plan", PLAN)
         .await
@@ -854,7 +852,7 @@ async fn uploads_are_signed_with_the_upload_key_and_a_missing_key_stops_the_send
         .expect("retry the deletion after unsetting the key");
     assert!(!blossom.has(&blob));
     assert_eq!(orphan_rows(&files).await, 0);
-    upload_key::choose(&passwords, &anna.db, &entry)
+    upload_key::choose(&anna.db, &entry)
         .await
         .expect("select the retained key");
 

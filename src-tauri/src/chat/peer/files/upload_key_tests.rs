@@ -61,7 +61,7 @@ async fn a_created_key_is_an_entry_that_holds_the_secret_and_uploads_find_it() {
         UploadKeyStatus::None
     );
 
-    let id = create(&pw, &db).await.expect("create");
+    let id = create(&db).await.expect("create");
     assert_eq!(entry_id(&db).await.expect("setting"), Some(id.clone()));
     let secret = password_of(&pw, &id).await;
     assert!(secret.starts_with("nsec1"), "the secret is an nsec");
@@ -85,28 +85,28 @@ async fn a_created_key_is_an_entry_that_holds_the_secret_and_uploads_find_it() {
 async fn a_second_key_is_refused_while_one_is_set() {
     let (_dir, db) = vault();
     let pw = passwords(&db);
-    let (left, right) = tokio::join!(create(&pw, &db), create(&pw, &db));
+    let (left, right) = tokio::join!(create(&db), create(&db));
     let id = match (left, right) {
         (Ok(id), Err(_)) | (Err(_), Ok(id)) => id,
         other => panic!("one creation must succeed: {other:?}"),
     };
     assert_eq!(entry_id(&db).await.expect("setting"), Some(id));
     assert_eq!(candidates(&db).await.expect("candidates").len(), 1);
-    assert!(create(&pw, &db).await.is_err());
+    assert!(create(&db).await.is_err());
     let other = user_entry(
         &pw,
         "Mein Schlüssel",
         Some(&Keys::generate().secret_key().to_bech32().unwrap()),
     )
     .await;
-    assert!(choose(&pw, &db, &other).await.is_err());
+    assert!(choose(&db, &other).await.is_err());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn removing_the_setting_keeps_both_kinds_of_keys_for_pending_blob_deletions() {
     let (_dir, db) = vault();
     let pw = passwords(&db);
-    let made = create(&pw, &db).await.expect("create");
+    let made = create(&db).await.expect("create");
     remove(&db).await.expect("remove");
     assert_eq!(entry_id(&db).await.expect("setting"), None);
     assert_eq!(
@@ -117,7 +117,7 @@ async fn removing_the_setting_keeps_both_kinds_of_keys_for_pending_blob_deletion
 
     let secret = Keys::generate().secret_key().to_bech32().unwrap();
     let mine = user_entry(&pw, "Mein Schlüssel", Some(&secret)).await;
-    choose(&pw, &db, &mine).await.expect("choose");
+    choose(&db, &mine).await.expect("choose");
     remove(&db).await.expect("remove");
     assert_eq!(entry_id(&db).await.expect("setting"), None);
     assert_eq!(
@@ -147,10 +147,10 @@ async fn only_entries_that_hold_a_key_can_be_chosen_and_choosing_tags_the_entry(
         .collect();
     assert!(listed.contains(&good) && listed.contains(&as_hex));
     assert!(!listed.contains(&word) && !listed.contains(&empty));
-    assert!(choose(&pw, &db, &word).await.is_err());
+    assert!(choose(&db, &word).await.is_err());
     assert_eq!(entry_id(&db).await.expect("setting"), None);
 
-    choose(&pw, &db, &good).await.expect("choose");
+    choose(&db, &good).await.expect("choose");
     assert_eq!(entry_id(&db).await.expect("setting"), Some(good.clone()));
     let tagged = candidates(&db).await.expect("candidates");
     assert!(tagged
@@ -166,7 +166,7 @@ async fn only_entries_that_hold_a_key_can_be_chosen_and_choosing_tags_the_entry(
 async fn a_set_key_whose_entry_is_gone_is_missing_not_unset() {
     let (_dir, db) = vault();
     let pw = passwords(&db);
-    let id = create(&pw, &db).await.expect("create");
+    let id = create(&db).await.expect("create");
     pw.trash_targets(
         &Caller::User,
         vec![Target {
@@ -206,8 +206,7 @@ async fn a_set_key_whose_entry_is_gone_is_missing_not_unset() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_password_manager_warns_before_the_key_entry_is_deleted() {
     let (_dir, db) = vault();
-    let pw = passwords(&db);
-    let id = create(&pw, &db).await.expect("create");
+    let id = create(&db).await.expect("create");
     let registry = UsageRegistry::new();
     let database = db.clone();
     registry.register(std::sync::Arc::new(ChatUsage::new(move || {
