@@ -10,6 +10,7 @@ use crate::chat::peer::files::test_server::BlossomTestServer;
 use crate::chat::peer::messages::PeerMessage;
 use crate::chat::peer::test_support::{mock_relay, two_vaults, ChatDevice};
 use crate::passwords::access::Caller;
+use crate::passwords::model::{ItemPatch, Patch};
 use crate::remote_storage::address::SystemResolver;
 
 const PLAN: &[u8] = b"%PDF-1.7 the plan for saturday, never in plaintext on a server";
@@ -833,6 +834,27 @@ async fn uploads_are_signed_with_the_upload_key_and_a_missing_key_stops_the_send
         panic!("the key is ready");
     };
     assert_eq!(signer, keys.public_key().to_hex());
+    upload_key::remove(&anna.db).await.expect("unset the key");
+    let updated_at = passwords
+        .get_item(&Caller::User, entry.clone())
+        .await
+        .expect("read the key entry")
+        .header
+        .updated_at
+        .expect("entry version");
+    let rotated_at = passwords
+        .update_item(
+            &Caller::User,
+            &[],
+            entry.clone(),
+            updated_at,
+            ItemPatch {
+                password: Patch::Set(Keys::generate().secret_key().to_secret_hex()),
+                ..ItemPatch::default()
+            },
+        )
+        .await
+        .expect("replace the entry's secret");
     let orphan = blob.clone();
     anna.db
         .write(move |tx| {
@@ -845,11 +867,26 @@ async fn uploads_are_signed_with_the_upload_key_and_a_missing_key_stops_the_send
         })
         .await
         .expect("mark the uploaded file for retry");
-    upload_key::remove(&anna.db).await.expect("unset the key");
+    files.retry_orphan_deletes().await.expect("try the new key");
+    assert!(blossom.has(&blob), "a different key cannot delete the blob");
+    assert_eq!(orphan_rows(&files).await, 1, "the deletion stays queued");
+    passwords
+        .update_item(
+            &Caller::User,
+            &[],
+            entry.clone(),
+            rotated_at,
+            ItemPatch {
+                password: Patch::Set(keys.secret_key().to_secret_hex()),
+                ..ItemPatch::default()
+            },
+        )
+        .await
+        .expect("restore the original signing key");
     files
         .retry_orphan_deletes()
         .await
-        .expect("retry the deletion after unsetting the key");
+        .expect("retry the deletion once the original key is available");
     assert!(!blossom.has(&blob));
     assert_eq!(orphan_rows(&files).await, 0);
     upload_key::choose(&anna.db, &entry)

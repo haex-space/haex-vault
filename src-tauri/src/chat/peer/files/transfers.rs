@@ -608,11 +608,17 @@ impl ChatFiles {
                 // Signed with the upload key: its secret is in the password manager only.
                 (None, Some(entry)) => match self.key_of_entry(&entry).await {
                     Some(keys) => keys,
-                    None => continue,
+                    None => {
+                        log::debug!(
+                            "chat: a queued Blossom deletion is waiting for its upload key"
+                        );
+                        continue;
+                    }
                 },
                 (None, None) => continue,
             };
             if keys.public_key().to_hex() != signer {
+                log::debug!("chat: the available key does not match the queued Blossom deletion");
                 continue;
             }
             let Ok(server) = Server::new(&address, self.resolver.as_ref()).await else {

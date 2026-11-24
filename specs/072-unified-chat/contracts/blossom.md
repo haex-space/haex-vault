@@ -47,6 +47,10 @@ keeps the entry so deletions already queued can still be signed. Delete only whe
 empty (every recipient device and the sender's other devices sent a `files` receipt), or in the 30-day
 sweep (R13). A failed delete is retried at the next sweep.
 
+If the password-manager entry is removed or its password is replaced, the deletion waits until the
+original signing key is available in that entry again. To rotate the upload key while keeping
+pending deletions working, select a different entry and retain the original key.
+
 ## HTTP client
 
 The Blossom request wrapper must reject every non-HTTPS URL before using the pinned client (the test
