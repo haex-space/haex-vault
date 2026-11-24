@@ -314,6 +314,32 @@ async fn every_write_is_checked() {
         ),
         "a value of the password manager is refused in any language: {appended:?}"
     );
+
+    v.db.write(|tx| {
+        tx.execute(
+            "INSERT INTO haex_passwords_item_details (id, title, password) VALUES \
+             ('spaces', 'Whitespace', ?1), ('paragraph', 'Multiline', ?2)",
+            params![" padded ", "Router im Flur\n\nNächster Absatz"],
+        )?;
+        Ok(())
+    })
+    .await
+    .expect("seed passwords containing whitespace");
+
+    add(&v, "Exact", "Whitespace matters", "padded", 4).await;
+    let author = model(v.device);
+    let appended = try_write(&v, move |tx| {
+        append(tx, &author, 5, "WLAN", "Nächster Absatz", None)
+    })
+    .await;
+    assert!(matches!(
+        appended,
+        Err(MemoryError::Check(Field::Body, CheckError::Secret))
+    ));
+    assert!(pages(&v)
+        .await
+        .iter()
+        .any(|page| page.title == "WLAN" && page.body == "Router im Flur"));
 }
 
 #[tokio::test]

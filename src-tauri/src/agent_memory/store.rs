@@ -7,7 +7,7 @@ use haex_crdt::rusqlite::{params, Row};
 use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 
-use super::check::{check, holds_vault_secret, CheckError, Field, VAULT_SECRET_MIN_CHARS};
+use super::check::{check, holds_vault_secret, CheckError, Field};
 use super::limits::{appended_fits, fits, room_for_page, LimitError};
 use super::{title_key, Author};
 use crate::storage::query::Query;
@@ -194,8 +194,6 @@ pub fn vault_secrets(q: &mut impl Query) -> haex_crdt::Result<Vec<String>> {
         .into_iter()
         .flat_map(|(password, otp)| [password, otp])
         .flatten()
-        .map(|value| value.trim().to_owned())
-        .filter(|value| value.chars().count() >= VAULT_SECRET_MIN_CHARS)
         .collect())
 }
 
@@ -336,7 +334,8 @@ pub fn append(
     };
     // The added text is checked on its own; the length is the whole page's, checked below.
     check(Field::Body, text).map_err(|error| MemoryError::Check(Field::Body, error))?;
-    if holds_vault_secret(text, &vault_secrets(tx)?) {
+    let secrets = vault_secrets(tx)?;
+    if holds_vault_secret(text, &secrets) {
         return Err(MemoryError::Check(Field::Body, CheckError::Secret));
     }
     let body = if page.body.trim().is_empty() {
@@ -345,6 +344,9 @@ pub fn append(
         format!("{}\n\n{}", page.body.trim_end(), text.trim())
     };
     check(Field::Body, &body).map_err(|error| MemoryError::Check(Field::Body, error))?;
+    if holds_vault_secret(&body, &secrets) {
+        return Err(MemoryError::Check(Field::Body, CheckError::Secret));
+    }
     appended_fits(&page.body, &body).map_err(MemoryError::Limit)?;
     let new = NewPage {
         title: &page.title,
