@@ -664,6 +664,36 @@ _Avoid_: ignore list, filter (as a stored rule setting).
 The last runs of a rule with counters and one entry per file action. The **Protokolltiefe** (set under "Einstellungen" next to
 "Neue Regel" in the sync rules panel, default 10, 0 to 100) says how many runs per rule this device keeps.
 
+### Chat mit Kontakten (spec 095)
+
+**Device session** (Gerätesitzung):
+The key state between one device and one peer device (of a contact or of the own vault). It
+advances with every message and is renewed with every answer, so a device key taken later opens no
+earlier message. It belongs to the installation and is never synced to other devices.
+_Avoid_: "session" alone (that is the chat's **Active Session** or a **Sitzung (wm session)**).
+
+**Chat key record** (Chat-Schlüsseleintrag):
+The public keys a device publishes on its Nostr-Relays so that others can start a device session
+with it while it is offline. A device without one gets nothing sent, never a message under its
+device key alone.
+
+**Keep-alive**:
+An empty message on a device session that only moves it forward and is never shown. A device sends
+one on a session it sent nothing on for 24 hours while its vault is open; the peer answers a
+keep-alive once with a reply that asks for no further answer. Together they renew a quiet session,
+so a copied key state stops working.
+
+**Reset** (Neuaufbau):
+What a device sends a peer device whose message it cannot decrypt, at most once an hour: both drop
+their sessions with each other and open a new one, and the messages not confirmed yet are
+encrypted again. No user action is needed.
+
+**Schutzzustand** (protection state):
+What the conversation view shows of a conversation's protection, derived from the key state with
+the devices of its vaults: _geschützt_, _Erneuerung ausstehend_, _wird wiederhergestellt_ or
+_wartet auf Schlüssel_; the weakest over the devices wins. Notes have none.
+_Avoid_: "verschlüsselt" for it: the content is encrypted in every state.
+
 ### Internationalisierung (i18n)
 
 All user-visible text uses `@nuxtjs/i18n`. Backend commands and
