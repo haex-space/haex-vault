@@ -6,18 +6,18 @@ Declared in `src/lib/actions/memoryActions.ts`, run by `agent_memory::executor` 
 model sees them as `memory_search`, `memory_open`, `memory_add`, `memory_write`, `memory_remove`. External agents are never
 offered them (their `memory` right is always off).
 
-| Action          | Scope          | Effect | Input                                     | Result                                                   |
-| --------------- | -------------- | ------ | ----------------------------------------- | -------------------------------------------------------- |
-| `memory.search` | `memory.read`  | read   | `{ query }`                               | `{ notice, results: [{ title, description, excerpt }] }` |
-| `memory.open`   | `memory.read`  | read   | `{ title }`                               | `{ notice, page, pointsTo, pointedFrom, alsoTitled? }`   |
-| `memory.add`    | `memory.write` | write  | `{ title, text, description? }`           | `{ title, created, pages, limit }`                       |
-| `memory.write`  | `memory.write` | write  | `{ title, description, text, newTitle? }` | `{ title, pages, limit }`                                |
-| `memory.remove` | `memory.write` | write  | `{ title }`                               | `{ pages, limit }`                                       |
+| Action          | Scope          | Effect | Input                                     | Result                                                           |
+| --------------- | -------------- | ------ | ----------------------------------------- | ---------------------------------------------------------------- |
+| `memory.search` | `memory.read`  | read   | `{ query }`                               | `{ notice, results: [{ title, description, excerpt, by, at }] }` |
+| `memory.open`   | `memory.read`  | read   | `{ title }`                               | `{ notice, page, pointsTo, pointedFrom, alsoTitled? }`           |
+| `memory.add`    | `memory.write` | write  | `{ title, text, description? }`           | `{ title, created, pages, limit }`                               |
+| `memory.write`  | `memory.write` | write  | `{ title, description, text, newTitle? }` | `{ title, pages, limit }`                                        |
+| `memory.remove` | `memory.write` | write  | `{ title }`                               | `{ pages, limit }`                                               |
 
 - `page` is `{ title, description, text, by, device, at, changedBy?, changedAt? }`; `by` is "the user" or the stored name
   of the model; times are ISO dates.
 - `pointsTo` and `pointedFrom` are titles; a title in `pointsTo` without a page is marked `{ title, missing: true }`.
-- `alsoTitled` says that a second page has the same title (a sync made it), with its description.
+- `alsoTitled` says that a second page has the same title (a sync made it), with its description, author and date.
 - `notice` is the fixed sentence of "The memory block" below, so what a model reads by an action is framed the same as the
   block (FR-014).
 - `memory.add` appends `text` as a paragraph. Without a page of that title it creates one; then `description` is required
@@ -30,6 +30,7 @@ Errors (`NativeError` code, message to the model):
 | Code                              | When                                            | The message tells the model                             |
 | --------------------------------- | ----------------------------------------------- | ------------------------------------------------------- |
 | `not_found`                       | no page with that title                         | to search for it, or to create it with `memory_add`     |
+| `page_changed`                    | the page changed while approval was pending     | to open it again before retrying                        |
 | `description_needed`              | `memory.add` creates a page without description | to give one line that says what the page is about       |
 | `title_taken`                     | a new or renamed page would repeat a title      | to add to that page instead                             |
 | `memory_full`                     | a new page beyond 1,000                         | to merge or remove pages first (FR-003, US6)            |

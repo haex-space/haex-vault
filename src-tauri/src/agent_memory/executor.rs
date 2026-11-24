@@ -235,7 +235,11 @@ fn opened(
         "pointedFrom": links.pointed_from(&page.title),
     });
     if let Some(also) = also {
-        result["alsoTitled"] = json!({ "description": also.description });
+        result["alsoTitled"] = json!({
+            "description": also.description,
+            "by": by(&also.author_kind, &also.author_name),
+            "at": iso_date(also.created_at),
+        });
     }
     result
 }
@@ -257,9 +261,20 @@ impl<E: MemoryEnv> MemoryActions<E> {
                         changed_at: p.last_change(),
                     })
                     .collect();
+                let by_id: HashMap<&str, &Page> =
+                    pages.iter().map(|page| (page.id.as_str(), page)).collect();
                 let results: Vec<Value> = search(&searchable, &query)
                     .into_iter()
-                    .map(|hit| json!({ "title": hit.title, "description": hit.description, "excerpt": hit.excerpt }))
+                    .filter_map(|hit| {
+                        let page = by_id.get(hit.id.as_str())?;
+                        Some(json!({
+                            "title": hit.title,
+                            "description": hit.description,
+                            "excerpt": hit.excerpt,
+                            "by": by(&page.author_kind, &page.author_name),
+                            "at": iso_date(page.created_at),
+                        }))
+                    })
                     .collect();
                 Ok(json!({ "notice": NOTICE, "results": results }))
             }

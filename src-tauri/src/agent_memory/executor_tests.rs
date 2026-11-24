@@ -213,6 +213,7 @@ async fn a_search_finds_a_page_by_a_word_only_its_text_holds() {
         .expect("searched");
     assert_eq!(found["notice"], json!(NOTICE));
     assert_eq!(found["results"][0]["title"], json!("Bernd Krause"));
+    assert_eq!(found["results"][0]["by"], json!("Qwen3.5 4B"));
     assert!(found["results"][0]["excerpt"]
         .as_str()
         .is_some_and(|excerpt| excerpt.contains("Umsatzsteuer")));
