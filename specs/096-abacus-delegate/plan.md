@@ -107,6 +107,11 @@ Re-check after design: unchanged. No violation needs the Complexity Tracking tab
   bridge. Before enabling Abacus in a user's `always ask` posture, quickstart §3.4 must demonstrate approval for both a
   read-only tool and a changing tool. If read-only tools bypass the bridge, the backend must be unavailable while `always
 ask` is active until an enforcement path is implemented and verified. Do not treat `supervise` alone as satisfying FR-010.
+  **Measured and resolved 2026-11-24 (research §12):** `supervise` alone lets read-only tools run without a request. The
+  enforcement path is a settings file the adapter writes into the run folder and hands over with `--settings`, holding the
+  ask rule `*`; with it every tool call, read-only ones included, reaches the bridge, also when a config in the vault home
+  asks for `YOLO` and allows everything. The tool's own rule is what enforces it, as for the changing tools; an OS sandbox
+  stays a later spec.
 - **D7 - Models: RESOLVED for the first delivery.** One entry, the account's default model (no `--model`), as Codex has its
   fixed entry. A list from the account (`get_model_catalog` control request) is added only if quickstart step 3.5 shows it
   works without spending credits.

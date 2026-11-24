@@ -13,8 +13,8 @@ use tempfile::TempDir;
 
 use super::{
     approval_answer, build_command, chosen_model, default_model, fatal_reason, parse_line,
-    startup_error, user_line, write_attachments, Line, APPROVALS_UNVERIFIED, CREDENTIAL_REFUSED,
-    NOT_CONNECTED,
+    startup_error, user_line, write_attachments, Line, APPROVALS_UNVERIFIED,
+    APPROVAL_SETTINGS_FILE, CREDENTIAL_REFUSED, NOT_CONNECTED,
 };
 use crate::adapters::cli_delegate::autonomy::AutonomyMode;
 use crate::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
@@ -96,6 +96,20 @@ fn a_tool_request_carries_its_id_name_and_input() {
             request_id: "perm-1".into(),
             tool_name: "Bash".into(),
             input: json!({"command": "ls"}),
+        }
+    );
+}
+
+#[test]
+fn a_tool_request_as_the_program_sends_it_names_the_tool_and_its_arguments() {
+    // The shape measured against version 2.10.23 (research §12).
+    let line = r#"{"type":"control_request","request_id":"perm-4","request":{"subtype":"can_use_tool","tool_call_id":"t4","always_allow_rules":[],"request":{"type":"generic","tool":{"id":"t4","name":"read","args":{"path":"/etc/hostname"},"status":"executing","endpoint":"file_read"},"displayName":"Read"}}}"#;
+    assert_eq!(
+        parse_line(line),
+        Line::Approval {
+            request_id: "perm-4".into(),
+            tool_name: "read".into(),
+            input: json!({"path": "/etc/hostname"}),
         }
     );
 }
@@ -280,8 +294,9 @@ impl Fixture {
     /// `env` and the first line of its input to `input` of this fixture's folder first.
     fn stub(&self, body: &str) -> PathBuf {
         let script = format!(
-            "#!/bin/sh\necho \"$@\" > '{args}'\nenv > '{env}'\nIFS= read -r first\nprintf '%s\\n' \"$first\" > '{input}'\n{body}\n",
+            "#!/bin/sh\necho \"$@\" > '{args}'\nfor arg; do last=$arg; done\ncp \"$last\" '{settings}' 2>/dev/null\nenv > '{env}'\nIFS= read -r first\nprintf '%s\\n' \"$first\" > '{input}'\n{body}\n",
             args = self.path("args").display(),
+            settings = self.path("settings").display(),
             env = self.path("env").display(),
             input = self.path("input").display(),
         );
@@ -407,11 +422,20 @@ async fn the_command_line_is_the_contract_and_the_child_has_the_device_code_and_
     let stream = adapter.stream_chat(request("abacusai")).await.unwrap();
     collect(stream).await;
 
+    let args = fixture.read("args");
+    let (args, settings_path) = args.trim().rsplit_once(' ').unwrap();
     assert_eq!(
-        fixture.read("args").trim(),
+        args,
         "-p --input-format stream-json --output-format stream-json --include-partial-messages \
-         --permission-mode supervise --no-agents-md"
+         --permission-mode supervise --no-agents-md --settings"
     );
+    assert!(
+        settings_path.ends_with(&format!("/{APPROVAL_SETTINGS_FILE}")),
+        "{settings_path}"
+    );
+    // Every tool call asks, a read-only one too (research §12).
+    let settings: Value = serde_json::from_str(&fixture.read("settings")).unwrap();
+    assert_eq!(settings, json!({ "permissions": { "ask": ["*"] } }));
     let env = fixture.read("env");
     assert!(
         env.contains(&format!("CODELLM_DEVICE_CODE={CODE}")),
@@ -834,7 +858,8 @@ fn the_command_names_the_vaults_program_and_never_a_host_lookup() {
         DelegateRuntime::for_stub("abacusai", dir.path().join("vault-abacusai"), dir.path());
     let run = runtime.run_folder().unwrap();
 
-    let command = build_command(&runtime, "abacusai", None, &run);
+    let settings = run.path().join(APPROVAL_SETTINGS_FILE);
+    let command = build_command(&runtime, "abacusai", None, &settings, &run);
 
     assert_eq!(
         command.as_std().get_program(),

@@ -2,7 +2,9 @@
 //! process per request (spec 096 FR-007 to FR-010, `data-model.md` §4).
 //!
 //! The program runs as `-p --input-format stream-json --output-format stream-json
-//! --permission-mode supervise`: the host writes one `user` line, reads `event` lines (the text
+//! --permission-mode supervise --settings <run>/haex-approval-settings.json`, whose ask rule `*`
+//! makes every tool call, also a read-only one, a request: the host writes one `user` line, reads
+//! `event` lines (the text
 //! arrives as `text_delta` events), answers every `can_use_tool` control request through the
 //! approval bridge with `accept` or `reject` and nothing else (never a persistent variant), and
 //! sees the turn end with a `result` line. The account's device code is an entry of the password
@@ -42,6 +44,18 @@ const DEVICE_CODE_ENV: &str = "CODELLM_DEVICE_CODE";
 
 /// The permission mode the program is started in and must report in its `init` message.
 const PERMISSION_MODE: &str = "supervise";
+
+/// The settings file every run hands the program (`--settings`), in the run folder. Measured
+/// (research §12): in `supervise` the program runs read-only tools (`read`, also outside the
+/// working folder, and `bash ls`) without a `can_use_tool` request; with the ask rule `*` every
+/// tool call reaches the approval bridge, also when a config in the vault home asks for `YOLO` and
+/// allows everything.
+pub(super) const APPROVAL_SETTINGS_FILE: &str = "haex-approval-settings.json";
+
+/// The content of [`APPROVAL_SETTINGS_FILE`]: every tool call asks.
+pub(super) fn approval_settings() -> Value {
+    json!({ "permissions": { "ask": ["*"] } })
+}
 
 /// The release gate of spec 096 T034. Flip only after T035 records that read-only and changing
 /// tools both reach the approval bridge.
@@ -105,6 +119,7 @@ pub(super) fn build_command(
     runtime: &DelegateRuntime,
     model_id: &str,
     mcp_config: Option<&Path>,
+    approval_settings: &Path,
     run: &RunFolder,
 ) -> Command {
     let mut cmd = Command::new(&runtime.executable);
@@ -124,6 +139,7 @@ pub(super) fn build_command(
     if let Some(config) = mcp_config {
         cmd.arg("--mcp-config").arg(config);
     }
+    cmd.arg("--settings").arg(approval_settings);
     cmd.current_dir(run.path())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -216,14 +232,20 @@ pub(super) fn parse_line(line: &str) -> Line {
             // fields are not documented: whatever is missing leaves the name generic and the
             // input the raw request, so the person is still asked and nothing is allowed on its
             // own.
+            // Measured (research §12): `request.tool` holds `name` (`read`, `bash`, `write`) and
+            // `args`; `displayName` is the program's label.
             let call = request.and_then(|r| r.get("request"));
+            let tool = call.and_then(|c| c.get("tool"));
             let tool_name = call
                 .and_then(|c| c.get("tool_name").or_else(|| c.get("toolName")))
+                .or_else(|| tool.and_then(|t| t.get("name")))
+                .or_else(|| call.and_then(|c| c.get("displayName")))
                 .and_then(Value::as_str)
                 .unwrap_or("Abacus tool")
                 .to_owned();
             let input = call
                 .and_then(|c| c.get("tool_input").or_else(|| c.get("toolInput")))
+                .or_else(|| tool.and_then(|t| t.get("args")))
                 .or(call)
                 .cloned()
                 .unwrap_or(Value::Null);
@@ -479,7 +501,19 @@ async fn spawn_abacus_invocation_with_coverage(
         None => transcript,
     };
 
-    let mut command = build_command(&runtime, &req.model_id, mcp_config.as_deref(), &run);
+    let settings = run.path().join(APPROVAL_SETTINGS_FILE);
+    tokio::fs::write(&settings, approval_settings().to_string())
+        .await
+        .map_err(|error| AdapterError::Http {
+            reason: format!("failed to write the approval settings for abacusai: {error}"),
+        })?;
+    let mut command = build_command(
+        &runtime,
+        &req.model_id,
+        mcp_config.as_deref(),
+        &settings,
+        &run,
+    );
     // After containment, on this child alone: the base layer removed every host variable of the
     // vendor first. An API key is never set.
     command.env(DEVICE_CODE_ENV, credential.secret());
