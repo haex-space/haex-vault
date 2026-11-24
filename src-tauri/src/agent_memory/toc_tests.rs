@@ -134,6 +134,18 @@ fn a_model_on_the_list_gets_no_block_at_the_start() {
 }
 
 #[test]
+fn the_block_needs_room_to_count_omitted_pages() {
+    let snapshot = many(1);
+    let framing = HEADING.chars().count() + 1 + NOTICE.chars().count();
+    let for_framing = framing.div_ceil(CHARS_PER_TOKEN) * SHARE;
+    assert!(block(&snapshot, Some(for_framing), false).is_empty());
+    assert!(block("", Some(for_framing), false).is_empty());
+
+    let with_count = (framing + 1 + more(1).chars().count()).div_ceil(CHARS_PER_TOKEN) * SHARE;
+    assert!(block(&snapshot, Some(with_count), false).contains(&more(1)));
+}
+
+#[test]
 fn dates_are_read_from_milliseconds() {
     assert_eq!(iso_date(0), "1970-01-01");
     assert_eq!(iso_date(NOV_20), "2026-11-20");

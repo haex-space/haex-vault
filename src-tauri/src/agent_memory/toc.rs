@@ -86,10 +86,11 @@ pub fn block(snapshot: &str, context_tokens: Option<usize>, may_write: bool) -> 
         return String::new();
     }
     if lines.is_empty() {
-        if budget.is_none_or(|budget| fixed + 1 + EMPTY.chars().count() <= budget) {
-            head.push('\n');
-            head.push_str(EMPTY);
+        if budget.is_some_and(|budget| fixed + 1 + EMPTY.chars().count() > budget) {
+            return String::new();
         }
+        head.push('\n');
+        head.push_str(EMPTY);
         return head + &tail;
     }
     let mut shown = Vec::new();
@@ -116,10 +117,11 @@ pub fn block(snapshot: &str, context_tokens: Option<usize>, may_write: bool) -> 
     }
     if left > 0 {
         let note = more(left);
-        if budget.is_none_or(|budget| used + 1 + note.chars().count() <= budget) {
-            head.push('\n');
-            head.push_str(&note);
+        if budget.is_some_and(|budget| used + 1 + note.chars().count() > budget) {
+            return String::new();
         }
+        head.push('\n');
+        head.push_str(&note);
     }
     head + &tail
 }
