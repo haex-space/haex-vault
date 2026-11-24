@@ -8,6 +8,7 @@ pub mod crypto;
 pub mod probe;
 pub mod store;
 pub mod transfers;
+pub mod upload_key;
 
 #[cfg(any(test, feature = "e2e"))]
 pub mod test_server;

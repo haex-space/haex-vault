@@ -9,6 +9,7 @@ use super::*;
 use crate::chat::peer::files::test_server::BlossomTestServer;
 use crate::chat::peer::messages::PeerMessage;
 use crate::chat::peer::test_support::{mock_relay, two_vaults, ChatDevice};
+use crate::passwords::access::Caller;
 use crate::remote_storage::address::SystemResolver;
 
 const PLAN: &[u8] = b"%PDF-1.7 the plan for saturday, never in plaintext on a server";
@@ -758,7 +759,7 @@ async fn a_deletion_that_fails_is_remembered_and_done_when_the_server_is_back() 
         .await
         .expect("server");
     files
-        .delete_unqueued(&gone, &[(keys.clone(), descriptor.sha256.clone())])
+        .delete_unqueued(&gone, &[(keys.clone(), descriptor.sha256.clone(), None)])
         .await;
     assert_eq!(orphan_rows(&files).await, 1);
     assert!(blossom.has(&descriptor.sha256), "the blob is still there");
@@ -785,4 +786,75 @@ async fn a_deletion_that_fails_is_remembered_and_done_when_the_server_is_back() 
     files.retry_orphan_deletes().await.expect("retry");
     assert!(!blossom.has(&descriptor.sha256), "the retry deleted it");
     assert_eq!(orphan_rows(&files).await, 0, "and forgot it");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn uploads_are_signed_with_the_upload_key_and_a_missing_key_stops_the_send() {
+    let (_relay, url) = mock_relay().await;
+    let blossom = BlossomTestServer::start().await;
+    let (anna, ben) = two_vaults(&[url]).await;
+    anna.enable_files(&blossom.url, None);
+    ben.enable_files(&blossom.url, None);
+    anna.start().await;
+    ben.start().await;
+    let passwords = PasswordsService::new(anna.db.clone());
+    let entry = upload_key::create(&passwords, &anna.db)
+        .await
+        .expect("an upload key");
+
+    send_file(&anna, &ben, "Hier der Plan", PLAN)
+        .await
+        .expect("send");
+    let (blob, signer, secret, key_entry) = anna
+        .db
+        .read_blocking(|r| {
+            r.query_row(
+                "SELECT blob_sha256, signer, upload_secret, key_entry_id FROM chat_blobs_no_sync",
+                params![],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, Option<Vec<u8>>>(2)?,
+                        row.get::<_, Option<String>>(3)?,
+                    ))
+                },
+            )
+        })
+        .expect("blob row")
+        .expect("a blob");
+    assert_eq!(
+        secret, None,
+        "the key's only copy is in the password manager"
+    );
+    assert_eq!(key_entry.as_deref(), Some(entry.as_str()));
+    let Resolved::Ready(keys, _) = upload_key::resolve(&passwords, &anna.db)
+        .await
+        .expect("resolve")
+    else {
+        panic!("the key is ready");
+    };
+    assert_eq!(signer, keys.public_key().to_hex());
+    Server::new(&blossom.url, &SystemResolver)
+        .await
+        .expect("server")
+        .delete(&keys, &blob, &SystemResolver)
+        .await
+        .expect("the server took the blob from the upload key, so it deletes it for that key");
+
+    passwords
+        .trash_targets(
+            &Caller::User,
+            vec![crate::passwords::model::Target {
+                kind: crate::passwords::model::TargetKind::Item,
+                id: entry,
+            }],
+        )
+        .await
+        .expect("the user trashes the entry");
+    let refused = send_file(&anna, &ben, "Noch einer", PLAN).await;
+    assert!(
+        matches!(&refused, Err(HaexError::InvalidInput { reason }) if reason == "chat.file.keyMissing"),
+        "a key that is set but gone must not fall back to a fresh one: {refused:?}"
+    );
 }

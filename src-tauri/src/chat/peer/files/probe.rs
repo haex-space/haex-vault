@@ -70,16 +70,16 @@ impl Check {
     }
 }
 
-/// Tests the server at `address`. The size asked for first is the largest file a message carries.
-pub async fn check(address: &str, resolver: &dyn Resolver) -> Check {
+/// Tests the server at `address` as `signer` signs (the upload key when one is set, else a fresh
+/// key). The size asked for first is the largest file a message carries.
+pub async fn check(address: &str, resolver: &dyn Resolver, signer: &Keys) -> Check {
     let server = match Server::new(address, resolver).await {
         Ok(server) => server,
         Err(error) => return Check::refused(error, Verdict::NotAllowed),
     };
-    let signer = Keys::generate();
     let hash = hex(&Sha256::digest(b"haex blossom check"));
     let largest = ciphertext_len(MAX_PLAINTEXT);
-    let first = match server.check_upload(&signer, &hash, largest, resolver).await {
+    let first = match server.check_upload(signer, &hash, largest, resolver).await {
         Ok(()) => return Check::of(Verdict::Accepts),
         Err(error) => error,
     };
@@ -88,7 +88,7 @@ pub async fn check(address: &str, resolver: &dyn Resolver) -> Check {
         return Check::refused(first, Verdict::Refused);
     }
     match server
-        .check_upload(&signer, &hash, ciphertext_len(1), resolver)
+        .check_upload(signer, &hash, ciphertext_len(1), resolver)
         .await
     {
         Ok(()) => Check::refused(first, Verdict::OnlySmall),

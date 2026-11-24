@@ -93,7 +93,10 @@ use chat::peer::commands::messages::{
     chat_peer_send,
 };
 use chat::peer::commands::requests::{chat_request_answer, chat_request_card};
-use chat::peer::commands::settings::chat_blossom_check;
+use chat::peer::commands::settings::{
+    chat_blossom_check, chat_blossom_key, chat_blossom_key_candidates, chat_blossom_key_choose,
+    chat_blossom_key_create, chat_blossom_key_remove,
+};
 use chat::search::chat_search;
 use chat::session::ChatState;
 use chat::thread_commands::{
@@ -429,6 +432,15 @@ pub fn run() {
                             .try_state::<AppState>()?
                             .database()
                             .ok()
+                    }),
+                ));
+            // Spec 072 FR-081: deleting the entry of the chat's Blossom upload key warns first too.
+            let app_for_chat = app.handle().clone();
+            app.state::<AppState>()
+                .usage()
+                .register(std::sync::Arc::new(
+                    chat::peer::files::upload_key::ChatUsage::new(move || {
+                        app_for_chat.try_state::<AppState>()?.database().ok()
                     }),
                 ));
             // Spec 017 US8: what haex-vault does outside its window for extensions (browser, notifications).
@@ -930,6 +942,11 @@ pub fn run() {
             chat_attachment_save,
             chat_attachment_text,
             chat_blossom_check,
+            chat_blossom_key,
+            chat_blossom_key_candidates,
+            chat_blossom_key_choose,
+            chat_blossom_key_create,
+            chat_blossom_key_remove,
             chat_peer_send,
             chat_peer_resend,
             chat_peer_messages_list,

@@ -556,7 +556,9 @@
       "saved": "Gespeichert.",
       "viewer": {
         "binary": "Diese Datei lässt sich nicht als Text anzeigen."
-      }
+      },
+      "keyMissing": "Der Upload-Schlüssel fehlt im Passwort-Manager. Entferne ihn in den Chat-Einstellungen und lege einen neuen an.",
+      "keySyncing": "Der Upload-Schlüssel ist noch nicht auf diesem Gerät angekommen. Versuche es gleich noch einmal."
     },
     "error": {
       "tooLong": "Der Text ist zu lang (höchstens 1.000.000 Zeichen).",
@@ -1614,6 +1616,26 @@
         "never": "Nie",
         "all": "Alle (bis 200 MB)",
         "megabytes": "{count} MB"
+      },
+      "key": {
+        "label": "Upload-Schlüssel",
+        "hint": "Für Blossom-Server, die nur Dateien von registrierten Schlüsseln annehmen. Ohne Schlüssel bekommt jede Datei einen eigenen.",
+        "create": "Schlüssel anlegen",
+        "choose": "Eintrag wählen …",
+        "remove": "Entfernen",
+        "copy": "Kopieren",
+        "copied": "Kopiert.",
+        "npubLabel": "Öffentlicher Schlüssel, den du beim Server registrierst",
+        "entry": "Eintrag im Passwort-Manager: {title}",
+        "missing": "Der Eintrag mit dem Schlüssel fehlt. Dateien lassen sich nicht senden, bis du den Schlüssel entfernst und einen neuen anlegst.",
+        "syncing": "Der Eintrag ist noch nicht auf diesem Gerät angekommen. Dateien lassen sich senden, sobald er da ist.",
+        "chooseTitle": "Eintrag mit einem Schlüssel wählen",
+        "chooseConfirm": "Verwenden",
+        "entryLabel": "Einträge mit einem Schlüssel",
+        "onlyFitting": "Es erscheinen nur Einträge, deren Passwort ein Nostr-Schlüssel (nsec) ist.",
+        "removeTitle": "Upload-Schlüssel entfernen?",
+        "removeOwned": "Der Schlüssel wird gelöscht. Hast du seinen öffentlichen Schlüssel bei einem Server registriert, kannst du dort erst wieder hochladen, wenn du einen neuen Schlüssel dort registrierst.",
+        "removeChosen": "Der Eintrag bleibt im Passwort-Manager; der Chat nutzt ihn nicht mehr."
       }
     },
     "modelServers": {
@@ -2639,7 +2661,8 @@
     "owner": "Gehört zu: {name}",
     "owners": {
       "storage": "Cloud-Speicher",
-      "marketplace": "Marktplatz"
+      "marketplace": "Marktplatz",
+      "chat": "Chat"
     },
     "menuTitle": "Menü",
     "menu": {

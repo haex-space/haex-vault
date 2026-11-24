@@ -24,6 +24,7 @@ use uuid::Uuid;
 use super::blossom::{self, BlossomError, Server, UploadBody};
 use super::crypto::{self, Decryptor, FileKey, SealedFacts};
 use super::store::ChatFileStore;
+use super::upload_key::{self, Resolved};
 use crate::chat::peer::delivery::now_ms;
 use crate::chat::peer::envelope::{self, Attachment, BlobRef, FileAttachment, INLINE_MIME};
 use crate::chat::peer::session::Me;
@@ -31,6 +32,8 @@ use crate::chat::peer::{ids, send, settings, targets};
 use crate::error::{HaexError, Result};
 use crate::files::encrypted::opened;
 use crate::files::encrypted::source::EncryptedFile;
+use crate::passwords::access::{Grant, GrantAction, Scope};
+use crate::passwords::service::PasswordsService;
 use crate::remote_storage::address::Resolver;
 use crate::storage::query::Query;
 use crate::sync::keys::hex;
@@ -152,6 +155,9 @@ struct Prepared {
 struct Uploaded {
     attachment: FileAttachment,
     signer: Keys,
+    /// The password-manager entry of the upload key when the blob was signed with it (FR-081);
+    /// then the blob row keeps this id and no secret.
+    key_entry: Option<String>,
     source: Source,
 }
 
@@ -251,7 +257,11 @@ impl ChatFiles {
                     let credentials: Vec<_> = uploaded
                         .iter()
                         .map(|file: &Uploaded| {
-                            (file.signer.clone(), file.attachment.blossom.sha256.clone())
+                            (
+                                file.signer.clone(),
+                                file.attachment.blossom.sha256.clone(),
+                                file.key_entry.clone(),
+                            )
                         })
                         .collect();
                     self.delete_unqueued(&server, &credentials).await;
@@ -261,7 +271,13 @@ impl ChatFiles {
         }
         let cleanup_credentials: Vec<_> = uploaded
             .iter()
-            .map(|file| (file.signer.clone(), file.attachment.blossom.sha256.clone()))
+            .map(|file| {
+                (
+                    file.signer.clone(),
+                    file.attachment.blossom.sha256.clone(),
+                    file.key_entry.clone(),
+                )
+            })
             .collect();
         for (index, file) in uploaded.iter().enumerate() {
             let id = ids::attachment_id(message_id, index).to_string();
@@ -303,13 +319,14 @@ impl ChatFiles {
                     let attachment_id = ids::attachment_id(id, index).to_string();
                     tx.execute(
                         "INSERT OR REPLACE INTO chat_blobs_no_sync (blob_sha256, server, signer, \
-                           upload_secret, attachment_id, pending_devices, uploaded_at) \
-                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                           upload_secret, key_entry_id, attachment_id, pending_devices, uploaded_at) \
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                         params![
                             file.attachment.blossom.sha256,
                             base,
                             file.signer.public_key().to_hex(),
-                            file.signer.secret_key().to_secret_bytes().to_vec(),
+                            secret_of(&file.signer, file.key_entry.as_deref()),
+                            file.key_entry,
                             attachment_id,
                             pending,
                             now
@@ -383,7 +400,7 @@ impl ChatFiles {
     /// the first time; a file that changed in between is not sent.
     async fn upload(&self, server: &Server, prepared: Prepared) -> Result<Uploaded> {
         let Prepared { file, key, facts } = prepared;
-        let signer = Keys::generate();
+        let (signer, key_entry) = self.upload_signer().await?;
         let resolver = self.resolver.as_ref();
         server
             .check_upload(
@@ -435,6 +452,7 @@ impl ChatFiles {
                 inline: file.inline,
             },
             signer,
+            key_entry,
             source: file.source,
         })
     }
@@ -493,10 +511,38 @@ impl ChatFiles {
         }
     }
 
+    /// What the next upload signs with: the upload key of the password manager when one is set
+    /// (FR-081), else a fresh key per file (research R12). A key that is set but cannot be read is
+    /// no reason to upload with a fresh one: the server may take only registered keys, and the
+    /// user chose this one.
+    async fn upload_signer(&self) -> Result<(Keys, Option<String>)> {
+        let passwords = PasswordsService::new(self.db.clone());
+        match upload_key::resolve(&passwords, &self.db).await? {
+            Resolved::Unset => Ok((Keys::generate(), None)),
+            Resolved::Ready(keys, entry) => Ok((keys, Some(entry))),
+            Resolved::Missing => Err(invalid("chat.file.keyMissing")),
+            Resolved::Syncing => Err(invalid("chat.file.keySyncing")),
+        }
+    }
+
+    /// The upload key an entry holds now; `None` when the entry is gone or holds no key.
+    async fn key_of_entry(&self, entry: &str) -> Option<Keys> {
+        let passwords = PasswordsService::new(self.db.clone());
+        let item = passwords
+            .read_secret_item(
+                &upload_key::CALLER,
+                &[Grant::new(GrantAction::ReadWrite, Scope::All)],
+                entry.to_owned(),
+            )
+            .await
+            .ok()?;
+        upload_key::keys_of(&item)
+    }
+
     /// Deletes blobs after a send failed before its message was queued. If a server is offline,
     /// keep the deletion credentials locally and retry when due downloads are checked.
-    async fn delete_unqueued(&self, server: &Server, uploaded: &[(Keys, String)]) {
-        for (signer, blob) in uploaded {
+    async fn delete_unqueued(&self, server: &Server, uploaded: &[(Keys, String, Option<String>)]) {
+        for (signer, blob, key_entry) in uploaded {
             if server
                 .delete(signer, blob, self.resolver.as_ref())
                 .await
@@ -504,11 +550,12 @@ impl ChatFiles {
             {
                 continue;
             }
-            let (blob, address, signer, secret, attachment_id) = (
+            let (blob, address, secret, key_entry, signer, attachment_id) = (
                 blob.clone(),
                 server.address().to_owned(),
+                secret_of(signer, key_entry.as_deref()),
+                key_entry.clone(),
                 signer.public_key().to_hex(),
-                signer.secret_key().to_secret_bytes().to_vec(),
                 format!("{ORPHAN_ATTACHMENT_PREFIX}{blob}"),
             );
             let now = now_ms();
@@ -517,9 +564,9 @@ impl ChatFiles {
                 .write(move |tx| {
                     tx.execute(
                         "INSERT OR REPLACE INTO chat_blobs_no_sync (blob_sha256, server, signer, \
-                           upload_secret, attachment_id, pending_devices, uploaded_at) \
-                         VALUES (?1, ?2, ?3, ?4, ?5, '[]', ?6)",
-                        params![blob, address, signer, secret, attachment_id, now],
+                           upload_secret, key_entry_id, attachment_id, pending_devices, uploaded_at) \
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, '[]', ?7)",
+                        params![blob, address, signer, secret, key_entry, attachment_id, now],
                     )?;
                     Ok(())
                 })
@@ -537,8 +584,8 @@ impl ChatFiles {
             .read(|r| {
                 let prefix = format!("{ORPHAN_ATTACHMENT_PREFIX}%");
                 r.query_map(
-                    "SELECT blob_sha256, server, signer, upload_secret FROM chat_blobs_no_sync \
-                     WHERE attachment_id LIKE ?1",
+                    "SELECT blob_sha256, server, signer, upload_secret, key_entry_id \
+                     FROM chat_blobs_no_sync WHERE attachment_id LIKE ?1",
                     &[&prefix],
                     |row| {
                         Ok((
@@ -546,19 +593,25 @@ impl ChatFiles {
                             row.get::<_, String>(1)?,
                             row.get::<_, String>(2)?,
                             row.get::<_, Option<Vec<u8>>>(3)?,
+                            row.get::<_, Option<String>>(4)?,
                         ))
                     },
                 )
             })
             .await?;
-        for (blob, address, signer, secret) in rows {
-            let Some(secret) = secret else {
-                continue;
+        for (blob, address, signer, secret, key_entry) in rows {
+            let keys = match (secret, key_entry) {
+                (Some(secret), _) => match nostr::key::SecretKey::from_slice(&secret) {
+                    Ok(secret) => Keys::new(secret),
+                    Err(_) => continue,
+                },
+                // Signed with the upload key: its secret is in the password manager only.
+                (None, Some(entry)) => match self.key_of_entry(&entry).await {
+                    Some(keys) => keys,
+                    None => continue,
+                },
+                (None, None) => continue,
             };
-            let Ok(secret) = nostr::key::SecretKey::from_slice(&secret) else {
-                continue;
-            };
-            let keys = Keys::new(secret);
             if keys.public_key().to_hex() != signer {
                 continue;
             }
@@ -1022,6 +1075,14 @@ fn blossom_error(error: BlossomError) -> HaexError {
         _ => error.code(),
     };
     HaexError::InvalidInput { reason }
+}
+
+/// The secret a blob row keeps for its signer: none for the upload key, whose only copy is in the
+/// password manager (FR-081).
+fn secret_of(signer: &Keys, key_entry: Option<&str>) -> Option<Vec<u8>> {
+    key_entry
+        .is_none()
+        .then(|| signer.secret_key().to_secret_bytes().to_vec())
 }
 
 fn invalid(reason: &str) -> HaexError {

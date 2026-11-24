@@ -11,6 +11,7 @@ use tokio::net::TcpListener;
 use super::*;
 use crate::chat::peer::files::test_server::BlossomTestServer;
 use crate::remote_storage::address::{Resolver, SystemResolver};
+use nostr::key::Keys;
 
 struct Unresolved;
 
@@ -24,7 +25,7 @@ impl Resolver for Unresolved {
 #[tokio::test]
 async fn a_server_that_takes_the_largest_file_accepts() {
     let server = BlossomTestServer::start().await;
-    let result = check(&server.url, &SystemResolver).await;
+    let result = check(&server.url, &SystemResolver, &Keys::generate()).await;
     assert_eq!(result, Check::of(Verdict::Accepts));
     let asked: Vec<_> = server
         .log()
@@ -42,7 +43,7 @@ async fn a_server_that_takes_the_largest_file_accepts() {
 async fn a_server_with_a_size_limit_takes_only_small_files_and_gives_its_reason() {
     let server = BlossomTestServer::start().await;
     server.limit(1_000_000, "at most 1 MB");
-    let result = check(&server.url, &SystemResolver).await;
+    let result = check(&server.url, &SystemResolver, &Keys::generate()).await;
     assert_eq!(result.verdict, Verdict::OnlySmall);
     assert_eq!(result.status, Some(413));
     assert_eq!(result.reason.as_deref(), Some("at most 1 MB"));
@@ -52,7 +53,7 @@ async fn a_server_with_a_size_limit_takes_only_small_files_and_gives_its_reason(
 async fn a_server_that_refuses_even_a_small_file_is_refused() {
     let server = BlossomTestServer::start().await;
     server.limit(0, "no uploads here");
-    let result = check(&server.url, &SystemResolver).await;
+    let result = check(&server.url, &SystemResolver, &Keys::generate()).await;
     assert_eq!(result.verdict, Verdict::Refused);
     assert_eq!(result.status, Some(413));
     assert_eq!(result.reason.as_deref(), Some("no uploads here"));
@@ -77,7 +78,7 @@ async fn a_refusal_that_is_not_about_size_is_asked_about_once() {
                 .await;
         }
     });
-    let result = check(&address, &SystemResolver).await;
+    let result = check(&address, &SystemResolver, &Keys::generate()).await;
     assert_eq!(result.verdict, Verdict::Refused);
     assert_eq!(result.status, Some(403));
     assert_eq!(result.reason.as_deref(), Some("members only"));
@@ -90,13 +91,18 @@ async fn a_server_that_is_not_there_is_unreachable() {
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let address = format!("http://{}/", listener.local_addr().expect("address"));
     drop(listener);
-    let result = check(&address, &SystemResolver).await;
+    let result = check(&address, &SystemResolver, &Keys::generate()).await;
     assert_eq!(result, Check::of(Verdict::Unreachable));
 }
 
 #[tokio::test]
 async fn a_server_whose_name_does_not_resolve_is_unreachable() {
-    let result = check("https://blossom.example.com/", &Unresolved).await;
+    let result = check(
+        "https://blossom.example.com/",
+        &Unresolved,
+        &Keys::generate(),
+    )
+    .await;
     assert_eq!(result, Check::of(Verdict::Unreachable));
 }
 
@@ -110,7 +116,7 @@ async fn an_address_a_chat_file_may_not_go_to_is_not_allowed() {
         "not an address",
         "",
     ] {
-        let result = check(address, &SystemResolver).await;
+        let result = check(address, &SystemResolver, &Keys::generate()).await;
         assert_eq!(result, Check::of(Verdict::NotAllowed), "{address:?}");
     }
 }
