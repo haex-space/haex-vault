@@ -196,7 +196,7 @@ description: 'Task list for the shared memory of the agents (spec 097)'
 
 ### Spike (first, before anything else of PR C)
 
-- [ ] T064 [US2] Codex spike: run Codex through the app-server as `src-tauri/src/adapters/cli_delegate/codex.rs` does, once with a turn that searches the web and runs a command, in the gated and the ungated mode; record which notifications name the web search and the command (item events and their types) into `specs/097-agent-memory/analysis/codex-spike.md` with the commands used and the redacted output; decide per research R7: read them, or switch off Codex's web search in its `config.toml` and read only commands; show the result to the operator before T071
+- [X] T064 [US2] Codex spike: run Codex through the app-server as `src-tauri/src/adapters/cli_delegate/codex.rs` does, once with a turn that searches the web and runs a command, in the gated and the ungated mode; record which notifications name the web search and the command (item events and their types) into `specs/097-agent-memory/analysis/codex-spike.md` with the commands used and the redacted output; decide per research R7: read them, or switch off Codex's web search in its `config.toml` and read only commands; show the result to the operator before T071
 
 ### Tests for User Story 2 (write first)
 
