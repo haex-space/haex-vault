@@ -215,12 +215,12 @@ a contact with the card of its request.
 - Anna's vault is open on two own devices: both receive the same knock; there is one request, one
   notification, and an answer on one device holds on the other.
 - Anna answers on one device while the other has not synced yet and gets a further knock: the later answer
-  wins; a declined vault is not shown as a request again once the block reached that device.
+  wins; a request of a blocked vault never shows, also when a not-yet-synced device re-created it.
 - A notice cannot be delivered (all of the other vault's devices offline, no Nostr-Relay takes it): it is
   tried like a message; after an accept the sender's outbox delivers on its own schedule anyway.
 - A notice arrives that does not come from the vault the conversation is with: it is dropped.
-- A contact holds more than one vault: blocking it blocks every one of them; unblocking one of them
-  unblocks them all and restores the contact.
+- A contact holds more than one vault: blocking it, or blocking any one of its vaults, blocks every one of
+  them; unblocking one of them unblocks them all and restores the contact.
 - A request carries a Visitenkarte that does not parse or whose signature fails: no request is kept,
   nothing is shown.
 - A stranger's later knock carries a newer Visitenkarte than its open request: the request keeps the
