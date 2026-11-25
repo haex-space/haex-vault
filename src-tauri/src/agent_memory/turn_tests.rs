@@ -126,3 +126,64 @@ async fn an_abo_agent_is_given_the_level_of_its_model_s_profile() {
     });
     assert_eq!(delegate_level(&v.db, model).await, MemoryLevel::Read);
 }
+
+fn memory_registry() -> crate::chat::tools::ToolRegistry {
+    use crate::chat::tools::action_bridge::ActionBridge;
+    use crate::chat::tools::action_tool::{ActionTool, AgentActionDef};
+    let mut registry = crate::chat::tools::ToolRegistry::new();
+    for id in ["memory.search", "memory.add", "memory.open", "settings.get"] {
+        let def: AgentActionDef = serde_json::from_value(serde_json::json!({
+            "toolName": id.replace('.', "_"),
+            "actionId": id,
+            "description": id,
+            "inputSchema": { "type": "object" },
+            "effect": "read",
+            "core": id == "settings.get",
+            "titles": { "de": "", "en": "" },
+        }))
+        .expect("test action definition");
+        registry.register(std::sync::Arc::new(ActionTool::new(
+            def,
+            ActionBridge::default(),
+        )));
+    }
+    registry
+}
+
+fn offered(level: MemoryLevel, start: &[&str]) -> Vec<String> {
+    let registry = memory_registry();
+    let mut tools: Vec<_> = start
+        .iter()
+        .map(|name| {
+            crate::chat::tools::offer::tool_spec(registry.get(name).expect("tool").as_ref())
+        })
+        .collect();
+    offer_with_block(&registry, &mut tools, level);
+    tools.into_iter().map(|tool| tool.name).collect()
+}
+
+#[test]
+fn the_block_brings_the_tools_it_names_by_the_level() {
+    assert_eq!(
+        offered(MemoryLevel::ReadWrite, &["settings_get"]),
+        ["settings_get", "memory_search", "memory_add"]
+    );
+    assert_eq!(
+        offered(MemoryLevel::Read, &["settings_get"]),
+        ["settings_get", "memory_search"],
+        "storing needs the right to write"
+    );
+    assert_eq!(
+        offered(MemoryLevel::Off, &["settings_get"]),
+        ["settings_get"]
+    );
+}
+
+#[test]
+fn a_tool_already_offered_or_a_turn_without_tools_gets_nothing_more() {
+    assert_eq!(
+        offered(MemoryLevel::ReadWrite, &["memory_add", "settings_get"]),
+        ["memory_add", "settings_get", "memory_search"]
+    );
+    assert!(offered(MemoryLevel::ReadWrite, &[]).is_empty());
+}

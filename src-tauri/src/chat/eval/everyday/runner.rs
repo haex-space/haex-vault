@@ -17,6 +17,7 @@ use crate::adapters::types::{
     ChatMessage, ChatRequest, ChatRole, Sampling, StreamChunk, ToolCall, ToolSpec,
 };
 use crate::adapters::ProviderAdapter;
+use crate::agent_memory::turn::offer_with_block;
 use crate::agent_profiles::Subject;
 use crate::chat::action_commands::register_action_tools;
 use crate::chat::reply_language::ReplyLanguage;
@@ -34,6 +35,7 @@ use crate::chat::turn::guard::seen_text;
 use crate::chat::turn::MAX_TOOL_ROUNDS;
 use crate::extensions::agent_tools::defs::ExtensionToolDef;
 use crate::local_time::Clock;
+use crate::mcp_server::grants::MemoryLevel;
 use crate::vault_gate::ChildRegistry;
 
 use super::super::embedded_domains;
@@ -331,6 +333,11 @@ pub async fn run_everyday(
                 (offer, Some(record))
             }
         };
+        // As in the chat: a request that gets the memory's block gets the tools it names.
+        if memory.is_some() {
+            let registry = registry.lock().unwrap_or_else(|e| e.into_inner());
+            offer_with_block(&registry, &mut offer, MemoryLevel::ReadWrite);
+        }
         let first_offer = names.offer_in_set(&offer);
         // As in the chat: the first offer and every tool the request called stay after a search.
         let mut kept: HashSet<String> = offer.iter().map(|spec| spec.name.clone()).collect();
