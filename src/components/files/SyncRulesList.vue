@@ -220,17 +220,12 @@ async function confirmDeleteAsync() {
       >
         <Icon name="lucide:settings" class="size-4" />
       </UiButton>
-      <UiButton
-        type="button"
+      <UiButtonAdd
+        :label="t('files.syncRules.create.open')"
         size="icon-sm"
-        class="shrink-0"
-        :aria-label="t('files.syncRules.create.open')"
-        :tooltip="t('files.syncRules.create.open')"
         data-testid="files-sync-rules-new"
         @click="openNew"
-      >
-        <Icon name="lucide:plus" class="size-4" />
-      </UiButton>
+      />
     </div>
     <div
       v-if="!store.loading && store.rules.length === 0"
@@ -332,18 +327,13 @@ async function confirmDeleteAsync() {
               <span v-else class="truncate">{{ lastRun(view) }}</span>
             </div>
             <div class="flex w-36 shrink-0 justify-end">
-              <UiButton
-                type="button"
-                variant="ghost"
+              <UiButtonRefresh
+                :label="t('files.syncRules.runNow')"
                 size="icon-sm"
                 :disabled="busy !== null || !view.rule.enabled"
-                :aria-label="t('files.syncRules.runNow')"
-                :tooltip="t('files.syncRules.runNow')"
                 :data-testid="`files-sync-rule-run-${view.rule.name}`"
                 @click="act(view, () => runNowAsync(view.rule.id))"
-              >
-                <Icon name="lucide:refresh-cw" class="size-4" />
-              </UiButton>
+              />
               <UiButton
                 type="button"
                 variant="ghost"
@@ -373,16 +363,11 @@ async function confirmDeleteAsync() {
               </UiButton>
               <ShadcnDropdownMenu>
                 <ShadcnDropdownMenuTrigger as-child>
-                  <UiButton
-                    type="button"
-                    variant="ghost"
+                  <UiButtonMenu
+                    :label="t('files.syncRules.more')"
                     size="icon-sm"
-                    :aria-label="t('files.syncRules.more')"
-                    :tooltip="t('files.syncRules.more')"
                     :data-testid="`files-sync-rule-more-${view.rule.name}`"
-                  >
-                    <Icon name="lucide:ellipsis-vertical" class="size-4" />
-                  </UiButton>
+                  />
                 </ShadcnDropdownMenuTrigger>
                 <ShadcnDropdownMenuContent align="end">
                   <ShadcnDropdownMenuItem

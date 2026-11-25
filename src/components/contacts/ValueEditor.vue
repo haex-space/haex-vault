@@ -113,22 +113,14 @@ const datePlaceholder = computed(() =>
       <span class="min-w-0 flex-1 truncate text-sm font-medium">{{
         kindName(model.kind)
       }}</span>
-      <UiButton
+      <UiButtonClose
         v-if="model.known"
-        type="button"
-        variant="ghost"
-        size="icon"
-        :aria-label="
-          t('contacts.editor.removeValue', { what: kindName(model.kind) })
-        "
-        :tooltip="
+        :label="
           t('contacts.editor.removeValue', { what: kindName(model.kind) })
         "
         data-testid="contacts-editor-remove-value"
         @click="emit('remove')"
-      >
-        <Icon name="lucide:x" class="size-4" />
-      </UiButton>
+      />
     </div>
 
     <p

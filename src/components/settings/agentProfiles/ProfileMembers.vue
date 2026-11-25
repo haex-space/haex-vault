@@ -115,7 +115,7 @@ function onAdd(subject: string) {
         data-testid="agent-profile-member"
         :data-subject="member.subject"
       >
-        <DeleteButton
+        <UiButtonDelete
           v-if="removable(member)"
           :label="t('agentProfiles.members.removeNamed', { name: member.name })"
           :disabled="busy"
@@ -138,7 +138,7 @@ function onAdd(subject: string) {
         data-testid="agent-profile-member"
         :data-subject="group.providerSubject.subject"
       >
-        <DeleteButton
+        <UiButtonDelete
           v-if="removable(group.providerSubject)"
           :label="
             t('agentProfiles.members.removeNamed', {
@@ -158,7 +158,7 @@ function onAdd(subject: string) {
           data-testid="agent-profile-member"
           :data-subject="member.subject"
         >
-          <DeleteButton
+          <UiButtonDelete
             v-if="removable(member)"
             :label="
               t('agentProfiles.members.removeNamed', { name: member.name })

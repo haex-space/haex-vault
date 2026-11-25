@@ -91,18 +91,12 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
             data-testid="agent-memory-search"
             @update:model-value="onQuery"
           />
-          <UiButton
-            type="button"
+          <UiButtonAdd
+            :label="t('settings.agentMemory.add')"
             variant="outline"
-            size="icon"
-            class="size-9 shrink-0"
-            :aria-label="t('settings.agentMemory.add')"
-            :tooltip="t('settings.agentMemory.add')"
             data-testid="agent-memory-add"
             @click="addPage"
-          >
-            <Icon name="lucide:plus" class="size-4" aria-hidden="true" />
-          </UiButton>
+          />
         </div>
       </SettingsRow>
     </SettingsGroup>

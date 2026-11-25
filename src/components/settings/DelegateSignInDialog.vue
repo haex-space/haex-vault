@@ -7,7 +7,7 @@ import { toast } from 'vue-sonner'
  * enter there, and, where the provider hands the code back by hand, the field for it. The row
  * stays at two lines; this is what its sign-in needs beyond that.
  */
-const props = defineProps<{
+defineProps<{
   title: string
   url: string | null
   /** The one-time code to enter on the page of the link. */
@@ -24,24 +24,6 @@ const code = defineModel<string>('code', { required: true })
 
 const { t } = useI18n()
 const fieldLabels = useFieldLabels()
-
-// The copy is confirmed by the icon, which turns into a check for a moment; there is no success line.
-const copied = ref(false)
-let copiedTimer: ReturnType<typeof setTimeout> | undefined
-
-async function copyCodeAsync() {
-  if (!props.deviceCode) return
-  try {
-    await navigator.clipboard.writeText(props.deviceCode)
-    copied.value = true
-    clearTimeout(copiedTimer)
-    copiedTimer = setTimeout(() => (copied.value = false), 1500)
-  } catch {
-    toast.error(t('settings.cliDelegate.copyCodeFailed'))
-  }
-}
-
-onBeforeUnmount(() => clearTimeout(copiedTimer))
 </script>
 
 <template>
@@ -72,29 +54,16 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
           <strong data-testid="cli-delegate-device-code">{{
             deviceCode
           }}</strong>
-          <UiButton
-            type="button"
-            variant="ghost"
+          <UiButtonCopy
             size="icon-sm"
-            :aria-label="
-              copied
-                ? t('settings.cliDelegate.codeCopied')
-                : t('settings.cliDelegate.copyCode')
-            "
-            :tooltip="
-              copied
-                ? t('settings.cliDelegate.codeCopied')
-                : t('settings.cliDelegate.copyCode')
-            "
+            :labels="{
+              copy: t('settings.cliDelegate.copyCode'),
+              copied: t('settings.cliDelegate.codeCopied'),
+            }"
+            :value="deviceCode"
             data-testid="cli-delegate-copy-code"
-            @click="copyCodeAsync"
-          >
-            <Icon
-              :name="copied ? 'lucide:check' : 'lucide:copy'"
-              class="size-4"
-              aria-hidden="true"
-            />
-          </UiButton>
+            @error="toast.error(t('settings.cliDelegate.copyCodeFailed'))"
+          />
         </p>
         <template v-if="awaitingCode">
           <UiInput

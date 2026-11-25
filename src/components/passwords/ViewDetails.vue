@@ -166,16 +166,11 @@ const isEmpty = computed(
           data-testid="passwords-value-url"
           >{{ detail.url }}</span
         >
-        <UiButton
-          variant="ghost"
-          size="icon"
-          :aria-label="t('passwords.openUrl')"
-          :tooltip="t('passwords.openUrl')"
+        <UiButtonOpenExternal
+          :label="t('passwords.openUrl')"
           data-testid="passwords-open-url"
           @click="openUrlAsync"
-        >
-          <Icon name="lucide:external-link" class="size-4" />
-        </UiButton>
+        />
         <PasswordsCopyButton
           :label="t('passwords.fields.url')"
           data-testid="passwords-copy-url"

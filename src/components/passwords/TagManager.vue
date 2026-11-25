@@ -173,22 +173,13 @@ async function confirmDeleteAsync() {
                   :data-testid="`passwords-tag-color-${selected.id}`"
                   @update:model-value="colorAsync(selected, $event)"
                 />
-                <UiButton
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  class="size-8 text-muted-foreground hover:bg-background hover:text-foreground focus-visible:text-foreground"
-                  :aria-label="t('passwords.tags.rename')"
-                  :tooltip="t('passwords.tags.rename')"
+                <UiButtonEdit
+                  :label="t('passwords.tags.rename')"
+                  size="icon-sm"
+                  class="text-muted-foreground hover:bg-background hover:text-foreground focus-visible:text-foreground"
                   :data-testid="`passwords-tag-rename-${selected.id}`"
                   @click="start(selected)"
-                >
-                  <Icon
-                    name="lucide:pencil"
-                    class="size-4"
-                    aria-hidden="true"
-                  />
-                </UiButton>
+                />
                 <UiButton
                   v-if="store.displayTags.length > 1"
                   type="button"
@@ -202,7 +193,7 @@ async function confirmDeleteAsync() {
                 >
                   <Icon name="lucide:merge" class="size-4" aria-hidden="true" />
                 </UiButton>
-                <DeleteButton
+                <UiButtonDelete
                   :label="t('passwords.tags.delete')"
                   :data-testid="`passwords-tag-delete-${selected.id}`"
                   @click="deleting = selected"

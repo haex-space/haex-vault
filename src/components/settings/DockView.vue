@@ -146,17 +146,12 @@ function add(value: string) {
         >
           <Icon name="lucide:arrow-down" class="h-4 w-4" :aria-hidden="true" />
         </UiButton>
-        <UiButton
+        <UiButtonClose
           v-if="!(item.kind === 'control' && item.id === 'launcher')"
-          variant="ghost"
-          size="icon"
-          :aria-label="t('settings.dock.remove')"
-          :title="t('settings.dock.remove')"
+          :label="t('settings.dock.remove')"
           data-testid="settings-dock-remove"
           @click="dock.removeAsync(index)"
-        >
-          <Icon name="lucide:x" class="h-4 w-4" :aria-hidden="true" />
-        </UiButton>
+        />
       </SettingsRow>
       <SettingsRow
         v-if="addable.length > 0"

@@ -192,18 +192,13 @@ onMounted(() => {
       >
         <div class="shrink-0 px-6 pt-1 pb-3">
           <div class="mx-auto flex w-full max-w-3xl min-w-0 items-center gap-2">
-            <UiButton
+            <UiButtonBack
               v-if="parentPath"
-              variant="ghost"
-              size="icon"
-              class="-ml-2 shrink-0"
-              :aria-label="backLabel"
-              :tooltip="backLabel"
+              :label="backLabel"
+              class="-ml-2"
               data-testid="settings-back"
               @click="goBack"
-            >
-              <Icon name="lucide:arrow-left" class="size-5" />
-            </UiButton>
+            />
             <span
               v-else-if="categoryIcon"
               class="-ml-2 flex size-9 shrink-0 items-center justify-center text-muted-foreground"

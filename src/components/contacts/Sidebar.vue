@@ -114,14 +114,10 @@ function afterDelete(id: string) {
         </SidebarRow>
         <ShadcnDropdownMenu>
           <ShadcnDropdownMenuTrigger as-child>
-            <UiButton
-              variant="ghost"
-              size="icon"
-              class="size-8 shrink-0"
-              :aria-label="t('contacts.groups.menu', { name: group.name })"
-            >
-              <Icon name="lucide:ellipsis-vertical" class="size-4" />
-            </UiButton>
+            <UiButtonMenu
+              :label="t('contacts.groups.menu', { name: group.name })"
+              size="icon-sm"
+            />
           </ShadcnDropdownMenuTrigger>
           <ShadcnDropdownMenuContent align="end">
             <ShadcnDropdownMenuItem class="gap-2" @select="rename(group)">

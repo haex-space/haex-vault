@@ -73,10 +73,6 @@ function commit() {
   editing.value = false
   if (target && target !== props.path) emit('go', target)
 }
-
-async function copy() {
-  await navigator.clipboard.writeText(draft.value).catch(() => {})
-}
 </script>
 
 <template>
@@ -105,33 +101,27 @@ async function copy() {
       >
         <template #append>
           <ShadcnInputGroupAddon align="inline-end">
-            <button
-              type="button"
-              class="text-muted-foreground hover:text-foreground"
-              :aria-label="t('files.path.copy')"
+            <UiButtonCopy
+              size="icon-sm"
+              :labels="{
+                copy: t('files.path.copy'),
+                copied: t('fields.copied'),
+              }"
+              :value="draft"
               data-testid="files-path-copy"
               @mousedown.prevent
-              @click="copy"
-            >
-              <Icon name="lucide:copy" class="size-4" />
-            </button>
+            />
           </ShadcnInputGroupAddon>
         </template>
       </UiInput>
     </div>
-    <UiButton
+    <UiButtonEdit
       v-else-if="!compact"
-      variant="ghost"
-      size="icon"
-      class="shrink-0"
-      :aria-label="t('files.path.edit')"
-      :tooltip="t('files.path.edit')"
+      :label="t('files.path.edit')"
       :disabled="!path"
       data-testid="files-path-edit"
       @click="edit"
-    >
-      <Icon name="lucide:pencil" class="size-4" />
-    </UiButton>
+    />
     <!-- On a small screen the crumbs do not fit: the folder's name stands for them, and a tap
       offers the folders above it, editing the path and reloading (they are buttons of their own on a
       wide one). -->
@@ -212,18 +202,12 @@ async function copy() {
       </ShadcnBreadcrumbList>
     </nav>
 
-    <UiButton
+    <UiButtonRefresh
       v-if="!compact"
-      variant="ghost"
-      size="icon"
-      class="shrink-0"
-      :aria-label="t('files.reload')"
-      :tooltip="t('files.reload')"
+      :label="t('files.reload')"
       data-testid="files-reload"
       @click="emit('reload')"
-    >
-      <Icon name="lucide:refresh-cw" class="size-4" />
-    </UiButton>
+    />
 
     <!-- The crumbs at their natural width, only to be measured. -->
     <div

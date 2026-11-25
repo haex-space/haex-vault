@@ -67,15 +67,6 @@ async function removeAsync() {
   if (await runAsync('chat_blossom_key_remove')) removing.value = false
 }
 
-async function copyAsync(npub: string) {
-  try {
-    await navigator.clipboard.writeText(npub)
-    toast.success(t('settings.chat.key.copied'))
-  } catch (cause) {
-    toast.error(errString(cause))
-  }
-}
-
 const pickerSource = { command: 'chat_blossom_key_candidates', args: {} }
 const status = computed(() => key.value?.status ?? 'none')
 
@@ -109,7 +100,7 @@ onVaultTablesChanged(['preferences', 'haex_passwords_item_details'], loadAsync)
         </UiButton>
       </template>
       <!-- With the key shown, the trash sits beside its copy button below. -->
-      <DeleteButton
+      <UiButtonDelete
         v-else-if="!(status === 'present' && key?.npub)"
         :label="t('settings.chat.key.remove')"
         :disabled="busy"
@@ -132,17 +123,16 @@ onVaultTablesChanged(['preferences', 'haex_passwords_item_details'], loadAsync)
             data-testid="settings-chat-key-npub"
             >{{ key.npub }}</code
           >
-          <UiButton
-            variant="ghost"
-            size="icon"
-            :aria-label="t('settings.chat.key.copy')"
-            :tooltip="t('settings.chat.key.copy')"
+          <UiButtonCopy
+            :labels="{
+              copy: t('settings.chat.key.copy'),
+              copied: t('settings.chat.key.copied'),
+            }"
+            :value="key.npub"
             data-testid="settings-chat-key-copy"
-            @click="copyAsync(key.npub)"
-          >
-            <Icon name="lucide:copy" class="h-4 w-4" />
-          </UiButton>
-          <DeleteButton
+            @error="toast.error(errString($event))"
+          />
+          <UiButtonDelete
             :label="t('settings.chat.key.remove')"
             :disabled="busy"
             data-testid="settings-chat-key-remove"

@@ -319,17 +319,14 @@ onBeforeUnmount(() => {
         playsinline
         :aria-label="t('onboarding.link.camera.preview')"
       />
-      <UiButton
-        type="button"
+      <UiButtonClose
+        :label="t('onboarding.link.camera.close')"
+        size="icon-sm"
         variant="secondary"
-        size="icon"
-        class="absolute top-2 right-2 size-8 rounded-full"
-        :aria-label="t('onboarding.link.camera.close')"
+        class="absolute top-2 right-2 rounded-full"
         data-testid="link-scanner-close"
         @click="release"
-      >
-        <Icon name="lucide:x" class="size-4" />
-      </UiButton>
+      />
     </div>
     <p
       v-if="hint"

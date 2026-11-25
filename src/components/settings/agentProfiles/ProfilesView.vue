@@ -123,20 +123,14 @@ onMounted(reloadAsync)
             data-testid="agent-profile-new"
             @keydown.enter.prevent="createAsync"
           />
-          <UiButton
-            type="button"
+          <UiButtonAdd
+            :label="t('agentProfiles.create.add')"
             variant="outline"
-            size="icon"
-            class="size-9 shrink-0"
-            :aria-label="t('agentProfiles.create.add')"
-            :tooltip="t('agentProfiles.create.add')"
             :loading="busy"
             :disabled="!name.trim()"
             data-testid="agent-profile-add"
             @click="createAsync"
-          >
-            <Icon name="lucide:plus" class="size-4" aria-hidden="true" />
-          </UiButton>
+          />
         </div>
       </SettingsRow>
     </SettingsGroup>

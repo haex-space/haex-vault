@@ -77,18 +77,15 @@ function removeMark(mark: RefMark) {
           :kind="kind"
           :navigable="false"
         />
-        <UiButton
-          type="button"
-          :disabled="!canRemove"
-          variant="ghost"
+        <UiButtonClose
+          :label="t('passwords.references.remove')"
           size="icon-sm"
+          :disabled="!canRemove"
           class="size-6"
-          :aria-label="t('passwords.references.remove')"
           :data-testid="`passwords-reference-remove-${kind}`"
+          icon-class="size-3"
           @click="removeMark(mark)"
-        >
-          <Icon name="lucide:x" class="size-3" />
-        </UiButton>
+        />
       </span>
     </template>
   </div>

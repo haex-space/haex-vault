@@ -54,18 +54,12 @@ function pickSort(key: SortKey) {
 
 <template>
   <div class="flex min-w-0 flex-1 items-center gap-1">
-    <UiButton
-      variant="ghost"
-      size="icon"
-      class="shrink-0"
-      :aria-label="t('files.back')"
-      :tooltip="t('files.back')"
+    <UiButtonBack
+      :label="t('files.back')"
       :disabled="!canGoBack"
       data-testid="files-back"
       @click="emit('back')"
-    >
-      <Icon name="lucide:arrow-left" class="size-4" />
-    </UiButton>
+    />
     <UiButton
       variant="ghost"
       size="icon"
@@ -95,17 +89,11 @@ function pickSort(key: SortKey) {
     />
     <ShadcnDropdownMenu v-if="!title">
       <ShadcnDropdownMenuTrigger as-child>
-        <UiButton
-          variant="ghost"
-          size="icon"
-          class="shrink-0"
-          :aria-label="t('files.create.label')"
-          :tooltip="t('files.create.label')"
+        <UiButtonAdd
+          :label="t('files.create.label')"
           :disabled="!canCreate"
           data-testid="files-create"
-        >
-          <Icon name="lucide:plus" class="size-4" />
-        </UiButton>
+        />
       </ShadcnDropdownMenuTrigger>
       <ShadcnDropdownMenuContent align="end">
         <ShadcnDropdownMenuItem

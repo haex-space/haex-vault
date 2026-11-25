@@ -131,15 +131,11 @@ async function pickAsync(kind: RefMarkKind, key?: string) {
         </template>
         <template v-else>
           <div class="flex items-center gap-2">
-            <UiButton
-              type="button"
-              variant="ghost"
+            <UiButtonBack
+              :label="t('passwords.back')"
               size="icon-sm"
-              :aria-label="t('passwords.back')"
               @click="back"
-            >
-              <Icon name="lucide:arrow-left" class="size-4" />
-            </UiButton>
+            />
             <span class="min-w-0 truncate font-medium">{{
               displayTitle(source.title) ?? t('passwords.untitled')
             }}</span>

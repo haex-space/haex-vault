@@ -153,43 +153,25 @@ onBeforeUnmount(() => {
     @keydown="onKeydown"
   >
     <div class="flex h-12 shrink-0 items-center gap-1 border-b px-2">
-      <UiButton
-        type="button"
-        variant="ghost"
-        size="icon"
-        :aria-label="t('passwords.attachments.viewer.close')"
-        :tooltip="t('passwords.attachments.viewer.close')"
+      <UiButtonClose
+        :label="t('passwords.attachments.viewer.close')"
         data-testid="passwords-attachment-viewer-close"
         @click="emit('close')"
-      >
-        <Icon name="lucide:x" class="size-4" />
-      </UiButton>
+      />
       <span class="min-w-0 flex-1 truncate text-sm font-medium">{{
         attachment.fileName
       }}</span>
-      <UiButton
-        type="button"
-        variant="ghost"
-        size="icon"
-        :aria-label="t('passwords.attachments.download')"
-        :tooltip="t('passwords.attachments.download')"
+      <UiButtonDownload
+        :label="t('passwords.attachments.download')"
         data-testid="passwords-attachment-viewer-save"
         @click="emit('save')"
-      >
-        <Icon name="lucide:download" class="size-4" />
-      </UiButton>
-      <UiButton
+      />
+      <UiButtonOpenExternal
         v-if="systemApps"
-        type="button"
-        variant="ghost"
-        size="icon"
-        :aria-label="t('passwords.attachments.openSystem')"
-        :tooltip="t('passwords.attachments.openSystem')"
+        :label="t('passwords.attachments.openSystem')"
         data-testid="passwords-attachment-viewer-open-system"
         @click="emit('openSystem')"
-      >
-        <Icon name="lucide:external-link" class="size-4" />
-      </UiButton>
+      />
     </div>
 
     <div class="relative min-h-0 flex-1 overflow-auto">

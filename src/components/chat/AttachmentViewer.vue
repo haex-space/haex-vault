@@ -88,16 +88,11 @@ onMounted(() => panel.value?.focus())
     @keydown.esc="emit('close')"
   >
     <div class="flex h-12 shrink-0 items-center gap-1 border-b px-2">
-      <UiButton
-        variant="ghost"
-        size="icon"
-        :aria-label="t('files.viewer.close')"
-        :tooltip="t('files.viewer.close')"
+      <UiButtonClose
+        :label="t('files.viewer.close')"
         data-testid="chat-attachment-viewer-close"
         @click="emit('close')"
-      >
-        <Icon name="lucide:x" class="size-4" />
-      </UiButton>
+      />
       <span class="min-w-0 flex-1 truncate text-sm font-medium">{{
         name
       }}</span>
@@ -111,17 +106,12 @@ onMounted(() => panel.value?.focus())
       >
         <Icon name="lucide:save" class="size-4" />
       </UiButton>
-      <UiButton
+      <UiButtonOpenExternal
         v-if="!isAndroid"
-        variant="ghost"
-        size="icon"
-        :aria-label="t('chat.file.openSystem')"
-        :tooltip="t('chat.file.openSystem')"
+        :label="t('chat.file.openSystem')"
         data-testid="chat-attachment-viewer-open-system"
         @click="emit('openSystem', file.id)"
-      >
-        <Icon name="lucide:external-link" class="size-4" />
-      </UiButton>
+      />
     </div>
     <div class="relative min-h-0 flex-1 overflow-auto">
       <p

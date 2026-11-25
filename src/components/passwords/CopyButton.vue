@@ -11,15 +11,12 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <UiButton
-    type="button"
-    variant="ghost"
-    size="icon"
-    class="shrink-0 shadow-none"
-    :aria-label="t('passwords.copy', { field: label })"
-    :tooltip="t('passwords.copy', { field: label })"
-    @click.prevent="emit('copy')"
-  >
-    <Icon name="lucide:copy" class="size-4" />
-  </UiButton>
+  <UiButtonCopy
+    external
+    :labels="{
+      copy: t('passwords.copy', { field: label }),
+      copied: t('fields.copied'),
+    }"
+    @copy="emit('copy')"
+  />
 </template>

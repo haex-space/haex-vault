@@ -102,16 +102,16 @@ onBeforeUnmount(stop)
       >
         {{ t('passwords.totp.left', { seconds: remaining }) }}
       </span>
-      <UiButton
-        variant="ghost"
-        size="icon"
-        class="ml-auto shrink-0"
-        :aria-label="t('passwords.copy', { field: t('passwords.fields.totp') })"
+      <UiButtonCopy
+        external
+        class="ml-auto"
+        :labels="{
+          copy: t('passwords.copy', { field: t('passwords.fields.totp') }),
+          copied: t('fields.copied'),
+        }"
         data-testid="passwords-copy-totp"
-        @click="emit('copy')"
-      >
-        <Icon name="lucide:copy" class="size-4" />
-      </UiButton>
+        @copy="emit('copy')"
+      />
     </div>
     <div
       class="h-1 overflow-hidden rounded-full bg-background"

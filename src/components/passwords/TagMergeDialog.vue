@@ -115,17 +115,12 @@ async function confirmAsync() {
           }}</ShadcnAlertDialogTitle>
           <ShadcnPopover>
             <ShadcnPopoverTrigger as-child>
-              <UiButton
-                type="button"
-                variant="ghost"
-                size="icon"
-                class="size-8 shrink-0 text-muted-foreground hover:bg-background hover:text-foreground focus-visible:text-foreground"
-                :aria-label="t('passwords.tags.mergeInfo')"
-                :tooltip="t('passwords.tags.mergeInfo')"
+              <UiButtonInfo
+                :label="t('passwords.tags.mergeInfo')"
+                size="icon-sm"
+                class="text-muted-foreground hover:bg-background hover:text-foreground focus-visible:text-foreground"
                 data-testid="passwords-tag-merge-info"
-              >
-                <Icon name="lucide:info" class="size-4" aria-hidden="true" />
-              </UiButton>
+              />
             </ShadcnPopoverTrigger>
             <ShadcnPopoverContent
               align="end"

@@ -297,17 +297,12 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
         <h2 class="text-xs font-medium text-muted-foreground">
           {{ t('files.sidebar.storages') }}
         </h2>
-        <UiButton
-          variant="ghost"
+        <UiButtonAdd
+          :label="t('files.sidebar.addStorage')"
           size="icon-sm"
-          class="shrink-0"
-          :aria-label="t('files.sidebar.addStorage')"
-          :tooltip="t('files.sidebar.addStorage')"
           data-testid="files-add-storage"
           @click="emit('addStorage')"
-        >
-          <Icon name="lucide:plus" class="size-4" />
-        </UiButton>
+        />
       </div>
       <ul>
         <li

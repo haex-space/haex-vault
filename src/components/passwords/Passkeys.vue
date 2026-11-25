@@ -149,18 +149,12 @@ async function confirmDeleteAsync() {
         }}</UiButton>
       </template>
       <template v-else>
-        <UiButton
-          type="button"
-          variant="ghost"
-          size="icon"
+        <UiButtonEdit
+          :label="t('passwords.passkeys.rename')"
           :disabled="readonly"
-          :aria-label="t('passwords.passkeys.rename')"
-          :tooltip="t('passwords.passkeys.rename')"
           :data-testid="`passwords-passkey-rename-${passkey.id}`"
           @click="startRename(passkey)"
-        >
-          <Icon name="lucide:pencil" class="size-4" />
-        </UiButton>
+        />
         <UiButton
           type="button"
           variant="ghost"

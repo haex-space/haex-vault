@@ -196,18 +196,13 @@ async function revokeAsync(share: FileShare, grant: FileShareGrant) {
             <span class="text-xs text-muted-foreground">{{
               t(`files.shares.level.${grant.level}`)
             }}</span>
-            <UiButton
-              type="button"
-              variant="ghost"
+            <UiButtonClose
+              :label="t('files.shares.remove')"
               size="icon-sm"
               :disabled="busy"
-              :aria-label="t('files.shares.remove')"
-              :tooltip="t('files.shares.remove')"
               :data-testid="`files-shares-overview-revoke-${contactText(grant)}`"
               @click="revokeAsync(share, grant)"
-            >
-              <Icon name="lucide:x" class="size-4" />
-            </UiButton>
+            />
           </li>
         </ul>
       </li>

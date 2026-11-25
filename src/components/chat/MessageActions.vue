@@ -17,9 +17,6 @@ const { errString } = useErrorString()
 const { speakingId, toggleAsync } = useMessageSpeech()
 
 const speaking = computed(() => speakingId.value === props.messageId)
-const copied = ref(false)
-let copiedTimer: ReturnType<typeof setTimeout> | undefined
-
 async function speakAsync() {
   try {
     await toggleAsync(props.messageId, props.content)
@@ -27,19 +24,6 @@ async function speakAsync() {
     toast.error(t('chat.messageActions.speakFailed', { reason: errString(e) }))
   }
 }
-
-async function copyAsync() {
-  try {
-    await navigator.clipboard.writeText(props.content)
-    copied.value = true
-    clearTimeout(copiedTimer)
-    copiedTimer = setTimeout(() => (copied.value = false), 1500)
-  } catch {
-    toast.error(t('chat.messageActions.copyFailed'))
-  }
-}
-
-onBeforeUnmount(() => clearTimeout(copiedTimer))
 </script>
 
 <template>
@@ -67,20 +51,15 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
         class="size-4"
       />
     </UiButton>
-    <UiButton
-      type="button"
-      variant="ghost"
+    <UiButtonCopy
       size="icon-sm"
-      :aria-label="
-        copied ? t('chat.messageActions.copied') : t('chat.messageActions.copy')
-      "
-      :tooltip="
-        copied ? t('chat.messageActions.copied') : t('chat.messageActions.copy')
-      "
+      :labels="{
+        copy: t('chat.messageActions.copy'),
+        copied: t('chat.messageActions.copied'),
+      }"
+      :value="content"
       data-testid="chat-message-copy"
-      @click="copyAsync"
-    >
-      <Icon :name="copied ? 'lucide:check' : 'lucide:copy'" class="size-4" />
-    </UiButton>
+      @error="toast.error(t('chat.messageActions.copyFailed'))"
+    />
   </div>
 </template>

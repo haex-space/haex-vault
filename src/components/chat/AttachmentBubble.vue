@@ -150,17 +150,11 @@ const error = computed(() => {
     >
       <Icon name="lucide:save" class="h-4 w-4" />
     </UiButton>
-    <UiButton
+    <UiButtonOpenExternal
       v-if="openable"
-      type="button"
-      variant="ghost"
-      size="icon"
-      :aria-label="t('chat.file.openSystem')"
-      :tooltip="t('chat.file.openSystem')"
+      :label="t('chat.file.openSystem')"
       data-testid="chat-attachment-open-system"
       @click="emit('openSystem', file.id)"
-    >
-      <Icon name="lucide:external-link" class="h-4 w-4" />
-    </UiButton>
+    />
   </div>
 </template>

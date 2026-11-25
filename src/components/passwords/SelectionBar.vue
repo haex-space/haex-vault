@@ -199,16 +199,12 @@ const targetValue = computed({
     :aria-label="t('passwords.selection.label')"
     data-testid="passwords-selection"
   >
-    <UiButton
-      variant="ghost"
+    <UiButtonClose
+      :label="t('passwords.selection.clear')"
       size="icon-sm"
-      :aria-label="t('passwords.selection.clear')"
-      :tooltip="t('passwords.selection.clear')"
       data-testid="passwords-selection-clear"
       @click="selection.clear()"
-    >
-      <Icon name="lucide:x" class="size-4" />
-    </UiButton>
+    />
     <ShadcnCheckbox
       class="mx-1.5"
       :model-value="
@@ -255,15 +251,12 @@ const targetValue = computed({
     </div>
     <ShadcnDropdownMenu>
       <ShadcnDropdownMenuTrigger as-child>
-        <UiButton
-          variant="ghost"
+        <UiButtonMenu
+          :label="t('passwords.selection.more')"
           size="icon-sm"
           class="@sm/bar:hidden"
-          :aria-label="t('passwords.selection.more')"
           data-testid="passwords-selection-more"
-        >
-          <Icon name="lucide:ellipsis-vertical" class="size-4" />
-        </UiButton>
+        />
       </ShadcnDropdownMenuTrigger>
       <ShadcnDropdownMenuContent align="end">
         <ShadcnDropdownMenuItem
