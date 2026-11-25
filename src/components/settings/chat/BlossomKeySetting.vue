@@ -108,15 +108,14 @@ onVaultTablesChanged(['preferences', 'haex_passwords_item_details'], loadAsync)
           {{ t('settings.chat.key.choose') }}
         </UiButton>
       </template>
-      <UiButton
-        v-else
-        variant="outline"
+      <!-- With the key shown, the trash sits beside its copy button below. -->
+      <DeleteButton
+        v-else-if="!(status === 'present' && key?.npub)"
+        :label="t('settings.chat.key.remove')"
         :disabled="busy"
         data-testid="settings-chat-key-remove"
         @click="removing = true"
-      >
-        {{ t('settings.chat.key.remove') }}
-      </UiButton>
+      />
     </div>
     <template #below>
       <div
@@ -143,6 +142,12 @@ onVaultTablesChanged(['preferences', 'haex_passwords_item_details'], loadAsync)
           >
             <Icon name="lucide:copy" class="h-4 w-4" />
           </UiButton>
+          <DeleteButton
+            :label="t('settings.chat.key.remove')"
+            :disabled="busy"
+            data-testid="settings-chat-key-remove"
+            @click="removing = true"
+          />
         </div>
         <p v-if="key.entry?.title" class="text-xs text-muted-foreground">
           {{ t('settings.chat.key.entry', { title: key.entry.title }) }}

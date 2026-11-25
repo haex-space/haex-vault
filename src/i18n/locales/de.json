@@ -1591,13 +1591,17 @@
     "chat": {
       "server": {
         "label": "Blossom-Server für Dateien",
-        "hint": "Dateien im Chat gehen verschlüsselt über diesen Server. Ohne Server kannst du keine Dateien anhängen; leer lassen heißt keiner.",
-        "placeholder": "Keiner, oder https://…",
+        "info": "Mehr Informationen",
+        "hint": "Dateien im Chat gehen verschlüsselt über diesen Server; er sieht nur Größe, Zeitpunkt und deine IP-Adresse. Community-Server sind öffentlich und ohne Garantie: Sie können Dateien löschen oder den Dienst einstellen. Ohne Server kannst du keine Dateien anhängen.",
+        "none": "Keiner",
+        "community": "Community-Server",
         "check": "Prüfen",
-        "presets": {
-          "label": "Öffentliche Server",
-          "hint": "Community-Server ohne Garantie: Sie können Dateien jederzeit löschen oder den Dienst einstellen. Die Dateien sind verschlüsselt; der Server sieht nur Größe, Zeitpunkt und deine IP-Adresse."
-        },
+        "remove": "Entfernen",
+        "addTitle": "Server hinzufügen",
+        "addHint": "Adresse deines eigenen Blossom-Servers, optional mit einem Badge, das du in der Auswahl siehst.",
+        "addPlaceholder": "https://…",
+        "badgePlaceholder": "Badge (optional)",
+        "add": "Hinzufügen",
         "verdict": {
           "accepts": "Der Server nimmt Dateien bis 200 MB an.",
           "onlySmall": "Der Server nimmt nur kleinere Dateien an. {reason}",

@@ -16,6 +16,7 @@ defineProps<{
 const TONES: Record<SettingsSelectBadge['tone'], string> = {
   success: 'bg-success/10 text-success',
   warning: 'bg-warning/10 text-warning',
+  neutral: 'bg-muted text-muted-foreground',
 }
 </script>
 

@@ -13,7 +13,7 @@ defineOptions({ inheritAttrs: false })
 /** A short state of an option, shown after its label. */
 export type SettingsSelectBadge = {
   text: string
-  tone: 'success' | 'warning'
+  tone: 'success' | 'warning' | 'neutral'
 }
 
 export type SettingsSelectOption = {

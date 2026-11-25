@@ -1591,13 +1591,17 @@
     "chat": {
       "server": {
         "label": "Blossom server for files",
-        "hint": "Files in the chat go through this server, encrypted. Without a server you cannot attach files; leaving it empty means none.",
-        "placeholder": "None, or https://…",
+        "info": "More information",
+        "hint": "Files in the chat go through this server, encrypted; it only sees size, time and your IP address. Community servers are public and come without any guarantee: they may delete files or shut down. Without a server you cannot attach files.",
+        "none": "None",
+        "community": "Community server",
         "check": "Check",
-        "presets": {
-          "label": "Public servers",
-          "hint": "Community servers without any guarantee: they may delete files or shut down at any time. Files are encrypted; the server only sees size, time and your IP address."
-        },
+        "remove": "Remove",
+        "addTitle": "Add a server",
+        "addHint": "The address of your own Blossom server, with an optional badge shown in the list.",
+        "addPlaceholder": "https://…",
+        "badgePlaceholder": "Badge (optional)",
+        "add": "Add",
         "verdict": {
           "accepts": "The server takes files up to 200 MB.",
           "onlySmall": "The server takes smaller files only. {reason}",

@@ -82,6 +82,40 @@ fn is_valid_files_value(key: &str, value: &str) -> bool {
 /// Checks the value of a key that has a fixed set of choices or shape; every other key takes any
 /// value. Spec 034: the clipboard clearing time of the password manager (0, 15, 30, 60 or 120
 /// seconds). Spec 042: the workspace background.
+/// The list of Blossom-Servers the user added: `[{"url": "https://…", "badge": "Mein Server"}]`.
+fn validate_blossom_servers(value: &str) -> Result<()> {
+    use crate::chat::peer::settings::{MAX_BADGE_CHARS, MAX_BLOSSOM_SERVERS};
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Entry {
+        url: String,
+        #[serde(default)]
+        badge: String,
+    }
+    let invalid = |reason: &str| HaexError::InvalidInput {
+        reason: format!(
+            "{}: {reason}",
+            crate::chat::peer::settings::KEY_BLOSSOM_SERVERS
+        ),
+    };
+    let entries: Vec<Entry> =
+        serde_json::from_str(value).map_err(|_| invalid("must be a list of servers"))?;
+    if entries.len() > MAX_BLOSSOM_SERVERS {
+        return Err(invalid("too many servers"));
+    }
+    for entry in &entries {
+        if !crate::chat::peer::files::blossom::is_valid_address(&entry.url) {
+            return Err(invalid(
+                "every server needs an https address without credentials",
+            ));
+        }
+        if entry.badge.chars().count() > MAX_BADGE_CHARS {
+            return Err(invalid("a badge is too long"));
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn validate_value(key: &str, value: &str) -> Result<()> {
     if key == crate::passwords::settings::CLIPBOARD_CLEAR_KEY
         && !crate::passwords::settings::is_valid_clear_seconds(value)
@@ -117,6 +151,10 @@ pub(crate) fn validate_value(key: &str, value: &str) -> Result<()> {
         return Err(HaexError::InvalidInput {
             reason: format!("{key} is set with chat_requests_set_allowed"),
         });
+    }
+    // The servers the user added to the choice: a list of addresses with an optional badge.
+    if key == crate::chat::peer::settings::KEY_BLOSSOM_SERVERS {
+        validate_blossom_servers(value)?;
     }
     // The switches of the chat settings take `true` or `false`; the automatic download limit a
     // whole number of bytes, 0 meaning no file downloads by itself.
