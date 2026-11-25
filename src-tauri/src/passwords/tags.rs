@@ -95,6 +95,22 @@ pub fn names_of_item(q: &mut impl Query, item_id: &str) -> Result<Vec<String>> {
     )?)
 }
 
+/// The stored name of a tag, `None` when there is no such tag.
+pub fn name_of(q: &mut impl Query, id: &str) -> Result<Option<String>> {
+    Ok(q.query_row(
+        "SELECT name FROM haex_passwords_tags WHERE id = ?1",
+        params![id],
+        |r| r.get::<_, String>(0),
+    )?)
+}
+
+/// Whether a tag other than those in `except` has this name (already folded) in `all`, the rule
+/// of the unique name for a rename and for a merge that names its result.
+fn name_taken(all: &[(String, String)], wanted: &str, except: &[&str]) -> bool {
+    all.iter()
+        .any(|(tag, stored)| !except.contains(&tag.as_str()) && fold(stored) == wanted)
+}
+
 /// Renames a tag; the id stays. A name that another tag already has (by [`fold`]) is
 /// `InvalidInput { exists }`; a change of case of the tag's own name is fine.
 pub fn rename_tag(tx: &mut CrdtTransaction<'_>, id: &str, name: &str) -> Result<()> {
@@ -107,10 +123,7 @@ pub fn rename_tag(tx: &mut CrdtTransaction<'_>, id: &str, name: &str) -> Result<
         return Err(HaexError::PasswordsNotFound);
     };
     let wanted = fold(&name);
-    if all
-        .iter()
-        .any(|(tag, stored)| tag != id && fold(stored) == wanted)
-    {
+    if name_taken(&all, &wanted, &[id]) {
         return Err(HaexError::InvalidInput {
             reason: "exists".to_string(),
         });
@@ -157,6 +170,63 @@ pub fn delete_tag(tx: &mut CrdtTransaction<'_>, id: &str) -> Result<()> {
     Ok(())
 }
 
+/// Merges the tag `source_id` into `target_id` (spec 100): every entry that carries the source
+/// carries the target afterwards (once) and the source is gone. The target keeps its color and its
+/// name, unless `name` gives the result another one: that name follows the rules of a rename
+/// (trimmed, not empty, at most [`MAX_TAG_NAME_CHARS`], not the name of a tag that stays), except
+/// that the name of the source is free, as the source goes. The same tag, a tag that does not
+/// exist or a refused name is reported before anything is written (`InvalidInput { same }`,
+/// `PasswordsNotFound`, `InvalidInput { empty | too_long | exists }`).
+///
+/// ponytail: the merge reaches other devices as one group, so every entry that carried the source
+/// when it ran keeps its tag. A change another device made before it synced (a link to the source,
+/// or the same pair merged the other way round) is decided per row by the sync order, as a
+/// concurrent delete of a tag is today; upgrade path is a synced merge record applied at open, like
+/// `reconcile_tags`, which needs a migration and its own spec.
+pub fn merge_tags(
+    tx: &mut CrdtTransaction<'_>,
+    source_id: &str,
+    target_id: &str,
+    name: Option<&str>,
+) -> Result<()> {
+    if source_id == target_id {
+        return Err(HaexError::InvalidInput {
+            reason: "same".to_string(),
+        });
+    }
+    let new_name = name.map(validate_name).transpose()?;
+    let all: Vec<(String, String)> =
+        tx.query_map("SELECT id, name FROM haex_passwords_tags", &[], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })?;
+    let find = |id: &str| all.iter().find(|(tag, _)| tag == id);
+    if find(source_id).is_none() {
+        return Err(HaexError::PasswordsNotFound);
+    }
+    let Some((_, target_name)) = find(target_id) else {
+        return Err(HaexError::PasswordsNotFound);
+    };
+    if let Some(wanted) = &new_name {
+        if name_taken(&all, &fold(wanted), &[source_id, target_id]) {
+            return Err(HaexError::InvalidInput {
+                reason: "exists".to_string(),
+            });
+        }
+    }
+    move_links(tx, source_id, target_id)?;
+    tx.execute(
+        "DELETE FROM haex_passwords_tags WHERE id = ?1",
+        params![source_id],
+    )?;
+    if let Some(wanted) = new_name.filter(|wanted| wanted != target_name) {
+        tx.execute(
+            "UPDATE haex_passwords_tags SET name = ?1 WHERE id = ?2",
+            params![wanted, target_id],
+        )?;
+    }
+    Ok(())
+}
+
 /// Merges tags whose names are equal by [`fold`] but whose ids differ (a rename race, or a tag
 /// renamed on one device and created again by name on another): the smallest id stays, the links
 /// of the others move to it (a link id is derived, so a link that is already there is not doubled)
@@ -179,32 +249,7 @@ pub fn reconcile_tags(tx: &mut CrdtTransaction<'_>) -> Result<u32> {
     for ids in by_name.values().filter(|ids| ids.len() > 1) {
         let keep = &ids[0];
         for other in &ids[1..] {
-            let links: Vec<(String, String)> = tx.query_map(
-                "SELECT id, item_id FROM haex_passwords_item_tags WHERE tag_id = ?1",
-                params![other],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )?;
-            for (link_id, item_id) in links {
-                tx.execute(
-                    "DELETE FROM haex_passwords_item_tags WHERE id = ?1",
-                    params![link_id],
-                )?;
-                let already = tx
-                    .query_row(
-                        "SELECT COUNT(*) FROM haex_passwords_item_tags \
-                         WHERE item_id = ?1 AND tag_id = ?2",
-                        params![item_id, keep],
-                        |r| r.get::<_, i64>(0),
-                    )?
-                    .unwrap_or(0);
-                if already == 0 {
-                    tx.execute(
-                        "INSERT INTO haex_passwords_item_tags (id, item_id, tag_id) \
-                         VALUES (?1, ?2, ?3)",
-                        params![item_tag_id(&item_id, keep).to_string(), item_id, keep],
-                    )?;
-                }
-            }
+            move_links(tx, other, keep)?;
             tx.execute(
                 "DELETE FROM haex_passwords_tags WHERE id = ?1",
                 params![other],
@@ -213,6 +258,41 @@ pub fn reconcile_tags(tx: &mut CrdtTransaction<'_>) -> Result<u32> {
         }
     }
     Ok(removed)
+}
+
+/// Moves every link of the tag `from` to the tag `to`: each old link is deleted (a marker of its
+/// own, a remote delete is applied without foreign keys) and the entry gets a link to `to` with the
+/// derived id, unless it has one already, so no entry carries `to` twice. The tag row `from` stays
+/// for the caller to delete. One rule for the merge of duplicate names and for the merge a user asks
+/// for.
+fn move_links(tx: &mut CrdtTransaction<'_>, from: &str, to: &str) -> Result<()> {
+    let links: Vec<(String, String)> = tx.query_map(
+        "SELECT id, item_id FROM haex_passwords_item_tags WHERE tag_id = ?1",
+        params![from],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
+    for (link_id, item_id) in links {
+        tx.execute(
+            "DELETE FROM haex_passwords_item_tags WHERE id = ?1",
+            params![link_id],
+        )?;
+        let already = tx
+            .query_row(
+                "SELECT COUNT(*) FROM haex_passwords_item_tags \
+                 WHERE item_id = ?1 AND tag_id = ?2",
+                params![item_id, to],
+                |r| r.get::<_, i64>(0),
+            )?
+            .unwrap_or(0);
+        if already == 0 {
+            tx.execute(
+                "INSERT INTO haex_passwords_item_tags (id, item_id, tag_id) \
+                 VALUES (?1, ?2, ?3)",
+                params![item_tag_id(&item_id, to).to_string(), item_id, to],
+            )?;
+        }
+    }
+    Ok(())
 }
 
 /// Adds and removes tags (by [`fold`]) on many entries at once and returns how many entries

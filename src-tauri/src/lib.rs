@@ -188,8 +188,9 @@ use passwords::commands::import::{
 };
 use passwords::commands::items::{passwords_create_item, passwords_update_item};
 use passwords::commands::organize::{
-    passwords_create_group, passwords_delete_tag, passwords_move, passwords_rename_tag,
-    passwords_reorder_groups, passwords_set_tag_color, passwords_set_tags, passwords_update_group,
+    passwords_create_group, passwords_delete_tag, passwords_merge_tags, passwords_move,
+    passwords_rename_tag, passwords_reorder_groups, passwords_set_tag_color, passwords_set_tags,
+    passwords_tag_agent_profiles, passwords_update_group,
 };
 use passwords::commands::pass::{
     passwords_pass_code_check, passwords_pass_code_svg, passwords_pass_codes,
@@ -1107,6 +1108,8 @@ pub fn run() {
             passwords_rename_tag,
             passwords_set_tag_color,
             passwords_delete_tag,
+            passwords_merge_tags,
+            passwords_tag_agent_profiles,
             passwords_generate,
             passwords_preset_list,
             passwords_preset_save,

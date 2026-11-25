@@ -3,7 +3,8 @@
 //! never open to a caller from outside (FR-028).
 
 use super::{require_user, PasswordsService};
-use crate::error::Result;
+use crate::agent_profiles::tag_references::profiles_naming_tag;
+use crate::error::{HaexError, Result};
 use crate::passwords::access::Caller;
 use crate::passwords::model::{GroupPatch, Target};
 use crate::passwords::{groups, tags};
@@ -114,4 +115,36 @@ impl PasswordsService {
             .write(move |tx| tags::delete_tag(tx, &tag_id).map_err(Into::into))
             .await
     }
+
+    /// Merges the tag `source_id` into `target_id` for every entry, the result under `name` when
+    /// one is given (spec 100); the user alone.
+    pub async fn merge_tags(
+        &self,
+        caller: &Caller,
+        source_id: String,
+        target_id: String,
+        name: Option<String>,
+    ) -> Result<()> {
+        require_user(caller)?;
+        self.db()
+            .write(move |tx| {
+                tags::merge_tags(tx, &source_id, &target_id, name.as_deref()).map_err(Into::into)
+            })
+            .await
+    }
+
+    /// The names of the agent profiles whose password rights name this tag (spec 100, FR-010), for
+    /// the confirmation of a merge. `PasswordsNotFound` for a tag that does not exist.
+    pub async fn tag_agent_profiles(&self, tag_id: String) -> Result<Vec<String>> {
+        self.db()
+            .read(move |q| {
+                let name = tags::name_of(q, &tag_id)?.ok_or(HaexError::PasswordsNotFound)?;
+                profiles_naming_tag(q, &name)
+            })
+            .await
+    }
 }
+
+#[cfg(test)]
+#[path = "organize_tests.rs"]
+mod tests;

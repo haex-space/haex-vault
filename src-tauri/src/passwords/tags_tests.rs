@@ -314,3 +314,332 @@ fn reconcile_is_idempotent_and_leaves_distinct_tags_alone() {
     );
     assert_eq!(count(&db, "SELECT COUNT(*) FROM haex_passwords_tags"), 3);
 }
+
+fn tag_count_of(db: &Database, name: &str) -> i64 {
+    count(
+        db,
+        &format!("SELECT COUNT(*) FROM haex_passwords_tags WHERE name = '{name}'"),
+    )
+}
+
+fn sorted_names(db: &Database, item_id: &str) -> Vec<String> {
+    let mut names = tag_names_of(db, item_id);
+    names.sort();
+    names
+}
+
+fn merge(db: &Database, source: &str, target: &str) -> crate::error::Result<()> {
+    write(db, |tx| tags::merge_tags(tx, source, target, None))
+}
+
+fn merge_named(db: &Database, source: &str, target: &str, name: &str) -> crate::error::Result<()> {
+    write(db, |tx| tags::merge_tags(tx, source, target, Some(name)))
+}
+
+fn name_of_tag(db: &Database, id: &str) -> String {
+    db.with_connection(|c| {
+        Ok(c.query_row(
+            "SELECT name FROM haex_passwords_tags WHERE id = ?1",
+            params![id],
+            |r| r.get(0),
+        )?)
+    })
+    .expect("name")
+}
+
+#[test]
+fn merge_gives_every_entry_of_the_source_the_target_once_and_removes_the_source() {
+    let (_dir, db) = open_test_vault();
+    let only_job = item_with(&db, &["Job"]);
+    let both = item_with(&db, &["Job", "Arbeit"]);
+    let only_work = item_with(&db, &["Arbeit"]);
+    let none = item_with(&db, &[]);
+    let job = tag_id("Job").to_string();
+    let arbeit = tag_id("Arbeit").to_string();
+
+    merge(&db, &job, &arbeit).expect("merge");
+
+    assert_eq!(sorted_names(&db, &only_job), ["Arbeit"]);
+    assert_eq!(sorted_names(&db, &both), ["Arbeit"]);
+    assert_eq!(sorted_names(&db, &only_work), ["Arbeit"]);
+    assert!(tag_names_of(&db, &none).is_empty());
+    assert_eq!(tag_count_of(&db, "Job"), 0);
+    assert_eq!(count(&db, "SELECT COUNT(*) FROM haex_passwords_tags"), 1);
+    // Three entries carry the target, the one that carried both has a single link.
+    assert_eq!(
+        count(&db, "SELECT COUNT(*) FROM haex_passwords_item_tags"),
+        3
+    );
+    assert_eq!(
+        count(
+            &db,
+            &format!("SELECT COUNT(*) FROM haex_passwords_item_tags WHERE tag_id = '{job}'")
+        ),
+        0
+    );
+}
+
+#[test]
+fn merge_keeps_name_and_color_of_the_target_and_takes_nothing_from_the_source() {
+    let (_dir, db) = open_test_vault();
+    item_with(&db, &["Job", "Arbeit"]);
+    let job = tag_id("Job").to_string();
+    let arbeit = tag_id("Arbeit").to_string();
+    write(&db, |tx| tags::set_color(tx, &job, Some("#aa0000"))).expect("source color");
+
+    merge(&db, &job, &arbeit).expect("merge");
+
+    let (name, color): (String, Option<String>) = db
+        .with_connection(|c| {
+            Ok(c.query_row(
+                "SELECT name, color FROM haex_passwords_tags WHERE id = ?1",
+                params![arbeit],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )?)
+        })
+        .expect("target");
+    assert_eq!(name, "Arbeit");
+    assert_eq!(
+        color, None,
+        "the source's color must not move to the target"
+    );
+}
+
+#[test]
+fn merging_a_tag_without_entries_removes_it() {
+    let (_dir, db) = open_test_vault();
+    let used = item_with(&db, &["Arbeit"]);
+    let unused = write(&db, |tx| tags::get_or_create(tx, "Job")).expect("unused");
+    let arbeit = tag_id("Arbeit").to_string();
+
+    merge(&db, &unused, &arbeit).expect("merge");
+
+    assert_eq!(tag_count_of(&db, "Job"), 0);
+    assert_eq!(sorted_names(&db, &used), ["Arbeit"]);
+}
+
+#[test]
+fn merge_moves_many_links_in_one_call() {
+    let (_dir, db) = open_test_vault();
+    let items: Vec<String> = (0..200).map(|_| item_with(&db, &["Job"])).collect();
+    item_with(&db, &["Arbeit"]);
+    let job = tag_id("Job").to_string();
+    let arbeit = tag_id("Arbeit").to_string();
+
+    merge(&db, &job, &arbeit).expect("merge");
+
+    assert_eq!(
+        count(
+            &db,
+            &format!("SELECT COUNT(*) FROM haex_passwords_item_tags WHERE tag_id = '{arbeit}'")
+        ),
+        201
+    );
+    assert_eq!(sorted_names(&db, &items[199]), ["Arbeit"]);
+}
+
+#[test]
+fn a_refused_merge_changes_nothing() {
+    let (_dir, db) = open_test_vault();
+    let a = item_with(&db, &["Job", "Arbeit"]);
+    let job = tag_id("Job").to_string();
+    let arbeit = tag_id("Arbeit").to_string();
+    let tags_before = count(&db, "SELECT COUNT(*) FROM haex_passwords_tags");
+    let links_before = count(&db, "SELECT COUNT(*) FROM haex_passwords_item_tags");
+    let markers_before = count(&db, "SELECT COUNT(*) FROM haex_deleted_rows");
+
+    assert_eq!(reason_of(merge(&db, &job, &job)), "same");
+    assert!(matches!(
+        merge(&db, "nope", &arbeit),
+        Err(HaexError::PasswordsNotFound)
+    ));
+    assert!(matches!(
+        merge(&db, &job, "nope"),
+        Err(HaexError::PasswordsNotFound)
+    ));
+
+    assert_eq!(
+        count(&db, "SELECT COUNT(*) FROM haex_passwords_tags"),
+        tags_before
+    );
+    assert_eq!(
+        count(&db, "SELECT COUNT(*) FROM haex_passwords_item_tags"),
+        links_before
+    );
+    assert_eq!(
+        count(&db, "SELECT COUNT(*) FROM haex_deleted_rows"),
+        markers_before,
+        "a refusal must not leave a delete marker"
+    );
+    assert_eq!(sorted_names(&db, &a), ["Arbeit", "Job"]);
+}
+
+#[test]
+fn merging_the_same_source_twice_finds_nothing_the_second_time() {
+    let (_dir, db) = open_test_vault();
+    item_with(&db, &["Job", "Arbeit"]);
+    let job = tag_id("Job").to_string();
+    let arbeit = tag_id("Arbeit").to_string();
+    merge(&db, &job, &arbeit).expect("first");
+    assert!(matches!(
+        merge(&db, &job, &arbeit),
+        Err(HaexError::PasswordsNotFound)
+    ));
+}
+
+#[test]
+fn merge_leaves_a_delete_marker_for_every_removed_row() {
+    let (_dir, db) = open_test_vault();
+    item_with(&db, &["Job"]);
+    item_with(&db, &["Job", "Arbeit"]);
+    let job = tag_id("Job").to_string();
+    let arbeit = tag_id("Arbeit").to_string();
+
+    merge(&db, &job, &arbeit).expect("merge");
+
+    assert_eq!(
+        count(&db, "SELECT COUNT(*) FROM haex_deleted_rows WHERE table_name = 'haex_passwords_tags' AND haex_hlc_no_sync IS NOT NULL"),
+        1,
+        "the source tag has a marker"
+    );
+    assert_eq!(
+        count(&db, "SELECT COUNT(*) FROM haex_deleted_rows WHERE table_name = 'haex_passwords_item_tags' AND haex_hlc_no_sync IS NOT NULL"),
+        2,
+        "each link of the source has a marker of its own"
+    );
+}
+
+#[test]
+fn a_tag_name_needs_a_character_that_is_not_a_space_wherever_a_tag_is_made() {
+    let (_dir, db) = open_test_vault();
+    let work = write(&db, |tx| tags::get_or_create(tx, "Work")).expect("work");
+    let entry = item_with(&db, &["keep"]);
+    let tags_before = count(&db, "SELECT COUNT(*) FROM haex_passwords_tags");
+
+    for blank in ["", " ", "   ", "\t", "\u{a0}"] {
+        assert_eq!(
+            reason_of(write(&db, |tx| tags::rename_tag(tx, &work, blank))),
+            "empty",
+            "rename to {blank:?}"
+        );
+        assert_eq!(
+            reason_of(write(&db, |tx| tags::get_or_create(tx, blank))),
+            "empty",
+            "create {blank:?}"
+        );
+        assert_eq!(
+            reason_of(write(&db, |tx| tags::bulk_set(
+                tx,
+                std::slice::from_ref(&entry),
+                &[blank.to_string()],
+                &[]
+            ))),
+            "empty",
+            "bulk tagging with {blank:?}"
+        );
+        assert_eq!(
+            reason_of(write(&db, |tx| tags::set_item_tags(
+                tx,
+                &entry,
+                &[blank.to_string()]
+            ))),
+            "empty",
+            "tags of an entry with {blank:?}"
+        );
+    }
+
+    assert_eq!(
+        count(&db, "SELECT COUNT(*) FROM haex_passwords_tags"),
+        tags_before,
+        "no tag may have been made"
+    );
+    assert_eq!(
+        count(
+            &db,
+            "SELECT COUNT(*) FROM haex_passwords_tags WHERE trim(name) = ''"
+        ),
+        0
+    );
+    assert_eq!(sorted_names(&db, &entry), ["keep"]);
+}
+
+#[test]
+fn a_merge_can_name_its_result_and_moves_every_entry_to_it() {
+    let (_dir, db) = open_test_vault();
+    let only_job = item_with(&db, &["Job"]);
+    let both = item_with(&db, &["Job", "Arbeit"]);
+    let job = tag_id("Job").to_string();
+    let arbeit = tag_id("Arbeit").to_string();
+
+    merge_named(&db, &job, &arbeit, "  Beruf ").expect("merge");
+
+    assert_eq!(name_of_tag(&db, &arbeit), "Beruf", "trimmed, on the target");
+    assert_eq!(sorted_names(&db, &only_job), ["Beruf"]);
+    assert_eq!(sorted_names(&db, &both), ["Beruf"]);
+    assert_eq!(tag_count_of(&db, "Job"), 0);
+    assert_eq!(count(&db, "SELECT COUNT(*) FROM haex_passwords_tags"), 1);
+}
+
+#[test]
+fn the_name_of_the_tag_that_goes_is_free_for_the_result() {
+    let (_dir, db) = open_test_vault();
+    let entry = item_with(&db, &["Job", "Arbeit"]);
+    let job = tag_id("Job").to_string();
+    let arbeit = tag_id("Arbeit").to_string();
+
+    // The result takes the name of the source, in another case: the source is gone after the merge.
+    merge_named(&db, &job, &arbeit, "JOB").expect("merge");
+
+    assert_eq!(name_of_tag(&db, &arbeit), "JOB");
+    assert_eq!(sorted_names(&db, &entry), ["JOB"]);
+}
+
+#[test]
+fn an_unchanged_or_missing_name_leaves_the_name_of_the_target() {
+    let (_dir, db) = open_test_vault();
+    item_with(&db, &["Job", "Arbeit", "Home", "Spiel"]);
+    let arbeit = tag_id("Arbeit").to_string();
+
+    merge_named(&db, &tag_id("Job").to_string(), &arbeit, " Arbeit ").expect("same name");
+    assert_eq!(name_of_tag(&db, &arbeit), "Arbeit");
+    merge(&db, &tag_id("Home").to_string(), &arbeit).expect("no name");
+    assert_eq!(name_of_tag(&db, &arbeit), "Arbeit");
+    // Only a change of case is a change.
+    merge_named(&db, &tag_id("Spiel").to_string(), &arbeit, "ARBEIT").expect("case");
+    assert_eq!(name_of_tag(&db, &arbeit), "ARBEIT");
+}
+
+#[test]
+fn a_refused_name_stops_the_merge_before_anything_is_written() {
+    let (_dir, db) = open_test_vault();
+    let entry = item_with(&db, &["Job", "Arbeit", "Home"]);
+    let job = tag_id("Job").to_string();
+    let arbeit = tag_id("Arbeit").to_string();
+    let tags_before = count(&db, "SELECT COUNT(*) FROM haex_passwords_tags");
+    let links_before = count(&db, "SELECT COUNT(*) FROM haex_passwords_item_tags");
+    let markers_before = count(&db, "SELECT COUNT(*) FROM haex_deleted_rows");
+
+    // The name of a tag that stays, in another case and in the other form of an umlaut.
+    assert_eq!(reason_of(merge_named(&db, &job, &arbeit, "HOME")), "exists");
+    assert_eq!(reason_of(merge_named(&db, &job, &arbeit, "")), "empty");
+    assert_eq!(reason_of(merge_named(&db, &job, &arbeit, "   ")), "empty");
+    assert_eq!(
+        reason_of(merge_named(&db, &job, &arbeit, &"x".repeat(65))),
+        "too_long"
+    );
+
+    assert_eq!(
+        count(&db, "SELECT COUNT(*) FROM haex_passwords_tags"),
+        tags_before
+    );
+    assert_eq!(
+        count(&db, "SELECT COUNT(*) FROM haex_passwords_item_tags"),
+        links_before
+    );
+    assert_eq!(
+        count(&db, "SELECT COUNT(*) FROM haex_deleted_rows"),
+        markers_before
+    );
+    assert_eq!(name_of_tag(&db, &arbeit), "Arbeit");
+    assert_eq!(sorted_names(&db, &entry), ["Arbeit", "Home", "Job"]);
+}
