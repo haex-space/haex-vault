@@ -57,6 +57,7 @@ mod route_tests;
 #[cfg(test)]
 mod routed_offer_tests;
 pub mod selftest;
+pub mod tool_names;
 
 use std::sync::Arc;
 
