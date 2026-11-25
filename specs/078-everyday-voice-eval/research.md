@@ -92,7 +92,9 @@ Opus 5.5 through `claude -p`:
 - **Expected results** (FR-006): `calls` (ordered; each with `args` matched as `exact`, `contains` or a date
   `relative` to the clock, e.g. `{"since": {"relativeDay": -1}}`), `answer` (no tool; facts the text must
   contain, e.g. `"09:41"` or `"9:41"`), `refusal` (no tool, no command, an answer that is not empty; an honest question back passes too), and
-  `question` (`ask_user`, or answer text containing `?` and no change call).
+  `question` (`ask_user`, or answer text containing `?` and no change call). A search of the catalog with `find_actions`
+  is never wrong, also before an `answer`; before a `refusal` any read call is allowed (the installed apps, the files),
+  only a change or the command is spurious (operator 2026-11-25).
 - **Chains**: the expected calls must appear in order. Read calls may come before or between them (a
   lookup is careful, not wrong); they count as extra steps in the report. Any other call is spurious.
 - **Ids**: an id argument (`id`, `ids`, `messages[].id`, `replyTo`, `draftId`, `account`,
