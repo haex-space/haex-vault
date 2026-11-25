@@ -331,12 +331,12 @@ async fn a_bulk_move_and_a_bulk_tag_change_are_tracked_for_sync() {
     };
     assert!(matches!(
         f.service
-            .rename_tag(&outside, tag.clone(), "x".to_string())
+            .rename_tag(&outside, vec![tag.clone()], "x".to_string())
             .await,
         Err(HaexError::PasswordsForbidden)
     ));
     assert!(matches!(
-        f.service.delete_tag(&outside, tag).await,
+        f.service.delete_tag(&outside, vec![tag]).await,
         Err(HaexError::PasswordsForbidden)
     ));
 }
