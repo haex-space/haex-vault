@@ -330,11 +330,14 @@ impl Delivery {
                 let Some(vault) = targets::addressed_vault(tx, &me, &device)? else {
                     return Ok(None);
                 };
+                let relays = targets::of(tx, &me, &vault)?.relays;
+                if relays.is_empty() {
+                    return Ok(None);
+                }
                 let Some(event) = seal_keep_alive(tx, &me, &device, now, true)? else {
                     return Ok(None);
                 };
-                let relays = targets::of(tx, &me, &vault)?.relays;
-                Ok((!relays.is_empty()).then_some((event, relays)))
+                Ok(Some((event, relays)))
             })
             .await?
         else {

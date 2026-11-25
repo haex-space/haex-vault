@@ -262,6 +262,7 @@ async fn a_message_of_a_stranger_passes_as_a_request_and_its_receipt_is_dropped(
         delivered: vec!["e1".into()],
         read: vec![],
         answer: None,
+        answer_sequence: None,
     };
     assert_eq!(
         run(&stranger, opened(&receipt, RECEIPT_KIND, BEN_DEVICE)),
@@ -302,7 +303,7 @@ async fn an_unknown_version_kind_or_type_is_dropped() {
 async fn a_receipt_for_the_own_vault_passes() {
     let anna = anna_knowing_ben(10).await;
     let card = ben_card(10, &[BEN_DEVICE]);
-    let receipt = Receipt {
+    let mut receipt = Receipt {
         v: VERSION,
         from: hex(&ben_vault()),
         card: card.text(),
@@ -310,9 +311,18 @@ async fn a_receipt_for_the_own_vault_passes() {
         delivered: vec!["e1".into()],
         read: vec![],
         answer: None,
+        answer_sequence: None,
     };
+    receipt.from.make_ascii_uppercase();
+    if let To::Direct(thread) = &mut receipt.thread {
+        thread.make_ascii_uppercase();
+    }
     let verified = run(&anna, opened(&receipt, RECEIPT_KIND, BEN_DEVICE)).expect("passes");
-    assert!(matches!(verified.incoming, Incoming::Receipt(_)));
+    let Incoming::Receipt(normalized) = verified.incoming else {
+        panic!("receipt");
+    };
+    assert_eq!(normalized.from, hex(&ben_vault()));
+    assert_eq!(normalized.thread, To::Direct(anna.me.vault_hex));
 }
 
 #[test]

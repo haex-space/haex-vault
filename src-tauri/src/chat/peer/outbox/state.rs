@@ -10,7 +10,7 @@ use super::{
 };
 use crate::chat::peer::session::Me;
 use crate::chat::peer::{ids, targets};
-use crate::error::Result;
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 use crate::sync::keys::hex;
 
@@ -41,21 +41,37 @@ pub fn start_resend(tx: &mut CrdtTransaction<'_>, me: &Me, entry: &Entry) -> Res
     };
     let mut awaiting: Vec<String> = from_json(&awaiting)?;
     let mut still = Vec::new();
+    let mut eligible = Vec::new();
     for vault in awaiting.drain(..) {
-        let delivered: Option<Option<i64>> = tx.query_row(
-            "SELECT delivered_at FROM chat_deliveries WHERE id = ?1",
+        let delivery: Option<(Option<i64>, Option<String>)> = tx.query_row(
+            "SELECT delivered_at, failed_reason FROM chat_deliveries WHERE id = ?1",
             params![ids::delivery_id(message, &vault).to_string()],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )?;
-        if delivered.flatten().is_none() {
-            still.push(vault);
+        let (delivered, reason) = delivery.unwrap_or((None, None));
+        if delivered.is_none() {
+            still.push(vault.clone());
+            if reason.as_deref() != Some(FailReason::Blocked.code()) {
+                eligible.push(vault);
+            }
         }
     }
-    if present.is_none() || still.is_empty() {
+    if present.is_none() {
         remove(tx, &entry.id)?;
         return Ok(None);
     }
-    for vault in &still {
+    if still.is_empty() {
+        remove(tx, &entry.id)?;
+        return Ok(None);
+    }
+    if eligible.is_empty() {
+        tx.execute(
+            "UPDATE chat_outbox_no_sync SET pending = '[]', awaiting = ?2, next_at = ?3 WHERE id = ?1",
+            params![entry.id, to_json(&still)?, PARKED],
+        )?;
+        return Ok(None);
+    }
+    for vault in &eligible {
         for device in targets::of(tx, me, vault)?.devices {
             tx.execute(
                 "DELETE FROM chat_outbox_sealed_no_sync \
@@ -66,12 +82,12 @@ pub fn start_resend(tx: &mut CrdtTransaction<'_>, me: &Me, entry: &Entry) -> Res
     }
     let resends = entry.resends + 1;
     tx.execute(
-        "UPDATE chat_outbox_no_sync SET pending = ?2, awaiting = ?2, attempts = 0, resends = ?3 \
+        "UPDATE chat_outbox_no_sync SET pending = ?2, awaiting = ?3, attempts = 0, resends = ?4 \
          WHERE id = ?1",
-        params![entry.id, to_json(&still)?, resends],
+        params![entry.id, to_json(&eligible)?, to_json(&still)?, resends],
     )?;
     Ok(Some(Entry {
-        pending: still.clone(),
+        pending: eligible,
         awaiting: still,
         attempts: 0,
         resends,
@@ -105,37 +121,75 @@ pub fn record(
     now: i64,
 ) -> Result<()> {
     // A receipt may have come since `entry` was read.
-    let awaiting: Option<String> = tx.query_row(
-        "SELECT awaiting FROM chat_outbox_no_sync WHERE id = ?1",
+    let current: Option<(String, String, i64, i64, i64)> = tx.query_row(
+        "SELECT awaiting, pending, attempts, next_at, created_at \
+         FROM chat_outbox_no_sync WHERE id = ?1",
         params![entry.id],
-        |row| row.get(0),
+        |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+            ))
+        },
     )?;
-    let Some(awaiting) = awaiting else {
+    let Some((awaiting, pending, attempts, next_at, created_at)) = current else {
         return Ok(());
     };
     let awaiting: Vec<String> = from_json(&awaiting)?;
-    for vault in &attempt.accepted {
+    let current_pending: Vec<String> = from_json(&pending)?;
+    // A gate answer or resend may have changed the row while the relay request was in flight.
+    // Ignore that stale result so it cannot undo the newer pending set or its schedule.
+    if attempts != entry.attempts
+        || next_at != entry.next_at
+        || created_at != entry.created_at
+        || current_pending != entry.pending
+    {
+        return Ok(());
+    }
+    for vault in attempt
+        .accepted
+        .iter()
+        .filter(|vault| current_pending.contains(vault))
+    {
         mark(tx, entry, vault, "sent_at", None, now)?;
         clear_failure(tx, entry, vault)?;
     }
-    for vault in &attempt.partial_accepted {
+    for vault in attempt
+        .partial_accepted
+        .iter()
+        .filter(|vault| current_pending.contains(vault))
+    {
         clear_failure(tx, entry, vault)?;
     }
-    for (vault, reason) in &attempt.failed {
+    for (vault, reason) in attempt
+        .failed
+        .iter()
+        .filter(|(vault, _)| current_pending.contains(vault))
+    {
         if *reason == FailReason::NoRelay {
             fail_unsent(tx, entry, vault, now)?;
         } else {
             mark(tx, entry, vault, "failed_at", Some(*reason), now)?;
         }
     }
-    if !attempt.accepted.is_empty() || !attempt.partial_accepted.is_empty() {
+    if attempt
+        .accepted
+        .iter()
+        .any(|vault| current_pending.contains(vault))
+        || attempt
+            .partial_accepted
+            .iter()
+            .any(|vault| current_pending.contains(vault))
+    {
         tx.execute(
             "UPDATE chat_outbox_no_sync SET accepted_at = ?2 WHERE id = ?1 AND accepted_at IS NULL",
             params![entry.id, now],
         )?;
     }
-    let pending: Vec<String> = entry
-        .pending
+    let pending: Vec<String> = current_pending
         .iter()
         .filter(|vault| {
             !attempt.accepted.contains(vault)
@@ -266,6 +320,17 @@ pub fn resend(tx: &mut CrdtTransaction<'_>, message_id: &str, now: i64) -> Resul
     let Some((id, pending)) = row else {
         return Ok(false);
     };
+    let blocked: bool = tx.query_row(
+        "SELECT EXISTS (SELECT 1 FROM chat_deliveries WHERE message_id = ?1 \
+           AND failed_at IS NOT NULL AND failed_reason = ?2)",
+        params![message_id, FailReason::Blocked.code()],
+        |row| row.get(0),
+    )?;
+    if blocked {
+        return Err(HaexError::InvalidInput {
+            reason: "chat.error.resendBlocked".into(),
+        });
+    }
     let mut pending: Vec<String> = from_json(&pending)?;
     let failed = tx.query_map(
         "SELECT recipient_vault FROM chat_deliveries \

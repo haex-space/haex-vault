@@ -107,11 +107,14 @@ fn a_receipt_sets_each_state_once() {
         delivered,
         read,
         answer: None,
+        answer_sequence: None,
     };
+    let sender_device = BEN.to_owned();
     let apply = |receipt: Receipt, now: i64| {
         let me = anna.me.clone();
+        let sender_device = sender_device.clone();
         anna.db
-            .write_blocking(move |tx| Ok(super::receipt(tx, &me, &receipt, now)?))
+            .write_blocking(move |tx| Ok(super::receipt(tx, &me, &receipt, &sender_device, now)?))
             .expect("apply")
     };
     assert_eq!(apply(receipt_of(vec![own.id.clone()], vec![]), 7), 1);

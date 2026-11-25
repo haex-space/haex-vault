@@ -569,6 +569,7 @@
       "tooLong": "Der Text ist zu lang (höchstens 1.000.000 Zeichen).",
       "tooLarge": "Die Nachricht ist zu groß.",
       "resendElsewhere": "Diese Nachricht wurde auf einem anderen deiner Geräte geschrieben. Sende sie von dort erneut.",
+      "resendBlocked": "Der Empfänger hat dich blockiert. Du kannst erneut senden, sobald er dich wieder akzeptiert.",
       "modelNotInProfile": "Dieses Modell gehört nicht zum aktiven Agentenprofil. Wähle ein anderes Modell oder ein anderes Agentenprofil."
     },
     "notify": {

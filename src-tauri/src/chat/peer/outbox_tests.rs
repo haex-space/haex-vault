@@ -275,14 +275,52 @@ fn a_parked_vault_stays_parked_when_another_vault_later_succeeds() {
         7_000,
     );
 
+    let automatic_resend = 7_000 + resend_after(0);
+    assert_eq!(next_at(&anna.db), automatic_resend);
+    let entry = due(&anna.db, automatic_resend).remove(0);
+    let me = anna.me.clone();
+    assert!(anna
+        .db
+        .write_blocking(move |tx| Ok(start_resend(tx, &me, &entry)?))
+        .expect("automatic resend")
+        .is_none());
+    assert_eq!(next_at(&anna.db), i64::MAX, "blocked vault stays parked");
+    let blocked_resend = anna
+        .db
+        .write_blocking(|tx| Ok(resend(tx, MESSAGE, 8_000)))
+        .expect_err("manual resend cannot clear a blocked failure");
+    assert!(matches!(
+        blocked_resend,
+        crate::error::HaexError::InvalidInput { .. }
+    ));
+}
+
+#[test]
+fn an_attempt_snapshot_cannot_unpark_a_row_after_a_blocked_answer() {
+    let anna = ChatDevice::genesis(&[]);
+    let entry = queued(&anna.db, 1_000);
+    anna.db
+        .write_blocking(|tx| Ok(park_vault(tx, PEER, 2_000)?))
+        .expect("block while the relay attempt is in flight");
+
+    anna.db
+        .write_blocking(move |tx| {
+            record(
+                tx,
+                &entry,
+                &Attempt {
+                    accepted: vec![PEER.to_owned()],
+                    ..Attempt::default()
+                },
+                3_000,
+            )?;
+            Ok(())
+        })
+        .expect("record stale attempt");
+
+    assert_eq!(next_at(&anna.db), i64::MAX, "the row stays parked");
     assert!(due(&anna.db, i64::MAX - 1).is_empty());
-    assert!(
-        anna.db
-            .write_blocking(|tx| Ok(resend(tx, MESSAGE, 8_000)?))
-            .expect("resend"),
-        "the parked vault remains available for manual resend"
-    );
-    assert_eq!(due(&anna.db, 8_000)[0].pending, [PEER.to_owned()]);
+    assert_eq!(delivery(&anna.db).2.as_deref(), Some("blocked"));
 }
 
 #[test]

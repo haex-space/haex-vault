@@ -11,12 +11,15 @@ sending rules of spec 095 [contracts/nostr-chat-ratchet.md](../../095-chat-secur
   "from": "<recipient vault hex>",
   "card": "haex:card:…",
   "thread": { "direct": "<sender vault hex>" },
-  "answer": "accepted" | "blocked"
+  "answer": "accepted" | "blocked",
+  "answerSequence": 42
 }
 ```
 
-- `answer` is optional; a receipt without it is a receipt as before. A notice has no `delivered`, `read` or
-  `files`.
+- `answer` and `answerSequence` are optional; a receipt without them is a receipt as before. A notice has
+  no `delivered`, `read` or `files`. The answering device increases `answerSequence` for each answer to
+  that peer. The receiver ignores a notice whose counter is no greater than the last one applied from
+  that device; legacy notices without a counter are sequence zero.
 - Encrypted, sealed and wrapped like every receipt (spec 095: on the device-pair session, one wrap per
   device of the card).
 - Sent once per answer through the outbox (research R5), to every device on the sender's card: the stored
@@ -36,10 +39,11 @@ one, `thread.direct` is the own vault, the sender is a stored card. Otherwise dr
 
 When a new answer is queued for the same peer, the outbox drops any older unsent gate notice for that
 peer before enqueueing it. Thus a pending `blocked` notice is replaced by a later `accepted` notice (and
-vice versa), so an older unsent answer cannot be published after the newer one. The receiver applies
-each received notice as it arrives. Wrap `created_at` is not used to order answers.
+vice versa), so an older unsent answer cannot be published after the newer one. The receiver uses the
+counter to ignore late answers from the same answering device. Wrap `created_at` is not used to order
+answers.
 
-## Receiving side changes (no wire change)
+## Receiving side changes
 
 - A `chat.message` (`kind 24120`) of a vault without a stored, unblocked card stores no message and no
   attachment; it leaves a request (research R1, R2) or, with `chat.requests.allowStrangers = false`,

@@ -374,7 +374,7 @@ fn ratchet(
             }
         }
         Incoming::Receipt(receipt) => {
-            receive::receipt(tx, me, receipt, now)?;
+            receive::receipt(tx, me, receipt, &verified.sender_device, now)?;
             Received::Nothing
         }
     };

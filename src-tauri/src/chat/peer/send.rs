@@ -243,7 +243,7 @@ pub fn receipt(
             return Ok(());
         }
     }
-    enqueue_receipt(tx, me, peer, delivered, read, None, now)
+    enqueue_receipt(tx, me, peer, delivered, read, None, None, now)
 }
 
 /// Queues the answer of this vault to `peer` (spec 099 FR-007, FR-009, FR-014, FR-016): a receipt
@@ -254,9 +254,19 @@ pub fn notice(
     me: &Me,
     peer: &str,
     answer: Answer,
+    sequence: i64,
     now: i64,
 ) -> Result<()> {
-    enqueue_receipt(tx, me, peer, Vec::new(), Vec::new(), Some(answer), now)
+    enqueue_receipt(
+        tx,
+        me,
+        peer,
+        Vec::new(),
+        Vec::new(),
+        Some(answer),
+        Some(sequence),
+        now,
+    )
 }
 
 fn enqueue_receipt(
@@ -266,6 +276,7 @@ fn enqueue_receipt(
     delivered: Vec<String>,
     read: Vec<String>,
     answer: Option<Answer>,
+    answer_sequence: Option<i64>,
     now: i64,
 ) -> Result<()> {
     let rumor = Receipt {
@@ -276,6 +287,7 @@ fn enqueue_receipt(
         delivered,
         read,
         answer,
+        answer_sequence,
     };
     let thread_id = ids::direct_thread_id(&me.vault_hex, peer);
     outbox::enqueue(

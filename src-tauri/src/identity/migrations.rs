@@ -47,6 +47,7 @@ use super::migrations_browser_clients::BROWSER_CLIENTS_0038;
 use super::migrations_chat_attachment_inline::CHAT_ATTACHMENT_INLINE_0067;
 use super::migrations_chat_contacts::CHAT_CONTACTS_0049;
 use super::migrations_chat_gate::CHAT_GATE_0070;
+use super::migrations_chat_gate_answer_order::CHAT_GATE_ANSWER_ORDER_0071;
 use super::migrations_chat_ratchet::CHAT_RATCHET_0063;
 use super::migrations_chat_record_relays::CHAT_RECORD_RELAYS_0066;
 use super::migrations_contacts::{CONTACTS_0033, CONTACTS_PHONE_KNOWN_0034};
@@ -902,6 +903,10 @@ pub fn haex_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0070_chat_gate"),
         CHAT_GATE_0070.to_owned(),
+    );
+    m.insert(
+        MigrationName::from("0071_chat_gate_answer_order"),
+        CHAT_GATE_ANSWER_ORDER_0071.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

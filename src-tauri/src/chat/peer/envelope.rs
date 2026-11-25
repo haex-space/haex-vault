@@ -155,6 +155,9 @@ pub struct Receipt {
     pub read: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub answer: Option<Answer>,
+    /// Monotonic per-peer answer counter assigned by the answering device (spec 099 review R2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub answer_sequence: Option<i64>,
 }
 
 /// A fresh event id: 128 random bits, hex.
