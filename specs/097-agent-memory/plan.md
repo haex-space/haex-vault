@@ -25,8 +25,8 @@ not reach it. The plan:
    turn, by the MCP dispatch for an Abo-Agent's calls of haex-vault's tools, and by reading an Abo-Agent's own tool calls
    from its output. A write without the mark runs without a question in every chat mode but "Plan"; with it, it asks. The
    rule is one function for every kind of agent. The two existing dialogs get one shared preview.
-6. A notice in the window after every write of an agent; a memory request set and one run of the two small models with
-   the memory on.
+6. A notice in the window after every write of an agent; a memory request set, measured with larger models (the run of the
+   small models was dropped, FR-027 withdrawn 2026-11-25).
 
 ## Technical Context
 
@@ -93,7 +93,7 @@ Each PR leaves the app working.
 | A   | Migration 0069, `agent_memory` (store, limits, check, pointers, search, commands), "KI → Gedächtnis" with list, search, page view, editing, store, window actions and texts                                                                                                                                               | the user keeps pages; no agent reads them yet                        | US3 (user's part), US6.4 |
 | B   | The group `memory` in `Rights`, rows, resolver (external agents off), editor; the five actions and their executor (built-in agent only); the routing domain; snapshot and block in `start_turn`; the foreign mark from the local turn; the gate in `plan_calls`; the preview in the chat's approval; the notice; ADR 0029 | the local agent's models remember and find; the right in the profile | US1, US3, US4, US5, US6  |
 | C   | Abo-Agents: the block in their system prompt; the executor serves their pass; the gate and the foreign mark in `dispatch.rs`; the Claude Code reader takes tool names; the Codex spike and its reader or config; the preview in `CallQuestionDetails.vue`; the integration test of the kinds                              | Claude Code and Codex remember and find, by the same rule            | US2, US5.4               |
-| D   | The memory request set, the runner's seeded memory, the new safety kind, `tools.json`; the runs and `results.md` for hosted models and Claude Code/Codex Abo-Agents; a small model that drops goes onto `NO_START_TOC`                                                                                                    | nothing new                                                          | FR-026, FR-027, SC-009   |
+| D   | The memory request set, the runner's seeded memory, the new safety kind, `tools.json`; the runs and `results.md` for hosted models and Claude Code/Codex Abo-Agents (no small-model run, FR-027 withdrawn)                                                                                                                | nothing new                                                          | FR-026, FR-027, SC-009   |
 | E   | e2e scenario, `CONTEXT.md` (Gedächtnis, Seite, Verweis, Inhaltsverzeichnis, fremder Inhalt), quickstart checked by hand                                                                                                                                                                                                   | nothing new                                                          | all                      |
 
 A is safe on its own. In B the executor refuses every caller but the built-in agent, so an Abo-Agent cannot write before

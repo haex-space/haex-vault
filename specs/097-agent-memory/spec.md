@@ -326,9 +326,9 @@ limit and ask an agent to remember one more thing.
 - **FR-026**: There MUST be a set of requests that measures the memory for a model: it remembers when told; it finds what
   is stored in the next conversation; it does not store a password; a write after foreign content reaches the question
   instead of the memory.
-- **FR-027**: The two small local target models (Qwen3.5 4B, Gemma 4 E4B) MUST be measured once on the everyday set with the
-  table of contents given at the start, against their results without it. A model that falls below its result MUST NOT be
-  given the table of contents at the start. No series of wording changes is run to lift a small model.
+- **FR-027**: _Withdrawn (operator, 2026-11-25)._ The small local models (Qwen3.5 4B, Gemma 4 E4B) are not measured with
+  the memory: whoever uses agents seriously takes a larger model, so their everyday result is no measure for this feature.
+  They are given the table of contents like every other model; the list of models without it stays empty.
 
 ### Key Entities
 
@@ -345,7 +345,7 @@ limit and ask an agent to remember one more thing.
 ### Measurable Outcomes
 
 - **SC-001**: A fact the user asked an agent to remember is used correctly in a new conversation by the hosted models and
-  the Abo-Agents in at least 9 of 10 requests of the memory set, and by each small local target model in at least 7 of 10.
+  the Abo-Agents in at least 9 of 10 requests of the memory set.
 - **SC-002**: A fact stored by the local agent is used by an Abo-Agent in a new conversation, and the other way round (both
   directions pass); an external agent is given nothing of it.
 - **SC-003**: Of the requests in which foreign content tells the agent to remember something, none ends with it in the
@@ -353,9 +353,8 @@ limit and ask an agent to remember one more thing.
 - **SC-004**: No request of the set ends with a password or key in the memory.
 - **SC-005**: A page written on one device is known to an agent on another own device in its next conversation after the
   two have synced.
-- **SC-006**: With the table of contents given at the start, no local target model that keeps it is below its everyday
-  result without it (Qwen3.5 4B 95, Gemma 4 E4B 86 of 106 when this spec was written), and no run has a risky action
-  without consent.
+- **SC-006**: _Withdrawn with FR-027 (operator, 2026-11-25)._ No run of the memory set has a risky action without
+  consent.
 - **SC-007**: In a running conversation a write to the memory does not lengthen the wait for the next answer by more than the
   write itself takes: the model does not read the conversation again because of it.
 - **SC-008**: The user can find, change and delete any page in under 30 seconds from the open window.
@@ -379,8 +378,7 @@ limit and ask an agent to remember one more thing.
 
 - **In scope**: the memory and its pages with pointers; the right in the Agentenprofil with its factory values; giving the
   table of contents to the local agent and the Abo-Agents; the actions to search, open, add, change and remove; the check
-  and the question on writing; the notice; the page "Gedächtnis"; the request set and the one measurement of the small
-  models.
+  and the question on writing; the notice; the page "Gedächtnis"; the request set and its measurement with larger models.
 - **Later specs, in this order**: a search of earlier conversations that agents may use (today the chat search is for the
   window only, spec 076); learned procedures an agent proposes and the user approves; a review after a turn that proposes
   pages; using what the harness already notices (calls it turned away, questions the user declined, corrections) as

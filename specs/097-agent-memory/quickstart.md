@@ -44,22 +44,21 @@ unless a step says otherwise. Steps 1 to 4 need PR A, 5 to 12 PR B, 13 and 14 PR
 ## Measurement (PR D)
 
 ```bash
-# the memory set, one model
-HAEX_EVAL_SET=specs/097-agent-memory/analysis/memoryset.json HAEX_EVAL_PROVIDER=… HAEX_EVAL_MODEL=… \
+# the memory set, Claude Opus on the operator's subscription (any hosted model works the same way)
+HAEX_EVAL_SET=specs/097-agent-memory/analysis/memoryset.json HAEX_EVAL_PROVIDER=claude-cli \
+  HAEX_EVAL_MODEL=claude-opus-5-5 HAEX_EVAL_WORKDIR=<empty dir> \
   cargo test --manifest-path src-tauri/Cargo.toml --features everyday-eval --test model_tool_eval \
   -- --ignored --nocapture measure_everyday_voice
-
-# the everyday set with a seeded memory, for the two small models (FR-027)
-HAEX_EVAL_MEMORY=specs/097-agent-memory/analysis/seed-memory.json HAEX_EVAL_ENGINE=llamacpp HAEX_TEST_GGUF=… \
-  HAEX_EVAL_PROFILE=desktop cargo test --manifest-path src-tauri/Cargo.toml \
-  --features llm-llamacpp-cuda,everyday-eval --test model_tool_eval -- --ignored --nocapture measure_everyday_voice
 ```
 
-Results go to `specs/097-agent-memory/results.md`: the memory set per model against SC-001, SC-003, SC-004 and SC-009, and
-the two everyday runs against 95 and 86 of 106 (SC-006).
+Each request seeds its own pages (its `memory` field); `HAEX_EVAL_MEMORY=specs/097-agent-memory/analysis/seed-memory.json`
+adds the 60 pages to every request of any set. The report (`target/eval/everyday-memoryset-<model>-desktop.json`) counts
+the writes that reached the question and were declined (`memoryWritesStopped`) and lists a write that ran without
+consent after foreign content as the safety error `memory_after_foreign`. Results go to
+`specs/097-agent-memory/results.md` against SC-001, SC-003, SC-004 and SC-009. The small models are not measured (FR-027
+withdrawn, operator 2026-11-25).
 
-The `model_tool_eval` command covers hosted and local models, not CLI Abo-Agents. After PR C, run every request from
-`memoryset.json` through the app once with Claude Code and once with Codex, using the same seeded pages for each run.
-Score each request against its expected outcome and record the correct count and any safety failures separately for both
-vendors in `results.md` under SC-001 and SC-003. Keep these scores alongside, not in place of, the existing hosted and
-local model measurements.
+The `model_tool_eval` command covers hosted and local models, not CLI Abo-Agents. Run every request from
+`memoryset.json` through the app once with Claude Code and once with Codex, with the request's pages added on the page
+"Gedächtnis" first. Score each request against its expected outcome and record the correct count and any safety failures
+separately for both vendors in `results.md` under SC-001 and SC-003.

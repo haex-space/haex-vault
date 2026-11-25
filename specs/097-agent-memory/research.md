@@ -314,8 +314,7 @@ the runner plays the consent and counts risky calls that ran unasked. The tools 
 - SC-002 is an integration test (`src-tauri/tests/agent_memory_kinds.rs`: the system prompt of an Abo-Agent turn holds a
   page the local agent wrote; a write over an Abo-Agent's pass is found by a local turn; an external agent's session
   offers no memory tool) and a step of the quickstart with the real CLIs.
-- FR-027: one run of the everyday set per small model with a seeded memory of 60 pages, against 95 (Qwen3.5 4B) and 86
-  (Gemma 4 E4B). A model below its number goes onto the list `agent_memory/toc.rs::NO_START_TOC` and gets no block; it
-  keeps the actions.
+- FR-027 (withdrawn 2026-11-25): no run of the small models. The runner still takes `HAEX_EVAL_MEMORY` (the 60 pages of
+  `analysis/seed-memory.json`) for any everyday run; `agent_memory/toc.rs::NO_START_TOC` stays empty.
 - SC-009: a test with 500 generated pages checks the block size for a 4,096-, 32,768- and 200,000-token context, and a
   request of the memory set asks for a fact that only the text of one page holds.
