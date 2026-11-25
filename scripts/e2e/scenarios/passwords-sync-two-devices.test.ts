@@ -3,6 +3,7 @@ import { scenario } from '../lib/scenario.ts'
 import {
   createEntry,
   expectEntries,
+  overview,
   restoreEntry,
   tagCount,
   trashEntry,
@@ -95,4 +96,53 @@ scenario('passwords-sync-two-devices', { timeoutMs: 300_000 }, async (ctx) => {
   )
   assert.equal(await tagCount(phone, 'shared'), 1, 'the tag outlives its entry')
   ctx.step('trash, restore and delete for good arrive')
+
+  // Spec 100 (FR-008, SC-003): a tag merged on one device is merged on the other, every entry keeps
+  // its tag and none carries it twice.
+  const jobOnly = await createEntry(laptop, {
+    title: 'Job only',
+    tags: ['Job'],
+  })
+  const jobAndWork = await createEntry(laptop, {
+    title: 'Job and Work',
+    tags: ['Job', 'Work'],
+  })
+  await expectEntries(
+    ctx,
+    phone,
+    ['Job and Work', 'Job only', 'On laptop', 'On phone'],
+    'the entries with the tag Job to reach the phone',
+  )
+  await ctx.waitFor(
+    'the tag Job to reach the phone',
+    async () => (await tagCount(phone, 'job')) === 1,
+    { timeoutMs: 40_000, fixed: true },
+  )
+  const tagId = async (device: typeof laptop, name: string) => {
+    const tag = (await overview(device)).tags.find((t) => t.name === name)
+    assert.ok(tag, `the device holds no tag named "${name}"`)
+    return tag.id
+  }
+  unwrap(
+    'passwords_merge_tags',
+    await laptop.invoke('passwords_merge_tags', {
+      args: {
+        sourceId: await tagId(laptop, 'Job'),
+        targetId: await tagId(laptop, 'Work'),
+      },
+    }),
+  )
+  await ctx.waitFor(
+    'the merge to reach the phone: no Job, every entry carries Work once',
+    async () => {
+      if ((await tagCount(phone, 'job')) !== 0) return false
+      const { headers } = await overview(phone)
+      return [jobOnly, jobAndWork].every((id) => {
+        const names = headers.find((h) => h.id === id)?.tags.map((t) => t.name)
+        return names?.length === 1 && names[0] === 'Work'
+      })
+    },
+    { timeoutMs: 40_000, fixed: true },
+  )
+  ctx.step('a merged tag is merged on the other device')
 })
