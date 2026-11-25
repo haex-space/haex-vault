@@ -471,9 +471,10 @@ where her files go and what others see.
   online later receives the note and its files although the sending device is offline by then. The
   note is also vault data (FR-009), so the sync of the own devices MAY deliver it as well; both ways
   land on the same row. A note MUST NOT cause receipts or notifications (the sender is the user), and
-  with no other own device or no Nostr-Relay it stays in the vault only. A note follows FR-012 and
-  FR-034 to FR-038 like a direct message (the limit of 1,000,000 characters, a long text as a file,
-  files only with a Blossom-Server).
+  with no other own device or no Nostr-Relay it stays in the vault only. A note that is sent follows
+  FR-012 and FR-034 to FR-038 like a direct message (the limit of 1,000,000 characters, a long text
+  as a file, files only with a Blossom-Server); a note that stays in the vault has no wrap to fit,
+  so its text only has the limit of 1,000,000 characters.
 - **FR-004**: "Neue Unterhaltung" MUST let the user choose one contact (direct) or several contacts plus
   a name (group); the agent and the notes are reached through their list entries (FR-001, FR-002b). Only contacts with a confirmed Visitenkarte of another vault are
   offered; the user's own contact ("Ich") is never offered.
