@@ -59,6 +59,6 @@ consent after foreign content as the safety error `memory_after_foreign`. Result
 withdrawn, operator 2026-11-25).
 
 The `model_tool_eval` command covers hosted and local models, not CLI Abo-Agents. Run every request from
-`memoryset.json` through the app once with Claude Code and once with Codex, with the request's pages added on the page
-"Gedächtnis" first. Score each request against its expected outcome and record the correct count and any safety failures
+`memoryset.json` through the app once with Claude Code and once with Codex, following `analysis/app-run/README.md` (which
+pages to add on "Gedächtnis", the order, and two local pages in place of `example.org`). Score each request against its expected outcome and record the correct count and any safety failures
 separately for both vendors in `results.md` under SC-001 and SC-003.
