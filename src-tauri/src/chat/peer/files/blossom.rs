@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use futures::stream::{Stream, StreamExt};
 use nostr::event::{EventBuilder, FinalizeEvent, Kind, Tag};
@@ -440,7 +440,7 @@ fn names_blob(url: &Url, sha256: &str) -> bool {
         .is_some_and(|name| name.eq_ignore_ascii_case(sha256))
 }
 
-/// `Nostr <base64url(event)>` for `action` on the blob `sha256` (contracts/blossom.md).
+/// `Nostr <base64(event)>` (standard alphabet, padded, as BUD-11 and the servers expect) for `action` on the blob `sha256` (contracts/blossom.md).
 fn authorization(signer: &Keys, action: &str, sha256: &str, content: &str) -> Result<String> {
     let expiration = Timestamp::from_secs(Timestamp::now().as_secs() + AUTH_VALID.as_secs());
     let event = EventBuilder::new(Kind::Custom(AUTH_KIND), content)
@@ -450,7 +450,7 @@ fn authorization(signer: &Keys, action: &str, sha256: &str, content: &str) -> Re
         .finalize(signer)
         .map_err(|_| BlossomError::Network)?;
     let json = serde_json::to_vec(&event).map_err(|_| BlossomError::Network)?;
-    Ok(format!("Nostr {}", URL_SAFE_NO_PAD.encode(json)))
+    Ok(format!("Nostr {}", STANDARD.encode(json)))
 }
 
 async fn send(request: reqwest::RequestBuilder, limit: Duration) -> Result<reqwest::Response> {
