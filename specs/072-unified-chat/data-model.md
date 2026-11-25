@@ -25,8 +25,10 @@ peer vault))`, so both sides and all devices derive the same id; group = random 
 note = `UUIDv5(CHAT_NS, "note:" ‖ lowercase hex of own vault)`, so all own devices derive the same
 one (FR-002b). A note
 conversation has the own vault as its only member; its messages are `chat_peer_messages` rows with the
-own vault as sender and no `chat_deliveries` or outbox rows, so they reach the own devices only through
-the CRDT sync.
+own vault as sender and no `chat_deliveries` rows. _Changed 2026-11-25:_ each note also gets an outbox
+row addressed to the own vault (the own other devices) and its attachments, so it reaches them through
+the delivery service like a message, and through the CRDT sync of the own devices. Both land on
+the same row (the message id is derived from the thread, the sender and the event id).
 Agent conversations keep their existing columns and behaviour.
 
 Validation: `peer_vault` set iff `kind = direct`; `state = request` only for `direct` and `group`;

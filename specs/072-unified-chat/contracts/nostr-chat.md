@@ -41,7 +41,7 @@ device, including the sender's own other devices.
   "at": 1761900000000,
   "from": "<sender vault identity hex>",
   "card": "haex:card:…",
-  "to": { "direct": "<recipient vault hex>" } | { "group": "<group uuid>" },
+  "to": { "direct": "<recipient vault hex>" } | { "group": "<group uuid>" } | { "note": "<own vault hex>" },
   "body": { … }
 }
 ```
@@ -51,6 +51,9 @@ is a non-removed device of `card` → `from` equals the card's vault → `from` 
 own vault (direct) or a group where `from` is a `member` at `at` (except `group.invite`, `group.op` with
 `accept`/`decline` from an invited vault). For an own-device copy of a direct message, also accept when
 `from` is the own vault and `to.direct` is the peer vault; store it in the conversation with that peer.
+A note (`to.note`, FR-002b) is accepted only when `from` and `to.note` both are the own vault and the seal
+key is an own device other than this one; it is stored in the notes, causes no receipt and no
+notification.
 Reject a group op whose `at` is more than five minutes ahead of the receiver's current time (R9), then
 check `v` is known. Any failure: drop silently, no receipt.
 
