@@ -7,7 +7,7 @@ on the device. No data is migrated (no users of the old request behaviour).
 
 | Column             | Type         | New | Meaning                                                                                          |
 | ------------------ | ------------ | --- | ------------------------------------------------------------------------------------------------ |
-| `state`            | TEXT         |     | `'request'` means a stranger knocked; a knock adds no message or attachment rows (research R2)    |
+| `state`            | TEXT         |     | `'request'` means a stranger knocked; a knock adds no message or attachment rows (research R2)   |
 | `request_first_at` | INTEGER NULL | yes | First knock of the request (ms); set when the thread becomes a request                           |
 | `request_last_at`  | INTEGER NULL | yes | Latest knock (ms); updated by every further knock (FR-003)                                       |
 | `peer_blocked_at`  | INTEGER NULL | yes | Sender side: when the peer's blocked notice arrived; cleared by an accepted notice (research R6) |
