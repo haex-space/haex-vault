@@ -113,7 +113,7 @@ Requested while looking at the running app (US2 scenarios 8-11, FR-006, FR-018).
 - [x] T024 [P] Update `specs/034-password-manager/spec.md` FR-011: a short dated note that the manager works by selection, shows counts per app, opens from Wallet and offers merging (spec 100); and `specs/034-password-manager/contracts/tauri-commands.md`: the two new commands under the tag section, linking `specs/100-password-tag-management/contracts/tauri-commands.md`.
 - [x] T025 Run `pnpm exec prettier --write` on every Markdown and JSON file the change touches (specs, both locale files), then `pnpm format:check`.
 - [x] T026 Run the checks and report each result: `cargo fmt --check`, `cargo clippy` for the crate (targeted, `-j 4`), the Rust filters of T009-T013, `pnpm typecheck`, `pnpm typecheck:scripts`, `pnpm lint`, `pnpm check:passwords`, `pnpm check:wallet`, `pnpm check:templates`. Report what could not run.
-- [ ] T027 Commit in Conventional Commits (`feat(passwords): …`, `test(passwords): …`, `docs(passwords): …`; no agent attribution), push the branch and open a PR to `main` (no squash). Leave the quickstart manual items M1-M8 listed as open in the PR description; the operator merges.
+- [x] T027 Commit in Conventional Commits (`feat(passwords): …`, `test(passwords): …`, `docs(passwords): …`; no agent attribution), push the branch and open a PR to `main` (no squash). Leave the quickstart manual items M1-M8 listed as open in the PR description; the operator merges.
 
 ---
 
