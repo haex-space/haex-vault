@@ -30,7 +30,7 @@ fn queued(db: &VaultDb, now: i64) -> Entry {
                 content: "{}".into(),
             },
             &[PEER.to_owned()],
-            &[],
+            &[PEER.to_owned()],
             now,
         )?;
         Ok(())
@@ -150,11 +150,16 @@ fn after_24_hours_the_delivery_fails_but_is_still_tried_and_an_accepted_wrap_cle
     attempt(&anna.db, &entry, unaccepted(), 1_000 + GIVE_UP_MS - 1);
     assert_eq!(delivery(&anna.db), (None, None, None), "not before 24 h");
 
+    anna.db
+        .write_blocking(|tx| {
+            tx.execute(
+                "UPDATE chat_outbox_no_sync SET attempts = 40 WHERE id = 'e1'",
+                [],
+            )?;
+            Ok(())
+        })
+        .expect("set the persisted retry count");
     let entry = due(&anna.db, i64::MAX - 1).remove(0);
-    let entry = Entry {
-        attempts: 40,
-        ..entry
-    };
     let later = 1_000 + GIVE_UP_MS;
     attempt(&anna.db, &entry, unaccepted(), later);
     let (sent, failed, reason) = delivery(&anna.db);
@@ -258,7 +263,7 @@ fn a_parked_vault_stays_parked_when_another_vault_later_succeeds() {
         &anna.db,
         &entry,
         Attempt {
-            failed: vec![(PEER.to_owned(), FailReason::NoDevices)],
+            failed: vec![(PEER.to_owned(), FailReason::Blocked)],
             ..Attempt::default()
         },
         2_000,
