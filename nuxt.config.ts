@@ -26,8 +26,10 @@ export default defineNuxtConfig({
   // clicks meant for what lies above it, and #177: `UiDrawerModal` `dismissible`, which the dialogs
   // that wait for an answer turn off (a click that only brings the window forward must not decline),
   // and #178: the focus ring of fields is no longer half transparent (it read as disabled).
+  // #186 adds `UiButtonCopy` with `external`, `UiButtonDelete`, `UiButtonDownload` and the named icon
+  // buttons (close, back, edit, add, open-external, menu, info, refresh) on `UiButtonIcon`.
   extends: [
-    'github:haex-space/haextension/packages/haex-ui#6ec7eae45a92ed44359216ece06417c4fa11a694',
+    'github:haex-space/haextension/packages/haex-ui#d0bcc969c82ed8e5682b03da9b611766dd42eb42',
   ],
   build: {
     transpile: ['reka-ui'],
