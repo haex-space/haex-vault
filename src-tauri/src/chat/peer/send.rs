@@ -189,7 +189,7 @@ pub fn message(
     // The other vault answered that it takes no messages from this one (spec 099 FR-010): the
     // message is kept and waits, parked, for its answer "accepted".
     if super::gate::blocked_by_peer(tx, &me.vault_hex, &peer)? {
-        outbox::park_vault(tx, &peer, now)?;
+        outbox::park_one(tx, event_id, &message_id.to_string(), &peer, now)?;
     }
     Ok(message_id)
 }
