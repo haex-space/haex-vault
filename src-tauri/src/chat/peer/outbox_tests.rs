@@ -8,7 +8,7 @@
 use super::*;
 use crate::chat::peer::ids;
 use crate::chat::peer::ratchet::RESEND_AFTER_MS;
-use crate::chat::peer::receive::ensure_delivery;
+use crate::chat::peer::receive::{ensure_delivery, insert_message, MessageRow};
 use crate::chat::peer::test_support::{two_vaults, ChatDevice};
 use crate::storage::query::Query;
 use crate::vault_gate::VaultDb;
@@ -277,6 +277,29 @@ fn a_parked_vault_stays_parked_when_another_vault_later_succeeds() {
     let automatic_resend = 7_000 + resend_after(0);
     assert_eq!(next_at(&anna.db), automatic_resend);
     let entry = due(&anna.db, automatic_resend).remove(0);
+    let message = MESSAGE.parse().expect("uuid");
+    let sender_vault = anna.me.vault_hex.clone();
+    let sender_device = anna.me.device_hex();
+    let inserted_by = sender_device.clone();
+    anna.db
+        .write_blocking(move |tx| {
+            insert_message(
+                tx,
+                &MessageRow {
+                    id: message,
+                    thread_id: uuid::Uuid::nil(),
+                    event_id: "e1",
+                    sender_vault: &sender_vault,
+                    sender_device: &sender_device,
+                    text: "message",
+                    sent_at: 1_000,
+                    received_at: 1_000,
+                    inserted_by: &inserted_by,
+                },
+            )?;
+            Ok(())
+        })
+        .expect("message still exists");
     let me = anna.me.clone();
     assert!(anna
         .db
