@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::convert::Infallible;
 use std::sync::{Arc, Mutex, PoisonError};
 
-use base64::engine::general_purpose::STANDARD;
+use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use base64::Engine;
 use http_body_util::{BodyExt, Full};
 use hyper::body::{Bytes, Incoming};
@@ -210,7 +210,8 @@ fn authorized(header: Option<String>, action: &str, sha256: &str) -> Result<Stri
         .ok_or("no authorization")?;
     let json = STANDARD
         .decode(encoded)
-        .map_err(|_| "not standard base64")?;
+        .or_else(|_| URL_SAFE_NO_PAD.decode(encoded))
+        .map_err(|_| "not base64")?;
     let event = Event::from_json(json).map_err(|_| "not an event")?;
     event.verify().map_err(|_| "bad signature")?;
     if event.kind != Kind::Custom(AUTH_KIND) {

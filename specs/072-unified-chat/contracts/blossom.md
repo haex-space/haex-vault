@@ -16,15 +16,16 @@ segment_0 … segment_n      each: AES-256-GCM(key, nonce = prefix ‖ u32 BE in
 
 ## Upload
 
-Every `Authorization: Nostr …` header (upload, `HEAD`, delete) carries the event as standard Base64 (RFC 4648 §4,
-padded), not base64url: servers such as blossom.primal.net and files.sovbit.host reject the URL-safe form.
+Every `Authorization: Nostr …` header (upload, `HEAD`, delete) carries the event as Base64url without padding
+as required by BUD-11. The tested public servers `nostr.download` and `files.sovbit.host` currently require
+standard padded Base64 instead; the client uses that compatibility exception for those hosts only.
 
-1. `HEAD /upload` with `Authorization: Nostr <base64(event)>` and headers `X-SHA-256`,
+1. `HEAD /upload` with `Authorization: Nostr <base64url-no-pad(event)>` and headers `X-SHA-256`,
    `X-Content-Length`, `X-Content-Type: application/octet-stream` (BUD-06/BUD-11). The signed kind
    24242 event has `t=upload`, an `x` tag for the ciphertext hash, an `expiration` tag, and human-readable
    content. A refusal (`4xx` with `X-Reason`) is shown to the user (`blossom:<status>`), the file is not
    sent via Blossom.
-2. `PUT /upload`, body = HXCF ciphertext (streamed), header `Authorization: Nostr <base64(event)>`:
+2. `PUT /upload`, body = HXCF ciphertext (streamed), header `Authorization: Nostr <base64url-no-pad(event)>`:
 
    ```json
    { "kind": 24242, "content": "Upload encrypted chat file", "created_at": <now>,
@@ -42,7 +43,7 @@ verfügbar".
 
 ## Delete
 
-`DELETE /<sha256>` with `Authorization: Nostr <base64(event)>`; its kind 24242 event has
+`DELETE /<sha256>` with `Authorization: Nostr <base64url-no-pad(event)>`; its kind 24242 event has
 `content: "Delete expired chat file"`, `t=delete`, `x=<sha256>`, and an `expiration` tag. It is signed by
 the same credential that signed the upload: the per-blob key in `chat_blobs_no_sync`, or the
 password-manager entry recorded in that blob's `key_entry_id`. Clearing `chat.blossom.keyEntry`
