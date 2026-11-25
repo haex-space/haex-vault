@@ -5,6 +5,7 @@ import { openChat, unwrap, type FlowInstance } from '../lib/flows.ts'
 import { acceptCard } from '../lib/peers.ts'
 import { deviceFiles } from '../lib/extension-files.ts'
 import { ownCardText } from '../lib/share.ts'
+import { choose, openSettings, waitForLocation } from '../lib/settings.ts'
 
 // Spec 072 US3 (quickstart A13, tasks T071, T070, T106): a contact conversation offers files only
 // with a Blossom-Server and otherwise shows the hint to the chat settings; a file sent with a message
@@ -84,32 +85,24 @@ scenario('chat-files', { timeoutMs: 420_000 }, async (ctx) => {
   assert.equal(await count(anna, 'chat-peer-no-server-hint'), 0)
   ctx.step('without a choice the default server offers the attach button')
 
-  unwrap(
-    'set_pref',
-    await anna.invoke('set_pref', {
-      args: {
-        scope: { kind: 'vault' },
-        key: 'chat.blossom.server',
-        value: '',
-      },
-    }),
-  )
+  await openSettings(anna)
+  await anna.click('settings-category-chat')
+  await waitForLocation(anna, 'chat')
+  await choose(anna, 'settings-chat-server', '')
+  await openChat(anna)
+  await anna.click('chat-peer')
   await anna.waitForDisplayed('chat-peer-no-server-hint')
   assert.equal(await count(anna, 'chat-peer-attach'), 0)
   ctx.step(
     'with the server cleared on purpose the conversation shows the hint, not the attach button',
   )
 
-  unwrap(
-    'set_pref',
-    await anna.invoke('set_pref', {
-      args: {
-        scope: { kind: 'vault' },
-        key: 'chat.blossom.server',
-        value: blossom.url,
-      },
-    }),
-  )
+  await openSettings(anna)
+  await anna.click('settings-category-chat')
+  await waitForLocation(anna, 'chat')
+  await choose(anna, 'settings-chat-server', blossom.url)
+  await openChat(anna)
+  await anna.click('chat-peer')
   unwrap(
     'set_pref',
     await ben.invoke('set_pref', {
