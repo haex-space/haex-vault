@@ -156,7 +156,17 @@ fn decode(opened: &Opened) -> std::result::Result<(String, String, Incoming), Dr
             Incoming::Message(envelope),
         ))
     } else if opened.kind == RECEIPT_KIND {
-        let receipt: Receipt = serde_json::from_value(json).map_err(|_| Drop::Malformed)?;
+        let mut receipt: Receipt = serde_json::from_value(json).map_err(|_| Drop::Malformed)?;
+        let Some(from) = vault_bytes(&receipt.from) else {
+            return Err(Drop::Malformed);
+        };
+        receipt.from = hex(&from);
+        if let super::envelope::To::Direct(thread) = &mut receipt.thread {
+            let Some(bytes) = vault_bytes(thread) else {
+                return Err(Drop::Malformed);
+            };
+            *thread = hex(&bytes);
+        }
         Ok((
             receipt.from.clone(),
             receipt.card.clone(),

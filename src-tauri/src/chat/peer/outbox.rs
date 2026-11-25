@@ -92,6 +92,7 @@ pub struct Entry {
     /// Recipient vaults whose delivery receipt has not come; empty for receipts.
     pub awaiting: Vec<String>,
     pub attempts: i64,
+    pub next_at: i64,
     /// How often it was encrypted again for `awaiting` after a Nostr-Relay accepted it.
     pub resends: i64,
     pub created_at: i64,
@@ -149,7 +150,7 @@ pub fn enqueue(
 /// The rows due at `now`, oldest first.
 pub fn due(q: &mut impl Query, now: i64) -> Result<Vec<Entry>> {
     let rows = q.query_map(
-        "SELECT id, thread_id, message_id, rumor, pending, awaiting, attempts, resends, \
+        "SELECT id, thread_id, message_id, rumor, pending, awaiting, attempts, resends, next_at, \
            created_at \
          FROM chat_outbox_no_sync WHERE next_at <= ?1 ORDER BY created_at, id",
         params![now],
@@ -164,6 +165,7 @@ pub fn due(q: &mut impl Query, now: i64) -> Result<Vec<Entry>> {
                 row.get::<_, i64>(6)?,
                 row.get::<_, i64>(7)?,
                 row.get::<_, i64>(8)?,
+                row.get::<_, i64>(9)?,
             ))
         },
     )?;
@@ -178,6 +180,7 @@ pub fn due(q: &mut impl Query, now: i64) -> Result<Vec<Entry>> {
                 awaiting,
                 attempts,
                 resends,
+                next_at,
                 created_at,
             )| {
                 Ok(Entry {
@@ -189,6 +192,7 @@ pub fn due(q: &mut impl Query, now: i64) -> Result<Vec<Entry>> {
                     awaiting: from_json(&awaiting)?,
                     attempts,
                     resends,
+                    next_at,
                     created_at,
                 })
             },

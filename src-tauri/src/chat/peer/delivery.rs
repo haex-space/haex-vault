@@ -318,9 +318,15 @@ impl Delivery {
         let now = self.now();
         // The answers given since the last pump (spec 099 research R5) go on the outbox first.
         let me = self.me.clone();
-        self.db
+        if let Err(error) = self
+            .db
             .write(move |tx| Ok(gate::send_due_notices(tx, &me, now)?))
-            .await?;
+            .await
+        {
+            // Keep the notes: the transaction rolled back, so the next pump retries them. A bad
+            // notice must not stop ordinary due messages from leaving this device.
+            log::warn!("chat: could not queue gate notices; will retry: {error}");
+        }
         let due = self.db.read(move |r| Ok(outbox::due(r, now)?)).await?;
         let mut refreshed_devices = HashSet::new();
         for entry in due {

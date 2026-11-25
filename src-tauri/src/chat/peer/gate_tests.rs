@@ -33,7 +33,7 @@ fn a_noted_answer_becomes_one_receipt_and_a_later_answer_replaces_it() {
         .expect("note");
     assert_eq!(
         anna.db.read_blocking(|r| Ok(notices(r)?)).expect("notes"),
-        [(PEER.to_owned(), Answer::Blocked)]
+        [(PEER.to_owned(), Answer::Blocked, 2)]
     );
     assert_eq!(
         anna.db
@@ -61,6 +61,7 @@ fn a_noted_answer_becomes_one_receipt_and_a_later_answer_replaces_it() {
     assert_eq!(rows[0].pending, [PEER.to_owned()]);
     let receipt = receipt_of(&rows[0]);
     assert_eq!(receipt.answer, Some(Answer::Blocked));
+    assert_eq!(receipt.answer_sequence, Some(2));
     assert!(receipt.delivered.is_empty() && receipt.read.is_empty());
     assert_eq!(
         anna.db
@@ -108,6 +109,7 @@ fn a_newer_answer_replaces_an_older_one_no_nostr_relay_took_yet() {
     let rows = rows(&anna);
     assert_eq!(rows.len(), 1, "the older answer is gone: {rows:?}");
     assert_eq!(receipt_of(&rows[0]).answer, Some(Answer::Blocked));
+    assert_eq!(receipt_of(&rows[0]).answer_sequence, Some(2));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -118,7 +120,7 @@ async fn a_received_answer_parks_and_resumes_and_one_for_another_vault_changes_n
     let message = ben.send(&anna, "Hallo Anna");
     let ben_me = ben.me.clone();
     let anna_vault = anna.me.vault_hex.clone();
-    let answer = |answer: Answer, thread: String| Receipt {
+    let answer = |answer: Answer, thread: String, sequence: i64| Receipt {
         v: crate::chat::peer::envelope::VERSION,
         from: anna_vault.clone(),
         card: "card".into(),
@@ -126,11 +128,14 @@ async fn a_received_answer_parks_and_resumes_and_one_for_another_vault_changes_n
         delivered: vec![],
         read: vec![],
         answer: Some(answer),
+        answer_sequence: Some(sequence),
     };
+    let sender_device = anna.me.device_hex();
     let apply = |receipt: Receipt, now: i64| {
         let me = ben_me.clone();
+        let sender_device = sender_device.clone();
         ben.db
-            .write_blocking(move |tx| Ok(apply_received(tx, &me, &receipt, now)?))
+            .write_blocking(move |tx| Ok(apply_received(tx, &me, &receipt, &sender_device, now)?))
             .expect("apply");
     };
     let blocked = |ben: &ChatDevice| {
@@ -154,10 +159,10 @@ async fn a_received_answer_parks_and_resumes_and_one_for_another_vault_changes_n
     };
 
     // Quickstart Q7: an answer about another conversation is no answer to this vault.
-    apply(answer(Answer::Blocked, PEER.to_owned()), 10);
+    apply(answer(Answer::Blocked, PEER.to_owned(), 1), 10);
     assert!(!blocked(&ben));
 
-    apply(answer(Answer::Blocked, ben.me.vault_hex.clone()), 20);
+    apply(answer(Answer::Blocked, ben.me.vault_hex.clone(), 2), 20);
     assert!(blocked(&ben));
     assert_eq!(reason(&ben).as_deref(), Some("blocked"));
     assert!(
@@ -167,8 +172,13 @@ async fn a_received_answer_parks_and_resumes_and_one_for_another_vault_changes_n
         "nothing is sent to Anna any more"
     );
 
-    apply(answer(Answer::Accepted, ben.me.vault_hex.clone()), 30);
+    apply(answer(Answer::Accepted, ben.me.vault_hex.clone(), 2), 30);
     assert!(!blocked(&ben));
+    apply(answer(Answer::Blocked, PEER.to_owned(), 1), 40);
+    assert!(
+        !blocked(&ben),
+        "an older answer from the same device is ignored"
+    );
     assert_eq!(reason(&ben), None);
     assert!(
         ben.db

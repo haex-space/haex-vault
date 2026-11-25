@@ -267,6 +267,7 @@ pub fn receipt(
     tx: &mut CrdtTransaction<'_>,
     me: &Me,
     receipt: &Receipt,
+    sender_device: &str,
     now: i64,
 ) -> Result<usize> {
     let To::Direct(_) = receipt.thread else {
@@ -274,7 +275,7 @@ pub fn receipt(
     };
     // An answer of the other vault to this one (spec 099): parks or resumes what waits for it.
     let own = &me.vault_hex;
-    super::gate::apply_received(tx, me, receipt, now)?;
+    super::gate::apply_received(tx, me, receipt, sender_device, now)?;
     let thread_id = ids::direct_thread_id(own, &receipt.from);
     let mut changed = 0;
     let read = receipt.read.iter().map(|id| (id, true));

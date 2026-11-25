@@ -51,9 +51,12 @@ now` on every row whose `awaiting` holds that vault (FR-008). A row carrying a b
 | `peer_vault` | TEXT PK | The vault the notice goes to (hex)                      |
 | `answer`     | TEXT    | `'accepted'` or `'blocked'`; a later answer replaces it |
 | `created_at` | INTEGER | When the answer was given (ms)                          |
+| `sequence`   | INTEGER | Monotonic per-peer counter assigned by this device      |
 
 Written in the transaction that changes the request or the block (research R5); the chat session turns a
-row into a receipt on the outbox and deletes it.
+row into a receipt on the outbox and deletes it. A separate device-local counter table persists the
+sequence after sending; received counters are stored per peer and answering device so a late older
+answer from that device cannot replace a newer one.
 
 ## `haex_contacts_blocked_vaults` (synchronized, changed; spec 051)
 

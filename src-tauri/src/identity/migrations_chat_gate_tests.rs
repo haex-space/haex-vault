@@ -34,6 +34,11 @@ fn assert_schema(db: &Database) {
         "the block list stays tracked"
     );
     assert!(table_exists(db, "chat_gate_notices_no_sync"));
+    assert!(table_exists(db, "chat_gate_answer_sequences_no_sync"));
+    assert!(table_exists(db, "chat_gate_received_answers_no_sync"));
+    assert!(column_names(db, "chat_gate_notices_no_sync")
+        .iter()
+        .any(|name| name == "sequence"));
     assert!(
         !has_hlc_column(db, "chat_gate_notices_no_sync"),
         "the notices stay on the device"

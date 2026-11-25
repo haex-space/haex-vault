@@ -569,6 +569,7 @@
       "tooLong": "The text is too long (at most 1,000,000 characters).",
       "tooLarge": "The message is too large.",
       "resendElsewhere": "This message was written on another of your devices. Send it again from there.",
+      "resendBlocked": "The recipient has blocked you. You can send again if they accept you.",
       "modelNotInProfile": "This model is not in the active agent profile. Choose another model or another agent profile."
     },
     "notify": {

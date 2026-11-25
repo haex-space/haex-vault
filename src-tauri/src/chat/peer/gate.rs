@@ -29,25 +29,37 @@ pub fn write_notice(
     now: i64,
 ) -> Result<()> {
     tx.execute(
-        "INSERT INTO chat_gate_notices_no_sync (peer_vault, answer, created_at) \
-         VALUES (?1, ?2, ?3) \
+        "INSERT INTO chat_gate_answer_sequences_no_sync (peer_vault, sequence) VALUES (?1, 1) \
+         ON CONFLICT(peer_vault) DO UPDATE SET sequence = sequence + 1",
+        params![peer_vault],
+    )?;
+    let sequence: i64 = tx.query_row(
+        "SELECT sequence FROM chat_gate_answer_sequences_no_sync WHERE peer_vault = ?1",
+        params![peer_vault],
+        |row| row.get(0),
+    )?;
+    tx.execute(
+        "INSERT INTO chat_gate_notices_no_sync (peer_vault, answer, created_at, sequence) \
+         VALUES (?1, ?2, ?3, ?4) \
          ON CONFLICT(peer_vault) DO UPDATE SET answer = excluded.answer, \
-           created_at = excluded.created_at",
-        params![peer_vault, answer.as_str(), now],
+           created_at = excluded.created_at, sequence = excluded.sequence",
+        params![peer_vault, answer.as_str(), now, sequence],
     )?;
     Ok(())
 }
 
 /// The noted answers, oldest first.
-pub fn notices(q: &mut impl Query) -> Result<Vec<(String, Answer)>> {
-    let rows: Vec<(String, String)> = q.query_map(
-        "SELECT peer_vault, answer FROM chat_gate_notices_no_sync ORDER BY created_at, peer_vault",
+pub fn notices(q: &mut impl Query) -> Result<Vec<(String, Answer, i64)>> {
+    let rows: Vec<(String, String, i64)> = q.query_map(
+        "SELECT peer_vault, answer, sequence FROM chat_gate_notices_no_sync ORDER BY created_at, peer_vault",
         &[],
-        |row| Ok((row.get(0)?, row.get(1)?)),
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
     )?;
     Ok(rows
         .into_iter()
-        .filter_map(|(vault, answer)| Answer::parse(&answer).map(|answer| (vault, answer)))
+        .filter_map(|(vault, answer, sequence)| {
+            Answer::parse(&answer).map(|answer| (vault, answer, sequence))
+        })
         .collect())
 }
 
@@ -56,9 +68,9 @@ pub fn notices(q: &mut impl Query) -> Result<Vec<(String, Answer)>> {
 /// reach the vault after the newer one (contracts/nostr-chat-gate.md).
 pub fn send_due_notices(tx: &mut CrdtTransaction<'_>, me: &Me, now: i64) -> Result<usize> {
     let due = notices(tx)?;
-    for (vault, answer) in &due {
+    for (vault, answer, sequence) in &due {
         drop_unsent_notices(tx, vault)?;
-        send::notice(tx, me, vault, *answer, now)?;
+        send::notice(tx, me, vault, *answer, *sequence, now)?;
     }
     // Every note is on the outbox now; one whose answer did not parse is of no use to anyone.
     tx.execute("DELETE FROM chat_gate_notices_no_sync", &[])?;
@@ -133,6 +145,7 @@ pub fn apply_received(
     tx: &mut CrdtTransaction<'_>,
     me: &Me,
     receipt: &Receipt,
+    sender_device: &str,
     now: i64,
 ) -> Result<()> {
     let own = &me.vault_hex;
@@ -140,6 +153,16 @@ pub fn apply_received(
         return Ok(());
     };
     if receipt.thread != To::Direct(own.to_owned()) {
+        return Ok(());
+    }
+    let sequence = receipt.answer_sequence.unwrap_or(0);
+    let last: Option<i64> = tx.query_row(
+        "SELECT sequence FROM chat_gate_received_answers_no_sync \
+         WHERE peer_vault = ?1 AND sender_device = ?2",
+        params![receipt.from, sender_device],
+        |row| row.get(0),
+    )?;
+    if last.is_some_and(|last| sequence <= last) {
         return Ok(());
     }
     let thread_id = ids::direct_thread_id(own, &receipt.from).to_string();
@@ -161,6 +184,12 @@ pub fn apply_received(
             outbox::resume_vault(tx, me, &receipt.from, now)?;
         }
     }
+    tx.execute(
+        "INSERT INTO chat_gate_received_answers_no_sync (peer_vault, sender_device, sequence) \
+         VALUES (?1, ?2, ?3) ON CONFLICT(peer_vault, sender_device) \
+         DO UPDATE SET sequence = excluded.sequence",
+        params![receipt.from, sender_device, sequence],
+    )?;
     Ok(())
 }
 
