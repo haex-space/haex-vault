@@ -16,9 +16,9 @@ pub const SHARE: usize = 10;
 /// Characters per token, as `chat::tools::context_budget` counts.
 pub const CHARS_PER_TOKEN: usize = 3;
 
-/// The models that get no block at the start (FR-027): a small model whose everyday result fell with
-/// the block keeps the actions but starts without it. Subject keys (`model:<id>`); filled by the
-/// measurement of PR D.
+/// The models that get no block at the start: a model whose results fall with the block keeps the
+/// actions but starts without it. Subject keys (`model:<id>`). Empty: the small models were not
+/// measured with the memory (FR-027 withdrawn, operator 2026-11-25).
 pub const NO_START_TOC: &[&str] = &[];
 
 const HEADING: &str = "## Memory";
