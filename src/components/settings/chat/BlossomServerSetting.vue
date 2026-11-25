@@ -33,6 +33,8 @@ const { getPrefAsync, setPrefAsync } = usePreferences()
 const selected = ref('')
 const own = ref<OwnServer[]>([])
 const busy = ref(false)
+let reloadPending = false
+let loadGeneration = 0
 const checking = ref(false)
 const result = ref<ChatBlossomCheck | null>(null)
 const newUrl = ref('')
@@ -86,20 +88,36 @@ function parseServers(raw: string | null): OwnServer[] {
   }
 }
 
-async function loadAsync() {
+async function loadAsync(preserveSelection = false) {
+  const generation = ++loadGeneration
   try {
     // What a send uses: the default until the user chose, '' once they chose none.
-    selected.value = (await invoke<string | null>('chat_blossom_server')) ?? ''
-    own.value = parseServers(await getPrefAsync({ kind: 'vault' }, SERVERS_KEY))
+    const [storedSelection, storedServers] = await Promise.all([
+      invoke<string | null>('chat_blossom_server'),
+      getPrefAsync({ kind: 'vault' }, SERVERS_KEY),
+    ])
+    // A slow initial load or preference event must not overwrite a choice made in the meantime.
+    if (generation !== loadGeneration) return
+    if (!preserveSelection) selected.value = storedSelection ?? ''
+    own.value = parseServers(storedServers)
     result.value = null
   } catch (cause) {
-    toast.error(errString(cause))
+    if (generation === loadGeneration) toast.error(errString(cause))
+  }
+}
+
+async function finishBusy(preserveSelection = true) {
+  busy.value = false
+  if (reloadPending) {
+    reloadPending = false
+    await loadAsync(preserveSelection)
   }
 }
 
 async function chooseAsync(url: string) {
   if (url === selected.value || busy.value) return
   busy.value = true
+  ++loadGeneration
   try {
     // action-exempt: where chat files go is the user's own choice; no agent gets an action to
     // point them at another server.
@@ -111,7 +129,7 @@ async function chooseAsync(url: string) {
     // Show what is stored, not what was picked.
     await loadAsync()
   } finally {
-    busy.value = false
+    await finishBusy()
   }
 }
 
@@ -131,6 +149,7 @@ async function addAsync() {
   if (!url || busy.value) return
   const known = [...COMMUNITY, ...own.value.map((server) => server.url)]
   busy.value = true
+  ++loadGeneration
   try {
     if (!known.includes(url)) {
       await saveOwnAsync([...own.value, { url, badge }])
@@ -139,10 +158,10 @@ async function addAsync() {
     newBadge.value = ''
   } catch (cause) {
     toast.error(errString(cause))
-    busy.value = false
+    await finishBusy()
     return
   }
-  busy.value = false
+  await finishBusy()
   // Adding a server is meant to use it.
   await chooseAsync(url)
 }
@@ -151,14 +170,15 @@ async function removeAsync() {
   const url = selected.value
   if (!selectedIsOwn.value || busy.value) return
   busy.value = true
+  ++loadGeneration
   try {
     await saveOwnAsync(own.value.filter((server) => server.url !== url))
   } catch (cause) {
     toast.error(errString(cause))
-    busy.value = false
+    await finishBusy()
     return
   }
-  busy.value = false
+  await finishBusy()
   await chooseAsync(DEFAULT_SERVER)
 }
 
@@ -192,7 +212,11 @@ const verdictIsGood = computed(() => result.value?.verdict === 'accepts')
 
 onMounted(loadAsync)
 onVaultTablesChanged(['preferences'], () => {
-  if (!busy.value) return loadAsync()
+  if (busy.value) {
+    reloadPending = true
+    return
+  }
+  return loadAsync()
 })
 </script>
 

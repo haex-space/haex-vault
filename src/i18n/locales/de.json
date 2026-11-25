@@ -1230,7 +1230,6 @@
       "marketplaces": {
         "add": "Marketplace hinzufügen",
         "addHint": "Dein eigener oder ein selbst betriebener, über seine Adresse",
-        "info": "Mehr Informationen",
         "none": "Es ist kein Marketplace eingerichtet. Der Katalog bleibt leer, bis du einen hinzufügst.",
         "edit": "Bearbeiten",
         "toggle": "{name} im Katalog verwenden",
@@ -1592,6 +1591,7 @@
     "chat": {
       "server": {
         "label": "Blossom-Server für Dateien",
+        "info": "Mehr Informationen",
         "hint": "Dateien im Chat gehen verschlüsselt über diesen Server; er sieht nur Größe, Zeitpunkt und deine IP-Adresse. Community-Server sind öffentlich und ohne Garantie: Sie können Dateien löschen oder den Dienst einstellen. Ohne Server kannst du keine Dateien anhängen.",
         "none": "Keiner",
         "community": "Community-Server",
