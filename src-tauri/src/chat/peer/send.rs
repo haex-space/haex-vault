@@ -243,7 +243,7 @@ pub fn receipt(
             return Ok(());
         }
     }
-    enqueue_receipt(tx, me, peer, delivered, read, None, None, now)
+    enqueue_receipt(tx, me, peer, delivered, read, None, now)
 }
 
 /// Queues the answer of this vault to `peer` (spec 099 FR-007, FR-009, FR-014, FR-016): a receipt
@@ -263,8 +263,7 @@ pub fn notice(
         peer,
         Vec::new(),
         Vec::new(),
-        Some(answer),
-        Some(sequence),
+        Some((answer, sequence)),
         now,
     )
 }
@@ -275,10 +274,12 @@ fn enqueue_receipt(
     peer: &str,
     delivered: Vec<String>,
     read: Vec<String>,
-    answer: Option<Answer>,
-    answer_sequence: Option<i64>,
+    answer: Option<(Answer, i64)>,
     now: i64,
 ) -> Result<()> {
+    let (answer, answer_sequence) = answer
+        .map(|(answer, sequence)| (Some(answer), Some(sequence)))
+        .unwrap_or((None, None));
     let rumor = Receipt {
         v: VERSION,
         from: me.vault_hex.clone(),
