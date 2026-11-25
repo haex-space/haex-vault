@@ -80,10 +80,24 @@ scenario('chat-files', { timeoutMs: 420_000 }, async (ctx) => {
 
   await openChat(anna)
   await anna.click('chat-peer')
+  await anna.waitForDisplayed('chat-peer-attach')
+  assert.equal(await count(anna, 'chat-peer-no-server-hint'), 0)
+  ctx.step('without a choice the default server offers the attach button')
+
+  unwrap(
+    'set_pref',
+    await anna.invoke('set_pref', {
+      args: {
+        scope: { kind: 'vault' },
+        key: 'chat.blossom.server',
+        value: '',
+      },
+    }),
+  )
   await anna.waitForDisplayed('chat-peer-no-server-hint')
   assert.equal(await count(anna, 'chat-peer-attach'), 0)
   ctx.step(
-    'without a Blossom-Server the conversation shows the hint, not the attach button',
+    'with the server cleared on purpose the conversation shows the hint, not the attach button',
   )
 
   unwrap(
