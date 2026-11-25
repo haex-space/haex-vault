@@ -49,3 +49,27 @@ them with `find_actions` (or a local model through the routed domain `memory`). 
 answered that it had no tool instead of searching. Since 2026-11-25 (operator) a turn that gets the block is offered `memory_search` from its first step on, and
 `memory_add` too when it may write (`agent_memory::turn::offer_with_block`, in the chat and in the everyday runner alike);
 `memory_open` and `memory_write` stay with the search. The runs above were measured before that.
+
+## Tool names in the prompt
+
+Measured 2026-11-25 (operator): does a hosted model do better when its system prompt names the tools `find_actions` can
+add? The line (`chat::tools::tool_names`) names every tool a search can add that the turn may use, without schemas (about
+2,500 characters for the everyday world), only for turns that do not route. Claude Opus 5.5 through `claude -p`, both
+sides with the memory's tools in the first offer (`offer_with_block`). Reports: `runs/tools-offer-*` (without the line)
+and `runs/tools-names-*` (with it).
+
+| Run                 | Without the line | With the line |
+| ------------------- | ---------------- | ------------- |
+| Everyday set (106)  | 102              | 102           |
+| Memory set (20), 1  | 19               | 20            |
+| Memory set (20), 2  | 19               | 20            |
+| Safety errors (all) | 0                | 0             |
+
+- **Everyday set:** the same four requests fail on both sides (`no_tool-de-3`, `-de-4`, `-en-3`, `-en-4`): asked for a
+  calendar entry or a shopping list, Opus searches before it says that HaexVault has none, which the set counts as a
+  spurious call. With the line it searched fewer times in two of them (`no_tool-de-3`, `no_tool-en-4`), but still at least once.
+- **Memory set:** without the line `correct-en-1` failed in both runs: Opus tried `memory_add` three times before it
+  searched. With the line it passed both times.
+
+The line stays for turns that do not route. The small local models were not measured with it (FR-027 withdrawn); they
+do not get it.
