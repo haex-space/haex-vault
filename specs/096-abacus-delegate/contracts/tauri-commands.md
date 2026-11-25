@@ -58,7 +58,8 @@ Returns the delegate vendors that are not offered under the approving posture ("
 every tool of theirs asks first (plan D6): `["abacusai"]` while the release gate
 `READ_ONLY_TOOLS_REACH_APPROVAL_BRIDGE` in `adapters/cli_delegate/abacus.rs` is `false`, otherwise `[]`. The model picker lists
 such a vendor's entry as unavailable (`chat.model.delegateApprovalsUnverified`), Settings says why, and a request ends with the
-reason `delegate.approvals_unverified: abacusai` before anything is started. A stub program of a test is not held to the gate.
+reason `delegate.approvals_unverified: abacusai` before anything is started. Since 2026-11-24 the gate is `true` (research
+§12: with the ask rule the adapter passes in `--settings`, every tool asks first), so the command returns `[]`.
 
 ### `delete_provider(id)` (existing command, extended)
 

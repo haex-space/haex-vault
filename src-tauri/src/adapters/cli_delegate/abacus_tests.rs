@@ -13,8 +13,8 @@ use tempfile::TempDir;
 
 use super::{
     approval_answer, build_command, chosen_model, default_model, fatal_reason, parse_line,
-    startup_error, user_line, write_attachments, Line, APPROVALS_UNVERIFIED,
-    APPROVAL_SETTINGS_FILE, CREDENTIAL_REFUSED, NOT_CONNECTED,
+    spawn_abacus_invocation_with_coverage, startup_error, user_line, write_attachments, Line,
+    APPROVALS_UNVERIFIED, APPROVAL_SETTINGS_FILE, CREDENTIAL_REFUSED, NOT_CONNECTED,
 };
 use crate::adapters::cli_delegate::autonomy::AutonomyMode;
 use crate::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
@@ -313,7 +313,6 @@ impl Fixture {
             DelegateRuntime::for_stub("abacusai", program, self.dir.path()),
             Some(context),
         )
-        .with_abacus_approval_coverage_for_test()
     }
 
     fn context(&self) -> DelegateChatContext {
@@ -446,23 +445,25 @@ async fn the_command_line_is_the_contract_and_the_child_has_the_device_code_and_
 }
 
 #[tokio::test]
-async fn standard_requests_stay_unavailable_until_approval_coverage_is_verified() {
+async fn with_the_gate_closed_standard_requests_are_unavailable_and_nothing_starts() {
     let fixture = Fixture::new().await;
     let program = fixture.stub(&format!(
         "echo started > '{}'\n{happy}",
         fixture.path("started").display(),
         happy = happy_body(),
     ));
-    let adapter = CliDelegateAdapter::new(
-        DelegateVendor::Abacus,
-        Vec::new(),
-        DelegateRuntime::for_stub("abacusai", &program, fixture.dir.path()),
-        Some(fixture.context()),
-    );
 
-    let error = match adapter.stream_chat(request("abacusai")).await {
+    let error = match spawn_abacus_invocation_with_coverage(
+        DelegateRuntime::for_stub("abacusai", &program, fixture.dir.path()),
+        request("abacusai"),
+        fixture.context(),
+        "abacusai".to_string(),
+        false,
+    )
+    .await
+    {
         Err(error) => error,
-        Ok(_) => panic!("Abacus must stay gated until tool approval coverage is verified"),
+        Ok(_) => panic!("a closed gate must not start the program"),
     };
 
     assert!(
@@ -500,8 +501,7 @@ async fn the_user_line_is_written_and_text_and_the_result_become_the_chat_stream
         Vec::new(),
         runtime,
         Some(fixture.context()),
-    )
-    .with_abacus_approval_coverage_for_test();
+    );
 
     let mut stream = adapter.stream_chat(request("abacusai")).await.unwrap();
     let (text, done, error) = collect(&mut stream).await;

@@ -57,9 +57,10 @@ pub(super) fn approval_settings() -> Value {
     json!({ "permissions": { "ask": ["*"] } })
 }
 
-/// The release gate of spec 096 T034. Flip only after T035 records that read-only and changing
-/// tools both reach the approval bridge.
-pub(super) const READ_ONLY_TOOLS_REACH_APPROVAL_BRIDGE: bool = false;
+/// The release gate of spec 096 T034. Open since T035 recorded (research §12, 2026-11-24) that
+/// with the ask rule of [`APPROVAL_SETTINGS_FILE`] read-only and changing tools both reach the
+/// approval bridge, also against a home config that allows every tool.
+pub(super) const READ_ONLY_TOOLS_REACH_APPROVAL_BRIDGE: bool = true;
 
 /// Whether the gate lets requests through; the model picker and Settings ask the backend for it
 /// (`cli_delegate_unverified_approvals`), so the flag has one home.
@@ -454,16 +455,6 @@ pub(super) async fn spawn_abacus_invocation(
         READ_ONLY_TOOLS_REACH_APPROVAL_BRIDGE,
     )
     .await
-}
-
-#[cfg(test)]
-pub(super) async fn spawn_abacus_invocation_for_test(
-    runtime: DelegateRuntime,
-    req: ChatRequest,
-    context: DelegateChatContext,
-    model: String,
-) -> Result<AdapterStream, AdapterError> {
-    spawn_abacus_invocation_with_coverage(runtime, req, context, model, true).await
 }
 
 async fn spawn_abacus_invocation_with_coverage(

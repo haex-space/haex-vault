@@ -203,10 +203,6 @@ pub struct CliDelegateAdapter {
     /// (`<provider id>:<remote id>`) whose agent profile limits what the delegate may do with
     /// haex-vault's tools (spec 083 FR-028).
     provider_id: Option<Uuid>,
-    /// Only unit tests that explicitly exercise the measured protocol may bypass T034's release
-    /// gate; production builds always read the constant in `abacus.rs`.
-    #[cfg(test)]
-    abacus_approval_coverage_verified: bool,
 }
 
 impl CliDelegateAdapter {
@@ -223,15 +219,7 @@ impl CliDelegateAdapter {
             runtime: runtime.into(),
             chat_context,
             provider_id: None,
-            #[cfg(test)]
-            abacus_approval_coverage_verified: false,
         }
-    }
-
-    #[cfg(test)]
-    pub(super) fn with_abacus_approval_coverage_for_test(mut self) -> Self {
-        self.abacus_approval_coverage_verified = true;
-        self
     }
 
     /// The adapter of the provider row `provider_id`.
@@ -370,11 +358,6 @@ impl ProviderAdapter for CliDelegateAdapter {
             }
             DelegateVendor::Abacus => {
                 // The credential is read at the start from the password manager: the row has none.
-                #[cfg(test)]
-                if self.abacus_approval_coverage_verified {
-                    return abacus::spawn_abacus_invocation_for_test(runtime, req, context, model)
-                        .await;
-                }
                 abacus::spawn_abacus_invocation(runtime, req, context, model).await
             }
         }
