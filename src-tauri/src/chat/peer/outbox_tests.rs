@@ -320,10 +320,10 @@ fn a_parked_vault_stays_parked_when_another_vault_later_succeeds() {
     let blocked_resend = anna
         .db
         .write_blocking(|tx| Ok(resend(tx, MESSAGE, 8_000)))
-        .expect_err("manual resend cannot clear a blocked failure");
+        .expect("manual resend transaction");
     assert!(matches!(
         blocked_resend,
-        crate::error::HaexError::InvalidInput { .. }
+        Err(crate::error::HaexError::InvalidInput { .. })
     ));
 }
 
