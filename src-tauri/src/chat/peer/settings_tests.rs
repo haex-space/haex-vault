@@ -47,14 +47,18 @@ fn both_settings_are_on_until_turned_off_and_garbage_reads_as_on() {
 }
 
 #[test]
-fn no_blossom_server_until_chosen_and_the_download_limit_is_per_device() {
+fn the_blossom_server_defaults_until_chosen_and_the_download_limit_is_per_device() {
     let vault = ChatDevice::genesis(&[]);
     let device: Uuid = vault.me.device_uuid.parse().expect("uuid");
     let (server, limit) = vault
         .db
         .read_blocking(move |r| Ok((blossom_server(r)?, auto_limit(r, device)?)))
         .expect("read");
-    assert_eq!(server, None, "FR-038: none until the user picks one");
+    assert_eq!(
+        server.as_deref(),
+        Some(DEFAULT_BLOSSOM_SERVER),
+        "FR-038: the default until the user picks one"
+    );
     assert_eq!(limit, DEFAULT_AUTO_LIMIT);
 
     vault
@@ -88,5 +92,8 @@ fn no_blossom_server_until_chosen_and_the_download_limit_is_per_device() {
         .db
         .read_blocking(|r| Ok(blossom_server(r)?))
         .expect("read");
-    assert_eq!(server, None, "cleared again");
+    assert_eq!(
+        server, None,
+        "cleared on purpose: none, not the default again"
+    );
 }

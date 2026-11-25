@@ -1,6 +1,6 @@
 //! The settings of the chat with contacts (spec 072 FR-023, FR-024, FR-036, FR-038): read receipts
 //! for the whole vault (reciprocal: off sends none and shows none), notifications per device, the
-//! Blossom-Server for files (whole vault; none until the user picks one) and how large a file may
+//! Blossom-Server for files (whole vault; a public server until the user picks another or none) and how large a file may
 //! be to download by itself (per device). A missing or unreadable value reads as the default.
 
 use haex_crdt::CrdtTransaction;
@@ -14,8 +14,12 @@ use crate::storage::query::Query;
 pub const KEY_READ_RECEIPTS: &str = "chat.receipts.read";
 /// Notifications of new messages, per device.
 pub const KEY_NOTIFICATIONS: &str = "chat.notifications";
-/// The Blossom-Server address for files, for the whole vault; empty or missing = none (FR-038).
+/// The Blossom-Server address for files, for the whole vault. Missing = [`DEFAULT_BLOSSOM_SERVER`];
+/// empty = the user chose none (FR-038).
 pub const KEY_BLOSSOM_SERVER: &str = "chat.blossom.server";
+/// The server of a vault that never chose one, so files work right away. It took an encrypted 20 MB
+/// blob anonymously and honoured `DELETE` (spec 072 research R12, tested 2026-11-25).
+pub const DEFAULT_BLOSSOM_SERVER: &str = "https://nostr.download";
 /// Files up to this many bytes download by themselves, per device (FR-036).
 pub const KEY_AUTO_LIMIT: &str = "chat.download.autoLimit";
 /// The id of the password-manager entry that holds the Blossom upload key, for the whole vault;
@@ -49,11 +53,12 @@ pub fn set_notifications(tx: &mut CrdtTransaction<'_>, device: Uuid, on: bool) -
     set_flag(tx, PrefScope::Device(device), KEY_NOTIFICATIONS, on)
 }
 
-/// The Blossom-Server address, `None` when the user chose none.
+/// The Blossom-Server address: the default while the user never chose, `None` once they chose none.
 pub fn blossom_server(q: &mut impl Query) -> Result<Option<String>> {
-    Ok(preferences::get(q, PrefScope::Vault, KEY_BLOSSOM_SERVER)?
-        .map(|address| address.trim().to_owned())
-        .filter(|address| !address.is_empty()))
+    let Some(stored) = preferences::get(q, PrefScope::Vault, KEY_BLOSSOM_SERVER)? else {
+        return Ok(Some(DEFAULT_BLOSSOM_SERVER.to_owned()));
+    };
+    Ok(Some(stored.trim().to_owned()).filter(|address| !address.is_empty()))
 }
 
 pub fn set_blossom_server(tx: &mut CrdtTransaction<'_>, address: Option<&str>) -> Result<()> {

@@ -8,6 +8,7 @@ use tauri::State;
 
 use crate::chat::peer::files::probe::{self, Check};
 use crate::chat::peer::files::upload_key::{self, ChatUploadKey, Resolved};
+use crate::chat::peer::settings;
 use crate::error::{HaexError, Result};
 use crate::passwords::service::PasswordsService;
 use crate::remote_storage::address::SystemResolver;
@@ -37,6 +38,14 @@ pub async fn chat_blossom_check(
         Resolved::Syncing => return Err(key_unavailable("chat.file.keySyncing")),
     };
     Ok(probe::check(&args.url, &SystemResolver, &signer).await)
+}
+
+/// The Blossom-Server chat files go to: the default until the user chose, `None` when they chose
+/// none. The settings and the composer show this, so they never disagree with what a send uses.
+#[tauri::command]
+pub async fn chat_blossom_server(state: State<'_, AppState>) -> Result<Option<String>> {
+    let db = active_database(&state)?;
+    db.read(|r| Ok(settings::blossom_server(r)?)).await
 }
 
 fn key_unavailable(reason: &str) -> HaexError {

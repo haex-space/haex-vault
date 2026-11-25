@@ -577,7 +577,7 @@ where her files go and what others see.
 - **FR-037**: Sending and receiving a file MUST show progress and, on failure, the reason and a retry; a
   transfer interrupted by closing the app MUST resume or restart after the next opening.
 - **FR-038**: Without a chosen Blossom-Server, attaching files MUST NOT be offered (US3 scenario 7); a
-  preset public Blossom-Server is chosen by default.
+  preset public Blossom-Server (nostr.download) is chosen by default; clearing the setting on purpose means none.
 
 **Requests and blocking**
 

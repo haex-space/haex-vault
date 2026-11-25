@@ -95,7 +95,7 @@ use chat::peer::commands::messages::{
 use chat::peer::commands::requests::{chat_request_answer, chat_request_card};
 use chat::peer::commands::settings::{
     chat_blossom_check, chat_blossom_key, chat_blossom_key_candidates, chat_blossom_key_choose,
-    chat_blossom_key_create, chat_blossom_key_remove,
+    chat_blossom_key_create, chat_blossom_key_remove, chat_blossom_server,
 };
 use chat::search::chat_search;
 use chat::session::ChatState;
@@ -952,6 +952,7 @@ pub fn run() {
             chat_attachment_size,
             chat_attachment_text,
             chat_blossom_check,
+            chat_blossom_server,
             chat_blossom_key,
             chat_blossom_key_candidates,
             chat_blossom_key_choose,
