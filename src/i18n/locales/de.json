@@ -1592,6 +1592,10 @@
         "hint": "Dateien im Chat gehen verschlüsselt über diesen Server. Ohne Server kannst du keine Dateien anhängen.",
         "placeholder": "Keiner, oder https://…",
         "check": "Prüfen",
+        "presets": {
+          "label": "Öffentliche Server",
+          "hint": "Community-Server ohne Garantie: Sie können Dateien jederzeit löschen oder den Dienst einstellen. Die Dateien sind verschlüsselt; der Server sieht nur Größe, Zeitpunkt und deine IP-Adresse."
+        },
         "verdict": {
           "accepts": "Der Server nimmt Dateien bis 200 MB an.",
           "onlySmall": "Der Server nimmt nur kleinere Dateien an. {reason}",

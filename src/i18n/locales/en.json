@@ -1592,6 +1592,10 @@
         "hint": "Files in the chat go through this server, encrypted. Without a server you cannot attach files.",
         "placeholder": "None, or https://…",
         "check": "Check",
+        "presets": {
+          "label": "Public servers",
+          "hint": "Community servers without any guarantee: they may delete files or shut down at any time. Files are encrypted; the server only sees size, time and your IP address."
+        },
         "verdict": {
           "accepts": "The server takes files up to 200 MB.",
           "onlySmall": "The server takes smaller files only. {reason}",
