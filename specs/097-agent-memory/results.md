@@ -46,6 +46,6 @@ answer after reading calls and no change, a secret request only without a write.
 
 The block tells a model to store with `memory_add`, but the memory's actions are not part of the first offer: a model finds
 them with `find_actions` (or a local model through the routed domain `memory`). Once (run 1, `web-remember-de-1`) Opus
-answered that it had no tool instead of searching. Offering `memory_search` and
-`memory_add` in the first offer whenever the block is given would close this; it is not part of this spec and left to the
-operator.
+answered that it had no tool instead of searching. Since 2026-11-25 (operator) a turn that gets the block is offered `memory_search` from its first step on, and
+`memory_add` too when it may write (`agent_memory::turn::offer_with_block`, in the chat and in the everyday runner alike);
+`memory_open` and `memory_write` stay with the search. The runs above were measured before that.

@@ -1,13 +1,16 @@
 //! What a turn gets of the memory (spec 097 FR-010, FR-011, FR-015, FR-017, research R5): the
 //! conversation's table of contents, taken once when its first turn starts, and the block built from
-//! it for the turn's model. The tools of the memory are offered by the rights alone
-//! (`profile_gate::retain_permitted`); this decides only the text of the system prompt.
+//! it for the turn's model, and the memory's tools that come with the block. Which tools a turn may
+//! call is still decided by the rights alone (`profile_gate::retain_permitted`).
 
 use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 
 use super::store;
 use super::toc::{block, gives_start_toc, render};
+use crate::adapters::types::ToolSpec;
+use crate::chat::tools::offer::{tool_spec, MAX_ACTION_OFFER};
+use crate::chat::tools::ToolRegistry;
 use crate::mcp_server::grants::MemoryLevel;
 use crate::storage::chat_threads::{memory_toc, take_memory_toc};
 
@@ -47,6 +50,31 @@ pub(crate) fn block_of(
     }
     let block = block(snapshot, context_tokens, level == MemoryLevel::ReadWrite);
     (!block.is_empty()).then_some(block)
+}
+
+/// The memory's tools a turn with the block is offered from its first step on (operator
+/// 2026-11-25): the block tells a model to search with `memory_search` and to store with
+/// `memory_add`, and a model that had to find them first once answered that it had no tool to store
+/// with (results.md "Observation"). `memory_add` comes only with the right to write; `memory_open`
+/// and `memory_write` stay with the tool search. Like every tool of the first step they stay for the
+/// turn. A turn without tools (`tools` empty) or a full offer gets none.
+pub fn offer_with_block(registry: &ToolRegistry, tools: &mut Vec<ToolSpec>, level: MemoryLevel) {
+    let names: &[&str] = match level {
+        MemoryLevel::Off => &[],
+        MemoryLevel::Read => &["memory_search"],
+        MemoryLevel::ReadWrite => &["memory_search", "memory_add"],
+    };
+    if tools.is_empty() {
+        return;
+    }
+    for name in names {
+        if tools.len() >= MAX_ACTION_OFFER || tools.iter().any(|tool| tool.name == *name) {
+            continue;
+        }
+        if let Some(tool) = registry.get(name) {
+            tools.push(tool_spec(tool.as_ref()));
+        }
+    }
 }
 
 /// The memory level of an Abo-Agent's turn (spec 097 T074): that of the agent profile of the model

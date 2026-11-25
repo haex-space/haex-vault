@@ -408,11 +408,17 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
     } else {
         rights.memory
     };
+    let memory_block =
+        crate::agent_memory::turn::block_for_session(&db, &session, thread_id, memory_level).await;
     let (tools, extensions_overview) = {
         let mut tools = tools;
         let mut overview = None;
         if !tools.is_empty() {
             let registry = chat.tool_registry.lock().unwrap_or_else(|e| e.into_inner());
+            // Spec 097: a turn that gets the memory's block gets the tools it names.
+            if memory_block.is_some() {
+                crate::agent_memory::turn::offer_with_block(&registry, &mut tools, memory_level);
+            }
             crate::chat::tools::profile_gate::retain_permitted(&rights, &registry, &mut tools);
             // Spec 065 FR-063: a model that is shown no pictures works with element numbers.
             crate::chat::turn::images::retain_usable(
@@ -526,9 +532,7 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
     let clock = Clock::now(turn.utc_offset_minutes.unwrap_or(0));
     let given = crate::chat::tools::prompt::with_memory(
         turn.system_prompt.as_deref(),
-        crate::agent_memory::turn::block_for_session(&db, &session, thread_id, memory_level)
-            .await
-            .as_deref(),
+        memory_block.as_deref(),
     );
     let prompt_for = |tools: &[crate::adapters::types::ToolSpec]| {
         system_prompt_with(

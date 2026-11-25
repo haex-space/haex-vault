@@ -6,11 +6,13 @@ use super::runner::{app_registry, run_everyday, Profile};
 use super::test_support::{one_request, request_with, tool_results};
 use super::{embedded_mail_tools, embedded_world};
 use crate::adapters::types::StreamChunk;
+use crate::agent_memory::turn::offer_with_block;
 use crate::chat::eval::embedded_tools;
 use crate::chat::eval::testing::{calls, Scripted};
 use crate::chat::tools::availability::ToolAvailability;
 use crate::chat::tools::offer::first_offer;
 use crate::chat::turn::denied_answer;
+use crate::mcp_server::grants::MemoryLevel;
 
 #[tokio::test]
 async fn each_call_ends_as_the_played_dialog_decides() {
@@ -122,10 +124,14 @@ async fn first_offer_seen(text: &str, profile: Profile) -> Vec<String> {
 async fn the_first_offer_is_the_chat_s_own_on_each_device() {
     let text = "Lies mir die letzte Mail von Anna vor.";
     let registry = app_registry(&embedded_tools(), &embedded_mail_tools(), Profile::Desktop);
-    let chat: Vec<String> = first_offer(ToolAvailability::Offered, &registry.lock().unwrap(), text)
-        .into_iter()
-        .map(|t| t.name)
-        .collect();
+    // The chat's first offer in the profile "Standard", which reads and writes the memory, so the
+    // block brings its tools (spec 097).
+    let chat: Vec<String> = {
+        let registry = registry.lock().unwrap();
+        let mut offer = first_offer(ToolAvailability::Offered, &registry, text);
+        offer_with_block(&registry, &mut offer, MemoryLevel::ReadWrite);
+        offer.into_iter().map(|t| t.name).collect()
+    };
     let desktop = first_offer_seen(text, Profile::Desktop).await;
     assert_eq!(desktop, chat);
     assert!(desktop.contains(&"run_command".to_owned()));
