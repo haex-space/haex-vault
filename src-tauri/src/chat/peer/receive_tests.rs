@@ -109,9 +109,9 @@ fn a_receipt_sets_each_state_once() {
         answer: None,
     };
     let apply = |receipt: Receipt, now: i64| {
-        let own = anna.me.vault_hex.clone();
+        let me = anna.me.clone();
         anna.db
-            .write_blocking(move |tx| Ok(super::receipt(tx, &own, &receipt, now)?))
+            .write_blocking(move |tx| Ok(super::receipt(tx, &me, &receipt, now)?))
             .expect("apply")
     };
     assert_eq!(apply(receipt_of(vec![own.id.clone()], vec![]), 7), 1);
