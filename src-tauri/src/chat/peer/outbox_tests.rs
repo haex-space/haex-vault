@@ -154,7 +154,7 @@ fn after_24_hours_the_delivery_fails_but_is_still_tried_and_an_accepted_wrap_cle
         .write_blocking(|tx| {
             tx.execute(
                 "UPDATE chat_outbox_no_sync SET attempts = 40 WHERE id = 'e1'",
-                [],
+                &[],
             )?;
             Ok(())
         })
