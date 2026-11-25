@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::convert::Infallible;
 use std::sync::{Arc, Mutex, PoisonError};
 
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use http_body_util::{BodyExt, Full};
 use hyper::body::{Bytes, Incoming};
@@ -201,16 +201,16 @@ impl BlossomTestServer {
     }
 }
 
-/// Checks `Nostr <base64url(event)>`: signed, kind 24242, `t = action`, `x = sha256`, not expired.
+/// Checks `Nostr <base64(event)>`: signed, kind 24242, `t = action`, `x = sha256`, not expired.
 /// Answers the signing key (hex).
 fn authorized(header: Option<String>, action: &str, sha256: &str) -> Result<String, &'static str> {
     let encoded = header
         .as_deref()
         .and_then(|value| value.strip_prefix("Nostr "))
         .ok_or("no authorization")?;
-    let json = URL_SAFE_NO_PAD
+    let json = STANDARD
         .decode(encoded)
-        .map_err(|_| "not base64url")?;
+        .map_err(|_| "not standard base64")?;
     let event = Event::from_json(json).map_err(|_| "not an event")?;
     event.verify().map_err(|_| "bad signature")?;
     if event.kind != Kind::Custom(AUTH_KIND) {
