@@ -5,7 +5,7 @@ import { openChat, unwrap, type FlowInstance } from '../lib/flows.ts'
 import { acceptCard } from '../lib/peers.ts'
 import { deviceFiles } from '../lib/extension-files.ts'
 import { ownCardText } from '../lib/share.ts'
-import { choose, openSettings, waitForLocation } from '../lib/settings.ts'
+import { choose, runAction, waitForLocation } from '../lib/settings.ts'
 
 // Spec 072 US3 (quickstart A13, tasks T071, T070, T106): a contact conversation offers files only
 // with a Blossom-Server and otherwise shows the hint to the chat settings; a file sent with a message
@@ -85,8 +85,11 @@ scenario('chat-files', { timeoutMs: 420_000 }, async (ctx) => {
   assert.equal(await count(anna, 'chat-peer-no-server-hint'), 0)
   ctx.step('without a choice the default server offers the attach button')
 
-  await openSettings(anna)
-  await anna.click('settings-category-chat')
+  const chatSettings = await runAction(anna, 'wm.app.open', {
+    appId: 'system.settings',
+    at: '/chat',
+  })
+  assert.ok(chatSettings.ok, 'settings should open the chat settings page')
   await waitForLocation(anna, 'chat')
   await choose(anna, 'settings-chat-server', '')
   await openChat(anna)
@@ -97,8 +100,11 @@ scenario('chat-files', { timeoutMs: 420_000 }, async (ctx) => {
     'with the server cleared on purpose the conversation shows the hint, not the attach button',
   )
 
-  await openSettings(anna)
-  await anna.click('settings-category-chat')
+  const chatSettingsAgain = await runAction(anna, 'wm.app.open', {
+    appId: 'system.settings',
+    at: '/chat',
+  })
+  assert.ok(chatSettingsAgain.ok, 'settings should reopen the chat settings page')
   await waitForLocation(anna, 'chat')
   await choose(anna, 'settings-chat-server', blossom.url)
   await openChat(anna)
