@@ -346,3 +346,74 @@ async fn vault_open_backfills_the_tag_on_old_storage_entries() {
     assert!(tags_of(&users).is_empty());
     assert!(tags_of(&mail).is_empty());
 }
+
+/// The tags of the vault as the tag manager sees them: name and color.
+fn tags_of_vault(db: &crate::vault_gate::VaultDb) -> Vec<(String, Option<String>)> {
+    db.read_blocking(|q| {
+        Ok(crate::passwords::items::load_overview(q)?
+            .tags
+            .into_iter()
+            .map(|tag| (tag.name, tag.color))
+            .collect())
+    })
+    .expect("tags")
+}
+
+#[tokio::test]
+async fn a_vault_without_storage_entries_gets_no_storage_tag() {
+    let (_dir, db) = vault();
+    assert_eq!(
+        db.write(credentials::backfill_owned_tags)
+            .await
+            .expect("backfill"),
+        0
+    );
+    assert!(
+        tags_of_vault(&db).is_empty(),
+        "no entry carries the tag, so the tag manager shows none"
+    );
+}
+
+#[tokio::test]
+async fn an_empty_storage_tag_of_an_earlier_version_goes_and_a_used_or_colored_one_stays() {
+    let (_dir, db) = vault();
+    let make = |color: Option<&'static str>| {
+        db.write(move |tx| {
+            let id =
+                crate::passwords::tags::get_or_create(tx, TAG).map_err(haex_crdt::Error::from)?;
+            crate::passwords::tags::set_color(tx, &id, color).map_err(haex_crdt::Error::from)
+        })
+    };
+
+    // Made for every vault by an earlier version: empty, no color.
+    make(None).await.expect("tag");
+    db.write(credentials::backfill_owned_tags)
+        .await
+        .expect("backfill");
+    assert!(tags_of_vault(&db).is_empty(), "the empty tag is removed");
+
+    // The user colored it: it is theirs now.
+    make(Some("#ff0000")).await.expect("tag");
+    db.write(credentials::backfill_owned_tags)
+        .await
+        .expect("backfill");
+    assert_eq!(
+        tags_of_vault(&db),
+        vec![(TAG.to_owned(), Some("#ff0000".to_owned()))]
+    );
+}
+
+#[tokio::test]
+async fn a_storage_tag_that_an_entry_carries_stays_without_storage_entries() {
+    let (_dir, db) = vault();
+    let passwords = PasswordsService::new(db.clone());
+    let bank = add(&passwords, entry("Bank", "anna", SECRET, &[])).await;
+    passwords
+        .set_tags(&Caller::User, vec![bank], vec![TAG.to_owned()], Vec::new())
+        .await
+        .expect("tag the user's entry");
+    db.write(credentials::backfill_owned_tags)
+        .await
+        .expect("backfill");
+    assert_eq!(tags_of_vault(&db).len(), 1, "the user's tag stays");
+}
