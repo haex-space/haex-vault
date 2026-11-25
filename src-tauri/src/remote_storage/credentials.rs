@@ -128,16 +128,48 @@ pub async fn tag_selected(passwords: &PasswordsService, item_id: &str) -> Result
 /// Adds the tag to storage-owned entries created before spec 052. This is idempotent; user-owned
 /// entries are deliberately not changed here. The direct CRDT return type lets this run inside
 /// the synchronous vault-open maintenance transaction.
+///
+/// The tag is made only when there is an entry to carry it: a vault without cloud storage has no
+/// such tag in its tag manager. An empty, uncolored tag of this name that an earlier version made
+/// for every vault is removed while no storage entry exists (a tag with entries or a color is the
+/// user's and stays).
 pub fn backfill_owned_tags(tx: &mut CrdtTransaction<'_>) -> haex_crdt::Result<u32> {
     let tag = ids::fold(TAG);
+    let item_ids = tx.query_map(
+        "SELECT id FROM haex_passwords_item_details WHERE owner = ?1",
+        params![FEATURE],
+        |row| row.get::<_, String>(0),
+    )?;
     let existing_tag = tx
-        .query_map("SELECT id, name FROM haex_passwords_tags", &[], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-        })?
+        .query_map(
+            "SELECT id, name, color FROM haex_passwords_tags",
+            &[],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                ))
+            },
+        )?
         .into_iter()
-        .find(|(_, name)| ids::fold(name) == tag)
-        .map(|(id, _)| id);
-    let tag_id = if let Some(id) = existing_tag {
+        .find(|(_, name, _)| ids::fold(name) == tag);
+    if item_ids.is_empty() {
+        if let Some((id, _, None)) = existing_tag {
+            let links = tx
+                .query_row(
+                    "SELECT COUNT(*) FROM haex_passwords_item_tags WHERE tag_id = ?1",
+                    params![id],
+                    |row| row.get::<_, i64>(0),
+                )?
+                .unwrap_or(0);
+            if links == 0 {
+                tx.execute("DELETE FROM haex_passwords_tags WHERE id = ?1", params![id])?;
+            }
+        }
+        return Ok(0);
+    }
+    let tag_id = if let Some((id, _, _)) = existing_tag {
         id
     } else {
         let id = ids::tag_id(TAG).to_string();
@@ -147,11 +179,6 @@ pub fn backfill_owned_tags(tx: &mut CrdtTransaction<'_>) -> haex_crdt::Result<u3
         )?;
         id
     };
-    let item_ids = tx.query_map(
-        "SELECT id FROM haex_passwords_item_details WHERE owner = ?1",
-        params![FEATURE],
-        |row| row.get::<_, String>(0),
-    )?;
     let mut changed = 0;
     for item_id in item_ids {
         let linked = tx
