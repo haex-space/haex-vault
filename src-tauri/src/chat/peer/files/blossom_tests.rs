@@ -144,9 +144,9 @@ async fn an_upload_is_asked_first_stored_and_downloaded_by_its_hash() {
         .find(|(name, _)| name == "authorization")
         .map(|(_, value)| value.clone())
         .expect("authorization");
-    let json = STANDARD
+    let json = URL_SAFE_NO_PAD
         .decode(auth.strip_prefix("Nostr ").expect("Nostr scheme"))
-        .expect("standard base64");
+        .expect("base64url without padding");
     let event: serde_json::Value = serde_json::from_slice(&json).expect("event");
     assert_eq!(event["kind"], AUTH_KIND);
     assert_eq!(event["pubkey"], keys.public_key().to_hex());

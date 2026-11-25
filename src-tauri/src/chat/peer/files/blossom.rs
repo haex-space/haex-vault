@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use base64::engine::general_purpose::STANDARD;
+use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use base64::Engine;
 use futures::stream::{Stream, StreamExt};
 use nostr::event::{EventBuilder, FinalizeEvent, Kind, Tag};
@@ -209,7 +209,13 @@ impl Server {
     ) -> Result<()> {
         check_upload_size(size)?;
         let url = self.join("upload")?;
-        let auth = authorization(signer, "upload", sha256, "Upload encrypted chat file")?;
+        let auth = authorization(
+            &self.base,
+            signer,
+            "upload",
+            sha256,
+            "Upload encrypted chat file",
+        )?;
         let response = send(
             self.request(Method::HEAD, &url, resolver)
                 .await?
@@ -235,7 +241,13 @@ impl Server {
         check_upload_size(body.size)?;
         let (sha256, size) = (body.sha256, body.size);
         let url = self.join("upload")?;
-        let auth = authorization(signer, "upload", &sha256, "Upload encrypted chat file")?;
+        let auth = authorization(
+            &self.base,
+            signer,
+            "upload",
+            &sha256,
+            "Upload encrypted chat file",
+        )?;
         let moved = Arc::new(AtomicU64::new(0));
         let counted = {
             let moved = Arc::clone(&moved);
@@ -288,7 +300,13 @@ impl Server {
             return Err(BlossomError::NotAllowed);
         }
         let url = self.join(sha256)?;
-        let auth = authorization(signer, "delete", sha256, "Delete expired chat file")?;
+        let auth = authorization(
+            &self.base,
+            signer,
+            "delete",
+            sha256,
+            "Delete expired chat file",
+        )?;
         let response = send(
             self.request(Method::DELETE, &url, resolver)
                 .await?
@@ -440,8 +458,15 @@ fn names_blob(url: &Url, sha256: &str) -> bool {
         .is_some_and(|name| name.eq_ignore_ascii_case(sha256))
 }
 
-/// `Nostr <base64(event)>` (standard alphabet, padded, as BUD-11 and the servers expect) for `action` on the blob `sha256` (contracts/blossom.md).
-fn authorization(signer: &Keys, action: &str, sha256: &str, content: &str) -> Result<String> {
+/// BUD-11 requires base64url without padding. The two public servers we tested only accept standard
+/// base64, so keep that compatibility exception scoped to those hosts.
+fn authorization(
+    server: &Url,
+    signer: &Keys,
+    action: &str,
+    sha256: &str,
+    content: &str,
+) -> Result<String> {
     let expiration = Timestamp::from_secs(Timestamp::now().as_secs() + AUTH_VALID.as_secs());
     let event = EventBuilder::new(Kind::Custom(AUTH_KIND), content)
         .tag(Tag::custom("t", [action]))
@@ -450,7 +475,11 @@ fn authorization(signer: &Keys, action: &str, sha256: &str, content: &str) -> Re
         .finalize(signer)
         .map_err(|_| BlossomError::Network)?;
     let json = serde_json::to_vec(&event).map_err(|_| BlossomError::Network)?;
-    Ok(format!("Nostr {}", STANDARD.encode(json)))
+    let encoded = match server.host_str() {
+        Some("nostr.download" | "files.sovbit.host") => STANDARD.encode(json),
+        _ => URL_SAFE_NO_PAD.encode(json),
+    };
+    Ok(format!("Nostr {encoded}"))
 }
 
 async fn send(request: reqwest::RequestBuilder, limit: Duration) -> Result<reqwest::Response> {
