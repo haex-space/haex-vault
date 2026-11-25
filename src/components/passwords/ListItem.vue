@@ -170,18 +170,7 @@ function onDragStart(event: DragEvent) {
               })
             }}
           </ShadcnBadge>
-          <span
-            class="flex min-w-0 items-center justify-end gap-1.5 overflow-hidden"
-          >
-            <ShadcnBadge
-              v-for="tag in header.tags"
-              :key="tag.id"
-              variant="secondary"
-              :style="tag.color ? { color: tag.color } : undefined"
-            >
-              {{ tag.name }}
-            </ShadcnBadge>
-          </span>
+          <PasswordsListTags :tags="header.tags" />
           <!-- Fixed slots, always reserved: the markers keep their column whether or not the
                entry has tags or the other markers. -->
           <span
