@@ -40,7 +40,8 @@ pub struct Receiver<'a> {
 
 /// Stores a verified message of `sender_device` (hex) in its direct conversation, opened when
 /// there is none yet. An own message from another own device also gets its delivery row, so the
-/// receipts that reach this device find it. `None` for an envelope without a direct `to`.
+/// receipts that reach this device find it. A note of another own device lands in the notes and
+/// gets no delivery row (FR-002b). `None` for an envelope with a group `to`.
 pub fn message(
     tx: &mut CrdtTransaction<'_>,
     me: Receiver<'_>,
@@ -48,12 +49,26 @@ pub fn message(
     envelope: &Envelope,
     now: i64,
 ) -> Result<Option<Stored>> {
-    let To::Direct(to) = &envelope.to else {
-        return Ok(None);
+    let (thread_id, peer, incoming, note) = match &envelope.to {
+        To::Direct(to) => {
+            let incoming = envelope.from != me.vault;
+            let peer = if incoming { &envelope.from } else { to };
+            (
+                store::open_direct(tx, me.vault, peer, now)?,
+                peer,
+                incoming,
+                false,
+            )
+        }
+        // Verified for the own vault from an own device; a note of anybody else is no note.
+        To::Note(vault) if *vault == me.vault && envelope.from == me.vault => (
+            store::open_note(tx, me.vault, now)?,
+            &envelope.from,
+            false,
+            true,
+        ),
+        To::Note(_) | To::Group(_) => return Ok(None),
     };
-    let incoming = envelope.from != me.vault;
-    let peer = if incoming { &envelope.from } else { to };
-    let thread_id = store::open_direct(tx, me.vault, peer, now)?;
     if incoming {
         sort_request(tx, thread_id, envelope)?;
     }
@@ -91,7 +106,7 @@ pub fn message(
         },
     )?;
     insert_attachments(tx, message_id, &body.attachments)?;
-    if !incoming {
+    if !incoming && !note {
         ensure_delivery(tx, message_id, peer)?;
     }
     stored.new = true;

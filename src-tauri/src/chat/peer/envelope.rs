@@ -39,6 +39,8 @@ pub enum To {
     Direct(String),
     /// A group conversation (US4).
     Group(String),
+    /// The notes of the sender: the own vault, hex (FR-002b). Only the own devices accept it.
+    Note(String),
 }
 
 /// The content of a message (contracts/nostr-chat.md `type: "message"`).

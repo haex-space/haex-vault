@@ -1,5 +1,6 @@
 //! Queuing what this device sends (spec 072 US2, research R4, R6): a text message becomes its row,
-//! a delivery row per recipient and an outbox row for the recipient and the own other devices;
+//! a delivery row per recipient and an outbox row for the recipient and the own other devices (a
+//! note: no delivery row and an outbox row for the own other devices only);
 //! receipts become outbox rows to the original sender. The delivery service publishes them.
 
 use haex_crdt::rusqlite::params;
@@ -12,7 +13,7 @@ use super::ratchet::wire::Plaintext;
 use super::receive::{self, MessageRow};
 use super::session::Me;
 use super::store::{self, ConversationKind};
-use super::{ids, settings};
+use super::{ids, settings, targets};
 use crate::contacts::card::{own_card, received};
 use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
@@ -40,9 +41,10 @@ fn queued_content<T: serde::Serialize>(kind: nostr::event::Kind, event: &T) -> R
     Ok(content)
 }
 
-/// Whether `text` is sent to `thread_id` as a message of its own (research R2): a note always is, a
-/// direct message when its envelope with the own card fits one wrap. A text that does not fit goes
-/// as a file with a preview instead (`files::transfers::ChatFiles::send_long_text`).
+/// Whether `text` is sent to `thread_id` as a message of its own (research R2): when its envelope
+/// with the own card fits one wrap. A text that does not fit goes as a file with a preview instead
+/// (`files::transfers::ChatFiles::send_long_text`). A note that reaches no other device (see
+/// [`note_is_wrapped`]) has no wrap, so it always fits.
 pub fn fits_inline(
     q: &mut impl Query,
     me: &Me,
@@ -50,18 +52,13 @@ pub fn fits_inline(
     text: &str,
     now: i64,
 ) -> Result<bool> {
-    let Target::Direct(peer) = target(q, thread_id)? else {
-        return Ok(true);
+    let to = match target(q, thread_id)? {
+        Target::Direct(peer) => To::Direct(peer),
+        Target::Note if note_is_wrapped(q, me)? => To::Note(me.vault_hex.clone()),
+        Target::Note => return Ok(true),
     };
     let card = own_card_text(q)?;
-    let envelope = envelope::message(
-        text,
-        Vec::new(),
-        &me.vault_hex,
-        &card,
-        To::Direct(peer),
-        now,
-    )?;
+    let envelope = envelope::message(text, Vec::new(), &me.vault_hex, &card, to, now)?;
     match queued_content(CHAT_KIND, &envelope) {
         Ok(_) => Ok(true),
         Err(HaexError::InvalidInput { reason }) if reason == "chat.error.tooLarge" => Ok(false),
@@ -73,7 +70,8 @@ pub fn fits_inline(
 enum Target {
     /// To the other vault of an active direct conversation (hex).
     Direct(String),
-    /// Nowhere: a note stays in the vault and reaches the own devices through the sync (FR-002b).
+    /// The own other devices (FR-002b): a note goes as a wrap like a message, and also reaches them
+    /// through the sync of the vault.
     Note,
 }
 
@@ -100,13 +98,21 @@ fn target(q: &mut impl Query, thread_id: Uuid) -> Result<Target> {
     }
 }
 
-/// The other vault of the direct conversation `thread_id` that takes messages; `None` for the
-/// notes. Files are checked against it before they are uploaded.
-pub fn direct_peer(q: &mut impl Query, thread_id: Uuid) -> Result<Option<String>> {
+/// The vault that takes the messages of `thread_id`: the other vault of an active direct
+/// conversation, the own vault for the notes. Files are checked against it before they are uploaded.
+pub fn recipient(q: &mut impl Query, me: &Me, thread_id: Uuid) -> Result<String> {
     Ok(match target(q, thread_id)? {
-        Target::Direct(peer) => Some(peer),
-        Target::Note => None,
+        Target::Direct(peer) => peer,
+        Target::Note => me.vault_hex.clone(),
     })
+}
+
+/// Whether a note is published at all: there is another own device and an own Nostr-Relay to reach
+/// it. Without them the note stays in the vault, and the sync brings it to a device that joins
+/// later (FR-002b).
+fn note_is_wrapped(q: &mut impl Query, me: &Me) -> Result<bool> {
+    let own = targets::of(q, me, &me.vault_hex)?;
+    Ok(!own.devices.is_empty() && !own.relays.is_empty())
 }
 
 /// Whether the own message with `event_id` in `thread_id` was queued already (a retry).
@@ -142,32 +148,31 @@ pub fn message(
         return Ok(message_id);
     }
     let message_id = ids::message_id(thread_id, &me.vault_hex, event_id);
-    let Target::Direct(peer) = target else {
-        if !attachments.is_empty() {
-            // `ponytail:` notes take text only; files in notes need no Blossom-Server, a later step.
-            return Err(HaexError::InvalidInput {
-                reason: "chat.file.notInNotes".into(),
-            });
-        }
-        let text = envelope::checked_text(text)?;
-        store_own(tx, me, message_id, thread_id, event_id, text, now)?;
-        return Ok(message_id);
+    let (to, peer) = match target {
+        Target::Direct(peer) => (To::Direct(peer.clone()), peer),
+        Target::Note => (To::Note(me.vault_hex.clone()), me.vault_hex.clone()),
     };
+    let note = matches!(to, To::Note(_));
+    if note && !note_is_wrapped(tx, me)? {
+        let text = envelope::checked_body(text, attachments.len())?;
+        store_own(tx, me, message_id, thread_id, event_id, text, now)?;
+        receive::insert_attachments(tx, message_id, &attachments)?;
+        return Ok(message_id);
+    }
     let card = own_card_text(tx)?;
-    let mut envelope = envelope::message(
-        text,
-        attachments,
-        &me.vault_hex,
-        &card,
-        To::Direct(peer.clone()),
-        now,
-    )?;
+    let mut envelope = envelope::message(text, attachments, &me.vault_hex, &card, to, now)?;
     envelope.id = event_id.to_owned();
     let content = queued_content(CHAT_KIND, &envelope)?;
     let envelope::Body::Message(body) = &envelope.body;
     store_own(tx, me, message_id, thread_id, event_id, &body.text, now)?;
     receive::insert_attachments(tx, message_id, &body.attachments)?;
-    receive::ensure_delivery(tx, message_id, &peer)?;
+    // A note has no delivery state, no receipt to wait for and no other recipient.
+    let (pending, awaiting) = if note {
+        (vec![me.vault_hex.clone()], Vec::new())
+    } else {
+        receive::ensure_delivery(tx, message_id, &peer)?;
+        (vec![peer.clone(), me.vault_hex.clone()], vec![peer])
+    };
     outbox::enqueue(
         tx,
         event_id,
@@ -177,8 +182,8 @@ pub fn message(
             kind: CHAT_KIND.as_u16(),
             content,
         },
-        &[peer.clone(), me.vault_hex.clone()],
-        &[peer],
+        &pending,
+        &awaiting,
         now,
     )?;
     Ok(message_id)

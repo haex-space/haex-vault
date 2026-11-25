@@ -83,11 +83,9 @@ const canSend = computed(
     (draft.value.trim().length > 0 || files.value.length > 0) &&
     props.conversation !== null,
 )
-// Files go to the Blossom-Server, so a conversation offers them only with one (FR-038); notes stay
-// in the vault and take no files.
-const canAttach = computed(
-  () => hasServer.value && props.conversation?.kind !== 'note',
-)
+// Files go to the Blossom-Server, so a conversation offers them only with one (FR-038); notes are
+// sent like messages (FR-002b) and follow the same rule.
+const canAttach = computed(() => hasServer.value)
 
 async function attach() {
   const conversationId = threadId.value
@@ -351,7 +349,7 @@ watch(
         </template>
         <template #above>
           <p
-            v-if="!hasServer && conversation.kind !== 'note'"
+            v-if="!hasServer"
             class="mb-2 flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground"
             data-testid="chat-peer-no-server-hint"
           >

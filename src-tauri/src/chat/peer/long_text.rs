@@ -11,7 +11,7 @@ use crate::error::{HaexError, Result};
 use crate::vault_gate::VaultDb;
 
 /// Prepares the text and optional inline file when a message also has user-picked files.
-/// Notes keep their text inline; direct messages use the same trial wrap as text-only sends.
+/// Notes and direct messages use the same trial wrap as text-only sends.
 pub async fn prepare_with_files(
     db: &VaultDb,
     session: &Session,
