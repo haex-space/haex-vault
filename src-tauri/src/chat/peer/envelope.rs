@@ -143,6 +143,7 @@ impl Answer {
 /// A receipt (kind 24121): which events of the original sender arrived or were read, or with
 /// `answer` the receiving vault's answer to it (spec 099).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Receipt {
     pub v: u8,
     /// The receiver's vault identity, hex.

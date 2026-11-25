@@ -172,7 +172,7 @@ async fn a_received_answer_parks_and_resumes_and_one_for_another_vault_changes_n
         "nothing is sent to Anna any more"
     );
 
-    apply(answer(Answer::Accepted, ben.me.vault_hex.clone(), 2), 30);
+    apply(answer(Answer::Accepted, ben.me.vault_hex.clone(), 3), 30);
     assert!(!blocked(&ben));
     apply(answer(Answer::Blocked, PEER.to_owned(), 1), 40);
     assert!(
