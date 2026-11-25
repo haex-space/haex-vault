@@ -1,7 +1,7 @@
 //! Integration test for the Abacus delegate (spec 096, T017): a request through
 //! `CliDelegateAdapter` with a stub program standing in for the vault's copy of `abacusai` and a
-//! vault that holds a placeholder credential. The reply is labelled with its backend and the program
-//! that runs is the one the runtime names, by its own path. No real Abacus account is used.
+//! vault that holds a placeholder credential. The reply streams back and the program that runs is
+//! the one the runtime names, by its own path. No real Abacus account is used.
 #![cfg(unix)]
 
 #[path = "common/marketplace_fixture.rs"]
@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use haex_lib::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
-use haex_lib::adapters::{AdapterError, ChatMessage, ChatRequest, ChatRole, ProviderAdapter};
+use haex_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
 use haex_lib::cli_tools::runtime::DelegateRuntime;
 use haex_lib::providers::delegate_credential::{self, KIND_DEVICE_CODE, VAULT_SCOPE};
 
@@ -66,7 +66,7 @@ fn request() -> ChatRequest {
 }
 
 #[tokio::test]
-async fn requests_stay_gated_until_tool_approval_coverage_is_verified() {
+async fn a_request_runs_the_vaults_copy_and_streams_its_reply() {
     let vault = vault();
     delegate_credential::save(&vault.db, "abacusai", KIND_DEVICE_CODE, CODE, VAULT_SCOPE)
         .await
@@ -89,16 +89,25 @@ async fn requests_stay_gated_until_tool_approval_coverage_is_verified() {
         }),
     );
 
-    let error = match adapter.stream_chat(request()).await {
-        Err(error) => error,
-        Ok(_) => panic!("Abacus must remain gated until T035 verifies tool approval coverage"),
-    };
+    let mut stream = adapter
+        .stream_chat(request())
+        .await
+        .expect("the request starts");
+    let mut text = String::new();
+    let mut done = false;
+    while let Some(chunk) = stream.next().await {
+        match chunk.expect("no stream error") {
+            StreamChunk::Delta { content, .. } => text.push_str(&content),
+            StreamChunk::Done { .. } => done = true,
+            StreamChunk::ToolCalls(_) => panic!("a delegate never emits ToolCalls"),
+            StreamChunk::AgentActivity { .. } => {}
+        }
+    }
 
-    assert!(
-        matches!(&error, AdapterError::Unavailable { reason } if reason == "delegate.approvals_unverified: abacusai"),
-        "{error:?}"
-    );
-    assert!(!dir.path().join("who-ran").exists(), "nothing was spawned");
+    assert_eq!(text, "Hello from Abacus");
+    assert!(done, "the reply ends");
+    let who_ran = fs::read_to_string(dir.path().join("who-ran")).expect("the program ran");
+    assert_eq!(who_ran.trim(), program.display().to_string());
 }
 
 #[tokio::test]
