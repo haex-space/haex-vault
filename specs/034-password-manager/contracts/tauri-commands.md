@@ -169,6 +169,10 @@ color  args: { tagId, color }
 delete args: { tagId }           // löscht Verknüpfungen zuerst
 ```
 
+Zusammenführen und die Liste der Agenten-Profile, die einen Tag nennen (`passwords_merge_tags`,
+`passwords_tag_agent_profiles`): siehe
+[`specs/100-password-tag-management/contracts/tauri-commands.md`](../../100-password-tag-management/contracts/tauri-commands.md).
+
 ## Papierkorb
 
 ### `passwords_item_usage`
