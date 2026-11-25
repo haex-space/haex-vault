@@ -3,21 +3,25 @@
 //! dialog (spec 088), then the dialog with a played user; a call that runs is answered by the
 //! fixture world (moved out of `runner.rs`, spec 088 T002).
 
+use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
 use tokio_util::sync::CancellationToken;
 
 use crate::adapters::types::{ChatMessage, ToolCall, ToolSpec};
+use crate::agent_memory::foreign::is_foreign;
+use crate::agent_memory::gate::CATALOG_LEVEL;
 use crate::chat::tools::ask_user::ASK_USER_TOOL_NAME;
 use crate::chat::tools::find_actions::FIND_ACTIONS_TOOL_NAME;
 use crate::chat::tools::offer::{found_tools, widen_offer};
-use crate::chat::tools::permission::{decide_call, PermissionMode};
+use crate::chat::tools::permission::PermissionMode;
 use crate::chat::tools::reversible::{before_dialog, Check, Verdict};
 use crate::chat::tools::route::RouteCall;
 use crate::chat::tools::{RiskClass, ToolRegistry};
 use crate::chat::turn::guard::{turn_away, Seen};
-use crate::chat::turn::{callable, denied_answer, unknown_tool_answer};
+use crate::chat::turn::{callable, decide, denied_answer, unknown_tool_answer};
+use crate::mcp_server::grants::MemoryLevel;
 
 use super::consent::{play, CallEnding};
 use super::mail_names::MailNames;
@@ -44,6 +48,12 @@ pub(super) struct StepCalls<'a> {
     pub route: Option<&'a RouteCall<'a>>,
     /// The request's conversation before the step.
     pub history: &'a [ChatMessage],
+    /// The request brought foreign content in an earlier step: the conversation is marked, so a
+    /// write of the memory asks (spec 097 FR-019).
+    pub foreign: bool,
+    /// A call of this step that ran brought foreign content; the runner marks the request after
+    /// the step, as the chat marks the conversation after a round.
+    pub brought_foreign: Cell<bool>,
 }
 
 /// The checks of one request: the tools already checked (spec 088 FR-006) and what each check
@@ -127,9 +137,11 @@ impl StepCalls<'_> {
                 return self.refused(call, trace, (content, true));
             }
         }
+        let decision = decide(PermissionMode::Auto, tool.as_ref(), || self.foreign);
         let played = play(
             self.item,
-            decide_call(PermissionMode::Auto, tool.as_ref()),
+            decision,
+            self.foreign,
             &trace.calls,
             name,
             &call.input,
@@ -155,7 +167,14 @@ impl StepCalls<'_> {
                 is_error: true,
             }
         } else if call.name == FIND_ACTIONS_TOOL_NAME {
-            let result = tool.execute(call.input.clone(), self.cancel.clone()).await;
+            // The catalog shows the memory's actions at the level of the factory "Standard", as the
+            // chat's round does for a model whose profile lets it read and write (spec 097).
+            let result = CATALOG_LEVEL
+                .scope(
+                    MemoryLevel::ReadWrite,
+                    tool.execute(call.input.clone(), self.cancel.clone()),
+                )
+                .await;
             if let Some(found) = found_tools(&result.content).filter(|_| !result.is_error) {
                 widen_offer(&lock(), next, &found, self.kept);
             }
@@ -166,6 +185,18 @@ impl StepCalls<'_> {
         } else {
             self.world.answer(name, &call.input)
         };
+        if played.ending != CallEnding::Stopped {
+            let scope = tool.action_definition().map(|def| def.scope.clone());
+            if is_foreign(
+                tool.source(),
+                scope.as_deref(),
+                &call.name,
+                false,
+                &answer.content,
+            ) {
+                self.brought_foreign.set(true);
+            }
+        }
         trace.calls.push(TraceCall {
             tool: name.to_owned(),
             args: call.input.clone(),

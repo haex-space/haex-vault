@@ -5,6 +5,7 @@
 //! Every call that runs is answered by the fixture world, so a run reads no real data and changes
 //! nothing.
 
+use std::cell::Cell;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -16,6 +17,7 @@ use crate::adapters::types::{
     ChatMessage, ChatRequest, ChatRole, Sampling, StreamChunk, ToolCall, ToolSpec,
 };
 use crate::adapters::ProviderAdapter;
+use crate::agent_profiles::Subject;
 use crate::chat::action_commands::register_action_tools;
 use crate::chat::reply_language::ReplyLanguage;
 use crate::chat::session::host_tools;
@@ -24,7 +26,7 @@ use crate::chat::tools::action_tool::{ActionTool, AgentActionDef};
 use crate::chat::tools::availability::ToolAvailability;
 use crate::chat::tools::domains::domain_of;
 use crate::chat::tools::offer::{first_offer, with_search};
-use crate::chat::tools::prompt::system_prompt;
+use crate::chat::tools::prompt::{system_prompt, with_memory};
 use crate::chat::tools::route::{first_step_offer, RouteCall};
 use crate::chat::tools::ToolRegistry;
 use crate::chat::turn::arg_forms::as_meant;
@@ -152,22 +154,35 @@ fn reply_language(lang: Lang) -> ReplyLanguage {
     }
 }
 
-fn request(
-    model: &str,
-    messages: Vec<ChatMessage>,
-    tools: Vec<ToolSpec>,
+/// What a step sends besides its conversation and offer.
+#[derive(Clone, Copy)]
+struct Turn<'a> {
+    model: &'a str,
     deterministic: bool,
     clock: Clock,
     lang: Lang,
     routed: bool,
-) -> ChatRequest {
+    /// The memory block of spec 097, the same for every step of the request.
+    memory: Option<&'a str>,
+}
+
+fn request(turn: &Turn<'_>, messages: Vec<ChatMessage>, tools: Vec<ToolSpec>) -> ChatRequest {
+    let Turn {
+        model,
+        deterministic,
+        clock,
+        lang,
+        routed,
+        memory,
+    } = *turn;
     ChatRequest {
         model_id: model.to_owned(),
         thread_id: None,
-        // What a voice turn sends today: no given prompt, the tool instruction (with the routed
-        // turn's sentence when it routed), the reply language and the clock (R3).
+        // What a voice turn sends today: no given prompt but the memory block, the tool
+        // instruction (with the routed turn's sentence when it routed), the reply language and the
+        // clock (R3).
         system_prompt: system_prompt(
-            None,
+            with_memory(None, memory).as_deref(),
             &tools,
             Some(clock),
             Some(reply_language(lang)),
@@ -281,7 +296,13 @@ pub async fn run_everyday(
         },
     });
 
+    // The model as an agent profile names it: a model on `NO_START_TOC` gets no block (FR-027).
+    let subject = Subject::Model(model.to_owned()).key();
+
     for item in &set.requests {
+        // The run's memory and the request's own pages (spec 097 research R11).
+        let world = &world.with_memory(&item.memory);
+        let memory = world.memory_block(adapter.context_limit(), &subject);
         let (mut offer, route) = match &route_call {
             None => {
                 let registry = registry.lock().unwrap_or_else(|e| e.into_inner());
@@ -321,19 +342,20 @@ pub async fn run_everyday(
             end: End::StepLimit,
             first_chunk_ms: None,
         };
+        let turn = Turn {
+            model,
+            deterministic,
+            clock,
+            lang: item.lang,
+            routed: route.is_some(),
+            memory: memory.as_deref(),
+        };
+        let mut foreign = false;
 
         for number in 0..MAX_STEPS {
             let mut step = match ask(
                 adapter,
-                request(
-                    model,
-                    history.clone(),
-                    offer.clone(),
-                    deterministic,
-                    clock,
-                    item.lang,
-                    route.is_some(),
-                ),
+                request(&turn, history.clone(), offer.clone()),
                 &item.id,
                 cancel,
             )
@@ -385,6 +407,8 @@ pub async fn run_everyday(
                 cancel,
                 route: route_call.as_ref(),
                 history: &history,
+                foreign,
+                brought_foreign: Cell::new(false),
             };
             for call in &step.calls {
                 match calls.answer(call, &mut trace, &mut next, &mut checks).await {
@@ -394,6 +418,7 @@ pub async fn run_everyday(
                     }
                 }
             }
+            foreign |= calls.brought_foreign.get();
             if let Some(question) = question {
                 trace.text = question;
                 trace.end = End::Question;

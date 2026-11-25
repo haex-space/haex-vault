@@ -36,7 +36,7 @@ pub fn prepare(
     Ok(block_of(&snapshot, level, context_tokens, model))
 }
 
-fn block_of(
+pub(crate) fn block_of(
     snapshot: &str,
     level: MemoryLevel,
     context_tokens: Option<usize>,

@@ -248,6 +248,24 @@ fn ran(trace: &Trace) -> Trace {
     }
 }
 
+/// Whether the final `text` holds one alternative of every fact, in the request's language.
+fn answered(request: &Request, text: &str, facts: &[Vec<String>]) -> Outcome {
+    let lower = text.to_lowercase();
+    if text.is_empty() {
+        Outcome::NoAnswer
+    } else if wrong_language(request, text) {
+        Outcome::WrongLanguage
+    } else if facts.iter().all(|alternatives| {
+        alternatives
+            .iter()
+            .any(|a| lower.contains(&a.to_lowercase()))
+    }) {
+        Outcome::Pass
+    } else {
+        Outcome::Missed
+    }
+}
+
 /// Scores one request (FR-007). A call that ran unasked overrides every other result.
 pub fn score(
     request: &Request,
@@ -282,18 +300,21 @@ pub fn score(
         Expectation::Answer(facts) => {
             if !trace.calls.is_empty() {
                 Outcome::Spurious
-            } else if text.is_empty() {
-                Outcome::NoAnswer
-            } else if wrong_language(request, text) {
-                Outcome::WrongLanguage
-            } else if facts.iter().all(|alternatives| {
-                alternatives
-                    .iter()
-                    .any(|a| text.to_lowercase().contains(&a.to_lowercase()))
-            }) {
-                Outcome::Pass
             } else {
-                Outcome::Missed
+                answered(request, text, facts)
+            }
+        }
+        Expectation::Recall(facts) => {
+            if trace
+                .calls
+                .iter()
+                .any(|c| effect_of(effects, &c.tool) != Effect::Read)
+            {
+                Outcome::Spurious
+            } else if trace.end == End::StepLimit {
+                Outcome::NoAnswer
+            } else {
+                answered(request, text, facts)
             }
         }
         Expectation::Refusal => {
