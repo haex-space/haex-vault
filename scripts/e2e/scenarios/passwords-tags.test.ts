@@ -97,9 +97,12 @@ scenario('passwords-tags', {}, async (ctx) => {
     (_, i) => `tag-${String(i + 1).padStart(3, '0')}`,
   )
   await createEntry(instance, { title: 'Carries every tag', tags: names })
-  assert.equal(
-    (await overview(instance)).tags.length,
-    TAG_COUNT,
+  // A vault holds tags of its own too (the cloud storage tag), so the scenario's tags are checked by
+  // name, not by the number of all tags.
+  const held = new Set((await overview(instance)).tags.map((t) => t.name))
+  assert.deepEqual(
+    names.filter((name) => !held.has(name)),
+    [],
     'the vault should hold the tags made for the scenario',
   )
   await openPasswords(instance)
@@ -269,6 +272,17 @@ scenario('passwords-tags-merge', {}, async (ctx) => {
     title: 'Alone',
     tags: ['Solo'],
   })
+  // A fresh vault holds a tag of its own (the cloud storage tag); "one tag" needs it gone.
+  const others = (await overview(instance)).tags.filter(
+    (t) => t.name !== 'Solo',
+  )
+  for (const other of others)
+    unwrap(
+      'passwords_delete_tag',
+      await instance.invoke('passwords_delete_tag', {
+        args: { tagIds: [other.id] },
+      }),
+    )
   await openPasswords(instance)
   await instance.click('passwords-menu')
   await instance.click('passwords-menu-tags')
