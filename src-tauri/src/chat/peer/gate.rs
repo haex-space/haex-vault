@@ -17,6 +17,7 @@ use haex_crdt::CrdtTransaction;
 use super::envelope::{Answer, Receipt, To, RECEIPT_KIND};
 use super::outbox::{self, Rumor};
 use super::session::Me;
+use super::session::Me;
 use super::{ids, send};
 use crate::error::Result;
 use crate::storage::query::Query;
@@ -131,10 +132,11 @@ pub fn is_blocked_notice(rumor: &Rumor) -> bool {
 /// this vault, changes nothing.
 pub fn apply_received(
     tx: &mut CrdtTransaction<'_>,
-    own: &str,
+    me: &Me,
     receipt: &Receipt,
     now: i64,
 ) -> Result<()> {
+    let own = &me.vault_hex;
     let Some(answer) = receipt.answer else {
         return Ok(());
     };
@@ -157,7 +159,7 @@ pub fn apply_received(
                  WHERE id = ?1 AND peer_blocked_at IS NOT NULL",
                 params![thread_id],
             )?;
-            outbox::resume_vault(tx, &receipt.from, now)?;
+            outbox::resume_vault(tx, me, &receipt.from, now)?;
         }
     }
     Ok(())

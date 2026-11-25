@@ -401,15 +401,18 @@ fn park_row(
 }
 
 /// `vault` answered that this vault may write (spec 099 FR-008): every row awaiting it is due at
-/// once, and the `blocked` failures of its deliveries are gone. The row goes out as a resend
-/// ([`start_resend`]), encrypted again: the vault may have read the wraps it was sent already (a
-/// knock), so publishing those once more would reach it with used message keys.
-pub fn resume_vault(tx: &mut CrdtTransaction<'_>, vault: &str, now: i64) -> Result<()> {
-    for (id, message_id, _) in awaiting_rows(tx, vault)? {
+/// once, and the `blocked` failures of its deliveries are gone. Its cached wraps are cleared so a
+/// knock that already consumed the ratchet key gets a fresh wrap; other recipients keep theirs.
+pub fn resume_vault(tx: &mut CrdtTransaction<'_>, me: &Me, vault: &str, now: i64) -> Result<()> {
+    for (id, message_id, mut pending) in awaiting_rows(tx, vault)? {
+        if !pending.iter().any(|waiting| waiting == vault) {
+            pending.push(vault.to_owned());
+        }
+        invalidate_vault_wraps(tx, me, &id, vault)?;
         tx.execute(
-            "UPDATE chat_outbox_no_sync SET attempts = 0, next_at = ?2, created_at = ?2, \
-               last_error = NULL WHERE id = ?1",
-            params![id, now],
+            "UPDATE chat_outbox_no_sync SET pending = ?2, attempts = 0, next_at = ?3, \
+               created_at = ?3, last_error = NULL WHERE id = ?1",
+            params![id, to_json(&pending)?, now],
         )?;
         if let Some(message) = message_id.and_then(|id| id.parse().ok()) {
             tx.execute(
@@ -421,6 +424,24 @@ pub fn resume_vault(tx: &mut CrdtTransaction<'_>, vault: &str, now: i64) -> Resu
                 ],
             )?;
         }
+    }
+    Ok(())
+}
+
+/// Drops only the cached wraps for `vault`, so a resumed message gets fresh ratchet keys without
+/// making the still valid wraps for other recipients unreadable.
+fn invalidate_vault_wraps(
+    tx: &mut CrdtTransaction<'_>,
+    me: &Me,
+    outbox_id: &str,
+    vault: &str,
+) -> Result<()> {
+    for device in targets::of(tx, me, vault)?.devices {
+        tx.execute(
+            "DELETE FROM chat_outbox_sealed_no_sync \
+             WHERE outbox_id = ?1 AND recipient_device = ?2",
+            params![outbox_id, hex(&device)],
+        )?;
     }
     Ok(())
 }

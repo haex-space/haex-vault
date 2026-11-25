@@ -679,8 +679,9 @@ fn a_blocked_vault_parks_its_rows_and_an_accepted_one_resumes_them_at_once() {
     assert_eq!(next_at(&anna.db), i64::MAX, "nothing else to do: parked");
     assert!(due(&anna.db, i64::MAX - 1).is_empty());
 
+    let me = anna.me.clone();
     anna.db
-        .write_blocking(|tx| Ok(resume_vault(tx, PEER, 5_000)?))
+        .write_blocking(move |tx| Ok(resume_vault(tx, &me, PEER, 5_000)?))
         .expect("resume");
     let resumed = due(&anna.db, 5_000);
     assert_eq!(resumed.len(), 1);
