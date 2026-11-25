@@ -90,29 +90,34 @@ impl PasswordsService {
             .await
     }
 
-    pub async fn rename_tag(&self, caller: &Caller, tag_id: String, name: String) -> Result<()> {
+    pub async fn rename_tag(
+        &self,
+        caller: &Caller,
+        tag_ids: Vec<String>,
+        name: String,
+    ) -> Result<()> {
         require_user(caller)?;
         self.db()
-            .write(move |tx| tags::rename_tag(tx, &tag_id, &name).map_err(Into::into))
+            .write(move |tx| tags::rename_tags(tx, &tag_ids, &name).map_err(Into::into))
             .await
     }
 
     pub async fn set_tag_color(
         &self,
         caller: &Caller,
-        tag_id: String,
+        tag_ids: Vec<String>,
         color: Option<String>,
     ) -> Result<()> {
         require_user(caller)?;
         self.db()
-            .write(move |tx| tags::set_color(tx, &tag_id, color.as_deref()).map_err(Into::into))
+            .write(move |tx| tags::set_colors(tx, &tag_ids, color.as_deref()).map_err(Into::into))
             .await
     }
 
-    pub async fn delete_tag(&self, caller: &Caller, tag_id: String) -> Result<()> {
+    pub async fn delete_tag(&self, caller: &Caller, tag_ids: Vec<String>) -> Result<()> {
         require_user(caller)?;
         self.db()
-            .write(move |tx| tags::delete_tag(tx, &tag_id).map_err(Into::into))
+            .write(move |tx| tags::delete_tags(tx, &tag_ids).map_err(Into::into))
             .await
     }
 
@@ -121,21 +126,22 @@ impl PasswordsService {
     pub async fn merge_tags(
         &self,
         caller: &Caller,
-        source_id: String,
-        target_id: String,
+        source_ids: Vec<String>,
+        target_ids: Vec<String>,
         name: Option<String>,
     ) -> Result<()> {
         require_user(caller)?;
         self.db()
             .write(move |tx| {
-                tags::merge_tags(tx, &source_id, &target_id, name.as_deref()).map_err(Into::into)
+                tags::merge_tags(tx, &source_ids, &target_ids, name.as_deref()).map_err(Into::into)
             })
             .await
     }
 
     /// The names of the agent profiles whose password rights name this tag (spec 100, FR-010), for
     /// the confirmation of a merge. `PasswordsNotFound` for a tag that does not exist.
-    pub async fn tag_agent_profiles(&self, tag_id: String) -> Result<Vec<String>> {
+    pub async fn tag_agent_profiles(&self, caller: &Caller, tag_id: String) -> Result<Vec<String>> {
+        require_user(caller)?;
         self.db()
             .read(move |q| {
                 let name = tags::name_of(q, &tag_id)?.ok_or(HaexError::PasswordsNotFound)?;

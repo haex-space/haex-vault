@@ -27,7 +27,10 @@ const targetId = ref<string | null>(null)
 const name = ref('')
 const nameError = ref<string | null>(null)
 const profiles = ref<string[]>([])
+const profilesLoading = ref(false)
+const profilesFailed = ref(false)
 const busy = ref(false)
+let profileLookupGeneration = 0
 
 const target = computed(
   () => store.displayTags.find((tag) => tag.id === targetId.value) ?? null,
@@ -39,6 +42,7 @@ watch(open, (isOpen) => {
   if (!isOpen) return
   targetId.value = null
   profiles.value = []
+  profilesFailed.value = false
 })
 
 // The name of the result starts as the name of the target, and a refusal of a name goes away once
@@ -54,26 +58,35 @@ watch(name, () => {
 // The profiles that name either tag, asked once a target is chosen. A failed question is a toast
 // and leaves the merge possible without the line.
 watch(targetId, async (id) => {
+  const generation = ++profileLookupGeneration
   profiles.value = []
+  profilesFailed.value = false
+  profilesLoading.value = Boolean(id)
   if (!id) return
   try {
     const [ofSource, ofTarget] = await Promise.all([
       tagAgentProfilesAsync(props.source.id),
       tagAgentProfilesAsync(id),
     ])
-    if (targetId.value === id)
+    if (generation === profileLookupGeneration && targetId.value === id)
       profiles.value = [...new Set([...ofSource, ...ofTarget])].sort()
   } catch (cause) {
-    toast.error(errString(cause))
+    if (generation === profileLookupGeneration && targetId.value === id) {
+      profilesFailed.value = true
+      toast.error(errString(cause))
+    }
+  } finally {
+    if (generation === profileLookupGeneration) profilesLoading.value = false
   }
 })
 
 async function confirmAsync() {
   const chosen = target.value
-  if (!chosen || busy.value) return
+  if (!chosen || busy.value || profilesLoading.value || profilesFailed.value)
+    return
   busy.value = true
   try {
-    await mergeTagsAsync(props.source.id, chosen.id, name.value)
+    await mergeTagsAsync(props.source.ids, chosen.ids, name.value)
     await store.quietReloadAsync()
     open.value = false
     emit('merged', chosen.id)
@@ -208,13 +221,27 @@ async function confirmAsync() {
           })
         }}
       </p>
+      <p
+        v-else-if="target && profilesLoading"
+        class="text-sm text-muted-foreground"
+        role="status"
+      >
+        {{ t('passwords.tags.mergeAgentsLoading') }}
+      </p>
+      <p
+        v-else-if="target && profilesFailed"
+        class="text-sm text-destructive"
+        role="alert"
+      >
+        {{ t('passwords.tags.mergeAgentsUnavailable') }}
+      </p>
       <ShadcnAlertDialogFooter>
         <ShadcnAlertDialogCancel>{{
           t('passwords.cancel')
         }}</ShadcnAlertDialogCancel>
         <UiButton
           variant="destructive"
-          :disabled="!target || busy"
+          :disabled="!target || busy || profilesLoading || profilesFailed"
           data-testid="passwords-tag-merge-confirm"
           @click="confirmAsync"
         >

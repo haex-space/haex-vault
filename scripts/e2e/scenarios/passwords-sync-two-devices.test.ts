@@ -127,8 +127,8 @@ scenario('passwords-sync-two-devices', { timeoutMs: 300_000 }, async (ctx) => {
     'passwords_merge_tags',
     await laptop.invoke('passwords_merge_tags', {
       args: {
-        sourceId: await tagId(laptop, 'Job'),
-        targetId: await tagId(laptop, 'Work'),
+        sourceIds: [await tagId(laptop, 'Job')],
+        targetIds: [await tagId(laptop, 'Work')],
       },
     }),
   )

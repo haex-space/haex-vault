@@ -111,6 +111,27 @@ fn name_taken(all: &[(String, String)], wanted: &str, except: &[&str]) -> bool {
         .any(|(tag, stored)| !except.contains(&tag.as_str()) && fold(stored) == wanted)
 }
 
+/// Checks that callers supplied every persisted id represented by one displayed folded-name tag.
+fn checked_display_group(tx: &mut CrdtTransaction<'_>, ids: &[String]) -> Result<BTreeSet<String>> {
+    let requested: BTreeSet<String> = ids.iter().cloned().collect();
+    let all: Vec<(String, String)> =
+        tx.query_map("SELECT id, name FROM haex_passwords_tags", &[], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })?;
+    let Some((_, first_name)) = all.iter().find(|(id, _)| requested.contains(id)) else {
+        return Err(HaexError::PasswordsNotFound);
+    };
+    let expected: BTreeSet<String> = all
+        .iter()
+        .filter(|(_, name)| fold(name) == fold(first_name))
+        .map(|(id, _)| id.clone())
+        .collect();
+    if requested.is_empty() || requested != expected {
+        return Err(HaexError::PasswordsNotFound);
+    }
+    Ok(requested)
+}
+
 /// Renames a tag; the id stays. A name that another tag already has (by [`fold`]) is
 /// `InvalidInput { exists }`; a change of case of the tag's own name is fine.
 pub fn rename_tag(tx: &mut CrdtTransaction<'_>, id: &str, name: &str) -> Result<()> {
@@ -137,6 +158,30 @@ pub fn rename_tag(tx: &mut CrdtTransaction<'_>, id: &str, name: &str) -> Result<
     Ok(())
 }
 
+/// Applies a rename to every id shown as one folded-name tag. Validation and conflict checking
+/// happen before any row changes, so the displayed group cannot be split by an edit.
+pub fn rename_tags(tx: &mut CrdtTransaction<'_>, ids: &[String], name: &str) -> Result<()> {
+    let name = validate_name(name)?;
+    let ids = checked_display_group(tx, ids)?;
+    let all: Vec<(String, String)> =
+        tx.query_map("SELECT id, name FROM haex_passwords_tags", &[], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })?;
+    let except: Vec<&str> = ids.iter().map(String::as_str).collect();
+    if name_taken(&all, &fold(&name), &except) {
+        return Err(HaexError::InvalidInput {
+            reason: "exists".to_string(),
+        });
+    }
+    for id in ids {
+        tx.execute(
+            "UPDATE haex_passwords_tags SET name = ?1 WHERE id = ?2",
+            params![name, id],
+        )?;
+    }
+    Ok(())
+}
+
 /// Sets or clears the color of a tag.
 pub fn set_color(tx: &mut CrdtTransaction<'_>, id: &str, color: Option<&str>) -> Result<()> {
     let changed = tx.execute(
@@ -145,6 +190,21 @@ pub fn set_color(tx: &mut CrdtTransaction<'_>, id: &str, color: Option<&str>) ->
     )?;
     if changed == 0 {
         return Err(HaexError::PasswordsNotFound);
+    }
+    Ok(())
+}
+
+/// Sets the same color on every id shown as one folded-name tag.
+pub fn set_colors(tx: &mut CrdtTransaction<'_>, ids: &[String], color: Option<&str>) -> Result<()> {
+    let ids = checked_display_group(tx, ids)?;
+    for id in ids {
+        let changed = tx.execute(
+            "UPDATE haex_passwords_tags SET color = ?1 WHERE id = ?2",
+            params![color, id],
+        )?;
+        if changed == 0 {
+            return Err(HaexError::PasswordsNotFound);
+        }
     }
     Ok(())
 }
@@ -170,9 +230,19 @@ pub fn delete_tag(tx: &mut CrdtTransaction<'_>, id: &str) -> Result<()> {
     Ok(())
 }
 
-/// Merges the tag `source_id` into `target_id` (spec 100): every entry that carries the source
-/// carries the target afterwards (once) and the source is gone. The target keeps its color and its
-/// name, unless `name` gives the result another one: that name follows the rules of a rename
+/// Deletes all ids represented by one folded-name tag, including each link's own marker.
+pub fn delete_tags(tx: &mut CrdtTransaction<'_>, ids: &[String]) -> Result<()> {
+    let ids = checked_display_group(tx, ids)?;
+    for id in ids {
+        delete_tag(tx, &id)?;
+    }
+    Ok(())
+}
+
+/// Merges the folded-name source group into the folded-name target group (spec 100): every entry
+/// that carries a source tag carries the target afterwards (once) and the source group is gone.
+/// The target keeps its color and its name, unless `name` gives the result another one: that name
+/// follows the rules of a rename
 /// (trimmed, not empty, at most [`MAX_TAG_NAME_CHARS`], not the name of a tag that stays), except
 /// that the name of the source is free, as the source goes. The same tag, a tag that does not
 /// exist or a refused name is reported before anything is written (`InvalidInput { same }`,
@@ -185,11 +255,13 @@ pub fn delete_tag(tx: &mut CrdtTransaction<'_>, id: &str) -> Result<()> {
 /// `reconcile_tags`, which needs a migration and its own spec.
 pub fn merge_tags(
     tx: &mut CrdtTransaction<'_>,
-    source_id: &str,
-    target_id: &str,
+    source_ids: &[String],
+    target_ids: &[String],
     name: Option<&str>,
 ) -> Result<()> {
-    if source_id == target_id {
+    let source_ids = checked_display_group(tx, source_ids)?;
+    let target_ids = checked_display_group(tx, target_ids)?;
+    if source_ids.iter().any(|id| target_ids.contains(id)) {
         return Err(HaexError::InvalidInput {
             reason: "same".to_string(),
         });
@@ -200,29 +272,31 @@ pub fn merge_tags(
             Ok((r.get(0)?, r.get(1)?))
         })?;
     let find = |id: &str| all.iter().find(|(tag, _)| tag == id);
-    if find(source_id).is_none() {
-        return Err(HaexError::PasswordsNotFound);
-    }
-    let Some((_, target_name)) = find(target_id) else {
-        return Err(HaexError::PasswordsNotFound);
-    };
+    let target_id = target_ids.iter().next().expect("nonempty target ids");
+    let target_name = find(target_id).expect("target id was checked").1.clone();
+    let mut except: Vec<&str> = source_ids.iter().map(String::as_str).collect();
+    except.extend(target_ids.iter().map(String::as_str));
     if let Some(wanted) = &new_name {
-        if name_taken(&all, &fold(wanted), &[source_id, target_id]) {
+        if name_taken(&all, &fold(wanted), &except) {
             return Err(HaexError::InvalidInput {
                 reason: "exists".to_string(),
             });
         }
     }
-    move_links(tx, source_id, target_id)?;
-    tx.execute(
-        "DELETE FROM haex_passwords_tags WHERE id = ?1",
-        params![source_id],
-    )?;
-    if let Some(wanted) = new_name.filter(|wanted| wanted != target_name) {
+    for source_id in source_ids {
+        move_links(tx, &source_id, target_id)?;
         tx.execute(
-            "UPDATE haex_passwords_tags SET name = ?1 WHERE id = ?2",
-            params![wanted, target_id],
+            "DELETE FROM haex_passwords_tags WHERE id = ?1",
+            params![source_id],
         )?;
+    }
+    if let Some(wanted) = new_name.filter(|wanted| wanted != &target_name) {
+        for target_id in target_ids {
+            tx.execute(
+                "UPDATE haex_passwords_tags SET name = ?1 WHERE id = ?2",
+                params![wanted, target_id],
+            )?;
+        }
     }
     Ok(())
 }

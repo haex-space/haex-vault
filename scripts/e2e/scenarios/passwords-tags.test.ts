@@ -299,7 +299,7 @@ scenario('passwords-tags-merge', {}, async (ctx) => {
   unwrap(
     'passwords_set_tag_color',
     await instance.invoke('passwords_set_tag_color', {
-      args: { tagId: arbeit, color: '#336699' },
+      args: { tagIds: [arbeit], color: '#336699' },
     }),
   )
 

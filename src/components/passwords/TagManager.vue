@@ -20,6 +20,7 @@ const { renameTagAsync, setTagColorAsync, deleteTagAsync } = usePasswords()
 
 const selectedId = ref<string | null>(null)
 const editing = ref(false)
+const editSession = ref(0)
 const name = ref('')
 const error = ref<string | null>(null)
 const deleting = ref<MergedTag | null>(null)
@@ -50,6 +51,7 @@ watch(
 )
 // Another tag starts with its own, unedited name.
 watch(selectedId, () => {
+  ++editSession.value
   editing.value = false
   error.value = null
 })
@@ -59,29 +61,34 @@ watch(name, () => {
 })
 
 function start(tag: MergedTag) {
+  ++editSession.value
   editing.value = true
   name.value = tag.name
   error.value = null
 }
 
 async function renameAsync(tag: MergedTag) {
+  const session = editSession.value
   try {
-    await renameTagAsync(tag.id, name.value)
-    editing.value = false
-    error.value = null
+    await renameTagAsync(tag.ids, name.value)
+    if (session === editSession.value) {
+      editing.value = false
+      error.value = null
+    }
     await store.quietReloadAsync()
   } catch (cause) {
     // A refused name belongs to the name field; any other failure is a toast.
     const reason = (cause as { reason?: string }).reason
-    if (reason === 'exists' || reason === 'empty' || reason === 'too_long')
-      error.value = t(`passwords.tags.errors.${reason}`)
-    else toast.error(errString(cause))
+    if (reason === 'exists' || reason === 'empty' || reason === 'too_long') {
+      if (session === editSession.value)
+        error.value = t(`passwords.tags.errors.${reason}`)
+    } else toast.error(errString(cause))
   }
 }
 
 async function colorAsync(tag: MergedTag, color: string | null) {
   try {
-    await setTagColorAsync(tag.id, color)
+    await setTagColorAsync(tag.ids, color)
     await store.quietReloadAsync()
   } catch (cause) {
     toast.error(errString(cause))
@@ -93,7 +100,7 @@ async function confirmDeleteAsync() {
   deleting.value = null
   if (!tag) return
   try {
-    await deleteTagAsync(tag.id)
+    await deleteTagAsync(tag.ids)
     selectedId.value = null
     await store.quietReloadAsync()
   } catch (cause) {

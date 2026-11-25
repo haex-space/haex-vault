@@ -1,19 +1,22 @@
 # Contract: commands
 
-Extends `specs/034-password-manager/contracts/tauri-commands.md` (tags). Existing commands
-(`passwords_rename_tag`, `passwords_set_tag_color`, `passwords_delete_tag`) are unchanged.
+Extends `specs/034-password-manager/contracts/tauri-commands.md` (tags). Rename, color and delete
+commands take `tagIds: string[]`, the complete set of ids represented by the selected folded-name
+tag, and apply the change atomically to every id.
 
 ## `passwords_merge_tags`
 
 ```text
-args:   { sourceId: string, targetId: string, name: string | null }
+args:   { sourceIds: string[], targetIds: string[], name: string | null }
 result: null
 errors: InvalidInput { reason: 'same' }      // source and target are the same tag
         InvalidInput { reason: 'empty' | 'too_long' | 'exists' }   // only for a given name
         PasswordsNotFound                    // either tag does not exist (also: already merged)
 ```
 
-`name` names the merged tag; `null` keeps the name of the target. A given name is trimmed and follows
+`sourceIds` and `targetIds` contain every id in the respective folded-name display group. All source
+ids merge into the first target id; the target group remains a single displayed tag. `name` names the
+merged tag; `null` keeps the name of the target. A given name is trimmed and follows
 the rules of `passwords_rename_tag` (not empty, at most 64 characters, not the name of a tag that
 stays by `fold`), except that the name of the source is free because the source goes. A name equal to
 the target's name changes nothing. Every refusal is raised before anything is written.

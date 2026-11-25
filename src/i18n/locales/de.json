@@ -2858,6 +2858,8 @@
       "mergeTitle": "Tags zusammenführen?",
       "mergeBody": "Tags gelten für den Passwortmanager und die Wallet gemeinsam. Betroffen sind {logins} im Passwortmanager und {passes} in der Wallet: Sie bekommen „{name}“, „{source}“ verschwindet. Das lässt sich nicht rückgängig machen.",
       "mergeAgents": "Die Rechte dieser Agenten-Profile nennen „{source}“ oder „{target}“: {profiles}. Rechte gelten nach Tag-Name und werden nicht angepasst, der Zugriff auf Einträge kann sich dadurch ändern.",
+      "mergeAgentsUnavailable": "Die Rechte der Agenten-Profile konnten nicht geprüft werden. Das Zusammenführen ist gesperrt. Wähle dieses Ziel erneut, um es noch einmal zu versuchen.",
+      "mergeAgentsLoading": "Rechte der Agenten-Profile werden geprüft …",
       "mergeInfo": "Hinweis zum Zusammenführen",
       "mergeName": "Name nach dem Zusammenführen",
       "mergeDescription": "Wähle den Tag, in den dieser Tag übergeht, passe bei Bedarf den neuen Namen an und bestätige.",

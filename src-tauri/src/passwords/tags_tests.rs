@@ -315,6 +315,64 @@ fn reconcile_is_idempotent_and_leaves_distinct_tags_alone() {
     assert_eq!(count(&db, "SELECT COUNT(*) FROM haex_passwords_tags"), 3);
 }
 
+#[test]
+fn editing_or_deleting_a_display_group_updates_every_tag_id() {
+    let (_dir, db) = open_test_vault();
+    let (a, b, first, second) = duplicate_tags(&db);
+    let ids = vec![first.clone(), second.clone()];
+
+    write(&db, |tx| tags::rename_tags(tx, &ids, "Profession")).expect("rename group");
+    assert_eq!(name_of_tag(&db, &first), "Profession");
+    assert_eq!(name_of_tag(&db, &second), "Profession");
+    write(&db, |tx| tags::set_colors(tx, &ids, Some("#336699"))).expect("color group");
+    assert_eq!(
+        count(
+            &db,
+            "SELECT COUNT(*) FROM haex_passwords_tags WHERE color = '#336699'"
+        ),
+        2
+    );
+
+    write(&db, |tx| tags::delete_tags(tx, &ids)).expect("delete group");
+    assert_eq!(
+        count(
+            &db,
+            "SELECT COUNT(*) FROM haex_passwords_tags WHERE id IN ('tag-aaa', 'tag-zzz')"
+        ),
+        0
+    );
+    let links =
+        format!("SELECT COUNT(*) FROM haex_passwords_item_tags WHERE item_id IN ('{a}', '{b}')");
+    assert_eq!(count(&db, &links), 0);
+}
+
+#[test]
+fn merging_a_display_group_removes_all_source_ids_and_moves_all_links() {
+    let (_dir, db) = open_test_vault();
+    let (a, b, first, second) = duplicate_tags(&db);
+    let target = write(&db, |tx| tags::get_or_create(tx, "Personal")).expect("target tag");
+
+    write(&db, |tx| {
+        tags::merge_tags(
+            tx,
+            &[first.clone(), second.clone()],
+            std::slice::from_ref(&target),
+            None,
+        )
+    })
+    .expect("merge duplicate source group");
+
+    assert_eq!(
+        count(
+            &db,
+            "SELECT COUNT(*) FROM haex_passwords_tags WHERE name IN ('Work', 'work')"
+        ),
+        0
+    );
+    assert_eq!(sorted_names(&db, &a), ["Personal"]);
+    assert_eq!(sorted_names(&db, &b), ["Personal"]);
+}
+
 fn tag_count_of(db: &Database, name: &str) -> i64 {
     count(
         db,
@@ -329,11 +387,15 @@ fn sorted_names(db: &Database, item_id: &str) -> Vec<String> {
 }
 
 fn merge(db: &Database, source: &str, target: &str) -> crate::error::Result<()> {
-    write(db, |tx| tags::merge_tags(tx, source, target, None))
+    let source = vec![source.to_owned()];
+    let target = vec![target.to_owned()];
+    write(db, |tx| tags::merge_tags(tx, &source, &target, None))
 }
 
 fn merge_named(db: &Database, source: &str, target: &str, name: &str) -> crate::error::Result<()> {
-    write(db, |tx| tags::merge_tags(tx, source, target, Some(name)))
+    let source = vec![source.to_owned()];
+    let target = vec![target.to_owned()];
+    write(db, |tx| tags::merge_tags(tx, &source, &target, Some(name)))
 }
 
 fn name_of_tag(db: &Database, id: &str) -> String {

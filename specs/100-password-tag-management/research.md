@@ -2,7 +2,7 @@
 
 ## R1 - How a merge is written
 
-**Decision**: `tags::merge_tags(tx, source_id, target_id)` in one `CrdtTransaction`: refuse
+**Decision**: `tags::merge_tags(tx, source_ids, target_ids, name)` in one `CrdtTransaction`: refuse
 `source == target` (`InvalidInput { reason: "same" }`), refuse a missing tag (`PasswordsNotFound`), move
 every link of the source to the target, delete the source. The move is the loop that
 `reconcile_tags` already runs for duplicate names, extracted into one private

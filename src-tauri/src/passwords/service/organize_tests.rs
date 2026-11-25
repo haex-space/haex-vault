@@ -53,7 +53,12 @@ fn names(s: &Setup) -> Vec<String> {
 async fn the_user_merges_a_tag_into_another() {
     let s = setup();
     s.service
-        .merge_tags(&Caller::User, s.source.clone(), s.target.clone(), None)
+        .merge_tags(
+            &Caller::User,
+            vec![s.source.clone()],
+            vec![s.target.clone()],
+            None,
+        )
         .await
         .unwrap();
     assert_eq!(names(&s), ["Arbeit"]);
@@ -66,8 +71,8 @@ async fn nobody_but_the_user_merges_tags_and_nothing_changes() {
         .service
         .merge_tags(
             &Caller::BuiltinAgent,
-            s.source.clone(),
-            s.target.clone(),
+            vec![s.source.clone()],
+            vec![s.target.clone()],
             Some("Beruf".to_owned()),
         )
         .await;
@@ -80,12 +85,25 @@ async fn the_profiles_of_a_tag_are_asked_by_its_id() {
     let s = setup();
     assert!(s
         .service
-        .tag_agent_profiles(s.source.clone())
+        .tag_agent_profiles(&Caller::User, s.source.clone())
         .await
         .unwrap()
         .is_empty());
-    let missing = s.service.tag_agent_profiles("nope".to_owned()).await;
+    let missing = s
+        .service
+        .tag_agent_profiles(&Caller::User, "nope".to_owned())
+        .await;
     assert!(matches!(missing, Err(HaexError::PasswordsNotFound)));
+}
+
+#[tokio::test]
+async fn only_the_user_can_look_up_tag_agent_profiles() {
+    let s = setup();
+    let refused = s
+        .service
+        .tag_agent_profiles(&Caller::BuiltinAgent, s.source.clone())
+        .await;
+    assert!(matches!(refused, Err(HaexError::PasswordsForbidden)));
 }
 
 #[tokio::test]
@@ -94,8 +112,8 @@ async fn the_user_names_the_merged_tag() {
     s.service
         .merge_tags(
             &Caller::User,
-            s.source.clone(),
-            s.target.clone(),
+            vec![s.source.clone()],
+            vec![s.target.clone()],
             Some("Beruf".to_owned()),
         )
         .await

@@ -2858,6 +2858,8 @@
       "mergeTitle": "Merge tags?",
       "mergeBody": "Tags are shared by the password manager and Wallet. {logins} in the password manager and {passes} in Wallet are affected: they get “{name}”, “{source}” disappears. This cannot be undone.",
       "mergeAgents": "The rights of these agent profiles name “{source}” or “{target}”: {profiles}. Rights go by tag name and are not adjusted, so what they reach may change.",
+      "mergeAgentsUnavailable": "Agent profile rights could not be checked. Merge is disabled; choose this target again to retry.",
+      "mergeAgentsLoading": "Checking agent profile rights…",
       "mergeInfo": "About merging",
       "mergeName": "Name after merging",
       "mergeDescription": "Choose the tag this tag goes into, change the new name if you like, and confirm.",

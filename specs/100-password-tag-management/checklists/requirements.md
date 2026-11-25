@@ -34,7 +34,8 @@
 ## Notes
 
 - FR-010 (agent rights are not rewritten by a merge; the confirmation warns instead) and the
-  directional merge (target keeps name and color) are defaults chosen without asking; both are listed
+  directional merge (target keeps color and keeps its name unless the user supplies a result name)
+  are defaults chosen without asking; both are listed
   under Assumptions and are the points to check at the spec review gate.
 - FR-013 refers to the project's UI feedback rule (toast for failures, a wrong name under its field);
   that is a project convention, not a technology choice.
