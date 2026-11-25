@@ -60,8 +60,8 @@ the file `message.txt` over the Blossom path of US3, marked `"inline": true`, wi
 first ~1,000 characters (cut at a word boundary) as `text`; the receiver downloads it automatically
 (≈ 400 KB, below the 25 MB limit) and the window shows it in full, collapsed with "Weiterlesen"
 (FR-012a). The upper bound is 1,000,000 characters (< 4 MB, below the 4 MB the receiver honours for
-the marker). A receiver honours the marker only for `text/plain` and ≤ 4 MB. Notes (FR-002b) store the
-text in the row, so only the upper bound applies. Splitting over several wraps stays rejected.
+the marker). A receiver honours the marker only for `text/plain` and ≤ 4 MB. _Changed 2026-11-25:_ notes
+(FR-002b) are sent like messages, so the same rule applies to them. Splitting over several wraps stays rejected.
 
 ## R3 One Nostr client per vault session for the chat
 
@@ -397,8 +397,10 @@ Anfrage"), no text. Android: permission requested on first use (desktop.rs:135-1
   `thread/:id` still names the open agent session, so tab history and actions keep working. No
   backend change for it: the "Agent" entry takes time and title from the newest row of `list_threads`
   (already ordered by `updated_at`). The "Ich" entry is a conversation of kind `note` with an id
-  derived from the own vault: notes are `chat_peer_messages` rows without delivery or outbox rows, so
-  the CRDT sync of the own devices is their only way, and the delivery service never sees them.
+  derived from the own vault: notes are `chat_peer_messages` rows without delivery rows. _Changed
+  2026-11-25 (operator: a note must reach an own device although the sender went offline):_ a note
+  also gets an outbox row for the own other devices, so the delivery service publishes it as a gift
+  wrap (`to: { "note": <own vault> }`) and the CRDT sync stays a second way to the same row.
 - Routes (appRoutes.ts:277-285): keep `''` and `thread/:id` for agent conversations, add
   `contact/:id` for contact and group conversations (it opens on top of the agent conversation,
   which keeps running) and `requests`.

@@ -25,7 +25,8 @@ and cannot travel in one event.
    no other fixed limit; the counter shows only near the bound.
 3. **Notes** need no file: the text is stored in the row and syncs to own devices like any note.
    Only the upper bound applies. Counter and send lock in the frontend depend on the conversation
-   kind.
+   kind. _Superseded 2026-11-25 (operator, spec 072 FR-002b):_ a note is sent like a message, so
+   decisions 1 and 2 apply to it as well.
 4. **Marker.** `FileAttachment` gets `inline: bool` (default `false`, skipped when `false`), additive
    in envelope v1. The receiver honours it only for `text/plain` and ≤ 4 MB; otherwise the
    attachment is an ordinary file. A device without the feature shows preview plus a plain

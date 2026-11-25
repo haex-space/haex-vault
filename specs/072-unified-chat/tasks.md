@@ -389,6 +389,31 @@ process well below the file's size in memory.
 
 ---
 
+## Phase: Notes are sent like messages (FR-002b, changed 2026-11-25)
+
+**Goal**: A note, with or without files, reaches the user's other devices as a gift wrap and over the
+Blossom-Server, also when the sending device is offline by then. The sync of the own devices stays a
+second way to the same row.
+
+### Tests for notes over Nostr
+
+- [ ] T143 [P] Tests in `src-tauri/src/chat/peer/notes_tests.rs`, `send_tests.rs` and `envelope_tests.rs`: a note queues an outbox row for the own vault and no delivery row; `to.note` round-trips; a note with a long text falls to `message.txt` like a message; a note with attachments is accepted; with no other own device nothing is published and the note is stored.
+- [ ] T144 [P] Tests in `src-tauri/src/chat/peer/own_devices_tests.rs` and `verify_tests.rs`: a second own device stores a note it receives in the notes (same row as the sync's), causes no receipt and no notification; a `to.note` from another vault, or naming another vault, is dropped.
+- [ ] T145 [P] Scenario in `scripts/e2e/scenarios/chat-files.test.ts`: a note with a file is sent on one own device, that device goes offline, and the second own device receives text and file.
+
+### Implementation for notes over Nostr
+
+- [ ] T146 `src-tauri/src/chat/peer/envelope.rs`, `verify.rs`, `receive.rs`: `To::Note`, accepted only from an own device for the own vault, stored in the notes.
+- [ ] T147 `src-tauri/src/chat/peer/send.rs`, `long_text.rs`, `commands/messages.rs`, `files/transfers.rs`: a note is queued for the own vault with its attachments and the long-text rule of a message; the Blossom checks apply to it.
+- [ ] T148 `src/components/chat/PeerConversation.vue`, `usePeerConversation.ts`: files can be attached to a note (with a Blossom-Server), the counter and send lock follow the message rule.
+- [ ] T149 [P] i18n: drop `chat.file.notInNotes`; docs in the in-app texts if they name the notes as vault-only.
+- [ ] T150 Checks: `pnpm check:*`, `typecheck`, clippy for the host and `aarch64-linux-android`.
+
+**Checkpoint**: Quickstart: write a note with a file on the laptop, close the laptop, open the phone:
+text and file are there.
+
+---
+
 ## Dependencies & Execution Order
 
 - **Setup (T001–T003)** → **Foundational (T004–T008)** → US1 (PR B).

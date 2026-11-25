@@ -49,9 +49,13 @@ sowie dateien hatte ich gehofft, wir können nostr dafür nutzen".
   agent soll dabei einfach ein eigener kontakt sein").
 - Q: Can the user write notes to themselves? → A: Yes. "Ich", the user's own contact as the address
   book shows it, is a further entry of the list, always listed like "Agent". What the user writes there
-  is a note: it stays in the vault and shows on all own devices, and it never goes to a Nostr-Relay
-  (operator: "ein weiterer kontakt im chat soll \"Ich\" sein ... darüber soll sich der nutzer selber
-  notizen hinterlassen können").
+  is a note: it shows on all own devices. _Changed 2026-11-25 (operator):_ a note is sent like a
+  message, as a gift wrap to the own other devices and with its files over a Blossom-Server, so an
+  own device that was offline gets it although the sending device is offline now (operator: "eine
+  notiz an mich selbst soll wie eine normale nachricht verschickt werden und nicht nur via CRDT [...]
+  ich kann von einem gerät etwas verschicken (nachricht und dateien), das gerät kann offline gehen und
+  ich bekomme die nachricht mit einem anderen gerät"). It was "stays in the vault and never goes to a
+  Nostr-Relay" before (operator 2026-09, 2026-11-20).
 
 ## Terms
 
@@ -149,8 +153,10 @@ conversation unchanged, start a direct conversation from the address book and se
 7. **Given** the list, **When** Anna looks at it, **Then** it holds exactly one entry "Notiz an mich selber"
    with the picture of her own contact, also before her first note; **When** she clicks it and writes
    "Reifen wechseln", **Then** the note shows at once with its time and no delivery state, the entry moves
-   to the top, and the note appears on her phone through the sync of her own devices, without any
-   Nostr-Relay involved.
+   to the top, and the note appears on her phone as a message of her own other device (gift wrap over
+   her Nostr-Relays), also when her laptop went offline right after sending; **When** she attaches a
+   file to a note, **Then** it goes over her Blossom-Server like a file of a direct conversation and
+   her phone downloads it from there.
 
 ---
 
@@ -454,10 +460,16 @@ where her files go and what others see.
   operator; it read "Ich") with the picture of the user's own contact (spec 051), sorted by its last
   note like any entry. The address book still calls the own contact "Ich". A click opens the notes; the
   first note creates them. The notes view offers the same composer as a direct conversation (FR-006),
-  shows each note with its time and no delivery state, and can be deleted (FR-008). A note MUST NOT be
-  sent to any Nostr-Relay or Blossom-Server and MUST NOT cause receipts or notifications; it reaches
-  the own devices only through the vault's sync (FR-009). A note is limited only to 1,000,000
-  characters (FR-012), not to what fits into one wrap.
+  shows each note with its time and no delivery state, and can be deleted (FR-008). _Changed
+  2026-11-25 (operator):_ a note MUST be sent like a message of a direct conversation: as a gift wrap
+  (FR-010) to every other device on the user's own Visitenkarte, over the Nostr-Relays on it (FR-011),
+  and with attachments over the Blossom-Server (FR-030 to FR-038), so that an own device which is
+  online later receives the note and its files although the sending device is offline by then. The
+  note is also vault data (FR-009), so the sync of the own devices MAY deliver it as well; both ways
+  land on the same row. A note MUST NOT cause receipts or notifications (the sender is the user), and
+  with no other own device or no Nostr-Relay it stays in the vault only. A note follows FR-012 and
+  FR-034 to FR-038 like a direct message (the limit of 1,000,000 characters, a long text as a file,
+  files only with a Blossom-Server).
 - **FR-004**: "Neue Unterhaltung" MUST let the user choose one contact (direct) or several contacts plus
   a name (group); the agent and the notes are reached through their list entries (FR-001, FR-002b). Only contacts with a confirmed Visitenkarte of another vault are
   offered; the user's own contact ("Ich") is never offered.
@@ -492,8 +504,8 @@ where her files go and what others see.
   as soon as the file is on that device (FR-033, FR-036 never holds it back: it is below the
   automatic limit). A text over 1,000,000 characters MUST be refused before sending with the limit
   named. Without a Blossom-Server (FR-038) such a text MUST stay in the input field with the hint to
-  the settings. A note (FR-002b) has no wrap and no file; only the 1,000,000-character limit applies
-  to it.
+  the settings. _Changed 2026-11-25:_ a note (FR-002b) follows this rule like any message; it
+  had no wrap and no file, and only the 1,000,000-character limit applied, before.
 - **FR-012a**: A text longer than about twelve lines MUST be shown collapsed with a "Weiterlesen"
   button and fully shown after a click, with "Weniger anzeigen" to collapse it again; the state is
   not stored. For a message with an `inline` file the button always shows, with the size, and reads
