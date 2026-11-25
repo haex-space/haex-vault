@@ -119,7 +119,10 @@ scenario('passwords-sync-two-devices', { timeoutMs: 300_000 }, async (ctx) => {
     { timeoutMs: 40_000, fixed: true },
   )
   const tagId = async (device: typeof laptop, name: string) => {
-    const tag = (await overview(device)).tags.find((t) => t.name === name)
+    // The stored spelling is the one of the device that made the tag first ("Work" or "work").
+    const tag = (await overview(device)).tags.find(
+      (t) => t.name.toLowerCase() === name.toLowerCase(),
+    )
     assert.ok(tag, `the device holds no tag named "${name}"`)
     return tag.id
   }
@@ -139,7 +142,7 @@ scenario('passwords-sync-two-devices', { timeoutMs: 300_000 }, async (ctx) => {
       const { headers } = await overview(phone)
       return [jobOnly, jobAndWork].every((id) => {
         const names = headers.find((h) => h.id === id)?.tags.map((t) => t.name)
-        return names?.length === 1 && names[0] === 'Work'
+        return names?.length === 1 && names[0]?.toLowerCase() === 'work'
       })
     },
     { timeoutMs: 40_000, fixed: true },
