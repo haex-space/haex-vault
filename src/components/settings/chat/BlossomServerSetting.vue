@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * The Blossom-Server for chat files (spec 072 FR-038, FR-080): none, or an address of the user's
- * own. Saved when the field loses focus or on Enter, without a save button (spec 023 FR-021); an
+ * own, or one of the public servers offered below it. Saved when the field loses focus or on Enter, without a save button (spec 023 FR-021); an
  * empty field means none, and files cannot be attached then. "Prüfen" asks the server whether it
  * takes files up to the largest size. Stored as the vault setting `chat.blossom.server`; every
  * send reads it again, so a change applies to the next message.
@@ -11,6 +11,13 @@ import { toast } from 'vue-sonner'
 import type { ChatBlossomCheck } from '@bindings/ChatBlossomCheck'
 
 const KEY = 'chat.blossom.server'
+
+// Public servers that took a 20 MB encrypted blob anonymously and honoured DELETE when tested
+// (spec 072 research R12, 2026-11-25); a server joins this list only after the same test.
+const PRESETS = ['nostr.download', 'files.sovbit.host'].map((host) => ({
+  host,
+  url: `https://${host}`,
+}))
 
 const { t } = useI18n()
 const { errString } = useErrorString()
@@ -51,6 +58,11 @@ async function commitAsync() {
   } finally {
     busy.value = false
   }
+}
+
+async function pickPresetAsync(url: string) {
+  address.value = url
+  await commitAsync()
 }
 
 async function checkAsync() {
@@ -114,6 +126,25 @@ onVaultTablesChanged(['preferences'], loadAsync)
       </UiButton>
     </div>
     <template #below>
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-sm text-muted-foreground">
+          {{ t('settings.chat.server.presets.label') }}
+        </span>
+        <UiButton
+          v-for="preset in PRESETS"
+          :key="preset.host"
+          variant="outline"
+          size="sm"
+          :disabled="busy"
+          :data-testid="`settings-chat-server-preset-${preset.host}`"
+          @click="pickPresetAsync(preset.url)"
+        >
+          {{ preset.host }}
+        </UiButton>
+      </div>
+      <p class="text-sm text-muted-foreground">
+        {{ t('settings.chat.server.presets.hint') }}
+      </p>
       <p
         v-if="result"
         class="text-sm"
