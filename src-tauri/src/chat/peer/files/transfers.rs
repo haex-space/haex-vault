@@ -193,7 +193,7 @@ impl ChatFiles {
             .map_err(blossom_error)
     }
 
-    /// Sends `text` and `files` to the direct conversation `thread_id`: uploads every file first,
+    /// Sends `text` and `files` to the direct conversation or the notes `thread_id`: uploads every file first,
     /// keeps the own copies, then queues the message (FR-031). A retry with the same `event_id`
     /// answers the first message and uploads nothing.
     pub async fn send(
@@ -210,16 +210,13 @@ impl ChatFiles {
             .read(move |r| {
                 Ok((
                     send::sent_already(r, &check_me, thread_id, &check_event)?,
-                    send::direct_peer(r, thread_id)?,
+                    send::recipient(r, &check_me, thread_id)?,
                 ))
             })
             .await?;
         if let Some(message_id) = sent {
             return Ok(message_id);
         }
-        let Some(peer) = peer else {
-            return Err(invalid("chat.file.notInNotes"));
-        };
         crate::chat::peer::envelope::checked_body(text, files.len())?;
         let server = self
             .server()
@@ -652,6 +649,9 @@ impl ChatFiles {
             .read(move |r| {
                 let mut devices = targets::of(r, &me, &peer)?.devices;
                 devices.extend(targets::of(r, &me, &me.vault_hex)?.devices);
+                // A note names the own vault as the peer: its devices are listed once.
+                devices.sort_unstable();
+                devices.dedup();
                 Ok(devices)
             })
             .await?;

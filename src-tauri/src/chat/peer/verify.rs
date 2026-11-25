@@ -168,7 +168,7 @@ fn decode(opened: &Opened) -> std::result::Result<(String, String, Incoming), Dr
 }
 
 /// A rumor of the own vault: from a device on the own current list, about a direct conversation
-/// with another vault. Receipts never come from the own vault.
+/// with another vault or about the notes. Receipts never come from the own vault.
 fn check_own(
     tx: &mut CrdtTransaction<'_>,
     opened: &Opened,
@@ -189,6 +189,10 @@ fn check_own(
             to: To::Direct(peer),
             ..
         }) if *peer != hex(&addresses.vault) => Ok(()),
+        Incoming::Message(Envelope {
+            to: To::Note(vault),
+            ..
+        }) if *vault == hex(&addresses.vault) => Ok(()),
         _ => Err(Drop::NotForUs),
     })
 }

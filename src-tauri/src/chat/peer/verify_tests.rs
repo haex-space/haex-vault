@@ -342,3 +342,45 @@ fn an_own_message_passes_only_from_a_listed_own_device() {
         Err(Drop::UnknownDevice)
     );
 }
+
+#[tokio::test]
+async fn a_note_passes_only_from_an_own_device_for_the_own_vault() {
+    let anna = anna_knowing_ben(10).await;
+    let own_card = anna.card();
+    let note = |from: &str, card: &SignedCard, to: &str| {
+        envelope::message(
+            "Reifen wechseln",
+            Vec::new(),
+            from,
+            &card.text(),
+            To::Note(to.to_owned()),
+            1,
+        )
+        .expect("note")
+    };
+    let own = anna.me.vault_hex.clone();
+    let mine = note(&own, &own_card, &own);
+    let listed = run(&anna, opened(&mine, CHAT_KIND, anna.me.keys.device_pubkey));
+    assert!(listed.is_ok(), "{listed:?}");
+    assert_eq!(
+        run(&anna, opened(&mine, CHAT_KIND, [9; 32])),
+        Err(Drop::UnknownDevice),
+        "an unlisted device"
+    );
+
+    // A contact cannot write into the notes, whatever vault its note names.
+    let card = ben_card(10, &[BEN_DEVICE]);
+    for to in [own.clone(), hex(&ben_vault())] {
+        let forged = note(&hex(&ben_vault()), &card, &to);
+        assert_eq!(
+            run(&anna, opened(&forged, CHAT_KIND, BEN_DEVICE)),
+            Err(Drop::NotForUs)
+        );
+    }
+    // An own device cannot name another vault's notes either.
+    let other = note(&own, &own_card, &hex(&ben_vault()));
+    assert_eq!(
+        run(&anna, opened(&other, CHAT_KIND, anna.me.keys.device_pubkey)),
+        Err(Drop::NotForUs)
+    );
+}
