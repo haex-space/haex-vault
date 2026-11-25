@@ -20,10 +20,11 @@ Decisions for [plan.md](plan.md). Code references are to the state of `main` at 
 ## R2. What a request is now
 
 - **Decision**: a request stays a direct `chat_threads` row with `state = 'request'` and the carried card on
-  the peer's `chat_members` row (`store::mark_request`, unchanged), but it has **no** `chat_peer_messages`
-  rows. Two new columns on `chat_threads` hold `request_first_at` and `request_last_at` (FR-002); a
-  further knock updates `request_last_at` and, if newer, the card (FR-003; `mark_request` already keeps
-  the newer card).
+  the peer's `chat_members` row (`store::mark_request`, unchanged). A knock adds no `chat_peer_messages`
+  or `chat_attachments` rows; earlier accepted rows stay if an existing direct thread becomes a request,
+  and removing request-only state does not delete those rows. Two new columns on `chat_threads` hold
+  `request_first_at` and `request_last_at` (FR-002); a further knock updates `request_last_at` and, if
+  newer, the card (FR-003; `mark_request` already keeps the newer card).
 - **Rationale**: the requests view, its count, "Annehmen" through `chat_request_card` and the thread id the
   window opens all keep working; only the messages disappear.
 - **Alternatives considered**: a table of its own for requests — duplicates the thread/member/card
@@ -85,8 +86,9 @@ PARKED`, as `noDevices` does). While it is set, a new message to that vault is s
 ## R7. The hint while nothing came back (FR-005a)
 
 - **Decision**: the conversation listing gains `peerAnswered` (any incoming message, or any delivery to
-  that vault with `delivered_at`) and the window shows the hint when `!peerAnswered` and an own message is
-  older than 60 s without `delivered_at`. The minute is a window-side timer.
+  that vault with `delivered_at`) and the window shows the hint when `!peerAnswered`, `!blockedByPeer`, and
+  an own message is older than 60 s without `delivered_at`. A blocked notice is an explicit answer, so it
+  suppresses the hint even though `peerAnswered` remains false. The minute is a window-side timer.
 - **Rationale**: one query in `store::list`; no new state; never a claim the device cannot know.
 
 ## R8. Switching requests off (FR-012)
@@ -94,10 +96,12 @@ PARKED`, as `noDevices` does). While it is set, a new message to that vault is s
 - **Decision**: vault preference `chat.requests.allowStrangers`, default `true`, checked in
   `validate_value` like the other chat settings. The window does not write it through the generic
   preferences command but through `chat_requests_set_allowed`, which writes the preference and deletes
-  every request (`store::delete` per thread, as declining does today, without notice and without block)
-  in one transaction.
-- **Rationale**: the switch and the removal must not be split, and a request must not survive on another
-  own device: the thread deletion syncs. Receiving reads the preference in the same transaction as R1.
+  every request present on that device (`store::delete` per thread, as declining does today, without
+  notice and without block) in one transaction. A device applying a synced `false` value also deletes
+  every request thread present locally, in the same transaction as applying the preference.
+- **Rationale**: the switch and the local removal must not be split. Sync propagates deletions known to
+  the writing device; each receiving device removes its own requests, including requests it had before
+  the preference synced. Receiving reads the preference in the same transaction as R1.
 - **Alternatives considered**: deleting requests when the preference row changes — the preference is
   written by a generic command that knows nothing of the chat.
 - **Guard**: `validate_value` refuses `chat.requests.allowStrangers` through the generic preferences
@@ -151,8 +155,8 @@ PARKED`, as `noDevices` does). While it is set, a new message to that vault is s
   only removes the row): remove every block entry of the vault (and, for a hidden contact, of all vaults
   of that contact); if the entry kept a card and no contact holds the vault, create the contact from it
   through spec 060's `share/merge.rs` `apply` (after the entry is gone, since `apply` refuses blocked
-  vaults); write an accepted notice (R5). A hidden contact needs nothing else: removing the entries makes
-  it visible with all its data.
+  vaults); write an accepted notice (R5) to every vault whose block entry was removed. A hidden contact
+  needs nothing else: removing the entries makes it visible with all its data.
 - **Rationale**: one transaction for list, contact and notice; reuse of the existing import of a card.
 
 ## R14. Blocking a contact (FR-014)
