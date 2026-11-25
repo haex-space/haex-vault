@@ -199,6 +199,7 @@ mod receiving {
             attempts: 0,
             resends: 0,
             created_at: now,
+            next_at: now,
         };
         from.db
             .write_blocking(move |tx| Ok(seal(tx, &me, &entry, &device, now)?))

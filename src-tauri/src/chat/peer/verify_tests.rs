@@ -322,7 +322,7 @@ async fn a_receipt_for_the_own_vault_passes() {
         panic!("receipt");
     };
     assert_eq!(normalized.from, hex(&ben_vault()));
-    assert_eq!(normalized.thread, To::Direct(anna.me.vault_hex));
+    assert_eq!(normalized.thread, To::Direct(anna.me.vault_hex.clone()));
 }
 
 #[test]
