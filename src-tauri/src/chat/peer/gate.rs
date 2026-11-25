@@ -33,11 +33,12 @@ pub fn write_notice(
          ON CONFLICT(peer_vault) DO UPDATE SET sequence = sequence + 1",
         params![peer_vault],
     )?;
-    let sequence: i64 = tx.query_row(
+    let sequence: Option<i64> = tx.query_row(
         "SELECT sequence FROM chat_gate_answer_sequences_no_sync WHERE peer_vault = ?1",
         params![peer_vault],
         |row| row.get(0),
     )?;
+    let sequence = sequence.unwrap_or(0);
     tx.execute(
         "INSERT INTO chat_gate_notices_no_sync (peer_vault, answer, created_at, sequence) \
          VALUES (?1, ?2, ?3, ?4) \
