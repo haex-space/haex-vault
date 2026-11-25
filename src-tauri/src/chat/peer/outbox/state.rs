@@ -320,12 +320,13 @@ pub fn resend(tx: &mut CrdtTransaction<'_>, message_id: &str, now: i64) -> Resul
     let Some((id, pending)) = row else {
         return Ok(false);
     };
-    let blocked: bool = tx.query_row(
+    let blocked: Option<bool> = tx.query_row(
         "SELECT EXISTS (SELECT 1 FROM chat_deliveries WHERE message_id = ?1 \
            AND failed_at IS NOT NULL AND failed_reason = ?2)",
         params![message_id, FailReason::Blocked.code()],
         |row| row.get(0),
     )?;
+    let blocked = blocked.unwrap_or(false);
     if blocked {
         return Err(HaexError::InvalidInput {
             reason: "chat.error.resendBlocked".into(),
