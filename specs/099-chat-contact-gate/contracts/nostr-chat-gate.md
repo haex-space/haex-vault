@@ -34,6 +34,11 @@ one, `thread.direct` is the own vault, the sender is a stored card. Otherwise dr
 - `blocked`: set `peer_blocked_at`; every unconfirmed delivery to `from` fails with `blocked`; their outbox
   rows are parked.
 
+When a new answer is queued for the same peer, the outbox drops any older unsent gate notice for that
+peer before enqueueing it. Thus a pending `blocked` notice is replaced by a later `accepted` notice (and
+vice versa), so an older unsent answer cannot be published after the newer one. The receiver applies
+each received notice as it arrives. Wrap `created_at` is not used to order answers.
+
 ## Receiving side changes (no wire change)
 
 - A `chat.message` (`kind 24120`) of a vault without a stored, unblocked card stores no message and no

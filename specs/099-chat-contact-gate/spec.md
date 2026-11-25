@@ -247,9 +247,10 @@ a contact with the card of its request.
   content; further attempts of the same vault MUST NOT notify.
 - **FR-005**: No delivery or read receipt MUST go back for a message that became or updated a request, or
   that was dropped.
-- **FR-005a**: While nothing ever came back from a vault (no message, no receipt) and a message to it has
-  not been delivered for one minute, the sender's conversation MUST show that the recipient is offline or
-  has not accepted yet; it MUST NOT claim either. The recipient MUST NOT answer a request.
+- **FR-005a**: While no message or receipt has ever come back from a vault, except a blocked notice, and a
+  message to it has not been delivered for one minute, the sender's conversation MUST show that the
+  recipient is offline or has not accepted yet; it MUST NOT claim either. A blocked notice is an explicit
+  answer and MUST suppress this hint. The recipient MUST NOT answer a request.
 - **FR-006**: A request MUST offer exactly "Annehmen" and "Ablehnen"; "Ablehnen" MUST be confirmed first.
 - **FR-007**: "Annehmen" MUST add the vault as a contact with the carried Visitenkarte through spec 060's
   preview. Whenever an open request ends because its vault became a contact (by this or any other way),
@@ -283,8 +284,8 @@ a contact with the card of its request.
 - **FR-016**: The settings MUST list the blocked vaults (spec 051's list), each with the contact's name or
   the name on the kept Visitenkarte and its address, and allow unblocking. Unblocking MUST make the vault a
   contact again: a hidden contact shows again with all its data, a vault with a kept Visitenkarte becomes a
-  contact with it. The vault's devices MUST get an accepted notice. A vault with neither only leaves the
-  list.
+  contact with it. Every vault whose block entry is removed MUST get an accepted notice. A vault with
+  neither only leaves the list.
 
 ### Key Entities
 

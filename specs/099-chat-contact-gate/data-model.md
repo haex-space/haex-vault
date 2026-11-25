@@ -7,7 +7,7 @@ on the device. No data is migrated (no users of the old request behaviour).
 
 | Column             | Type         | New | Meaning                                                                                          |
 | ------------------ | ------------ | --- | ------------------------------------------------------------------------------------------------ |
-| `state`            | TEXT         |     | `'request'` now means: a stranger knocked; the thread has no message rows (research R2)          |
+| `state`            | TEXT         |     | `'request'` means a stranger knocked; a knock adds no message or attachment rows (research R2)    |
 | `request_first_at` | INTEGER NULL | yes | First knock of the request (ms); set when the thread becomes a request                           |
 | `request_last_at`  | INTEGER NULL | yes | Latest knock (ms); updated by every further knock (FR-003)                                       |
 | `peer_blocked_at`  | INTEGER NULL | yes | Sender side: when the peer's blocked notice arrived; cleared by an accepted notice (research R6) |
@@ -27,8 +27,10 @@ Sender side: `peer_blocked_at` NULL → set by a blocked notice → NULL by an a
 
 ## `chat_peer_messages` / `chat_attachments` (unchanged)
 
-A knock writes no rows here (FR-002). Resent messages after an accept land on the row their derived id
-names (spec 072 research R4), in the order of `sent_at`.
+A knock writes no rows here (FR-002). Previously accepted message and attachment rows remain if an
+existing direct thread becomes a request, and remain if request-only state is later removed. Resent
+messages after an accept land on the row their derived id names (spec 072 research R4), in the order of
+`sent_at`.
 
 ## `chat_deliveries` (unchanged columns, new reason)
 
