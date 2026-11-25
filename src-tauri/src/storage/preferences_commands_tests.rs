@@ -75,6 +75,36 @@ fn the_chat_file_server_is_none_or_an_address_a_file_may_go_to() {
 }
 
 #[test]
+fn the_added_blossom_servers_are_a_list_of_addresses_with_a_short_badge() {
+    for value in [
+        "[]",
+        r#"[{"url":"https://files.example.com"}]"#,
+        r#"[{"url":"https://files.example.com","badge":"Mein Server"}]"#,
+    ] {
+        validate_value("chat.blossom.servers", value).expect("a list of servers");
+    }
+    let too_long = format!(
+        r#"[{{"url":"https://files.example.com","badge":"{}"}}]"#,
+        "x".repeat(25)
+    );
+    for value in [
+        "",
+        "https://files.example.com",
+        r#"[{"url":"http://files.example.com"}]"#,
+        r#"[{"url":"https://user:secret@files.example.com"}]"#,
+        r#"[{"address":"https://files.example.com"}]"#,
+        too_long.as_str(),
+    ] {
+        validate_value("chat.blossom.servers", value).expect_err("not a list of servers");
+    }
+    let many = format!(
+        "[{}]",
+        vec![r#"{"url":"https://files.example.com"}"#; 21].join(",")
+    );
+    validate_value("chat.blossom.servers", &many).expect_err("too many");
+}
+
+#[test]
 fn the_chat_switches_take_true_or_false_and_the_download_limit_a_number() {
     for key in ["chat.receipts.read", "chat.notifications"] {
         for value in ["true", "false"] {
