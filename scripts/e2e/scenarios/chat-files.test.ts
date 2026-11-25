@@ -5,7 +5,12 @@ import { openChat, unwrap, type FlowInstance } from '../lib/flows.ts'
 import { acceptCard } from '../lib/peers.ts'
 import { deviceFiles } from '../lib/extension-files.ts'
 import { ownCardText } from '../lib/share.ts'
-import { choose, runAction, waitForLocation } from '../lib/settings.ts'
+import {
+  choose,
+  runAction,
+  waitForLocation,
+  wmSnapshot,
+} from '../lib/settings.ts'
 
 // Spec 072 US3 (quickstart A13, tasks T071, T070, T106): a contact conversation offers files only
 // with a Blossom-Server and otherwise shows the hint to the chat settings; a file sent with a message
@@ -80,6 +85,10 @@ scenario('chat-files', { timeoutMs: 420_000 }, async (ctx) => {
   ).threadId
 
   await openChat(anna)
+  const annaChatWindow = (await wmSnapshot(anna)).windows.find((window) =>
+    window.tabs.some((tab) => tab.appId === 'system.chat'),
+  )
+  assert.ok(annaChatWindow, 'Anna should have an open chat window')
   await anna.click('chat-peer')
   await anna.waitForDisplayed('chat-peer-attach')
   assert.equal(await count(anna, 'chat-peer-no-server-hint'), 0)
@@ -92,7 +101,11 @@ scenario('chat-files', { timeoutMs: 420_000 }, async (ctx) => {
   assert.ok(chatSettings.ok, 'settings should open the chat settings page')
   await waitForLocation(anna, 'chat')
   await choose(anna, 'settings-chat-server', '')
-  await openChat(anna)
+  const chatFocused = await runAction(anna, 'wm.window.focus', {
+    windowId: annaChatWindow.id,
+  })
+  assert.ok(chatFocused.ok, 'the existing chat window should regain focus')
+  await anna.waitForDisplayed('chat-sidebar-toggle')
   await anna.click('chat-peer')
   await anna.waitForDisplayed('chat-peer-no-server-hint')
   assert.equal(await count(anna, 'chat-peer-attach'), 0)
@@ -110,7 +123,11 @@ scenario('chat-files', { timeoutMs: 420_000 }, async (ctx) => {
   )
   await waitForLocation(anna, 'chat')
   await choose(anna, 'settings-chat-server', blossom.url)
-  await openChat(anna)
+  const chatFocusedAgain = await runAction(anna, 'wm.window.focus', {
+    windowId: annaChatWindow.id,
+  })
+  assert.ok(chatFocusedAgain.ok, 'the existing chat window should regain focus')
+  await anna.waitForDisplayed('chat-sidebar-toggle')
   await anna.click('chat-peer')
   unwrap(
     'set_pref',
