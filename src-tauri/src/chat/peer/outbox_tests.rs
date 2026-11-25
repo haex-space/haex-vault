@@ -126,7 +126,7 @@ fn a_failed_attempt_waits_and_the_row_survives_a_restart() {
 }
 
 #[test]
-fn an_accepted_vault_is_sent_and_the_row_goes() {
+fn an_accepted_vault_is_sent_and_the_row_waits_for_its_receipt() {
     let anna = ChatDevice::genesis(&[]);
     let entry = queued(&anna.db, 1_000);
     attempt(
@@ -139,7 +139,9 @@ fn an_accepted_vault_is_sent_and_the_row_goes() {
         2_000,
     );
     assert_eq!(delivery(&anna.db).0, Some(2_000));
-    assert!(due(&anna.db, i64::MAX - 1).is_empty());
+    let resend = due(&anna.db, 2_000 + resend_after(0)).remove(0);
+    assert!(resend.is_resend());
+    assert_eq!(resend.awaiting, [PEER]);
 }
 
 /// Spec 095 T028: no end, and a clear failure.
@@ -242,33 +244,25 @@ fn partial_acceptance_clears_no_relay_but_keeps_the_vault_pending() {
 #[test]
 fn a_parked_vault_stays_parked_when_another_vault_later_succeeds() {
     let anna = ChatDevice::genesis(&[]);
-    let entry = queued(&anna.db, 1_000);
+    queued(&anna.db, 1_000);
     let message = MESSAGE.parse().expect("uuid");
     anna.db
         .write_blocking(move |tx| {
             ensure_delivery(tx, message, OTHER)?;
             let pending = vec![PEER, OTHER];
             tx.execute(
-                "UPDATE chat_outbox_no_sync SET pending = ?1 WHERE id = 'e1'",
-                params![serde_json::to_string(&pending).expect("pending")],
+                "UPDATE chat_outbox_no_sync SET pending = ?1, awaiting = ?2 WHERE id = 'e1'",
+                params![
+                    serde_json::to_string(&pending).expect("pending"),
+                    serde_json::to_string(&pending).expect("awaiting")
+                ],
             )?;
             Ok(())
         })
         .expect("second delivery");
-    let entry = Entry {
-        pending: vec![PEER.to_owned(), OTHER.to_owned()],
-        ..entry
-    };
-    attempt(
-        &anna.db,
-        &entry,
-        Attempt {
-            failed: vec![(PEER.to_owned(), FailReason::Blocked)],
-            ..Attempt::default()
-        },
-        2_000,
-    );
-
+    anna.db
+        .write_blocking(|tx| Ok(park_vault(tx, PEER, 2_000)?))
+        .expect("peer blocked this vault");
     let entry = due(&anna.db, 7_000).remove(0);
     attempt(
         &anna.db,
