@@ -47,7 +47,7 @@ fn played(
     args: Value,
 ) -> Played {
     let effects = effects(&embedded_tools(), &embedded_mail_tools());
-    play(request, decision, earlier, tool, &args, &effects)
+    play(request, decision, false, earlier, tool, &args, &effects)
 }
 
 #[test]

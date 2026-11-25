@@ -129,7 +129,7 @@ fn internal(error: impl std::fmt::Display) -> NativeError {
 }
 
 /// A refusal as the model reads it: the code of the contract and what to do (contracts "Errors").
-fn refused(error: MemoryError) -> NativeError {
+pub(crate) fn refused(error: MemoryError) -> NativeError {
     use super::check::CheckError;
     use super::limits::LimitError;
     let (code, field, message) = match &error {
@@ -238,7 +238,8 @@ fn by(kind: &str, name: &str) -> String {
     }
 }
 
-fn opened(
+/// A page as `memory_open` gives it to the model, with its pointers out and in.
+pub(crate) fn opened(
     page: &Page,
     also: Option<&Page>,
     pages: &[Page],
@@ -293,6 +294,35 @@ fn opened(
     result
 }
 
+/// What `memory_search` gives the model for `query` over `pages`.
+pub(crate) fn search_result(pages: &[Page], query: &str) -> Value {
+    let searchable: Vec<SearchPage<'_>> = pages
+        .iter()
+        .map(|p| SearchPage {
+            id: &p.id,
+            title: &p.title,
+            description: &p.description,
+            body: &p.body,
+            changed_at: p.last_change(),
+        })
+        .collect();
+    let by_id: HashMap<&str, &Page> = pages.iter().map(|page| (page.id.as_str(), page)).collect();
+    let results: Vec<Value> = search(&searchable, query)
+        .into_iter()
+        .filter_map(|hit| {
+            let page = by_id.get(hit.id.as_str())?;
+            Some(json!({
+                "title": hit.title,
+                "description": hit.description,
+                "excerpt": hit.excerpt,
+                "by": by(&page.author_kind, &page.author_name),
+                "at": iso_date(page.created_at),
+            }))
+        })
+        .collect();
+    json!({ "notice": NOTICE, "results": results })
+}
+
 impl<E: MemoryEnv + 'static> MemoryActions<E> {
     async fn read(&self, action_id: &str, input: Value) -> Result<Value, NativeError> {
         let db = self.env.database().map_err(internal)?;
@@ -300,32 +330,7 @@ impl<E: MemoryEnv + 'static> MemoryActions<E> {
             SEARCH => {
                 let query = parse::<SearchInput>(input)?.query;
                 let pages = db.read(|q| store::list(q)).await.map_err(internal)?;
-                let searchable: Vec<SearchPage<'_>> = pages
-                    .iter()
-                    .map(|p| SearchPage {
-                        id: &p.id,
-                        title: &p.title,
-                        description: &p.description,
-                        body: &p.body,
-                        changed_at: p.last_change(),
-                    })
-                    .collect();
-                let by_id: HashMap<&str, &Page> =
-                    pages.iter().map(|page| (page.id.as_str(), page)).collect();
-                let results: Vec<Value> = search(&searchable, &query)
-                    .into_iter()
-                    .filter_map(|hit| {
-                        let page = by_id.get(hit.id.as_str())?;
-                        Some(json!({
-                            "title": hit.title,
-                            "description": hit.description,
-                            "excerpt": hit.excerpt,
-                            "by": by(&page.author_kind, &page.author_name),
-                            "at": iso_date(page.created_at),
-                        }))
-                    })
-                    .collect();
-                Ok(json!({ "notice": NOTICE, "results": results }))
+                Ok(search_result(&pages, &query))
             }
             _ => {
                 let title = parse::<TitleInput>(input)?.title;

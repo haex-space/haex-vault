@@ -65,7 +65,9 @@ pub(super) fn dialog(
         } else {
             decide(PermissionMode::Auto, risk)
         };
-        let played = play(request, decision, &done, &call.tool, &call.args, effects);
+        let played = play(
+            request, decision, false, &done, &call.tool, &call.args, effects,
+        );
         let mut call = call.clone();
         call.ending = played.ending;
         call.unasked = played.unasked;

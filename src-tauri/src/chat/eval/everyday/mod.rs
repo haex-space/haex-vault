@@ -13,6 +13,7 @@ pub mod scoring;
 pub mod speech;
 pub mod world;
 mod world_app;
+pub mod world_memory;
 
 #[cfg(test)]
 #[path = "chainset_tests.rs"]
@@ -26,6 +27,9 @@ mod ids_tests;
 #[cfg(test)]
 #[path = "mail_names_tests.rs"]
 mod mail_names_tests;
+#[cfg(test)]
+#[path = "memoryset_tests.rs"]
+mod memoryset_tests;
 
 #[cfg(test)]
 #[path = "mod_tests.rs"]
@@ -42,6 +46,9 @@ mod routing_tests;
 #[cfg(test)]
 #[path = "runner_dialog_tests.rs"]
 mod runner_dialog_tests;
+#[cfg(test)]
+#[path = "runner_memory_tests.rs"]
+mod runner_memory_tests;
 #[cfg(test)]
 #[path = "runner_tests.rs"]
 mod runner_tests;
@@ -64,6 +71,9 @@ mod world_tests;
 #[cfg(test)]
 #[path = "world_app_tests.rs"]
 mod world_app_tests;
+#[cfg(test)]
+#[path = "world_memory_tests.rs"]
+mod world_memory_tests;
 
 use std::collections::{BTreeMap, HashSet};
 
@@ -77,6 +87,7 @@ use crate::extensions::agent_tools::defs::ExtensionToolDef;
 use super::scoring::Lang;
 use super::{embedded_tools, extension_defs, FixtureExtension};
 use mail_names::set_name;
+use world_memory::{check_seed, SeedPage};
 
 /// The haex-mail manifest the agent tools are copied from (FR-001, research R5).
 pub const MAIL_TOOLS_SOURCE: &str = "haex-space/haextension@39c499801157b8e71a68a198a27591ce1a581769:apps/haex-mail/haextension/manifest.json";
@@ -100,6 +111,8 @@ pub enum Category {
     AppSetting,
     Clarify,
     NoTool,
+    /// The memory of spec 097: remembering, finding and not storing what does not belong there.
+    Memory,
 }
 
 /// Written clean, or the way speech recognition delivers it (FR-004).
@@ -148,6 +161,9 @@ pub enum Expectation {
     Calls(Vec<Vec<ExpectedCall>>),
     /// No tool; every inner list needs one of its alternatives in the final text.
     Answer(Vec<Vec<String>>),
+    /// The facts of [`Self::Answer`] in the final text, after any reading calls and no change: what
+    /// the agent looked up in the memory (spec 097 FR-026).
+    Recall(Vec<Vec<String>>),
     /// No tool, no command, a text that is not empty.
     Refusal,
     /// `ask_user`, or a question in the final text, and no change.
@@ -171,6 +187,9 @@ impl<'de> Deserialize<'de> for Expectation {
             Answer {
                 answer: Answer,
             },
+            Recall {
+                recall: Answer,
+            },
             Calls {
                 calls: Vec<ExpectedCall>,
             },
@@ -189,6 +208,10 @@ impl<'de> Deserialize<'de> for Expectation {
                 serde::de::Error::custom("an answer needs at least one alternative per fact"),
             ),
             Raw::Answer { answer } => Ok(Self::Answer(answer.contains)),
+            Raw::Recall { recall } if recall.contains.iter().any(Vec::is_empty) => Err(
+                serde::de::Error::custom("a recall needs at least one alternative per fact"),
+            ),
+            Raw::Recall { recall } => Ok(Self::Recall(recall.contains)),
             Raw::Calls { calls } if calls.is_empty() => {
                 Err(serde::de::Error::custom("calls must not be empty"))
             }
@@ -225,6 +248,9 @@ pub struct Request {
     /// 2026-11-03). Only on spoken requests, so a twin need not carry it.
     #[serde(default)]
     pub misheard: bool,
+    /// Pages of the memory this request finds besides the run's (spec 097).
+    #[serde(default)]
+    pub memory: Vec<SeedPage>,
     pub expect: Expectation,
 }
 
@@ -308,6 +334,7 @@ pub fn load_set(json: &str) -> Result<EverydaySet, String> {
                 request.id
             ));
         }
+        check_seed(&request.memory).map_err(|e| format!("{}: {e}", request.id))?;
         if let Expectation::Calls(chains) = &request.expect {
             if let Some(call) = chains.iter().flatten().find(|c| !known.contains(&c.tool)) {
                 return Err(format!("{}: unknown tool {}", request.id, call.tool));

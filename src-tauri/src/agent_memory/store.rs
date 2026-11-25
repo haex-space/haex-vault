@@ -201,7 +201,7 @@ pub fn vault_secrets(q: &mut impl Query) -> haex_crdt::Result<Vec<String>> {
 }
 
 /// `text` for `field` passes the check, holds no value of the password manager, and fits.
-fn checked(
+pub(crate) fn checked(
     field: Field,
     text: &str,
     stored: Option<&str>,

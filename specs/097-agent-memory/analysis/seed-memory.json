@@ -1,0 +1,422 @@
+[
+  {
+    "title": "Hund",
+    "description": "Kims Hund Krümel",
+    "text": "Krümel ist ein Beagle, fünf Jahre alt. Geimpft wird er in der [[Praxis Wendt]].",
+    "by": "user",
+    "at": "2026-01-01"
+  },
+  {
+    "title": "Praxis Wendt",
+    "description": "Tierarztpraxis von Krümel",
+    "text": "Marktstraße 4, dienstags bis 19 Uhr, sonst bis 17 Uhr.",
+    "by": "Codex",
+    "at": "2026-02-08"
+  },
+  {
+    "title": "Arbeit",
+    "description": "Wo und woran Kim arbeitet",
+    "text": "Kim ist Projektleiterin bei der Firma; Kollegin [[Julia Wagner]] plant das Projekt Q2 mit.",
+    "by": "Claude Code",
+    "at": "2026-03-15"
+  },
+  {
+    "title": "Julia Wagner",
+    "description": "Kollegin aus dem Projekt Q2",
+    "text": "Julia schreibt lieber Mails als zu telefonieren und ist donnerstags im Homeoffice.",
+    "by": "Claude Code",
+    "at": "2026-01-22"
+  },
+  {
+    "title": "Anna Schmidt",
+    "description": "Beste Freundin",
+    "text": "Anna und Kim treffen sich gern im Café am Markt. Anna mag keine Sprachnachrichten.",
+    "by": "user",
+    "at": "2026-02-01"
+  },
+  {
+    "title": "Bernd Keller",
+    "description": "Fahrradwerkstatt",
+    "text": "Bernd repariert Kims Fahrrad; Rechnungen kommen per Mail.",
+    "by": "gpt-5.5",
+    "at": "2026-03-08"
+  },
+  {
+    "title": "Ingrid Berger",
+    "description": "Kims Mutter",
+    "text": "Ingrid wohnt in Kassel und ruft sonntags an. Ostern feiert die Familie bei ihr.",
+    "by": "user",
+    "at": "2026-01-15"
+  },
+  {
+    "title": "Tom Fischer",
+    "description": "Freund aus dem Chor",
+    "text": "Tom organisiert Konzertkarten; er schreibt auf Englisch.",
+    "by": "Codex",
+    "at": "2026-02-22"
+  },
+  {
+    "title": "Hausverwaltung",
+    "description": "Die Hausverwaltung Meier",
+    "text": "Wartungstermine kündigt die Hausverwaltung per Mail an; Kim will sie im Kalender haben.",
+    "by": "user",
+    "at": "2026-03-01"
+  },
+  {
+    "title": "Essen",
+    "description": "Was Kim isst und trinkt",
+    "text": "Kim isst vegetarisch, mag kein Koriander und trinkt Kaffee mit Hafermilch.",
+    "by": "user",
+    "at": "2026-01-08"
+  },
+  {
+    "title": "Kleidung",
+    "description": "Was Kim gern trägt",
+    "text": "Dunkle Farben, keine Wolle. Schuhgröße 39, Jacken in M.",
+    "by": "user",
+    "at": "2026-02-15"
+  },
+  {
+    "title": "Auto",
+    "description": "Kims Auto",
+    "text": "Ein grauer Golf. Nächster TÜV im Juni.",
+    "by": "user",
+    "at": "2026-03-22"
+  },
+  {
+    "title": "Sport",
+    "description": "Kims Training",
+    "text": "Joggen dienstags und donnerstags, samstags Schwimmen im Auebad. Playlist zum Joggen liegt unter Musik.",
+    "by": "Claude Code",
+    "at": "2026-01-01"
+  },
+  {
+    "title": "Reisen",
+    "description": "Wie Kim reist",
+    "text": "Kim fliegt am liebsten mit Lufthansa, Fensterplatz, keine Flüge vor 8 Uhr.",
+    "by": "gpt-5.5",
+    "at": "2026-02-08"
+  },
+  {
+    "title": "Ostsee",
+    "description": "Urlaub an der Ostsee",
+    "text": "Im Sommer 2025 war Kim in Zingst; die Fotos liegen unter Fotos/2025.",
+    "by": "user",
+    "at": "2026-03-15"
+  },
+  {
+    "title": "Steuer",
+    "description": "Steuererklärung",
+    "text": "Die Steuererklärung macht Kim selbst; Belege sammelt sie im Ordner Dokumente/Steuer.",
+    "by": "Codex",
+    "at": "2026-01-22"
+  },
+  {
+    "title": "Wohnung",
+    "description": "Kims Wohnung",
+    "text": "Drei Zimmer im zweiten Stock, Mietvertrag im Ordner Dokumente.",
+    "by": "user",
+    "at": "2026-02-01"
+  },
+  {
+    "title": "Versicherungen",
+    "description": "Welche Versicherungen Kim hat",
+    "text": "Kfz-Versicherung und Haftpflicht; die Unterlagen liegen unter Dokumente/Versicherung.",
+    "by": "Claude Code",
+    "at": "2026-03-08"
+  },
+  {
+    "title": "Bank",
+    "description": "Kims Bank",
+    "text": "Kim ist bei der Sparkasse; Kontoauszüge kommen monatlich per Mail.",
+    "by": "user",
+    "at": "2026-01-15"
+  },
+  {
+    "title": "Strom",
+    "description": "Stromvertrag",
+    "text": "Strom und Gas kommen von den Stadtwerken; die Jahresabrechnung kommt im Februar.",
+    "by": "gpt-5.5",
+    "at": "2026-02-22"
+  },
+  {
+    "title": "Newsletter",
+    "description": "Wie Kim mit Werbung umgeht",
+    "text": "Kim liest keine Newsletter und hat kaum Zeit für Werbung.",
+    "by": "user",
+    "at": "2026-03-01"
+  },
+  {
+    "title": "Mails",
+    "description": "Wie Kim Mails mag",
+    "text": "Antworten kurz und auf Du, außer an die Firma. Signatur nur mit Vornamen.",
+    "by": "user",
+    "at": "2026-01-08"
+  },
+  {
+    "title": "Sprache",
+    "description": "In welcher Sprache Kim redet",
+    "text": "Kim redet Deutsch mit dem Agent, liest aber auch Englisch.",
+    "by": "user",
+    "at": "2026-02-15"
+  },
+  {
+    "title": "Anrede",
+    "description": "Wie Kim angesprochen werden will",
+    "text": "Kim, nicht Kimberly.",
+    "by": "user",
+    "at": "2026-03-22"
+  },
+  {
+    "title": "Termine",
+    "description": "Wie Kim Termine plant",
+    "text": "Keine Termine vor 9 Uhr, mittwochs nachmittags frei.",
+    "by": "Claude Code",
+    "at": "2026-01-01"
+  },
+  {
+    "title": "Geburtstage",
+    "description": "Geburtstage im Umfeld",
+    "text": "Paul am 12. April, Anna im Juni, Ingrid am 3. Oktober.",
+    "by": "Codex",
+    "at": "2026-02-08"
+  },
+  {
+    "title": "Paul",
+    "description": "Ein Freund von Kim",
+    "text": "Paul bekommt zum Geburtstag einen Riesling von der Mosel.",
+    "by": "Codex",
+    "at": "2026-03-15"
+  },
+  {
+    "title": "Chor",
+    "description": "Kims Chor",
+    "text": "Probe montags um 19:30 im Gemeindehaus; Tom ist auch dabei.",
+    "by": "user",
+    "at": "2026-01-22"
+  },
+  {
+    "title": "Garten",
+    "description": "Der Balkon",
+    "text": "Auf dem Balkon wachsen Tomaten und Basilikum; gießen jeden zweiten Tag.",
+    "by": "gpt-5.5",
+    "at": "2026-02-01"
+  },
+  {
+    "title": "Bücher",
+    "description": "Was Kim liest",
+    "text": "Krimis aus Skandinavien, gerade ein Buch von Jussi Adler-Olsen.",
+    "by": "user",
+    "at": "2026-03-08"
+  },
+  {
+    "title": "Musik",
+    "description": "Was Kim hört",
+    "text": "Indie und Jazz; beim Joggen die Playlist Joggen.",
+    "by": "user",
+    "at": "2026-01-15"
+  },
+  {
+    "title": "Filme",
+    "description": "Was Kim schaut",
+    "text": "Serien eher auf Netflix, keine Horrorfilme.",
+    "by": "Claude Code",
+    "at": "2026-02-22"
+  },
+  {
+    "title": "Arzt",
+    "description": "Kims Hausarzt",
+    "text": "Dr. Huber, Termine nur telefonisch.",
+    "by": "user",
+    "at": "2026-03-01"
+  },
+  {
+    "title": "Zahnarzt",
+    "description": "Kims Zahnarzt",
+    "text": "Dr. Weber am Königsplatz, Kontrolle alle sechs Monate.",
+    "by": "Codex",
+    "at": "2026-01-08"
+  },
+  {
+    "title": "Allergien",
+    "description": "Kims Allergien",
+    "text": "Heuschnupfen im Frühling, keine Medikamentenallergien.",
+    "by": "user",
+    "at": "2026-02-15"
+  },
+  {
+    "title": "Fahrrad",
+    "description": "Kims Fahrrad",
+    "text": "Ein blaues Trekkingrad, Reparaturen bei [[Bernd Keller]].",
+    "by": "gpt-5.5",
+    "at": "2026-03-22"
+  },
+  {
+    "title": "Laptop",
+    "description": "Kims Rechner",
+    "text": "Ein Laptop für privat, ein Firmenrechner mit VPN für die Arbeit.",
+    "by": "Claude Code",
+    "at": "2026-01-01"
+  },
+  {
+    "title": "Passwörter",
+    "description": "Wo Kim Zugangsdaten hat",
+    "text": "Alle Zugangsdaten stehen im Passwortmanager von haex-vault, nie im Gedächtnis.",
+    "by": "user",
+    "at": "2026-02-08"
+  },
+  {
+    "title": "Fotos",
+    "description": "Wie Kim Fotos ordnet",
+    "text": "Ein Ordner pro Jahr unter Fotos, Unterordner pro Anlass.",
+    "by": "user",
+    "at": "2026-03-15"
+  },
+  {
+    "title": "Dokumente",
+    "description": "Wie Kim Dokumente ordnet",
+    "text": "Unter Dokumente nach Thema: Steuer, Versicherung, Rechnungen, Arbeit.",
+    "by": "Codex",
+    "at": "2026-01-22"
+  },
+  {
+    "title": "Projekt Q2",
+    "description": "Das Projekt im zweiten Quartal",
+    "text": "Projektplan als Tabelle unter Dokumente/Arbeit; Abgabe Ende Juni.",
+    "by": "Claude Code",
+    "at": "2026-02-01"
+  },
+  {
+    "title": "Homeoffice",
+    "description": "Wann Kim zu Hause arbeitet",
+    "text": "Montags und freitags im Homeoffice.",
+    "by": "user",
+    "at": "2026-03-08"
+  },
+  {
+    "title": "Kaffee",
+    "description": "Kims Kaffee",
+    "text": "Morgens einen Cappuccino mit Hafermilch, nachmittags keinen Kaffee mehr.",
+    "by": "gpt-5.5",
+    "at": "2026-01-15"
+  },
+  {
+    "title": "Einkaufen",
+    "description": "Wo Kim einkauft",
+    "text": "Wochenmarkt samstags, sonst Bioladen um die Ecke.",
+    "by": "user",
+    "at": "2026-02-22"
+  },
+  {
+    "title": "Kochen",
+    "description": "Was Kim gern kocht",
+    "text": "Gemüsecurry und Pasta; sonntags wird gebacken.",
+    "by": "user",
+    "at": "2026-03-01"
+  },
+  {
+    "title": "Apfelkuchen",
+    "description": "Kims Backrezept",
+    "text": "Omas Apfelkuchen mit drei Äpfeln.",
+    "by": "Codex",
+    "at": "2026-01-08"
+  },
+  {
+    "title": "Nachbarn",
+    "description": "Die Nachbarn",
+    "text": "Familie Yilmaz gegenüber nimmt Pakete an.",
+    "by": "user",
+    "at": "2026-02-15"
+  },
+  {
+    "title": "Pakete",
+    "description": "Wohin Pakete gehen",
+    "text": "Pakete an die Packstation, wenn niemand zu Hause ist.",
+    "by": "Claude Code",
+    "at": "2026-03-22"
+  },
+  {
+    "title": "Urlaubsplanung",
+    "description": "Der nächste Urlaub",
+    "text": "Im August zwei Wochen nach Südtirol, wandern.",
+    "by": "gpt-5.5",
+    "at": "2026-01-01"
+  },
+  {
+    "title": "Wandern",
+    "description": "Kims Wanderschuhe",
+    "text": "Wanderschuhe Größe 39, gekauft 2024.",
+    "by": "user",
+    "at": "2026-02-08"
+  },
+  {
+    "title": "Lernen",
+    "description": "Was Kim gerade lernt",
+    "text": "Italienisch für den Urlaub, zwei Lektionen pro Woche.",
+    "by": "user",
+    "at": "2026-03-15"
+  },
+  {
+    "title": "Ehrenamt",
+    "description": "Kims Ehrenamt",
+    "text": "Einmal im Monat in der Tafel aushelfen.",
+    "by": "Codex",
+    "at": "2026-01-22"
+  },
+  {
+    "title": "Kalender",
+    "description": "Welcher Kalender zählt",
+    "text": "Private Termine im privaten Kalender, Firmentermine nur im Firmenkalender.",
+    "by": "Claude Code",
+    "at": "2026-02-01"
+  },
+  {
+    "title": "Benachrichtigungen",
+    "description": "Wann Kim gestört werden darf",
+    "text": "Keine Benachrichtigungen nach 22 Uhr.",
+    "by": "user",
+    "at": "2026-03-08"
+  },
+  {
+    "title": "Darstellung",
+    "description": "Wie haex-vault aussehen soll",
+    "text": "Kim mag wenige offene Fenster und räumt abends auf.",
+    "by": "gpt-5.5",
+    "at": "2026-01-15"
+  },
+  {
+    "title": "Sicherung",
+    "description": "Wie Kim Daten sichert",
+    "text": "Einmal im Monat eine Sicherung auf die externe Festplatte.",
+    "by": "user",
+    "at": "2026-02-22"
+  },
+  {
+    "title": "Geräte",
+    "description": "Kims Geräte",
+    "text": "Kims Laptop und ein Handy; beide in derselben Vault.",
+    "by": "Claude Code",
+    "at": "2026-03-01"
+  },
+  {
+    "title": "Telefon",
+    "description": "Wie Kim telefoniert",
+    "text": "Lieber Nachrichten als Anrufe; Anrufe nur nach 17 Uhr.",
+    "by": "user",
+    "at": "2026-01-08"
+  },
+  {
+    "title": "Spenden",
+    "description": "Wohin Kim spendet",
+    "text": "Monatlich an den Tierschutzverein.",
+    "by": "Codex",
+    "at": "2026-02-15"
+  },
+  {
+    "title": "Lebenslauf",
+    "description": "Kims Lebenslauf",
+    "text": "Der Lebenslauf liegt als Word-Datei unter Dokumente; zuletzt im Januar aktualisiert.",
+    "by": "user",
+    "at": "2026-03-22"
+  }
+]

@@ -42,6 +42,7 @@ use haex_lib::chat::eval::everyday::{
     report::{build, RunInfo},
     runner::run_everyday,
     scoring::effects,
+    world_memory::load_memory_file,
 };
 use haex_lib::chat::eval::runner::{run_eval, Which};
 use haex_lib::chat::eval::{embedded_extension_tools, embedded_set, embedded_tools};
@@ -236,7 +237,19 @@ async fn measure_everyday_voice() {
         }
         Err(_) => (embedded_mail_tools(), "haex-mail".to_owned()),
     };
-    let world = embedded_world();
+    // Spec 097: `HAEX_EVAL_MEMORY` seeds the memory of every request with the pages of that file.
+    let mut world = embedded_world();
+    let memory_name = match env::var("HAEX_EVAL_MEMORY") {
+        Ok(path) => {
+            let path = PathBuf::from(path);
+            world.memory =
+                load_memory_file(&path).unwrap_or_else(|e| panic!("HAEX_EVAL_MEMORY: {e}"));
+            path.file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_default()
+        }
+        Err(_) => String::new(),
+    };
     let profile = match env::var("HAEX_EVAL_PROFILE") {
         Ok(name) => Profile::parse(&name).expect("HAEX_EVAL_PROFILE is desktop or phone"),
         Err(_) => Profile::Desktop,
@@ -283,16 +296,21 @@ async fn measure_everyday_voice() {
             profile,
             mail_extension,
             set: set_name.clone(),
+            memory: memory_name.clone(),
         },
     );
     let json = serde_json::to_string_pretty(&report).expect("report as JSON");
     println!("{json}");
     // One file per device profile: a desktop and a phone run of one model must not overwrite each other;
     // and one per set, so the chain set does not overwrite the everyday report of the same model.
-    let prefix = match set_name.strip_suffix(".json") {
+    let mut prefix = match set_name.strip_suffix(".json") {
         Some(stem) => format!("everyday-{stem}-"),
         None => "everyday-".to_owned(),
     };
+    // A run with a seeded memory does not overwrite the run without it.
+    if let Some(stem) = memory_name.strip_suffix(".json") {
+        prefix.push_str(&format!("{stem}-"));
+    }
     write_report(
         &measured.model,
         &prefix,

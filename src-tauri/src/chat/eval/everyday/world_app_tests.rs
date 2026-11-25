@@ -112,7 +112,7 @@ fn an_unknown_id_or_path_is_an_error() {
         ),
         ("syncRules_status", json!({ "id": "rule-1" })),
         ("wm_tab_history", json!({ "tabId": "tab-mail" })),
-        ("browser_page_read", json!({ "tab": "t1" })),
+        ("browser_page_read", json!({ "tab": "t9" })),
     ];
     for (tool, input) in unknown {
         assert!(world.answer(tool, &input).is_error, "{tool} {input}");
