@@ -273,6 +273,16 @@ fn a_parked_vault_stays_parked_when_another_vault_later_succeeds() {
         },
         7_000,
     );
+    let other_delivery = ids::delivery_id(MESSAGE.parse().expect("uuid"), OTHER).to_string();
+    anna.db
+        .write_blocking(move |tx| {
+            tx.execute(
+                "UPDATE chat_deliveries SET delivered_at = 7_001 WHERE id = ?1",
+                params![other_delivery],
+            )?;
+            Ok(())
+        })
+        .expect("other vault delivered");
 
     let automatic_resend = 7_000 + resend_after(0);
     assert_eq!(next_at(&anna.db), automatic_resend);
