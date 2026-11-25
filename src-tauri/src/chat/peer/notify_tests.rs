@@ -49,6 +49,7 @@ async fn setup() -> Setup {
         new: true,
         incoming: true,
         attachments: false,
+        knock: false,
     };
     Setup {
         anna,

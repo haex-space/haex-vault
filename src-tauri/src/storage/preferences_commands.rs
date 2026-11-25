@@ -111,6 +111,13 @@ pub(crate) fn validate_value(key: &str, value: &str) -> Result<()> {
             reason: format!("{key} must be empty or an https address without credentials"),
         });
     }
+    // Spec 099 FR-012: switching requests of strangers off also removes the open ones, so only
+    // `chat_requests_set_allowed` writes this key; the generic command (window, agent) may not.
+    if key == crate::chat::peer::settings::KEY_ALLOW_STRANGERS {
+        return Err(HaexError::InvalidInput {
+            reason: format!("{key} is set with chat_requests_set_allowed"),
+        });
+    }
     // The switches of the chat settings take `true` or `false`; the automatic download limit a
     // whole number of bytes, 0 meaning no file downloads by itself.
     if (key == crate::chat::peer::settings::KEY_READ_RECEIPTS

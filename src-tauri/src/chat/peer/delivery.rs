@@ -26,7 +26,7 @@ use super::outbox::{self, Attempt, Entry, FailReason};
 use super::receive;
 use super::targets::{self, Target};
 use super::wrap::BACKDATE_SECS;
-use super::{send, session::Me};
+use super::{gate, send, session::Me};
 use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 use crate::vault_gate::VaultDb;
@@ -316,6 +316,11 @@ impl Delivery {
     /// Publishes every due outbox row once; stops between rows when the vault closes.
     pub async fn pump(&self) -> Result<()> {
         let now = self.now();
+        // The answers given since the last pump (spec 099 research R5) go on the outbox first.
+        let me = self.me.clone();
+        self.db
+            .write(move |tx| Ok(gate::send_due_notices(tx, &me, now)?))
+            .await?;
         let due = self.db.read(move |r| Ok(outbox::due(r, now)?)).await?;
         let mut refreshed_devices = HashSet::new();
         for entry in due {
@@ -351,9 +356,10 @@ impl Delivery {
         for vault in &entry.pending {
             let me = self.me.clone();
             let for_vault = vault.clone();
+            let rumor = entry.rumor.clone();
             let target = self
                 .db
-                .read(move |r| Ok(targets::of(r, &me, &for_vault)?))
+                .read(move |r| Ok(targets::of_rumor(r, &me, &for_vault, &rumor)?))
                 .await?;
             match self.publish(entry, vault, &target).await {
                 Published::Accepted => attempt.accepted.push(vault.clone()),

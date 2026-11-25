@@ -38,4 +38,17 @@ lastText: string | null,
 /**
  * Newest activity: the last message or the thread's own `updated_at`.
  */
-lastAt: number, };
+lastAt: number,
+/**
+ * Direct: something ever came back from the other vault, a message or a receipt (spec 099
+ * FR-005a: without it the window explains a missing _delivered_ carefully).
+ */
+peerAnswered: boolean,
+/**
+ * Direct: the other vault answered that it takes no messages from this one (spec 099 FR-010).
+ */
+blockedByPeer: boolean,
+/**
+ * Request: when its stranger knocked last (spec 099 FR-003).
+ */
+requestLastAt: number | null, };

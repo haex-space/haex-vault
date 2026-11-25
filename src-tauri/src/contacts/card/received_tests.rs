@@ -305,3 +305,37 @@ async fn deleting_the_contact_deletes_its_cards() {
         .expect("delete");
     assert_eq!(rows(&mara), 0);
 }
+
+/// Spec 099 research R12: a declined stranger's block entry keeps its card; blocking again without
+/// a card keeps it; an entry of a plain block has none.
+#[tokio::test]
+async fn a_block_entry_keeps_the_card_of_a_declined_stranger() {
+    let mara = card_vault();
+    let card = card_of(&SECRET, 1, 1_000, &[1], &["wss://a.example.org"]);
+    let vault = vault_of(&SECRET);
+    let (vault_hex, kept) = (hex(&vault), card.clone());
+    mara.db
+        .write_blocking(move |tx| {
+            block_with_card(tx, &vault_hex, Some(&kept))?;
+            block_with_card(tx, &vault_hex, None)?;
+            Ok(())
+        })
+        .expect("block");
+    let found = mara
+        .db
+        .read_blocking(move |q| Ok((is_blocked(q, &vault)?, blocked_card(q, &vault)?)))
+        .expect("read");
+    assert!(found.0);
+    assert_eq!(found.1.map(|card| card.hash()), Some(card.hash()));
+
+    let other = card_of(&[9u8; 32], 1, 1_000, &[2], &[]);
+    let other_vault = other.card.vault;
+    mara.db
+        .write_blocking(move |tx| Ok(block(tx, &hex(&other_vault))?))
+        .expect("plain block");
+    assert!(mara
+        .db
+        .read_blocking(move |q| Ok(blocked_card(q, &other_vault)?))
+        .expect("read")
+        .is_none());
+}

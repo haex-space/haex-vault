@@ -359,7 +359,11 @@ fn ratchet(
         Incoming::Message(envelope) => {
             match receive::message(tx, me.receiver(), &verified.sender_device, envelope, now)? {
                 Some(stored) => {
-                    let acknowledge = stored.incoming && (stored.new || resent(tx, &stored, now)?);
+                    // A knock leaves only its request: no receipt goes back (spec 099 FR-005),
+                    // and its session is kept for the answer (research R3).
+                    let acknowledge = !stored.knock
+                        && stored.incoming
+                        && (stored.new || resent(tx, &stored, now)?);
                     Received::Message {
                         stored,
                         event_id: envelope.id.clone(),

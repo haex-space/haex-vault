@@ -7,6 +7,7 @@ use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
 
+use super::outbox::FailReason;
 use super::settings;
 use super::store::{self, ConversationKind};
 use crate::error::Result;
@@ -86,12 +87,16 @@ struct Stamps {
     delivered: bool,
     read: bool,
     failed: bool,
+    /// The recipient answered that it takes no messages from this vault (spec 099 FR-010): not
+    /// delivered, also when a Nostr-Relay took the message.
+    blocked: bool,
 }
 
 impl Stamps {
-    /// failed > read > delivered > sent > waiting; a later `sent_at` clears a failure.
+    /// failed > read > delivered > sent > waiting; a later `sent_at` clears a failure, except the
+    /// recipient's answer "blocked", which only its answer "accepted" clears.
     fn state(self, show_read: bool) -> DeliveryState {
-        if self.failed && !self.sent {
+        if self.failed && (!self.sent || self.blocked) {
             DeliveryState::Failed
         } else if self.read && show_read {
             DeliveryState::Read
@@ -147,11 +152,13 @@ pub fn list(
         |row| {
             let sender_vault: String = row.get(1)?;
             let own_message = sender_vault == own;
+            let reason: Option<String> = row.get(9)?;
             let stamps = Stamps {
                 sent: row.get(5)?,
                 delivered: row.get(6)?,
                 read: row.get(7)?,
                 failed: row.get(8)?,
+                blocked: reason.as_deref() == Some(FailReason::Blocked.code()),
             };
             let has_delivery: bool = row.get(10)?;
             let delivery = (own_message && has_delivery).then(|| stamps.state(show_read));
@@ -163,7 +170,7 @@ pub fn list(
                 sent_at: row.get(3)?,
                 sort_at: row.get(4)?,
                 failed_reason: if delivery == Some(DeliveryState::Failed) {
-                    row.get(9)?
+                    reason
                 } else {
                     None
                 },

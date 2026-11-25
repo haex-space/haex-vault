@@ -88,7 +88,8 @@ fn a_device_on_the_card_of_an_open_request_belongs_to_that_vault() {
     anna.db
         .write_blocking(move |tx| {
             let thread = store::open_direct(tx, &own, &peer, now_ms())?;
-            Ok(store::mark_request(tx, thread, &peer, &card)?)
+            store::mark_request(tx, thread, &peer, &card, now_ms())?;
+            Ok(())
         })
         .expect("request");
     assert_eq!(
@@ -164,4 +165,80 @@ async fn a_contact_device_is_addressed_while_a_conversation_is_kept() {
         .read_blocking(move |r| Ok(ratchet::record(r, &ben_hex)?))
         .expect("record");
     assert_eq!(record, None, "Ben's record is gone");
+}
+
+/// Spec 099 research R5: nothing goes to a blocked vault but its blocked answer, which reaches the
+/// cards of its hidden contact or the card its block entry kept, and keeps its devices known until
+/// a Nostr-Relay took it.
+#[tokio::test(flavor = "multi_thread")]
+async fn only_a_blocked_answer_reaches_a_blocked_vault() {
+    let anna = ChatDevice::genesis(&[RELAY.to_owned()]);
+    let ben = ChatDevice::genesis(&[RELAY.to_owned()]);
+    let clara = ChatDevice::genesis(&[RELAY.to_owned()]);
+    anna.learn(&ben).await;
+    let (ben_vault, clara_card) = (ben.me.vault_hex.clone(), clara.card());
+    let clara_vault = clara.me.vault_hex.clone();
+    anna.db
+        .write_blocking(move |tx| {
+            received::block(tx, &ben_vault)?;
+            // Clara is a declined stranger: no contact, only the card the block entry kept.
+            received::block(tx, &hex(&clara_card.card.vault))?;
+            tx.execute(
+                "UPDATE haex_contacts_blocked_vaults SET card = ?2 WHERE vault_pubkey = ?1",
+                params![hex(&clara_card.card.vault), clara_card.bytes.as_slice()],
+            )?;
+            Ok(())
+        })
+        .expect("block");
+
+    let notice = Rumor {
+        kind: crate::chat::peer::envelope::RECEIPT_KIND.as_u16(),
+        content: serde_json::json!({
+            "v": 1, "from": anna.me.vault_hex, "card": "c",
+            "thread": {"direct": ben.me.vault_hex}, "answer": "blocked"
+        })
+        .to_string(),
+    };
+    let message = Rumor {
+        kind: crate::chat::peer::envelope::CHAT_KIND.as_u16(),
+        content: "{}".into(),
+    };
+    let target = |vault: String, rumor: Rumor| {
+        let me = anna.me.clone();
+        anna.db
+            .read_blocking(move |r| Ok(of_rumor(r, &me, &vault, &rumor)?))
+            .expect("target")
+    };
+    assert_eq!(
+        target(ben.me.vault_hex.clone(), message.clone()),
+        Target::default()
+    );
+    assert_eq!(
+        target(ben.me.vault_hex.clone(), notice.clone()).devices,
+        [ben.me.keys.device_pubkey],
+        "the hidden contact's card"
+    );
+    assert_eq!(
+        target(clara_vault.clone(), notice).devices,
+        [clara.me.keys.device_pubkey],
+        "the card the block entry kept"
+    );
+
+    assert_eq!(vault_of(&anna, clara.me.keys.device_pubkey), None);
+    anna.db
+        .write_blocking(move |tx| {
+            crate::chat::peer::gate::write_notice(
+                tx,
+                &clara_vault,
+                crate::chat::peer::envelope::Answer::Blocked,
+                1,
+            )?;
+            Ok(())
+        })
+        .expect("note");
+    assert_eq!(
+        vault_of(&anna, clara.me.keys.device_pubkey),
+        Some(clara.me.vault_hex.clone()),
+        "known while its blocked answer waits"
+    );
 }

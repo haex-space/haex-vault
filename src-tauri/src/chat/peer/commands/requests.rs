@@ -1,9 +1,10 @@
-//! Requests of vaults that are no contact (spec 072 US5, contracts/ipc.md): the carried card for
-//! the preview of spec 060, and declining or blocking. None of them is open to agents (FR-072).
+//! Requests of strangers (spec 099, contracts/ipc.md): the carried card for the preview of spec 060,
+//! and declining. None of them is open to agents (spec 072 FR-072).
 
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{AppHandle, State};
 
+use crate::chat::peer::delivery::now_ms;
 use crate::chat::peer::requests::{self, Answer};
 use crate::error::{HaexError, Result};
 use crate::state::AppState;
@@ -41,13 +42,23 @@ pub async fn chat_request_card(
     Ok(RequestCard { card_text })
 }
 
-/// Declines or blocks a request (FR-041, FR-042).
+/// Declines a request (spec 099 FR-009): blocks its vault and sends it the answer "blocked".
 #[tauri::command]
-pub async fn chat_request_answer(state: State<'_, AppState>, args: AnswerArgs) -> Result<()> {
+pub async fn chat_request_answer(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    args: AnswerArgs,
+) -> Result<()> {
     let id = thread_id(&args.thread_id)?;
     let db = active_database(&state)?;
-    db.write(move |tx| Ok(requests::answer(tx, id, args.answer)?))
-        .await
+    let now = now_ms();
+    db.write(move |tx| Ok(requests::answer(tx, id, args.answer, now)?))
+        .await?;
+    // The answer goes out at the session's next pump; wake it now.
+    if let Ok(session) = super::files::session(&app) {
+        session.kick.notify_one();
+    }
+    Ok(())
 }
 
 fn thread_id(raw: &str) -> Result<uuid::Uuid> {

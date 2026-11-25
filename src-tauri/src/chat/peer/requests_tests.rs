@@ -1,8 +1,9 @@
-//! Requests of vaults that are no contact (spec 072 T048, T055, US5 scenarios 1–4 and 6, quickstart
-//! A9): Ben has Anna's card, Anna has not Ben's. Ben's message lands in Anna's "Anfragen" with the
-//! name of the card it carried; Ben sees _delivered_ but never _read_. Accepting (reading the card
-//! in) moves it to the list, declining removes it until the next message, blocking drops what
-//! follows without a receipt. A deleted contact's next message is a request again.
+//! Requests of strangers (spec 099 US1, US2, quickstart Q1–Q3): Ben has Anna's card, Anna has not
+//! Ben's. Ben's messages leave one request in Anna's "Anfragen" with the name of the card they
+//! carried and nothing else, and Ben gets no receipt. Accepting (reading the card in) sends Ben the
+//! answer "accepted", and his waiting messages arrive. Declining blocks Ben with his card and sends
+//! him "blocked": his messages fail with that reason, a new one waits, and nothing reaches Anna. A
+//! deleted contact's next message is a request again.
 
 use std::time::Duration;
 
@@ -15,6 +16,9 @@ use crate::chat::peer::store::{self, Conversation, ConversationState, ListFilter
 use crate::chat::peer::test_support::{mock_relay, ChatDevice};
 use crate::contacts::card::{format, received};
 use crate::storage::query::Query;
+
+/// How long a test waits for something the other vault does.
+const PATIENCE: Duration = Duration::from_secs(30);
 
 /// Ben knows Anna, Anna does not know Ben; both vaults are open.
 async fn stranger_writes() -> (ChatDevice, ChatDevice, nostr_sdk::local_relay::LocalRelay) {
@@ -44,6 +48,18 @@ fn list(device: &ChatDevice, requests: bool) -> Vec<Conversation> {
         .expect("list")
 }
 
+/// Waits until `done` holds, polling; panics with `what` after [`PATIENCE`].
+async fn eventually(what: &str, done: impl Fn() -> bool) {
+    let deadline = tokio::time::Instant::now() + PATIENCE;
+    while !done() {
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "waited in vain for {what}"
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
 fn state_of(found: &[messages::PeerMessage], text: &str) -> Option<DeliveryState> {
     found
         .iter()
@@ -51,28 +67,36 @@ fn state_of(found: &[messages::PeerMessage], text: &str) -> Option<DeliveryState
         .and_then(|m| m.delivery)
 }
 
-fn answer(anna: &ChatDevice, ben: &ChatDevice, answer: Answer) {
-    let thread = anna.thread_with(ben);
-    anna.db
-        .write_blocking(move |tx| Ok(requests::answer(tx, thread, answer)?))
-        .expect("answer");
+fn reason_of(found: &[messages::PeerMessage], text: &str) -> Option<String> {
+    found
+        .iter()
+        .find(|m| m.text.as_deref() == Some(text))
+        .and_then(|m| m.failed_reason.clone())
 }
 
-fn read_all(anna: &ChatDevice, ben: &ChatDevice) {
-    let (me, thread) = (anna.me.clone(), anna.thread_with(ben));
-    anna.db
-        .write_blocking(move |tx| {
-            let upto = messages::newest(tx, thread)?;
-            Ok(crate::chat::peer::send::read_up_to(
-                tx,
-                &me,
-                thread,
-                upto,
-                now_ms(),
-            )?)
+fn rows_from(device: &ChatDevice, sender: &ChatDevice) -> (i64, i64) {
+    let sender = sender.me.vault_hex.clone();
+    device
+        .db
+        .read_blocking(move |r| {
+            let messages = r
+                .query_row(
+                    "SELECT COUNT(*) FROM chat_peer_messages WHERE sender_vault = ?1",
+                    params![sender],
+                    |row| row.get(0),
+                )?
+                .unwrap_or_default();
+            let attachments = r
+                .query_row(
+                    "SELECT COUNT(*) FROM chat_attachments a \
+                     JOIN chat_peer_messages m ON m.id = a.message_id WHERE m.sender_vault = ?1",
+                    params![sender],
+                    |row| row.get(0),
+                )?
+                .unwrap_or_default();
+            Ok((messages, attachments))
         })
-        .expect("read");
-    anna.session.kick.notify_one();
+        .expect("count")
 }
 
 fn outbox_rows(device: &ChatDevice) -> i64 {
@@ -90,13 +114,28 @@ fn outbox_rows(device: &ChatDevice) -> i64 {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn a_message_of_a_stranger_is_a_request_that_shows_delivered_but_never_read() {
+async fn a_stranger_leaves_one_request_and_nothing_of_its_messages() {
     let (anna, ben, _relay) = stranger_writes().await;
-    ben.send(&anna, "Hallo, wir kennen uns vom Markt");
-    anna.wait_for(&ben, "the request", |m| !m.is_empty()).await;
+    for text in ["Hallo, wir kennen uns vom Markt", "Bist du da?", "Hallo?"] {
+        ben.send(&anna, text);
+    }
+    eventually("the request", || {
+        list(&anna, true)
+            .first()
+            .is_some_and(|request| request.request_last_at.is_some())
+    })
+    .await;
+    // Every knock has arrived once Ben's three messages are _sent_ and a moment passed.
+    eventually("Ben's messages taken by the Nostr-Relay", || {
+        ben.messages_with(&anna)
+            .iter()
+            .all(|m| m.delivery == Some(DeliveryState::Sent))
+    })
+    .await;
+    tokio::time::sleep(Duration::from_secs(3)).await;
 
     let requests = list(&anna, true);
-    assert_eq!(requests.len(), 1, "{requests:?}");
+    assert_eq!(requests.len(), 1, "one request per vault: {requests:?}");
     assert_eq!(requests[0].state, ConversationState::Request);
     assert_eq!(requests[0].peer_contact_id, None);
     assert_eq!(
@@ -105,46 +144,58 @@ async fn a_message_of_a_stranger_is_a_request_that_shows_delivered_but_never_rea
         "the name comes from the carried card"
     );
     assert!(list(&anna, false).is_empty(), "not in the list itself");
+    assert_eq!(rows_from(&anna, &ben), (0, 0), "nothing of the messages");
+    assert!(anna.messages_with(&ben).is_empty());
+    let thread = anna.thread_with(&ben);
+    let (first, last): (Option<i64>, Option<i64>) = anna
+        .db
+        .read_blocking(move |r| {
+            Ok(r.query_row(
+                "SELECT request_first_at, request_last_at FROM chat_threads WHERE id = ?1",
+                params![thread.to_string()],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )?
+            .expect("thread"))
+        })
+        .expect("times");
+    assert!(first.is_some() && first <= last, "{first:?} {last:?}");
 
+    assert!(
+        ben.messages_with(&anna)
+            .iter()
+            .all(|m| m.delivery == Some(DeliveryState::Sent)),
+        "no receipt for a request (FR-005)"
+    );
+    assert_eq!(outbox_rows(&anna), 0, "nothing waits to go to Ben");
+
+    // A later knock with a newer card keeps the newer one, an older card does not replace it.
     let older_card = ben.card();
     let _second_device = ben.link();
     let newer_card = ben.card();
     let expected_newest = newer_card.clone();
     let (thread, peer_vault) = (anna.thread_with(&ben), ben.me.vault_hex.clone());
-    anna.db
+    let became = anna
+        .db
         .write_blocking(move |tx| {
-            store::mark_request(tx, thread, &peer_vault, &newer_card)?;
-            store::mark_request(tx, thread, &peer_vault, &older_card)?;
-            Ok(())
+            let newer = store::mark_request(tx, thread, &peer_vault, &newer_card, now_ms())?;
+            let older = store::mark_request(tx, thread, &peer_vault, &older_card, now_ms())?;
+            Ok((newer, older))
         })
-        .expect("keep the newest carried card");
-    let thread = anna.thread_with(&ben);
+        .expect("knock again");
+    assert_eq!(became, (false, false), "it was a request already (FR-004)");
     let saved_card = anna
         .db
         .read_blocking(move |r| Ok(store::request_card(r, thread)?))
         .expect("read request card");
     assert_eq!(saved_card, Some(expected_newest));
-
-    ben.wait_for(&anna, "delivered", |m| {
-        state_of(m, "Hallo, wir kennen uns vom Markt") == Some(DeliveryState::Delivered)
-    })
-    .await;
-
-    // Anna opens the request: no read receipt goes out (FR-043).
-    read_all(&anna, &ben);
-    tokio::time::sleep(Duration::from_secs(3)).await;
-    assert_eq!(
-        state_of(&ben.messages_with(&anna), "Hallo, wir kennen uns vom Markt"),
-        Some(DeliveryState::Delivered)
-    );
-    assert_eq!(outbox_rows(&anna), 0, "nothing waits to go to Ben");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn accepting_reads_the_carried_card_in_and_moves_the_conversation_to_the_list() {
+async fn accepting_sends_the_answer_and_the_waiting_messages_arrive_in_order() {
     let (anna, ben, _relay) = stranger_writes().await;
-    ben.send(&anna, "Hallo");
-    anna.wait_for(&ben, "the request", |m| !m.is_empty()).await;
+    ben.send(&anna, "erste");
+    ben.send(&anna, "zweite");
+    eventually("the request", || !list(&anna, true).is_empty()).await;
 
     let thread = anna.thread_with(&ben);
     let text = anna
@@ -154,6 +205,7 @@ async fn accepting_reads_the_carried_card_in_and_moves_the_conversation_to_the_l
     let card = format::parse(&text).expect("a card");
     assert_eq!(card.card.vault, ben.member.vault);
     let contact_id = anna.learn_card(card).await;
+    anna.session.kick.notify_one();
 
     assert!(list(&anna, true).is_empty());
     let conversations = list(&anna, false);
@@ -164,61 +216,65 @@ async fn accepting_reads_the_carried_card_in_and_moves_the_conversation_to_the_l
         Some(contact_id.as_str())
     );
 
-    // Now Anna can answer, and reading shows _read_ at Ben.
-    anna.send(&ben, "Hallo Ben");
-    ben.wait_for(&anna, "Anna's answer", |m| m.iter().any(|m| !m.own))
-        .await;
-    read_all(&anna, &ben);
-    ben.wait_for(&anna, "read", |m| {
-        state_of(m, "Hallo") == Some(DeliveryState::Read)
-    })
-    .await;
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn a_declined_request_is_gone_and_the_next_message_is_a_new_request() {
-    let (anna, ben, _relay) = stranger_writes().await;
-    ben.send(&anna, "erste");
-    anna.wait_for(&ben, "the request", |m| !m.is_empty()).await;
-    answer(&anna, &ben, Answer::Decline);
-    assert!(list(&anna, true).is_empty());
-    assert!(anna.messages_with(&ben).is_empty());
-
-    ben.send(&anna, "zweite");
     let found = anna
-        .wait_for(&ben, "the new request", |m| !m.is_empty())
+        .wait_for(&ben, "Ben's messages after the answer", |m| m.len() == 2)
         .await;
-    assert_eq!(found.len(), 1, "only the new message: {found:?}");
-    assert_eq!(found[0].text.as_deref(), Some("zweite"));
-    assert_eq!(list(&anna, true).len(), 1);
+    let texts: Vec<_> = found.iter().map(|m| m.text.clone()).collect();
+    assert_eq!(texts, [Some("erste".into()), Some("zweite".into())]);
+    ben.wait_for(&anna, "delivered", |m| {
+        state_of(m, "zweite") == Some(DeliveryState::Delivered)
+    })
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn a_blocked_sender_is_listed_and_its_next_message_is_dropped_without_a_receipt() {
+async fn declining_blocks_with_the_card_and_tells_the_sender_whose_next_message_waits() {
     let (anna, ben, _relay) = stranger_writes().await;
     ben.send(&anna, "erste");
-    anna.wait_for(&ben, "the request", |m| !m.is_empty()).await;
-    answer(&anna, &ben, Answer::Block);
-    assert!(list(&anna, true).is_empty());
-    let blocked = anna
-        .db
-        .read_blocking(|r| Ok(received::blocked(r)?))
-        .expect("blocked");
-    assert_eq!(blocked.len(), 1);
-    assert_eq!(blocked[0].vault_pubkey, ben.me.vault_hex);
+    eventually("the request", || !list(&anna, true).is_empty()).await;
+    let thread = anna.thread_with(&ben);
+    anna.db
+        .write_blocking(move |tx| Ok(requests::answer(tx, thread, Answer::Decline, now_ms())?))
+        .expect("decline");
+    anna.session.kick.notify_one();
 
-    ben.send(&anna, "zweite");
-    ben.wait_for(&anna, "sent", |m| {
-        state_of(m, "zweite") == Some(DeliveryState::Sent)
+    assert!(list(&anna, true).is_empty());
+    let vault = ben.member.vault;
+    let (blocked, kept) = anna
+        .db
+        .read_blocking(move |r| {
+            Ok((
+                received::is_blocked(r, &vault)?,
+                received::blocked_card(r, &vault)?,
+            ))
+        })
+        .expect("blocked");
+    assert!(blocked);
+    assert_eq!(
+        kept.map(|card| card.card.vault),
+        Some(vault),
+        "with its card"
+    );
+
+    ben.wait_for(&anna, "the answer", |m| {
+        reason_of(m, "erste").as_deref() == Some("blocked")
     })
     .await;
-    tokio::time::sleep(Duration::from_secs(3)).await;
-    assert!(anna.messages_with(&ben).is_empty(), "dropped without trace");
     assert_eq!(
-        state_of(&ben.messages_with(&anna), "zweite"),
-        Some(DeliveryState::Sent),
-        "no delivery receipt to a blocked vault"
+        state_of(&ben.messages_with(&anna), "erste"),
+        Some(DeliveryState::Failed)
     );
+    let blocked_by_peer = list(&ben, false)
+        .into_iter()
+        .any(|conversation| conversation.blocked_by_peer);
+    assert!(blocked_by_peer, "Ben's conversation says so");
+
+    ben.send(&anna, "zweite");
+    let waiting = ben.messages_with(&anna);
+    assert_eq!(reason_of(&waiting, "zweite").as_deref(), Some("blocked"));
+    tokio::time::sleep(Duration::from_secs(3)).await;
+    assert!(anna.messages_with(&ben).is_empty(), "nothing reaches Anna");
+    assert!(list(&anna, true).is_empty(), "and no new request");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -236,9 +292,12 @@ async fn a_deleted_contact_keeps_the_conversation_and_its_next_message_is_a_requ
     assert_eq!(list(&anna, false).len(), 1, "the conversation stays");
 
     ben.send(&anna, "nach dem Löschen");
-    anna.wait_for(&ben, "the second message", |m| m.len() == 2)
-        .await;
-    let requests = list(&anna, true);
-    assert_eq!(requests.len(), 1, "{requests:?}");
-    assert_eq!(anna.messages_with(&ben).len(), 2, "the history is kept");
+    eventually("the request", || list(&anna, true).len() == 1).await;
+    let found = anna.messages_with(&ben);
+    assert_eq!(
+        found.len(),
+        1,
+        "the history is kept, the knock adds nothing"
+    );
+    assert_eq!(found[0].text.as_deref(), Some("als Kontakt"));
 }

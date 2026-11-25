@@ -12,6 +12,7 @@ import { toast } from 'vue-sonner'
 import type { ChatPeerAttachment } from '@bindings/ChatPeerAttachment'
 import type { PeerConversationEntry } from '~/composables/useConversations'
 import type { PeerFile } from '~/components/chat/PeerFileChips.vue'
+import { HINT_AFTER_MS, showsNotYetAccepted } from '~/lib/chat/gate'
 import {
   COUNTER_FROM,
   MAX_TEXT_CHARS,
@@ -38,7 +39,7 @@ const emit = defineEmits<{
   /** A file too large for the chat is offered as a file share (FR-034). */
   openFiles: []
   delete: [threadId: string]
-  answer: [threadId: string, answer: 'accept' | 'decline' | 'block']
+  answer: [threadId: string, answer: 'accept' | 'decline']
 }>()
 
 const { t } = useI18n()
@@ -83,8 +84,19 @@ const canSend = computed(
     (draft.value.trim().length > 0 || files.value.length > 0) &&
     props.conversation !== null,
 )
-// Files go to the Blossom-Server, so a conversation offers them only with one (FR-038); notes are
-// sent like messages (FR-002b) and follow the same rule.
+// Files go to the Blossom-Server, so a conversation offers them only with one (FR-038).
+/** The time the hint of spec 099 FR-005a is judged at; moves while the conversation is open. */
+const now = ref(Date.now())
+const clock = setInterval(() => {
+  now.value = Date.now()
+}, HINT_AFTER_MS / 2)
+onBeforeUnmount(() => clearInterval(clock))
+const notYetAccepted = computed(
+  () =>
+    props.conversation !== null &&
+    showsNotYetAccepted(props.conversation, peer.messages.value, now.value),
+)
+
 const canAttach = computed(() => hasServer.value)
 
 async function attach() {
@@ -309,9 +321,9 @@ watch(
       >
         <ChatRequestBanner
           :name="conversation.displayName"
+          :last-at="conversation.requestLastAt"
           @accept="emit('answer', conversation.id, 'accept')"
           @decline="emit('answer', conversation.id, 'decline')"
-          @block="emit('answer', conversation.id, 'block')"
         />
       </div>
       <ChatComposerShell
@@ -363,6 +375,26 @@ watch(
             >
               {{ t('chat.peer.openChatSettings') }}
             </button>
+          </p>
+          <p
+            v-if="conversation.blockedByPeer"
+            class="mb-2 flex items-start gap-1 text-xs text-muted-foreground"
+            data-testid="chat-peer-blocked-by-peer"
+          >
+            <Icon name="lucide:ban" class="mt-0.5 h-3 w-3 shrink-0" />
+            {{
+              t('chat.peer.blockedByPeer', { name: conversation.displayName })
+            }}
+          </p>
+          <p
+            v-else-if="notYetAccepted"
+            class="mb-2 flex items-start gap-1 text-xs text-muted-foreground"
+            data-testid="chat-peer-not-yet-accepted"
+          >
+            <Icon name="lucide:clock" class="mt-0.5 h-3 w-3 shrink-0" />
+            {{
+              t('chat.peer.notYetAccepted', { name: conversation.displayName })
+            }}
           </p>
           <p
             v-if="conversation.peerWithoutRelays"

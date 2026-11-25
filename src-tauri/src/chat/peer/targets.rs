@@ -7,9 +7,11 @@
 use haex_crdt::rusqlite::params;
 use uuid::Uuid;
 
+use super::gate;
+use super::outbox::Rumor;
 use super::session::Me;
+use super::store;
 use super::verify::vault_bytes;
-use super::{ids, store};
 use crate::contacts::card::format::CardDevice;
 use crate::contacts::card::{own_card, received};
 use crate::error::Result;
@@ -72,18 +74,35 @@ pub fn of(q: &mut impl Query, me: &Me, vault: &str) -> Result<Target> {
     if received::is_blocked(q, &bytes)? {
         return Ok(Target::default());
     }
+    // A stranger's request gets nothing (spec 099 FR-005): only stored cards are addressed.
+    let addresses = received::addresses(q, &bytes)?;
+    target_of(q, addresses)
+}
+
+/// The target of the rumor of an outbox row to `vault` (hex): [`of`], except that a blocked answer
+/// (spec 099 research R5) reaches the blocked vault, at the cards of its hidden contact or the card
+/// its block entry kept.
+pub fn of_rumor(q: &mut impl Query, me: &Me, vault: &str, rumor: &Rumor) -> Result<Target> {
+    if !gate::is_blocked_notice(rumor) || vault == me.vault_hex {
+        return of(q, me, vault);
+    }
+    let Some(bytes) = vault_bytes(vault) else {
+        return Ok(Target::default());
+    };
     let mut addresses = received::addresses(q, &bytes)?;
     if addresses.devices.is_empty() {
-        // A request: the sender is no contact, so its receipts go to the card it carried (US5
-        // scenario 6: it sees _delivered_).
-        let thread_id = ids::direct_thread_id(&me.vault_hex, vault);
-        if let Some(card) = store::request_card(q, thread_id)? {
+        if let Some(card) = received::blocked_card(q, &bytes)? {
             addresses = received::Addresses {
                 devices: card.card.devices,
                 nostr_relays: card.card.nostr_relays,
             };
         }
     }
+    target_of(q, addresses)
+}
+
+/// One wrap per device of `addresses`, to its Nostr-Relays or, when it names none, the own ones.
+fn target_of(q: &mut impl Query, addresses: received::Addresses) -> Result<Target> {
     let devices = addresses
         .devices
         .iter()
@@ -106,8 +125,8 @@ pub fn of(q: &mut impl Query, me: &Me, vault: &str) -> Result<Target> {
 /// The vault (hex) on whose stored card `device` stands as a device (spec 095): the own vault for
 /// the own other devices on the current list, a contact's vault for a device on its stored cards,
 /// or the vault of an open request for a device on the card it carried. `None` for this device,
-/// for a device no card lists (also a removed one) and for a blocked vault. The devices are the
-/// ones [`of`] sends to.
+/// for a device no card lists (also a removed one) and for a blocked vault, unless its blocked
+/// answer is still to be sent (spec 099). The devices are the ones [`of`] and [`of_rumor`] send to.
 pub fn vault_of_device(q: &mut impl Query, me: &Me, device: &[u8; 32]) -> Result<Option<String>> {
     if *device == me.keys.device_pubkey {
         return Ok(None);
@@ -123,11 +142,7 @@ pub fn vault_of_device(q: &mut impl Query, me: &Me, device: &[u8; 32]) -> Result
         for (_, card) in received::cards_of_contact(q, &contact)? {
             let vault = card.card.vault;
             if lists(&received::addresses(q, &vault)?.devices) {
-                return Ok(if received::is_blocked(q, &vault)? {
-                    None
-                } else {
-                    Some(hex(&vault))
-                });
+                return reachable(q, &vault);
             }
         }
     }
@@ -144,14 +159,32 @@ pub fn vault_of_device(q: &mut impl Query, me: &Me, device: &[u8; 32]) -> Result
             continue;
         };
         if lists(&card.card.devices) {
-            return Ok(if received::is_blocked(q, &card.card.vault)? {
-                None
-            } else {
-                Some(hex(&card.card.vault))
-            });
+            return reachable(q, &card.card.vault);
+        }
+    }
+    // A declined stranger is no contact and has no request any more; while its blocked answer is
+    // on its way, the card its block entry kept still names its devices (spec 099 research R5).
+    for vault in gate::blocked_notice_vaults(q)? {
+        let Some(bytes) = vault_bytes(&vault) else {
+            continue;
+        };
+        if let Some(card) = received::blocked_card(q, &bytes)? {
+            if lists(&card.card.devices) {
+                return Ok(Some(vault));
+            }
         }
     }
     Ok(None)
+}
+
+/// `vault` as the answer of [`vault_of_device`]: `None` when it is blocked, unless its blocked
+/// answer is still on its way (spec 099 research R5).
+fn reachable(q: &mut impl Query, vault: &[u8; 32]) -> Result<Option<String>> {
+    let vault_hex = hex(vault);
+    if received::is_blocked(q, vault)? && !gate::blocked_notice_vaults(q)?.contains(&vault_hex) {
+        return Ok(None);
+    }
+    Ok(Some(vault_hex))
 }
 
 /// The vault of `device` while this device still addresses it (spec 095 T038, T039): the own vault
@@ -162,7 +195,7 @@ pub fn addressed_vault(q: &mut impl Query, me: &Me, device: &[u8; 32]) -> Result
     let Some(vault) = vault_of_device(q, me, device)? else {
         return Ok(None);
     };
-    if vault == me.vault_hex {
+    if vault == me.vault_hex || gate::blocked_notice_vaults(q)?.contains(&vault) {
         return Ok(Some(vault));
     }
     let member: Option<i64> = q.query_row(

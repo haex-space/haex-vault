@@ -10,6 +10,7 @@ pub mod commands;
 pub mod delivery;
 pub mod envelope;
 pub mod files;
+pub mod gate;
 pub mod ids;
 pub mod long_text;
 pub mod messages;

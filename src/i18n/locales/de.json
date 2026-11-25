@@ -512,7 +512,9 @@
         "history": "Dieser Schutz gilt für die Kopien auf den Nostr-Relays. Nachrichten, die in deinem Vault gespeichert sind, kann jeder lesen, der den Vault öffnen kann.",
         "show": "Schutz erklären",
         "hide": "Erklärung schließen"
-      }
+      },
+      "notYetAccepted": "Noch nicht zugestellt. {name} ist offline oder hat dich noch nicht angenommen.",
+      "blockedByPeer": "{name} nimmt keine Nachrichten von dir an. Was du schreibst, wird gesendet, sobald {name} dich annimmt."
     },
     "newContact": {
       "title": "Mit Kontakt schreiben",
@@ -532,7 +534,8 @@
         "noRelay": "Kein Nostr-Relay hat die Nachricht angenommen. Sie wird weiter versucht.",
         "noDevices": "Die Visitenkarte nennt kein Gerät.",
         "tooLarge": "Die Nachricht ist zu groß.",
-        "unknown": "Die Zustellung ist fehlgeschlagen."
+        "unknown": "Die Zustellung ist fehlgeschlagen.",
+        "blocked": "Nimmt keine Nachrichten von dir an. Sie wird gesendet, sobald du angenommen wirst."
       },
       "resend": "Erneut senden"
     },
@@ -585,14 +588,12 @@
       "empty": "Schreib dir hier Notizen. Sie bleiben in deiner Vault und erscheinen auf all deinen Geräten."
     },
     "request": {
-      "banner": "{name} ist nicht in deinem Adressbuch. Nimm die Anfrage an, um zu antworten.",
+      "banner": "{name} möchte dir schreiben. Bis du annimmst, kommt von {name} nur diese Anfrage an, keine Nachricht und keine Datei.",
       "accept": "Annehmen",
       "decline": "Ablehnen",
-      "block": "Blockieren",
-      "declineTitle": "Anfrage ablehnen?",
-      "declineConfirm": "Die Unterhaltung mit {name} wird entfernt. {name} erfährt davon nichts; eine neue Nachricht kommt wieder als Anfrage.",
-      "blockTitle": "{name} blockieren?",
-      "blockConfirm": "Nachrichten von {name} werden ab jetzt verworfen, ohne Bestätigung. Die Unterhaltung wird entfernt. Aufheben kannst du das in den Einstellungen der Kontakte."
+      "declineTitle": "{name} ablehnen?",
+      "declineConfirm": "{name} wird gesperrt und erfährt, dass du keine Nachrichten annimmst. Weitere Versuche werden verworfen. Aufheben kannst du das in den Einstellungen der Kontakte.",
+      "lastKnock": "Zuletzt angeklopft: {at}"
     },
     "search": {
       "placeholder": "Chats durchsuchen",
@@ -2420,8 +2421,7 @@
       },
       "request": {
         "accept": "Anfrage annehmen",
-        "decline": "Anfrage ablehnen",
-        "block": "Absender einer Anfrage blockieren"
+        "decline": "Anfrage ablehnen"
       }
     },
     "settings": {
