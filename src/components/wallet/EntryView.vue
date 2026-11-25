@@ -78,17 +78,11 @@ function back() {
   <div class="min-h-0 flex-1 overflow-y-auto px-4 pb-6 @md:px-6">
     <div class="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <div class="flex items-center gap-2 pt-1">
-        <UiButton
-          variant="ghost"
-          size="icon"
-          class="shrink-0"
-          :aria-label="t('wallet.back')"
-          :tooltip="t('wallet.back')"
+        <UiButtonBack
+          :label="t('wallet.back')"
           data-testid="wallet-back"
           @click="back"
-        >
-          <Icon name="lucide:arrow-left" class="size-4" />
-        </UiButton>
+        />
         <div
           v-if="detail"
           class="flex min-w-0 flex-1 items-baseline gap-2 px-1"
@@ -137,18 +131,12 @@ function back() {
         >
           <Icon name="lucide:folder-input" class="size-4" />
         </UiButton>
-        <UiButton
+        <UiButtonEdit
           v-if="detail && !inTrash"
-          variant="ghost"
-          size="icon"
-          class="shrink-0"
-          :aria-label="t('passwords.edit')"
-          :tooltip="t('passwords.edit')"
+          :label="t('passwords.edit')"
           data-testid="wallet-edit"
           @click="edit"
-        >
-          <Icon name="lucide:pencil" class="size-4" />
-        </UiButton>
+        />
         <UiButton
           v-if="detail && !inTrash"
           variant="ghost"

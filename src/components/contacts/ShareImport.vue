@@ -193,16 +193,11 @@ function onReplace(itemId: number, valueId: string) {
 <template>
   <div class="flex min-h-0 flex-col gap-4 p-3" data-testid="contacts-import">
     <div class="flex items-center gap-1">
-      <UiButton
-        variant="ghost"
-        size="icon"
-        :aria-label="t('contacts.back')"
-        :tooltip="t('contacts.back')"
+      <UiButtonBack
+        :label="t('contacts.back')"
         data-testid="contacts-back"
         @click="router.back()"
-      >
-        <Icon name="lucide:arrow-left" class="size-4" />
-      </UiButton>
+      />
       <h1 class="min-w-0 flex-1 truncate px-1 text-2xl font-semibold">
         {{ t('contacts.import.title') }}
       </h1>

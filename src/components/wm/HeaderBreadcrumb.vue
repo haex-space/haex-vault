@@ -204,19 +204,13 @@ function select(segmentId: string) {
           </template>
         </ShadcnBreadcrumbList>
       </nav>
-      <UiButton
+      <UiButtonEdit
         v-if="editable"
-        variant="ghost"
-        size="icon"
-        class="shrink-0"
+        :label="t('wm.header.editPath')"
         :disabled="disabled"
-        :aria-label="t('wm.header.editPath')"
-        :tooltip="t('wm.header.editPath')"
         :data-testid="`${testId}-edit`"
         @click="edit"
-      >
-        <Icon name="lucide:pencil" class="size-4" :aria-hidden="true" />
-      </UiButton>
+      />
     </template>
   </div>
 </template>

@@ -212,16 +212,11 @@ async function endAsync() {
                 :aria-label="t('files.shares.contacts')"
                 @update:model-value="setLevel(row, $event)"
               />
-              <UiButton
-                type="button"
-                variant="ghost"
+              <UiButtonClose
+                :label="t('files.shares.remove')"
                 size="icon-sm"
-                :aria-label="t('files.shares.remove')"
-                :tooltip="t('files.shares.remove')"
                 @click="remove(row)"
-              >
-                <Icon name="lucide:x" class="size-4" />
-              </UiButton>
+              />
             </li>
           </ul>
           <UiSelect

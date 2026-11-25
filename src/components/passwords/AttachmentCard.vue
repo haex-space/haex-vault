@@ -186,41 +186,26 @@ function activate() {
         >
       </template>
       <div class="flex items-center justify-end gap-0.5">
-        <UiButton
+        <UiButtonOpenExternal
           v-if="systemApps"
-          type="button"
-          variant="ghost"
+          :label="t('passwords.attachments.openSystem')"
           size="icon-sm"
-          :aria-label="t('passwords.attachments.openSystem')"
-          :tooltip="t('passwords.attachments.openSystem')"
           :data-testid="`passwords-attachment-open-system-${attachment.id}`"
           @click="emit('openSystem')"
-        >
-          <Icon name="lucide:external-link" class="size-4" />
-        </UiButton>
-        <UiButton
-          type="button"
-          variant="ghost"
+        />
+        <UiButtonDownload
+          :label="t('passwords.attachments.download')"
           size="icon-sm"
-          :aria-label="t('passwords.attachments.download')"
-          :tooltip="t('passwords.attachments.download')"
           :data-testid="`passwords-attachment-download-${attachment.id}`"
           @click="emit('save')"
-        >
-          <Icon name="lucide:download" class="size-4" />
-        </UiButton>
+        />
         <template v-if="!readonly">
-          <UiButton
-            type="button"
-            variant="ghost"
+          <UiButtonEdit
+            :label="t('passwords.attachments.rename')"
             size="icon-sm"
-            :aria-label="t('passwords.attachments.rename')"
-            :tooltip="t('passwords.attachments.rename')"
             :data-testid="`passwords-attachment-rename-${attachment.id}`"
             @click="startRename"
-          >
-            <Icon name="lucide:pencil" class="size-4" />
-          </UiButton>
+          />
           <UiButton
             type="button"
             variant="ghost"

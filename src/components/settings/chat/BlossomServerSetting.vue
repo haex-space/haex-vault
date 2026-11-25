@@ -232,15 +232,11 @@ onVaultTablesChanged(['preferences'], () => {
         </label>
         <ShadcnPopover>
           <ShadcnPopoverTrigger as-child>
-            <UiButton
-              variant="ghost"
-              size="icon"
+            <UiButtonInfo
+              :label="t('settings.chat.server.info')"
               class="size-6 text-muted-foreground"
-              :aria-label="t('settings.chat.server.info')"
               data-testid="settings-chat-server-info"
-            >
-              <Icon name="lucide:info" class="size-4" />
-            </UiButton>
+            />
           </ShadcnPopoverTrigger>
           <ShadcnPopoverContent
             align="start"

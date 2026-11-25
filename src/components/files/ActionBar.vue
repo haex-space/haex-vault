@@ -27,16 +27,11 @@ const { t } = useI18n()
     data-testid="files-action-bar"
   >
     <template v-if="selected">
-      <UiButton
-        variant="ghost"
-        size="icon"
-        :aria-label="t('files.selection.clear')"
-        :tooltip="t('files.selection.clear')"
+      <UiButtonClose
+        :label="t('files.selection.clear')"
         data-testid="files-selection-clear"
         @click="emit('clear')"
-      >
-        <Icon name="lucide:x" class="size-4" />
-      </UiButton>
+      />
       <span class="mr-auto" data-testid="files-selection-count">{{
         t('files.selection.count', { count: selected }, selected)
       }}</span>
@@ -85,17 +80,12 @@ const { t } = useI18n()
           <Icon name="lucide:folder-input" class="size-4" />
         </UiButton>
       </template>
-      <UiButton
-        variant="ghost"
-        size="icon"
+      <UiButtonEdit
+        :label="t('files.actions.rename')"
         :disabled="readOnly || selected !== 1"
-        :aria-label="t('files.actions.rename')"
-        :tooltip="t('files.actions.rename')"
         data-testid="files-action-rename"
         @click="emit('run', 'rename')"
-      >
-        <Icon name="lucide:pencil" class="size-4" />
-      </UiButton>
+      />
       <UiButton
         variant="ghost"
         size="icon"

@@ -320,7 +320,7 @@ onVaultTablesChanged(['preferences'], () => {
             >
               {{ t('settings.voice.preview') }}
             </UiButton>
-            <DownloadButton
+            <UiButtonDownload
               v-else
               :label="t('settings.voice.downloadOf', { name: voice.name })"
               :loading="downloadingId === voice.modelId"

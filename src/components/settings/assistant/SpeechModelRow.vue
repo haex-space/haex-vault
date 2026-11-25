@@ -280,7 +280,7 @@ defineExpose({ reloadAsync })
           "
           @click.stop.prevent="askDelete(option)"
         />
-        <DownloadButton
+        <UiButtonDownload
           v-else
           :label="
             t('settings.voice.speechModel.downloadOf', { name: option.name })

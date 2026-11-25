@@ -314,18 +314,12 @@ watch(saveError, (message) => {
       @submit.prevent="saveAsync"
     >
       <div class="flex items-center gap-2 pt-1">
-        <UiButton
-          type="button"
-          variant="ghost"
-          size="icon"
-          class="-ml-2 shrink-0"
-          :aria-label="t('passwords.cancel')"
-          :tooltip="t('passwords.cancel')"
+        <UiButtonBack
+          :label="t('passwords.cancel')"
+          class="-ml-2"
           data-testid="passwords-editor-cancel"
           @click="requestLeave"
-        >
-          <Icon name="lucide:arrow-left" class="size-5" />
-        </UiButton>
+        />
         <h1 class="min-w-0 flex-1 truncate text-2xl font-bold">
           {{
             isNew ? t('passwords.pass.newTitle') : t('passwords.pass.editTitle')

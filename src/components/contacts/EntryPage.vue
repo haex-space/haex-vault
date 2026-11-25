@@ -182,28 +182,18 @@ async function removePhotoAsync() {
 <template>
   <div class="flex min-h-0 flex-col gap-4 p-3" data-testid="contacts-entry">
     <div class="flex items-center gap-1">
-      <UiButton
-        variant="ghost"
-        size="icon"
-        :aria-label="t('contacts.back')"
-        :tooltip="t('contacts.back')"
+      <UiButtonBack
+        :label="t('contacts.back')"
         data-testid="contacts-back"
         @click="router.back()"
-      >
-        <Icon name="lucide:arrow-left" class="size-4" />
-      </UiButton>
+      />
       <!-- Icon buttons only: five of them still fit one row on a phone-wide pane. -->
       <div v-if="contact" class="ml-auto flex items-center gap-1">
-        <UiButton
-          variant="ghost"
-          size="icon"
-          :aria-label="t('contacts.edit')"
-          :tooltip="t('contacts.edit')"
+        <UiButtonEdit
+          :label="t('contacts.edit')"
           data-testid="contacts-edit"
           @click="router.push(`/entry/${contact.id}/edit`)"
-        >
-          <Icon name="lucide:pencil" class="size-4" />
-        </UiButton>
+        />
         <UiButton
           v-if="!contact.isSelf"
           variant="ghost"

@@ -129,16 +129,11 @@ onMounted(() => panel.value?.focus())
     @keydown="onKeydown"
   >
     <div class="flex h-12 shrink-0 items-center gap-1 border-b px-2">
-      <UiButton
-        variant="ghost"
-        size="icon"
-        :aria-label="t('files.viewer.close')"
-        :tooltip="t('files.viewer.close')"
+      <UiButtonClose
+        :label="t('files.viewer.close')"
         data-testid="files-viewer-close"
         @click="emit('close')"
-      >
-        <Icon name="lucide:x" class="size-4" />
-      </UiButton>
+      />
       <span class="min-w-0 flex-1 truncate text-sm font-medium">{{
         entry.name
       }}</span>
@@ -164,17 +159,12 @@ onMounted(() => panel.value?.focus())
           <Icon name="lucide:chevron-right" class="size-4" />
         </UiButton>
       </template>
-      <UiButton
+      <UiButtonOpenExternal
         v-if="!isAndroid"
-        variant="ghost"
-        size="icon"
-        :aria-label="t('files.viewer.openSystem')"
-        :tooltip="t('files.viewer.openSystem')"
+        :label="t('files.viewer.openSystem')"
         data-testid="files-viewer-open-system"
         @click="openSystem"
-      >
-        <Icon name="lucide:external-link" class="size-4" />
-      </UiButton>
+      />
     </div>
 
     <div class="relative min-h-0 flex-1 overflow-auto">

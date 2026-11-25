@@ -310,21 +310,12 @@ function confirmRemove() {
       </div>
       <ShadcnDropdownMenu v-if="(status && usable(status)) || removable">
         <ShadcnDropdownMenuTrigger as-child>
-          <UiButton
-            type="button"
+          <UiButtonMenu
+            :label="t('settings.cliTools.actions')"
             variant="outline"
-            size="icon"
             class="@3xl:hidden"
-            :aria-label="t('settings.cliTools.actions')"
-            :tooltip="t('settings.cliTools.actions')"
             :data-testid="`cli-tool-actions-${vendor}`"
-          >
-            <Icon
-              name="lucide:ellipsis-vertical"
-              class="size-4"
-              aria-hidden="true"
-            />
-          </UiButton>
+          />
         </ShadcnDropdownMenuTrigger>
         <ShadcnDropdownMenuContent align="end">
           <template v-if="status ? usable(status) : connected">
@@ -390,19 +381,14 @@ function confirmRemove() {
         </ShadcnDropdownMenuContent>
       </ShadcnDropdownMenu>
     </template>
-    <UiButton
-      type="button"
-      variant="ghost"
-      size="icon"
-      class="size-8 text-muted-foreground"
-      :aria-label="t('settings.cliTools.info')"
-      :tooltip="t('settings.cliTools.info')"
+    <UiButtonInfo
       v-if="status"
+      :label="t('settings.cliTools.info')"
+      size="icon-sm"
+      class="text-muted-foreground"
       :data-testid="`cli-tool-info-${vendor}`"
       @click="infoOpen = true"
-    >
-      <Icon name="lucide:info" class="size-4" aria-hidden="true" />
-    </UiButton>
+    />
 
     <UiDrawerModal
       v-if="status"

@@ -111,17 +111,12 @@ function revoke(share: FileShare) {
         :aria-label="t('contacts.fileShares.level', { name: share.name })"
         @update:model-value="setLevel(share, $event)"
       />
-      <UiButton
-        variant="ghost"
-        size="icon"
+      <UiButtonClose
+        :label="t('contacts.fileShares.revoke', { name: share.name })"
         :disabled="busy"
-        :aria-label="t('contacts.fileShares.revoke', { name: share.name })"
-        :tooltip="t('contacts.fileShares.revoke', { name: share.name })"
         :data-testid="`contacts-file-share-revoke-${share.name}`"
         @click="revoke(share)"
-      >
-        <Icon name="lucide:x" class="size-4" />
-      </UiButton>
+      />
     </SettingsRow>
   </SettingsGroup>
 </template>

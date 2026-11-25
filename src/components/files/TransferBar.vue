@@ -191,16 +191,11 @@ const toasted = new WeakSet<object>()
           class="size-4"
         />
       </UiButton>
-      <UiButton
-        variant="ghost"
-        size="icon"
-        :aria-label="t('files.transfer.cancel')"
-        :tooltip="t('files.transfer.cancel')"
+      <UiButtonClose
+        :label="t('files.transfer.cancel')"
         data-testid="files-transfer-cancel"
         @click="run(() => store.cancelAsync(transfer.key))"
-      >
-        <Icon name="lucide:x" class="size-4" />
-      </UiButton>
+      />
     </div>
     <FilesConflictDialog
       :open="!!asking"

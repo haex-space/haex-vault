@@ -115,19 +115,13 @@ function commit() {
         </template>
       </UiInput>
     </div>
-    <UiButton
+    <UiButtonEdit
       v-else-if="!compact"
-      variant="ghost"
-      size="icon"
-      class="shrink-0"
-      :aria-label="t('files.path.edit')"
-      :tooltip="t('files.path.edit')"
+      :label="t('files.path.edit')"
       :disabled="!path"
       data-testid="files-path-edit"
       @click="edit"
-    >
-      <Icon name="lucide:pencil" class="size-4" />
-    </UiButton>
+    />
     <!-- On a small screen the crumbs do not fit: the folder's name stands for them, and a tap
       offers the folders above it, editing the path and reloading (they are buttons of their own on a
       wide one). -->
@@ -208,18 +202,12 @@ function commit() {
       </ShadcnBreadcrumbList>
     </nav>
 
-    <UiButton
+    <UiButtonRefresh
       v-if="!compact"
-      variant="ghost"
-      size="icon"
-      class="shrink-0"
-      :aria-label="t('files.reload')"
-      :tooltip="t('files.reload')"
+      :label="t('files.reload')"
       data-testid="files-reload"
       @click="emit('reload')"
-    >
-      <Icon name="lucide:refresh-cw" class="size-4" />
-    </UiButton>
+    />
 
     <!-- The crumbs at their natural width, only to be measured. -->
     <div
