@@ -182,6 +182,21 @@ export function usePasswords() {
   const deleteTagAsync = (tagId: string) =>
     invoke<null>('passwords_delete_tag', { args: { tagId } })
 
+  /** Merges the tag `sourceId` into `targetId` for every entry; the result is named `name` (the
+   * name of the target when `null`; spec 100). */
+  const mergeTagsAsync = (
+    sourceId: string,
+    targetId: string,
+    name: string | null,
+  ) =>
+    invoke<null>('passwords_merge_tags', {
+      args: { sourceId, targetId, name },
+    })
+
+  /** The names of the agent profiles whose password rights name this tag (spec 100, FR-010). */
+  const tagAgentProfilesAsync = (tagId: string) =>
+    invoke<string[]>('passwords_tag_agent_profiles', { args: { tagId } })
+
   /** A password for the generator's settings, from the crate haex-passgen in Rust. */
   const generateAsync = (settings: GeneratorSettings) =>
     invoke<Generated>('passwords_generate', { args: { settings } })
@@ -303,6 +318,8 @@ export function usePasswords() {
     renameTagAsync,
     setTagColorAsync,
     deleteTagAsync,
+    mergeTagsAsync,
+    tagAgentProfilesAsync,
     loadOverviewAsync,
     getItemAsync,
     revealAsync,

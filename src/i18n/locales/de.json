@@ -2852,6 +2852,23 @@
     "tags": {
       "manage": "Tags verwalten",
       "none": "Noch keine Tags.",
+      "choose": "Tag auswählen",
+      "merge": "Zusammenführen",
+      "mergeTarget": "Zusammenführen mit",
+      "mergeTitle": "Tags zusammenführen?",
+      "mergeBody": "Tags gelten für den Passwortmanager und die Wallet gemeinsam. Betroffen sind {logins} im Passwortmanager und {passes} in der Wallet: Sie bekommen „{name}“, „{source}“ verschwindet. Das lässt sich nicht rückgängig machen.",
+      "mergeAgents": "Die Rechte dieser Agenten-Profile nennen „{source}“ oder „{target}“: {profiles}. Rechte gelten nach Tag-Name und werden nicht angepasst, der Zugriff auf Einträge kann sich dadurch ändern.",
+      "mergeInfo": "Hinweis zum Zusammenführen",
+      "mergeName": "Name nach dem Zusammenführen",
+      "mergeDescription": "Wähle den Tag, in den dieser Tag übergeht, passe bei Bedarf den neuen Namen an und bestätige.",
+      "mergeConfirm": "Zusammenführen",
+      "search": "Tags durchsuchen",
+      "noMatch": "Kein Tag gefunden.",
+      "selectOne": "Wähle einen Tag, um ihn zu bearbeiten.",
+      "usage": {
+        "login": "Passwortmanager: kein Eintrag | Passwortmanager: {count} Eintrag | Passwortmanager: {count} Einträge",
+        "pass": "Wallet: kein Pass | Wallet: {count} Pass | Wallet: {count} Pässe"
+      },
       "name": "Tagname",
       "rename": "Umbenennen",
       "delete": "Tag löschen",
