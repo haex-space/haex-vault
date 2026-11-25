@@ -428,6 +428,16 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             overview = extensions_overview(&crate::chat::tools::profile_gate::permitted_summaries(
                 &rights, &registry,
             ));
+            // Operator 2026-11-25: a turn that does not route learns the names of the tools a
+            // search adds, those its profile lets it use.
+            if !routes {
+                overview = crate::chat::tools::tool_names::with_names(
+                    overview,
+                    &registry,
+                    &rights,
+                    memory_level,
+                );
+            }
         }
         (tools, overview)
     };

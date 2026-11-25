@@ -17,6 +17,7 @@ use crate::adapters::types::{
     ChatMessage, ChatRequest, ChatRole, Sampling, StreamChunk, ToolCall, ToolSpec,
 };
 use crate::adapters::ProviderAdapter;
+use crate::agent_memory::gate::visible_at;
 use crate::agent_memory::turn::offer_with_block;
 use crate::agent_profiles::Subject;
 use crate::chat::action_commands::register_action_tools;
@@ -27,8 +28,9 @@ use crate::chat::tools::action_tool::{ActionTool, AgentActionDef};
 use crate::chat::tools::availability::ToolAvailability;
 use crate::chat::tools::domains::domain_of;
 use crate::chat::tools::offer::{first_offer, with_search};
-use crate::chat::tools::prompt::{system_prompt, with_memory};
+use crate::chat::tools::prompt::{system_prompt_with, with_memory};
 use crate::chat::tools::route::{first_step_offer, RouteCall};
+use crate::chat::tools::tool_names::tool_names_line;
 use crate::chat::tools::ToolRegistry;
 use crate::chat::turn::arg_forms::as_meant;
 use crate::chat::turn::guard::seen_text;
@@ -166,6 +168,8 @@ struct Turn<'a> {
     routed: bool,
     /// The memory block of spec 097, the same for every step of the request.
     memory: Option<&'a str>,
+    /// The names of the tools a search adds, for a turn that does not route (as in the chat).
+    names: Option<&'a str>,
 }
 
 fn request(turn: &Turn<'_>, messages: Vec<ChatMessage>, tools: Vec<ToolSpec>) -> ChatRequest {
@@ -176,6 +180,7 @@ fn request(turn: &Turn<'_>, messages: Vec<ChatMessage>, tools: Vec<ToolSpec>) ->
         lang,
         routed,
         memory,
+        names,
     } = *turn;
     ChatRequest {
         model_id: model.to_owned(),
@@ -183,11 +188,12 @@ fn request(turn: &Turn<'_>, messages: Vec<ChatMessage>, tools: Vec<ToolSpec>) ->
         // What a voice turn sends today: no given prompt but the memory block, the tool
         // instruction (with the routed turn's sentence when it routed), the reply language and the
         // clock (R3).
-        system_prompt: system_prompt(
+        system_prompt: system_prompt_with(
             with_memory(None, memory).as_deref(),
             &tools,
             Some(clock),
             Some(reply_language(lang)),
+            names,
             routed,
         ),
         messages,
@@ -301,6 +307,12 @@ pub async fn run_everyday(
     // The model as an agent profile names it: a model on `NO_START_TOC` gets no block (FR-027).
     let subject = Subject::Model(model.to_owned()).key();
 
+    // As in the chat: the names of the tools a search adds (the eval reads and writes the memory).
+    let tool_names = tool_names_line(
+        &registry.lock().unwrap_or_else(|e| e.into_inner()),
+        |tool| visible_at(MemoryLevel::ReadWrite, tool.name()),
+    );
+
     for item in &set.requests {
         // The run's memory and the request's own pages (spec 097 research R11).
         let world = &world.with_memory(&item.memory);
@@ -356,6 +368,7 @@ pub async fn run_everyday(
             lang: item.lang,
             routed: route.is_some(),
             memory: memory.as_deref(),
+            names: tool_names.as_deref().filter(|_| route.is_none()),
         };
         let mut foreign = false;
 
