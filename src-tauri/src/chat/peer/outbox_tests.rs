@@ -277,7 +277,7 @@ fn a_parked_vault_stays_parked_when_another_vault_later_succeeds() {
     anna.db
         .write_blocking(move |tx| {
             tx.execute(
-                "UPDATE chat_deliveries SET delivered_at = 7_001 WHERE id = ?1",
+                "UPDATE chat_deliveries SET delivered_at = 7001 WHERE id = ?1",
                 params![other_delivery],
             )?;
             Ok(())
