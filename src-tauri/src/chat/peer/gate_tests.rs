@@ -117,7 +117,7 @@ async fn a_received_answer_parks_and_resumes_and_one_for_another_vault_changes_n
     ben.learn(&anna).await;
     let message = ben.send(&anna, "Hallo Anna");
     let ben_me = ben.me.clone();
-    let (own, anna_vault) = (ben.me.vault_hex.clone(), anna.me.vault_hex.clone());
+    let anna_vault = anna.me.vault_hex.clone();
     let answer = |answer: Answer, thread: String| Receipt {
         v: crate::chat::peer::envelope::VERSION,
         from: anna_vault.clone(),
