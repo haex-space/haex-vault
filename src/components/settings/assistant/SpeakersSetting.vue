@@ -116,7 +116,7 @@ onVaultTablesChanged(['haex_assistant_speakers', 'preferences'], () => {
           : undefined
       "
     >
-      <DeleteButton
+      <UiButtonDelete
         :label="
           t('settings.assistantPage.speakers.delete', { name: speaker.name })
         "

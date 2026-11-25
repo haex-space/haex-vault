@@ -71,7 +71,7 @@ async function onAdd() {
           </span>
         </span>
       </label>
-      <DeleteButton
+      <UiButtonDelete
         :label="t('settings.federation.servers.remove', { url: entry.url })"
         :placeholder="entry.isDefault"
         :disabled="props.busy"

@@ -2,7 +2,7 @@
 /**
  * The one way haex shows "download this" next to an entry that is not on this device yet (operator
  * 2026-11-06): a quiet download icon that takes the primary colour on hover and keyboard focus,
- * the counterpart of `DeleteButton` once the entry is here. `label` names what is downloaded, for
+ * the counterpart of `UiButtonDelete` once the entry is here. `label` names what is downloaded, for
  * screen readers and the tooltip.
  */
 const props = defineProps<{

@@ -270,7 +270,7 @@ onVaultTablesChanged(['preferences'], () => {
     >
       {{ t('settings.chat.server.check') }}
     </UiButton>
-    <DeleteButton
+    <UiButtonDelete
       v-if="selectedIsOwn"
       :label="t('settings.chat.server.remove')"
       :disabled="busy"

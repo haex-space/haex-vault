@@ -330,7 +330,7 @@ onMounted(async () => {
         >
           {{ t('models.update.install') }}
         </UiButton>
-        <DeleteButton
+        <UiButtonDelete
           :label="`${t('models.installed.delete')}: ${selected.name}`"
           :disabled="busyModelId !== null"
           :loading="busyModelId === selected.id && busyAction === 'delete'"

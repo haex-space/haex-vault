@@ -35,17 +35,6 @@ const targets = computed(() =>
   ),
 )
 
-async function copyAsync() {
-  try {
-    await navigator.clipboard.writeText(
-      displayValue(props.kind, props.value, locale.value),
-    )
-    toast.success(t('contacts.copied', { what: props.label }))
-  } catch {
-    toast.error(t('contacts.copyFailed'))
-  }
-}
-
 async function openAsync(url: string) {
   try {
     await openUrl(url)
@@ -74,15 +63,14 @@ async function openAsync(url: string) {
         <Icon :name="ICONS[target.action]" class="size-4" />
       </UiButton>
     </template>
-    <UiButton
-      variant="ghost"
-      size="icon"
-      :aria-label="t('contacts.copy', { what: label })"
-      :tooltip="t('contacts.copy', { what: label })"
+    <UiButtonCopy
+      :labels="{
+        copy: t('contacts.copy', { what: label }),
+        copied: t('contacts.copied', { what: label }),
+      }"
+      :value="displayValue(kind, value, locale)"
       data-testid="contacts-copy"
-      @click="copyAsync"
-    >
-      <Icon name="lucide:copy" class="size-4" />
-    </UiButton>
+      @error="toast.error(t('contacts.copyFailed'))"
+    />
   </div>
 </template>

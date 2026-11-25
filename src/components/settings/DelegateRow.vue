@@ -299,7 +299,7 @@ function confirmRemove() {
             }}
           </UiButton>
         </template>
-        <DeleteButton
+        <UiButtonDelete
           v-if="removable"
           :label="t('settings.cliTools.remove')"
           :loading="removing"

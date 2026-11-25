@@ -73,10 +73,6 @@ function commit() {
   editing.value = false
   if (target && target !== props.path) emit('go', target)
 }
-
-async function copy() {
-  await navigator.clipboard.writeText(draft.value).catch(() => {})
-}
 </script>
 
 <template>
@@ -105,16 +101,16 @@ async function copy() {
       >
         <template #append>
           <ShadcnInputGroupAddon align="inline-end">
-            <button
-              type="button"
-              class="text-muted-foreground hover:text-foreground"
-              :aria-label="t('files.path.copy')"
+            <UiButtonCopy
+              size="icon-sm"
+              :labels="{
+                copy: t('files.path.copy'),
+                copied: t('fields.copied'),
+              }"
+              :value="draft"
               data-testid="files-path-copy"
               @mousedown.prevent
-              @click="copy"
-            >
-              <Icon name="lucide:copy" class="size-4" />
-            </button>
+            />
           </ShadcnInputGroupAddon>
         </template>
       </UiInput>

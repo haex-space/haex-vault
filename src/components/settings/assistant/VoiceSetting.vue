@@ -302,7 +302,7 @@ onVaultTablesChanged(['preferences'], () => {
             {{ voiceLine(voice) }}
           </template>
           <template #trailing>
-            <DeleteButton
+            <UiButtonDelete
               v-if="voice.kind === 'clone'"
               :label="t('settings.voice.deleteOf', { name: voice.name })"
               :data-testid="`settings-voice-delete-${voice.ref}`"

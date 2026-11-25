@@ -202,7 +202,7 @@ async function confirmDeleteAsync() {
                 >
                   <Icon name="lucide:merge" class="size-4" aria-hidden="true" />
                 </UiButton>
-                <DeleteButton
+                <UiButtonDelete
                   :label="t('passwords.tags.delete')"
                   :data-testid="`passwords-tag-delete-${selected.id}`"
                   @click="deleting = selected"

@@ -266,7 +266,7 @@ defineExpose({ reloadAsync })
         </span>
       </template>
       <template #trailing>
-        <DeleteButton
+        <UiButtonDelete
           v-if="option.installed"
           :label="
             t('settings.voice.speechModel.deleteOf', { name: option.name })
