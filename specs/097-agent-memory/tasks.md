@@ -235,7 +235,7 @@ description: 'Task list for the shared memory of the agents (spec 097)'
 ## Phase 10: Polish and cross-cutting concerns (PR E)
 
 - [ ] T082 [P] Write the e2e scenario `scripts/e2e/scenarios/agent-memory.test.ts` on the pattern of `agent-profiles.test.ts`: add a page in "KI → Gedächtnis", follow a pointer, see a refused secret; the group "Gedächtnis" in "Standard"; register it where `scripts/check-e2e-exclusions.ts` expects; run E2E with `gh workflow run ci.yml --ref <branch>` before merge (E2E does not run on PRs)
-- [ ] T083 [P] Add Gedächtnis, Seite, Verweis, Inhaltsverzeichnis and fremder Inhalt to `CONTEXT.md`
+- [x] T083 [P] Add Gedächtnis, Seite, Verweis, Inhaltsverzeichnis and fremder Inhalt to `CONTEXT.md`
 - [ ] T084 Walk the whole quickstart by hand, correct `specs/097-agent-memory/quickstart.md` where the app differs, and list the steps left for the operator (second device, real Codex) in the pull request note
 - [ ] T085 Diff the merged code against the decisions of spec and plan (no question for a write without foreign content in any mode but "Plan", every kind of agent the same, external agents off, no labels, no automatic shortening) and fix any drift a review introduced
 
