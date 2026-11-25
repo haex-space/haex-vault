@@ -174,7 +174,7 @@ async fn a_received_answer_parks_and_resumes_and_one_for_another_vault_changes_n
             .read_blocking(|r| Ok(outbox::due(r, 30)?))
             .expect("due")
             .iter()
-            .any(|row| row.pending.contains(&anna.me.vault_hex)),
-        "due for Anna at once"
+            .any(|row| row.is_resend() && row.awaiting.contains(&anna.me.vault_hex)),
+        "resend for Anna due at once"
     );
 }
