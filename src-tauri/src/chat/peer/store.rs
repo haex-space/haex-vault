@@ -172,8 +172,9 @@ pub fn list(q: &mut impl Query, own_vault: &str, filter: ListFilter) -> Result<V
                 AND m.sender_vault <> ?1), \
            (SELECT m.text FROM chat_peer_messages m WHERE m.thread_id = t.id \
               ORDER BY m.sort_at DESC, m.id DESC LIMIT 1), \
-           MAX(t.updated_at, COALESCE((SELECT MAX(m.sort_at) FROM chat_peer_messages m \
-              WHERE m.thread_id = t.id), 0)) AS last_at, \
+           CASE WHEN t.state = 'request' THEN COALESCE(t.request_last_at, t.updated_at) \
+             ELSE MAX(t.updated_at, COALESCE((SELECT MAX(m.sort_at) FROM chat_peer_messages m \
+               WHERE m.thread_id = t.id), 0)) END AS last_at, \
            (EXISTS (SELECT 1 FROM chat_peer_messages m \
               WHERE m.thread_id = t.id AND m.sender_vault = t.peer_vault) \
             OR EXISTS (SELECT 1 FROM chat_deliveries d \
