@@ -17,7 +17,6 @@ use haex_crdt::CrdtTransaction;
 use super::envelope::{Answer, Receipt, To, RECEIPT_KIND};
 use super::outbox::{self, Rumor};
 use super::session::Me;
-use super::session::Me;
 use super::{ids, send};
 use crate::error::Result;
 use crate::storage::query::Query;
