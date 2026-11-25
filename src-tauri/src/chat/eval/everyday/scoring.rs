@@ -298,7 +298,8 @@ pub fn score(
             }
         }
         Expectation::Answer(facts) => {
-            if !trace.calls.is_empty() {
+            // Looking in the catalog whether a tool fits is never wrong (operator 2026-11-25).
+            if trace.calls.iter().any(|c| c.tool != FIND_ACTIONS_TOOL_NAME) {
                 Outcome::Spurious
             } else {
                 answered(request, text, facts)
@@ -318,15 +319,16 @@ pub fn score(
             }
         }
         Expectation::Refusal => {
-            // No tool and no command: searching the catalog for one, and asking back, are all
-            // that fits. An honest question back ("no shopping list here, where should it go?")
-            // passes as well as a text that declines (operator, 2026-11-03); a text that claims
-            // it is done misses the refusal.
-            let only_search = trace
+            // No tool and no command: looking (the catalog, the installed apps, the files) and
+            // asking back are all that fits (operator 2026-11-25; before, only the catalog search
+            // and asking back). An honest question back ("no shopping list here, where should it
+            // go?") passes as well as a text that declines (operator, 2026-11-03); a text that
+            // claims it is done misses the refusal.
+            let only_looks = trace
                 .calls
                 .iter()
-                .all(|c| c.tool == FIND_ACTIONS_TOOL_NAME || c.tool == ASK_USER_TOOL_NAME);
-            if !only_search {
+                .all(|c| effect_of(effects, &c.tool) == Effect::Read);
+            if !only_looks {
                 Outcome::Spurious
             } else if text.is_empty() {
                 Outcome::NoAnswer

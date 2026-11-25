@@ -197,12 +197,22 @@ fn an_answer_needs_its_facts_and_no_tool() {
     );
     assert_eq!(
         outcome(
-            expect,
+            expect.clone(),
             &[("settings_get", json!({}))],
             "Es ist 9:41 Uhr.",
             End::Answer
         ),
         Outcome::Spurious
+    );
+    // Searching the catalog first is never wrong.
+    assert_eq!(
+        outcome(
+            expect,
+            &[("find_actions", json!({ "query": "Uhrzeit" }))],
+            "Es ist 9:41 Uhr.",
+            End::Answer
+        ),
+        Outcome::Pass
     );
 }
 
@@ -261,7 +271,7 @@ fn a_question_passes_as_text_or_through_ask_user() {
 }
 
 #[test]
-fn a_refusal_allows_a_search_but_no_change() {
+fn a_refusal_allows_looking_but_no_change() {
     let expect = json!("refusal");
     let searched = [("find_actions", json!({ "query": "Wecker" }))];
     assert_eq!(
@@ -282,11 +292,24 @@ fn a_refusal_allows_a_search_but_no_change() {
         ),
         Outcome::Spurious
     );
-    // A lookup is a tool too: a refusal calls none.
+    // Looking which apps are installed before declining is careful, not wrong (operator
+    // 2026-11-25).
+    assert_eq!(
+        outcome(
+            expect.clone(),
+            &[("wm_apps_list", json!({}))],
+            "Einen Kalender gibt es in HaexVault nicht.",
+            End::Answer
+        ),
+        Outcome::Pass
+    );
     assert_eq!(
         outcome(
             expect,
-            &[("settings_get", json!({}))],
+            &[
+                ("wm_apps_list", json!({})),
+                ("wm_app_open", json!({ "appId": "Dateien" })),
+            ],
             "Das kann ich noch nicht.",
             End::Answer
         ),
