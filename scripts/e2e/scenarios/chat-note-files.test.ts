@@ -5,9 +5,10 @@ import { unwrap, type FlowInstance } from '../lib/flows.ts'
 import { deviceFiles } from '../lib/extension-files.ts'
 
 // Spec 072 FR-002b (tasks T145): a note to oneself is sent like a message. The laptop writes a note
-// with a file while the phone, the second device of the same vault, is closed; the phone then opens
-// and shows the note and holds the file, which it fetched from the Blossom-Server. The native file
-// dialog cannot be driven, so the file is handed to the command the window calls with its choice.
+// with a file while the phone, the second device of the same vault, is closed; the laptop goes
+// offline after sending, then the phone opens and shows the note and holds the file it fetched from
+// the Blossom-Server. The native file dialog cannot be driven, so the file is handed to the command
+// the window calls with its choice.
 
 const SIZE = 3 * 1024 * 1024
 const TEXT = 'Reifen wechseln'
@@ -74,7 +75,8 @@ scenario('chat-note-files', { timeoutMs: 420_000 }, async (ctx) => {
   const own = await messagesOf(laptop.page, noteThread)
   assert.equal(own.length, 1)
   assert.equal(own[0]?.delivery, null, 'a note shows no delivery state')
-  ctx.step('the laptop sent a note with a file')
+  await laptop.stop()
+  ctx.step('the laptop sent a note with a file, then went offline')
 
   await phone.start()
   const phoneThread = await openNote(phone.page)
