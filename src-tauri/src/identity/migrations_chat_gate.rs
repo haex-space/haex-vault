@@ -6,13 +6,16 @@
 //! raise [`super::migrations::HAEX_TRIGGER_VERSION`]; `chat_gate_notices_no_sync` stays on the device.
 
 /// The migration `0070_chat_gate`; registered in [`super::migrations::haex_migration_source`].
-pub const CHAT_GATE_0070: &str = "\
-ALTER TABLE chat_threads ADD COLUMN request_first_at INTEGER;
+pub const CHAT_GATE_0070: &str = r#"ALTER TABLE chat_threads ADD COLUMN request_first_at INTEGER;
+--> statement-breakpoint
 ALTER TABLE chat_threads ADD COLUMN request_last_at INTEGER;
+--> statement-breakpoint
 ALTER TABLE chat_threads ADD COLUMN peer_blocked_at INTEGER;
+--> statement-breakpoint
 ALTER TABLE haex_contacts_blocked_vaults ADD COLUMN card BLOB;
+--> statement-breakpoint
 CREATE TABLE chat_gate_notices_no_sync (
   peer_vault TEXT PRIMARY KEY NOT NULL,
   answer TEXT NOT NULL,
   created_at INTEGER NOT NULL
-);";
+);"#;
