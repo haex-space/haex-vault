@@ -28,29 +28,20 @@ async function speakAsync() {
 
 <template>
   <div class="mt-1 flex items-center gap-1 text-muted-foreground">
-    <UiButton
-      type="button"
-      variant="ghost"
+    <UiButtonIcon
+      :label="
+        speaking
+          ? t('chat.messageActions.stop')
+          : t('chat.messageActions.speak')
+      "
       size="icon-sm"
-      :aria-label="
-        speaking
-          ? t('chat.messageActions.stop')
-          : t('chat.messageActions.speak')
-      "
-      :tooltip="
-        speaking
-          ? t('chat.messageActions.stop')
-          : t('chat.messageActions.speak')
-      "
       :aria-pressed="speaking"
       data-testid="chat-message-speak"
       @click="speakAsync"
-    >
-      <Icon
+      ><Icon
         :name="speaking ? 'lucide:square' : 'lucide:volume-2'"
         class="size-4"
-      />
-    </UiButton>
+    /></UiButtonIcon>
     <UiButtonCopy
       size="icon-sm"
       :labels="{

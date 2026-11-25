@@ -208,18 +208,14 @@ async function confirmDeleteAsync() {
           </ShadcnInputGroupAddon>
         </template>
       </UiInput>
-      <UiButton
-        type="button"
+      <UiButtonIcon
+        :label="t('files.syncRules.settings.open')"
         size="icon-sm"
         variant="outline"
-        class="shrink-0"
-        :aria-label="t('files.syncRules.settings.open')"
-        :tooltip="t('files.syncRules.settings.open')"
         data-testid="files-sync-rules-settings"
         @click="configuring = true"
-      >
-        <Icon name="lucide:settings" class="size-4" />
-      </UiButton>
+        ><Icon name="lucide:settings" class="size-4"
+      /></UiButtonIcon>
       <UiButtonAdd
         :label="t('files.syncRules.create.open')"
         size="icon-sm"
@@ -334,33 +330,24 @@ async function confirmDeleteAsync() {
                 :data-testid="`files-sync-rule-run-${view.rule.name}`"
                 @click="act(view, () => runNowAsync(view.rule.id))"
               />
-              <UiButton
-                type="button"
-                variant="ghost"
+              <UiButtonIcon
+                :label="
+                  view.rule.enabled
+                    ? t('files.syncRules.pause')
+                    : t('files.syncRules.resume')
+                "
                 size="icon-sm"
                 :disabled="busy !== null"
-                :aria-label="
-                  view.rule.enabled
-                    ? t('files.syncRules.pause')
-                    : t('files.syncRules.resume')
-                "
-                :tooltip="
-                  view.rule.enabled
-                    ? t('files.syncRules.pause')
-                    : t('files.syncRules.resume')
-                "
                 :data-testid="`files-sync-rule-toggle-${view.rule.name}`"
                 @click="
                   act(view, () =>
                     setEnabledAsync(view.rule.id, !view.rule.enabled),
                   )
                 "
-              >
-                <Icon
+                ><Icon
                   :name="view.rule.enabled ? 'lucide:pause' : 'lucide:play'"
                   class="size-4"
-                />
-              </UiButton>
+              /></UiButtonIcon>
               <ShadcnDropdownMenu>
                 <ShadcnDropdownMenuTrigger as-child>
                   <UiButtonMenu
@@ -405,18 +392,12 @@ async function confirmDeleteAsync() {
                   </ShadcnDropdownMenuItem>
                 </ShadcnDropdownMenuContent>
               </ShadcnDropdownMenu>
-              <UiButton
-                type="button"
-                variant="ghost"
-                size="icon-sm"
+              <UiButtonDelete
+                :label="t('files.syncRules.delete')"
                 :disabled="busy !== null"
-                :aria-label="t('files.syncRules.delete')"
-                :tooltip="t('files.syncRules.delete')"
                 :data-testid="`files-sync-rule-delete-${view.rule.name}`"
                 @click="deleting = view"
-              >
-                <Icon name="lucide:trash-2" class="size-4" />
-              </UiButton>
+              />
             </div>
           </div>
           <div

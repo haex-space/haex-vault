@@ -78,30 +78,24 @@ function pickDate(picked: unknown) {
       </template>
       <template #append>
         <ShadcnInputGroupAddon v-if="text" align="inline-end">
-          <button
-            type="button"
-            class="text-muted-foreground hover:text-foreground"
-            :aria-label="t('files.search.clear')"
+          <UiButtonClose
+            :label="t('files.search.clear')"
+            size="icon-sm"
+            class="size-6"
             data-testid="files-search-clear"
             @click="clear"
-          >
-            <Icon name="lucide:x" class="size-4" />
-          </button>
+          />
         </ShadcnInputGroupAddon>
       </template>
     </UiInput>
     <ShadcnDropdownMenu>
       <ShadcnDropdownMenuTrigger as-child>
-        <UiButton
+        <UiButtonIcon
+          :label="t('files.filter.label')"
           :variant="isFiltering(filter) ? 'secondary' : 'ghost'"
-          size="icon"
-          class="shrink-0"
-          :aria-label="t('files.filter.label')"
-          :tooltip="t('files.filter.label')"
           data-testid="files-filter"
-        >
-          <Icon name="lucide:list-filter" class="size-4" />
-        </UiButton>
+          ><Icon name="lucide:list-filter" class="size-4"
+        /></UiButtonIcon>
       </ShadcnDropdownMenuTrigger>
       <ShadcnDropdownMenuContent align="end" class="min-w-52">
         <ShadcnDropdownMenuLabel>{{

@@ -60,18 +60,13 @@ function pickSort(key: SortKey) {
       data-testid="files-back"
       @click="emit('back')"
     />
-    <UiButton
-      variant="ghost"
-      size="icon"
-      class="shrink-0"
-      :aria-label="t('files.forward')"
-      :tooltip="t('files.forward')"
+    <UiButtonIcon
+      :label="t('files.forward')"
       :disabled="!canGoForward"
       data-testid="files-forward"
       @click="emit('forward')"
-    >
-      <Icon name="lucide:arrow-right" class="size-4" />
-    </UiButton>
+      ><Icon name="lucide:arrow-right" class="size-4"
+    /></UiButtonIcon>
     <span
       v-if="title"
       class="min-w-0 flex-1 truncate px-2 text-sm font-medium"
@@ -123,33 +118,20 @@ function pickSort(key: SortKey) {
         </ShadcnDropdownMenuItem>
       </ShadcnDropdownMenuContent>
     </ShadcnDropdownMenu>
-    <UiButton
+    <UiButtonIcon
       v-if="!title"
-      variant="ghost"
-      size="icon"
-      class="shrink-0"
-      :aria-label="viewLabel"
-      :tooltip="viewLabel"
+      :label="viewLabel"
       data-testid="files-view-toggle"
       @click="emit('view', view === 'list' ? 'grid' : 'list')"
-    >
-      <Icon
+      ><Icon
         :name="view === 'list' ? 'lucide:layout-grid' : 'lucide:list'"
         class="size-4"
-      />
-    </UiButton>
+    /></UiButtonIcon>
     <ShadcnDropdownMenu v-if="!title">
       <ShadcnDropdownMenuTrigger as-child>
-        <UiButton
-          variant="ghost"
-          size="icon"
-          class="shrink-0"
-          :aria-label="t('files.menu')"
-          :tooltip="t('files.menu')"
-          data-testid="files-menu"
-        >
-          <Icon name="lucide:arrow-down-up" class="size-4" />
-        </UiButton>
+        <UiButtonIcon :label="t('files.menu')" data-testid="files-menu"
+          ><Icon name="lucide:arrow-down-up" class="size-4"
+        /></UiButtonIcon>
       </ShadcnDropdownMenuTrigger>
       <ShadcnDropdownMenuContent align="end">
         <ShadcnDropdownMenuItem

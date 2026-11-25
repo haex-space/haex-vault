@@ -21,18 +21,12 @@ const pickerOpen = ref(false)
 </script>
 
 <template>
-  <UiButton
-    type="button"
-    variant="ghost"
-    size="icon"
-    class="shrink-0 shadow-none"
-    :aria-label="t('passwords.references.insert')"
-    :tooltip="t('passwords.references.insert')"
+  <UiButtonLink
+    :label="t('passwords.references.insert')"
+    class="shadow-none"
     :data-testid="`passwords-reference-insert-${kind}`"
     @click.prevent="pickerOpen = true"
-  >
-    <Icon name="lucide:link" class="size-4" />
-  </UiButton>
+  />
   <PasswordsReferencePicker
     v-model:open="pickerOpen"
     :item-id="itemId"

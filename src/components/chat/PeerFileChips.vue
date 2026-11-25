@@ -47,16 +47,15 @@ const { t } = useI18n()
         class="h-3.5 w-3.5 animate-spin"
         :aria-label="t('chat.peer.sendingFile')"
       />
-      <button
+      <UiButtonClose
         v-else
-        type="button"
-        class="flex h-5 w-5 items-center justify-center rounded outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-        :aria-label="t('chat.peer.removeFile', { name: file.name })"
+        class="size-5 rounded-full"
+        icon-class="size-3"
+        :label="t('chat.peer.removeFile', { name: file.name })"
+        size="icon-sm"
         data-testid="chat-peer-file-remove"
         @click="emit('remove', file.path)"
-      >
-        <Icon name="lucide:x" class="h-3 w-3" aria-hidden="true" />
-      </button>
+      />
     </div>
   </div>
 </template>

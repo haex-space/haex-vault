@@ -270,14 +270,14 @@ function removeTag(name: string) {
             class="gap-1"
           >
             {{ tag }}
-            <button
-              type="button"
-              class="rounded-full hover:text-destructive"
-              :aria-label="t('passwords.editor.removeTag', { tag })"
+            <UiButtonClose
+              class="size-5 rounded-full"
+              icon-class="size-3"
+              hover="destructive"
+              :label="t('passwords.editor.removeTag', { tag })"
+              size="icon-sm"
               @click="removeTag(tag)"
-            >
-              <Icon name="lucide:x" class="size-3" />
-            </button>
+            />
           </ShadcnBadge>
         </div>
         <UiInput

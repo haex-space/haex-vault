@@ -51,17 +51,13 @@ async function openAsync(url: string) {
         v-if="target.action === 'mail' && mailBehavior === 'menu'"
         :url="target.url"
       />
-      <UiButton
+      <UiButtonIcon
         v-else
-        variant="ghost"
-        size="icon"
-        :aria-label="t(`contacts.open.${target.action}`, { what: label })"
-        :tooltip="t(`contacts.open.${target.action}`, { what: label })"
+        :label="t(`contacts.open.${target.action}`, { what: label })"
         :data-testid="`contacts-open-${target.action}`"
         @click="openAsync(target.url)"
-      >
-        <Icon :name="ICONS[target.action]" class="size-4" />
-      </UiButton>
+        ><Icon :name="ICONS[target.action]" class="size-4"
+      /></UiButtonIcon>
     </template>
     <UiButtonCopy
       :labels="{

@@ -107,48 +107,31 @@ function back() {
           </h1>
         </div>
         <div v-else class="flex-1" />
-        <UiButton
+        <UiButtonLink
           v-if="detail && !inTrash"
-          variant="ghost"
-          size="icon"
-          class="shrink-0"
-          :aria-label="t('passwords.pass.links.add')"
-          :tooltip="t('passwords.pass.links.add')"
+          :label="t('passwords.pass.links.add')"
           data-testid="wallet-add-linked"
           @click="addLinked"
-        >
-          <Icon name="lucide:link" class="size-4" />
-        </UiButton>
-        <UiButton
+        />
+        <UiButtonIcon
           v-if="detail && !inTrash"
-          variant="ghost"
-          size="icon"
-          class="shrink-0"
-          :aria-label="t('wallet.move.open')"
-          :tooltip="t('wallet.move.open')"
+          :label="t('wallet.move.open')"
           data-testid="wallet-move"
           @click="moveOpen = true"
-        >
-          <Icon name="lucide:folder-input" class="size-4" />
-        </UiButton>
+          ><Icon name="lucide:folder-input" class="size-4"
+        /></UiButtonIcon>
         <UiButtonEdit
           v-if="detail && !inTrash"
           :label="t('passwords.edit')"
           data-testid="wallet-edit"
           @click="edit"
         />
-        <UiButton
+        <UiButtonDelete
           v-if="detail && !inTrash"
-          variant="ghost"
-          size="icon"
-          class="shrink-0"
-          :aria-label="t('passwords.delete.title')"
-          :tooltip="t('passwords.delete.title')"
+          :label="t('passwords.delete.title')"
           data-testid="wallet-delete"
           @click="deleteOpen = true"
-        >
-          <Icon name="lucide:trash-2" class="size-4" />
-        </UiButton>
+        />
       </div>
 
       <p

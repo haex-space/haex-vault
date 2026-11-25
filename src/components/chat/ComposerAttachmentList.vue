@@ -52,16 +52,15 @@ const previewOpen = computed({
       <span v-else class="max-w-[12rem] truncate">{{
         attachment.info.name
       }}</span>
-      <button
-        type="button"
-        class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-        :aria-label="
+      <UiButtonClose
+        class="size-5 rounded-full"
+        icon-class="size-3"
+        :label="
           t('chat.composer.attachments.remove', { name: attachment.info.name })
         "
+        size="icon-sm"
         @click="emit('remove', attachment.id)"
-      >
-        <Icon name="lucide:x" class="h-3 w-3" :aria-hidden="true" />
-      </button>
+      />
     </div>
     <ChatComposerAttachmentPreview
       v-model:open="previewOpen"

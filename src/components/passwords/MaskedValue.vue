@@ -62,28 +62,13 @@ onBeforeUnmount(hide)
       <template v-else-if="value === null">••••••••</template>
       <template v-else>{{ value }}</template>
     </span>
-    <UiButton
+    <UiButtonReveal
       v-if="present"
-      type="button"
-      variant="ghost"
-      size="icon"
-      class="shrink-0"
-      :aria-label="
-        value === null
-          ? t('passwords.reveal', { field: label })
-          : t('passwords.hideHint')
-      "
-      :aria-pressed="value !== null"
-      :tooltip="
-        value === null ? t('passwords.revealHint') : t('passwords.hideHint')
-      "
+      :revealed="value !== null"
+      :label="t('passwords.reveal', { field: label })"
+      :revealed-label="t('passwords.hideHint')"
       :data-testid="`passwords-reveal-${kind}`"
       @click="toggle"
-    >
-      <Icon
-        :name="value === null ? 'lucide:eye' : 'lucide:eye-off'"
-        class="size-4"
-      />
-    </UiButton>
+    />
   </span>
 </template>

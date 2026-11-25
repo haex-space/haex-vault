@@ -126,30 +126,19 @@ const error = computed(() => {
           : t('chat.file.download', { size: formatFileSize(file.size) })
       }}
     </UiButton>
-    <UiButton
+    <UiButtonIcon
       v-if="viewable"
-      type="button"
-      variant="ghost"
-      size="icon"
-      :aria-label="t('chat.file.view')"
-      :tooltip="t('chat.file.view')"
+      :label="t('chat.file.view')"
       data-testid="chat-attachment-view"
       @click="emit('view', file)"
-    >
-      <Icon name="lucide:eye" class="h-4 w-4" />
-    </UiButton>
-    <UiButton
+      ><Icon name="lucide:eye" class="size-4"
+    /></UiButtonIcon>
+    <UiButtonSave
       v-if="here"
-      type="button"
-      variant="ghost"
-      size="icon"
-      :aria-label="t('chat.file.save')"
-      :tooltip="t('chat.file.save')"
+      :label="t('chat.file.save')"
       data-testid="chat-attachment-save"
       @click="emit('save', file)"
-    >
-      <Icon name="lucide:save" class="h-4 w-4" />
-    </UiButton>
+    />
     <UiButtonOpenExternal
       v-if="openable"
       :label="t('chat.file.openSystem')"

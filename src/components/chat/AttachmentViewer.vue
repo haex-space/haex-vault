@@ -96,16 +96,11 @@ onMounted(() => panel.value?.focus())
       <span class="min-w-0 flex-1 truncate text-sm font-medium">{{
         name
       }}</span>
-      <UiButton
-        variant="ghost"
-        size="icon"
-        :aria-label="t('chat.file.save')"
-        :tooltip="t('chat.file.save')"
+      <UiButtonSave
+        :label="t('chat.file.save')"
         data-testid="chat-attachment-viewer-save"
         @click="emit('save', file)"
-      >
-        <Icon name="lucide:save" class="size-4" />
-      </UiButton>
+      />
       <UiButtonOpenExternal
         v-if="!isAndroid"
         :label="t('chat.file.openSystem')"

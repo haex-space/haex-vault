@@ -161,16 +161,13 @@ function activate() {
           @keydown.enter.prevent="confirmRename"
           @keydown.esc.prevent.stop="editing = false"
         />
-        <UiButton
-          type="button"
-          variant="ghost"
+        <UiButtonIcon
+          :label="t('passwords.save')"
           size="icon-sm"
-          :aria-label="t('passwords.save')"
           :data-testid="`passwords-attachment-name-confirm-${attachment.id}`"
           @click="confirmRename"
-        >
-          <Icon name="lucide:check" class="size-4" />
-        </UiButton>
+          ><Icon name="lucide:check" class="size-4"
+        /></UiButtonIcon>
       </div>
       <template v-else>
         <span
@@ -206,17 +203,11 @@ function activate() {
             :data-testid="`passwords-attachment-rename-${attachment.id}`"
             @click="startRename"
           />
-          <UiButton
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            :aria-label="t('passwords.attachments.remove')"
-            :tooltip="t('passwords.attachments.remove')"
+          <UiButtonDelete
+            :label="t('passwords.attachments.remove')"
             :data-testid="`passwords-attachment-remove-${attachment.id}`"
             @click="emit('remove')"
-          >
-            <Icon name="lucide:trash-2" class="size-4" />
-          </UiButton>
+          />
         </template>
       </div>
     </div>

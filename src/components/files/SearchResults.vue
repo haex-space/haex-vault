@@ -95,17 +95,12 @@ const errorText = computed(() => {
             }}</span>
           </span>
         </button>
-        <UiButton
-          variant="ghost"
-          size="icon"
-          class="shrink-0"
-          :aria-label="t('files.search.reveal')"
-          :tooltip="t('files.search.reveal')"
+        <UiButtonIcon
+          :label="t('files.search.reveal')"
           :data-testid="`files-hit-reveal-${hit.entry.name}`"
           @click="emit('reveal', parentPath(hit.entry.path) ?? hit.entry.path)"
-        >
-          <Icon name="lucide:folder-search" class="size-4" />
-        </UiButton>
+          ><Icon name="lucide:folder-search" class="size-4"
+        /></UiButtonIcon>
       </li>
     </ul>
   </div>

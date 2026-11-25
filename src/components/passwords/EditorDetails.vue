@@ -185,18 +185,13 @@ const showOtpInput = computed(
               />
             </template>
           </UiInputPassword>
-          <UiButton
-            type="button"
+          <UiButtonIcon
+            :label="t('passwords.generator.open')"
             variant="outline"
-            size="icon"
-            class="shrink-0"
-            :aria-label="t('passwords.generator.open')"
-            :tooltip="t('passwords.generator.open')"
             data-testid="passwords-generate"
             @click="generatorOpen = true"
-          >
-            <Icon name="lucide:wand-sparkles" class="size-4" />
-          </UiButton>
+            ><Icon name="lucide:wand-sparkles" class="size-4"
+          /></UiButtonIcon>
         </div>
         <PasswordsReferenceField
           v-model:text="draft.password"
@@ -404,14 +399,14 @@ const showOtpInput = computed(
             class="gap-1"
           >
             {{ tag }}
-            <button
-              type="button"
-              class="rounded-full hover:text-destructive"
-              :aria-label="t('passwords.editor.removeTag', { tag })"
+            <UiButtonClose
+              class="size-5 rounded-full"
+              icon-class="size-3"
+              hover="destructive"
+              :label="t('passwords.editor.removeTag', { tag })"
+              size="icon-sm"
               @click="removeTag(tag)"
-            >
-              <Icon name="lucide:x" class="size-3" />
-            </button>
+            />
           </ShadcnBadge>
         </div>
         <UiInput

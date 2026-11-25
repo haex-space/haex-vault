@@ -133,36 +133,25 @@ async function removeOtpAsync() {
             })
           }}
         </ShadcnBadge>
-        <UiButton
+        <UiButtonLink
           v-if="detail && !inTrash"
-          variant="ghost"
-          size="icon"
-          class="ml-auto shrink-0"
-          :aria-label="t('passwords.pass.links.add')"
-          :tooltip="t('passwords.pass.links.add')"
+          :label="t('passwords.pass.links.add')"
+          class="ml-auto"
           data-testid="passwords-add-linked"
           @click="addLinked"
-        >
-          <Icon name="lucide:link" class="size-4" />
-        </UiButton>
+        />
         <UiButtonEdit
           v-if="detail && !inTrash"
           :label="t('passwords.edit')"
           data-testid="passwords-edit"
           @click="edit"
         />
-        <UiButton
+        <UiButtonDelete
           v-if="detail && !inTrash"
-          variant="ghost"
-          size="icon"
-          class="shrink-0"
-          :aria-label="t('passwords.delete.title')"
-          :tooltip="t('passwords.delete.title')"
+          :label="t('passwords.delete.title')"
           data-testid="passwords-delete"
           @click="deleteOpen = true"
-        >
-          <Icon name="lucide:trash-2" class="size-4" />
-        </UiButton>
+        />
       </div>
 
       <p

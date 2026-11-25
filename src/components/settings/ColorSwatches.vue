@@ -106,16 +106,12 @@ function pick(value: string) {
 
     <ShadcnPopover v-model:open="pickerOpen">
       <ShadcnPopoverTrigger as-child>
-        <button
-          type="button"
-          :aria-label="t('settings.appearance.addCustom')"
-          :title="t('settings.appearance.addCustom')"
+        <UiButtonAdd
+          :label="t('settings.appearance.addCustom')"
+          size="icon-sm"
           :disabled="disabled"
-          class="flex size-8 items-center justify-center rounded-lg border border-foreground/20 bg-background hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-primary/50 focus-visible:outline-none disabled:opacity-50"
           :data-testid="`appearance-add-${control}`"
-        >
-          <Icon name="lucide:plus" class="size-4" />
-        </button>
+        />
       </ShadcnPopoverTrigger>
       <ShadcnPopoverContent class="flex w-64 flex-col gap-3">
         <input

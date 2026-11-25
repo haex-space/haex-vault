@@ -211,26 +211,20 @@ watch(
             {{ editTitleError }}
           </p>
         </div>
-        <button
-          type="button"
-          class="shrink-0 rounded p-1.5 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          :aria-label="t('chat.threads.saveTitle')"
-          :title="t('chat.threads.saveTitle')"
+        <UiButtonIcon
+          :label="t('chat.threads.saveTitle')"
+          size="icon-sm"
           :disabled="renamingThreadId === thread.id"
           @click.stop="emit('saveTitle')"
-        >
-          <Icon name="lucide:check" class="h-4 w-4 max-md:h-5 max-md:w-5" />
-        </button>
-        <button
-          type="button"
-          class="mr-1 shrink-0 rounded p-1.5 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          :aria-label="t('chat.threads.cancelEdit')"
-          :title="t('chat.threads.cancelEdit')"
+          ><Icon name="lucide:check" class="size-4"
+        /></UiButtonIcon>
+        <UiButtonClose
+          :label="t('chat.threads.cancelEdit')"
+          size="icon-sm"
+          class="mr-1"
           :disabled="renamingThreadId === thread.id"
           @click.stop="emit('cancelEditing')"
-        >
-          <Icon name="lucide:x" class="h-4 w-4 max-md:h-5 max-md:w-5" />
-        </button>
+        />
       </template>
       <template v-else>
         <button
@@ -251,30 +245,16 @@ watch(
         <div
           class="flex max-w-0 shrink-0 items-center overflow-hidden opacity-0 transition-[max-width,opacity] duration-150 group-hover:max-w-14 group-hover:opacity-100 group-focus-within:max-w-14 group-focus-within:opacity-100 max-md:max-w-none max-md:opacity-100"
         >
-          <button
-            type="button"
-            class="rounded p-1.5 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            :aria-label="t('chat.threads.editTitle')"
-            :title="t('chat.threads.editTitle')"
+          <UiButtonEdit
+            :label="t('chat.threads.editTitle')"
+            size="icon-sm"
             @click.stop="emit('startEditing', thread)"
-          >
-            <Icon
-              name="lucide:pencil"
-              class="h-3.5 w-3.5 max-md:h-5 max-md:w-5"
-            />
-          </button>
-          <button
-            type="button"
-            class="mr-1 rounded p-1.5 text-muted-foreground hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            :aria-label="t('chat.threads.deleteTitle')"
-            :title="t('chat.threads.deleteTitle')"
+          />
+          <UiButtonDelete
+            :label="t('chat.threads.deleteTitle')"
+            class="mr-1"
             @click.stop="requestDelete(thread)"
-          >
-            <Icon
-              name="lucide:trash-2"
-              class="h-3.5 w-3.5 max-md:h-5 max-md:w-5"
-            />
-          </button>
+          />
         </div>
         <span
           class="w-8 shrink-0 rounded pr-1 text-right text-xs font-normal tabular-nums text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

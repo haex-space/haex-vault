@@ -122,58 +122,42 @@ function onKeydown(event: KeyboardEvent) {
     <div
       class="sticky top-0 z-10 flex items-center gap-1 rounded-b-md border border-t-0 bg-background px-2 py-1"
     >
-      <UiButton
-        variant="ghost"
-        size="icon"
+      <UiButtonIcon
+        :label="t('files.viewer.pdf.previous')"
         :disabled="page <= 1"
-        :aria-label="t('files.viewer.pdf.previous')"
-        :tooltip="t('files.viewer.pdf.previous')"
         data-testid="files-pdf-previous"
         @click="turn(-1)"
-      >
-        <Icon name="lucide:chevron-up" class="size-4" />
-      </UiButton>
+        ><Icon name="lucide:chevron-up" class="size-4"
+      /></UiButtonIcon>
       <span
         class="min-w-20 text-center text-sm tabular-nums"
         data-testid="files-pdf-page"
         >{{ t('files.viewer.pdf.page', { page, pages }) }}</span
       >
-      <UiButton
-        variant="ghost"
-        size="icon"
+      <UiButtonIcon
+        :label="t('files.viewer.pdf.next')"
         :disabled="page >= pages"
-        :aria-label="t('files.viewer.pdf.next')"
-        :tooltip="t('files.viewer.pdf.next')"
         data-testid="files-pdf-next"
         @click="turn(1)"
-      >
-        <Icon name="lucide:chevron-down" class="size-4" />
-      </UiButton>
-      <UiButton
-        variant="ghost"
-        size="icon"
+        ><Icon name="lucide:chevron-down" class="size-4"
+      /></UiButtonIcon>
+      <UiButtonIcon
+        :label="t('files.viewer.pdf.zoomOut')"
         :disabled="zoom <= 0"
-        :aria-label="t('files.viewer.pdf.zoomOut')"
-        :tooltip="t('files.viewer.pdf.zoomOut')"
         data-testid="files-pdf-zoom-out"
         @click="zoom -= 1"
-      >
-        <Icon name="lucide:zoom-out" class="size-4" />
-      </UiButton>
+        ><Icon name="lucide:zoom-out" class="size-4"
+      /></UiButtonIcon>
       <span class="min-w-12 text-center text-sm tabular-nums"
         >{{ Math.round((ZOOMS[zoom] ?? 1) * 100) }} %</span
       >
-      <UiButton
-        variant="ghost"
-        size="icon"
+      <UiButtonIcon
+        :label="t('files.viewer.pdf.zoomIn')"
         :disabled="zoom >= ZOOMS.length - 1"
-        :aria-label="t('files.viewer.pdf.zoomIn')"
-        :tooltip="t('files.viewer.pdf.zoomIn')"
         data-testid="files-pdf-zoom-in"
         @click="zoom += 1"
-      >
-        <Icon name="lucide:zoom-in" class="size-4" />
-      </UiButton>
+        ><Icon name="lucide:zoom-in" class="size-4"
+      /></UiButtonIcon>
     </div>
     <canvas
       ref="canvas"

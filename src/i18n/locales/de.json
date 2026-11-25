@@ -2740,7 +2740,6 @@
       "attachments": "Hat Dateianhänge"
     },
     "reveal": "{field} anzeigen",
-    "revealHint": "Anzeigen",
     "hideHint": "Verbergen",
     "copy": "{field} kopieren",
     "copied": "{field} kopiert. Die Zwischenablage wird in {seconds} s geleert.",

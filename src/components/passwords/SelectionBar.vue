@@ -236,18 +236,15 @@ const targetValue = computed({
       }}
     </span>
     <div class="hidden items-center gap-0.5 @sm/bar:flex">
-      <UiButton
+      <UiButtonIcon
         v-for="action in barActions"
         :key="action.id"
-        variant="ghost"
+        :label="action.label"
         size="icon-sm"
-        :aria-label="action.label"
-        :tooltip="action.label"
         :data-testid="`passwords-selection-${action.id}`"
         @click="action.run"
-      >
-        <Icon :name="action.icon" class="size-4" />
-      </UiButton>
+        ><Icon :name="action.icon" class="size-4"
+      /></UiButtonIcon>
     </div>
     <ShadcnDropdownMenu>
       <ShadcnDropdownMenuTrigger as-child>

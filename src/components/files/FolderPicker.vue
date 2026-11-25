@@ -316,18 +316,14 @@ const canGoUp = computed(
     </div>
     <div v-else-if="origin" class="flex flex-col gap-1 rounded-md border p-2">
       <div class="flex items-center gap-2 text-sm">
-        <UiButton
-          type="button"
-          variant="ghost"
+        <UiButtonIcon
+          :label="t('files.syncRules.picker.up')"
           size="icon-sm"
           :disabled="!canGoUp"
-          :aria-label="t('files.syncRules.picker.up')"
-          :tooltip="t('files.syncRules.picker.up')"
           :data-testid="`files-picker-${name}-up`"
           @click="up"
-        >
-          <Icon name="lucide:arrow-up" class="size-4" />
-        </UiButton>
+          ><Icon name="lucide:arrow-up" class="size-4"
+        /></UiButtonIcon>
         <Icon
           v-if="here?.encrypted"
           name="lucide:lock"

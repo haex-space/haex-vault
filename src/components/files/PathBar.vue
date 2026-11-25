@@ -77,18 +77,13 @@ function commit() {
 
 <template>
   <div ref="root" class="relative flex min-w-0 flex-1 items-center gap-1">
-    <UiButton
-      variant="ghost"
-      size="icon"
-      class="shrink-0"
-      :aria-label="t('files.up')"
-      :tooltip="t('files.up')"
+    <UiButtonIcon
+      :label="t('files.up')"
       :disabled="!canGoUp"
       data-testid="files-up"
       @click="emit('up')"
-    >
-      <Icon name="lucide:arrow-up" class="size-4" />
-    </UiButton>
+      ><Icon name="lucide:arrow-up" class="size-4"
+    /></UiButtonIcon>
 
     <div v-if="editing" ref="field" class="min-w-0 flex-1">
       <UiInput

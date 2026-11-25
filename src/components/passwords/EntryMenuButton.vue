@@ -32,15 +32,13 @@ function shown(): readonly MenuEntry[] {
 <template>
   <ShadcnDropdownMenu @update:open="(open: boolean) => open && emit('open')">
     <ShadcnDropdownMenuTrigger as-child>
-      <button
-        type="button"
-        class="flex size-8 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-foreground/10 focus:opacity-100 @max-md:opacity-100 [@media(hover:none)]:opacity-100"
-        :aria-label="label"
+      <UiButtonMenu
+        :label="label"
+        size="icon-sm"
+        class="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus:opacity-100 @max-md:opacity-100 [@media(hover:none)]:opacity-100"
         tabindex="-1"
         v-bind="$attrs"
-      >
-        <Icon name="lucide:ellipsis-vertical" class="size-4" />
-      </button>
+      />
     </ShadcnDropdownMenuTrigger>
     <ShadcnDropdownMenuContent align="end" class="min-w-52">
       <template v-for="(entry, index) in shown()" :key="index">

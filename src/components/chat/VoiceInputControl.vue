@@ -215,17 +215,11 @@ async function cancelRecording() {
       >
         <span class="sr-only">{{ t('voiceControl.recording') }}</span>
       </span>
-      <UiButton
-        type="button"
-        size="icon-sm"
-        variant="ghost"
-        :aria-label="t('voiceControl.mic.cancel')"
-        :title="t('voiceControl.mic.cancel')"
+      <UiButtonDelete
+        :label="t('voiceControl.mic.cancel')"
         data-testid="voice-cancel"
         @click="cancelRecording"
-      >
-        <Icon name="lucide:trash-2" class="h-3.5 w-3.5" />
-      </UiButton>
+      />
       <UiButton
         type="button"
         size="sm"
@@ -240,44 +234,31 @@ async function cancelRecording() {
       </UiButton>
     </template>
     <template v-else>
-      <button
-        type="button"
-        class="flex h-6 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+      <UiButtonIcon
+        :label="
+          autoSend
+            ? t('voiceControl.autoSend.onLabel')
+            : t('voiceControl.autoSend.offLabel')
+        "
+        size="icon-sm"
         :class="{ 'text-muted-foreground/50': autoSend }"
         :aria-pressed="autoSend"
-        :aria-label="
-          autoSend
-            ? t('voiceControl.autoSend.onLabel')
-            : t('voiceControl.autoSend.offLabel')
-        "
-        :title="
-          autoSend
-            ? t('voiceControl.autoSend.onLabel')
-            : t('voiceControl.autoSend.offLabel')
-        "
         @click="toggleAutoSend"
-      >
-        <Icon
+        ><Icon
           :name="autoSend ? 'lucide:zap' : 'lucide:zap-off'"
-          class="h-3.5 w-3.5"
-        />
-      </button>
-      <UiButton
-        type="button"
+          class="size-4"
+      /></UiButtonIcon>
+      <UiButtonIcon
+        :label="t('voiceControl.mic.start')"
         size="icon-sm"
         variant="secondary"
         :disabled="state === 'transcribing'"
-        :aria-label="t('voiceControl.mic.start')"
-        :title="t('voiceControl.mic.start')"
         data-testid="voice-start"
         @click="startRecording"
-      >
-        <Icon
+        ><Icon
           :name="state === 'transcribing' ? 'lucide:loader-2' : 'lucide:mic'"
-          class="h-3.5 w-3.5"
-          :class="{ 'animate-spin': state === 'transcribing' }"
-        />
-      </UiButton>
+          class="size-4"
+      /></UiButtonIcon>
     </template>
     <span
       v-if="noSpeechDetected"

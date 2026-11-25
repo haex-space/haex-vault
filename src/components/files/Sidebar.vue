@@ -178,17 +178,14 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
             :total="drive.total"
             :data-testid="`files-drive-space-${drive.id}`"
           />
-          <button
+          <UiButtonIcon
             v-if="drive.release !== 'none' && !busy.has(drive.id)"
-            type="button"
-            class="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-            :title="releaseTitle(drive)"
-            :aria-label="`${releaseTitle(drive)}: ${nameOf(drive)}`"
+            :label="`${releaseTitle(drive)}: ${nameOf(drive)}`"
+            size="icon-sm"
             :data-testid="`files-drive-eject-${drive.id}-${drive.label ?? drive.id}`"
             @click="emit('releaseDrive', drive)"
-          >
-            <Icon name="lucide:arrow-up-from-line" class="size-4" />
-          </button>
+            ><Icon name="lucide:arrow-up-from-line" class="size-4"
+          /></UiButtonIcon>
         </li>
       </ul>
     </section>

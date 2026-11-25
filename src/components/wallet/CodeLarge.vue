@@ -17,7 +17,7 @@ const emit = defineEmits<{ close: [] }>()
 const { t } = useI18n()
 const { onAsync, offAsync } = useScreenBright()
 
-const closeButton = ref<HTMLButtonElement | null>(null)
+const closeButton = ref<{ $el: HTMLElement } | null>(null)
 let opener: Element | null = null
 
 const source = computed(() =>
@@ -32,14 +32,14 @@ function onKey(event: KeyboardEvent) {
   if (event.key === 'Escape') emit('close')
   if (event.key === 'Tab') {
     event.preventDefault()
-    closeButton.value?.focus()
+    closeButton.value?.$el.focus()
   }
 }
 
 onMounted(async () => {
   opener = document.activeElement
   window.addEventListener('keydown', onKey)
-  closeButton.value?.focus()
+  closeButton.value?.$el.focus()
   await onAsync()
 })
 onBeforeUnmount(() => {
@@ -60,17 +60,14 @@ onBeforeUnmount(() => {
       data-testid="wallet-large"
       @click="emit('close')"
     >
-      <button
+      <UiButtonClose
         ref="closeButton"
-        type="button"
-        class="absolute top-4 right-4 flex size-11 items-center justify-center rounded-full hover:opacity-70"
+        :label="t('passwords.pass.closeLarge')"
+        class="absolute top-4 right-4 size-11 rounded-full hover:opacity-70"
         style="background-color: rgb(0 0 0 / 6%); color: #000000"
-        :aria-label="t('passwords.pass.closeLarge')"
         data-testid="wallet-large-close"
         @click.stop="emit('close')"
-      >
-        <Icon name="lucide:x" class="size-6" />
-      </button>
+      />
       <img
         v-if="source"
         :src="source"

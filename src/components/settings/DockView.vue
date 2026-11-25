@@ -126,26 +126,16 @@ function add(value: string) {
         :class="item.available ? '' : 'opacity-60'"
         :data-testid="`settings-dock-item-${dockItemKey(item)}`"
       >
-        <UiButton
-          variant="ghost"
-          size="icon"
+        <UiButtonMoveUp
+          :label="t('settings.dock.moveUp')"
           :disabled="index === 0"
-          :aria-label="t('settings.dock.moveUp')"
-          :title="t('settings.dock.moveUp')"
           @click="dock.moveAsync(index, index - 1)"
-        >
-          <Icon name="lucide:arrow-up" class="h-4 w-4" :aria-hidden="true" />
-        </UiButton>
-        <UiButton
-          variant="ghost"
-          size="icon"
+        />
+        <UiButtonMoveDown
+          :label="t('settings.dock.moveDown')"
           :disabled="index === dock.items.value.length - 1"
-          :aria-label="t('settings.dock.moveDown')"
-          :title="t('settings.dock.moveDown')"
           @click="dock.moveAsync(index, index + 1)"
-        >
-          <Icon name="lucide:arrow-down" class="h-4 w-4" :aria-hidden="true" />
-        </UiButton>
+        />
         <UiButtonClose
           v-if="!(item.kind === 'control' && item.id === 'launcher')"
           :label="t('settings.dock.remove')"

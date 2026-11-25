@@ -155,18 +155,12 @@ async function confirmDeleteAsync() {
           :data-testid="`passwords-passkey-rename-${passkey.id}`"
           @click="startRename(passkey)"
         />
-        <UiButton
-          type="button"
-          variant="ghost"
-          size="icon"
+        <UiButtonDelete
+          :label="t('passwords.passkeys.delete')"
           :disabled="readonly"
-          :aria-label="t('passwords.passkeys.delete')"
-          :tooltip="t('passwords.passkeys.delete')"
           :data-testid="`passwords-passkey-delete-${passkey.id}`"
           @click="deleting = passkey"
-        >
-          <Icon name="lucide:trash-2" class="size-4" />
-        </UiButton>
+        />
       </template>
       <template #below>
         <div

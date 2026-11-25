@@ -173,24 +173,19 @@ const toasted = new WeakSet<object>()
       >
         {{ t('files.transfer.retry') }}
       </UiButton>
-      <UiButton
+      <UiButtonIcon
         v-if="transfer.state !== 'failed' && transfer.op !== 'delete'"
-        variant="ghost"
-        size="icon"
-        :aria-label="pauseLabel(transfer)"
-        :tooltip="pauseLabel(transfer)"
+        :label="pauseLabel(transfer)"
         data-testid="files-transfer-pause"
         @click="
           run(() =>
             store.pauseAsync(transfer.key, transfer.state === 'running'),
           )
         "
-      >
-        <Icon
+        ><Icon
           :name="transfer.state === 'paused' ? 'lucide:play' : 'lucide:pause'"
           class="size-4"
-        />
-      </UiButton>
+      /></UiButtonIcon>
       <UiButtonClose
         :label="t('files.transfer.cancel')"
         data-testid="files-transfer-cancel"

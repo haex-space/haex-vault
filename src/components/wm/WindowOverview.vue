@@ -81,19 +81,12 @@ function select(windowId: string) {
               :aria-label="t('wm.attention')"
             />
           </button>
-          <button
-            type="button"
-            class="shrink-0 rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+          <UiButtonClose
+            :label="t('wm.window.close')"
+            size="icon-sm"
             :class="wm.compact ? 'p-3.5' : 'p-1.5'"
-            :aria-label="t('wm.window.close')"
             @click="closeWindow({ windowId: row.win.id })"
-          >
-            <Icon
-              name="lucide:x"
-              class="h-3.5 w-3.5 max-md:h-5 max-md:w-5"
-              :aria-hidden="true"
-            />
-          </button>
+          />
         </li>
         <li v-if="rows.length === 0" class="p-2 text-xs text-muted-foreground">
           {{ t('wm.windowOverview.empty') }}
