@@ -328,7 +328,7 @@ async fn a_block_entry_keeps_the_card_of_a_declined_stranger() {
     assert!(found.0);
     assert_eq!(found.1.map(|card| card.hash()), Some(card.hash()));
 
-    let other = card_of(&[9u8; 32], 1, 1_000, &[2], &[]);
+    let other = card_of(&OTHER_SECRET, 1, 1_000, &[2], &[]);
     let other_vault = other.card.vault;
     mara.db
         .write_blocking(move |tx| Ok(block(tx, &hex(&other_vault))?))

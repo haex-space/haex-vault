@@ -59,12 +59,12 @@ const openWith = async (page: FlowInstance, contactId: string) =>
 
 scenario('chat-contact-gate', { timeoutMs: 420_000 }, async (ctx) => {
   const group = await ctx.group({
-    users: { anna: ['laptop'], ben: ['desktop'], clara: ['desktop'] },
+    users: { anna: ['laptop'], ben: ['desktop'], clara: ['tablet'] },
     irohRelay: true,
   })
   const anna = group.device('anna/laptop').page
   const ben = group.device('ben/desktop').page
-  const clara = group.device('clara/desktop').page
+  const clara = group.device('clara/tablet').page
 
   const annaCard = await ownCardText(anna, 'Anna')
   await ownCardText(ben, 'Ben')
