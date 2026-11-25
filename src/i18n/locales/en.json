@@ -1589,7 +1589,7 @@
     "chat": {
       "server": {
         "label": "Blossom server for files",
-        "hint": "Files in the chat go through this server, encrypted. Without a server you cannot attach files.",
+        "hint": "Files in the chat go through this server, encrypted. Without a server you cannot attach files; leaving it empty means none.",
         "placeholder": "None, or https://…",
         "check": "Check",
         "presets": {

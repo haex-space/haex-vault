@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * The Blossom-Server for chat files (spec 072 FR-038, FR-080): none, or an address of the user's
- * own, or one of the public servers offered below it. Saved when the field loses focus or on Enter, without a save button (spec 023 FR-021); an
- * empty field means none, and files cannot be attached then. "Prüfen" asks the server whether it
+ * The Blossom-Server for chat files (spec 072 FR-038, FR-080): the default public server until the
+ * user picks another, an address of their own, or none (empty field). Saved when the field loses
+ * focus or on Enter, without a save button (spec 023 FR-021); files cannot be attached with none. "Prüfen" asks the server whether it
  * takes files up to the largest size. Stored as the vault setting `chat.blossom.server`; every
  * send reads it again, so a change applies to the next message.
  */
@@ -22,7 +22,7 @@ const PRESETS = ['nostr.download', 'files.sovbit.host'].map((host) => ({
 const { t } = useI18n()
 const { errString } = useErrorString()
 const fieldLabels = useFieldLabels()
-const { getPrefAsync, setPrefAsync } = usePreferences()
+const { setPrefAsync } = usePreferences()
 
 const stored = ref('')
 const address = ref('')
@@ -32,7 +32,8 @@ const result = ref<ChatBlossomCheck | null>(null)
 
 async function loadAsync() {
   try {
-    stored.value = (await getPrefAsync({ kind: 'vault' }, KEY)) ?? ''
+    // What a send uses: the default until the user chose, '' once they chose none.
+    stored.value = (await invoke<string | null>('chat_blossom_server')) ?? ''
     address.value = stored.value
     result.value = null
   } catch (cause) {

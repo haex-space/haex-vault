@@ -1589,7 +1589,7 @@
     "chat": {
       "server": {
         "label": "Blossom-Server für Dateien",
-        "hint": "Dateien im Chat gehen verschlüsselt über diesen Server. Ohne Server kannst du keine Dateien anhängen.",
+        "hint": "Dateien im Chat gehen verschlüsselt über diesen Server. Ohne Server kannst du keine Dateien anhängen; leer lassen heißt keiner.",
         "placeholder": "Keiner, oder https://…",
         "check": "Prüfen",
         "presets": {
