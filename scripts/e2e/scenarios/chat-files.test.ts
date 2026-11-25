@@ -104,7 +104,10 @@ scenario('chat-files', { timeoutMs: 420_000 }, async (ctx) => {
     appId: 'system.settings',
     at: '/chat',
   })
-  assert.ok(chatSettingsAgain.ok, 'settings should reopen the chat settings page')
+  assert.ok(
+    chatSettingsAgain.ok,
+    'settings should reopen the chat settings page',
+  )
   await waitForLocation(anna, 'chat')
   await choose(anna, 'settings-chat-server', blossom.url)
   await openChat(anna)
