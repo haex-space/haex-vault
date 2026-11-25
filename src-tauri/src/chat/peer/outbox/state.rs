@@ -345,28 +345,54 @@ fn awaiting_rows(tx: &mut CrdtTransaction<'_>, vault: &str) -> Result<Vec<Awaiti
 /// else pending parks. The vault stays awaited, so [`resume_vault`] finds the rows again.
 pub fn park_vault(tx: &mut CrdtTransaction<'_>, vault: &str, now: i64) -> Result<()> {
     for (id, message_id, mut pending) in awaiting_rows(tx, vault)? {
-        pending.retain(|waiting| waiting != vault);
-        let next_at: Option<i64> = if pending.is_empty() {
-            Some(PARKED)
-        } else {
-            None
-        };
+        park_row(tx, &id, message_id.as_deref(), &mut pending, vault, now)?;
+    }
+    Ok(())
+}
+
+/// Parks one outbox row for a blocked vault. Used when a new message is queued after a block, so
+/// sending each message does not rescan every older row in the outbox.
+pub fn park_one(
+    tx: &mut CrdtTransaction<'_>,
+    id: &str,
+    message_id: &str,
+    vault: &str,
+    now: i64,
+) -> Result<()> {
+    let pending: String = tx.query_row(
+        "SELECT pending FROM chat_outbox_no_sync WHERE id = ?1",
+        params![id],
+        |row| row.get(0),
+    )?;
+    let mut pending: Vec<String> = from_json(&pending)?;
+    park_row(tx, id, Some(message_id), &mut pending, vault, now)
+}
+
+fn park_row(
+    tx: &mut CrdtTransaction<'_>,
+    id: &str,
+    message_id: Option<&str>,
+    pending: &mut Vec<String>,
+    vault: &str,
+    now: i64,
+) -> Result<()> {
+    pending.retain(|waiting| waiting != vault);
+    let next_at: Option<i64> = pending.is_empty().then_some(PARKED);
+    tx.execute(
+        "UPDATE chat_outbox_no_sync SET pending = ?2, next_at = COALESCE(?3, next_at) \
+         WHERE id = ?1",
+        params![id, to_json(pending)?, next_at],
+    )?;
+    if let Some(message) = message_id.and_then(|id| id.parse().ok()) {
         tx.execute(
-            "UPDATE chat_outbox_no_sync SET pending = ?2, next_at = COALESCE(?3, next_at) \
-             WHERE id = ?1",
-            params![id, to_json(&pending)?, next_at],
+            "UPDATE chat_deliveries SET failed_at = COALESCE(failed_at, ?2), failed_reason = ?3 \
+             WHERE id = ?1 AND delivered_at IS NULL",
+            params![
+                ids::delivery_id(message, vault).to_string(),
+                now,
+                FailReason::Blocked.code()
+            ],
         )?;
-        if let Some(message) = message_id.and_then(|id| id.parse().ok()) {
-            tx.execute(
-                "UPDATE chat_deliveries SET failed_at = COALESCE(failed_at, ?2), failed_reason = ?3 \
-                 WHERE id = ?1 AND delivered_at IS NULL",
-                params![
-                    ids::delivery_id(message, vault).to_string(),
-                    now,
-                    FailReason::Blocked.code()
-                ],
-            )?;
-        }
     }
     Ok(())
 }

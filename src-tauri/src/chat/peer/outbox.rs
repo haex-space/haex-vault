@@ -31,7 +31,7 @@ use crate::storage::query::Query;
 
 mod state;
 pub use state::{
-    due_now, next_due, park_vault, record, resend, resume_vault, start_resend, Attempt,
+    due_now, next_due, park_one, park_vault, record, resend, resume_vault, start_resend, Attempt,
 };
 
 /// The waits after the first attempts; every later one waits the last.
