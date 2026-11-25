@@ -25,6 +25,9 @@ pub const KEY_AUTO_LIMIT: &str = "chat.download.autoLimit";
 /// The id of the password-manager entry that holds the Blossom upload key, for the whole vault;
 /// missing or empty = none (FR-081). Written only by `files::upload_key`.
 pub const KEY_BLOSSOM_KEY_ENTRY: &str = "chat.blossom.keyEntry";
+/// Whether strangers may leave a request, for the whole vault; missing = yes (spec 099 FR-012).
+/// Written only by `requests::set_allowed`, which removes the open requests with it.
+pub const KEY_ALLOW_STRANGERS: &str = "chat.requests.allowStrangers";
 /// The default of [`KEY_AUTO_LIMIT`]: 25 MB.
 pub const DEFAULT_AUTO_LIMIT: u64 = 25_000_000;
 
@@ -51,6 +54,15 @@ pub fn notifications(q: &mut impl Query, device: Uuid) -> Result<bool> {
 
 pub fn set_notifications(tx: &mut CrdtTransaction<'_>, device: Uuid, on: bool) -> Result<()> {
     set_flag(tx, PrefScope::Device(device), KEY_NOTIFICATIONS, on)
+}
+
+/// Whether a stranger's message may leave a request (spec 099 FR-012).
+pub fn allow_strangers(q: &mut impl Query) -> Result<bool> {
+    flag(q, PrefScope::Vault, KEY_ALLOW_STRANGERS)
+}
+
+pub fn set_allow_strangers(tx: &mut CrdtTransaction<'_>, on: bool) -> Result<()> {
+    set_flag(tx, PrefScope::Vault, KEY_ALLOW_STRANGERS, on)
 }
 
 /// The Blossom-Server address: the default while the user never chose, `None` once they chose none.

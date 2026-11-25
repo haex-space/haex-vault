@@ -29,6 +29,9 @@ pub struct Stored {
     pub incoming: bool,
     /// The message has attachments for this device to download.
     pub attachments: bool,
+    /// A stranger knocked (spec 099 FR-002): nothing of the message was stored, only its request;
+    /// `new` says whether the request is new (FR-004). No receipt goes back (FR-005).
+    pub knock: bool,
 }
 
 /// Who receives: the own vault (hex) and this device's `vault_device_uuid`.
@@ -41,7 +44,9 @@ pub struct Receiver<'a> {
 /// Stores a verified message of `sender_device` (hex) in its direct conversation, opened when
 /// there is none yet. An own message from another own device also gets its delivery row, so the
 /// receipts that reach this device find it. A note of another own device lands in the notes and
-/// gets no delivery row (FR-002b). `None` for an envelope with a group `to`.
+/// gets no delivery row (FR-002b). A message of a stranger (no stored card) stores nothing but its
+/// request (spec 099 FR-001, FR-002, research R1). `None` for an unsupported envelope or a stranger
+/// whose card does not parse.
 pub fn message(
     tx: &mut CrdtTransaction<'_>,
     me: Receiver<'_>,
@@ -70,7 +75,21 @@ pub fn message(
         To::Note(_) | To::Group(_) => return Ok(None),
     };
     if incoming {
-        sort_request(tx, thread_id, envelope)?;
+        match gate(tx, me.vault, envelope, now)? {
+            Gate::Contact => {}
+            Gate::Knock { thread_id, first } => {
+                return Ok(Some(Stored {
+                    thread_id,
+                    message_id: ids::message_id(thread_id, &envelope.from, &envelope.id),
+                    peer: peer.clone(),
+                    new: first,
+                    incoming: true,
+                    attachments: false,
+                    knock: true,
+                }));
+            }
+            Gate::Nothing => return Ok(None),
+        }
     }
     let message_id = ids::message_id(thread_id, &envelope.from, &envelope.id);
     let mut stored = Stored {
@@ -80,6 +99,7 @@ pub fn message(
         new: false,
         incoming,
         attachments: false,
+        knock: false,
     };
     let present: Option<i64> = tx.query_row(
         "SELECT 1 FROM chat_peer_messages WHERE id = ?1",
@@ -113,22 +133,35 @@ pub fn message(
     Ok(Some(stored))
 }
 
-/// A message of a vault without a stored card makes its conversation a request with the carried
-/// card (US5); one of a confirmed contact ends a request that is still open on this device, for the
-/// case its card arrived through the sync before the conversation did.
-fn sort_request(tx: &mut CrdtTransaction<'_>, thread_id: Uuid, envelope: &Envelope) -> Result<()> {
+/// What the gate makes of an incoming message (spec 099 research R1).
+enum Gate {
+    /// Its vault is a contact: the message is stored.
+    Contact,
+    /// A stranger: only its request is kept; `first` when the conversation became a request now.
+    Knock { thread_id: Uuid, first: bool },
+    /// Nothing is kept.
+    Nothing,
+}
+
+/// A message of a contact is stored, and ends a request of its vault that is still open on this
+/// device (its card arrived through the sync before the conversation did). A message of a vault
+/// without a stored card leaves its request with the carried card and nothing else (spec 099
+/// FR-002, FR-003). Blocked vaults do not get here (`verify::check_peer`).
+fn gate(tx: &mut CrdtTransaction<'_>, own: &str, envelope: &Envelope, now: i64) -> Result<Gate> {
     let Some(from) = vault_bytes(&envelope.from) else {
-        return Ok(());
+        return Ok(Gate::Nothing);
     };
     if received::stored(tx, &from)?.is_some() {
         store::accept_requests_of(tx, &envelope.from)?;
-        return Ok(());
+        return Ok(Gate::Contact);
     }
-    // The receiver checks parsed this card already; one that does not parse keeps no request card.
-    if let Ok(card) = format::parse(&envelope.card) {
-        store::mark_request(tx, thread_id, &envelope.from, &card)?;
-    }
-    Ok(())
+    // The receiver checks parsed this card already; one that does not parse leaves nothing.
+    let Ok(card) = format::parse(&envelope.card) else {
+        return Ok(Gate::Nothing);
+    };
+    let thread_id = store::open_direct(tx, own, &envelope.from, now)?;
+    let first = store::mark_request(tx, thread_id, &envelope.from, &card, now)?;
+    Ok(Gate::Knock { thread_id, first })
 }
 
 /// The columns of a new message row.
@@ -227,7 +260,8 @@ pub fn ensure_delivery(
 
 /// Applies a verified receipt of `receipt.from` to the own messages it names: `delivered_at`, and
 /// for read ones also `read_at`, each set once; their outbox rows no longer await that vault (spec
-/// 095). Answers how many states changed.
+/// 095). An answer it carries goes to [`super::gate::apply_received`]. Answers how many states
+/// changed.
 pub fn receipt(
     tx: &mut CrdtTransaction<'_>,
     own: &str,
@@ -237,6 +271,8 @@ pub fn receipt(
     let To::Direct(_) = receipt.thread else {
         return Ok(0);
     };
+    // An answer of the other vault to this one (spec 099): parks or resumes what waits for it.
+    super::gate::apply_received(tx, own, receipt, now)?;
     let thread_id = ids::direct_thread_id(own, &receipt.from);
     let mut changed = 0;
     let read = receipt.read.iter().map(|id| (id, true));

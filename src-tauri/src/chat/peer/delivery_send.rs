@@ -184,10 +184,10 @@ impl Delivery {
         refreshed_devices: &mut std::collections::HashSet<[u8; 32]>,
     ) -> Result<()> {
         for vault in &entry.pending {
-            let (me, for_vault) = (self.me.clone(), vault.clone());
+            let (me, for_vault, rumor) = (self.me.clone(), vault.clone(), entry.rumor.clone());
             let target = self
                 .db
-                .read(move |r| Ok(targets::of(r, &me, &for_vault)?))
+                .read(move |r| Ok(targets::of_rumor(r, &me, &for_vault, &rumor)?))
                 .await?;
             for device in &target.devices {
                 let (installation, device_hex) = (self.me.installation, hex(device));

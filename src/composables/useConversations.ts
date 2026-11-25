@@ -35,10 +35,10 @@ export function useConversationCommands() {
       invoke<null>('chat_conversation_mute', { args: { threadId, muted } }),
     deleteAsync: (threadId: string) =>
       invoke<null>('chat_conversation_delete', { args: { threadId } }),
-    // Spec 072 US5: requests of vaults that are no contact.
+    // Spec 099: requests of strangers; accepting reads the card in, declining blocks.
     requestCardAsync: (threadId: string) =>
       invoke<{ cardText: string }>('chat_request_card', { args: { threadId } }),
-    requestAnswerAsync: (threadId: string, answer: 'decline' | 'block') =>
+    requestAnswerAsync: (threadId: string, answer: 'decline') =>
       invoke<null>('chat_request_answer', { args: { threadId, answer } }),
     // Spec 072 US2: messages of contact conversations.
     sendAsync: (
@@ -158,6 +158,9 @@ export function useConversations(errString: (error: unknown) => string) {
         unread: 0,
         lastText: null,
         lastAt: 0,
+        peerAnswered: false,
+        blockedByPeer: false,
+        requestLastAt: null,
         displayName: t('chat.notes.title'),
         photo: self.value?.photo ?? null,
       },

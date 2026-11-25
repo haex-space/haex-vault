@@ -320,6 +320,19 @@ pub fn is_blocked(q: &mut impl Query, vault: &[u8; 32]) -> Result<bool> {
     Ok(found.is_some())
 }
 
+/// The Visitenkarte the block entry of `vault` kept (spec 099 research R12): the card of a declined
+/// stranger; `None` for a blocked contact, an entry from before, or no entry.
+pub fn blocked_card(q: &mut impl Query, vault: &[u8; 32]) -> Result<Option<SignedCard>> {
+    let bytes: Option<Option<Vec<u8>>> = q.query_row(
+        "SELECT card FROM haex_contacts_blocked_vaults WHERE vault_pubkey = ?1",
+        params![hex(vault)],
+        |r| r.get(0),
+    )?;
+    Ok(bytes
+        .flatten()
+        .and_then(|bytes| format::from_bytes(bytes).ok()))
+}
+
 pub fn block(tx: &mut CrdtTransaction<'_>, vault_pubkey: &str) -> Result<()> {
     let present: Option<i64> = tx.query_row(
         "SELECT 1 FROM haex_contacts_blocked_vaults WHERE vault_pubkey = ?1",
@@ -330,6 +343,24 @@ pub fn block(tx: &mut CrdtTransaction<'_>, vault_pubkey: &str) -> Result<()> {
         tx.execute(
             "INSERT INTO haex_contacts_blocked_vaults (vault_pubkey, blocked_at) VALUES (?1, ?2)",
             params![vault_pubkey, clock::now()],
+        )?;
+    }
+    Ok(())
+}
+
+/// Blocks `vault_pubkey` and keeps `card`, the Visitenkarte a declined stranger carried (spec 099
+/// research R12), so its blocked answer can reach it and unblocking can make it a contact. An entry
+/// that is there already keeps its card when `card` is `None`.
+pub fn block_with_card(
+    tx: &mut CrdtTransaction<'_>,
+    vault_pubkey: &str,
+    card: Option<&SignedCard>,
+) -> Result<()> {
+    block(tx, vault_pubkey)?;
+    if let Some(card) = card {
+        tx.execute(
+            "UPDATE haex_contacts_blocked_vaults SET card = ?2 WHERE vault_pubkey = ?1",
+            params![vault_pubkey, card.bytes.as_slice()],
         )?;
     }
     Ok(())

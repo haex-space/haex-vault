@@ -131,6 +131,7 @@ function reason(code: string | null) {
         >
           <span>{{ reason(message.failedReason) }}</span>
           <UiButton
+            v-if="message.failedReason !== 'blocked'"
             type="button"
             size="sm"
             variant="secondary"

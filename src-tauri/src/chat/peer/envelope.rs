@@ -113,7 +113,35 @@ pub struct Envelope {
     pub to: To,
 }
 
-/// A receipt (kind 24121): which events of the original sender arrived or were read.
+/// The receiving vault's answer to a sender (spec 099 contracts/nostr-chat-gate.md): it may write
+/// now, or it may not (a declined request or a blocked contact; the sender does not learn which).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Answer {
+    Accepted,
+    Blocked,
+}
+
+impl Answer {
+    /// The value stored in `chat_gate_notices_no_sync.answer`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Accepted => "accepted",
+            Self::Blocked => "blocked",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "accepted" => Some(Self::Accepted),
+            "blocked" => Some(Self::Blocked),
+            _ => None,
+        }
+    }
+}
+
+/// A receipt (kind 24121): which events of the original sender arrived or were read, or with
+/// `answer` the receiving vault's answer to it (spec 099).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Receipt {
     pub v: u8,
@@ -125,6 +153,8 @@ pub struct Receipt {
     pub delivered: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub read: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub answer: Option<Answer>,
 }
 
 /// A fresh event id: 128 random bits, hex.

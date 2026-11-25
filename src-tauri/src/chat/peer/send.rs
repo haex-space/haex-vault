@@ -7,7 +7,7 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 
-use super::envelope::{self, Attachment, Receipt, To, CHAT_KIND, RECEIPT_KIND, VERSION};
+use super::envelope::{self, Answer, Attachment, Receipt, To, CHAT_KIND, RECEIPT_KIND, VERSION};
 use super::outbox::{self, Rumor};
 use super::ratchet::wire::Plaintext;
 use super::receive::{self, MessageRow};
@@ -186,6 +186,11 @@ pub fn message(
         &awaiting,
         now,
     )?;
+    // The other vault answered that it takes no messages from this one (spec 099 FR-010): the
+    // message is kept and waits, parked, for its answer "accepted".
+    if super::gate::blocked_by_peer(tx, &me.vault_hex, &peer)? {
+        outbox::park_vault(tx, &peer, now)?;
+    }
     Ok(message_id)
 }
 
@@ -238,6 +243,31 @@ pub fn receipt(
             return Ok(());
         }
     }
+    enqueue_receipt(tx, me, peer, delivered, read, None, now)
+}
+
+/// Queues the answer of this vault to `peer` (spec 099 FR-007, FR-009, FR-014, FR-016): a receipt
+/// with `answer` and no events. A blocked answer is the one rumor that goes to a blocked vault
+/// (research R5, [`super::targets::of_entry`]).
+pub fn notice(
+    tx: &mut CrdtTransaction<'_>,
+    me: &Me,
+    peer: &str,
+    answer: Answer,
+    now: i64,
+) -> Result<()> {
+    enqueue_receipt(tx, me, peer, Vec::new(), Vec::new(), Some(answer), now)
+}
+
+fn enqueue_receipt(
+    tx: &mut CrdtTransaction<'_>,
+    me: &Me,
+    peer: &str,
+    delivered: Vec<String>,
+    read: Vec<String>,
+    answer: Option<Answer>,
+    now: i64,
+) -> Result<()> {
     let rumor = Receipt {
         v: VERSION,
         from: me.vault_hex.clone(),
@@ -245,6 +275,7 @@ pub fn receipt(
         thread: To::Direct(peer.to_owned()),
         delivered,
         read,
+        answer,
     };
     let thread_id = ids::direct_thread_id(&me.vault_hex, peer);
     outbox::enqueue(

@@ -261,6 +261,7 @@ async fn a_message_of_a_stranger_passes_as_a_request_and_its_receipt_is_dropped(
         thread: To::Direct(stranger.me.vault_hex.clone()),
         delivered: vec!["e1".into()],
         read: vec![],
+        answer: None,
     };
     assert_eq!(
         run(&stranger, opened(&receipt, RECEIPT_KIND, BEN_DEVICE)),
@@ -308,6 +309,7 @@ async fn a_receipt_for_the_own_vault_passes() {
         thread: To::Direct(anna.me.vault_hex.clone()),
         delivered: vec!["e1".into()],
         read: vec![],
+        answer: None,
     };
     let verified = run(&anna, opened(&receipt, RECEIPT_KIND, BEN_DEVICE)).expect("passes");
     assert!(matches!(verified.incoming, Incoming::Receipt(_)));

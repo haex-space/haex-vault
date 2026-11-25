@@ -102,6 +102,7 @@ fn a_receipt_sets_each_state_once() {
         thread: To::Direct(anna.me.vault_hex.clone()),
         delivered,
         read,
+        answer: None,
     };
     let apply = |receipt: Receipt, now: i64| {
         let own = anna.me.vault_hex.clone();

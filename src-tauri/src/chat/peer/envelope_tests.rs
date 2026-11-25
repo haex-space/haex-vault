@@ -93,3 +93,35 @@ fn the_inline_marker_is_left_out_when_false_and_read_when_absent() {
     let read: FileAttachment = serde_json::from_str(&marked).expect("marked file");
     assert!(read.inline);
 }
+
+/// Spec 099 contracts/nostr-chat-gate.md: a notice is a receipt with `answer` and no lists; a
+/// receipt without `answer` reads as before.
+#[test]
+fn a_receipt_carries_an_answer_and_one_without_reads_as_before() {
+    let notice = Receipt {
+        v: VERSION,
+        from: "aa".into(),
+        card: "haex:card:x".into(),
+        thread: To::Direct("bb".into()),
+        delivered: vec![],
+        read: vec![],
+        answer: Some(Answer::Blocked),
+    };
+    let json = serde_json::to_value(&notice).expect("serialize");
+    assert_eq!(json["answer"], "blocked");
+    assert!(json.get("delivered").is_none() && json.get("read").is_none());
+    let back: Receipt = serde_json::from_value(json).expect("parse");
+    assert_eq!(back, notice);
+
+    let old: Receipt = serde_json::from_str(
+        r#"{"v":1,"from":"aa","card":"c","thread":{"direct":"bb"},"delivered":["e1"]}"#,
+    )
+    .expect("an old receipt");
+    assert_eq!(old.answer, None);
+    assert_eq!(old.delivered, ["e1"]);
+    assert_eq!(
+        Answer::parse(Answer::Accepted.as_str()),
+        Some(Answer::Accepted)
+    );
+    assert_eq!(Answer::parse("maybe"), None);
+}

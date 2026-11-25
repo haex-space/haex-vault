@@ -118,6 +118,14 @@ pub struct Conversation {
     /// Newest activity: the last message or the thread's own `updated_at`.
     #[ts(type = "number")]
     pub last_at: i64,
+    /// Direct: something ever came back from the other vault, a message or a receipt (spec 099
+    /// FR-005a: without it the window explains a missing _delivered_ carefully).
+    pub peer_answered: bool,
+    /// Direct: the other vault answered that it takes no messages from this one (spec 099 FR-010).
+    pub blocked_by_peer: bool,
+    /// Request: when its stranger knocked last (spec 099 FR-003).
+    #[ts(type = "number | null")]
+    pub request_last_at: Option<i64>,
 }
 
 /// Filter of the list (FR-002).
@@ -143,6 +151,9 @@ struct Row0 {
     unread: i64,
     last_text: Option<String>,
     last_at: i64,
+    peer_answered: bool,
+    blocked_by_peer: bool,
+    request_last_at: Option<i64>,
 }
 
 /// Every conversation matching `filter`, newest activity first. `own_vault` is the vault identity
@@ -162,7 +173,13 @@ pub fn list(q: &mut impl Query, own_vault: &str, filter: ListFilter) -> Result<V
            (SELECT m.text FROM chat_peer_messages m WHERE m.thread_id = t.id \
               ORDER BY m.sort_at DESC, m.id DESC LIMIT 1), \
            MAX(t.updated_at, COALESCE((SELECT MAX(m.sort_at) FROM chat_peer_messages m \
-              WHERE m.thread_id = t.id), 0)) AS last_at \
+              WHERE m.thread_id = t.id), 0)) AS last_at, \
+           (EXISTS (SELECT 1 FROM chat_peer_messages m \
+              WHERE m.thread_id = t.id AND m.sender_vault = t.peer_vault) \
+            OR EXISTS (SELECT 1 FROM chat_deliveries d \
+              JOIN chat_peer_messages m ON m.id = d.message_id \
+              WHERE m.thread_id = t.id AND d.delivered_at IS NOT NULL)), \
+           t.peer_blocked_at IS NOT NULL, t.request_last_at \
          FROM chat_threads t \
          WHERE {state_clause} AND (?2 IS NULL OR t.kind = ?2) \
          ORDER BY last_at DESC, t.id"
@@ -185,6 +202,9 @@ fn row0(row: &Row<'_>) -> haex_crdt::rusqlite::Result<Row0> {
         unread: row.get(6)?,
         last_text: last_text.map(|text| preview(&text)),
         last_at: row.get(8)?,
+        peer_answered: row.get(9)?,
+        blocked_by_peer: row.get(10)?,
+        request_last_at: row.get(11)?,
     })
 }
 
@@ -218,6 +238,9 @@ fn resolve_peer(q: &mut impl Query, row: Row0) -> Result<Conversation> {
         unread: row.unread,
         last_text: row.last_text,
         last_at: row.last_at,
+        peer_answered: row.peer_answered,
+        blocked_by_peer: row.blocked_by_peer,
+        request_last_at: row.request_last_at,
     })
 }
 
@@ -263,19 +286,30 @@ pub fn open_direct(
     Ok(id)
 }
 
-/// Marks the direct conversation `thread_id` a request (US5, FR-040) and keeps the card the sender
-/// `peer_vault` carried on its member row: the window shows its name, and accepting reads it in.
+/// Marks the direct conversation `thread_id` a request (spec 099 FR-002, FR-003) and keeps the card
+/// the stranger `peer_vault` carried on its member row, the newer one when it knocks again: the
+/// window shows its name, and accepting reads it in. `request_first_at` is set when the
+/// conversation becomes a request, `request_last_at` on every knock. Answers whether it became a
+/// request now (FR-004: only then a notification).
 pub fn mark_request(
     tx: &mut CrdtTransaction<'_>,
     thread_id: Uuid,
     peer_vault: &str,
     card: &SignedCard,
-) -> Result<()> {
+    now: i64,
+) -> Result<bool> {
     let previous = request_card(tx, thread_id)?;
-    tx.execute(
-        "UPDATE chat_threads SET state = 'request' WHERE id = ?1 AND state <> 'request'",
-        params![thread_id.to_string()],
-    )?;
+    let became = tx.execute(
+        "UPDATE chat_threads SET state = 'request', request_first_at = ?2, request_last_at = ?2 \
+         WHERE id = ?1 AND state <> 'request'",
+        params![thread_id.to_string(), now],
+    )? > 0;
+    if !became {
+        tx.execute(
+            "UPDATE chat_threads SET request_last_at = ?2 WHERE id = ?1",
+            params![thread_id.to_string(), now],
+        )?;
+    }
     let is_newer = previous.is_none_or(|previous| {
         (card.card.list_generation, card.card.issued_at)
             >= (previous.card.list_generation, previous.card.issued_at)
@@ -289,19 +323,29 @@ pub fn mark_request(
             ],
         )?;
     }
-    Ok(())
+    Ok(became)
 }
 
 /// The direct requests of `peer_vault` (hex) become normal conversations, because the vault is a
-/// confirmed contact now (FR-041). Runs wherever a card is stored, so accepting through spec 060's
-/// preview, an import on another own device and a card read in by hand all end a request the same
-/// way. Answers how many changed.
+/// confirmed contact now (spec 099 FR-007). Runs wherever a card is stored, so accepting through
+/// spec 060's preview, an import on another own device and a card read in by hand all end a request
+/// the same way, and each notes the answer "accepted" for the sender's devices (research R5).
+/// Answers how many changed.
 pub fn accept_requests_of(tx: &mut CrdtTransaction<'_>, peer_vault: &str) -> Result<usize> {
-    Ok(tx.execute(
-        "UPDATE chat_threads SET state = 'active' \
+    let changed = tx.execute(
+        "UPDATE chat_threads SET state = 'active', request_first_at = NULL, request_last_at = NULL \
          WHERE kind = 'direct' AND state = 'request' AND peer_vault = ?1",
         params![peer_vault],
-    )?)
+    )?;
+    if changed > 0 {
+        super::gate::write_notice(
+            tx,
+            peer_vault,
+            super::envelope::Answer::Accepted,
+            super::delivery::now_ms(),
+        )?;
+    }
+    Ok(changed)
 }
 
 /// The card the sender of the request `thread_id` carried, `None` when it is no direct request.

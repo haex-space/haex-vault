@@ -6,6 +6,7 @@
 //! `outbox_resend_tests.rs` when the next resend behavior is added; keep failure/back-off cases here.
 
 use super::*;
+use crate::chat::peer::ids;
 use crate::chat::peer::ratchet::RESEND_AFTER_MS;
 use crate::chat::peer::receive::ensure_delivery;
 use crate::chat::peer::test_support::{two_vaults, ChatDevice};
@@ -622,4 +623,68 @@ async fn a_resend_of_a_deleted_message_ends_the_row() {
         .write_blocking(move |tx| Ok(start_resend(tx, &me, &entry)?))
         .expect("resend");
     assert_eq!(ended, None);
+}
+
+/// Spec 099 FR-010, FR-008: an answer "blocked" stops sending to the vault and parks a row with
+/// nothing else to do; its delivery fails with `blocked`. "accepted" makes it pending and due at
+/// once and the failure goes; a row for the own devices keeps its own time meanwhile.
+#[test]
+fn a_blocked_vault_parks_its_rows_and_an_accepted_one_resumes_them_at_once() {
+    let anna = ChatDevice::genesis(&[]);
+    anna.db
+        .write_blocking(|tx| {
+            ensure_delivery(tx, MESSAGE.parse().expect("uuid"), PEER)?;
+            enqueue(
+                tx,
+                "e1",
+                "t1",
+                Some(MESSAGE),
+                &Rumor {
+                    kind: 24120,
+                    content: "{}".into(),
+                },
+                &[PEER.to_owned(), OTHER.to_owned()],
+                &[PEER.to_owned()],
+                1_000,
+            )?;
+            Ok(())
+        })
+        .expect("enqueue");
+
+    anna.db
+        .write_blocking(|tx| Ok(park_vault(tx, PEER, 2_000)?))
+        .expect("park");
+    let parked = due(&anna.db, 1_000);
+    assert_eq!(parked.len(), 1, "the own devices are still to do");
+    assert_eq!(parked[0].pending, [OTHER.to_owned()]);
+    assert_eq!(parked[0].awaiting, [PEER.to_owned()]);
+    let (_, failed_at, reason) = delivery(&anna.db);
+    assert_eq!(
+        (failed_at, reason.as_deref()),
+        (Some(2_000), Some("blocked"))
+    );
+
+    attempt(
+        &anna.db,
+        &parked[0],
+        Attempt {
+            accepted: vec![OTHER.to_owned()],
+            ..Attempt::default()
+        },
+        3_000,
+    );
+    anna.db
+        .write_blocking(|tx| Ok(park_vault(tx, PEER, 4_000)?))
+        .expect("park again");
+    assert_eq!(next_at(&anna.db), i64::MAX, "nothing else to do: parked");
+    assert!(due(&anna.db, i64::MAX - 1).is_empty());
+
+    anna.db
+        .write_blocking(|tx| Ok(resume_vault(tx, PEER, 5_000)?))
+        .expect("resume");
+    let resumed = due(&anna.db, 5_000);
+    assert_eq!(resumed.len(), 1);
+    assert_eq!(resumed[0].pending, [PEER.to_owned()]);
+    let (_, failed_at, reason) = delivery(&anna.db);
+    assert_eq!((failed_at, reason), (None, None));
 }

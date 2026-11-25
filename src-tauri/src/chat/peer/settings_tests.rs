@@ -97,3 +97,25 @@ fn the_blossom_server_defaults_until_chosen_and_the_download_limit_is_per_device
         "cleared on purpose: none, not the default again"
     );
 }
+
+#[test]
+fn strangers_may_knock_until_switched_off_and_the_generic_command_cannot_switch_it() {
+    let vault = ChatDevice::genesis(&[]);
+    let allowed = |vault: &ChatDevice| {
+        vault
+            .db
+            .read_blocking(|r| Ok(allow_strangers(r)?))
+            .expect("read")
+    };
+    assert!(allowed(&vault), "on for a new vault (FR-012)");
+    vault
+        .db
+        .write_blocking(|tx| Ok(set_allow_strangers(tx, false)?))
+        .expect("write");
+    assert!(!allowed(&vault));
+
+    let refused =
+        crate::storage::preferences_commands::validate_value(KEY_ALLOW_STRANGERS, "false")
+            .expect_err("only chat_requests_set_allowed writes it");
+    assert!(refused.to_string().contains("chat_requests_set_allowed"));
+}

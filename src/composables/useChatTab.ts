@@ -65,7 +65,7 @@ export function useChatTab(deps: {
     requestCardAsync: (threadId: string) => Promise<{ cardText: string }>
     requestAnswerAsync: (
       threadId: string,
-      answer: 'decline' | 'block',
+      answer: 'decline',
     ) => Promise<unknown>
     /** Hands a share's text to the address book, which opens its preview (spec 060 FR-018a). */
     parkShare: (text: string) => void
@@ -273,22 +273,20 @@ export function useChatTab(deps: {
     openPeerConversation(threadId)
     return done
   })
-  // Spec 072 US5: accepting reads the carried card in through the address book's preview, which
-  // ends the request once the contact is stored; declining and blocking remove it.
+  // Spec 099 FR-006: accepting reads the carried card in through the address book's preview, which
+  // ends the request once the contact is stored; declining blocks the vault and removes it.
   handle('chat.request.accept', async (input) => {
     const { cardText } = await peer.requestCardAsync(String(input.threadId))
     peer.parkShare(cardText)
     return done
   })
-  for (const answer of ['decline', 'block'] as const) {
-    handle(`chat.request.${answer}`, async (input) => {
-      const threadId = String(input.threadId)
-      await peer.requestAnswerAsync(threadId, answer)
-      await peer.refresh()
-      if (peer.activePeerId.value === threadId) startNewConversation()
-      return done
-    })
-  }
+  handle('chat.request.decline', async (input) => {
+    const threadId = String(input.threadId)
+    await peer.requestAnswerAsync(threadId, 'decline')
+    await peer.refresh()
+    if (peer.activePeerId.value === threadId) startNewConversation()
+    return done
+  })
   handle('chat.conversation.mute', async (input) => {
     await peer.muteAsync(String(input.threadId), Boolean(input.muted))
     return done
@@ -341,10 +339,8 @@ export function useChatTab(deps: {
         run('chat.conversation.mute', { threadId, muted }),
       deletePeer: (threadId: string) =>
         run('chat.conversation.delete', { threadId }),
-      answerRequest: (
-        threadId: string,
-        answer: 'accept' | 'decline' | 'block',
-      ) => run(`chat.request.${answer}`, { threadId }),
+      answerRequest: (threadId: string, answer: 'accept' | 'decline') =>
+        run(`chat.request.${answer}`, { threadId }),
       sendPeer: (
         threadId: string,
         text: string,

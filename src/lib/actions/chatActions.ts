@@ -150,20 +150,7 @@ export const CHAT_ACTIONS: readonly ActionDefinition[] = [
   inChat({
     id: 'chat.request.decline',
     description:
-      'Decline a request: remove it without telling the sender; a later message is a new request.',
-    input: {
-      type: 'object',
-      properties: { threadId: THREAD_ID },
-      required: ['threadId'],
-    },
-    scope: 'guardrails',
-    effect: 'destructive',
-    agentCallable: false,
-  }),
-  inChat({
-    id: 'chat.request.block',
-    description:
-      'Block the sender of a request and remove the request; further messages are dropped.',
+      'Decline a request: block the sender, tell it, and remove the request; further messages are dropped.',
     input: {
       type: 'object',
       properties: { threadId: THREAD_ID },

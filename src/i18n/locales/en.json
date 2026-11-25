@@ -512,7 +512,9 @@
         "history": "This protection covers the copies on the Nostr-Relays. Messages kept in your vault can be read by anyone who can open the vault.",
         "show": "Explain the protection",
         "hide": "Close the explanation"
-      }
+      },
+      "notYetAccepted": "Not delivered yet. {name} is offline or has not accepted you yet.",
+      "blockedByPeer": "{name} does not take messages from you. What you write is sent once {name} accepts you."
     },
     "newContact": {
       "title": "Write to a contact",
@@ -532,7 +534,8 @@
         "noRelay": "No Nostr-Relay accepted the message. It is tried again.",
         "noDevices": "The card names no device.",
         "tooLarge": "The message is too large.",
-        "unknown": "The delivery failed."
+        "unknown": "The delivery failed.",
+        "blocked": "Does not take messages from you. It is sent once you are accepted."
       },
       "resend": "Send again"
     },
@@ -585,14 +588,12 @@
       "empty": "Write notes to yourself here. They stay in your vault and show on all your devices."
     },
     "request": {
-      "banner": "{name} is not in your address book. Accept the request to reply.",
+      "banner": "{name} wants to write to you. Until you accept, only this request arrives from {name}, no message and no file.",
       "accept": "Accept",
       "decline": "Decline",
-      "block": "Block",
-      "declineTitle": "Decline the request?",
-      "declineConfirm": "The conversation with {name} is removed. {name} is not told; a new message comes in as a request again.",
-      "blockTitle": "Block {name}?",
-      "blockConfirm": "Messages from {name} are dropped from now on, without confirmation. The conversation is removed. You can undo this in the contact settings."
+      "declineTitle": "Decline {name}?",
+      "declineConfirm": "{name} will be blocked and learns that you do not take messages. Further attempts are dropped. You can undo this in the contacts settings.",
+      "lastKnock": "Last knocked: {at}"
     },
     "search": {
       "placeholder": "Search chats",
@@ -2420,8 +2421,7 @@
       },
       "request": {
         "accept": "Accept a request",
-        "decline": "Decline a request",
-        "block": "Block the sender of a request"
+        "decline": "Decline a request"
       }
     },
     "settings": {

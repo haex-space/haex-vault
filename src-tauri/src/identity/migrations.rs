@@ -46,6 +46,7 @@ use super::migrations_assistant_tones::ASSISTANT_TONES_0051;
 use super::migrations_browser_clients::BROWSER_CLIENTS_0038;
 use super::migrations_chat_attachment_inline::CHAT_ATTACHMENT_INLINE_0067;
 use super::migrations_chat_contacts::CHAT_CONTACTS_0049;
+use super::migrations_chat_gate::CHAT_GATE_0070;
 use super::migrations_chat_ratchet::CHAT_RATCHET_0063;
 use super::migrations_chat_record_relays::CHAT_RECORD_RELAYS_0066;
 use super::migrations_contacts::{CONTACTS_0033, CONTACTS_PHONE_KNOWN_0034};
@@ -163,7 +164,10 @@ use super::migrations_voice::VOICE_0050;
 ///   `memory_toc` and `memory_foreign_at` to the CRDT-tracked `chat_threads`.
 /// - 44: haex-crdt's binary comparisons track case-only edits even on columns with a
 ///   case-insensitive collation. Rebuild the triggers in existing vaults.
-pub const HAEX_TRIGGER_VERSION: i32 = 44;
+/// - 45: `0070_chat_gate` (spec 099) added `request_first_at`, `request_last_at` and
+///   `peer_blocked_at` to the CRDT-tracked `chat_threads` and `card` to the CRDT-tracked
+///   `haex_contacts_blocked_vaults`.
+pub const HAEX_TRIGGER_VERSION: i32 = 45;
 
 /// Returns the frozen haex-vault migration set at the pinned haex-crdt revision.
 pub fn haex_migration_source() -> Arc<StaticMigrationSource> {
@@ -893,6 +897,11 @@ pub fn haex_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0069_agent_memory"),
         AGENT_MEMORY_0069.to_owned(),
+    );
+    // Spec 099: requests without messages, blocks with the stranger's card, answers to send.
+    m.insert(
+        MigrationName::from("0070_chat_gate"),
+        CHAT_GATE_0070.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

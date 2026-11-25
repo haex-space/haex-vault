@@ -1,25 +1,25 @@
-//! Answers to a request (spec 072 US5, FR-041, FR-042, research R10). Accepting is reading the
-//! carried card in through spec 060's preview: storing it ends the request
-//! ([`store::accept_requests_of`]), so there is one import path. Declining removes the
-//! conversation and tells the sender nothing; a later message is a new request. Blocking puts the
-//! vault on spec 051's block list and removes the conversation.
+//! Answers to a request (spec 099 FR-006 to FR-009, research R14). Accepting is reading the carried
+//! card in through spec 060's preview: storing it ends the request ([`store::accept_requests_of`])
+//! and notes the answer "accepted", so there is one import path. Declining puts the vault on spec
+//! 051's block list with the card it carried, removes the conversation and notes the answer
+//! "blocked" for the sender's devices.
 
 use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use super::store;
+use super::{envelope, gate, store};
 use crate::contacts::card::received;
 use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
-/// What the user does with a request (contracts/ipc.md `chat_request_answer`).
+/// What the user does with a request (contracts/ipc.md `chat_request_answer`); accepting runs
+/// through the address book.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Answer {
     Decline,
-    Block,
 }
 
 /// The other vault (hex) of the direct request `thread_id`.
@@ -44,13 +44,20 @@ pub fn card_text(q: &mut impl Query, thread_id: Uuid) -> Result<String> {
         })
 }
 
-/// Declines or blocks the request `thread_id`; its messages and members go with it.
-pub fn answer(tx: &mut CrdtTransaction<'_>, thread_id: Uuid, answer: Answer) -> Result<()> {
+/// Declines the request `thread_id` (FR-009): the vault is blocked with the card it carried, the
+/// conversation goes with its members, and the answer "blocked" waits for the sender's devices.
+pub fn answer(
+    tx: &mut CrdtTransaction<'_>,
+    thread_id: Uuid,
+    answer: Answer,
+    now: i64,
+) -> Result<()> {
+    let Answer::Decline = answer;
     let peer = requester(tx, thread_id)?;
-    if answer == Answer::Block {
-        received::block(tx, &peer)?;
-    }
+    let card = store::request_card(tx, thread_id)?;
+    received::block_with_card(tx, &peer, card.as_ref())?;
     store::delete(tx, thread_id)?;
+    gate::write_notice(tx, &peer, envelope::Answer::Blocked, now)?;
     Ok(())
 }
 
