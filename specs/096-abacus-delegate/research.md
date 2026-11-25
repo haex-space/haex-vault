@@ -370,7 +370,7 @@ allowance. Whether `ROUTE_LLM_LOW` or another id costs less was not measured.
 - Result without further settings: read-only tools bypass the bridge.
 - **The enforcement path:** with `--settings <file>` holding `{"permissions":{"ask":["*"]}}` (the `ask` list of the tool's
   config, described in its bundled `doctor` reference) every call reaches the bridge: `read` in the working folder, `read
-  /etc/hostname` and `bash ls` each sent `can_use_tool` (`request.type` `generic` for `read`), and after
+/etc/hostname` and `bash ls` each sent `can_use_tool` (`request.type` `generic` for `read`), and after
   `reject_with_message` no file was read (the host name is nowhere in the transcript). The same holds with a list of names
   (`Read`, `Grep`, `Glob`, `LS`, `Bash`, `WebFetch`, `WebSearch`) and with `*` while a `config.json` in the home asks for
   `permissionMode: "YOLO"` and allows `*`. A `config.json` in the working folder is ignored with the warning "is not a
