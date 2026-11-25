@@ -48,14 +48,6 @@ scenario('agent-memory', { timeoutMs: 240_000 }, async (ctx) => {
   const instance = await ctx.startInstance()
   await createAndUnlock(instance, { name: 'e2e-agent-memory' })
 
-  await openStandardProfile(instance)
-  await instance.waitForDisplayed('agent-memory-level')
-  assert.match(
-    await textOf(instance, 'agent-memory-level'),
-    /Lesen und schreiben|Read and write/,
-  )
-  ctx.step('Standard reads and writes the memory from the factory')
-
   await openSettings(instance)
   await instance.click('settings-category-ai')
   await waitForLocation(instance, 'ai')
@@ -126,4 +118,12 @@ scenario('agent-memory', { timeoutMs: 240_000 }, async (ctx) => {
   await instance.waitForDisplayed('agent-memory-body')
   assert.ok(!(await pageOf(instance, 'Praxis Wendt')).body.includes(token))
   ctx.step('a secret is refused and not stored')
+
+  await openStandardProfile(instance)
+  await instance.waitForDisplayed('agent-memory-level')
+  assert.match(
+    await textOf(instance, 'agent-memory-level'),
+    /Lesen und schreiben|Read and write/,
+  )
+  ctx.step('Standard reads and writes the memory from the factory')
 })
