@@ -171,7 +171,7 @@ pub fn message(
         (vec![me.vault_hex.clone()], Vec::new())
     } else {
         receive::ensure_delivery(tx, message_id, &peer)?;
-        (vec![peer.clone(), me.vault_hex.clone()], vec![peer])
+        (vec![peer.clone(), me.vault_hex.clone()], vec![peer.clone()])
     };
     outbox::enqueue(
         tx,
