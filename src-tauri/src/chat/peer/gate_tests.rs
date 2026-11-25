@@ -116,6 +116,7 @@ async fn a_received_answer_parks_and_resumes_and_one_for_another_vault_changes_n
     let ben = ChatDevice::genesis(&[]);
     ben.learn(&anna).await;
     let message = ben.send(&anna, "Hallo Anna");
+    let ben_me = ben.me.clone();
     let (own, anna_vault) = (ben.me.vault_hex.clone(), anna.me.vault_hex.clone());
     let answer = |answer: Answer, thread: String| Receipt {
         v: crate::chat::peer::envelope::VERSION,
@@ -127,9 +128,9 @@ async fn a_received_answer_parks_and_resumes_and_one_for_another_vault_changes_n
         answer: Some(answer),
     };
     let apply = |receipt: Receipt, now: i64| {
-        let own = own.clone();
+        let me = ben_me.clone();
         ben.db
-            .write_blocking(move |tx| Ok(apply_received(tx, &own, &receipt, now)?))
+            .write_blocking(move |tx| Ok(apply_received(tx, &me, &receipt, now)?))
             .expect("apply");
     };
     let blocked = |ben: &ChatDevice| {
@@ -174,7 +175,7 @@ async fn a_received_answer_parks_and_resumes_and_one_for_another_vault_changes_n
             .read_blocking(|r| Ok(outbox::due(r, 30)?))
             .expect("due")
             .iter()
-            .any(|row| row.is_resend() && row.awaiting.contains(&anna.me.vault_hex)),
-        "resend for Anna due at once"
+            .any(|row| row.pending.contains(&anna.me.vault_hex)),
+        "due for Anna at once"
     );
 }

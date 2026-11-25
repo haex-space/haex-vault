@@ -7,6 +7,7 @@ use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 
 use super::envelope::{self, Attachment, Body, Envelope, Receipt, To};
+use super::session::Me;
 use super::verify::vault_bytes;
 use super::{ids, store};
 use crate::contacts::card::{format, received};
@@ -264,7 +265,7 @@ pub fn ensure_delivery(
 /// changed.
 pub fn receipt(
     tx: &mut CrdtTransaction<'_>,
-    own: &str,
+    me: &Me,
     receipt: &Receipt,
     now: i64,
 ) -> Result<usize> {
@@ -272,7 +273,8 @@ pub fn receipt(
         return Ok(0);
     };
     // An answer of the other vault to this one (spec 099): parks or resumes what waits for it.
-    super::gate::apply_received(tx, own, receipt, now)?;
+    let own = &me.vault_hex;
+    super::gate::apply_received(tx, me, receipt, now)?;
     let thread_id = ids::direct_thread_id(own, &receipt.from);
     let mut changed = 0;
     let read = receipt.read.iter().map(|id| (id, true));

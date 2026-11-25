@@ -374,7 +374,7 @@ fn ratchet(
             }
         }
         Incoming::Receipt(receipt) => {
-            receive::receipt(tx, &me.vault_hex, receipt, now)?;
+            receive::receipt(tx, me, receipt, now)?;
             Received::Nothing
         }
     };
