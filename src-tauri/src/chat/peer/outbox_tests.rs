@@ -626,8 +626,8 @@ async fn a_resend_of_a_deleted_message_ends_the_row() {
 }
 
 /// Spec 099 FR-010, FR-008: an answer "blocked" stops sending to the vault and parks a row with
-/// nothing else to do; its delivery fails with `blocked`. "accepted" makes it pending and due at
-/// once and the failure goes; a row for the own devices keeps its own time meanwhile.
+/// nothing else to do; its delivery fails with `blocked`. "accepted" makes it due at once as a
+/// resend and the failure goes; a row for the own devices keeps its own time meanwhile.
 #[test]
 fn a_blocked_vault_parks_its_rows_and_an_accepted_one_resumes_them_at_once() {
     let anna = ChatDevice::genesis(&[]);
@@ -684,7 +684,7 @@ fn a_blocked_vault_parks_its_rows_and_an_accepted_one_resumes_them_at_once() {
         .expect("resume");
     let resumed = due(&anna.db, 5_000);
     assert_eq!(resumed.len(), 1);
-    assert_eq!(resumed[0].pending, [PEER.to_owned()]);
+    assert!(resumed[0].is_resend(), "encrypted again: {:?}", resumed[0]);
     let (_, failed_at, reason) = delivery(&anna.db);
     assert_eq!((failed_at, reason), (None, None));
 }

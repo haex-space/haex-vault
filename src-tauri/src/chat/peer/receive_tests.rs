@@ -22,22 +22,26 @@ fn count(anna: &ChatDevice, sql: &'static str) -> i64 {
         .expect("count")
 }
 
-#[test]
-fn a_message_arriving_twice_is_one_row_ordered_by_the_clock_rule() {
+#[tokio::test(flavor = "multi_thread")]
+async fn a_message_arriving_twice_is_one_row_ordered_by_the_clock_rule() {
     let anna = ChatDevice::genesis(&[]);
+    // Only a contact's message is stored (spec 099 FR-001).
+    let ben = ChatDevice::genesis(&[]);
+    anna.learn(&ben).await;
+    let (ben_vault, ben_card) = (ben.me.vault_hex.clone(), ben.card().text());
     let at = 10_000_000;
     let from_ben = envelope::message(
         "Hallo",
         Vec::new(),
-        BEN,
-        "card",
+        &ben_vault,
+        &ben_card,
         To::Direct(anna.me.vault_hex.clone()),
         at,
     )
     .expect("message");
     let first = store(&anna, &from_ben, at + 1_000);
     assert!(first.new && first.incoming);
-    assert_eq!(first.peer, BEN);
+    assert_eq!(first.peer, ben_vault);
     let second = store(&anna, &from_ben, at + 2_000);
     assert!(!second.new);
     assert_eq!(second.message_id, first.message_id);
@@ -47,8 +51,8 @@ fn a_message_arriving_twice_is_one_row_ordered_by_the_clock_rule() {
     let ahead = envelope::message(
         "aus der Zukunft",
         Vec::new(),
-        BEN,
-        "card",
+        &ben_vault,
+        &ben_card,
         To::Direct(anna.me.vault_hex.clone()),
         at + 3_600_000,
     )

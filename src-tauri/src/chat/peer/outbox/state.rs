@@ -371,17 +371,16 @@ pub fn park_vault(tx: &mut CrdtTransaction<'_>, vault: &str, now: i64) -> Result
     Ok(())
 }
 
-/// `vault` answered that this vault may write (spec 099 FR-008): every row awaiting it is pending
-/// for it again and due at once, and the `blocked` failures of its deliveries are gone.
+/// `vault` answered that this vault may write (spec 099 FR-008): every row awaiting it is due at
+/// once, and the `blocked` failures of its deliveries are gone. The row goes out as a resend
+/// ([`start_resend`]), encrypted again: the vault may have read the wraps it was sent already (a
+/// knock), so publishing those once more would reach it with used message keys.
 pub fn resume_vault(tx: &mut CrdtTransaction<'_>, vault: &str, now: i64) -> Result<()> {
-    for (id, message_id, mut pending) in awaiting_rows(tx, vault)? {
-        if !pending.iter().any(|waiting| waiting == vault) {
-            pending.push(vault.to_owned());
-        }
+    for (id, message_id, _) in awaiting_rows(tx, vault)? {
         tx.execute(
-            "UPDATE chat_outbox_no_sync SET pending = ?2, attempts = 0, next_at = ?3, \
-               created_at = ?3, last_error = NULL WHERE id = ?1",
-            params![id, to_json(&pending)?, now],
+            "UPDATE chat_outbox_no_sync SET attempts = 0, next_at = ?2, created_at = ?2, \
+               last_error = NULL WHERE id = ?1",
+            params![id, now],
         )?;
         if let Some(message) = message_id.and_then(|id| id.parse().ok()) {
             tx.execute(
