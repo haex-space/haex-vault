@@ -359,12 +359,12 @@ pub fn park_one(
     vault: &str,
     now: i64,
 ) -> Result<()> {
-    let Some(pending) = tx.query_row(
+    let pending: Option<String> = tx.query_row(
         "SELECT pending FROM chat_outbox_no_sync WHERE id = ?1",
         params![id],
         |row| row.get(0),
-    )?
-    else {
+    )?;
+    let Some(pending) = pending else {
         return Ok(());
     };
     let mut pending: Vec<String> = from_json(&pending)?;
