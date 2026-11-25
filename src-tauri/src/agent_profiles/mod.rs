@@ -28,6 +28,7 @@ pub mod remember;
 pub mod resolve;
 pub mod store;
 pub mod subjects;
+pub mod tag_references;
 
 #[cfg(test)]
 mod delegates_tests;
@@ -45,6 +46,8 @@ mod resolve_tests;
 mod store_tests;
 #[cfg(test)]
 mod subjects_tests;
+#[cfg(test)]
+mod tag_references_tests;
 #[cfg(test)]
 pub(crate) mod test_support;
 

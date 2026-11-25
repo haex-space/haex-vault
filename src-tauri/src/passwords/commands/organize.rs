@@ -83,7 +83,7 @@ pub struct SetTagsResult {
 #[ts(export, export_to = "../../src/types/bindings/")]
 #[serde(rename_all = "camelCase")]
 pub struct RenameTagArgs {
-    pub tag_id: String,
+    pub tag_ids: Vec<String>,
     pub name: String,
 }
 
@@ -91,7 +91,7 @@ pub struct RenameTagArgs {
 #[ts(export, export_to = "../../src/types/bindings/")]
 #[serde(rename_all = "camelCase")]
 pub struct SetTagColorArgs {
-    pub tag_id: String,
+    pub tag_ids: Vec<String>,
     pub color: Option<String>,
 }
 
@@ -100,6 +100,23 @@ pub struct SetTagColorArgs {
 #[serde(rename_all = "camelCase")]
 pub struct TagIdArgs {
     pub tag_id: String,
+}
+
+#[derive(Debug, Deserialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/", optional_fields)]
+#[serde(rename_all = "camelCase")]
+pub struct TagIdsArgs {
+    pub tag_ids: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct MergeTagsArgs {
+    pub source_ids: Vec<String>,
+    pub target_ids: Vec<String>,
+    /// The name of the merged tag; `None` keeps the name of the target.
+    pub name: Option<String>,
 }
 
 #[tauri::command]
@@ -162,7 +179,7 @@ pub async fn passwords_set_tags(
 #[tauri::command]
 pub async fn passwords_rename_tag(state: State<'_, AppState>, args: RenameTagArgs) -> Result<()> {
     service(&state)?
-        .rename_tag(&Caller::User, args.tag_id, args.name)
+        .rename_tag(&Caller::User, args.tag_ids, args.name)
         .await
 }
 
@@ -172,13 +189,30 @@ pub async fn passwords_set_tag_color(
     args: SetTagColorArgs,
 ) -> Result<()> {
     service(&state)?
-        .set_tag_color(&Caller::User, args.tag_id, args.color)
+        .set_tag_color(&Caller::User, args.tag_ids, args.color)
         .await
 }
 
 #[tauri::command]
-pub async fn passwords_delete_tag(state: State<'_, AppState>, args: TagIdArgs) -> Result<()> {
+pub async fn passwords_delete_tag(state: State<'_, AppState>, args: TagIdsArgs) -> Result<()> {
     service(&state)?
-        .delete_tag(&Caller::User, args.tag_id)
+        .delete_tag(&Caller::User, args.tag_ids)
+        .await
+}
+
+#[tauri::command]
+pub async fn passwords_merge_tags(state: State<'_, AppState>, args: MergeTagsArgs) -> Result<()> {
+    service(&state)?
+        .merge_tags(&Caller::User, args.source_ids, args.target_ids, args.name)
+        .await
+}
+
+#[tauri::command]
+pub async fn passwords_tag_agent_profiles(
+    state: State<'_, AppState>,
+    args: TagIdArgs,
+) -> Result<Vec<String>> {
+    service(&state)?
+        .tag_agent_profiles(&Caller::User, args.tag_id)
         .await
 }

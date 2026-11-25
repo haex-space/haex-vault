@@ -123,6 +123,31 @@ scenario('wallet-narrow-window', {}, async (ctx) => {
   )
   ctx.step('capture dialog fits')
 
+  // Spec 100, US3: the tag manager opens from Wallet's header, also when its button sits in the
+  // overflow panel, and fits the width.
+  await clickHeaderControl(instance, 'wallet-tags')
+  await instance.waitForDisplayed('passwords-tag-picker')
+  const tagDialogOverflow = await instance.exec<number>(
+    `const box = document.querySelector('[data-testid="passwords-tag-picker"]')?.closest('[role="dialog"]')
+     return box ? box.scrollWidth - box.clientWidth : -1`,
+  )
+  assert.ok(
+    tagDialogOverflow >= 0 && tagDialogOverflow <= 1,
+    `the tag manager scrolls sideways by ${tagDialogOverflow} px at 360 px (-1: no dialog around the picker)`,
+  )
+  await instance.exec<boolean>(
+    `(document.activeElement ?? document).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }))
+     return true`,
+  )
+  await ctx.waitFor(
+    'the tag manager to close',
+    async () =>
+      await instance.exec<boolean>(
+        `return document.querySelector('[data-testid="passwords-tag-picker"]') === null`,
+      ),
+  )
+  ctx.step('tag manager fits')
+
   await instance.click(`wallet-pass-${ticket}`)
   await instance.waitForDisplayed('wallet-code-0')
   await instance.waitForDisplayed('wallet-start')

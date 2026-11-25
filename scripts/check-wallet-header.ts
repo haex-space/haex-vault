@@ -39,11 +39,11 @@ const checked = (control: WmHeaderControl | undefined) =>
       )
     : []
 
-test('a list shows the sidebar button, the search, the filters, scan, import and "New"', () => {
+test('a list shows the sidebar button, the search, the filters, tags, scan, import and "New"', () => {
   const d = walletHeader(STATE, t)
   assert.deepEqual(ids(d.start), ['sidebar'])
   assert.deepEqual(ids(d.center), ['q'])
-  assert.deepEqual(ids(d.end), ['filters', 'capture', 'import', 'new'])
+  assert.deepEqual(ids(d.end), ['filters', 'tags', 'capture', 'import', 'new'])
 })
 
 test('an open pass (or the trash) keeps the sidebar button only', () => {
@@ -111,6 +111,7 @@ test('the controls of today keep their test ids; entries are <menu>-<entry>', ()
   assert.equal(find(STATE, 'sidebar')?.testId, 'wallet-sidebar-toggle')
   assert.equal(find(STATE, 'q')?.testId, 'wallet-search')
   assert.equal(find(STATE, 'filters')?.testId, 'wallet-filters')
+  assert.equal(find(STATE, 'tags')?.testId, 'wallet-tags')
   assert.equal(find(STATE, 'capture')?.testId, 'wallet-capture')
   assert.equal(find(STATE, 'import')?.testId, 'wallet-import')
   assert.equal(find(STATE, 'new')?.testId, 'wallet-new')
@@ -119,7 +120,7 @@ test('the controls of today keep their test ids; entries are <menu>-<entry>', ()
 test('the search gives way first, "New" last', () => {
   const order = (id: string) => find(STATE, id)?.collapse?.order ?? 1001
   assert.equal(order('q'), 10)
-  for (const id of ['filters', 'capture', 'import'])
+  for (const id of ['filters', 'tags', 'capture', 'import'])
     assert.ok(order('q') < order(id) && order(id) < order('new'), id)
 })
 
@@ -159,7 +160,7 @@ test('events stand for the commands the toolbar had', () => {
   )
   assert.equal(cmd({ id: 'filters', kind: 'click', value: 'kind-zzz' }), null)
   assert.equal(cmd({ id: 'filters', kind: 'click', value: 'zzz' }), null)
-  for (const id of ['capture', 'import', 'new'] as const)
+  for (const id of ['tags', 'capture', 'import', 'new'] as const)
     assert.deepEqual(cmd({ id, kind: 'click' }), { kind: id })
   assert.equal(cmd({ id: 'unknown', kind: 'click' }), null)
 })

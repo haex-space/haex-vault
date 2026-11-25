@@ -11,7 +11,9 @@ import {
   inScope,
   loginTagsOf,
   scopeOf,
+  tagUsageOf,
 } from '../src/lib/passwords/scope.ts'
+import { getAppDefinition } from '../src/lib/wm/apps.ts'
 
 const header = (
   id: string,
@@ -56,6 +58,39 @@ test('the tags of the password manager are counted over its logins and leave out
     { ids: ['shop'], itemCount: 1 },
     { ids: ['unused'], itemCount: 0 },
   ])
+})
+
+test('a tag is counted per app: logins for the password manager, passes for Wallet', () => {
+  assert.deepEqual(tagUsageOf(['shop'], HEADERS), { login: 1, pass: 0 })
+  assert.deepEqual(tagUsageOf(['ticket'], HEADERS), { login: 0, pass: 2 })
+  assert.deepEqual(tagUsageOf(['work'], HEADERS), { login: 2, pass: 1 })
+  assert.deepEqual(tagUsageOf(['unused'], HEADERS), { login: 0, pass: 0 })
+  assert.deepEqual(tagUsageOf([], HEADERS), { login: 0, pass: 0 })
+})
+
+test('an entry that carries two ids of one display group counts once', () => {
+  const headers = [
+    header('l1', null, ['work', 'work2']),
+    header('p1', 'pass', ['work2']),
+  ]
+  assert.deepEqual(tagUsageOf(['work', 'work2'], headers), {
+    login: 1,
+    pass: 1,
+  })
+})
+
+test("the login count of a tag is the one the password manager's filter shows", () => {
+  const tags = [{ ids: ['work'], itemCount: 99 }]
+  assert.equal(
+    loginTagsOf(tags, HEADERS)[0]?.itemCount,
+    tagUsageOf(['work'], HEADERS).login,
+  )
+})
+
+test('the tag counts draw the icons of both apps from the registry', () => {
+  for (const id of ['system.passwords', 'system.wallet']) {
+    assert.ok(getAppDefinition(id)?.iconUrl, `${id} has no registry icon image`)
+  }
 })
 
 const TRASH_GROUPS = [

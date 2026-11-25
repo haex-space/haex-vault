@@ -34,6 +34,7 @@ export type WalletHeaderCommand =
   | { kind: 'sort'; sort: WalletSort }
   | { kind: 'kind'; value: PassKind | null }
   | { kind: 'toggleHideExpired' }
+  | { kind: 'tags' }
   | { kind: 'capture' }
   | { kind: 'import' }
   | { kind: 'new' }
@@ -129,6 +130,8 @@ export function walletHeader(
           },
         ],
       },
+      // The tag manager of the password manager (spec 100): tags are one namespace for both apps.
+      button('tags', t('passwords.tags.manage'), 'lucide:tags', 22),
       button('capture', t('wallet.capture.title'), 'lucide:scan-line', 25),
       button('import', t('wallet.import.button'), 'lucide:file-down', 30),
       button('new', t('wallet.new'), 'lucide:plus', 40),
@@ -157,6 +160,7 @@ export function walletHeaderCommand(
       const kind = PASS_KINDS.find((candidate) => entry === `kind-${candidate}`)
       return kind ? { kind: 'kind', value: kind } : null
     }
+    case 'tags':
     case 'capture':
     case 'import':
     case 'new':

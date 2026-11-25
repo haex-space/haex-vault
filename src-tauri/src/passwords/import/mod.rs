@@ -20,6 +20,8 @@ pub mod references;
 mod references_tests;
 pub mod registry;
 pub mod report;
+#[cfg(test)]
+mod tags_tests;
 
 use std::collections::HashSet;
 use std::fmt;

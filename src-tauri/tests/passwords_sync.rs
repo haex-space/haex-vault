@@ -247,7 +247,7 @@ async fn a_rename_race_with_equal_names_does_not_stall_the_pull_and_reconciles()
         .id
         .clone();
     a.service
-        .rename_tag(&Caller::User, tag_id, "Beta".to_string())
+        .rename_tag(&Caller::User, vec![tag_id], "Beta".to_string())
         .await
         .expect("rename");
     let on_b = create(&b, full_item("On B", &["Beta"])).await;

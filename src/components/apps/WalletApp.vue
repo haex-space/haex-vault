@@ -34,7 +34,10 @@ const { wideHidden, menuOpen, visible, overlaying, toggle, close } =
 
 // The first row is the window's header (spec 093-app-headers, US3); the dialogs of its buttons are
 // mounted here, so they stay open when a button is collapsed (FR-009).
-const { capturing } = useWalletHeader(() => visible.value, toggle)
+const { capturing, tagManagerOpen } = useWalletHeader(
+  () => visible.value,
+  toggle,
+)
 
 // A picture or a PDF another app shared (spec 092, FR-037) opens the capture dialog, one file at a
 // time: when the dialog closes and more wait, the next one opens it again.
@@ -74,5 +77,6 @@ watch(
     </div>
     <WalletImportDialog />
     <WalletCaptureDialog v-model:open="capturing" />
+    <PasswordsTagManager v-model:open="tagManagerOpen" />
   </div>
 </template>

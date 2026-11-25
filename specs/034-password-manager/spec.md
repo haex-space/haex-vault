@@ -527,6 +527,10 @@ gleichzeitig ändern; beide Änderungen sind nach dem Abgleich auf beiden Gerät
   _Geändert 2026-10-06 (PR #287):_ Nach einem Tag filtert ein Auswahlmenü neben der Suche
   (Tags mit Farbe und Anzahl, „Alle Tags“ hebt den Filter auf); die Seitenleiste listet die
   Tags nicht mehr, „Tags verwalten“ bleibt dort.
+  _Geändert 2026-11-25 (Spec 100):_ „Tags verwalten“ zeigt nicht mehr jeden Tag als Zeile, sondern
+  ein durchsuchbares Auswahlmenü; der gewählte Tag hat darunter Name, Farbe, die Anzahl je App
+  (Passwortmanager und Wallet getrennt) sowie Umbenennen, Löschen und „Zusammenführen“ in einen
+  anderen Tag. Der Dialog öffnet auch aus dem Wallet-Fenster.
 - **FR-012**: Das System MUSS Mehrfachauswahl für Verschieben, Taggen und Löschen
   unterstützen und vor einer Massenaktion die Zahl der betroffenen Einträge nennen.
 

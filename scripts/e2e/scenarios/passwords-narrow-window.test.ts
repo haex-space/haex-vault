@@ -107,9 +107,56 @@ scenario('passwords-narrow-window', {}, async (ctx) => {
   // collapse into the panel meanwhile), and at 360 px every control is in the row or in the panel.
   await instance.click('passwords-menu')
   await instance.click('passwords-menu-tags')
+  // A second tag, so that merging is offered (spec 100, US3).
+  await instance.invoke('passwords_set_tags', {
+    args: { itemIds: [id], add: ['narrow-two'], remove: [] },
+  })
+  // Spec 100: the manager is one dropdown; the chosen tag's editor appears below it.
+  await instance.waitForDisplayed('passwords-tag-picker')
+  await instance.click('passwords-tag-picker')
+  await instance.click(`passwords-tag-picker-${tag.id}`)
   await instance.waitForDisplayed(`passwords-tag-${tag.id}`)
   await resizeAppWindow(instance, APP, 360)
   await instance.waitForDisplayed(`passwords-tag-${tag.id}`)
+  // Spec 100, US3: at 360 px the editor and the merge dialog fit the width and hide no action.
+  const pressEscape = () =>
+    instance.exec<boolean>(
+      `(document.activeElement ?? document).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }))
+       return true`,
+    )
+  const scrollsBy = (selector: string) =>
+    instance.exec<number>(
+      `const box = document.querySelector(arguments[0])
+       return box ? box.scrollWidth - box.clientWidth : -1`,
+      [selector],
+    )
+  for (const hook of ['rename', 'color', 'delete'])
+    await instance.waitForDisplayed(`passwords-tag-${hook}-${tag.id}`)
+  await ctx.waitFor('the merge button next to the other actions', async () =>
+    instance.exec<boolean>(
+      `return !!document.querySelector('[data-testid="passwords-tag-merge"]')`,
+    ),
+  )
+  const editorOverflow = await scrollsBy(
+    `[data-testid="passwords-tag-${tag.id}"]`,
+  )
+  assert.ok(
+    editorOverflow <= 1,
+    `the tag editor scrolls sideways by ${editorOverflow} px at 360 px`,
+  )
+  await instance.click('passwords-tag-merge')
+  await instance.waitForDisplayed('passwords-tag-merge-target')
+  const dialogOverflow = await scrollsBy('[role="alertdialog"]')
+  assert.ok(
+    dialogOverflow >= 0 && dialogOverflow <= 1,
+    `the merge dialog scrolls sideways by ${dialogOverflow} px at 360 px (-1: not on screen)`,
+  )
+  await pressEscape()
+  await ctx.waitFor('the merge dialog to close', async () =>
+    instance.exec<boolean>(
+      `return !document.querySelector('[data-testid="passwords-tag-merge-target"]')`,
+    ),
+  )
   await instance.exec<boolean>(
     `(document.activeElement ?? document).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }))
      return true`,

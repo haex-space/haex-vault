@@ -23,6 +23,23 @@ export function inScope<T extends TypedHeader>(
 type TagOfHeader = { id: string }
 type ScopedTag = { ids: readonly string[]; itemCount: number }
 
+/** How many entries of each app carry a tag (spec 100): `login` for the password manager, `pass` for
+ * Wallet. An entry that carries several of `ids` (equal names of one display group) counts once. */
+export type TagUsage = { login: number; pass: number }
+
+export function tagUsageOf(
+  ids: readonly string[],
+  headers: readonly (TypedHeader & { tags: readonly TagOfHeader[] })[],
+): TagUsage {
+  const wanted = new Set(ids)
+  const carries = (header: { tags: readonly TagOfHeader[] }) =>
+    header.tags.some((carried) => wanted.has(carried.id))
+  return {
+    login: inScope(headers, 'login').filter(carries).length,
+    pass: inScope(headers, 'pass').filter(carries).length,
+  }
+}
+
 /**
  * The tags the password manager lists: counted over its logins only, and a tag that only cards or
  * tickets carry is left out (it would filter to an empty list). A tag nothing carries yet stays, as
@@ -33,20 +50,14 @@ export function loginTagsOf<T extends ScopedTag>(
   headers: readonly (TypedHeader & { tags: readonly TagOfHeader[] })[],
 ): T[] {
   const onPasses = new Set<string>()
-  const logins = inScope(headers, 'login')
   for (const header of inScope(headers, 'pass')) {
     for (const tag of header.tags) onPasses.add(tag.id)
   }
   return tags
-    .map((tag) => {
-      const wanted = new Set(tag.ids)
-      return {
-        ...tag,
-        itemCount: logins.filter((header) =>
-          header.tags.some((carried) => wanted.has(carried.id)),
-        ).length,
-      }
-    })
+    .map((tag) => ({
+      ...tag,
+      itemCount: tagUsageOf(tag.ids, headers).login,
+    }))
     .filter(
       (tag) => tag.itemCount > 0 || !tag.ids.some((id) => onPasses.has(id)),
     )

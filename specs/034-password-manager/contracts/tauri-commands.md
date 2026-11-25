@@ -164,10 +164,17 @@ Legt fehlende Tags an (`fold`, R2); für Mehrfachauswahl (FR-012).
 ### `passwords_rename_tag` / `passwords_set_tag_color` / `passwords_delete_tag`
 
 ```text
-rename args: { tagId, name }     errors: InvalidInput { reason: 'exists' | 'empty' | 'too_long' }
-color  args: { tagId, color }
-delete args: { tagId }           // löscht Verknüpfungen zuerst
+rename args: { tagIds, name }    errors: InvalidInput { reason: 'exists' | 'empty' | 'too_long' }
+color  args: { tagIds, color }
+delete args: { tagIds }          // löscht Verknüpfungen zuerst; alle angezeigten IDs
 ```
+
+`tagIds` enthält alle IDs einer zusammengefassten Anzeigegruppe (gleicher gefalteter Name). Rename,
+Farbe und Löschen gelten atomar für die ganze Gruppe.
+
+Zusammenführen und die Liste der Agenten-Profile, die einen Tag nennen (`passwords_merge_tags`,
+`passwords_tag_agent_profiles`): siehe
+[`specs/100-password-tag-management/contracts/tauri-commands.md`](../../100-password-tag-management/contracts/tauri-commands.md).
 
 ## Papierkorb
 

@@ -9,8 +9,8 @@ import { walletNewPassLocation } from '~/lib/wallet/registry'
  * state it is derived from and what its events do. The search text is the only free text a place
  * carries; it is never a secret (the search looks at title, address, tag and folder names only).
  *
- * The capture dialog is not here: its flag is returned so the frame mounts it itself and it stays
- * open while its button is collapsed into the overflow panel (FR-009).
+ * The capture dialog and the tag manager are not here: their flags are returned so the frame mounts
+ * them itself and they stay open while their buttons are collapsed into the overflow panel (FR-009).
  */
 export function useWalletHeader(
   sidebarVisible: () => boolean,
@@ -23,6 +23,7 @@ export function useWalletHeader(
   const walletImport = useWalletImportStore()
 
   const capturing = ref(false)
+  const tagManagerOpen = ref(false)
 
   /** A pass, the trash or another detail place is open: search, filters and the actions leave. The
    * list ("All") and a folder are list places: "New" there makes the pass in the folder shown. */
@@ -94,6 +95,9 @@ export function useWalletHeader(
         case 'toggleHideExpired':
           view.hideExpired = !view.hideExpired
           break
+        case 'tags':
+          tagManagerOpen.value = true
+          break
         case 'capture':
           capturing.value = true
           break
@@ -107,5 +111,5 @@ export function useWalletHeader(
     },
   )
 
-  return { capturing }
+  return { capturing, tagManagerOpen }
 }
