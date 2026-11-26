@@ -174,8 +174,9 @@ PARKED`, as `noDevices` does). While it is set, a new message to that vault is s
 
 - **Decision**: `store::list` (`chat/peer/store.rs:150`) and the chat search leave out direct threads whose
   `peer_vault` is on the block list. The blocked list in the settings opens a conversation by its thread
-  id (`ids::direct_thread_id(own, vault)`), so "Verlauf ansehen" needs no list entry; the conversation
-  view shows "Entsperren" in place of the composer when its peer is blocked (a `peerBlocked` field on the
+  id (`ids::direct_thread_id(own, vault)`); the window reads such a conversation from the list's
+  `blocked: true` filter, which only lists conversations of blocked vaults. The conversation view shows
+  "Entsperren" in place of the composer when its peer is blocked (a `peerBlocked` field on the
   conversation).
 - **Rationale**: the filter follows the block list, so unblocking brings the conversation back without a
   write.

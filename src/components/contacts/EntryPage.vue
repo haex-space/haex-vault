@@ -4,7 +4,8 @@
  * organization, every value grouped by kind with copy and open, the haex-vault addresses (confirmed ones
  * from the contact's Visitenkarte, FR-008), the note, the
  * groups, the phones it goes to and where the contact came from. Values of a kind this version does not know show as they
- * are, read-only. Reloads quietly when the contact changes elsewhere.
+ * are, read-only. Reloads quietly when the contact changes elsewhere. "Sperren" blocks a contact
+ * with a Visitenkarte (spec 099 FR-014); the contact is hidden then.
  */
 import { toast } from 'vue-sonner'
 import type { Contact } from '@bindings/Contact'
@@ -28,6 +29,18 @@ const contact = ref<Contact | null>(null)
 const missing = ref(false)
 const deleteOpen = ref(false)
 const shareOpen = ref(false)
+const blockOpen = ref(false)
+const { blockContactAsync } = useContactCards()
+async function blockContact() {
+  if (!contact.value) return
+  blockOpen.value = false
+  try {
+    await blockContactAsync(contact.value.id)
+    await router.replace('/')
+  } catch (cause) {
+    toast.error(errString(cause))
+  }
+}
 // Spec 072 FR-005: start or open the direct conversation in the chat.
 const openDirect = useAction('chat.contact.openDirect')
 function messageContact() {
@@ -187,7 +200,7 @@ async function removePhotoAsync() {
         data-testid="contacts-back"
         @click="router.back()"
       />
-      <!-- Icon buttons only: five of them still fit one row on a phone-wide pane. -->
+      <!-- Icon buttons only: six of them still fit one row on a phone-wide pane. -->
       <div v-if="contact" class="ml-auto flex items-center gap-1">
         <UiButtonEdit
           :label="t('contacts.edit')"
@@ -208,6 +221,13 @@ async function removePhotoAsync() {
           data-testid="contacts-share-open"
           @click="shareOpen = true"
           ><Icon name="lucide:share-2" class="size-4"
+        /></UiButtonIcon>
+        <UiButtonIcon
+          v-if="!contact.isSelf && contact.card"
+          :label="t('contacts.block.action')"
+          data-testid="contacts-block"
+          @click="blockOpen = true"
+          ><Icon name="lucide:ban" class="size-4"
         /></UiButtonIcon>
         <UiButtonDelete
           v-if="!contact.isSelf"
@@ -416,6 +436,38 @@ async function removePhotoAsync() {
       </p>
 
       <ContactsShareDialog v-model:open="shareOpen" :contact-id="contact.id" />
+
+      <UiDrawerModal
+        v-if="blockOpen"
+        :open="blockOpen"
+        :title="t('contacts.block.title', { name: contact.name })"
+        @update:open="blockOpen = $event"
+      >
+        <template #content>
+          <p class="px-6 py-2 text-sm">
+            {{ t('contacts.block.confirm', { name: contact.name }) }}
+          </p>
+        </template>
+        <template #footer>
+          <div class="flex justify-end gap-2">
+            <UiButton
+              type="button"
+              variant="outline"
+              @click="blockOpen = false"
+            >
+              {{ t('contacts.block.cancel') }}
+            </UiButton>
+            <UiButton
+              type="button"
+              variant="destructive"
+              data-testid="contacts-block-confirm"
+              @click="blockContact"
+            >
+              {{ t('contacts.block.action') }}
+            </UiButton>
+          </div>
+        </template>
+      </UiDrawerModal>
 
       <ContactsDeleteDialog
         v-if="!contact.isSelf"

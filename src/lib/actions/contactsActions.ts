@@ -240,4 +240,45 @@ export const CONTACTS_ACTIONS: readonly ActionDefinition[] = [
     confirmsItself: true,
     binding: 'global',
   },
+  // Spec 099 FR-014, FR-016: blocking and allowing again are the user's alone. Handlers in
+  // `stores/contactsActionHandlers.ts`.
+  {
+    id: 'contacts.blockContact',
+    titleKey: 'actions.contacts.blockContact',
+    description:
+      'Block a contact: every vault of it is blocked and told so, its messages are dropped, and the contact is hidden everywhere but on the phones.',
+    input: {
+      type: 'object',
+      properties: { contactId: ID },
+      required: ['contactId'],
+    },
+    result: { type: 'object', properties: { done: { type: 'boolean' } } },
+    target: 'none',
+    scope: 'guardrails',
+    effect: 'destructive',
+    agentCallable: false,
+    binding: 'global',
+  },
+  {
+    id: 'contacts.unblock',
+    titleKey: 'actions.contacts.unblock',
+    description:
+      'Allow a blocked vault again: its hidden contact shows again, or a contact is made from the card a declined request carried; the vault is told it may write.',
+    input: {
+      type: 'object',
+      properties: {
+        vaultPubkey: {
+          type: 'string',
+          description: 'The vault identity, 64 hex characters.',
+        },
+      },
+      required: ['vaultPubkey'],
+    },
+    result: { type: 'object', properties: { done: { type: 'boolean' } } },
+    target: 'none',
+    scope: 'guardrails',
+    effect: 'write',
+    agentCallable: false,
+    binding: 'global',
+  },
 ]
