@@ -172,7 +172,10 @@ value reads as the default (pattern passwords/settings.rs:12-34).
 
 ## Frontend types (ts-rs, `src/types/bindings/`)
 
-`ChatConversation` (the list entry: id, kind, state, title, peerVault, peerWithoutRelays, picture, muted, unread,
-lastMessage, updatedAt), `ChatPeerMessage`, `ChatAttachment`, `ChatDeliveryState`, `ChatMember`,
-`ChatSettings`, `ChatTransferEvent`. The hand-written `Thread`/`Message` in `src/composables/useChat.ts`
-stay for agent conversations; `Thread` gains `kind` and `state`.
+`ChatConversation` (the list entry: id, kind, state, title, peerVault, peerContactId, peerCardName,
+peerWithoutRelays, muted, unread, lastText, lastDelivery, lastAt, peerAnswered, blockedByPeer,
+requestLastAt), `ChatPeerMessage`, `ChatAttachment`, `ChatDeliveryState`, `ChatMember`, `ChatSettings`,
+`ChatTransferEvent`. `lastText` is flattened and capped for the two-line list preview; `lastDelivery`
+is the least advanced recipient state of the newest own message in a direct or group conversation.
+The hand-written `Thread`/`Message` in `src/composables/useChat.ts` stay for agent conversations;
+`Thread` gains `kind` and `state`.
