@@ -5,7 +5,7 @@ import type { UploadKeyStatus } from "./UploadKeyStatus";
 /**
  * What the settings show of the upload key; no secret leaves the backend.
  */
-export type ChatUploadKey = { status: UploadKeyStatus, 
+export type ChatUploadKey = { status: UploadKeyStatus,
 /**
  * The public key to register at the server (`npub1…`), when the entry is here.
  */

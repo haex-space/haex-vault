@@ -3,15 +3,15 @@
 /**
  * A blocked vault (FR-039), with whom it stands for (spec 099 FR-015, FR-016).
  */
-export type ContactsBlockedVault = { vaultPubkey: string, npub: string, blockedAt: string, 
+export type ContactsBlockedVault = { vaultPubkey: string, npub: string, blockedAt: string,
 /**
  * The contact the block hides, when a contact holds the vault.
  */
-contactId: string | null, 
+contactId: string | null,
 /**
  * The hidden contact's name, else the name on the card the entry kept.
  */
-name: string | null, 
+name: string | null,
 /**
  * The direct conversation with the vault, for "Verlauf ansehen"; `None` before this vault has
  * an identity.
