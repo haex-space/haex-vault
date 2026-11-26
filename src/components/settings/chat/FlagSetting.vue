@@ -29,6 +29,7 @@ const prefScope = computed<PrefScope>(() =>
 
 const on = ref(true)
 const busy = ref(false)
+let reloadPending = false
 
 async function loadAsync() {
   try {
@@ -51,13 +52,21 @@ async function toggleAsync(next: boolean) {
     on.value = previous
     toast.error(errString(cause))
   } finally {
+    while (reloadPending) {
+      reloadPending = false
+      await loadAsync()
+    }
     busy.value = false
   }
 }
 
 onMounted(loadAsync)
 onVaultTablesChanged(['preferences'], () => {
-  if (!busy.value) return loadAsync()
+  if (busy.value) {
+    reloadPending = true
+    return
+  }
+  return loadAsync()
 })
 </script>
 
