@@ -2,8 +2,14 @@
 //! FR-016, US2 scenario 6, quickstart A4): every rumor is also wrapped to the own other devices,
 //! since spec 095 on the session with each of them, opened from its chat key record.
 
-use super::test_support::{mock_relay, two_vaults, ChatDevice};
+use std::time::Duration;
+
+use haex_crdt::rusqlite::params;
+use uuid::Uuid;
+
+use super::test_support::{mock_relay, two_vaults, ChatDevice, LIMIT};
 use super::{ids, messages, outbox, send, store};
+use crate::storage::query::Query;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn two_own_devices_never_online_together_hold_the_same_rows() {
@@ -111,4 +117,79 @@ async fn a_note_reaches_an_own_device_that_was_closed_while_the_sender_is_offlin
     assert_eq!(found[0].text.as_deref(), Some("Reifen wechseln"));
     assert!(found[0].own);
     assert_eq!(found[0].delivery, None, "no delivery state for a note");
+}
+
+/// A stranger's knock reaches both own devices (spec 099 quickstart Q8): the laptop turns it into
+/// the request and notifies; the phone, which got the request through the sync, keeps that one
+/// request and does not notify again.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_knock_on_two_own_devices_is_one_request_and_one_notification() {
+    let (_relay, url) = mock_relay().await;
+    let anna = ChatDevice::genesis(std::slice::from_ref(&url));
+    let anna_phone = anna.link();
+    let ben = ChatDevice::genesis(&[url]);
+    ben.learn(&anna).await;
+    // The phone was online once, so its chat key record is on the relay.
+    anna_phone.start().await;
+    anna_phone.stop();
+    anna.start().await;
+    ben.start().await;
+
+    ben.send(&anna, "Hallo, wir kennen uns vom Markt");
+    let thread = anna.thread_with(&ben);
+    let laptop_last = wait_for_knock(&anna, thread, None).await;
+    let arrived = anna.arrived();
+    assert_eq!(arrived.len(), 1, "the laptop notifies: {arrived:?}");
+    assert!(arrived[0].knock && arrived[0].new);
+    anna.stop();
+
+    // The phone gets the request through the sync, then the same knock from the relay.
+    anna_phone.member.device.pull_from(&anna.member.device);
+    anna_phone.clock.advance(1_000);
+    anna_phone.start().await;
+    wait_for_knock(&anna_phone, thread, Some(laptop_last)).await;
+    assert!(anna_phone.arrived().is_empty(), "no second notification");
+    let own = anna_phone.me.vault_hex.clone();
+    let requests = anna_phone
+        .db
+        .read_blocking(move |r| {
+            Ok(store::list(
+                r,
+                &own,
+                store::ListFilter {
+                    kind: None,
+                    requests: true,
+                },
+            )?)
+        })
+        .expect("list");
+    assert_eq!(requests.len(), 1, "one request: {requests:?}");
+    assert_eq!(requests[0].id, thread.to_string());
+    assert!(anna_phone.messages_with(&ben).is_empty());
+}
+
+/// Waits until `device` took a knock on `thread` later than `after`; answers its time.
+async fn wait_for_knock(device: &ChatDevice, thread: Uuid, after: Option<i64>) -> i64 {
+    let deadline = tokio::time::Instant::now() + LIMIT;
+    loop {
+        let last: Option<i64> = device
+            .db
+            .read_blocking(move |r| {
+                Ok(r.query_row(
+                    "SELECT request_last_at FROM chat_threads WHERE id = ?1",
+                    params![thread.to_string()],
+                    |row| row.get(0),
+                )?
+                .flatten())
+            })
+            .expect("read");
+        if let Some(last) = last.filter(|last| after.is_none_or(|after| *last > after)) {
+            return last;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "waited in vain for the knock"
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
 }
