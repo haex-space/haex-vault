@@ -44,8 +44,8 @@ async function toggleAsync(next: boolean) {
   on.value = next
   busy.value = true
   try {
-    // action-exempt: whether this vault sends read receipts or shows notifications is the user's
-    // own choice; spec 072 gives agents no action for it.
+    // action-exempt: whether this vault sends read receipts, shows notifications or takes
+    // requests of strangers is the user's own choice; specs 072 and 099 give agents no action for it.
     await setPrefAsync(prefScope.value, props.prefKey, String(next))
   } catch (cause) {
     on.value = previous

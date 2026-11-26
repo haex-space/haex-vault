@@ -32,7 +32,7 @@ pub const KEY_AUTO_LIMIT: &str = "chat.download.autoLimit";
 /// missing or empty = none (FR-081). Written only by `files::upload_key`.
 pub const KEY_BLOSSOM_KEY_ENTRY: &str = "chat.blossom.keyEntry";
 /// Whether strangers may leave a request, for the whole vault; missing = yes (spec 099 FR-012).
-/// Written only by `requests::set_allowed`, which removes the open requests with it.
+/// Switched off, every own device removes its open requests (`requests::follow_switch`).
 pub const KEY_ALLOW_STRANGERS: &str = "chat.requests.allowStrangers";
 /// The default of [`KEY_AUTO_LIMIT`]: 25 MB.
 pub const DEFAULT_AUTO_LIMIT: u64 = 25_000_000;

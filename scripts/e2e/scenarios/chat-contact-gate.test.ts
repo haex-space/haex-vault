@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { scenario } from '../lib/scenario.ts'
-import { unwrap, type FlowInstance } from '../lib/flows.ts'
+import { openChat, unwrap, type FlowInstance } from '../lib/flows.ts'
 import { acceptCard } from '../lib/peers.ts'
 import { ownCardText } from '../lib/share.ts'
 
@@ -9,7 +9,9 @@ import { ownCardText } from '../lib/share.ts'
 // Anna has neither of theirs. Ben's messages leave Anna one request and nothing of their text; Anna
 // accepts by reading the carried card in, and Ben's waiting messages arrive. Clara's request Anna
 // declines: Clara is blocked, Clara's conversation shows the block, and Clara's next message leaves
-// nothing on Anna. Driven through the commands the window uses.
+// nothing on Anna. Then Dave's request shows in the sidebar until Anna switches requests of
+// strangers off (quickstart E2, task T031): the request and the requests area go, and Dave's next
+// message leaves nothing. Driven through the commands the window uses.
 
 interface Conversation {
   id: string
@@ -49,6 +51,13 @@ const send = async (page: FlowInstance, threadId: string, text: string) =>
     }),
   ).messageId
 
+/** How many elements of this hook the page shows. */
+const count = (page: FlowInstance, hook: string) =>
+  page.exec<number>(
+    `return document.querySelectorAll('[data-testid="' + arguments[0] + '"]').length`,
+    [hook],
+  )
+
 const openWith = async (page: FlowInstance, contactId: string) =>
   unwrap<{ threadId: string }>(
     'chat_conversation_open_direct',
@@ -59,19 +68,27 @@ const openWith = async (page: FlowInstance, contactId: string) =>
 
 scenario('chat-contact-gate', { timeoutMs: 420_000 }, async (ctx) => {
   const group = await ctx.group({
-    users: { anna: ['laptop'], ben: ['desktop'], clara: ['tablet'] },
+    users: {
+      anna: ['laptop'],
+      ben: ['desktop'],
+      clara: ['tablet'],
+      dave: ['pc'],
+    },
     irohRelay: true,
   })
   const anna = group.device('anna/laptop').page
   const ben = group.device('ben/desktop').page
   const clara = group.device('clara/tablet').page
+  const dave = group.device('dave/pc').page
 
   const annaCard = await ownCardText(anna, 'Anna')
   await ownCardText(ben, 'Ben')
   await ownCardText(clara, 'Clara')
   const annaOnBen = await acceptCard(ben, annaCard)
   const annaOnClara = await acceptCard(clara, annaCard)
-  ctx.step('Ben and Clara have Anna’s card, Anna has neither of theirs')
+  await ownCardText(dave, 'Dave')
+  const annaOnDave = await acceptCard(dave, annaCard)
+  ctx.step('Ben, Clara and Dave have Anna’s card, Anna has none of theirs')
 
   const benThread = await openWith(ben, annaOnBen)
   await send(ben, benThread, 'Hallo Anna')
@@ -163,4 +180,48 @@ scenario('chat-contact-gate', { timeoutMs: 420_000 }, async (ctx) => {
   await new Promise((resolve) => setTimeout(resolve, 5_000))
   assert.deepEqual(await conversations(anna, true), [], 'no new request')
   ctx.step('declining blocks the stranger and tells it')
+
+  const daveThread = await openWith(dave, annaOnDave)
+  await send(dave, daveThread, 'Hallo, ich bin Dave')
+  await ctx.waitFor(
+    'Anna to get Dave’s request',
+    async () => (await conversations(anna, true)).length === 1,
+    { timeoutMs: 60_000, fixed: true },
+  )
+  await openChat(anna)
+  await anna.waitForDisplayed('chat-requests')
+  unwrap(
+    'set_pref',
+    await anna.invoke('set_pref', {
+      args: {
+        scope: { kind: 'vault' },
+        key: 'chat.requests.allowStrangers',
+        value: 'false',
+      },
+    }),
+  )
+  await ctx.waitFor(
+    'Dave’s request to go',
+    async () =>
+      (await conversations(anna, true)).length === 0 &&
+      (await count(anna, 'chat-requests')) === 0,
+    { timeoutMs: 30_000, fixed: true },
+  )
+  ctx.step('switching requests off removes the request and the requests area')
+
+  await send(dave, daveThread, 'Bist du da?')
+  await ctx.waitFor(
+    'Dave’s second message taken by the Nostr-Relay',
+    async () =>
+      (await messagesOf(dave, daveThread)).every((m) => m.delivery === 'sent'),
+    { timeoutMs: 60_000, fixed: true },
+  )
+  await new Promise((resolve) => setTimeout(resolve, 5_000))
+  assert.deepEqual(await conversations(anna, true), [], 'no request')
+  assert.ok(
+    !(await conversations(anna)).some((c) => c.id === daveThread),
+    'no conversation with Dave',
+  )
+  assert.equal(await count(anna, 'chat-requests'), 0)
+  ctx.step('with requests off a stranger’s message leaves nothing')
 })

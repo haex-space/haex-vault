@@ -99,7 +99,7 @@ fn the_blossom_server_defaults_until_chosen_and_the_download_limit_is_per_device
 }
 
 #[test]
-fn strangers_may_knock_until_switched_off_and_the_generic_command_cannot_switch_it() {
+fn strangers_may_knock_until_switched_off_and_the_switch_takes_true_or_false() {
     let vault = ChatDevice::genesis(&[]);
     let allowed = |vault: &ChatDevice| {
         vault
@@ -114,8 +114,8 @@ fn strangers_may_knock_until_switched_off_and_the_generic_command_cannot_switch_
         .expect("write");
     assert!(!allowed(&vault));
 
-    let refused =
-        crate::storage::preferences_commands::validate_value(KEY_ALLOW_STRANGERS, "false")
-            .expect_err("only chat_requests_set_allowed writes it");
-    assert!(refused.to_string().contains("chat_requests_set_allowed"));
+    crate::storage::preferences_commands::validate_value(KEY_ALLOW_STRANGERS, "false")
+        .expect("the settings switch writes it");
+    crate::storage::preferences_commands::validate_value(KEY_ALLOW_STRANGERS, "maybe")
+        .expect_err("only true or false");
 }

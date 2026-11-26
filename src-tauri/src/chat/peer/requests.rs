@@ -2,17 +2,24 @@
 //! card in through spec 060's preview: storing it ends the request ([`store::accept_requests_of`])
 //! and notes the answer "accepted", so there is one import path. Declining puts the vault on spec
 //! 051's block list with the card it carried, removes the conversation and notes the answer
-//! "blocked" for the sender's devices.
+//! "blocked" for the sender's devices. Switching requests of strangers off removes the open ones
+//! on every own device, whether the switch was flipped here or arrived through the sync
+//! ([`follow_switch`]).
+
+use std::sync::Arc;
 
 use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
 use serde::Deserialize;
+use tokio::sync::broadcast::{self, error::RecvError};
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use super::{envelope, gate, store};
+use super::{envelope, gate, settings, store};
 use crate::contacts::card::received;
 use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
+use crate::vault_gate::VaultDb;
 
 /// What the user does with a request (contracts/ipc.md `chat_request_answer`); accepting runs
 /// through the address book.
@@ -59,6 +66,63 @@ pub fn answer(
     store::delete(tx, thread_id)?;
     gate::write_notice(tx, &peer, envelope::Answer::Blocked, now)?;
     Ok(())
+}
+
+/// While requests of strangers are off (spec 099 FR-012), removes every request on this device,
+/// without notice and without block. Answers how many went.
+pub fn remove_when_off(tx: &mut CrdtTransaction<'_>) -> Result<usize> {
+    if settings::allow_strangers(tx)? {
+        return Ok(0);
+    }
+    let ids: Vec<String> = tx.query_map(
+        "SELECT id FROM chat_threads WHERE kind = 'direct' AND state = 'request'",
+        params![],
+        |row| row.get(0),
+    )?;
+    let mut removed = 0;
+    for id in ids {
+        let Ok(id) = Uuid::parse_str(&id) else {
+            continue;
+        };
+        if store::delete(tx, id)? {
+            removed += 1;
+        }
+    }
+    Ok(removed)
+}
+
+/// Runs [`remove_when_off`] now and after every change of the preferences, local or received
+/// through the sync, until `token` is cancelled: the switch acts the same wherever it was flipped.
+pub(crate) async fn follow_switch(
+    db: VaultDb,
+    mut changes: broadcast::Receiver<Arc<Vec<String>>>,
+    token: CancellationToken,
+) {
+    loop {
+        let removed = match db.read(|r| Ok(settings::allow_strangers(r)?)).await {
+            Ok(true) => Ok(0),
+            Ok(false) => db.write(|tx| Ok(remove_when_off(tx)?)).await,
+            Err(error) => Err(error),
+        };
+        match removed {
+            Ok(0) => {}
+            Ok(removed) => log::info!("chat: requests are off, removed {removed}"),
+            Err(error) => log::warn!("chat: removing the requests failed: {error}"),
+        }
+        loop {
+            let received = tokio::select! {
+                () = token.cancelled() => return,
+                received = changes.recv() => received,
+            };
+            match received {
+                Ok(tables) if tables.iter().any(|table| table == "preferences") => break,
+                Ok(_) => {}
+                // Fell behind: the preferences may have changed.
+                Err(RecvError::Lagged(_)) => break,
+                Err(RecvError::Closed) => return,
+            }
+        }
+    }
 }
 
 #[cfg(test)]

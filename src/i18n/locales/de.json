@@ -1614,6 +1614,10 @@
         "files": "Dateien",
         "messages": "Nachrichten"
       },
+      "allowStrangers": {
+        "label": "Anfragen von Fremden zulassen",
+        "hint": "Wer nicht in deinen Kontakten ist, kann dir eine Anfrage schicken. Ist das aus, kommt von Fremden nichts an, und offene Anfragen werden entfernt, ohne dass der Absender davon erfährt."
+      },
       "readReceipts": {
         "label": "Lesebestätigungen",
         "hint": "Kontakte sehen, dass du ihre Nachricht gelesen hast. Ist das aus, sendest du keine und siehst bei niemandem „gelesen“."

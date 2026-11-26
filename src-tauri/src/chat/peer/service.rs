@@ -46,6 +46,14 @@ pub fn start_for_active_instance<R: Runtime>(app: &AppHandle<R>, state: &AppStat
         }
     };
     let token = state.gate().token();
+    // Spec 099 FR-012: requests of strangers switched off, here or on another own device.
+    if let Err(error) = state.gate().spawn(super::requests::follow_switch(
+        db.clone(),
+        state.vault_changes().subscribe(),
+        token.clone(),
+    )) {
+        log::warn!("chat: switching requests off will not remove them: {error}");
+    }
     let app = app.clone();
     let started = state.gate().spawn(async move {
         let found = db

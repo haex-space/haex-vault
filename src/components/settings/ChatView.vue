@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * The settings category "Chat" (spec 072 FR-080): the files (Blossom-Server, automatic download
- * limit, the Blossom upload key) and the messages (read receipts, notifications).
+ * limit, the Blossom upload key) and the messages (requests of strangers, spec 099 FR-012; read
+ * receipts, notifications).
  */
 const { t } = useI18n()
 </script>
@@ -14,6 +15,13 @@ const { t } = useI18n()
       <SettingsChatAutoDownloadSetting />
     </SettingsGroup>
     <SettingsGroup :label="t('settings.chat.groups.messages')">
+      <SettingsChatFlagSetting
+        pref-key="chat.requests.allowStrangers"
+        scope="vault"
+        :title="t('settings.chat.allowStrangers.label')"
+        :description="t('settings.chat.allowStrangers.hint')"
+        test-id="settings-chat-allow-strangers"
+      />
       <SettingsChatFlagSetting
         pref-key="chat.receipts.read"
         scope="vault"

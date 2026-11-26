@@ -1,13 +1,18 @@
-//! Requests of strangers (spec 099 US1, US2, quickstart Q1–Q3): Ben has Anna's card, Anna has not
+//! Requests of strangers (spec 099 US1–US3, quickstart Q1–Q4): Ben has Anna's card, Anna has not
 //! Ben's. Ben's messages, also one with a file, leave one request in Anna's "Anfragen" with the name
-//! of the card they carried, one notification and nothing else, and Ben gets no receipt. Accepting (reading the card in) sends Ben the
-//! answer "accepted", and his waiting messages arrive. Declining blocks Ben with his card and sends
-//! him "blocked": his messages fail with that reason, a new one waits, and nothing reaches Anna. A
-//! deleted contact's next message is a request again.
+//! of the card they carried, one notification and nothing else, and Ben gets no receipt. Accepting
+//! (reading the card in) sends Ben the answer "accepted", and his waiting messages arrive.
+//! Declining blocks Ben with his card and sends him "blocked": his messages fail with that reason, a
+//! new one waits, and nothing reaches Anna. A deleted contact's next message is a request again.
+//! With requests of strangers off, nothing of a stranger stays, and switching them off removes the
+//! open ones on every own device.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use haex_crdt::rusqlite::params;
+use tokio::sync::broadcast;
+use tokio_util::sync::CancellationToken;
 
 use crate::chat::peer::delivery::now_ms;
 use crate::chat::peer::envelope;
@@ -15,6 +20,7 @@ use crate::chat::peer::files::test_server::BlossomTestServer;
 use crate::chat::peer::files::transfers::Picked;
 use crate::chat::peer::messages::{self, DeliveryState};
 use crate::chat::peer::requests::{self, Answer};
+use crate::chat::peer::settings;
 use crate::chat::peer::store::{self, Conversation, ConversationState, ListFilter};
 use crate::chat::peer::test_support::{mock_relay, ChatDevice};
 use crate::contacts::card::{format, received};
@@ -332,4 +338,168 @@ async fn a_deleted_contact_keeps_the_conversation_and_its_next_message_is_a_requ
         "the history is kept, the knock adds nothing"
     );
     assert_eq!(found[0].text.as_deref(), Some("als Kontakt"));
+}
+
+fn count(device: &ChatDevice, sql: &'static str, value: String) -> i64 {
+    device
+        .db
+        .read_blocking(move |r| {
+            Ok(r.query_row(sql, params![value], |row| row.get(0))?
+                .unwrap_or(0))
+        })
+        .expect("count")
+}
+
+/// `peer` knocks on `device` as if its message had arrived: a request with its card.
+fn knock(device: &ChatDevice, peer: &ChatDevice) {
+    let (own, vault, card) = (
+        device.me.vault_hex.clone(),
+        peer.me.vault_hex.clone(),
+        peer.card(),
+    );
+    device
+        .db
+        .write_blocking(move |tx| {
+            let now = now_ms();
+            let thread = store::open_direct(tx, &own, &vault, now)?;
+            store::mark_request(tx, thread, &vault, &card, now)?;
+            Ok(())
+        })
+        .expect("knock");
+}
+
+fn switch_off(device: &ChatDevice) {
+    device
+        .db
+        .write_blocking(|tx| Ok(settings::set_allow_strangers(tx, false)?))
+        .expect("switch off");
+}
+
+/// Quickstart Q4: with requests of strangers off, Ben's message leaves no conversation, no
+/// session, no notice and no notification; Clara, a contact, still reaches Anna.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn with_requests_off_a_stranger_leaves_nothing_and_a_contact_still_arrives() {
+    let (_relay, url) = mock_relay().await;
+    let anna = ChatDevice::genesis(std::slice::from_ref(&url));
+    let ben = ChatDevice::genesis(std::slice::from_ref(&url));
+    let clara = ChatDevice::genesis(&[url]);
+    ben.learn(&anna).await;
+    clara.learn(&anna).await;
+    anna.learn(&clara).await;
+    switch_off(&anna);
+    anna.start().await;
+    ben.start().await;
+    clara.start().await;
+
+    ben.send(&anna, "Hallo, wir kennen uns vom Markt");
+    clara.send(&anna, "Hallo Anna");
+    anna.wait_for(&clara, "Clara's message", |m| !m.is_empty())
+        .await;
+    eventually("Ben's message taken by the Nostr-Relay", || {
+        ben.messages_with(&anna)
+            .iter()
+            .all(|m| m.delivery == Some(DeliveryState::Sent))
+    })
+    .await;
+    tokio::time::sleep(Duration::from_secs(3)).await;
+
+    assert!(list(&anna, true).is_empty(), "no request");
+    let ben_vault = ben.me.vault_hex.clone();
+    assert_eq!(
+        count(
+            &anna,
+            "SELECT COUNT(*) FROM chat_threads WHERE peer_vault = ?1",
+            ben_vault.clone()
+        ),
+        0,
+        "no conversation"
+    );
+    assert_eq!(
+        count(
+            &anna,
+            "SELECT COUNT(*) FROM chat_ratchet_sessions_no_sync WHERE peer_device = ?1",
+            ben.me.device_hex()
+        ),
+        0,
+        "no session (research R3)"
+    );
+    assert_eq!(
+        count(
+            &anna,
+            "SELECT COUNT(*) FROM chat_gate_notices_no_sync WHERE peer_vault = ?1",
+            ben_vault
+        ),
+        0,
+        "no notice"
+    );
+    assert_eq!(
+        count(
+            &anna,
+            "SELECT COUNT(*) FROM chat_outbox_no_sync WHERE thread_id = ?1",
+            anna.thread_with(&ben).to_string()
+        ),
+        0,
+        "nothing goes to Ben"
+    );
+    let arrived = anna.arrived();
+    assert!(
+        arrived
+            .iter()
+            .all(|one| !one.knock && one.peer == clara.me.vault_hex),
+        "only Clara's message notifies: {arrived:?}"
+    );
+    assert_eq!(rows_from(&anna, &ben), (0, 0));
+}
+
+/// Quickstart Q4: switching requests off removes the open ones without block or notice, on this
+/// device and on the other own device once the switch arrives through the sync, also a request
+/// that only the other device had.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn switching_requests_off_removes_them_here_and_where_the_switch_arrives() {
+    let anna = ChatDevice::genesis(&[]);
+    let phone = anna.link();
+    let (ben, dave) = (ChatDevice::genesis(&[]), ChatDevice::genesis(&[]));
+    knock(&anna, &ben);
+    knock(&phone, &dave);
+    let (changes, received) = broadcast::channel(16);
+    let token = CancellationToken::new();
+    tokio::spawn(requests::follow_switch(
+        phone.db.clone(),
+        received,
+        token.clone(),
+    ));
+
+    switch_off(&anna);
+    let removed = anna
+        .db
+        .write_blocking(|tx| Ok(requests::remove_when_off(tx)?))
+        .expect("remove");
+    assert_eq!(removed, 1);
+    assert!(list(&anna, true).is_empty());
+    let vault = ben.member.vault;
+    let blocked = anna
+        .db
+        .read_blocking(move |r| Ok(received::is_blocked(r, &vault)?))
+        .expect("blocked");
+    assert!(!blocked, "no block");
+    assert_eq!(
+        count(
+            &anna,
+            "SELECT COUNT(*) FROM chat_gate_notices_no_sync WHERE peer_vault = ?1",
+            ben.me.vault_hex.clone()
+        ),
+        0,
+        "no notice"
+    );
+    assert_eq!(list(&phone, true).len(), 1, "Dave's request is only here");
+
+    phone.member.device.pull_from(&anna.member.device);
+    changes
+        .send(Arc::new(vec!["preferences".to_owned()]))
+        .expect("a listener");
+    eventually("the phone's requests removed", || {
+        list(&phone, true).is_empty()
+    })
+    .await;
+    token.cancel();
 }

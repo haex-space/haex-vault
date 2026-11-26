@@ -7,12 +7,14 @@
 //! Any failure drops the rumor without a receipt; the reason is logged without content. Rumors from
 //! the own vault come from the own other devices: their sealing device must be on the own current
 //! device list. A message of a vault that is no contact (no stored card) passes and becomes a
-//! request (US5); a receipt of such a vault is dropped.
+//! request (US5), unless requests of strangers are switched off (spec 099 FR-012); a receipt of such
+//! a vault is dropped.
 
 use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
 
 use super::envelope::{Envelope, Receipt, To, CHAT_KIND, MAX_ATTACHMENTS, RECEIPT_KIND, VERSION};
+use super::settings;
 use super::wrap::Opened;
 use crate::contacts::card::format::{self, SignedCard};
 use crate::contacts::card::{own_card, received};
@@ -40,6 +42,9 @@ pub enum Drop {
     TooLarge,
     /// A chat event or receipt directly in a seal, outside a ratchet message (spec 095 FR-016).
     EarlierFormat,
+    /// A message of a vault that is no contact while requests of strangers are off (spec 099
+    /// FR-012).
+    Stranger,
 }
 
 impl Drop {
@@ -58,6 +63,7 @@ impl Drop {
             Self::TooManyAttachments => "tooManyAttachments",
             Self::TooLarge => "tooLarge",
             Self::EarlierFormat => "earlierFormat",
+            Self::Stranger => "stranger",
         }
     }
 }
@@ -241,6 +247,10 @@ fn check_peer(
     };
     if !for_us {
         return Ok(Err(Drop::NotForUs));
+    }
+    // Requests of strangers switched off: nothing of the message stays, its session included.
+    if stored.is_none() && !settings::allow_strangers(tx)? {
+        return Ok(Err(Drop::Stranger));
     }
     // A message of a vault without a stored card becomes a request (US5); its card stays on the
     // member row until the user accepts it.

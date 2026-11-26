@@ -4,7 +4,7 @@
  * entry per contact and group, exactly one "Agent" entry and one "Ich" entry for the notes, newest
  * activity first. The agent's sessions are not listed here; its header offers them ("Verlauf").
  * Requests (FR-002, FR-040) are not in the list either: an entry "Anfragen" with their count leads
- * to them, as a list of its own in the sidebar.
+ * to them, as a list of its own in the sidebar; with requests of strangers off (spec 099) it is gone.
  * Where the sidebar sits and how wide it is, the frame (`SidebarLayout.vue`) decides; it fills what
  * it is given, and the buttons that hide it and start a new conversation are in the window's
  * header. Spec 076: it has the title "Chats" and a search field (US2) that narrows the list by name at once
@@ -52,10 +52,30 @@ const search = useChatSearch((cause) =>
 
 const latestSession = computed(() => props.threads[0] ?? null)
 
+// Spec 099 FR-012: with requests of strangers off there is no requests area, also in the moment
+// before the backend removed the open ones.
+const { getPrefAsync } = usePreferences()
+const allowStrangers = ref(true)
+async function loadAllowStrangersAsync() {
+  try {
+    allowStrangers.value =
+      (await getPrefAsync(
+        { kind: 'vault' },
+        'chat.requests.allowStrangers',
+      )) !== 'false'
+  } catch {
+    allowStrangers.value = true
+  }
+}
+onMounted(loadAllowStrangersAsync)
+onVaultTablesChanged(['preferences'], loadAllowStrangersAsync)
+
 const requests = computed(() =>
-  props.peers
-    .filter((peer) => peer.state === 'request')
-    .sort((a, b) => b.lastAt - a.lastAt),
+  allowStrangers.value
+    ? props.peers
+        .filter((peer) => peer.state === 'request')
+        .sort((a, b) => b.lastAt - a.lastAt)
+    : [],
 )
 const showingRequests = ref(false)
 watch(

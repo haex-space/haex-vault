@@ -1614,6 +1614,10 @@
         "files": "Files",
         "messages": "Messages"
       },
+      "allowStrangers": {
+        "label": "Allow requests from strangers",
+        "hint": "Anyone not in your contacts can send you a request. When off, nothing from strangers arrives, and open requests are removed without telling the sender."
+      },
       "readReceipts": {
         "label": "Read receipts",
         "hint": "Contacts see that you read their message. When off, you send none and see “read” for nobody."
