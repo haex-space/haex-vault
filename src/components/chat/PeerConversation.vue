@@ -7,6 +7,8 @@
  * the message appears at once as _waiting_ and moves on as the delivery goes. A request (US5) shows
  * its answers in place of the composer: nothing is sent to its sender before it is accepted.
  * The header names the conversation's protection state and explains it on demand (spec 095 US4).
+ * "Sperren" blocks the contact (spec 099 FR-014); a conversation of a blocked vault offers
+ * "Entsperren" in place of the composer (FR-015).
  */
 import { toast } from 'vue-sonner'
 import type { ChatPeerAttachment } from '@bindings/ChatPeerAttachment'
@@ -53,6 +55,8 @@ const viewing = ref<ChatPeerAttachment | null>(null)
 const fileActions = useChatFileActions()
 const { sizeAsync } = useConversationCommands()
 const confirmDelete = ref(false)
+const confirmBlock = ref(false)
+const { blockContactAsync, unblockAsync } = useContactCards()
 /** The explanation of the protection state is open (spec 095 US4). */
 const showProtection = ref(false)
 const sending = ref(false)
@@ -202,6 +206,27 @@ async function resendMessage(messageId: string) {
   if (error !== null) toast.error(error)
 }
 
+async function blockContact() {
+  const contactId = props.conversation?.peerContactId
+  confirmBlock.value = false
+  if (!contactId) return
+  try {
+    await blockContactAsync(contactId)
+  } catch (cause) {
+    toast.error(errString(cause))
+  }
+}
+
+async function unblock() {
+  const vault = props.conversation?.peerVault
+  if (!vault) return
+  try {
+    await unblockAsync(vault)
+  } catch (cause) {
+    toast.error(errString(cause))
+  }
+}
+
 function deleteConversation() {
   const id = props.conversation?.id
   confirmDelete.value = false
@@ -217,6 +242,7 @@ watch(
     viewing.value = null
     idempotencyKey = crypto.randomUUID()
     confirmDelete.value = false
+    confirmBlock.value = false
     showProtection.value = false
   },
 )
@@ -267,6 +293,17 @@ watch(
             :name="conversation.muted ? 'lucide:bell' : 'lucide:bell-off'"
             class="size-4"
         /></UiButtonIcon>
+        <UiButtonIcon
+          v-if="
+            conversation.peerContactId &&
+            conversation.state !== 'request' &&
+            !conversation.peerBlocked
+          "
+          :label="t('chat.peer.block')"
+          data-testid="chat-peer-block"
+          @click="confirmBlock = true"
+          ><Icon name="lucide:ban" class="size-4"
+        /></UiButtonIcon>
         <UiButtonDelete
           :label="t('chat.peer.delete')"
           data-testid="chat-peer-delete"
@@ -311,6 +348,23 @@ watch(
           @accept="emit('answer', conversation.id, 'accept')"
           @decline="emit('answer', conversation.id, 'decline')"
         />
+      </div>
+      <div
+        v-else-if="conversation.peerBlocked"
+        class="flex flex-wrap items-center gap-3 border-t border-border px-4 py-3 md:px-8"
+        data-testid="chat-peer-blocked"
+      >
+        <p class="flex-1 text-sm text-muted-foreground">
+          {{ t('chat.peer.blocked', { name: conversation.displayName }) }}
+        </p>
+        <UiButton
+          size="sm"
+          variant="outline"
+          data-testid="chat-peer-unblock"
+          @click="unblock"
+        >
+          {{ t('chat.peer.unblock') }}
+        </UiButton>
       </div>
       <ChatComposerShell
         v-else
@@ -429,6 +483,37 @@ watch(
             @click="deleteConversation"
           >
             {{ t('chat.peer.deleteButton') }}
+          </UiButton>
+        </div>
+      </template>
+    </UiDrawerModal>
+    <UiDrawerModal
+      v-if="conversation && confirmBlock"
+      :open="confirmBlock"
+      :title="t('chat.peer.blockTitle', { name: conversation.displayName })"
+      @update:open="confirmBlock = $event"
+    >
+      <template #content>
+        <p class="px-6 py-2 text-sm">
+          {{ t('chat.peer.blockConfirm', { name: conversation.displayName }) }}
+        </p>
+      </template>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <UiButton
+            type="button"
+            variant="outline"
+            @click="confirmBlock = false"
+          >
+            {{ t('chat.cancel') }}
+          </UiButton>
+          <UiButton
+            type="button"
+            variant="destructive"
+            data-testid="chat-peer-block-confirm"
+            @click="blockContact"
+          >
+            {{ t('chat.peer.block') }}
           </UiButton>
         </div>
       </template>

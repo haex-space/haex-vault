@@ -514,7 +514,12 @@
         "hide": "Erklärung schließen"
       },
       "notYetAccepted": "Noch nicht zugestellt. {name} ist offline oder hat dich noch nicht angenommen.",
-      "blockedByPeer": "{name} nimmt keine Nachrichten von dir an. Was du schreibst, wird gesendet, sobald {name} dich annimmt."
+      "blockedByPeer": "{name} nimmt keine Nachrichten von dir an. Was du schreibst, wird gesendet, sobald {name} dich annimmt.",
+      "block": "Sperren",
+      "blockTitle": "{name} sperren?",
+      "blockConfirm": "{name} wird gesperrt und erfährt, dass du keine Nachrichten annimmst. Weitere Nachrichten werden verworfen, und der Kontakt ist überall außer auf deinen Telefonen ausgeblendet. Entsperren kannst du in den Einstellungen der Kontakte.",
+      "blocked": "Du hast {name} gesperrt. Nachrichten von {name} werden verworfen.",
+      "unblock": "Entsperren"
     },
     "newContact": {
       "title": "Mit Kontakt schreiben",
@@ -1583,9 +1588,10 @@
         }
       },
       "blocked": {
-        "title": "Blockierte Vaults",
-        "since": "Blockiert seit {at}",
-        "unblock": "Freigeben"
+        "title": "Gesperrte Vaults",
+        "since": "Gesperrt seit {at}",
+        "unblock": "Entsperren",
+        "history": "Verlauf ansehen"
       }
     },
     "chat": {
@@ -2625,7 +2631,9 @@
       "search": "Kontakte suchen",
       "get": "Kontakt lesen",
       "update": "Kontakt ändern",
-      "share": "Kontakt als Link weitergeben"
+      "share": "Kontakt als Link weitergeben",
+      "blockContact": "Kontakt sperren",
+      "unblock": "Vault entsperren"
     },
     "memory": {
       "search": "Gedächtnis durchsuchen",
@@ -4616,6 +4624,12 @@
     "message": {
       "action": "Nachricht senden",
       "needsCard": "Um zu schreiben, muss der Kontakt erst seine Visitenkarte mit dir teilen."
+    },
+    "block": {
+      "action": "Sperren",
+      "title": "{name} sperren?",
+      "confirm": "{name} wird gesperrt und erfährt, dass du keine Nachrichten annimmst. Weitere Nachrichten werden verworfen, und der Kontakt ist überall außer auf deinen Telefonen ausgeblendet. Entsperren kannst du in den Einstellungen der Kontakte.",
+      "cancel": "Abbrechen"
     }
   },
   "mail": {

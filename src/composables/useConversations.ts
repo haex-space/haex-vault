@@ -21,7 +21,11 @@ export interface PeerConversationEntry extends ChatConversation {
 /** Thin `invoke` wrappers of the conversation commands (spec 072, contracts/ipc.md). */
 export function useConversationCommands() {
   return {
-    listAsync: (filter?: { kind?: ChatConversationKind; requests?: boolean }) =>
+    listAsync: (filter?: {
+      kind?: ChatConversationKind
+      requests?: boolean
+      blocked?: boolean
+    }) =>
       invoke<ChatConversation[]>('chat_conversations_list', {
         args: filter ?? null,
       }),
@@ -112,14 +116,16 @@ export function useConversations(errString: (error: unknown) => string) {
   const { t } = useI18n()
 
   const rows = ref<ChatConversation[]>([])
+  /** Conversations of blocked vaults: in no list, but opened from the settings (spec 099 FR-015). */
+  const blockedRows = ref<ChatConversation[]>([])
   const contacts = ref<ContactHeader[]>([])
   const error = ref<string | null>(null)
 
   const self = computed(() => contacts.value.find((c) => c.isSelf) ?? null)
 
-  const conversations = computed<PeerConversationEntry[]>(() => {
+  function entries(list: ChatConversation[]): PeerConversationEntry[] {
     const byId = new Map(contacts.value.map((c) => [c.id, c]))
-    return rows.value
+    return list
       .filter((row) => row.kind !== 'agent')
       .map((row) => {
         // The notes read "Notiz an mich selber" with the own contact's picture (FR-002b).
@@ -140,7 +146,10 @@ export function useConversations(errString: (error: unknown) => string) {
           photo: contact?.photo ?? null,
         }
       })
-  })
+  }
+
+  const conversations = computed(() => entries(rows.value))
+  const blockedConversations = computed(() => entries(blockedRows.value))
 
   /** The notes entry: the notes, or an entry without id before the first note (FR-002b). */
   const notes = computed<PeerConversationEntry>(
@@ -161,6 +170,7 @@ export function useConversations(errString: (error: unknown) => string) {
         peerAnswered: false,
         blockedByPeer: false,
         requestLastAt: null,
+        peerBlocked: false,
         displayName: t('chat.notes.title'),
         photo: self.value?.photo ?? null,
       },
@@ -169,17 +179,22 @@ export function useConversations(errString: (error: unknown) => string) {
   /** The open contact or group conversation (`/contact/<id>`), set by the chat's navigation. */
   const activePeerId = ref<string | null>(null)
   const active = computed(
-    () => conversations.value.find((c) => c.id === activePeerId.value) ?? null,
+    () =>
+      conversations.value.find((c) => c.id === activePeerId.value) ??
+      blockedConversations.value.find((c) => c.id === activePeerId.value) ??
+      null,
   )
 
   async function refresh() {
     try {
-      const [list, requests, people] = await Promise.all([
+      const [list, requests, blocked, people] = await Promise.all([
         commands.listAsync(),
         commands.listAsync({ requests: true }),
+        commands.listAsync({ blocked: true }),
         contactsAsync(),
       ])
       rows.value = [...list, ...requests]
+      blockedRows.value = blocked
       contacts.value = people
       error.value = null
     } catch (e: unknown) {

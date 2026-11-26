@@ -514,7 +514,12 @@
         "hide": "Close the explanation"
       },
       "notYetAccepted": "Not delivered yet. {name} is offline or has not accepted you yet.",
-      "blockedByPeer": "{name} does not take messages from you. What you write is sent once {name} accepts you."
+      "blockedByPeer": "{name} does not take messages from you. What you write is sent once {name} accepts you.",
+      "block": "Block",
+      "blockTitle": "Block {name}?",
+      "blockConfirm": "{name} will be blocked and learns that you take no messages. Further messages are dropped, and the contact is hidden everywhere except on your phones. You can unblock in the contacts settings.",
+      "blocked": "You blocked {name}. Messages from {name} are dropped.",
+      "unblock": "Unblock"
     },
     "newContact": {
       "title": "Write to a contact",
@@ -1585,7 +1590,8 @@
       "blocked": {
         "title": "Blocked vaults",
         "since": "Blocked since {at}",
-        "unblock": "Unblock"
+        "unblock": "Unblock",
+        "history": "View history"
       }
     },
     "chat": {
@@ -2625,7 +2631,9 @@
       "search": "Search contacts",
       "get": "Read a contact",
       "update": "Change a contact",
-      "share": "Share a contact as a link"
+      "share": "Share a contact as a link",
+      "blockContact": "Block contact",
+      "unblock": "Unblock vault"
     },
     "memory": {
       "search": "Search the memory",
@@ -4616,6 +4624,12 @@
     "message": {
       "action": "Send message",
       "needsCard": "To write, the contact first needs to share its business card with you."
+    },
+    "block": {
+      "action": "Block",
+      "title": "Block {name}?",
+      "confirm": "{name} will be blocked and learns that you take no messages. Further messages are dropped, and the contact is hidden everywhere except on your phones. You can unblock in the contacts settings.",
+      "cancel": "Cancel"
     }
   },
   "mail": {
