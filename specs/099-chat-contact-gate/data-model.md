@@ -62,11 +62,11 @@ of the peer vault so a delayed answer from another device cannot replace a later
 
 ## `haex_contacts_gate_decisions` (synchronized, new)
 
-| Column      | Type    | Meaning                                      |
-| ----------- | ------- | -------------------------------------------- |
-| `peer_vault`| TEXT PK | The peer vault whose gate decision changed   |
-| `answer`    | TEXT    | `'accepted'` or `'blocked'`                  |
-| `revision`  | TEXT    | The CRDT transaction HLC that ordered it     |
+| Column       | Type    | Meaning                                    |
+| ------------ | ------- | ------------------------------------------ |
+| `peer_vault` | TEXT PK | The peer vault whose gate decision changed |
+| `answer`     | TEXT    | `'accepted'` or `'blocked'`                |
+| `revision`   | TEXT    | The CRDT transaction HLC that ordered it   |
 
 ## `haex_contacts_blocked_vaults` (synchronized, changed; spec 051)
 
