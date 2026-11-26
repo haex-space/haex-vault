@@ -96,10 +96,10 @@ PARKED`, as `noDevices` does). While it is set, a new message to that vault is s
 - **Decision**: vault preference `chat.requests.allowStrangers`, default `true`, a switch of the chat
   settings like the read receipts (generic preferences command, `"true"` | `"false"` checked in
   `validate_value`). The setting and what follows from it stay apart (operator, 2026-11-26): the chat
-  session follows every change of the preferences, whether written on this device or received through
-  the sync, and while the switch is off removes every request present on that device (`store::delete`
-  per thread, without notice and without block; `requests::follow_switch`). It also runs once when the
-  session starts.
+  session follows changes to preferences and chat threads, whether written on this device or received
+  through the sync. While off it removes request-only threads and clears the request from earlier
+  conversations, preserving their history (R2). This happens without notice or block
+  (`requests::follow_switch`). It also runs once when the session starts.
 - **Rationale**: flipping the switch by hand and receiving it through the sync must act the same. Sync
   propagates deletions known to the writing device; each receiving device removes its own requests,
   including requests it had before the preference synced. Receiving reads the preference in the same

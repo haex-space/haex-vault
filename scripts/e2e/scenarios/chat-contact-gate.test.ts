@@ -4,6 +4,7 @@ import { scenario } from '../lib/scenario.ts'
 import { openChat, unwrap, type FlowInstance } from '../lib/flows.ts'
 import { acceptCard } from '../lib/peers.ts'
 import { ownCardText } from '../lib/share.ts'
+import { openSettings, waitForLocation } from '../lib/settings.ts'
 
 // Spec 099 (quickstart E1, task T025): only contacts may write. Ben and Clara have Anna's card,
 // Anna has neither of theirs. Ben's messages leave Anna one request and nothing of their text; Anna
@@ -190,16 +191,17 @@ scenario('chat-contact-gate', { timeoutMs: 420_000 }, async (ctx) => {
   )
   await openChat(anna)
   await anna.waitForDisplayed('chat-requests')
-  unwrap(
-    'set_pref',
-    await anna.invoke('set_pref', {
-      args: {
-        scope: { kind: 'vault' },
-        key: 'chat.requests.allowStrangers',
-        value: 'false',
-      },
-    }),
+  await openSettings(anna)
+  await anna.click('settings-category-chat')
+  await waitForLocation(anna, 'chat')
+  await anna.waitForDisplayed(
+    '[data-testid="settings-chat-allow-strangers"][data-state="checked"]',
   )
+  await anna.click('settings-chat-allow-strangers')
+  await anna.waitForDisplayed(
+    '[data-testid="settings-chat-allow-strangers"][data-state="unchecked"]',
+  )
+  await openChat(anna)
   await ctx.waitFor(
     'Dave’s request to go',
     async () =>

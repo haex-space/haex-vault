@@ -338,6 +338,18 @@ async fn a_deleted_contact_keeps_the_conversation_and_its_next_message_is_a_requ
         "the history is kept, the knock adds nothing"
     );
     assert_eq!(found[0].text.as_deref(), Some("als Kontakt"));
+
+    switch_off(&anna);
+    let removed = anna
+        .db
+        .write_blocking(|tx| Ok(requests::remove_when_off(tx)?))
+        .expect("clear the request");
+    assert_eq!(removed, 1);
+    assert!(list(&anna, true).is_empty());
+    assert_eq!(list(&anna, false).len(), 1, "the conversation stays");
+    let found = anna.messages_with(&ben);
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].text.as_deref(), Some("als Kontakt"));
 }
 
 fn count(device: &ChatDevice, sql: &'static str, value: String) -> i64 {
@@ -458,6 +470,7 @@ async fn with_requests_off_a_stranger_leaves_nothing_and_a_contact_still_arrives
 async fn switching_requests_off_removes_them_here_and_where_the_switch_arrives() {
     let anna = ChatDevice::genesis(&[]);
     let phone = anna.link();
+    let laptop = anna.link();
     let (ben, dave) = (ChatDevice::genesis(&[]), ChatDevice::genesis(&[]));
     knock(&anna, &ben);
     knock(&phone, &dave);
@@ -501,5 +514,14 @@ async fn switching_requests_off_removes_them_here_and_where_the_switch_arrives()
         list(&phone, true).is_empty()
     })
     .await;
+
+    let clara = ChatDevice::genesis(&[]);
+    knock(&laptop, &clara);
+    phone.member.device.pull_from(&laptop.member.device);
+    assert_eq!(list(&phone, true).len(), 1, "a request synced after off");
+    changes
+        .send(Arc::new(vec!["chat_threads".to_owned()]))
+        .expect("a listener");
+    eventually("the late request removed", || list(&phone, true).is_empty()).await;
     token.cancel();
 }
