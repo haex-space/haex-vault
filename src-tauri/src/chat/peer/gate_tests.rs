@@ -27,6 +27,11 @@ fn a_noted_answer_becomes_one_receipt_and_a_later_answer_replaces_it() {
     anna.db
         .write_blocking(|tx| {
             write_notice(tx, PEER, Answer::Accepted, 1)?;
+            tx.execute(
+                "INSERT INTO haex_contacts_blocked_vaults (vault_pubkey, blocked_at) \
+                 VALUES (?1, 'now')",
+                params![PEER],
+            )?;
             write_notice(tx, PEER, Answer::Blocked, 2)?;
             Ok(())
         })
@@ -100,6 +105,18 @@ fn a_newer_answer_replaces_an_older_one_no_nostr_relay_took_yet() {
         let me = anna.me.clone();
         anna.db
             .write_blocking(move |tx| {
+                if answer == Answer::Blocked {
+                    tx.execute(
+                        "INSERT INTO haex_contacts_blocked_vaults (vault_pubkey, blocked_at) \
+                         VALUES (?1, 'now')",
+                        params![PEER],
+                    )?;
+                } else {
+                    tx.execute(
+                        "DELETE FROM haex_contacts_blocked_vaults WHERE vault_pubkey = ?1",
+                        params![PEER],
+                    )?;
+                }
                 write_notice(tx, PEER, answer, at)?;
                 send_due_notices(tx, &me, at)?;
                 Ok(())
@@ -110,6 +127,58 @@ fn a_newer_answer_replaces_an_older_one_no_nostr_relay_took_yet() {
     assert_eq!(rows.len(), 1, "the older answer is gone: {rows:?}");
     assert_eq!(receipt_of(&rows[0]).answer, Some(Answer::Blocked));
     assert_eq!(receipt_of(&rows[0]).answer_sequence, Some(2));
+}
+
+#[test]
+fn a_synced_unblock_drops_a_queued_blocked_notice_and_a_stale_local_note() {
+    let anna = ChatDevice::genesis(&[]);
+    anna.db
+        .write_blocking(|tx| {
+            tx.execute(
+                "INSERT INTO haex_contacts_blocked_vaults (vault_pubkey, blocked_at) \
+                 VALUES (?1, 'now')",
+                params![PEER],
+            )?;
+            write_notice(tx, PEER, Answer::Blocked, 1)?;
+            Ok(())
+        })
+        .expect("block");
+    let me = anna.me.clone();
+    anna.db
+        .write_blocking(move |tx| Ok(send_due_notices(tx, &me, 2)?))
+        .expect("queue blocked notice");
+    assert_eq!(rows(&anna).len(), 1);
+
+    // A second own device unblocks the peer and syncs the block-list removal. The old notice and
+    // its outbox row are device-local, so the sender must reconcile them against this shared state.
+    anna.db
+        .write_blocking(|tx| {
+            tx.execute(
+                "DELETE FROM haex_contacts_blocked_vaults WHERE vault_pubkey = ?1",
+                params![PEER],
+            )?;
+            Ok(())
+        })
+        .expect("synced unblock");
+    anna.db
+        .write_blocking(|tx| {
+            drop_stale_notice_outbox(tx, i64::MAX)?;
+            Ok(())
+        })
+        .expect("discard stale outbox notice");
+    assert!(rows(&anna).is_empty(), "the old blocked answer is dropped");
+
+    anna.db
+        .write_blocking(|tx| {
+            write_notice(tx, PEER, Answer::Blocked, 3)?;
+            Ok(())
+        })
+        .expect("stale local note");
+    let me = anna.me.clone();
+    anna.db
+        .write_blocking(move |tx| Ok(send_due_notices(tx, &me, 4)?))
+        .expect("discard stale local note");
+    assert!(rows(&anna).is_empty(), "the stale local note is not sent");
 }
 
 #[tokio::test(flavor = "multi_thread")]

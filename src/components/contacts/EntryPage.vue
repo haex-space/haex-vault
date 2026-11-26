@@ -33,10 +33,12 @@ const blockOpen = ref(false)
 const { blockContactAsync } = useContactCards()
 async function blockContact() {
   if (!contact.value) return
+  const contactId = contact.value.id
+  const routeWhenStarted = router.route.path
   blockOpen.value = false
   try {
-    await blockContactAsync(contact.value.id)
-    await router.replace('/')
+    await blockContactAsync(contactId)
+    if (router.route.path === routeWhenStarted) await router.replace('/')
   } catch (cause) {
     toast.error(errString(cause))
   }
