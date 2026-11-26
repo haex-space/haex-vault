@@ -79,7 +79,7 @@ description: 'Task list for the chat contact gate (spec 099)'
 - [x] T014 [US1] Remove the request branch of `src-tauri/src/chat/peer/targets.rs` (receipts to the card a request carried, `targets.rs:76`) and the request case of `src-tauri/src/chat/peer/send.rs` `receipt`; no receipt goes to a request (FR-005)
 - [x] T015 [P] [US1] Requests view without messages: `src/components/chat/RequestBanner.vue` and `src/components/chat/PeerConversation.vue` show the card's name, the time of the latest knock and the answers, no message list, for `state === 'request'`; `src/components/chat/ThreadSidebar.vue` shows the latest knock time in the requests area
 - [x] T016 [P] [US1] Sender hint (FR-005a): in `src/components/chat/PeerConversation.vue`, when `!conversation.peerAnswered`, `!conversation.blockedByPeer` and an own message's `sentAt` is older than `HINT_AFTER_MS` and its `delivery` is neither `delivered` nor `read`, show `chat.peer.notYetAccepted` ("Noch nicht zugestellt. {name} ist offline oder hat dich noch nicht angenommen."); a one-minute timer re-evaluates; i18n de/en in `src/i18n/locales/{de,en}.json`; case in `scripts/check-chat-state.ts`
-- [ ] T017 [US1] Run `cargo test --lib chat::peer` and the frontend checks; fix findings
+- [x] T017 [US1] Run `cargo test --lib chat::peer` and the frontend checks; fix findings
 
 **Checkpoint**: strangers leave only requests. Requests can still only be answered with the old answers until US2.
 
@@ -104,7 +104,7 @@ description: 'Task list for the chat contact gate (spec 099)'
 - [x] T023 [P] [US2] `src/components/chat/RequestBanner.vue`: exactly "Annehmen" (060 preview as today) and "Ablehnen" with a confirmation that names the consequence (blocked, sender is told); remove "Blockieren"; the action catalog drops `chat.request.block` (`src/lib/actions/chatActions.ts`) and keeps `chat.request.decline`
 - [x] T024 [P] [US2] `src/components/chat/PeerConversation.vue`: with `blockedByPeer`, a notice "{name} nimmt keine Nachrichten von dir an."; messages with `FAIL_BLOCKED` show _not delivered_ with that reason (`src/components/chat/PeerMessageList.vue` reason text); input stays usable; i18n de/en
 - [x] T025 [P] [US2] E2E scenario `scripts/e2e/scenarios/chat-contact-gate.test.ts` (model `chat-two-vaults.test.ts`): knock → request without text → accept → messages arrive; second pair: decline → the sender shows the block (quickstart E1)
-- [ ] T026 [US2] Run `cargo test --lib chat::peer` and `cargo test --lib contacts::card` separately, the frontend checks and `check:e2e-exclusions`; fix findings
+- [x] T026 [US2] Run `cargo test --lib chat::peer` and `cargo test --lib contacts::card` separately, the frontend checks and `check:e2e-exclusions`; fix findings
 
 **Checkpoint**: MVP complete — the gate with both answers.
 
@@ -155,9 +155,16 @@ description: 'Task list for the chat contact gate (spec 099)'
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T043 [P] Amend spec 072 contracts: `specs/072-unified-chat/contracts/nostr-chat.md` (receipt `answer`, no receipt for a request) and `specs/072-unified-chat/contracts/ipc.md` (`chat_request_answer`, new commands), each pointing to spec 099
-- [ ] T044 [P] Terms "Anfrage", "gesperrt", "Fremde Vault" in `CONTEXT.md` if the chat terms of spec 095 live there
-- [ ] T045 Run the whole quickstart list Q1–Q8 and the e2e scenario through the dispatched E2E workflow; record results here, with the time from accept/decline to the sender's view (SC-002, SC-003, compared to 072 SC-002)
+- [x] T043 [P] Amend spec 072 contracts: `specs/072-unified-chat/contracts/nostr-chat.md` (receipt `answer`, no receipt for a request) and `specs/072-unified-chat/contracts/ipc.md` (`chat_request_answer`, new commands), each pointing to spec 099
+- [x] T044 [P] Terms "Anfrage", "gesperrt", "Fremde Vault" in `CONTEXT.md` if the chat terms of spec 095 live there
+- [x] T045 Run the whole quickstart list Q1–Q8 and the e2e scenario through the dispatched E2E workflow; record results here, with the time from accept/decline to the sender's view (SC-002, SC-003, compared to 072 SC-002)
+  - Results (2026-11-26, main `a3070cef9`): `cargo test --lib chat::peer` 278 passed (Q1–Q4 in
+    `requests_tests.rs`, Q7 in `gate_tests.rs`, Q8 in `own_devices_tests.rs`), `contacts::card` 28 passed,
+    `contacts::service` 42 passed (Q5 in `contacts_tests.rs`, Q6 in `cards_tests.rs`). E1 and E2
+    (`chat-contact-gate`, dispatched run 45902538708) passed on Linux and Android. From the answer to the
+    other side's view, including the scenario's polling: accept to the waiting messages on the
+    recipient 3.1 s (Linux) and 4.8 s (Android), decline to the block on the sender 72 ms and 26 ms;
+    both within 072 SC-002 (5 s).
 - [ ] T046 Hand checks H1–H2 of [quickstart.md](quickstart.md) (operator)
 
 ---

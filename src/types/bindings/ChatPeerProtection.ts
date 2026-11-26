@@ -4,11 +4,11 @@ import type { ChatPeerProtectionState } from "./ChatPeerProtectionState";
 /**
  * What the conversation view shows of a conversation's protection.
  */
-export type ChatPeerProtection = {
+export type ChatPeerProtection = { 
 /**
  * The weakest state over the conversation's devices.
  */
-state: ChatPeerProtectionState,
+state: ChatPeerProtectionState, 
 /**
  * The oldest renewal of the session used to send on, across devices; `None` without one.
  */
