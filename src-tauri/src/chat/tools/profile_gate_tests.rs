@@ -178,6 +178,18 @@ fn a_profile_that_gives_more_opens_exactly_that() {
     };
     assert!(permits(&rights, action("chat.send", "chat.write", "write").as_ref()).is_ok());
     assert!(permits(&rights, action("browser.open", "browser", "write").as_ref()).is_ok());
+    let without_passwords = Rights {
+        passwords: None,
+        ..rights.clone()
+    };
+    for id in ["browser.credentials.fill", "browser.entry.fill"] {
+        let fill = action(id, "browser", "write");
+        assert_eq!(
+            permits(&without_passwords, fill.as_ref()),
+            Err(Missing::Passwords)
+        );
+        assert!(permits(&rights, fill.as_ref()).is_ok());
+    }
     assert!(permits(
         &rights,
         action("passwords.items.search", "passwords.read", "read").as_ref()

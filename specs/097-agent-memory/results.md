@@ -58,6 +58,9 @@ add? The line (`chat::tools::tool_names`) names every tool a search can add that
 sides with the memory's tools in the first offer (`offer_with_block`). Reports: `runs/tools-offer-*` (without the line)
 and `runs/tools-names-*` (with it).
 
+The runner supplied the tool-name line without the app's extension overview. The reports measure the effect of the line
+with the runner's fixture tools and first offers.
+
 | Run                 | Without the line | With the line |
 | ------------------- | ---------------- | ------------- |
 | Everyday set (106)  | 102              | 102           |
