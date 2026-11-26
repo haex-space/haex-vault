@@ -50,14 +50,14 @@ const { t } = useI18n()
       /></UiButtonIcon>
       <template v-if="split">
         <UiButtonIcon
-          :label="t('files.actions.copyToOther')"
+          :label="`${t('files.actions.copyToOther')} (F5)`"
           :disabled="readOnlyTarget"
           data-testid="files-bar-copy-other"
           @click="emit('run', 'copyToOther')"
           ><Icon name="lucide:files" class="size-4"
         /></UiButtonIcon>
         <UiButtonIcon
-          :label="t('files.actions.moveToOther')"
+          :label="`${t('files.actions.moveToOther')} (F6)`"
           :disabled="readOnly || readOnlyTarget"
           data-testid="files-bar-move-other"
           @click="emit('run', 'moveToOther')"

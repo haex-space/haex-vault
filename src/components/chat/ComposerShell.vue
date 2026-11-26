@@ -119,6 +119,7 @@ function onEnter(event: KeyboardEvent) {
               v-else
               :label="t('chat.send')"
               size="icon-sm"
+              type="submit"
               :disabled="!input.trim() || sendDisabled"
               :data-testid="sendTestId"
               ><Icon name="lucide:arrow-up" class="size-4"
