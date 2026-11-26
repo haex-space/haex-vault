@@ -3,7 +3,9 @@
 
 use serde_json::json;
 
-use super::{catalog_request, parse_catalog_line, CatalogLine};
+use super::{catalog_request, initial_request_write_error, parse_catalog_line, CatalogLine};
+use crate::adapters::cli_delegate::abacus::CREDENTIAL_REFUSED;
+use crate::adapters::AdapterError;
 
 /// An answer in the shape `abacusai` 2.10.23 gave (research §12), shortened.
 fn answer(groups: serde_json::Value) -> String {
@@ -111,12 +113,25 @@ fn other_lines_and_answers_to_other_requests_are_skipped() {
     assert_eq!(parse_catalog_line(&other), CatalogLine::Other);
 }
 
+#[test]
+fn a_fatal_authentication_error_overrides_a_broken_initial_pipe_write() {
+    let error = initial_request_write_error(
+        br#"{"type":"fatal","reason":"not_authenticated"}"#,
+        "broken pipe",
+    );
+    match error {
+        AdapterError::Unavailable { reason } => assert_eq!(reason, CREDENTIAL_REFUSED),
+        other => panic!("{other:?}"),
+    }
+}
+
 #[cfg(unix)]
 mod program {
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
     use std::path::{Path, PathBuf};
     use std::sync::Arc;
+    use std::time::Duration;
 
     use tempfile::TempDir;
 
@@ -126,7 +141,7 @@ mod program {
     use crate::cli_tools::runtime::DelegateRuntime;
     use crate::passwords::test_support::open_test_vault;
     use crate::providers::delegate_credential::{self, KIND_DEVICE_CODE, VAULT_SCOPE};
-    use crate::vault_gate::{VaultDb, VaultGate};
+    use crate::vault_gate::{ChildRegistry, VaultDb, VaultGate};
 
     const CODE: &str = "placeholder-device-code-of-abacus-model-tests";
 
@@ -167,7 +182,8 @@ sleep 5"#,
         );
         let runtime = DelegateRuntime::for_stub("abacusai", program, dir.path());
 
-        let models = list_models(runtime, Some(&db))
+        let children = ChildRegistry::default();
+        let models = list_models(runtime, Some(&db), children.clone())
             .await
             .expect("the stub answers");
 
@@ -179,6 +195,7 @@ sleep 5"#,
         let env = fs::read_to_string(dir.path().join("env")).unwrap();
         assert!(env.contains(&format!("CODELLM_DEVICE_CODE={CODE}")));
         assert!(!env.contains("ABACUS_API_KEY"));
+        assert_eq!(children.live(), 0);
     }
 
     #[tokio::test]
@@ -192,7 +209,10 @@ exit 1"#,
         );
         let runtime = DelegateRuntime::for_stub("abacusai", program, dir.path());
 
-        match list_models(runtime, Some(&db)).await.unwrap_err() {
+        match list_models(runtime, Some(&db), ChildRegistry::default())
+            .await
+            .unwrap_err()
+        {
             AdapterError::Unavailable { reason } => assert_eq!(reason, CREDENTIAL_REFUSED),
             other => panic!("{other:?}"),
         }
@@ -204,9 +224,41 @@ exit 1"#,
         let runtime =
             DelegateRuntime::for_stub("abacusai", dir.path().join("does-not-exist"), dir.path());
 
-        match list_models(runtime, None).await.unwrap_err() {
+        match list_models(runtime, None, ChildRegistry::default())
+            .await
+            .unwrap_err()
+        {
             AdapterError::Unavailable { reason } => assert_eq!(reason, NOT_CONNECTED),
             other => panic!("{other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn a_forced_vault_close_kills_the_catalog_child() {
+        let (_vault, db) = vault().await;
+        let dir = TempDir::new().unwrap();
+        let program = stub(
+            dir.path(),
+            r#"sleep 5; echo '{"type":"control_response","response":{"subtype":"success","request_id":"haex-model-catalog","response":{"groups":[{"id":"abacus","models":[{"id":"ROUTE_LLM","origin":"abacus"}]}]}}}'"#,
+        );
+        let runtime = DelegateRuntime::for_stub("abacusai", program, dir.path());
+        let children = ChildRegistry::default();
+        let registry = children.clone();
+        let refresh = tokio::spawn(async move { list_models(runtime, Some(&db), registry).await });
+
+        for _ in 0..100 {
+            if children.live() == 1 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert_eq!(
+            children.live(),
+            1,
+            "catalog child is registered with the vault"
+        );
+        children.kill_all();
+        assert!(refresh.await.unwrap().is_err());
+        assert_eq!(children.live(), 0, "the killed child unregisters");
     }
 }

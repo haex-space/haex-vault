@@ -207,6 +207,8 @@ pub struct CliDelegateAdapter {
     /// The open vault for a model refresh, which has no chat context: Abacus' credential is an
     /// entry of its password manager (spec 096).
     database: Option<VaultDb>,
+    /// The open vault's child registry for a model refresh without chat context.
+    children: Option<ChildRegistry>,
 }
 
 impl CliDelegateAdapter {
@@ -224,6 +226,7 @@ impl CliDelegateAdapter {
             chat_context,
             provider_id: None,
             database: None,
+            children: None,
         }
     }
 
@@ -236,6 +239,12 @@ impl CliDelegateAdapter {
     /// The adapter with the open vault `database`, for a refresh without a chat context.
     pub fn with_database(mut self, database: Option<VaultDb>) -> Self {
         self.database = database;
+        self
+    }
+
+    /// The open vault's child registry, so a forced close ends a model-list process too.
+    pub fn with_optional_child_registry(mut self, children: Option<ChildRegistry>) -> Self {
+        self.children = children;
         self
     }
 }
@@ -326,7 +335,13 @@ impl ProviderAdapter for CliDelegateAdapter {
                     .as_ref()
                     .and_then(|context| context.database.as_ref())
                     .or(self.database.as_ref());
-                abacus_models::list_models(runtime, database).await
+                let children = self
+                    .chat_context
+                    .as_ref()
+                    .map(|context| context.children.clone())
+                    .or_else(|| self.children.clone())
+                    .unwrap_or_default();
+                abacus_models::list_models(runtime, database, children).await
             }
         }
     }

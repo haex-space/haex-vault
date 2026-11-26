@@ -40,7 +40,7 @@ use crate::state::AppState;
 use crate::state_utils::active_database;
 use crate::storage::models::{self as models_store, IntegrityStatus, ModelRow, SourceKind};
 use crate::storage::providers::{self as storage, Provider, ProviderKind};
-use crate::vault_gate::VaultDb;
+use crate::vault_gate::{ChildRegistry, VaultDb};
 
 pub use add::{AddProviderArgs, AddProviderResult};
 
@@ -54,7 +54,7 @@ pub async fn add_provider(
 ) -> Result<AddProviderResult> {
     let db = active_database(&state)?;
     let tools = crate::cli_tools::tools_of_open_vault(&app, &state).ok();
-    add::add_with(&db, args, now_ms(), tools).await
+    add::add_with(&db, args, now_ms(), tools, state.gate().children()).await
 }
 
 #[derive(Debug, Serialize)]
@@ -128,9 +128,10 @@ pub async fn refresh_provider_models(
         })?;
 
     let tools = crate::cli_tools::tools_of_open_vault(&app, &state).ok();
+    let children = state.gate().children();
     let model_count = state
         .gate()
-        .run(do_refresh_with(&db, &provider, tools))
+        .run(do_refresh_with(&db, &provider, tools, children))
         .await??;
 
     Ok(RefreshProviderModelsResult {
@@ -190,7 +191,7 @@ async fn do_refresh(db: &VaultDb, provider: &Provider) -> Result<usize> {
         Ok(())
     })
     .await?;
-    do_refresh_with(db, provider, None).await
+    do_refresh_with(db, provider, None, ChildRegistry::default()).await
 }
 
 /// [`do_refresh`] with the tools of the open vault: a Codex account's models are asked of the
@@ -199,9 +200,11 @@ async fn do_refresh_with(
     db: &VaultDb,
     provider: &Provider,
     tools: Option<DelegateTools>,
+    children: ChildRegistry,
 ) -> Result<usize> {
     let provider = repair_legacy_adapter(db, provider).await?;
-    let adapter = build_adapter_with_tools(&provider, None, tools, Some(db.clone()))?;
+    let adapter =
+        build_adapter_with_tools(&provider, None, tools, Some(db.clone()), Some(children))?;
     let fetched = adapter.list_models().await.map_err(map_adapter_error)?;
 
     let fetched_at = now_ms();
@@ -277,7 +280,7 @@ pub(crate) fn build_adapter(
     provider: &Provider,
     delegate_chat_ctx: Option<DelegateChatContext>,
 ) -> Result<Box<dyn ProviderAdapter>> {
-    build_adapter_with_tools(provider, delegate_chat_ctx, None, None)
+    build_adapter_with_tools(provider, delegate_chat_ctx, None, None, None)
 }
 
 /// [`build_adapter`] for a refresh that has the tools and the database of the open vault but no
@@ -288,6 +291,7 @@ pub(crate) fn build_adapter_with_tools(
     delegate_chat_ctx: Option<DelegateChatContext>,
     tools: Option<DelegateTools>,
     database: Option<VaultDb>,
+    children: Option<ChildRegistry>,
 ) -> Result<Box<dyn ProviderAdapter>> {
     match provider.kind {
         ProviderKind::ApiKey => {
@@ -374,7 +378,8 @@ pub(crate) fn build_adapter_with_tools(
             Ok(Box::new(
                 CliDelegateAdapter::new(vendor, credentials, runtime, delegate_chat_ctx)
                     .for_provider(provider.id)
-                    .with_database(database),
+                    .with_database(database)
+                    .with_optional_child_registry(children),
             ))
         }
         ProviderKind::Local => Err(HaexError::InvalidInput {

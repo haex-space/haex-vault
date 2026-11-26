@@ -7,18 +7,22 @@ use super::{do_refresh_with, storage};
 use crate::cli_tools::runtime::DelegateTools;
 use crate::state::AppState;
 use crate::storage::providers::{ProviderCapability, ProviderKind};
-use crate::vault_gate::VaultDb;
+use crate::vault_gate::{ChildRegistry, VaultDb};
 
 /// Reads the models of every chat provider but the local ones, one after the other; returns how
 /// many providers answered.
 #[cfg(test)]
 pub(crate) async fn refresh_all(db: &VaultDb) -> usize {
-    refresh_all_with(db, None).await
+    refresh_all_with(db, None, ChildRegistry::default()).await
 }
 
 /// [`refresh_all`] with the tools of the open vault, so a Codex account's models can be asked of
 /// the installed program.
-pub(crate) async fn refresh_all_with(db: &VaultDb, tools: Option<DelegateTools>) -> usize {
+pub(crate) async fn refresh_all_with(
+    db: &VaultDb,
+    tools: Option<DelegateTools>,
+    children: ChildRegistry,
+) -> usize {
     let providers = match db.read(|r| storage::list_providers(r)).await {
         Ok(providers) => providers,
         Err(error) => {
@@ -32,7 +36,7 @@ pub(crate) async fn refresh_all_with(db: &VaultDb, tools: Option<DelegateTools>)
         .filter(|p| p.kind != ProviderKind::Local && p.capability == ProviderCapability::Chat)
     {
         // Never the error itself: a provider's answer can quote what was asked.
-        match do_refresh_with(db, &provider, tools.clone()).await {
+        match do_refresh_with(db, &provider, tools.clone(), children.clone()).await {
             Ok(_) => answered += 1,
             Err(_) => log::warn!(
                 "providers: the models of provider {} could not be refreshed",
@@ -49,8 +53,9 @@ pub fn start_after_open(app: &tauri::AppHandle, state: &AppState) {
         return;
     };
     let tools = crate::cli_tools::tools_of_open_vault(app, state).ok();
+    let children = state.gate().children();
     let started = state.gate().spawn(async move {
-        refresh_all_with(&db, tools).await;
+        refresh_all_with(&db, tools, children).await;
     });
     if let Err(error) = started {
         log::warn!("providers: the models could not be refreshed: {error}");
