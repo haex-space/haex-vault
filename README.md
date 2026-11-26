@@ -1,4 +1,4 @@
-<p align="center"><img src="branding/haex-vault-icon.png" alt="HaexVault app icon" width="112"></p>
+<p align="center"><img src="src-tauri/icons/source/haex-vault-icon.png" alt="HaexVault app icon" width="112"></p>
 
 <h1 align="center">HaexVault</h1>
 

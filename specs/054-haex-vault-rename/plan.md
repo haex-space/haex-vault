@@ -94,7 +94,7 @@ specs/054-haex-vault-rename/
 Betroffene Gebiete, in der Reihenfolge der Stufen:
 
 ```text
-branding/, public/                         # (Logo erledigt, #474)
+src-tauri/icons/source/, public/                         # (Logo erledigt, #474)
 src-tauri/
 ├── Cargo.toml, Cargo.lock                 # Crate, Lib, Bin, Plugin-Pfad, Repository-URL
 ├── tauri.conf.json                        # productName, identifier, Titel, CSP-Schema
