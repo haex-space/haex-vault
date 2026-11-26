@@ -12,6 +12,8 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use super::ids;
+use super::messages::{self, DeliveryState};
+use super::settings;
 use crate::contacts::card::format::{self, SignedCard};
 use crate::contacts::card::received;
 use crate::error::{HaexError, Result};
@@ -114,8 +116,13 @@ pub struct Conversation {
     /// Messages of others after `last_read_at` (FR-001, FR-022).
     #[ts(type = "number")]
     pub unread: i64,
-    /// The start of the last contact message, if any.
+    /// The start of the last contact message, if any, its lines run together so the list can show
+    /// two of them.
     pub last_text: Option<String>,
+    /// Direct and group: where the newest message stands when it is an own one, so the list shows
+    /// its delivery state as a messenger does; `None` for a message of someone else, the notes and
+    /// a conversation without messages. A group shows its least advanced recipient.
+    pub last_delivery: Option<DeliveryState>,
     /// Newest activity: the last message or the thread's own `updated_at`.
     #[ts(type = "number")]
     pub last_at: i64,
@@ -148,6 +155,9 @@ pub struct ListFilter {
 
 /// How long the preview of the last message may be, in characters.
 const PREVIEW_CHARS: usize = 120;
+
+/// How long the list's preview may be, in characters: room for two lines of the list.
+const LIST_PREVIEW_CHARS: usize = 160;
 
 struct Row0 {
     id: String,
@@ -185,6 +195,7 @@ pub fn list(q: &mut impl Query, own_vault: &str, filter: ListFilter) -> Result<V
     };
     let state_clause = if filter.blocked { "1" } else { state_clause };
     let kind = filter.kind.map(ConversationKind::as_str);
+    let show_read = settings::read_receipts(q)?;
     let sql = format!(
         "SELECT t.id, t.kind, t.state, t.title, t.peer_vault, t.muted, \
            (SELECT COUNT(*) FROM chat_peer_messages m \
@@ -207,7 +218,9 @@ pub fn list(q: &mut impl Query, own_vault: &str, filter: ListFilter) -> Result<V
          ORDER BY last_at DESC, t.id"
     );
     let rows = q.query_map(&sql, params![own_vault, kind], row0)?;
-    rows.into_iter().map(|row| resolve_peer(q, row)).collect()
+    rows.into_iter()
+        .map(|row| resolve_peer(q, row, own_vault, show_read))
+        .collect()
 }
 
 fn row0(row: &Row<'_>) -> haex_crdt::rusqlite::Result<Row0> {
@@ -222,7 +235,7 @@ fn row0(row: &Row<'_>) -> haex_crdt::rusqlite::Result<Row0> {
         peer_vault: row.get(4)?,
         muted: row.get::<_, i64>(5)? != 0,
         unread: row.get(6)?,
-        last_text: last_text.map(|text| preview(&text)),
+        last_text: last_text.map(|text| list_preview(&text)),
         last_at: row.get(8)?,
         peer_answered: row.get(9)?,
         blocked_by_peer: row.get(10)?,
@@ -231,7 +244,12 @@ fn row0(row: &Row<'_>) -> haex_crdt::rusqlite::Result<Row0> {
     })
 }
 
-fn resolve_peer(q: &mut impl Query, row: Row0) -> Result<Conversation> {
+fn resolve_peer(
+    q: &mut impl Query,
+    row: Row0,
+    own_vault: &str,
+    show_read: bool,
+) -> Result<Conversation> {
     let mut peer_contact_id = None;
     let mut peer_card_name = None;
     let mut peer_without_relays = false;
@@ -248,6 +266,11 @@ fn resolve_peer(q: &mut impl Query, row: Row0) -> Result<Conversation> {
             peer_card_name = request_card(q, id)?.map(|card| card.card.name);
         }
     }
+    let last_delivery = if row.kind == ConversationKind::Note || row.last_text.is_none() {
+        None
+    } else {
+        messages::last_delivery(q, own_vault, &row.id, show_read)?
+    };
     Ok(Conversation {
         id: row.id,
         kind: row.kind,
@@ -260,6 +283,7 @@ fn resolve_peer(q: &mut impl Query, row: Row0) -> Result<Conversation> {
         muted: row.muted,
         unread: row.unread,
         last_text: row.last_text,
+        last_delivery,
         last_at: row.last_at,
         peer_answered: row.peer_answered,
         blocked_by_peer: row.blocked_by_peer,
@@ -273,6 +297,16 @@ pub(crate) fn preview(text: &str) -> String {
     match line.char_indices().nth(PREVIEW_CHARS) {
         Some((cut, _)) => format!("{}…", &line[..cut]),
         None => line.to_owned(),
+    }
+}
+
+/// The start of a message for the list: its lines and blanks run together, cut after
+/// [`LIST_PREVIEW_CHARS`] characters.
+fn list_preview(text: &str) -> String {
+    let flat = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    match flat.char_indices().nth(LIST_PREVIEW_CHARS) {
+        Some((cut, _)) => format!("{}…", flat[..cut].trim_end()),
+        None => flat,
     }
 }
 

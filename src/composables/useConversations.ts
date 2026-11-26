@@ -166,6 +166,7 @@ export function useConversations(errString: (error: unknown) => string) {
         muted: false,
         unread: 0,
         lastText: null,
+        lastDelivery: null,
         lastAt: 0,
         peerAnswered: false,
         blockedByPeer: false,

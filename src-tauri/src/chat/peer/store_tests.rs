@@ -577,3 +577,51 @@ async fn a_request_of_a_blocked_vault_never_shows() {
         .expect("block");
     assert!(requests(&vault, &own).is_empty());
 }
+
+#[tokio::test]
+async fn the_list_shows_how_far_the_newest_own_message_got() {
+    let vault = card_vault();
+    let (own, ben, _) = with_ben(&vault).await;
+    let direct = open(&vault, &own, &ben, 1);
+    let delivery = |vault: &TestVault| {
+        list_all(vault, &own, ListFilter::default())
+            .into_iter()
+            .find(|c| c.id == direct.to_string())
+            .expect("listed")
+            .last_delivery
+    };
+    assert_eq!(delivery(&vault), None, "no message yet");
+
+    peer_message(&vault, direct, &own, "Hallo Ben", 5);
+    assert_eq!(
+        delivery(&vault),
+        Some(DeliveryState::Waiting),
+        "no delivery row yet"
+    );
+
+    let recipient = ben.clone();
+    vault
+        .db
+        .write_blocking(move |tx| {
+            tx.execute(
+                "INSERT INTO chat_deliveries (id, message_id, recipient_vault, sent_at) \
+                 SELECT ?1, id, ?2, 6 FROM chat_peer_messages WHERE thread_id = ?3",
+                params![Uuid::new_v4().to_string(), recipient, direct.to_string()],
+            )?;
+            Ok(())
+        })
+        .expect("delivery row");
+    assert_eq!(delivery(&vault), Some(DeliveryState::Sent));
+
+    vault
+        .db
+        .write_blocking(|tx| {
+            tx.execute("UPDATE chat_deliveries SET delivered_at = 7", params![])?;
+            Ok(())
+        })
+        .expect("delivered");
+    assert_eq!(delivery(&vault), Some(DeliveryState::Delivered));
+
+    peer_message(&vault, direct, &ben, "Hi", 8);
+    assert_eq!(delivery(&vault), None, "the newest message is Ben's");
+}

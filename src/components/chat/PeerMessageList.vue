@@ -9,7 +9,6 @@
  */
 import type { ChatPeerAttachment } from '@bindings/ChatPeerAttachment'
 import type { ChatPeerMessage } from '@bindings/ChatPeerMessage'
-import type { ChatDeliveryState } from '@bindings/ChatDeliveryState'
 import { textFile } from '~/lib/chat/longText'
 
 const props = defineProps<{
@@ -29,14 +28,6 @@ const emit = defineEmits<{
 }>()
 
 const { t, locale } = useI18n()
-
-const STATE_ICONS: Record<ChatDeliveryState, string> = {
-  waiting: 'lucide:clock',
-  sent: 'lucide:check',
-  delivered: 'lucide:check-check',
-  read: 'lucide:check-check',
-  failed: 'lucide:circle-alert',
-}
 
 const sorted = computed(() =>
   [...props.messages].sort((a, b) =>
@@ -115,13 +106,10 @@ function reason(code: string | null) {
           class="flex items-center justify-end gap-1 text-[0.7rem] opacity-70"
         >
           {{ time(message.sentAt) }}
-          <Icon
+          <ChatDeliveryMark
             v-if="message.own && message.delivery"
-            :name="STATE_ICONS[message.delivery]"
+            :state="message.delivery"
             class="h-3.5 w-3.5"
-            :class="message.delivery === 'read' ? 'text-primary' : ''"
-            :aria-label="t(`chat.delivery.state.${message.delivery}`)"
-            :title="t(`chat.delivery.state.${message.delivery}`)"
             data-testid="chat-peer-delivery"
           />
         </span>

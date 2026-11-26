@@ -110,6 +110,65 @@ impl Stamps {
     }
 }
 
+impl DeliveryState {
+    /// How far a message got, for the least advanced of several recipients: a failure is below
+    /// everything else.
+    fn progress(self) -> u8 {
+        match self {
+            Self::Failed => 0,
+            Self::Waiting => 1,
+            Self::Sent => 2,
+            Self::Delivered => 3,
+            Self::Read => 4,
+        }
+    }
+}
+
+/// Where the newest message of `thread_id` stands when `own` (hex) wrote it, for the list: the
+/// least advanced state over its recipients, `None` when someone else wrote it or there is none.
+pub(super) fn last_delivery(
+    q: &mut impl Query,
+    own: &str,
+    thread_id: &str,
+    show_read: bool,
+) -> Result<Option<DeliveryState>> {
+    let newest: Option<(String, String)> = q.query_row(
+        "SELECT m.id, m.sender_vault FROM chat_peer_messages m WHERE m.thread_id = ?1 \
+         ORDER BY m.sort_at DESC, m.id DESC LIMIT 1",
+        params![thread_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    let Some((message_id, sender)) = newest else {
+        return Ok(None);
+    };
+    if sender != own {
+        return Ok(None);
+    }
+    let states = q.query_map(
+        "SELECT d.sent_at IS NOT NULL, d.delivered_at IS NOT NULL, d.read_at IS NOT NULL, \
+           d.failed_at IS NOT NULL, d.failed_reason \
+         FROM chat_deliveries d WHERE d.message_id = ?1",
+        params![message_id],
+        |row| {
+            let reason: Option<String> = row.get(4)?;
+            Ok(Stamps {
+                sent: row.get(0)?,
+                delivered: row.get(1)?,
+                read: row.get(2)?,
+                failed: row.get(3)?,
+                blocked: reason.as_deref() == Some(FailReason::Blocked.code()),
+            }
+            .state(show_read))
+        },
+    )?;
+    Ok(Some(
+        states
+            .into_iter()
+            .min_by_key(|state| state.progress())
+            .unwrap_or(DeliveryState::Waiting),
+    ))
+}
+
 /// How many messages one page holds when the window names no limit.
 pub const PAGE: u32 = 200;
 

@@ -5,7 +5,6 @@
  * themselves are reached through the agent's header ("Verlauf").
  */
 import type { Thread } from '~/composables/useChat'
-import { listTime } from '~/lib/chat/listTime'
 
 const props = defineProps<{
   /** The most recently active session, if there is any. */
@@ -15,10 +14,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{ select: [] }>()
 
-const { t, d } = useI18n()
+const { t } = useI18n()
+const listTime = useListTime()
 
 const time = computed(() =>
-  props.latest ? listTime(props.latest.updatedAt, d) : '',
+  props.latest ? listTime(props.latest.updatedAt) : '',
 )
 </script>
 
@@ -26,27 +26,23 @@ const time = computed(() =>
   <button
     type="button"
     data-testid="chat-agent"
-    class="flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    :class="{ 'bg-accent font-medium': active }"
+    class="flex w-full min-w-0 items-center rounded-lg px-3 py-3 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    :class="{ 'bg-accent': active }"
     @click="emit('select')"
   >
-    <span
-      class="flex size-9 shrink-0 items-center justify-center rounded-full bg-foreground text-background"
-      aria-hidden="true"
+    <ChatListRowBody
+      :name="t('chat.agent.name')"
+      :preview="latest?.title ?? t('chat.agent.noSession')"
+      :time="time"
     >
-      <Icon name="lucide:bot" class="h-4 w-4" />
-    </span>
-    <span class="min-w-0 flex-1">
-      <span class="block truncate">{{ t('chat.agent.name') }}</span>
-      <span class="block truncate text-xs font-normal text-muted-foreground">
-        {{ latest?.title ?? t('chat.agent.noSession') }}
-      </span>
-    </span>
-    <span
-      v-if="time"
-      class="shrink-0 self-start pt-0.5 text-xs font-normal tabular-nums text-muted-foreground"
-    >
-      {{ time }}
-    </span>
+      <template #avatar>
+        <span
+          class="flex size-12 shrink-0 items-center justify-center rounded-full bg-foreground text-background"
+          aria-hidden="true"
+        >
+          <Icon name="lucide:bot" class="h-5 w-5" />
+        </span>
+      </template>
+    </ChatListRowBody>
   </button>
 </template>

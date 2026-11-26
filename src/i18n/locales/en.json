@@ -467,7 +467,12 @@
       "muted": "Muted",
       "unread": "{count} unread",
       "newConversation": "New conversation",
-      "requests": "Requests"
+      "requests": "Requests",
+      "time": {
+        "now": "Now",
+        "minutes": "{count} min",
+        "yesterday": "Yesterday"
+      }
     },
     "peer": {
       "unknownName": "Unknown",
