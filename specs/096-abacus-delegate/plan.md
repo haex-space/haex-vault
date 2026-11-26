@@ -111,7 +111,9 @@ ask` is active until an enforcement path is implemented and verified. Do not tre
   enforcement path is a settings file the adapter writes into the run folder and hands over with `--settings`, holding the
   ask rule `*`; with it every tool call, read-only ones included, reaches the bridge, also when a config in the vault home
   asks for `YOLO` and allows everything. The tool's own rule is what enforces it, as for the changing tools; an OS sandbox
-  stays a later spec.
+  stays a later spec. **2026-11-26 (research §15):** `Ungated` runs `--permission-mode unsupervised` without that file, as
+  the other delegates use their own full-autonomy mode; `init` reports `DEFAULT` and `YOLO`, not the flag names.
+  `GatedPermissive` stays unavailable.
 - **D7 - Models: RESOLVED.** The first delivery had one entry, the account's default model (no `--model`). A list from the
   account (`get_model_catalog` control request) was to be added only if it works without spending credits; research §14
   measured that it spends none, so the provider's models are the account's catalog as the program reports it, with their

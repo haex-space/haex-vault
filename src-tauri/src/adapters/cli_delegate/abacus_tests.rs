@@ -78,11 +78,11 @@ fn text_events_become_text_and_unknown_events_are_ignored() {
 #[test]
 fn the_init_message_reports_the_mode() {
     let line =
-        r#"{"type":"system","subtype":"init","permission_mode":"supervise","protocol_version":1}"#;
+        r#"{"type":"system","subtype":"init","permission_mode":"DEFAULT","protocol_version":1}"#;
     assert_eq!(
         parse_line(line),
         Line::Init {
-            permission_mode: Some("supervise".into())
+            permission_mode: Some("DEFAULT".into())
         }
     );
 }
@@ -400,8 +400,12 @@ async fn collect(
     (text, None, None)
 }
 
+/// What 2.10.23 reports in `init` when started with `--permission-mode supervise` (research §15).
 const INIT: &str =
-    r#"{"type":"system","subtype":"init","permission_mode":"supervise","protocol_version":1}"#;
+    r#"{"type":"system","subtype":"init","permission_mode":"DEFAULT","protocol_version":1}"#;
+/// What 2.10.23 reports in `init` when started with `--permission-mode unsupervised`.
+const INIT_UNSUPERVISED: &str =
+    r#"{"type":"system","subtype":"init","permission_mode":"YOLO","protocol_version":1}"#;
 const HELLO: &str = r#"{"type":"event","event":{"type":"text_delta","content":"Hel"}}
 {"type":"event","event":{"type":"text_delta","content":"lo"}}"#;
 const OK_RESULT: &str = r#"{"type":"result","subtype":"success","is_error":false,"result":"Hello","token_usage":{"inputTokens":3,"outputTokens":2},"errors":[]}"#;
@@ -684,42 +688,128 @@ async fn the_run_folder_is_removed_when_the_run_ends() {
 }
 
 #[tokio::test]
-async fn the_two_autonomy_modes_are_not_served_and_nothing_starts() {
+async fn gated_permissive_is_not_served_and_nothing_starts() {
     let fixture = Fixture::new().await;
     let program = fixture.stub(&happy_body());
     let adapter = fixture.adapter(&program, fixture.context());
-    for mode in [AutonomyMode::Ungated, AutonomyMode::GatedPermissive] {
-        let mut asked = request("abacusai");
-        asked.autonomy_mode = mode;
+    let mut asked = request("abacusai");
+    asked.autonomy_mode = AutonomyMode::GatedPermissive;
 
-        let error = adapter.stream_chat(asked).await.err().unwrap();
+    let error = adapter.stream_chat(asked).await.err().unwrap();
 
-        match error {
-            AdapterError::Unavailable { reason } => {
-                assert!(
-                    reason.starts_with("autonomy mode unavailable: vendor=abacusai"),
-                    "{reason}"
-                );
-            }
-            other => panic!("{other:?}"),
+    match error {
+        AdapterError::Unavailable { reason } => {
+            assert_eq!(
+                reason,
+                "autonomy mode unavailable: vendor=abacusai; mode=gated_permissive"
+            );
         }
+        other => panic!("{other:?}"),
     }
     assert!(!fixture.path("args").exists());
 }
 
+fn ungated(model_id: &str) -> ChatRequest {
+    let mut asked = request(model_id);
+    asked.autonomy_mode = AutonomyMode::Ungated;
+    asked
+}
+
+fn ungated_body() -> String {
+    format!("cat <<'EOF'\n{INIT_UNSUPERVISED}\n{HELLO}\n{OK_RESULT}\nEOF")
+}
+
 #[tokio::test]
-async fn an_init_in_another_mode_ends_the_run() {
+async fn ungated_runs_unsupervised_without_the_ask_rule() {
     let fixture = Fixture::new().await;
-    let program = fixture.stub(
-        "cat <<'EOF'\n{\"type\":\"system\",\"subtype\":\"init\",\"permission_mode\":\"unsupervised\"}\nEOF\nsleep 5",
-    );
+    let program = fixture.stub(&ungated_body());
     let adapter = fixture.adapter(&program, fixture.context());
 
     let (text, done, error) =
-        collect(adapter.stream_chat(request("abacusai")).await.unwrap()).await;
+        collect(adapter.stream_chat(ungated("abacusai")).await.unwrap()).await;
 
-    assert!(text.is_empty() && done.is_none());
-    assert!(matches!(error, Some(StreamError::Model(_))), "{error:?}");
+    assert_eq!(text, "Hello");
+    assert!(done.is_some() && error.is_none(), "{error:?}");
+    assert_eq!(
+        fixture.read("args").trim(),
+        "-p --input-format stream-json --output-format stream-json --include-partial-messages \
+         --permission-mode unsupervised --no-agents-md"
+    );
+    assert!(
+        fixture.read("settings").is_empty(),
+        "no settings file is handed over"
+    );
+    assert!(fixture
+        .read("env")
+        .contains(&format!("CODELLM_DEVICE_CODE={CODE}")));
+}
+
+#[tokio::test]
+async fn ungated_rejects_what_the_program_still_asks_without_the_bridge() {
+    let fixture = Fixture::new().await;
+    let answer = fixture.path("answer");
+    let program = fixture.stub(&approval_body(&answer, "ask_user_question").replacen(
+        INIT,
+        INIT_UNSUPERVISED,
+        1,
+    ));
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let adapter = fixture.adapter(
+        &program,
+        fixture.answering(ApprovalDecision::Allow, seen.clone()),
+    );
+
+    let (_, done, error) = collect(adapter.stream_chat(ungated("abacusai")).await.unwrap()).await;
+
+    assert!(done.is_some() && error.is_none(), "{error:?}");
+    let reply: Value = serde_json::from_str(fixture.read("answer").trim()).unwrap();
+    assert_eq!(reply["response"]["response"]["decision"], "reject");
+    assert!(seen.lock().unwrap().is_empty(), "the bridge was not asked");
+}
+
+#[tokio::test]
+async fn ungated_is_not_held_by_the_approval_gate() {
+    let fixture = Fixture::new().await;
+    let program = fixture.stub(&ungated_body());
+
+    let stream = spawn_abacus_invocation_with_coverage(
+        DelegateRuntime::for_stub("abacusai", &program, fixture.dir.path()),
+        ungated("abacusai"),
+        fixture.context(),
+        "abacusai".to_string(),
+        false,
+    )
+    .await
+    .unwrap();
+    let (text, done, _) = collect(stream).await;
+
+    assert_eq!(text, "Hello");
+    assert!(done.is_some());
+}
+
+#[tokio::test]
+async fn an_init_in_another_mode_ends_the_run() {
+    // Each served mode refuses the other's report; the flag names are not what `init` reports.
+    for (asked, reported) in [
+        (request("abacusai"), "YOLO"),
+        (request("abacusai"), "supervise"),
+        (ungated("abacusai"), "DEFAULT"),
+        (ungated("abacusai"), "unsupervised"),
+    ] {
+        let fixture = Fixture::new().await;
+        let program = fixture.stub(&format!(
+            "cat <<'EOF'\n{{\"type\":\"system\",\"subtype\":\"init\",\"permission_mode\":\"{reported}\"}}\nEOF\nsleep 5"
+        ));
+        let adapter = fixture.adapter(&program, fixture.context());
+
+        let (text, done, error) = collect(adapter.stream_chat(asked).await.unwrap()).await;
+
+        assert!(text.is_empty() && done.is_none(), "{reported}");
+        assert!(
+            matches!(error, Some(StreamError::Model(_))),
+            "{reported}: {error:?}"
+        );
+    }
 }
 
 /// A stub that asks to run a tool, waits for the answer and writes the answer's line to `answer`.
@@ -857,7 +947,7 @@ fn the_command_names_the_vaults_program_and_never_a_host_lookup() {
     let run = runtime.run_folder().unwrap();
 
     let settings = run.path().join(APPROVAL_SETTINGS_FILE);
-    let command = build_command(&runtime, "abacusai", None, &settings, &run);
+    let command = build_command(&runtime, "abacusai", None, Some(&settings), &run);
 
     assert_eq!(
         command.as_std().get_program(),

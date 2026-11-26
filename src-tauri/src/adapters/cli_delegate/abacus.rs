@@ -11,9 +11,12 @@
 //! manager; it reaches the process as `CODELLM_DEVICE_CODE` after containment and never as a
 //! file or an argument. `ABACUS_API_KEY` is never set.
 //!
-//! Only the approving posture (`Standard`) is served for now: the two autonomy modes of spec 009
-//! need their own decision on what Abacus' tool names and inputs mean (spec 096 US3), so they end
-//! with "autonomy mode unavailable" before anything starts.
+//! `Ungated` (spec 009) runs the program's own full-autonomy mode instead, as Claude Code's
+//! `bypassPermissions` and Codex's `approvalPolicy: "never"` do: `--permission-mode unsupervised`
+//! without the settings file, so no tool call asks (research §15); a request the program still
+//! sends is rejected, nothing reaches the approval bridge. `GatedPermissive` needs its own decision
+//! on what Abacus' tool names and inputs mean for the deny rules (spec 096 US3), so it ends with
+//! "autonomy mode unavailable" before anything starts.
 
 use std::path::Path;
 use std::process::Stdio;
@@ -42,8 +45,16 @@ use super::{
 /// The environment variable that carries the device code to the program.
 pub(super) const DEVICE_CODE_ENV: &str = "CODELLM_DEVICE_CODE";
 
-/// The permission mode the program is started in and must report in its `init` message.
-const PERMISSION_MODE: &str = "supervise";
+/// The `--permission-mode` an autonomy mode starts the program in, and the name the program reports
+/// for it in its `init` message (measured with 2.10.23, research §15: `supervise` reports
+/// `DEFAULT`, `unsupervised` reports `YOLO`). `None` for a mode that is not served.
+pub(super) fn permission_mode(mode: AutonomyMode) -> Option<(&'static str, &'static str)> {
+    match mode {
+        AutonomyMode::Standard => Some(("supervise", "DEFAULT")),
+        AutonomyMode::Ungated => Some(("unsupervised", "YOLO")),
+        AutonomyMode::GatedPermissive => None,
+    }
+}
 
 /// The settings file every run hands the program (`--settings`), in the run folder. Measured
 /// (research §12): in `supervise` the program runs read-only tools (`read`, also outside the
@@ -104,15 +115,23 @@ pub(super) fn chosen_model(model_id: &str) -> Option<&str> {
     (!model_id.is_empty() && model_id != DelegateVendor::Abacus.as_str()).then_some(model_id)
 }
 
-/// The vault's own installation started in its JSON-lines mode, contained to the vault. The device
-/// code is not set here: it is set on the child after containment, in [`spawn_abacus_invocation`].
+/// The vault's own installation started in its JSON-lines mode, contained to the vault. With
+/// `approval_settings` (the file of [`approval_settings`]) it runs in `supervise` and every tool call
+/// asks; without, it runs `unsupervised` (`Ungated`). The device code is not set here: it is set on
+/// the child after containment, in [`spawn_abacus_invocation`].
 pub(super) fn build_command(
     runtime: &DelegateRuntime,
     model_id: &str,
     mcp_config: Option<&Path>,
-    approval_settings: &Path,
+    approval_settings: Option<&Path>,
     run: &RunFolder,
 ) -> Command {
+    let mode = if approval_settings.is_some() {
+        AutonomyMode::Standard
+    } else {
+        AutonomyMode::Ungated
+    };
+    let (flag, _) = permission_mode(mode).expect("both modes are served");
     let mut cmd = Command::new(&runtime.executable);
     cmd.args(&runtime.vendor.config_args);
     cmd.arg("-p")
@@ -122,7 +141,7 @@ pub(super) fn build_command(
         .arg("stream-json")
         .arg("--include-partial-messages")
         .arg("--permission-mode")
-        .arg(PERMISSION_MODE)
+        .arg(flag)
         .arg("--no-agents-md");
     if let Some(model) = chosen_model(model_id) {
         cmd.arg("--model").arg(model);
@@ -130,7 +149,9 @@ pub(super) fn build_command(
     if let Some(config) = mcp_config {
         cmd.arg("--mcp-config").arg(config);
     }
-    cmd.arg("--settings").arg(approval_settings);
+    if let Some(settings) = approval_settings {
+        cmd.arg("--settings").arg(settings);
+    }
     cmd.current_dir(run.path())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -454,18 +475,19 @@ async fn spawn_abacus_invocation_with_coverage(
     model: String,
     approval_coverage_verified: bool,
 ) -> Result<AdapterStream, AdapterError> {
-    // Only the approving posture is served (see the module documentation); nothing is started for
-    // another one.
-    if req.autonomy_mode != AutonomyMode::Standard {
+    // `GatedPermissive` is not served (see the module documentation); nothing is started for it.
+    let mode = req.autonomy_mode;
+    if permission_mode(mode).is_none() {
         return Err(AdapterError::Unavailable {
             reason: AutonomyUnavailable {
                 vendor: DelegateVendor::Abacus,
-                mode: req.autonomy_mode,
+                mode,
             }
             .to_string(),
         });
     }
-    if !approval_coverage_verified {
+    let asks = mode == AutonomyMode::Standard;
+    if asks && !approval_coverage_verified {
         return Err(approvals_unverified());
     }
     let credential = read_credential(context.database.as_ref()).await?;
@@ -482,17 +504,22 @@ async fn spawn_abacus_invocation_with_coverage(
         None => transcript,
     };
 
-    let settings = run.path().join(APPROVAL_SETTINGS_FILE);
-    tokio::fs::write(&settings, approval_settings().to_string())
-        .await
-        .map_err(|error| AdapterError::Http {
-            reason: format!("failed to write the approval settings for abacusai: {error}"),
-        })?;
+    let settings = if asks {
+        let settings = run.path().join(APPROVAL_SETTINGS_FILE);
+        tokio::fs::write(&settings, approval_settings().to_string())
+            .await
+            .map_err(|error| AdapterError::Http {
+                reason: format!("failed to write the approval settings for abacusai: {error}"),
+            })?;
+        Some(settings)
+    } else {
+        None
+    };
     let mut command = build_command(
         &runtime,
         &req.model_id,
         mcp_config.as_deref(),
-        &settings,
+        settings.as_deref(),
         &run,
     );
     // After containment, on this child alone: the base layer removed every host variable of the
@@ -568,6 +595,7 @@ async fn spawn_abacus_invocation_with_coverage(
             &context,
             thread_id,
             &workspace_root,
+            mode,
         )
         .await;
         // The turn is over: closing stdin lets the program end by itself; the process group is
@@ -624,11 +652,14 @@ async fn drive(
     context: &DelegateChatContext,
     thread_id: Option<uuid::Uuid>,
     workspace_root: &Path,
+    // A served mode (`Standard` or `Ungated`).
+    mode: AutonomyMode,
 ) -> Outcome {
     let start = Instant::now();
     let mut ttft_ms = None;
     let mut streamed = false;
-    let mut supervise_confirmed = false;
+    let mut mode_confirmed = false;
+    let reported_mode = permission_mode(mode).map(|(_, reported)| reported);
     let mut pending = first;
     loop {
         if cancel.is_cancelled() {
@@ -656,13 +687,13 @@ async fn drive(
         match parse_line(&line) {
             Line::Init { permission_mode } => {
                 // The posture rests on this mode; a program that reports another one is not used.
-                if permission_mode.as_deref() != Some(PERMISSION_MODE) {
+                if reported_mode.is_none() || permission_mode.as_deref() != reported_mode {
                     let _ = tx.send(Err(StreamError::Model(
-                        "abacusai did not start in its approving mode".into(),
+                        "abacusai did not start in the requested permission mode".into(),
                     )));
                     return Outcome::Done;
                 }
-                supervise_confirmed = true;
+                mode_confirmed = true;
             }
             Line::Text(content) => {
                 if !content.is_empty() {
@@ -686,27 +717,33 @@ async fn drive(
             } => {
                 // Nothing is allowed on its own: the bridge asks the person or applies the
                 // posture, and a closed or failed answer is a rejection. The payload only matters
-                // for the autonomy modes that are not served here.
-                let payload = ApprovalRequestPayload::ClaudeToolCall {
-                    tool_name: tool_name.clone(),
-                    input: input.clone(),
+                // for the autonomy mode that is not served here. `Ungated` has no way to ask
+                // (as Claude Code's `bypassPermissions`): what the program still asks about
+                // there is rejected.
+                let allow = if mode == AutonomyMode::Ungated {
+                    false
+                } else {
+                    let payload = ApprovalRequestPayload::ClaudeToolCall {
+                        tool_name: tool_name.clone(),
+                        input: input.clone(),
+                    };
+                    let decision = tokio::select! {
+                        () = cancel.cancelled() => return Outcome::Done,
+                        decision = approval_bridge::request_approval(
+                            &context.pending_tool_approvals,
+                            &context.emit,
+                            context.database.as_ref(),
+                            &context.deny_rules,
+                            thread_id,
+                            AutonomyMode::Standard,
+                            workspace_root,
+                            tool_name,
+                            input,
+                            payload,
+                        ) => decision,
+                    };
+                    matches!(decision, crate::chat::tools::ApprovalDecision::Allow)
                 };
-                let decision = tokio::select! {
-                    () = cancel.cancelled() => return Outcome::Done,
-                    decision = approval_bridge::request_approval(
-                        &context.pending_tool_approvals,
-                        &context.emit,
-                        context.database.as_ref(),
-                        &context.deny_rules,
-                        thread_id,
-                        AutonomyMode::Standard,
-                        workspace_root,
-                        tool_name,
-                        input,
-                        payload,
-                    ) => decision,
-                };
-                let allow = matches!(decision, crate::chat::tools::ApprovalDecision::Allow);
                 let answer = approval_answer(&request_id, allow);
                 let write = tokio::select! {
                     () = cancel.cancelled() => return Outcome::Done,
@@ -733,9 +770,9 @@ async fn drive(
                 prompt_tokens,
                 completion_tokens,
             } => {
-                if !supervise_confirmed {
+                if !mode_confirmed {
                     let _ = tx.send(Err(StreamError::Model(
-                        "abacusai did not confirm its approving mode".into(),
+                        "abacusai did not confirm its permission mode".into(),
                     )));
                     return Outcome::Done;
                 }

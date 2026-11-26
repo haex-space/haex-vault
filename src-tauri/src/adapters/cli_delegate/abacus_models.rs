@@ -136,7 +136,7 @@ pub(super) async fn list_models(
         .map_err(|error| AdapterError::Http {
             reason: format!("failed to write the approval settings for abacusai: {error}"),
         })?;
-    let mut command = build_command(&runtime, "", None, &settings, &run);
+    let mut command = build_command(&runtime, "", None, Some(&settings), &run);
     command.env(DEVICE_CODE_ENV, credential.secret());
     drop(credential);
     configure_process_group(&mut command);
