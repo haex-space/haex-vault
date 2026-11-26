@@ -75,6 +75,8 @@ answer from that device cannot replace a newer one.
 
 `"true"` | `"false"`, default `"true"`; checked in `validate_value`; written by the chat settings switch.
 While it is `false`, every own device removes its open requests (research R8).
+Clearing a request keeps its direct thread ID for sync. An empty closed thread is hidden from the
+ordinary conversation list. If earlier messages arrive later, the conversation appears with its history.
 
 ## `ChatConversation` binding (changed)
 
