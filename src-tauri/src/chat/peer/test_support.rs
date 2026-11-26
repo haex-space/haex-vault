@@ -351,6 +351,22 @@ impl ChatDevice {
         found
     }
 
+    /// Waits until a delivery event has been published after its database transaction commits.
+    pub(crate) async fn wait_for_arrival(&self, label: &str) -> Vec<receive::Stored> {
+        let deadline = tokio::time::Instant::now() + LIMIT;
+        loop {
+            let arrived = self.arrived();
+            if !arrived.is_empty() {
+                return arrived;
+            }
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "waited in vain for {label}"
+            );
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    }
+
     /// Ends this device's delivery (the vault closes); [`Self::start`] opens it again.
     pub(crate) fn stop(&self) {
         self.token

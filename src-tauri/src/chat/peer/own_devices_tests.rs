@@ -138,7 +138,9 @@ async fn a_knock_on_two_own_devices_is_one_request_and_one_notification() {
     ben.send(&anna, "Hallo, wir kennen uns vom Markt");
     let thread = anna.thread_with(&ben);
     let laptop_last = wait_for_knock(&anna, thread, None).await;
-    let arrived = anna.arrived();
+    let arrived = anna
+        .wait_for_arrival("the laptop's knock notification")
+        .await;
     assert_eq!(arrived.len(), 1, "the laptop notifies: {arrived:?}");
     assert!(arrived[0].knock && arrived[0].new);
     anna.stop();
