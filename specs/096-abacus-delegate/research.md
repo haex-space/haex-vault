@@ -390,15 +390,15 @@ connect, request and removal through the app (needs the catalog entry of T044), 
 Linux x64, version 2.10.23, the same release and account as section 12, `ABACUS_AUTO_UPDATE=off`.
 
 - **Host names (3.6).** `strace` with the payloads of `connect`, `sendto`, `sendmsg` and `write` on `auth status` and
-  `-p "say hi"`, matched against the addresses connected to: `auth status` reaches only `abacus.ai` (13.226.244.x); the
-  request adds `api.abacus.ai` (13.226.244.98) and `apps.abacus.ai` (104.20.35.251, 172.66.161.95). No other address was
-  connected to. Other names in the trace (`github.com`, `www.w3.org`, schema addresses) are text of files the tool unpacks
-  into its home, not connections.
-- **Update check.** The release host `static.abacus.ai` (18.64.211.x) was not contacted, and no connection went to an
-  address outside the three names above. With the vendor definition's `ABACUS_AUTO_UPDATE=off`, no update check happens.
+  `-p "say hi"` identified these external destinations: `auth status` reached `abacus.ai` (13.226.244.x), and the request
+  also reached `api.abacus.ai` (13.226.244.98) and `apps.abacus.ai` (104.20.35.251, 172.66.161.95). Other names in the trace
+  (`github.com`, `www.w3.org`, schema addresses) appeared in files the tool unpacked into its home.
+- **Update check.** Neither run contacted the release host `static.abacus.ai` (18.64.211.x). No separate update check was
+  observed with `ABACUS_AUTO_UPDATE=off`.
 - **Residuals.** `check-containment.py --vendor abacusai` with an authenticated run (a wrapper in the operator's temporary
   folder put the device code into the tool's environment) for `auth status` and for a request: exit 0, "only listed
-  residuals (or none) outside the vault". Together with section 12 (files, `kill -9`) nothing is left outside the vault's
-  folder, so `allowed-residuals.json` gets no Abacus entry and the vendor definition needs no further variable.
-- The listings of quickstart §7 through the app (install, connect, request, disconnect, removal) need the catalog entry and
-  move to T050.
+  residuals (or none) outside the vault". Neither run reported an unlisted write outside the test tree. Section 12 records
+  the files left after `kill -9` inside the throwaway folders. These observations require no Abacus entry in
+  `allowed-residuals.json` or change to the vendor definition for this build.
+- Quickstart §7 remains open under T050. It covers the app lifecycle after T044 makes the build installable, including
+  host file listings and checks for credentials and log contents.
