@@ -73,8 +73,8 @@ answer from that device cannot replace a newer one.
 
 ## Vault preference `chat.requests.allowStrangers` (new)
 
-`"true"` | `"false"`, default `"true"`; checked in `validate_value`; written only through
-`chat_requests_set_allowed` (research R8).
+`"true"` | `"false"`, default `"true"`; checked in `validate_value`; written by the chat settings switch.
+While it is `false`, every own device removes its open requests (research R8).
 
 ## `ChatConversation` binding (changed)
 

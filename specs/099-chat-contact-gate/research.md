@@ -93,19 +93,21 @@ PARKED`, as `noDevices` does). While it is set, a new message to that vault is s
 
 ## R8. Switching requests off (FR-012)
 
-- **Decision**: vault preference `chat.requests.allowStrangers`, default `true`, checked in
-  `validate_value` like the other chat settings. The window does not write it through the generic
-  preferences command but through `chat_requests_set_allowed`, which writes the preference and deletes
-  every request present on that device (`store::delete` per thread, as declining does today, without
-  notice and without block) in one transaction. A device applying a synced `false` value also deletes
-  every request thread present locally, in the same transaction as applying the preference.
-- **Rationale**: the switch and the local removal must not be split. Sync propagates deletions known to
-  the writing device; each receiving device removes its own requests, including requests it had before
-  the preference synced. Receiving reads the preference in the same transaction as R1.
-- **Alternatives considered**: deleting requests when the preference row changes — the preference is
-  written by a generic command that knows nothing of the chat.
-- **Guard**: `validate_value` refuses `chat.requests.allowStrangers` through the generic preferences
-  command, so neither the window nor the agent can switch requests off without removing them.
+- **Decision**: vault preference `chat.requests.allowStrangers`, default `true`, a switch of the chat
+  settings like the read receipts (generic preferences command, `"true"` | `"false"` checked in
+  `validate_value`). The setting and what follows from it stay apart (operator, 2026-11-26): the chat
+  session follows every change of the preferences, whether written on this device or received through
+  the sync, and while the switch is off removes every request present on that device (`store::delete`
+  per thread, without notice and without block; `requests::follow_switch`). It also runs once when the
+  session starts.
+- **Rationale**: flipping the switch by hand and receiving it through the sync must act the same. Sync
+  propagates deletions known to the writing device; each receiving device removes its own requests,
+  including requests it had before the preference synced. Receiving reads the preference in the same
+  transaction as R1, so no new request appears in between.
+- **Alternatives considered**: a dedicated command that writes the preference and removes the requests
+  in one transaction, with a hook in the sync to do the same on applying a synced value — couples the
+  sync to the chat and treats the two ways of switching differently.
+- **Agents**: no action; agents have no tool that writes preferences (as for the read receipts).
 
 ## R9. Notification once per request (FR-004)
 
