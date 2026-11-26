@@ -120,7 +120,7 @@ description: 'Task list for the chat contact gate (spec 099)'
 - [x] T028 [US3] `src-tauri/src/chat/peer/verify.rs` (`Drop::Stranger`): with `allow_strangers` false, a stranger's message takes the `dropped` path of `delivery_receive.rs` (no session saved, research R3), no knock
 - [x] T029 [US3] `src-tauri/src/chat/peer/requests.rs` `remove_when_off(tx)` clears requests and hides empty closed request threads while `KEY_ALLOW_STRANGERS` is `false`. `follow_switch` runs at session start and after local or synced changes to preferences or threads (research R8), started in `src-tauri/src/chat/peer/service.rs`. `validate_value` takes the key as a `true`/`false` switch through the generic preferences command (no own command, no action).
 - [x] T030 [P] [US3] Switch "Anfragen von Fremden zulassen" as a `SettingsChatFlagSetting` in `src/components/settings/ChatView.vue`, applying on selection; the requests area of `ThreadSidebar.vue` follows the preference; i18n de/en; `check:settings` entry if the settings registry needs one
-- [ ] T031 [US3] Extend `scripts/e2e/scenarios/chat-contact-gate.test.ts`: switch off → the requests area disappears, a new knock shows nothing (quickstart E2)
+- [x] T031 [US3] Extend `scripts/e2e/scenarios/chat-contact-gate.test.ts`: switch off → the requests area disappears, a new knock shows nothing (quickstart E2)
 
 **Checkpoint**: the switch works independently of US4.
 
