@@ -16,6 +16,7 @@
 //! "approval_bridge.rs").
 
 mod abacus;
+mod abacus_models;
 pub use abacus::approvals_verified as abacus_approvals_verified;
 pub mod approval_bridge;
 #[cfg(test)]
@@ -203,6 +204,9 @@ pub struct CliDelegateAdapter {
     /// (`<provider id>:<remote id>`) whose agent profile limits what the delegate may do with
     /// haex-vault's tools (spec 083 FR-028).
     provider_id: Option<Uuid>,
+    /// The open vault for a model refresh, which has no chat context: Abacus' credential is an
+    /// entry of its password manager (spec 096).
+    database: Option<VaultDb>,
 }
 
 impl CliDelegateAdapter {
@@ -219,12 +223,19 @@ impl CliDelegateAdapter {
             runtime: runtime.into(),
             chat_context,
             provider_id: None,
+            database: None,
         }
     }
 
     /// The adapter of the provider row `provider_id`.
     pub fn for_provider(mut self, provider_id: Uuid) -> Self {
         self.provider_id = Some(provider_id);
+        self
+    }
+
+    /// The adapter with the open vault `database`, for a refresh without a chat context.
+    pub fn with_database(mut self, database: Option<VaultDb>) -> Self {
+        self.database = database;
         self
     }
 }
@@ -300,8 +311,23 @@ impl ProviderAdapter for CliDelegateAdapter {
                         })?;
                 codex_models::list_models(runtime, self.credentials.clone()).await
             }
-            // The account's own default; the program picks the model (spec 096 plan D7).
-            DelegateVendor::Abacus => Ok(vec![abacus::default_model()]),
+            DelegateVendor::Abacus => {
+                // Asked of the program itself (`get_model_catalog`, spec 096 plan D7), with the
+                // device code from the vault's password manager. Without the program or the
+                // credential there is no list: a refresh then fails and the cached one stays.
+                let runtime =
+                    self.runtime
+                        .resolve()
+                        .map_err(|error| AdapterError::Unavailable {
+                            reason: error.reason(),
+                        })?;
+                let database = self
+                    .chat_context
+                    .as_ref()
+                    .and_then(|context| context.database.as_ref())
+                    .or(self.database.as_ref());
+                abacus_models::list_models(runtime, database).await
+            }
         }
     }
 

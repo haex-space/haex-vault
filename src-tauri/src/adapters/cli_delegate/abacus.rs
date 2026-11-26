@@ -26,11 +26,11 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use crate::adapters::types::{StreamChunk, StreamError};
-use crate::adapters::{AdapterError, AdapterStream, ChatRequest, ProviderModel};
+use crate::adapters::{AdapterError, AdapterStream, ChatRequest};
 use crate::cli_tools::runtime::{DelegateRuntime, RunFolder};
-use crate::model_capabilities::ModelCapabilities;
 use crate::passwords::binaries::sanitize_file_name;
 use crate::providers::delegate_credential::{self, Read, KIND_DEVICE_CODE};
+use crate::vault_gate::VaultDb;
 
 use super::autonomy::{ApprovalRequestPayload, AutonomyMode, AutonomyUnavailable};
 use super::codex::MAX_STDERR_BYTES;
@@ -40,7 +40,7 @@ use super::{
 };
 
 /// The environment variable that carries the device code to the program.
-const DEVICE_CODE_ENV: &str = "CODELLM_DEVICE_CODE";
+pub(super) const DEVICE_CODE_ENV: &str = "CODELLM_DEVICE_CODE";
 
 /// The permission mode the program is started in and must report in its `init` message.
 const PERMISSION_MODE: &str = "supervise";
@@ -94,16 +94,6 @@ pub(super) fn credential_refused() -> AdapterError {
 fn approvals_unverified() -> AdapterError {
     AdapterError::Unavailable {
         reason: APPROVALS_UNVERIFIED.into(),
-    }
-}
-
-/// The single model of the account: its own default, chosen by the program (spec 096 plan D7).
-pub(super) fn default_model() -> ProviderModel {
-    ProviderModel {
-        remote_id: DelegateVendor::Abacus.as_str().to_owned(),
-        display_name: "Abacus AI".to_owned(),
-        context_window: None,
-        capabilities: ModelCapabilities::default(),
     }
 }
 
@@ -341,7 +331,7 @@ pub(super) fn fatal_reason(stderr: &str) -> Option<String> {
 
 /// Keeps the end of stderr, where the CLI writes its final fatal record, within the same bound as
 /// other delegate stderr readers.
-async fn read_stderr_tail<R: AsyncRead + Unpin>(mut reader: R) -> Vec<u8> {
+pub(super) async fn read_stderr_tail<R: AsyncRead + Unpin>(mut reader: R) -> Vec<u8> {
     let mut output = Vec::new();
     let mut buffer = [0_u8; 4096];
     while let Ok(read) = reader.read(&mut buffer).await {
@@ -385,7 +375,7 @@ pub(super) fn startup_error(stderr: &[u8]) -> AdapterError {
     }
 }
 
-async fn write_line(stdin: &mut ChildStdin, value: &Value) -> std::io::Result<()> {
+pub(super) async fn write_line(stdin: &mut ChildStdin, value: &Value) -> std::io::Result<()> {
     let mut bytes = serde_json::to_vec(value).map_err(std::io::Error::other)?;
     bytes.push(b'\n');
     stdin.write_all(&bytes).await?;
@@ -416,11 +406,11 @@ async fn write_attachments(req: &ChatRequest, run: &RunFolder) -> Result<(), Ada
     Ok(())
 }
 
-/// The credential of the account for this request, or why there is none.
-async fn read_credential(
-    context: &DelegateChatContext,
+/// The credential of the account in the open vault `db`, or why there is none.
+pub(super) async fn read_credential(
+    db: Option<&VaultDb>,
 ) -> Result<delegate_credential::Credential, AdapterError> {
-    let Some(db) = context.database.as_ref() else {
+    let Some(db) = db else {
         return Err(not_connected());
     };
     match delegate_credential::read(
@@ -478,7 +468,7 @@ async fn spawn_abacus_invocation_with_coverage(
     if !approval_coverage_verified {
         return Err(approvals_unverified());
     }
-    let credential = read_credential(&context).await?;
+    let credential = read_credential(context.database.as_ref()).await?;
     let run = runtime.run_folder().map_err(|error| AdapterError::Http {
         reason: format!("failed to create the run folder for abacusai: {error}"),
     })?;

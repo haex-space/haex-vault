@@ -13,7 +13,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use haex_lib::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
-use haex_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
+use haex_lib::adapters::{
+    AdapterError, ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk,
+};
 use haex_lib::cli_tools::runtime::DelegateRuntime;
 use haex_lib::providers::delegate_credential::{self, KIND_DEVICE_CODE, VAULT_SCOPE};
 
@@ -111,7 +113,7 @@ async fn a_request_runs_the_vaults_copy_and_streams_its_reply() {
 }
 
 #[tokio::test]
-async fn the_adapter_lists_the_one_default_model_without_a_credential() {
+async fn without_a_vault_the_adapter_has_no_model_list() {
     let adapter = CliDelegateAdapter::new(
         DelegateVendor::Abacus,
         Vec::new(),
@@ -123,8 +125,12 @@ async fn the_adapter_lists_the_one_default_model_without_a_credential() {
         None,
     );
 
-    let models = adapter.list_models().await.expect("the list is local");
-
-    assert_eq!(models.len(), 1);
-    assert_eq!(models[0].remote_id, "abacusai");
+    // The list is the account's, asked of the program with the vault's credential (spec 096 plan
+    // D7): with neither there is none, and no default entry stands in for it.
+    match adapter.list_models().await {
+        Err(AdapterError::Unavailable { reason }) => {
+            assert_eq!(reason, "delegate.not_connected: abacusai")
+        }
+        other => panic!("{other:?}"),
+    }
 }
