@@ -134,6 +134,13 @@ async fn a_request_shows_no_name_no_text_and_makes_no_sound() {
     assert_eq!(notice.body, None);
     assert!(!notice.title.contains("Kontakt"));
     assert!(notice.quiet, "FR-040: no sound for a request");
+
+    setup
+        .anna
+        .db
+        .write_blocking(|tx| Ok(settings::set_allow_strangers(tx, false)?))
+        .expect("switch off");
+    assert_eq!(notice_of(&setup, &setup.stored), None, "already off");
 }
 
 #[test]

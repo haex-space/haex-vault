@@ -10,6 +10,7 @@ use uuid::Uuid;
 use super::gate;
 use super::outbox::Rumor;
 use super::session::Me;
+use super::settings;
 use super::store;
 use super::verify::vault_bytes;
 use crate::contacts::card::format::CardDevice;
@@ -146,20 +147,22 @@ pub fn vault_of_device(q: &mut impl Query, me: &Me, device: &[u8; 32]) -> Result
             }
         }
     }
-    let requests: Vec<String> = q.query_map(
-        "SELECT id FROM chat_threads WHERE kind = 'direct' AND state = 'request'",
-        &[],
-        |row| row.get(0),
-    )?;
-    for thread in requests {
-        let Ok(thread) = Uuid::parse_str(&thread) else {
-            continue;
-        };
-        let Some(card) = store::request_card(q, thread)? else {
-            continue;
-        };
-        if lists(&card.card.devices) {
-            return reachable(q, &card.card.vault);
+    if settings::allow_strangers(q)? {
+        let requests: Vec<String> = q.query_map(
+            "SELECT id FROM chat_threads WHERE kind = 'direct' AND state = 'request'",
+            &[],
+            |row| row.get(0),
+        )?;
+        for thread in requests {
+            let Ok(thread) = Uuid::parse_str(&thread) else {
+                continue;
+            };
+            let Some(card) = store::request_card(q, thread)? else {
+                continue;
+            };
+            if lists(&card.card.devices) {
+                return reachable(q, &card.card.vault);
+            }
         }
     }
     // A declined stranger is no contact and has no request any more; while its blocked answer is

@@ -55,16 +55,21 @@ const latestSession = computed(() => props.threads[0] ?? null)
 // Spec 099 FR-012: with requests of strangers off there is no requests area, also in the moment
 // before the backend removed the open ones.
 const { getPrefAsync } = usePreferences()
-const allowStrangers = ref(true)
+const allowStrangers = ref(false)
+let allowStrangersLoad = 0
 async function loadAllowStrangersAsync() {
+  const currentLoad = ++allowStrangersLoad
   try {
-    allowStrangers.value =
-      (await getPrefAsync(
-        { kind: 'vault' },
-        'chat.requests.allowStrangers',
-      )) !== 'false'
-  } catch {
-    allowStrangers.value = true
+    const value = await getPrefAsync(
+      { kind: 'vault' },
+      'chat.requests.allowStrangers',
+    )
+    if (currentLoad === allowStrangersLoad)
+      allowStrangers.value = value !== 'false'
+  } catch (cause) {
+    if (currentLoad === allowStrangersLoad) {
+      toast.error(errString(cause), { id: 'chat-strangers-setting' })
+    }
   }
 }
 onMounted(loadAllowStrangersAsync)

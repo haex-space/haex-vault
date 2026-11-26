@@ -74,25 +74,36 @@ pub fn remove_when_off(tx: &mut CrdtTransaction<'_>) -> Result<usize> {
     if settings::allow_strangers(tx)? {
         return Ok(0);
     }
-    let ids: Vec<String> = tx.query_map(
-        "SELECT id FROM chat_threads WHERE kind = 'direct' AND state = 'request'",
+    let threads: Vec<(String, bool)> = tx.query_map(
+        "SELECT t.id, COALESCE(t.created_at < t.request_first_at, 0) OR EXISTS (\
+           SELECT 1 FROM chat_peer_messages m WHERE m.thread_id = t.id\
+         ) FROM chat_threads t WHERE t.kind = 'direct' AND t.state = 'request'",
         params![],
-        |row| row.get(0),
+        |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
     let mut removed = 0;
-    for id in ids {
-        let Ok(id) = Uuid::parse_str(&id) else {
-            continue;
-        };
-        if store::delete(tx, id)? {
-            removed += 1;
+    for (id, has_conversation) in threads {
+        if has_conversation {
+            // The request can sync ahead of the earlier messages. Keep the thread if it
+            // predates its request or already holds a message on this device.
+            tx.execute(
+                "UPDATE chat_members SET card = NULL WHERE thread_id = ?1 AND card IS NOT NULL",
+                params![id],
+            )?;
+            removed += tx.execute(
+                "UPDATE chat_threads SET state = 'active', request_first_at = NULL, \
+                 request_last_at = NULL WHERE id = ?1",
+                params![id],
+            )?;
+        } else if let Ok(id) = Uuid::parse_str(&id) {
+            removed += usize::from(store::delete(tx, id)?);
         }
     }
     Ok(removed)
 }
 
-/// Runs [`remove_when_off`] now and after every change of the preferences, local or received
-/// through the sync, until `token` is cancelled: the switch acts the same wherever it was flipped.
+/// Runs [`remove_when_off`] at session start and on changes to preferences or chat threads.
+/// A request from another own device may sync after that device's switch changed.
 pub(crate) async fn follow_switch(
     db: VaultDb,
     mut changes: broadcast::Receiver<Arc<Vec<String>>>,
@@ -115,7 +126,13 @@ pub(crate) async fn follow_switch(
                 received = changes.recv() => received,
             };
             match received {
-                Ok(tables) if tables.iter().any(|table| table == "preferences") => break,
+                Ok(tables)
+                    if tables
+                        .iter()
+                        .any(|table| matches!(table.as_str(), "preferences" | "chat_threads")) =>
+                {
+                    break;
+                }
                 Ok(_) => {}
                 // Fell behind: the preferences may have changed.
                 Err(RecvError::Lagged(_)) => break,

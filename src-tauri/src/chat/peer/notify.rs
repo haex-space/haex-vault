@@ -59,10 +59,13 @@ pub fn notice(
     let Some((state, muted)) = thread else {
         return Ok(None);
     };
-    if muted != 0 {
+    if muted != 0 || (stored.knock && state != "request") {
         return Ok(None);
     }
     if state == "request" {
+        if !settings::allow_strangers(q)? {
+            return Ok(None);
+        }
         return Ok(Some(Notice {
             thread_id,
             title: text(locale, "chat.notify.request"),
