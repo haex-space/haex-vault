@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, unwrap } from '../lib/flows.ts'
 import type { FlowInstance } from '../lib/flows.ts'
+import { dialogClosed } from '../lib/appearance.ts'
 import { resizeAppWindow } from '../lib/settings.ts'
 import { openWallet } from '../lib/wallet.ts'
 import {
@@ -195,8 +196,16 @@ scenario('passwords-tags', {}, async (ctx) => {
     0,
     'the deleted tag should no longer be offered',
   )
+  // The first Escape closes the picker, the second the manager. Sent at once, the second reaches the
+  // picker while it closes and the manager stays open over the window.
   await pressEscape(instance)
+  await ctx.waitFor(
+    'the picker to close',
+    async () =>
+      (await testIds(instance, '^passwords-tag-picker-search$')).length === 0,
+  )
   await pressEscape(instance)
+  await ctx.waitFor('the manager to close', () => dialogClosed(instance))
   ctx.step('delete: no selection, not offered')
 
   // M7: the usage is per app and matches the filter of each app; Wallet opens the same manager.
@@ -231,6 +240,7 @@ scenario('passwords-tags', {}, async (ctx) => {
   })
   ctx.step('usage: 5 in the password manager and 5 in Wallet, not 10')
   await pressEscape(instance)
+  await ctx.waitFor('the manager to close', () => dialogClosed(instance))
 
   await openWallet(instance)
   await resizeAppWindow(instance, 'system.wallet', 760, 560)
