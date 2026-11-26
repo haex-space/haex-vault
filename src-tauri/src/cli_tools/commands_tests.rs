@@ -504,18 +504,21 @@ fn an_artifact_that_needs_avx2_is_not_offered_to_a_host_without_it() {
 fn a_vendor_with_no_tested_version_is_listed_and_refuses_the_install() {
     let data = TempDir::new().unwrap();
     let statuses = status_of_all(&tools(&data), &DownloadRegistry::default());
-    let abacus = statuses
-        .iter()
-        .find(|status| status.vendor == "abacusai")
-        .expect("the vendor is listed");
+    assert!(
+        statuses.iter().any(|status| status.vendor == "abacusai"),
+        "the vendor is listed"
+    );
+
+    let vendor = abacus_listing(&[]);
+    let abacus = abacus_status(&vendor, &data);
     assert_eq!(abacus.state, CliToolState::NoTestedVersion);
     assert_eq!(abacus.download_bytes, None);
     assert_eq!(abacus.latest_listed_version, None);
 
-    let error = plan_install(&tools(&data), "abacusai", None).err().unwrap();
+    let error = plan_for(&tools(&data), &vendor, None).err().unwrap();
     assert_eq!(error, InstallError::NoTestedVersion);
     assert_eq!(error.code(), "cli_tools.no_tested_version");
-    let error = plan_install(&tools(&data), "abacusai", Some("2.10.23"))
+    let error = plan_for(&tools(&data), &vendor, Some("2.10.23"))
         .err()
         .unwrap();
     assert_eq!(error, InstallError::NoTestedVersion);
@@ -523,7 +526,7 @@ fn a_vendor_with_no_tested_version_is_listed_and_refuses_the_install() {
 
 // ---- Abacus AI: the life of a tool that is installed from a release (spec 096 US5, T039) ----
 
-/// The shipped Abacus entry with the listed `versions` (the shipped one has none yet).
+/// The shipped Abacus entry with the listed `versions` in place of the shipped ones.
 fn abacus_listing(versions: &[&str]) -> VendorDefinition {
     use crate::cli_tools::catalog::{Artifact, ArtifactKind};
     let mut vendor = Catalog::shipped().vendor("abacusai").unwrap().clone();
