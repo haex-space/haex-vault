@@ -397,8 +397,10 @@ Linux x64, version 2.10.23, the same release and account as section 12, `ABACUS_
   observed with `ABACUS_AUTO_UPDATE=off`.
 - **Residuals.** `check-containment.py --vendor abacusai` with an authenticated run (a wrapper in the operator's temporary
   folder put the device code into the tool's environment) for `auth status` and for a request: exit 0, "only listed
-  residuals (or none) outside the vault". Neither run reported an unlisted write outside the test tree. Section 12 records
-  the files left after `kill -9` inside the throwaway folders. These observations require no Abacus entry in
-  `allowed-residuals.json` or change to the vendor definition for this build.
+  residuals (or none) outside the vault". Neither run reported an unlisted write outside the test tree. The checker reports
+  unresolved paths and allowlisted outside writes separately, and both can accompany exit 0. The recorded result is the
+  exit status and summary. Section 12 records the files left after `kill -9` inside the throwaway folders. The observations
+  did not identify a residual that requires an Abacus entry in
+  `allowed-residuals.json` or a change to the vendor definition for this build.
 - Quickstart §7 remains open under T050. It covers the app lifecycle after T044 makes the build installable, including
   host file listings and checks for credentials and log contents.
