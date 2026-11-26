@@ -215,7 +215,8 @@ a contact with the card of its request.
 - Anna's vault is open on two own devices: both receive the same knock; there is one request, one
   notification, and an answer on one device holds on the other.
 - Anna answers on one device while the other has not synced yet and gets a further knock: the later answer
-  wins; a request of a blocked vault never shows, also when a not-yet-synced device re-created it.
+  wins by the synced decision revision, even when an older notice from another device arrives later; a
+  request of a blocked vault never shows, also when a not-yet-synced device re-created it.
 - A notice cannot be delivered (all of the other vault's devices offline, no Nostr-Relay takes it): it is
   tried like a message; after an accept the sender's outbox delivers on its own schedule anyway.
 - A notice arrives that does not come from the vault the conversation is with: it is dropped.

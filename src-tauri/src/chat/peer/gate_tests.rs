@@ -36,10 +36,12 @@ fn a_noted_answer_becomes_one_receipt_and_a_later_answer_replaces_it() {
             Ok(())
         })
         .expect("note");
-    assert_eq!(
-        anna.db.read_blocking(|r| Ok(notices(r)?)).expect("notes"),
-        [(PEER.to_owned(), Answer::Blocked, 2)]
-    );
+    let notes = anna.db.read_blocking(|r| Ok(notices(r)?)).expect("notes");
+    assert_eq!(notes.len(), 1);
+    assert_eq!(notes[0].0, PEER);
+    assert_eq!(notes[0].1, Answer::Blocked);
+    assert_eq!(notes[0].2, 2);
+    assert!(!notes[0].3.is_empty());
     assert_eq!(
         anna.db
             .read_blocking(|r| Ok(blocked_notice_vaults(r)?))
@@ -157,6 +159,7 @@ fn a_synced_unblock_drops_a_queued_blocked_notice_and_a_stale_local_note() {
                 "DELETE FROM haex_contacts_blocked_vaults WHERE vault_pubkey = ?1",
                 params![PEER],
             )?;
+            write_notice(tx, PEER, Answer::Accepted, 2)?;
             Ok(())
         })
         .expect("synced unblock");
@@ -168,9 +171,14 @@ fn a_synced_unblock_drops_a_queued_blocked_notice_and_a_stale_local_note() {
         .expect("discard stale outbox notice");
     assert!(rows(&anna).is_empty(), "the old blocked answer is dropped");
 
+    let stale_revision = "000000000000000000000000000000000000000000000000";
     anna.db
         .write_blocking(|tx| {
-            write_notice(tx, PEER, Answer::Blocked, 3)?;
+            tx.execute(
+                "UPDATE chat_gate_notices_no_sync SET answer = 'blocked', created_at = 3, \
+                 sequence = 3, revision = ?2 WHERE peer_vault = ?1",
+                params![PEER, stale_revision],
+            )?;
             Ok(())
         })
         .expect("stale local note");
@@ -198,6 +206,7 @@ async fn a_received_answer_parks_and_resumes_and_one_for_another_vault_changes_n
         read: vec![],
         answer: Some(answer),
         answer_sequence: Some(sequence),
+        answer_decision_hlc: None,
     };
     let sender_device = anna.me.device_hex();
     let apply = |receipt: Receipt, now: i64| {
@@ -257,4 +266,71 @@ async fn a_received_answer_parks_and_resumes_and_one_for_another_vault_changes_n
             .any(|row| row.pending.contains(&anna.me.vault_hex)),
         "due for Anna at once"
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_late_answer_from_another_device_cannot_override_a_newer_decision() {
+    let anna = ChatDevice::genesis(&[]);
+    let ben = ChatDevice::genesis(&[]);
+    ben.learn(&anna).await;
+    ben.send(&anna, "Hallo Anna");
+
+    let peer = ben.me.vault_hex.clone();
+    anna.db
+        .write_blocking(move |tx| {
+            write_notice(tx, &peer, Answer::Blocked, 1)?;
+            Ok(())
+        })
+        .expect("older blocked decision");
+    let older_revision = anna
+        .db
+        .read_blocking(|r| Ok(notices(r)?[0].3.clone()))
+        .expect("older revision");
+
+    let peer = ben.me.vault_hex.clone();
+    anna.db
+        .write_blocking(move |tx| {
+            write_notice(tx, &peer, Answer::Accepted, 1)?;
+            Ok(())
+        })
+        .expect("newer accepted decision");
+    let newer_revision = anna
+        .db
+        .read_blocking(|r| Ok(notices(r)?[0].3.clone()))
+        .expect("newer revision");
+    assert_eq!(
+        compare_hlc_strings(&newer_revision, &older_revision),
+        Ordering::Greater
+    );
+
+    let make_receipt = |answer, revision: String| Receipt {
+        v: crate::chat::peer::envelope::VERSION,
+        from: anna.me.vault_hex.clone(),
+        card: "card".into(),
+        thread: To::Direct(ben.me.vault_hex.clone()),
+        delivered: vec![],
+        read: vec![],
+        answer: Some(answer),
+        answer_sequence: Some(1),
+        answer_decision_hlc: Some(revision),
+    };
+    let me = ben.me.clone();
+    let new = make_receipt(Answer::Accepted, newer_revision);
+    let new_device = "new-device".to_owned();
+    ben.db
+        .write_blocking(move |tx| Ok(apply_received(tx, &me, &new, &new_device, 20)?))
+        .expect("apply new answer first");
+
+    let me = ben.me.clone();
+    let old = make_receipt(Answer::Blocked, older_revision);
+    let old_device = "old-device".to_owned();
+    ben.db
+        .write_blocking(move |tx| Ok(apply_received(tx, &me, &old, &old_device, 30)?))
+        .expect("ignore delayed old answer");
+
+    let (own, peer) = (ben.me.vault_hex.clone(), anna.me.vault_hex.clone());
+    assert!(!ben
+        .db
+        .read_blocking(move |r| Ok(blocked_by_peer(r, &own, &peer)?))
+        .expect("read gate state"));
 }

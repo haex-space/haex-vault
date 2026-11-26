@@ -11,8 +11,9 @@
 //! On the sender's side a received answer parks or resumes what waits for that vault
 //! ([`apply_received`]).
 
-use haex_crdt::rusqlite::params;
-use haex_crdt::CrdtTransaction;
+use std::cmp::Ordering;
+
+use haex_crdt::{compare_hlc_strings, rusqlite::params, CrdtTransaction};
 
 use super::envelope::{Answer, Receipt, To, RECEIPT_KIND};
 use super::outbox::{self, Rumor};
@@ -29,6 +30,19 @@ pub fn write_notice(
     now: i64,
 ) -> Result<()> {
     tx.execute(
+        "INSERT INTO haex_contacts_gate_decisions (peer_vault, answer, revision) \
+         VALUES (?1, ?2, current_hlc()) \
+         ON CONFLICT(peer_vault) DO UPDATE SET answer = excluded.answer, \
+           revision = excluded.revision",
+        params![peer_vault, answer.as_str()],
+    )?;
+    let revision: Option<String> = tx.query_row(
+        "SELECT revision FROM haex_contacts_gate_decisions WHERE peer_vault = ?1",
+        params![peer_vault],
+        |row| row.get(0),
+    )?;
+    let revision = revision.unwrap_or_default();
+    tx.execute(
         "INSERT INTO chat_gate_answer_sequences_no_sync (peer_vault, sequence) VALUES (?1, 1) \
          ON CONFLICT(peer_vault) DO UPDATE SET sequence = sequence + 1",
         params![peer_vault],
@@ -40,26 +54,26 @@ pub fn write_notice(
     )?;
     let sequence = sequence.unwrap_or(0);
     tx.execute(
-        "INSERT INTO chat_gate_notices_no_sync (peer_vault, answer, created_at, sequence) \
-         VALUES (?1, ?2, ?3, ?4) \
+        "INSERT INTO chat_gate_notices_no_sync (peer_vault, answer, created_at, sequence, revision) \
+         VALUES (?1, ?2, ?3, ?4, ?5) \
          ON CONFLICT(peer_vault) DO UPDATE SET answer = excluded.answer, \
-           created_at = excluded.created_at, sequence = excluded.sequence",
-        params![peer_vault, answer.as_str(), now, sequence],
+           created_at = excluded.created_at, sequence = excluded.sequence, revision = excluded.revision",
+        params![peer_vault, answer.as_str(), now, sequence, revision],
     )?;
     Ok(())
 }
 
 /// The noted answers, oldest first.
-pub fn notices(q: &mut impl Query) -> Result<Vec<(String, Answer, i64)>> {
-    let rows: Vec<(String, String, i64)> = q.query_map(
-        "SELECT peer_vault, answer, sequence FROM chat_gate_notices_no_sync ORDER BY created_at, peer_vault",
+pub fn notices(q: &mut impl Query) -> Result<Vec<(String, Answer, i64, String)>> {
+    let rows: Vec<(String, String, i64, String)> = q.query_map(
+        "SELECT peer_vault, answer, sequence, revision FROM chat_gate_notices_no_sync ORDER BY created_at, peer_vault",
         &[],
-        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
     )?;
     Ok(rows
         .into_iter()
-        .filter_map(|(vault, answer, sequence)| {
-            Answer::parse(&answer).map(|answer| (vault, answer, sequence))
+        .filter_map(|(vault, answer, sequence, revision)| {
+            Answer::parse(&answer).map(|answer| (vault, answer, sequence, revision))
         })
         .collect())
 }
@@ -69,12 +83,12 @@ pub fn notices(q: &mut impl Query) -> Result<Vec<(String, Answer, i64)>> {
 /// reach the vault after the newer one (contracts/nostr-chat-gate.md).
 pub fn send_due_notices(tx: &mut CrdtTransaction<'_>, me: &Me, now: i64) -> Result<usize> {
     let due = notices(tx)?;
-    for (vault, answer, sequence) in &due {
+    for (vault, answer, sequence, revision) in &due {
         drop_unsent_notices(tx, vault)?;
-        if !matches_current_decision(tx, vault, *answer)? {
+        if !matches_current_decision(tx, vault, *answer, revision)? {
             continue;
         }
-        send::notice(tx, me, vault, *answer, *sequence, now)?;
+        send::notice(tx, me, vault, *answer, *sequence, revision, now)?;
     }
     // Every note is on the outbox now; one whose answer did not parse is of no use to anyone.
     tx.execute("DELETE FROM chat_gate_notices_no_sync", &[])?;
@@ -112,7 +126,12 @@ pub fn drop_stale_notice_outbox(tx: &mut CrdtTransaction<'_>, now: i64) -> Resul
         })?;
         let mut stale = false;
         for vault in recipients {
-            if !matches_current_decision(tx, &vault, answer)? {
+            if !matches_current_decision(
+                tx,
+                &vault,
+                answer,
+                receipt.answer_decision_hlc.as_deref().unwrap_or_default(),
+            )? {
                 stale = true;
                 break;
             }
@@ -127,13 +146,26 @@ pub fn drop_stale_notice_outbox(tx: &mut CrdtTransaction<'_>, now: i64) -> Resul
 
 /// An accepted answer is current while the peer is not blocked; a blocked answer is current while
 /// it is. The block list is synced across the answering vault's devices.
-fn matches_current_decision(q: &mut impl Query, peer_vault: &str, answer: Answer) -> Result<bool> {
+fn matches_current_decision(
+    q: &mut impl Query,
+    peer_vault: &str,
+    answer: Answer,
+    revision: &str,
+) -> Result<bool> {
+    let current: Option<(String, String)> = q.query_row(
+        "SELECT answer, revision FROM haex_contacts_gate_decisions WHERE peer_vault = ?1",
+        params![peer_vault],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    if let Some((current_answer, current_revision)) = current {
+        return Ok(current_answer == answer.as_str() && current_revision == revision);
+    }
     let blocked: Option<i64> = q.query_row(
         "SELECT 1 FROM haex_contacts_blocked_vaults WHERE vault_pubkey = ?1",
         params![peer_vault],
         |row| row.get(0),
     )?;
-    Ok(blocked.is_some() == matches!(answer, Answer::Blocked))
+    Ok(revision.is_empty() && blocked.is_some() == matches!(answer, Answer::Blocked))
 }
 
 /// Removes the answers to `vault` (hex) on the outbox that no Nostr-Relay took yet.
@@ -221,7 +253,23 @@ pub fn apply_received(
         params![receipt.from, sender_device],
         |row| row.get(0),
     )?;
-    if last.is_some_and(|last| sequence <= last) {
+    let decision_hlc = receipt.answer_decision_hlc.as_deref().unwrap_or_default();
+    let revisions: Vec<String> = tx.query_map(
+        "SELECT revision FROM chat_gate_received_answers_no_sync WHERE peer_vault = ?1 AND revision <> ''",
+        params![receipt.from],
+        |row| row.get(0),
+    )?;
+    let latest_revision = revisions.iter().max_by(|a, b| compare_hlc_strings(a, b));
+    let stale_revision = latest_revision.is_some_and(|latest| {
+        decision_hlc.is_empty() || compare_hlc_strings(decision_hlc, latest) != Ordering::Greater
+    });
+    if stale_revision {
+        if last.is_none_or(|last| sequence > last) {
+            remember_received_answer(tx, &receipt.from, sender_device, sequence, decision_hlc)?;
+        }
+        return Ok(());
+    }
+    if decision_hlc.is_empty() && last.is_some_and(|last| sequence <= last) {
         return Ok(());
     }
     let thread_id = ids::direct_thread_id(own, &receipt.from).to_string();
@@ -243,11 +291,22 @@ pub fn apply_received(
             outbox::resume_vault(tx, me, &receipt.from, now)?;
         }
     }
+    remember_received_answer(tx, &receipt.from, sender_device, sequence, decision_hlc)?;
+    Ok(())
+}
+
+fn remember_received_answer(
+    tx: &mut CrdtTransaction<'_>,
+    peer_vault: &str,
+    sender_device: &str,
+    sequence: i64,
+    revision: &str,
+) -> Result<()> {
     tx.execute(
-        "INSERT INTO chat_gate_received_answers_no_sync (peer_vault, sender_device, sequence) \
-         VALUES (?1, ?2, ?3) ON CONFLICT(peer_vault, sender_device) \
-         DO UPDATE SET sequence = excluded.sequence",
-        params![receipt.from, sender_device, sequence],
+        "INSERT INTO chat_gate_received_answers_no_sync (peer_vault, sender_device, sequence, revision) \
+         VALUES (?1, ?2, ?3, ?4) ON CONFLICT(peer_vault, sender_device) \
+         DO UPDATE SET sequence = MAX(sequence, excluded.sequence), revision = excluded.revision",
+        params![peer_vault, sender_device, sequence, revision],
     )?;
     Ok(())
 }

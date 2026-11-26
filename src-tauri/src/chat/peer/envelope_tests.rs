@@ -107,10 +107,12 @@ fn a_receipt_carries_an_answer_and_one_without_reads_as_before() {
         read: vec![],
         answer: Some(Answer::Blocked),
         answer_sequence: Some(1),
+        answer_decision_hlc: Some("revision".into()),
     };
     let json = serde_json::to_value(&notice).expect("serialize");
     assert_eq!(json["answer"], "blocked");
     assert_eq!(json["answerSequence"], 1);
+    assert_eq!(json["answerDecisionHlc"], "revision");
     assert!(json.get("delivered").is_none() && json.get("read").is_none());
     let back: Receipt = serde_json::from_value(json).expect("parse");
     assert_eq!(back, notice);

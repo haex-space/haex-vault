@@ -36,9 +36,17 @@ fn assert_schema(db: &Database) {
     assert!(table_exists(db, "chat_gate_notices_no_sync"));
     assert!(table_exists(db, "chat_gate_answer_sequences_no_sync"));
     assert!(table_exists(db, "chat_gate_received_answers_no_sync"));
+    assert!(table_exists(db, "haex_contacts_gate_decisions"));
+    assert!(has_hlc_column(db, "haex_contacts_gate_decisions"));
     assert!(column_names(db, "chat_gate_notices_no_sync")
         .iter()
         .any(|name| name == "sequence"));
+    assert!(column_names(db, "chat_gate_notices_no_sync")
+        .iter()
+        .any(|name| name == "revision"));
+    assert!(column_names(db, "chat_gate_received_answers_no_sync")
+        .iter()
+        .any(|name| name == "revision"));
     assert!(
         !has_hlc_column(db, "chat_gate_notices_no_sync"),
         "the notices stay on the device"
