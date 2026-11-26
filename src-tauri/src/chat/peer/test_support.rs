@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use super::delivery::{now_ms, Clock, Delivery};
 use super::session::{Me, Session};
-use super::{messages, send};
+use super::{messages, receive, send};
 use crate::contacts::card::format::SignedCard;
 use crate::contacts::card::{own_card, received};
 use crate::contacts::model::{ContactInput, Head};
@@ -70,6 +70,8 @@ pub(crate) struct ChatDevice {
     token: Mutex<CancellationToken>,
     /// The device folder of the chat files, once [`Self::enable_files`] ran.
     files_dir: Mutex<Option<tempfile::TempDir>>,
+    /// The `arrived` events of the delivery [`Self::start`] runs (what notifications hear).
+    arrivals: Mutex<Option<tokio::sync::broadcast::Receiver<receive::Stored>>>,
 }
 
 impl ChatDevice {
@@ -89,6 +91,7 @@ impl ChatDevice {
             clock: TestClock::default(),
             token: Mutex::new(CancellationToken::new()),
             files_dir: Mutex::new(None),
+            arrivals: Mutex::new(None),
         }
     }
 
@@ -217,6 +220,7 @@ impl ChatDevice {
         if let Some(files) = self.session.files.get() {
             tokio::spawn(Arc::clone(files).run(token.clone()));
         }
+        *self.arrivals.lock().unwrap_or_else(PoisonError::into_inner) = Some(delivery.arrivals());
         tokio::spawn(delivery.run(Arc::clone(&self.session), incoming, forward));
         if listening {
             self.wait_for_record().await;
@@ -329,6 +333,22 @@ impl ChatDevice {
             .set(Arc::clone(&files))
             .expect("files once");
         files
+    }
+
+    /// The `arrived` events since the last call, of the delivery [`Self::start`] runs.
+    pub(crate) fn arrived(&self) -> Vec<receive::Stored> {
+        let mut found = Vec::new();
+        if let Some(arrivals) = self
+            .arrivals
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_mut()
+        {
+            while let Ok(one) = arrivals.try_recv() {
+                found.push(one);
+            }
+        }
+        found
     }
 
     /// Ends this device's delivery (the vault closes); [`Self::start`] opens it again.

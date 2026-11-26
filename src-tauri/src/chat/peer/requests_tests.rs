@@ -1,6 +1,6 @@
 //! Requests of strangers (spec 099 US1, US2, quickstart Q1–Q3): Ben has Anna's card, Anna has not
-//! Ben's. Ben's messages leave one request in Anna's "Anfragen" with the name of the card they
-//! carried and nothing else, and Ben gets no receipt. Accepting (reading the card in) sends Ben the
+//! Ben's. Ben's messages, also one with a file, leave one request in Anna's "Anfragen" with the name
+//! of the card they carried, one notification and nothing else, and Ben gets no receipt. Accepting (reading the card in) sends Ben the
 //! answer "accepted", and his waiting messages arrive. Declining blocks Ben with his card and sends
 //! him "blocked": his messages fail with that reason, a new one waits, and nothing reaches Anna. A
 //! deleted contact's next message is a request again.
@@ -10,6 +10,9 @@ use std::time::Duration;
 use haex_crdt::rusqlite::params;
 
 use crate::chat::peer::delivery::now_ms;
+use crate::chat::peer::envelope;
+use crate::chat::peer::files::test_server::BlossomTestServer;
+use crate::chat::peer::files::transfers::Picked;
 use crate::chat::peer::messages::{self, DeliveryState};
 use crate::chat::peer::requests::{self, Answer};
 use crate::chat::peer::store::{self, Conversation, ConversationState, ListFilter};
@@ -115,21 +118,47 @@ fn outbox_rows(device: &ChatDevice) -> i64 {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_stranger_leaves_one_request_and_nothing_of_its_messages() {
-    let (anna, ben, _relay) = stranger_writes().await;
-    for text in ["Hallo, wir kennen uns vom Markt", "Bist du da?", "Hallo?"] {
-        ben.send(&anna, text);
-    }
+    let (_relay, url) = mock_relay().await;
+    let blossom = BlossomTestServer::start().await;
+    let anna = ChatDevice::genesis(std::slice::from_ref(&url));
+    let ben = ChatDevice::genesis(&[url]);
+    ben.learn(&anna).await;
+    anna.enable_files(&blossom.url, None);
+    ben.enable_files(&blossom.url, None);
+    anna.start().await;
+    ben.start().await;
+
+    ben.send(&anna, "Hallo, wir kennen uns vom Markt");
     eventually("the request", || {
         list(&anna, true)
             .first()
             .is_some_and(|request| request.request_last_at.is_some())
     })
     .await;
+    // The later knocks come a second later by Anna's clock.
+    anna.clock.advance(1_000);
+    ben.send(&anna, "Bist du da?");
+    let files = ben.session.files.get().expect("files").clone();
+    files
+        .send(
+            &ben.me,
+            ben.thread_with(&anna),
+            &envelope::new_event_id(),
+            "Hier der Plan",
+            vec![Picked::in_memory(
+                "Plan.pdf",
+                "application/pdf",
+                b"%PDF-1.7 the plan".to_vec(),
+                false,
+            )],
+        )
+        .await
+        .expect("send the file");
+    ben.session.kick.notify_one();
     // Every knock has arrived once Ben's three messages are _sent_ and a moment passed.
     eventually("Ben's messages taken by the Nostr-Relay", || {
-        ben.messages_with(&anna)
-            .iter()
-            .all(|m| m.delivery == Some(DeliveryState::Sent))
+        let sent = ben.messages_with(&anna);
+        sent.len() == 3 && sent.iter().all(|m| m.delivery == Some(DeliveryState::Sent))
     })
     .await;
     tokio::time::sleep(Duration::from_secs(3)).await;
@@ -158,7 +187,10 @@ async fn a_stranger_leaves_one_request_and_nothing_of_its_messages() {
             .expect("thread"))
         })
         .expect("times");
-    assert!(first.is_some() && first <= last, "{first:?} {last:?}");
+    assert!(first.is_some() && first < last, "{first:?} {last:?}");
+    let arrived = anna.arrived();
+    assert_eq!(arrived.len(), 1, "one notification (FR-004): {arrived:?}");
+    assert!(arrived[0].knock && arrived[0].new);
 
     assert!(
         ben.messages_with(&anna)

@@ -389,3 +389,106 @@ async fn deleting_an_agent_conversation_goes_through_the_agent_storage() {
     assert!(deleted);
     assert!(list_all(&vault, &own, ListFilter::default()).is_empty());
 }
+
+fn request_times(vault: &TestVault, thread: Uuid) -> (Option<i64>, Option<i64>) {
+    vault
+        .db
+        .read_blocking(move |r| {
+            Ok(r.query_row(
+                "SELECT request_first_at, request_last_at FROM chat_threads WHERE id = ?1",
+                params![thread.to_string()],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )?
+            .expect("thread"))
+        })
+        .expect("times")
+}
+
+fn knock(vault: &TestVault, thread: Uuid, peer: &str, now: i64) -> bool {
+    let peer = peer.to_owned();
+    vault
+        .db
+        .write_blocking(move |tx| Ok(mark_request(tx, thread, &peer, &ben_card(), now)?))
+        .expect("knock")
+}
+
+fn requests(vault: &TestVault, own: &str) -> Vec<Conversation> {
+    list_all(
+        vault,
+        own,
+        ListFilter {
+            kind: None,
+            requests: true,
+        },
+    )
+}
+
+#[tokio::test]
+async fn a_request_keeps_its_first_knock_and_lists_its_latest() {
+    let vault = card_vault();
+    let (own, ben, _) = with_ben(&vault).await;
+    let direct = open(&vault, &own, &ben, 1);
+    assert_eq!(request_times(&vault, direct), (None, None));
+
+    assert!(knock(&vault, direct, &ben, 10), "it becomes a request");
+    assert_eq!(request_times(&vault, direct), (Some(10), Some(10)));
+    assert!(!knock(&vault, direct, &ben, 20), "a request already");
+    assert_eq!(
+        request_times(&vault, direct),
+        (Some(10), Some(20)),
+        "the first knock stays, the latest moves"
+    );
+
+    let listed = requests(&vault, &own);
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].request_last_at, Some(20));
+    assert_eq!(listed[0].last_at, 20, "ordered by the latest knock");
+}
+
+#[tokio::test]
+async fn the_peer_has_answered_once_it_wrote_or_a_message_was_delivered() {
+    let vault = card_vault();
+    let (own, ben, _) = with_ben(&vault).await;
+    let direct = open(&vault, &own, &ben, 1);
+    let answered = |vault: &TestVault| {
+        list_all(vault, &own, ListFilter::default())
+            .into_iter()
+            .find(|c| c.id == direct.to_string())
+            .expect("listed")
+            .peer_answered
+    };
+    assert!(!answered(&vault), "nothing yet");
+
+    peer_message(&vault, direct, &own, "Hallo Ben", 5);
+    let recipient = ben.clone();
+    vault
+        .db
+        .write_blocking(move |tx| {
+            tx.execute(
+                "INSERT INTO chat_deliveries (id, message_id, recipient_vault) \
+                 SELECT ?1, id, ?2 FROM chat_peer_messages WHERE thread_id = ?3",
+                params![Uuid::new_v4().to_string(), recipient, direct.to_string()],
+            )?;
+            Ok(())
+        })
+        .expect("delivery row");
+    assert!(!answered(&vault), "an own message only sent is no answer");
+
+    vault
+        .db
+        .write_blocking(|tx| {
+            tx.execute("UPDATE chat_deliveries SET delivered_at = 6", params![])?;
+            Ok(())
+        })
+        .expect("delivered");
+    assert!(answered(&vault), "a delivered message is an answer");
+
+    let other = card_vault();
+    let (other_own, other_ben, _) = with_ben(&other).await;
+    let other_direct = open(&other, &other_own, &other_ben, 1);
+    peer_message(&other, other_direct, &other_ben, "Hallo", 5);
+    assert!(
+        list_all(&other, &other_own, ListFilter::default())[0].peer_answered,
+        "a message of the peer is an answer"
+    );
+}
