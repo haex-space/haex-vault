@@ -182,7 +182,7 @@ fn hints(q: &mut impl Query, decoded: &Decoded) -> Result<Vec<ContactShareCandid
     }
     Ok(store::headers(q)?
         .into_iter()
-        .filter(|header| !header.is_self)
+        .filter(|header| !header.is_self && !header.blocked)
         .filter(|header| {
             header
                 .phones

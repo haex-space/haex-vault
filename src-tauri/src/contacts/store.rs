@@ -238,6 +238,7 @@ pub fn headers(q: &mut impl Query) -> Result<Vec<ContactHeader>> {
     }
     let mut marks = targets::marks(q)?;
     let cards = super::card::received::with_cards(q)?;
+    let hidden = super::card::received::hidden_contacts(q)?;
     Ok(rows
         .into_iter()
         .map(|row| {
@@ -256,6 +257,7 @@ pub fn headers(q: &mut impl Query) -> Result<Vec<ContactHeader>> {
                 issue: marks.issues.remove(&row.id),
                 has_card: cards.contains(&row.id),
                 is_self: ids::is_self(&row.id),
+                blocked: hidden.contains(&row.id),
                 id: row.id,
             }
         })

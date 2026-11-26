@@ -103,8 +103,8 @@ use chat::thread_commands::{
     create_thread, delete_thread, list_messages, list_threads, rename_thread,
 };
 use contacts::commands::cards::{
-    contacts_block, contacts_blocked, contacts_share_accept, contacts_share_build,
-    contacts_share_options, contacts_share_preview, contacts_unblock,
+    contacts_block, contacts_block_contact, contacts_blocked, contacts_share_accept,
+    contacts_share_build, contacts_share_options, contacts_share_preview, contacts_unblock,
 };
 use contacts::commands::contacts::{
     contacts_create, contacts_delete, contacts_get, contacts_group_delete, contacts_group_members,
@@ -1079,6 +1079,7 @@ pub fn run() {
             contacts_share_accept,
             contacts_blocked,
             contacts_block,
+            contacts_block_contact,
             contacts_unblock,
             passwords_create_item,
             passwords_update_item,

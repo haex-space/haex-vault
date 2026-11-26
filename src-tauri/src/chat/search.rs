@@ -85,6 +85,8 @@ pub fn search(q: &mut impl Query, text: &str) -> Result<SearchResult> {
         "SELECT m.id, m.thread_id, m.text, m.sort_at, t.kind \
          FROM chat_peer_messages m JOIN chat_threads t ON t.id = m.thread_id \
          WHERE t.state <> 'request' AND m.text IS NOT NULL \
+           AND (t.peer_vault IS NULL OR t.peer_vault NOT IN \
+             (SELECT vault_pubkey FROM haex_contacts_blocked_vaults)) \
          ORDER BY m.sort_at DESC, m.id DESC",
         &needle,
     )?;

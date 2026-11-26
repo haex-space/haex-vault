@@ -159,6 +159,7 @@ async fn agent_and_direct_conversations_share_one_list_newest_first() {
         ListFilter {
             kind: Some(ConversationKind::Agent),
             requests: false,
+            blocked: false,
         },
     );
     assert_eq!(agents.len(), 2, "FR-002: filter by kind");
@@ -263,6 +264,7 @@ async fn requests_have_their_own_area() {
         ListFilter {
             kind: None,
             requests: true,
+            blocked: false,
         },
     );
     assert_eq!(requests.len(), 1);
@@ -419,6 +421,7 @@ fn requests(vault: &TestVault, own: &str) -> Vec<Conversation> {
         ListFilter {
             kind: None,
             requests: true,
+            blocked: false,
         },
     )
 }
@@ -491,4 +494,86 @@ async fn the_peer_has_answered_once_it_wrote_or_a_message_was_delivered() {
         list_all(&other, &other_own, ListFilter::default())[0].peer_answered,
         "a message of the peer is an answer"
     );
+}
+
+/// Spec 099 T034 (FR-015, research R15): the conversation of a blocked contact leaves the list and
+/// the chat search, the list of blocked conversations has it with `peer_blocked`, and unblocking
+/// brings it back without a write to the conversation.
+#[tokio::test]
+async fn a_blocked_peers_conversation_leaves_the_list_and_the_search_until_unblocked() {
+    let vault = card_vault();
+    let (own, ben, contact_id) = with_ben(&vault).await;
+    let thread = open(&vault, &own, &ben, 10);
+    peer_message(&vault, thread, &ben, "Treffen am Markt", 20);
+    let found = |vault: &TestVault| {
+        vault
+            .db
+            .read_blocking(|r| Ok(crate::chat::search::search(r, "Markt")?))
+            .expect("search")
+            .hits
+            .len()
+    };
+    let blocked_list = |vault: &TestVault| {
+        list_all(
+            vault,
+            &own,
+            ListFilter {
+                kind: None,
+                requests: false,
+                blocked: true,
+            },
+        )
+    };
+    assert_eq!(found(&vault), 1);
+    assert!(blocked_list(&vault).is_empty());
+
+    vault
+        .service
+        .block_contact(&Caller::User, contact_id)
+        .await
+        .expect("block");
+    assert!(!list_all(&vault, &own, ListFilter::default())
+        .iter()
+        .any(|c| c.id == thread.to_string()));
+    assert_eq!(found(&vault), 0);
+    let blocked = blocked_list(&vault);
+    assert_eq!(blocked.len(), 1);
+    assert_eq!(blocked[0].id, thread.to_string());
+    assert!(blocked[0].peer_blocked);
+
+    vault
+        .service
+        .set_blocked(&Caller::User, ben, false)
+        .await
+        .expect("unblock");
+    let back = list_all(&vault, &own, ListFilter::default());
+    let entry = back
+        .iter()
+        .find(|c| c.id == thread.to_string())
+        .expect("back in the list");
+    assert!(!entry.peer_blocked);
+    assert_eq!(found(&vault), 1);
+}
+
+/// Spec 099 T039: a request of a blocked vault never shows (an own device that had not seen the
+/// decline yet may have made one).
+#[tokio::test]
+async fn a_request_of_a_blocked_vault_never_shows() {
+    let vault = card_vault();
+    let own = vault
+        .db
+        .read_blocking(|r| keys::vault_pubkey(r))
+        .expect("read")
+        .map(|own| hex(&own))
+        .expect("vault identity");
+    let ben = hex(&ben_card().card.vault);
+    let thread = open(&vault, &own, &ben, 10);
+    assert!(knock(&vault, thread, &ben, 20));
+    assert_eq!(requests(&vault, &own).len(), 1);
+    let blocked = ben.clone();
+    vault
+        .db
+        .write_blocking(move |tx| Ok(received::block(tx, &blocked)?))
+        .expect("block");
+    assert!(requests(&vault, &own).is_empty());
 }
