@@ -35,6 +35,8 @@ fn every_vendor_of_the_catalog_is_listed_in_catalog_order_and_nothing_touches_th
     assert!(statuses[..2]
         .iter()
         .all(|s| s.state == CliToolState::NotInstalled));
+    // T044 leaves Abacus without a tested version until its pre-catalog checks pass.
+    assert_eq!(statuses[2].state, CliToolState::NoTestedVersion);
     assert_eq!(
         fs::read_dir(data.path()).unwrap().count(),
         0,

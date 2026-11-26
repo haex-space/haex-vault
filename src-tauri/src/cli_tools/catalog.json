@@ -172,21 +172,7 @@
       "env_remove_prefixes": ["ABACUS_", "ABACUSAI_", "CODELLM_"],
       "config_env": "ABACUSAI_CODING_AGENT_DIR",
       "tmp_env": [],
-      "versions": [
-        {
-          "version": "2.10.23",
-          "platforms": {
-            "linux-x64": {
-              "url": "https://static.abacus.ai/cli/releases/2.10.23/abacusai-linux-x64.tar.gz",
-              "sha256": "9523013ea09211bb6dd4bdf60704ffa577e0c31e17e4879d0310fb3883fa7afc",
-              "size": 78799835,
-              "kind": "tar.gz",
-              "unpacked_size": 157573467,
-              "requires_avx2": true
-            }
-          }
-        }
-      ]
+      "versions": []
     }
   ]
 }
