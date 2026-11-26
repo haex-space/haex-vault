@@ -6,17 +6,17 @@
 
 ## Summary
 
-Replace the text button in the Federation vault identity row with haex-ui's established `UiButtonCopy`. Use its localized copy/copied labels, keep clipboard errors visible as a toast, and preserve the existing test identifier.
+Replace the text button in the Federation vault identity row with haex-ui's `UiButtonIcon` and the copy icon. Retain the localized clipboard toasts and existing test identifier.
 
 ## Technical Context
 
 **Language/Version**: TypeScript and Vue 3, as used by the existing UI
 
-**Primary Dependencies**: Pinned haex-ui Nuxt layer (`UiButtonCopy`) and Vue I18n
+**Primary Dependencies**: Pinned haex-ui Nuxt layer (`UiButtonIcon`) and Vue I18n
 
 **Storage**: N/A
 
-**Testing**: The existing identity copy test identifier remains in place. No tests were requested for this presentation change.
+**Testing**: The existing `sync-identity` scenario continues to check the success toast.
 
 **Target Platform**: haex-vault desktop application
 
@@ -24,17 +24,17 @@ Replace the text button in the Federation vault identity row with haex-ui's esta
 
 **Performance Goals**: No measurable runtime impact
 
-**Constraints**: Use haex-ui's icon-button sizing and style; pass localized copy/copied labels; retain `settings-identity-copy` for existing automation.
+**Constraints**: Use haex-ui's icon-button sizing and a localized accessible name. Retain `settings-identity-copy` for existing automation.
 
 **Scale/Scope**: One control in `src/components/settings/VaultIdentityRow.vue`; no locale changes are needed.
 
 ## Constitution Check
 
-*Gate: checked before research and after design.*
+_Gate: checked before research and after design._
 
 - No secrets or local absolute paths are introduced.
 - The public identity remains read-only; only its existing copy action changes presentation.
-- The copy action uses haex-ui's built-in copied feedback and preserves clipboard-error toast feedback.
+- The icon has a stable accessible name. Clipboard success and failure appear in localized toasts.
 - The control remains accessible and follows existing component conventions.
 - Work is isolated on the dedicated `fix/vault-identity-copy-icon` topic branch and will land through a pull request.
 
@@ -62,7 +62,7 @@ src/components/settings/VaultIdentityRow.vue  # icon-only copy action
 
 ## Design Summary
 
-Use `UiButtonCopy` in the current `SettingsRow` slot, matching existing uses in `PathBar.vue`, `BlossomKeySetting.vue` and `DelegateSignInDialog.vue`. Pass `identity.npub` as its value, reuse the existing localized `identityCopy` and `identityCopied` labels, preserve the test id, and route its error event to the existing error toast. The component owns copying and its accessible copy/copied feedback.
+Use `UiButtonIcon` in the current `SettingsRow` slot with the copy icon and the localized `identityCopy` label. Keep the existing `onCopy` handler for `identity.npub` so it awaits the Clipboard API before showing a toast.
 
 ## Complexity Tracking
 
