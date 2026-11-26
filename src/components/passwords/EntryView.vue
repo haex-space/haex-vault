@@ -93,170 +93,171 @@ async function removeOtpAsync() {
 </script>
 
 <template>
-  <div class="min-h-0 flex-1 overflow-y-auto px-4 pb-6 @md:px-6">
-    <div class="@container mx-auto flex w-full max-w-3xl flex-col gap-4">
-      <div class="flex items-center gap-2 pt-1">
-        <UiButtonBack
-          :label="t('passwords.back')"
-          data-testid="passwords-entry-back"
-          @click="goBack"
-        />
-        <div v-if="detail" class="flex min-w-0 flex-1 items-center gap-2 px-1">
-          <span
-            class="size-7 shrink-0"
-            :style="detail.color ? { color: detail.color } : undefined"
-            aria-hidden="true"
-          >
-            <PasswordsEntryIcon
-              :value="detail.icon"
-              :fallback="DEFAULT_ENTRY_ICON"
-            />
-          </span>
-          <h1
-            class="truncate text-2xl font-bold text-foreground"
-            :class="title === null ? 'text-muted-foreground italic' : ''"
-            aria-current="page"
-            data-testid="passwords-entry-title"
-          >
-            {{ title ?? t('passwords.untitled') }}
-          </h1>
-        </div>
-        <ShadcnBadge
-          v-if="detail?.owner"
-          variant="secondary"
-          class="shrink-0"
-          data-testid="passwords-entry-owner"
+  <PagePasswordManager
+    class="@container"
+    :back-label="t('passwords.back')"
+    back-testid="passwords-entry-back"
+    @back="goBack"
+  >
+    <template #title>
+      <div v-if="detail" class="flex min-w-0 items-center gap-2 px-1">
+        <span
+          class="size-7 shrink-0"
+          :style="detail.color ? { color: detail.color } : undefined"
+          aria-hidden="true"
         >
-          {{
-            t('passwords.owner', {
-              name: t(`passwords.owners.${detail.owner}`),
-            })
-          }}
-        </ShadcnBadge>
-        <UiButtonLink
-          v-if="detail && !inTrash"
-          :label="t('passwords.pass.links.add')"
-          class="ml-auto"
-          data-testid="passwords-add-linked"
-          @click="addLinked"
-        />
-        <UiButtonEdit
-          v-if="detail && !inTrash"
-          :label="t('passwords.edit')"
-          data-testid="passwords-edit"
-          @click="edit"
-        />
-        <UiButtonDelete
-          v-if="detail && !inTrash"
-          :label="t('passwords.delete.title')"
-          data-testid="passwords-delete"
-          @click="deleteOpen = true"
-        />
+          <PasswordsEntryIcon
+            :value="detail.icon"
+            :fallback="DEFAULT_ENTRY_ICON"
+          />
+        </span>
+        <h1
+          class="truncate text-2xl font-bold text-foreground"
+          :class="title === null ? 'text-muted-foreground italic' : ''"
+          aria-current="page"
+          data-testid="passwords-entry-title"
+        >
+          {{ title ?? t('passwords.untitled') }}
+        </h1>
       </div>
-
-      <p
-        v-if="notFound"
-        class="py-10 text-center text-muted-foreground"
-        role="alert"
+    </template>
+    <template #actions>
+      <ShadcnBadge
+        v-if="detail?.owner"
+        variant="secondary"
+        class="shrink-0"
+        data-testid="passwords-entry-owner"
       >
-        {{ t('passwords.entryGone') }}
-      </p>
-      <div
-        v-else-if="!detail && !loadFailed"
-        class="flex justify-center py-10 text-muted-foreground"
-        role="status"
-      >
-        <Icon name="lucide:loader-circle" class="size-6 animate-spin" />
-      </div>
+        {{
+          t('passwords.owner', {
+            name: t(`passwords.owners.${detail.owner}`),
+          })
+        }}
+      </ShadcnBadge>
+      <UiButtonLink
+        v-if="detail && !inTrash"
+        :label="t('passwords.pass.links.add')"
+        data-testid="passwords-add-linked"
+        @click="addLinked"
+      />
+      <UiButtonEdit
+        v-if="detail && !inTrash"
+        :label="t('passwords.edit')"
+        data-testid="passwords-edit"
+        @click="edit"
+      />
+      <UiButtonDelete
+        v-if="detail && !inTrash"
+        :label="t('passwords.delete.title')"
+        data-testid="passwords-delete"
+        @click="deleteOpen = true"
+      />
+    </template>
 
-      <template v-else-if="detail">
-        <div
-          v-if="shownFreshness !== 'fresh'"
-          class="flex flex-wrap items-center gap-2 rounded-xl bg-muted px-4 py-3 text-sm"
-          role="status"
-          data-testid="passwords-entry-stale"
-        >
-          <Icon name="lucide:refresh-cw" class="size-4 shrink-0" />
-          <span class="min-w-0 flex-1">{{
-            shownFreshness === 'deleted'
-              ? t('passwords.stale.deleted')
-              : t('passwords.stale.changed')
-          }}</span>
-          <UiButton
-            v-if="shownFreshness === 'changed'"
-            size="sm"
-            data-testid="passwords-entry-reload"
-            @click="loadAsync"
-          >
-            {{ t('passwords.stale.reload') }}
-          </UiButton>
-          <UiButton
-            v-else
-            size="sm"
-            data-testid="passwords-entry-leave"
-            @click="leaveDeleted"
-          >
-            {{ t('passwords.stale.back') }}
-          </UiButton>
-        </div>
-
-        <div
-          v-if="inTrash"
-          class="flex items-center gap-2 rounded-xl bg-muted px-4 py-3 text-sm"
-          role="status"
-          data-testid="passwords-entry-in-trash"
-        >
-          <Icon name="lucide:trash-2" class="size-4 shrink-0" />
-          <span class="min-w-0 flex-1">{{ t('passwords.inTrashNote') }}</span>
-        </div>
-
-        <!-- The hook sits on a plain element: the badge of the UI layer does not forward it. -->
-        <div
-          v-if="expired"
-          class="self-start"
-          data-testid="passwords-entry-expired"
-        >
-          <ShadcnBadge variant="destructive">
-            {{ t('passwords.expiredOn', { date: detail.expiresAt }) }}
-          </ShadcnBadge>
-        </div>
-
-        <PasswordsEntryTabs v-model="activeTab" :tabs="TABS">
-          <template #details>
-            <div class="flex flex-col gap-4">
-              <PasswordsViewDetails
-                :item-id="itemId"
-                :detail="detail"
-                @edit="edit"
-                @remove-otp="removeOtpAsync"
-              />
-              <WalletLinked :item-id="itemId" />
-            </div>
-          </template>
-          <template #extra>
-            <PasswordsViewExtra
-              :item-id="itemId"
-              :detail="detail"
-              @changed="loadAsync"
-            />
-          </template>
-          <template #history>
-            <PasswordsHistoryTab
-              :item-id="itemId"
-              :updated-at="detail.updatedAt"
-              :active="activeTab === 'history'"
-              :readonly="inTrash"
-              @restored="onRestored"
-            />
-          </template>
-        </PasswordsEntryTabs>
-      </template>
+    <p
+      v-if="notFound"
+      class="py-10 text-center text-muted-foreground"
+      role="alert"
+    >
+      {{ t('passwords.entryGone') }}
+    </p>
+    <div
+      v-else-if="!detail && !loadFailed"
+      class="flex justify-center py-10 text-muted-foreground"
+      role="status"
+    >
+      <Icon name="lucide:loader-circle" class="size-6 animate-spin" />
     </div>
 
-    <PasswordsDeleteDialog
-      v-model:open="deleteOpen"
-      :targets="[{ kind: 'item', id: itemId }]"
-      @done="leaveDeleted"
-    />
-  </div>
+    <template v-else-if="detail">
+      <div
+        v-if="shownFreshness !== 'fresh'"
+        class="flex flex-wrap items-center gap-2 rounded-xl bg-muted px-4 py-3 text-sm"
+        role="status"
+        data-testid="passwords-entry-stale"
+      >
+        <Icon name="lucide:refresh-cw" class="size-4 shrink-0" />
+        <span class="min-w-0 flex-1">{{
+          shownFreshness === 'deleted'
+            ? t('passwords.stale.deleted')
+            : t('passwords.stale.changed')
+        }}</span>
+        <UiButton
+          v-if="shownFreshness === 'changed'"
+          size="sm"
+          data-testid="passwords-entry-reload"
+          @click="loadAsync"
+        >
+          {{ t('passwords.stale.reload') }}
+        </UiButton>
+        <UiButton
+          v-else
+          size="sm"
+          data-testid="passwords-entry-leave"
+          @click="leaveDeleted"
+        >
+          {{ t('passwords.stale.back') }}
+        </UiButton>
+      </div>
+
+      <div
+        v-if="inTrash"
+        class="flex items-center gap-2 rounded-xl bg-muted px-4 py-3 text-sm"
+        role="status"
+        data-testid="passwords-entry-in-trash"
+      >
+        <Icon name="lucide:trash-2" class="size-4 shrink-0" />
+        <span class="min-w-0 flex-1">{{ t('passwords.inTrashNote') }}</span>
+      </div>
+
+      <!-- The hook sits on a plain element: the badge of the UI layer does not forward it. -->
+      <div
+        v-if="expired"
+        class="self-start"
+        data-testid="passwords-entry-expired"
+      >
+        <ShadcnBadge variant="destructive">
+          {{ t('passwords.expiredOn', { date: detail.expiresAt }) }}
+        </ShadcnBadge>
+      </div>
+
+      <PasswordsEntryTabs v-model="activeTab" :tabs="TABS">
+        <template #details>
+          <div class="flex flex-col gap-4">
+            <PasswordsViewDetails
+              :item-id="itemId"
+              :detail="detail"
+              @edit="edit"
+              @remove-otp="removeOtpAsync"
+            />
+            <WalletLinked :item-id="itemId" />
+          </div>
+        </template>
+        <template #extra>
+          <PasswordsViewExtra
+            :item-id="itemId"
+            :detail="detail"
+            @changed="loadAsync"
+          />
+        </template>
+        <template #history>
+          <PasswordsHistoryTab
+            :item-id="itemId"
+            :updated-at="detail.updatedAt"
+            :active="activeTab === 'history'"
+            :readonly="inTrash"
+            @restored="onRestored"
+          />
+        </template>
+      </PasswordsEntryTabs>
+    </template>
+
+    <template #overlays>
+      <PasswordsDeleteDialog
+        v-model:open="deleteOpen"
+        :targets="[{ kind: 'item', id: itemId }]"
+        @done="leaveDeleted"
+      />
+    </template>
+  </PagePasswordManager>
 </template>

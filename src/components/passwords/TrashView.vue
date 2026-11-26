@@ -189,206 +189,198 @@ function titleOf(header: ItemHeader): string {
 </script>
 
 <template>
-  <div class="min-h-0 flex-1 overflow-y-auto px-4 pb-6 @md:px-6">
-    <div class="mx-auto flex w-full max-w-3xl flex-col gap-3">
-      <div class="flex items-center gap-2 pt-1">
-        <UiButtonBack
-          :label="t('passwords.back')"
-          class="-ml-2"
-          @click="router.back()"
-        />
-        <h1
-          class="min-w-0 flex-1 truncate text-2xl font-bold"
-          data-testid="passwords-trash-title"
-        >
-          {{ t('passwords.trash.title') }}
-        </h1>
-        <UiButton
-          variant="outline"
-          class="shrink-0"
-          :disabled="emptyPlan.targets.length === 0"
-          data-testid="passwords-empty-trash"
-          @click="emptyDialog = true"
-        >
-          <Icon name="lucide:trash-2" class="size-4" />
-          {{ t('passwords.trash.empty') }}
-        </UiButton>
-      </div>
-
-      <p
-        v-if="folders.length === 0 && entries.length === 0"
-        class="py-10 text-center text-muted-foreground"
-        data-testid="passwords-trash-empty"
+  <PagePasswordManager
+    :back-label="t('passwords.back')"
+    :title="t('passwords.trash.title')"
+    title-testid="passwords-trash-title"
+    gap="sm"
+    @back="router.back()"
+  >
+    <template #actions>
+      <UiButton
+        variant="outline"
+        class="shrink-0"
+        :disabled="emptyPlan.targets.length === 0"
+        data-testid="passwords-empty-trash"
+        @click="emptyDialog = true"
       >
-        {{ t('passwords.trash.isEmpty') }}
-      </p>
+        <Icon name="lucide:trash-2" class="size-4" />
+        {{ t('passwords.trash.empty') }}
+      </UiButton>
+    </template>
 
-      <SettingsGroup
-        v-if="folders.length > 0"
-        :label="t('passwords.trash.folders')"
-      >
-        <PasswordsEntryMenu
-          v-for="folder in folders"
-          :key="folder.group.id"
-          :entries="trashMenu"
-          @run="
-            runTrashCommand(
-              $event,
-              target('group', folder.group.id),
-              displayTitle(folder.group.name) ?? t('passwords.untitled'),
-            )
-          "
-        >
-          <SettingsRow
-            :title="displayTitle(folder.group.name) ?? t('passwords.untitled')"
-            :description="
-              t('passwords.trash.cameFrom', { path: folder.path }) +
-              ' · ' +
-              t(
-                'passwords.trash.entriesInside',
-                { count: folder.entries },
-                folder.entries,
-              ) +
-              (folder.passes > 0
-                ? ' · ' +
-                  t(
-                    'passwords.trash.passesStay',
-                    { count: folder.passes },
-                    folder.passes,
-                  )
-                : '')
-            "
-            icon="lucide:folder"
-            :data-testid="`passwords-trash-folder-${folder.group.id}`"
-          >
-            <UiButton
-              variant="outline"
-              size="sm"
-              :data-testid="`passwords-trash-restore-${folder.group.id}`"
-              @click="restoreOneAsync(target('group', folder.group.id))"
-            >
-              {{ t('passwords.trash.restore') }}
-            </UiButton>
-            <UiButton
-              variant="ghost"
-              size="sm"
-              :disabled="folder.passes > 0 && folder.entries === 0"
-              :data-testid="`passwords-trash-delete-${folder.group.id}`"
-              @click="
-                askDelete(
-                  target('group', folder.group.id),
-                  displayTitle(folder.group.name) ?? t('passwords.untitled'),
-                )
-              "
-            >
-              {{ t('passwords.trash.deleteForGood') }}
-            </UiButton>
-          </SettingsRow>
-        </PasswordsEntryMenu>
-      </SettingsGroup>
-
-      <SettingsGroup
-        v-if="entries.length > 0"
-        :label="t('passwords.trash.entries')"
-      >
-        <PasswordsEntryMenu
-          v-for="entry in entries"
-          :key="entry.header.id"
-          :entries="trashMenu"
-          @run="
-            runTrashCommand(
-              $event,
-              target('item', entry.header.id),
-              titleOf(entry.header),
-            )
-          "
-        >
-          <SettingsRow
-            :title="titleOf(entry.header)"
-            :description="t('passwords.trash.cameFrom', { path: entry.path })"
-            :icon="scope === 'pass' ? 'lucide:wallet' : 'lucide:key-round'"
-            :data-testid="`passwords-trash-entry-${entry.header.id}`"
-          >
-            <UiButton
-              variant="ghost"
-              size="sm"
-              :data-testid="`passwords-trash-view-${entry.header.id}`"
-              @click="router.push(`/entry/${entry.header.id}`)"
-            >
-              {{ t('passwords.trash.view') }}
-            </UiButton>
-            <UiButton
-              variant="outline"
-              size="sm"
-              :data-testid="`passwords-trash-restore-${entry.header.id}`"
-              @click="restoreOneAsync(target('item', entry.header.id))"
-            >
-              {{ t('passwords.trash.restore') }}
-            </UiButton>
-            <UiButton
-              variant="ghost"
-              size="sm"
-              :data-testid="`passwords-trash-delete-${entry.header.id}`"
-              @click="
-                askDelete(
-                  target('item', entry.header.id),
-                  titleOf(entry.header),
-                )
-              "
-            >
-              {{ t('passwords.trash.deleteForGood') }}
-            </UiButton>
-          </SettingsRow>
-        </PasswordsEntryMenu>
-      </SettingsGroup>
-    </div>
-
-    <PasswordsEmptyTrashDialog
-      v-model:open="emptyDialog"
-      :entries="emptyPlan.entries"
-      :folders="emptyPlan.folders"
-      :item-ids="emptyPlan.itemIds"
-      :targets="emptyPlan.targets"
-    />
-
-    <ShadcnAlertDialog
-      :open="deleting !== null"
-      @update:open="(value: boolean) => !value && (deleting = null)"
+    <p
+      v-if="folders.length === 0 && entries.length === 0"
+      class="py-10 text-center text-muted-foreground"
+      data-testid="passwords-trash-empty"
     >
-      <ShadcnAlertDialogContent v-if="deleting">
-        <ShadcnAlertDialogHeader>
-          <ShadcnAlertDialogTitle>{{
-            t('passwords.trash.deleteTitle')
-          }}</ShadcnAlertDialogTitle>
-          <ShadcnAlertDialogDescription>
-            {{
-              t(
-                deleting.kind === 'group'
-                  ? 'passwords.trash.deleteFolderBody'
-                  : 'passwords.trash.deleteBody',
-                { name: deletingLabel },
-              )
-            }}
-          </ShadcnAlertDialogDescription>
-        </ShadcnAlertDialogHeader>
-        <PasswordsReferenceUsageNote
-          v-model:inline="inlineReferences"
-          :item-ids="deletingItemIds"
-        />
-        <PasswordsPasskeyDeleteNote :item-ids="deletingItemIds" />
-        <ShadcnAlertDialogFooter>
-          <ShadcnAlertDialogCancel>{{
-            t('passwords.cancel')
-          }}</ShadcnAlertDialogCancel>
+      {{ t('passwords.trash.isEmpty') }}
+    </p>
+
+    <SettingsGroup
+      v-if="folders.length > 0"
+      :label="t('passwords.trash.folders')"
+    >
+      <PasswordsEntryMenu
+        v-for="folder in folders"
+        :key="folder.group.id"
+        :entries="trashMenu"
+        @run="
+          runTrashCommand(
+            $event,
+            target('group', folder.group.id),
+            displayTitle(folder.group.name) ?? t('passwords.untitled'),
+          )
+        "
+      >
+        <SettingsRow
+          :title="displayTitle(folder.group.name) ?? t('passwords.untitled')"
+          :description="
+            t('passwords.trash.cameFrom', { path: folder.path }) +
+            ' · ' +
+            t(
+              'passwords.trash.entriesInside',
+              { count: folder.entries },
+              folder.entries,
+            ) +
+            (folder.passes > 0
+              ? ' · ' +
+                t(
+                  'passwords.trash.passesStay',
+                  { count: folder.passes },
+                  folder.passes,
+                )
+              : '')
+          "
+          icon="lucide:folder"
+          :data-testid="`passwords-trash-folder-${folder.group.id}`"
+        >
           <UiButton
-            variant="destructive"
-            data-testid="passwords-trash-delete-confirm"
-            @click="confirmDeleteAsync"
+            variant="outline"
+            size="sm"
+            :data-testid="`passwords-trash-restore-${folder.group.id}`"
+            @click="restoreOneAsync(target('group', folder.group.id))"
+          >
+            {{ t('passwords.trash.restore') }}
+          </UiButton>
+          <UiButton
+            variant="ghost"
+            size="sm"
+            :disabled="folder.passes > 0 && folder.entries === 0"
+            :data-testid="`passwords-trash-delete-${folder.group.id}`"
+            @click="
+              askDelete(
+                target('group', folder.group.id),
+                displayTitle(folder.group.name) ?? t('passwords.untitled'),
+              )
+            "
           >
             {{ t('passwords.trash.deleteForGood') }}
           </UiButton>
-        </ShadcnAlertDialogFooter>
-      </ShadcnAlertDialogContent>
-    </ShadcnAlertDialog>
-  </div>
+        </SettingsRow>
+      </PasswordsEntryMenu>
+    </SettingsGroup>
+
+    <SettingsGroup
+      v-if="entries.length > 0"
+      :label="t('passwords.trash.entries')"
+    >
+      <PasswordsEntryMenu
+        v-for="entry in entries"
+        :key="entry.header.id"
+        :entries="trashMenu"
+        @run="
+          runTrashCommand(
+            $event,
+            target('item', entry.header.id),
+            titleOf(entry.header),
+          )
+        "
+      >
+        <SettingsRow
+          :title="titleOf(entry.header)"
+          :description="t('passwords.trash.cameFrom', { path: entry.path })"
+          :icon="scope === 'pass' ? 'lucide:wallet' : 'lucide:key-round'"
+          :data-testid="`passwords-trash-entry-${entry.header.id}`"
+        >
+          <UiButton
+            variant="ghost"
+            size="sm"
+            :data-testid="`passwords-trash-view-${entry.header.id}`"
+            @click="router.push(`/entry/${entry.header.id}`)"
+          >
+            {{ t('passwords.trash.view') }}
+          </UiButton>
+          <UiButton
+            variant="outline"
+            size="sm"
+            :data-testid="`passwords-trash-restore-${entry.header.id}`"
+            @click="restoreOneAsync(target('item', entry.header.id))"
+          >
+            {{ t('passwords.trash.restore') }}
+          </UiButton>
+          <UiButton
+            variant="ghost"
+            size="sm"
+            :data-testid="`passwords-trash-delete-${entry.header.id}`"
+            @click="
+              askDelete(target('item', entry.header.id), titleOf(entry.header))
+            "
+          >
+            {{ t('passwords.trash.deleteForGood') }}
+          </UiButton>
+        </SettingsRow>
+      </PasswordsEntryMenu>
+    </SettingsGroup>
+
+    <template #overlays>
+      <PasswordsEmptyTrashDialog
+        v-model:open="emptyDialog"
+        :entries="emptyPlan.entries"
+        :folders="emptyPlan.folders"
+        :item-ids="emptyPlan.itemIds"
+        :targets="emptyPlan.targets"
+      />
+
+      <ShadcnAlertDialog
+        :open="deleting !== null"
+        @update:open="(value: boolean) => !value && (deleting = null)"
+      >
+        <ShadcnAlertDialogContent v-if="deleting">
+          <ShadcnAlertDialogHeader>
+            <ShadcnAlertDialogTitle>{{
+              t('passwords.trash.deleteTitle')
+            }}</ShadcnAlertDialogTitle>
+            <ShadcnAlertDialogDescription>
+              {{
+                t(
+                  deleting.kind === 'group'
+                    ? 'passwords.trash.deleteFolderBody'
+                    : 'passwords.trash.deleteBody',
+                  { name: deletingLabel },
+                )
+              }}
+            </ShadcnAlertDialogDescription>
+          </ShadcnAlertDialogHeader>
+          <PasswordsReferenceUsageNote
+            v-model:inline="inlineReferences"
+            :item-ids="deletingItemIds"
+          />
+          <PasswordsPasskeyDeleteNote :item-ids="deletingItemIds" />
+          <ShadcnAlertDialogFooter>
+            <ShadcnAlertDialogCancel>{{
+              t('passwords.cancel')
+            }}</ShadcnAlertDialogCancel>
+            <UiButton
+              variant="destructive"
+              data-testid="passwords-trash-delete-confirm"
+              @click="confirmDeleteAsync"
+            >
+              {{ t('passwords.trash.deleteForGood') }}
+            </UiButton>
+          </ShadcnAlertDialogFooter>
+        </ShadcnAlertDialogContent>
+      </ShadcnAlertDialog>
+    </template>
+  </PagePasswordManager>
 </template>

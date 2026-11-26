@@ -317,79 +317,73 @@ watch(saveError, (message) => {
 </script>
 
 <template>
-  <div class="min-h-0 flex-1 overflow-y-auto px-4 pb-6 @md:px-6">
-    <form
-      class="mx-auto flex w-full max-w-3xl flex-col gap-5"
-      data-testid="passwords-editor"
-      @submit.prevent="saveAsync"
-    >
-      <div class="flex items-center gap-2 pt-1">
-        <UiButtonBack
-          :label="t('passwords.cancel')"
-          class="-ml-2"
-          data-testid="passwords-editor-cancel"
-          @click="requestLeave"
-        />
-        <h1 class="min-w-0 flex-1 truncate text-2xl font-bold">
-          {{
-            isNew
-              ? t('passwords.editor.newTitle')
-              : t('passwords.editor.editTitle')
-          }}
-        </h1>
-        <UiButton
-          type="submit"
-          class="shrink-0"
-          :loading="saving"
-          :disabled="loading || (!isNew && !dirty)"
-          data-testid="passwords-editor-save"
-        >
-          {{ t('passwords.save') }}
-        </UiButton>
-      </div>
-
-      <div
-        v-if="loading"
-        class="flex justify-center py-10 text-muted-foreground"
-        role="status"
+  <PagePasswordManager
+    as="form"
+    gap="lg"
+    :back-label="t('passwords.cancel')"
+    back-testid="passwords-editor-cancel"
+    :title="
+      isNew ? t('passwords.editor.newTitle') : t('passwords.editor.editTitle')
+    "
+    data-testid="passwords-editor"
+    @back="requestLeave"
+    @submit.prevent="saveAsync"
+  >
+    <template #actions>
+      <UiButton
+        type="submit"
+        class="shrink-0"
+        :loading="saving"
+        :disabled="loading || (!isNew && !dirty)"
+        data-testid="passwords-editor-save"
       >
-        <Icon name="lucide:loader-circle" class="size-6 animate-spin" />
-      </div>
+        {{ t('passwords.save') }}
+      </UiButton>
+    </template>
 
-      <template v-else-if="!loadFailed">
-        <PasswordsEntryTabs v-model="activeTab" :tabs="TABS">
-          <template #details>
-            <PasswordsEditorDetails
-              v-model="draft"
-              :item-id="itemId"
-              :detail="detail"
-              :otp-error="otpError"
-            />
-          </template>
-          <template #extra>
-            <PasswordsEditorExtra
-              v-model="draft"
-              :item-id="itemId"
-              :detail="detail"
-              @changed="reloadAttachmentsAsync"
-            />
-          </template>
-        </PasswordsEntryTabs>
-      </template>
-    </form>
+    <div
+      v-if="loading"
+      class="flex justify-center py-10 text-muted-foreground"
+      role="status"
+    >
+      <Icon name="lucide:loader-circle" class="size-6 animate-spin" />
+    </div>
 
-    <PasswordsConflictDialog
-      :open="conflict !== null"
-      :reason="conflict ?? 'changed'"
-      @save-as-new="saveAsNewAsync"
-      @take-current="takeCurrentAsync"
-      @close="conflict = null"
-    />
-    <PasswordsUnsavedDialog
-      :open="askingToLeave"
-      @save="saveAndLeaveAsync"
-      @discard="discardAndLeave"
-      @stay="stay"
-    />
-  </div>
+    <template v-else-if="!loadFailed">
+      <PasswordsEntryTabs v-model="activeTab" :tabs="TABS">
+        <template #details>
+          <PasswordsEditorDetails
+            v-model="draft"
+            :item-id="itemId"
+            :detail="detail"
+            :otp-error="otpError"
+          />
+        </template>
+        <template #extra>
+          <PasswordsEditorExtra
+            v-model="draft"
+            :item-id="itemId"
+            :detail="detail"
+            @changed="reloadAttachmentsAsync"
+          />
+        </template>
+      </PasswordsEntryTabs>
+    </template>
+
+    <template #overlays>
+      <PasswordsConflictDialog
+        :open="conflict !== null"
+        :reason="conflict ?? 'changed'"
+        @save-as-new="saveAsNewAsync"
+        @take-current="takeCurrentAsync"
+        @close="conflict = null"
+      />
+      <PasswordsUnsavedDialog
+        :open="askingToLeave"
+        @save="saveAndLeaveAsync"
+        @discard="discardAndLeave"
+        @stay="stay"
+      />
+    </template>
+  </PagePasswordManager>
 </template>
