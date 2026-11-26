@@ -309,11 +309,10 @@ of its download.
   (`abacus.ai/terms`, read 2026-11-22) neither allow nor forbid automated access or wrappers of the CLI; they do not mention
   the CLI. It is recorded as an open question for the operator, not assumed either way (the decision for Claude Code,
   accepted at product level in spec 007, does not carry over).
-- **Listed residuals** (measured 2026-11-22, unauthenticated runs only): the tool extracts a native library to a file in
-  the system temp folder named by a content hash (`.bun-<uid>-<hash>.node`), which carries no vault name and no content, and
-  stays after the run, and it writes its config store under the user's XDG config folder; both follow `TMPDIR` and
-  `XDG_CONFIG_HOME`, which the base layer sets for the process, so they land in the vault's home. An authenticated run
-  may add entries; each needs the operator's agreement.
+- **Containment measurements** (Linux x64, version 2.10.23, research §§12–13): the native library
+  (`.bun-<uid>-<hash>.node`) and the config store follow `TMPDIR` and `XDG_CONFIG_HOME` into the test tree. The authenticated
+  containment check reported no unlisted writes outside the test tree. Any residual identified on another run needs the
+  operator's agreement before it is listed.
 - New identifiers (environment variables of HaexVault's own, schemas, event names) use the `haex` prefix; the tool's own
   variables keep their names.
 
@@ -329,8 +328,8 @@ switched off (`ABACUS_AUTO_UPDATE=off`); release files exist for Linux, macOS an
   answers a client other than the vendor's own, whether the code works with `CODELLM_DEVICE_CODE` on a second device, how
   long it lasts, and whether the vendor's terms cover this use. If the service refuses other clients, the sign-in cannot be
   done from the UI and the operator decides what replaces it; an API key is not an answer (FR-005).
-- **Authenticated traces.** What a run with a credential writes beyond the unauthenticated runs measured so far (a keystore
-  file, sessions, caches), with `HOME`, `TMPDIR` and `XDG_CONFIG_HOME` moved (FR-006, FR-013).
+- **Authenticated traces.** The Linux x64 CLI runs are recorded in research §§12–13. The app lifecycle check (Quickstart §7)
+  and authenticated measurements for other platforms remain open (FR-006, FR-013).
 - **The approval round trip.** The messages of a real `can_use_tool` exchange and what the tool does with a refusal
   (FR-010).
 - **Terms.** The customer terms are silent on automated use of the CLI (Assumptions); the operator decides whether that
