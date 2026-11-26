@@ -122,7 +122,17 @@ scenario('chat-files', { timeoutMs: 420_000 }, async (ctx) => {
     'settings should reopen the chat settings page',
   )
   await waitForLocation(anna, 'chat')
-  await choose(anna, 'settings-chat-server', blossom.url)
+  await anna.type('settings-chat-server-add-url', blossom.url)
+  await anna.click('settings-chat-server-add')
+  await ctx.waitFor(
+    'the test Blossom server to be selected',
+    async () =>
+      unwrap<string>(
+        'chat_blossom_server',
+        await anna.invoke('chat_blossom_server'),
+      ) === blossom.url,
+    { timeoutMs: 10_000, fixed: true },
+  )
   const chatFocusedAgain = await runAction(anna, 'wm.window.focus', {
     windowId: annaChatWindow.id,
   })
@@ -141,7 +151,7 @@ scenario('chat-files', { timeoutMs: 420_000 }, async (ctx) => {
   )
   await anna.waitForDisplayed('chat-peer-attach')
   assert.equal(await count(anna, 'chat-peer-no-server-hint'), 0)
-  ctx.step('choosing the server swaps the hint for the attach button')
+  ctx.step('adding the server swaps the hint for the attach button')
 
   const folder = deviceFiles('haex-chat-files-')
   ctx.onTeardown(() => folder.remove())
