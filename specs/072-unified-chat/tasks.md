@@ -414,6 +414,18 @@ text and file are there.
 
 ---
 
+## Phase: List entries like Signal (FR-001, changed 2026-11-26)
+
+**Goal**: An entry of the chat's list is larger, shows two lines of the last message, a small
+human-friendly time at the top right and the delivery state of an own last message.
+
+- [ ] T151 [P] Tests: `src-tauri/src/chat/peer/store_tests.rs` (the list's preview runs the lines together, `last_delivery` follows waiting, sent, delivered and is empty when the newest message is someone else's) and `scripts/check-chat-list-time.ts` (the time rules).
+- [ ] T152 `src-tauri/src/chat/peer/store.rs`, `messages.rs`: `Conversation.last_delivery`, a two-line preview; regenerate `ChatConversation.ts`.
+- [ ] T153 `src/lib/chat/listTime.ts`, `src/composables/useListTime.ts`, `ListRowBody.vue`, `DeliveryMark.vue`, `PeerListItem.vue`, `AgentListItem.vue`, `SearchHits.vue`, `contacts/Avatar.vue`: the layout, the relative time, the shared delivery mark; i18n `chat.list.time.*`.
+- [ ] T154 Checks: `pnpm check:chat-state`, `typecheck`, `lint`, `format:check`, the store tests.
+
+---
+
 ## Dependencies & Execution Order
 
 - **Setup (T001–T003)** → **Foundational (T004–T008)** → US1 (PR B).

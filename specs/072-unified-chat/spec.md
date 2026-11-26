@@ -449,7 +449,15 @@ where her files go and what others see.
   and exactly one entry "Agent" for all agent conversations, newest activity first, with name, picture
   or icon, time and the start of the last message, and an unread mark with count for direct and group
   conversations. The "Agent" entry MUST always be listed, also without any session; its activity and
-  time are those of its most recently active session, its preview is that session's title. A click on an entry MUST show that
+  time are those of its most recently active session, its preview is that session's title. An entry
+  MUST be laid out as in Signal (revision 2026-11-26): a large picture, the name with the time small
+  at the top right, and under it the start of the last message over up to two lines. The time MUST be
+  human friendly: "Jetzt" under a minute, "N Min." under an hour, the clock time for the rest of
+  today, "Gestern", the weekday within the last week, else the date (with the year when it is not this
+  year); it MUST keep up with the clock without a reload. When the last message of a direct or group
+  conversation is an own one, the entry MUST show its delivery state (FR-024) at the right of the
+  preview, the least advanced recipient's for a group; the unread count takes that place while there
+  is something unread. The notes and the agent show no delivery state. A click on an entry MUST show that
   conversation; a click on "Agent" MUST open its most recently active session (an empty new one when
   there is none).
 - **FR-002**: The list MUST NOT offer kind filters. When there are requests (FR-040) it MUST show an

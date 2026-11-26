@@ -5,7 +5,6 @@
  * emphasised, and the time; a hint when there are more hits than listed.
  */
 import type { ChatSearchHit } from '@bindings/ChatSearchHit'
-import { listTime } from '~/lib/chat/listTime'
 
 const props = defineProps<{
   hits: ChatSearchHit[]
@@ -22,7 +21,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{ select: [hit: ChatSearchHit] }>()
 
-const { t, d } = useI18n()
+const { t } = useI18n()
+const listTime = useListTime()
 
 /** The extract split around the first match, compared per character as the core does. */
 function parts(snippet: string): [string, string, string] {
@@ -77,7 +77,7 @@ function parts(snippet: string): [string, string, string] {
         <span class="flex items-baseline gap-2">
           <span class="min-w-0 flex-1 truncate">{{ resolve(hit).name }}</span>
           <span class="shrink-0 text-xs tabular-nums text-muted-foreground">
-            {{ listTime(hit.at, d) }}
+            {{ listTime(hit.at) }}
           </span>
         </span>
         <span class="block truncate text-xs text-muted-foreground">

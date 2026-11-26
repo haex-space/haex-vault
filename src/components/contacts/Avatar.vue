@@ -6,8 +6,14 @@
 const props = defineProps<{
   name: string
   photo: string | null
-  size?: 'sm' | 'lg'
+  size?: 'sm' | 'md' | 'lg'
 }>()
+
+const AVATAR_SIZES = {
+  sm: 'size-9 text-sm',
+  md: 'size-12 text-base',
+  lg: 'size-20 text-2xl',
+}
 
 const { photoAsync } = useContacts()
 const url = ref<string | null>(null)
@@ -49,7 +55,7 @@ onBeforeUnmount(() => {
 <template>
   <span
     class="flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/15 font-medium text-primary"
-    :class="size === 'lg' ? 'size-20 text-2xl' : 'size-9 text-sm'"
+    :class="AVATAR_SIZES[size ?? 'sm']"
     aria-hidden="true"
   >
     <img v-if="url" :src="url" alt="" class="size-full object-cover" />
@@ -57,7 +63,7 @@ onBeforeUnmount(() => {
     <Icon
       v-else
       name="lucide:user"
-      :class="size === 'lg' ? 'size-8' : 'size-4'"
+      :class="size === 'lg' ? 'size-8' : size === 'md' ? 'size-5' : 'size-4'"
     />
   </span>
 </template>
