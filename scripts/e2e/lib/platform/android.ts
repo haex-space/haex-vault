@@ -54,9 +54,13 @@ export function prepareDevice(
     colorScheme?: ColorScheme
     phoneScreen?: boolean
     withoutAllFiles?: boolean
+    notificationsAllowed?: boolean
   },
 ): void {
   if (options.reuse !== true) adb.shell('pm', 'clear', PACKAGE)
+  if (options.notificationsAllowed === true) {
+    adb.shell('pm', 'grant', PACKAGE, NOTIFICATIONS)
+  }
   adb.shell(
     'appops',
     'set',
@@ -326,6 +330,11 @@ export interface AndroidStartOptions {
   phoneScreen?: boolean
   /** Without "Zugriff auf alle Dateien". */
   withoutAllFiles?: boolean
+  /**
+   * Notifications allowed before the start, so the system's question never covers the app: its
+   * dialog stops the web view from drawing, and a click then waits for good.
+   */
+  notificationsAllowed?: boolean
   step?: StepRecorder
 }
 
@@ -602,6 +611,9 @@ export function createAndroidHost(options: AndroidHostOptions): DeviceHost {
         marker: options.marker,
         logFile: join(options.logDir, start.folder, 'driver.log'),
         reuse: own.used,
+        // A device of a group has no phone controls to answer the system's question with, and a
+        // message arriving on it (a chat notification, spec 072 FR-023) asks it.
+        notificationsAllowed: true,
         step: start.step,
       })
       own.running = true

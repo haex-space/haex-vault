@@ -223,6 +223,18 @@ describe('prepareDevice', () => {
     )
   })
 
+  it('allows notifications before the start when asked, after clearing the data', () => {
+    const fake = fakeAdb()
+    prepareDevice(createAdb('emu', fake.run), { notificationsAllowed: true })
+    assert.deepEqual(fake.calls.slice(0, 2), [
+      `-s emu shell pm clear ${PACKAGE}`,
+      `-s emu shell pm grant ${PACKAGE} android.permission.POST_NOTIFICATIONS`,
+    ])
+    const without = fakeAdb()
+    prepareDevice(createAdb('emu', without.run), {})
+    assert.ok(!without.calls.some((call) => call.includes('pm grant')))
+  })
+
   it('keeps the data when the scenario reuses it', () => {
     const fake = fakeAdb()
     prepareDevice(createAdb('emu', fake.run), { reuse: true })
