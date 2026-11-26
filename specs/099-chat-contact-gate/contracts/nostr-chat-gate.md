@@ -12,14 +12,18 @@ sending rules of spec 095 [contracts/nostr-chat-ratchet.md](../../095-chat-secur
   "card": "haex:card:…",
   "thread": { "direct": "<sender vault hex>" },
   "answer": "accepted" | "blocked",
-  "answerSequence": 42
+  "answerSequence": 42,
+  "answerDecisionHlc": "<haex-crdt HLC>"
 }
 ```
 
-- `answer` and `answerSequence` are optional; a receipt without them is a receipt as before. A notice has
-  no `delivered`, `read` or `files`. The answering device increases `answerSequence` for each answer to
-  that peer. The receiver ignores a notice whose counter is no greater than the last one applied from
-  that device; legacy notices without a counter are sequence zero.
+- `answer`, `answerSequence` and `answerDecisionHlc` are optional; a receipt without them is a receipt
+  as before. A notice has no `delivered`, `read` or `files`. The answering device increases
+  `answerSequence` for each answer to that peer. `answerDecisionHlc` is the synced vault-wide decision
+  revision. The receiver ignores a notice whose HLC is no newer than the latest revision received from
+  any device of that vault, so an answer delayed across devices cannot overwrite a later decision. The
+  per-device counter also rejects repeats from that device; legacy notices without a revision retain
+  per-device ordering and are ignored after a revisioned notice has arrived.
 - Encrypted, sealed and wrapped like every receipt (spec 095: on the device-pair session, one wrap per
   device of the card).
 - Sent once per answer through the outbox (research R5), to every device on the sender's card: the stored
@@ -40,9 +44,10 @@ one, `thread.direct` is the own vault, the sender is a stored card. Otherwise dr
 When a new answer is queued for the same peer, the outbox drops any older unsent gate notice for that
 peer before enqueueing it. Thus a pending `blocked` notice is replaced by a later `accepted` notice (and
 vice versa), so an older unsent answer cannot be published after the newer one. The receiver uses the
-counter to ignore late answers from the same answering device. Because the answer queue is device-local
-but the block list is shared, a device also discards a queued answer when it no longer matches the
-current synced block decision before publishing it. Wrap `created_at` is not used to order answers.
+vault-wide HLC revision to ignore late answers across devices, with the counter as a per-device replay
+check. Because the answer queue is device-local but the decision is shared, a device discards a queued
+answer when its answer or revision no longer matches the current synced decision before publishing it.
+Wrap `created_at` is not used to order answers.
 
 ## Receiving side changes
 

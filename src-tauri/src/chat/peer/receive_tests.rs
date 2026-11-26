@@ -108,6 +108,7 @@ fn a_receipt_sets_each_state_once() {
         read,
         answer: None,
         answer_sequence: None,
+        answer_decision_hlc: None,
     };
     let sender_device = BEN.to_owned();
     let apply = |receipt: Receipt, now: i64| {

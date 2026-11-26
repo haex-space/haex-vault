@@ -149,7 +149,7 @@ fn notices(vault: &TestVault) -> Vec<(String, crate::chat::peer::envelope::Answe
         .read_blocking(|q| crate::chat::peer::gate::notices(q).map_err(haex_crdt::Error::from))
         .expect("notices")
         .into_iter()
-        .map(|(vault, answer, _)| (vault, answer))
+        .map(|(vault, answer, _, _)| (vault, answer))
         .collect()
 }
 

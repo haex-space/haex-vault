@@ -263,6 +263,7 @@ async fn a_message_of_a_stranger_passes_as_a_request_and_its_receipt_is_dropped(
         read: vec![],
         answer: None,
         answer_sequence: None,
+        answer_decision_hlc: None,
     };
     assert_eq!(
         run(&stranger, opened(&receipt, RECEIPT_KIND, BEN_DEVICE)),
@@ -312,6 +313,7 @@ async fn a_receipt_for_the_own_vault_passes() {
         read: vec![],
         answer: None,
         answer_sequence: None,
+        answer_decision_hlc: None,
     };
     receipt.from.make_ascii_uppercase();
     if let To::Direct(thread) = &mut receipt.thread {

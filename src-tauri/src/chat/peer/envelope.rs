@@ -159,6 +159,9 @@ pub struct Receipt {
     /// Monotonic per-peer answer counter assigned by the answering device (spec 099 review R2).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub answer_sequence: Option<i64>,
+    /// Synced vault-wide revision of this answer decision, ordered as a haex-crdt HLC.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub answer_decision_hlc: Option<String>,
 }
 
 /// A fresh event id: 128 random bits, hex.

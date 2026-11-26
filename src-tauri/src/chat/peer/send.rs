@@ -255,6 +255,7 @@ pub fn notice(
     peer: &str,
     answer: Answer,
     sequence: i64,
+    decision_hlc: &str,
     now: i64,
 ) -> Result<()> {
     enqueue_receipt(
@@ -263,7 +264,7 @@ pub fn notice(
         peer,
         Vec::new(),
         Vec::new(),
-        Some((answer, sequence)),
+        Some((answer, sequence, decision_hlc.to_owned())),
         now,
     )
 }
@@ -274,12 +275,12 @@ fn enqueue_receipt(
     peer: &str,
     delivered: Vec<String>,
     read: Vec<String>,
-    answer: Option<(Answer, i64)>,
+    answer: Option<(Answer, i64, String)>,
     now: i64,
 ) -> Result<()> {
-    let (answer, answer_sequence) = answer
-        .map(|(answer, sequence)| (Some(answer), Some(sequence)))
-        .unwrap_or((None, None));
+    let (answer, answer_sequence, answer_decision_hlc) = answer
+        .map(|(answer, sequence, decision_hlc)| (Some(answer), Some(sequence), Some(decision_hlc)))
+        .unwrap_or((None, None, None));
     let rumor = Receipt {
         v: VERSION,
         from: me.vault_hex.clone(),
@@ -289,6 +290,7 @@ fn enqueue_receipt(
         read,
         answer,
         answer_sequence,
+        answer_decision_hlc,
     };
     let thread_id = ids::direct_thread_id(&me.vault_hex, peer);
     outbox::enqueue(
