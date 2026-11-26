@@ -40,8 +40,9 @@ one, `thread.direct` is the own vault, the sender is a stored card. Otherwise dr
 When a new answer is queued for the same peer, the outbox drops any older unsent gate notice for that
 peer before enqueueing it. Thus a pending `blocked` notice is replaced by a later `accepted` notice (and
 vice versa), so an older unsent answer cannot be published after the newer one. The receiver uses the
-counter to ignore late answers from the same answering device. Wrap `created_at` is not used to order
-answers.
+counter to ignore late answers from the same answering device. Because the answer queue is device-local
+but the block list is shared, a device also discards a queued answer when it no longer matches the
+current synced block decision before publishing it. Wrap `created_at` is not used to order answers.
 
 ## Receiving side changes
 

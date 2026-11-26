@@ -327,6 +327,9 @@ impl Delivery {
             // notice must not stop ordinary due messages from leaving this device.
             log::warn!("chat: could not queue gate notices; will retry: {error}");
         }
+        self.db
+            .write(move |tx| Ok(gate::drop_stale_notice_outbox(tx, now)?))
+            .await?;
         let due = self.db.read(move |r| Ok(outbox::due(r, now)?)).await?;
         let mut refreshed_devices = HashSet::new();
         for entry in due {

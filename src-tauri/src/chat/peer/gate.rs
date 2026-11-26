@@ -71,11 +71,69 @@ pub fn send_due_notices(tx: &mut CrdtTransaction<'_>, me: &Me, now: i64) -> Resu
     let due = notices(tx)?;
     for (vault, answer, sequence) in &due {
         drop_unsent_notices(tx, vault)?;
+        if !matches_current_decision(tx, vault, *answer)? {
+            continue;
+        }
         send::notice(tx, me, vault, *answer, *sequence, now)?;
     }
     // Every note is on the outbox now; one whose answer did not parse is of no use to anyone.
     tx.execute("DELETE FROM chat_gate_notices_no_sync", &[])?;
     Ok(due.len())
+}
+
+/// Drops queued answers that no longer match the synced block list (research 099 R5).
+/// A notice is device-local, while the block decision is shared by the vault's devices, so a
+/// delayed pump must not send a superseded answer after another device changed that decision.
+pub fn drop_stale_notice_outbox(tx: &mut CrdtTransaction<'_>, now: i64) -> Result<usize> {
+    let rows: Vec<(String, String, String)> = tx.query_map(
+        "SELECT id, rumor, pending FROM chat_outbox_no_sync \
+         WHERE message_id IS NULL AND pending <> '[]' AND next_at <= ?1",
+        params![now],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    )?;
+    let mut dropped = 0;
+    for (id, rumor, pending) in rows {
+        let Ok(rumor) = serde_json::from_str::<Rumor>(&rumor) else {
+            continue;
+        };
+        if !is_notice(&rumor) {
+            continue;
+        }
+        let Ok(receipt) = serde_json::from_str::<Receipt>(&rumor.content) else {
+            continue;
+        };
+        let Some(answer) = receipt.answer else {
+            continue;
+        };
+        let recipients: Vec<String> = serde_json::from_str(&pending).map_err(|error| {
+            crate::error::HaexError::InvalidInput {
+                reason: format!("chat gate outbox recipients: {error}"),
+            }
+        })?;
+        let mut stale = false;
+        for vault in recipients {
+            if !matches_current_decision(tx, &vault, answer)? {
+                stale = true;
+                break;
+            }
+        }
+        if stale {
+            outbox::remove(tx, &id)?;
+            dropped += 1;
+        }
+    }
+    Ok(dropped)
+}
+
+/// An accepted answer is current while the peer is not blocked; a blocked answer is current while
+/// it is. The block list is synced across the answering vault's devices.
+fn matches_current_decision(q: &mut impl Query, peer_vault: &str, answer: Answer) -> Result<bool> {
+    let blocked: Option<i64> = q.query_row(
+        "SELECT 1 FROM haex_contacts_blocked_vaults WHERE vault_pubkey = ?1",
+        params![peer_vault],
+        |row| row.get(0),
+    )?;
+    Ok(blocked.is_some() == matches!(answer, Answer::Blocked))
 }
 
 /// Removes the answers to `vault` (hex) on the outbox that no Nostr-Relay took yet.
