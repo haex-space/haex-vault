@@ -112,9 +112,10 @@ ask` is active until an enforcement path is implemented and verified. Do not tre
   ask rule `*`; with it every tool call, read-only ones included, reaches the bridge, also when a config in the vault home
   asks for `YOLO` and allows everything. The tool's own rule is what enforces it, as for the changing tools; an OS sandbox
   stays a later spec.
-- **D7 - Models: RESOLVED for the first delivery.** One entry, the account's default model (no `--model`), as Codex has its
-  fixed entry. A list from the account (`get_model_catalog` control request) is added only if quickstart step 3.5 shows it
-  works without spending credits.
+- **D7 - Models: RESOLVED.** The first delivery had one entry, the account's default model (no `--model`). A list from the
+  account (`get_model_catalog` control request) was to be added only if it works without spending credits; research §14
+  measured that it spends none, so the provider's models are the account's catalog as the program reports it, with their
+  own names (`RouteLLM` first). The vendor id as a model id still means the account default.
 - **D8 - When the first catalog entry lands: RESOLVED.** After the measurement of spec 094 FR-021 on a real device code (quickstart
   §3). Until then every change is developed against test vendor definitions; the operator measures with the same isolation
   the research used, so no unmeasured version is ever installable.

@@ -12,7 +12,7 @@ use serde_json::{json, Value};
 use tempfile::TempDir;
 
 use super::{
-    approval_answer, build_command, chosen_model, default_model, fatal_reason, parse_line,
+    approval_answer, build_command, chosen_model, fatal_reason, parse_line,
     spawn_abacus_invocation_with_coverage, startup_error, user_line, write_attachments, Line,
     APPROVALS_UNVERIFIED, APPROVAL_SETTINGS_FILE, CREDENTIAL_REFUSED, NOT_CONNECTED,
 };
@@ -255,9 +255,7 @@ fn a_program_that_ends_at_once_is_classified_from_its_fatal_reason() {
 }
 
 #[test]
-fn the_default_model_is_the_account_default() {
-    let model = default_model();
-    assert_eq!(model.remote_id, "abacusai");
+fn the_vendor_id_and_an_empty_id_name_the_account_default() {
     assert_eq!(chosen_model("abacusai"), None);
     assert_eq!(chosen_model(""), None);
     assert_eq!(chosen_model("  "), None);
@@ -875,13 +873,6 @@ fn the_command_names_the_vaults_program_and_never_a_host_lookup() {
         !env.iter().any(|name| name == "CODELLM_DEVICE_CODE"),
         "set after containment, not here"
     );
-}
-
-#[test]
-fn a_provider_model_list_is_the_one_default_entry() {
-    let models = [default_model()];
-    assert_eq!(models.len(), 1);
-    assert_eq!(models[0].display_name, "Abacus AI");
 }
 
 // ---- US3: the approval posture (spec 096, T031, T032) ----

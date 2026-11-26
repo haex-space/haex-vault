@@ -404,3 +404,23 @@ Linux x64, version 2.10.23, the same release and account as section 12, `ABACUS_
   `allowed-residuals.json` or a change to the vendor definition for this build.
 - Quickstart §7 remains open under T050. It covers the app lifecycle after T044 makes the build installable, including
   host file listings and checks for credentials and log contents.
+
+## 14. The model list from the account (2026-11-26, plan D7)
+
+Linux x64, version 2.10.23, the same release and account as section 12. Question of plan D7: does the `get_model_catalog`
+control request spend credits?
+
+- **Method.** The account's usage meter is reported only in sessions that run a model (`system/usage_changed`, once
+  before and once after the request). So each measurement brackets catalog-only sessions (the control request, no `user`
+  line) between two short requests with `DEEPSEEK_V4_1_FLASH` and compares the meter after the first request with the
+  meter before the second.
+- **Result.** The meter rose by 0.26 credits between two requests with no catalog session between them, and by the same
+  0.26 with five and with ten catalog sessions between them. The 0.26 follow every request (most likely the title the tool
+  generates afterwards); the catalog request spends nothing within the meter's resolution of 0.01 credits.
+- **The answer.** 71 models in one group `abacus`, each with only `id`, `name` and `origin`; nothing says what a model
+  costs or whether the plan includes it. `ROUTE_LLM` ("RouteLLM") comes first, as in section 12.
+- **Cost per model differs widely.** "say hi" spent 0.16 credits with `DEEPSEEK_V4_1_FLASH` and 2.3 to 2.9 with the
+  default `ROUTE_LLM`.
+
+The adapter therefore lists the account's models from the program (`abacus_models.rs`) instead of one entry for the
+account default.

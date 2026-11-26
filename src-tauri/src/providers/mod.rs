@@ -201,7 +201,7 @@ async fn do_refresh_with(
     tools: Option<DelegateTools>,
 ) -> Result<usize> {
     let provider = repair_legacy_adapter(db, provider).await?;
-    let adapter = build_adapter_with_tools(&provider, None, tools)?;
+    let adapter = build_adapter_with_tools(&provider, None, tools, Some(db.clone()))?;
     let fetched = adapter.list_models().await.map_err(map_adapter_error)?;
 
     let fetched_at = now_ms();
@@ -277,15 +277,17 @@ pub(crate) fn build_adapter(
     provider: &Provider,
     delegate_chat_ctx: Option<DelegateChatContext>,
 ) -> Result<Box<dyn ProviderAdapter>> {
-    build_adapter_with_tools(provider, delegate_chat_ctx, None)
+    build_adapter_with_tools(provider, delegate_chat_ctx, None, None)
 }
 
-/// [`build_adapter`] for a refresh that has the tools of the open vault but no chat context: a
-/// `cli_delegate` adapter can then start its program to list models.
+/// [`build_adapter`] for a refresh that has the tools and the database of the open vault but no
+/// chat context: a `cli_delegate` adapter can then start its program to list models, with a
+/// credential from the vault's password manager where its vendor keeps it there.
 pub(crate) fn build_adapter_with_tools(
     provider: &Provider,
     delegate_chat_ctx: Option<DelegateChatContext>,
     tools: Option<DelegateTools>,
+    database: Option<VaultDb>,
 ) -> Result<Box<dyn ProviderAdapter>> {
     match provider.kind {
         ProviderKind::ApiKey => {
@@ -371,7 +373,8 @@ pub(crate) fn build_adapter_with_tools(
             };
             Ok(Box::new(
                 CliDelegateAdapter::new(vendor, credentials, runtime, delegate_chat_ctx)
-                    .for_provider(provider.id),
+                    .for_provider(provider.id)
+                    .with_database(database),
             ))
         }
         ProviderKind::Local => Err(HaexError::InvalidInput {
