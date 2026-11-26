@@ -18,8 +18,8 @@ use crate::model_capabilities::ModelCapabilities;
 use crate::vault_gate::{ChildRegistry, VaultDb};
 
 use super::abacus::{
-    approval_settings, build_command, read_credential, read_stderr_tail, startup_error, write_line,
-    APPROVAL_SETTINGS_FILE, DEVICE_CODE_ENV,
+    approval_settings, build_command, fatal_reason, read_credential, read_stderr_tail,
+    startup_error, write_line, APPROVAL_SETTINGS_FILE, DEVICE_CODE_ENV,
 };
 use super::process::{configure_process_group, map_spawn_error, ChildLifecycle};
 use super::DelegateVendor;
@@ -123,6 +123,7 @@ fn parse_model(model: &Value) -> Option<ProviderModel> {
 pub(super) async fn list_models(
     runtime: DelegateRuntime,
     db: Option<&VaultDb>,
+    children: ChildRegistry,
 ) -> Result<Vec<ProviderModel>, AdapterError> {
     let credential = read_credential(db).await?;
     let run = runtime.run_folder().map_err(|error| AdapterError::Http {
@@ -141,24 +142,26 @@ pub(super) async fn list_models(
     configure_process_group(&mut command);
     // The program lives for this question only (`kill_on_drop` and the group kill below end it),
     // so it needs no place in the registry of the vault's children.
-    let mut child = ChildLifecycle::spawn(&mut command, &ChildRegistry::default())
+    let mut child = ChildLifecycle::spawn(&mut command, &children)
         .map_err(|error| map_spawn_error(DelegateVendor::Abacus, error))?;
     let stderr_task = child
         .child_mut()
         .stderr
         .take()
         .map(|stderr| tokio::spawn(read_stderr_tail(stderr)));
+    let mut initial_write_error = None;
     let outcome = match (
         child.child_mut().stdin.take(),
         child.child_mut().stdout.take(),
     ) {
         (Some(mut stdin), Some(stdout)) => {
             let ask = async {
-                write_line(&mut stdin, &catalog_request())
-                    .await
-                    .map_err(|error| AdapterError::Http {
+                if let Err(error) = write_line(&mut stdin, &catalog_request()).await {
+                    initial_write_error = Some(error.to_string());
+                    return Err(AdapterError::Http {
                         reason: format!("failed to write the abacusai catalog request: {error}"),
-                    })?;
+                    });
+                }
                 let mut lines = BufReader::new(stdout).lines();
                 loop {
                     match lines.next_line().await {
@@ -198,6 +201,9 @@ pub(super) async fn list_models(
         Some(task) => task.await.unwrap_or_default(),
         None => Vec::new(),
     };
+    if let Some(error) = initial_write_error {
+        return Err(initial_request_write_error(&stderr, &error));
+    }
 
     let models = match outcome? {
         Some(models) => models,
@@ -206,6 +212,16 @@ pub(super) async fn list_models(
     // A run that answered has proven the version it ran (spec 094 FR-022).
     runtime.confirm_run().await;
     Ok(models)
+}
+
+fn initial_request_write_error(stderr: &[u8], error: &str) -> AdapterError {
+    if fatal_reason(&String::from_utf8_lossy(stderr)).is_some() {
+        startup_error(stderr)
+    } else {
+        AdapterError::Http {
+            reason: format!("failed to write the abacusai catalog request: {error}"),
+        }
+    }
 }
 
 #[cfg(test)]

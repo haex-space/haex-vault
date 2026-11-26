@@ -360,7 +360,10 @@ async fn connect_abacus_command(
     };
     // Best effort, as for the other vendors: the model list is the account's default.
     let tools = crate::cli_tools::tools_of_open_vault(app, state).ok();
-    if super::do_refresh_with(&db, &provider, tools).await.is_err() {
+    if super::do_refresh_with(&db, &provider, tools, gate.children())
+        .await
+        .is_err()
+    {
         log::warn!("cli_delegate model refresh after connect failed");
     }
     emit_progress(
@@ -655,7 +658,10 @@ async fn upsert_delegate_provider(
 
     // Fixed text only: the error may carry what the tool printed.
     let tools = crate::cli_tools::tools_of_open_vault(app, state).ok();
-    if super::do_refresh_with(&db, &provider, tools).await.is_err() {
+    if super::do_refresh_with(&db, &provider, tools, state.gate().children())
+        .await
+        .is_err()
+    {
         log::warn!("cli_delegate model refresh after connect failed");
     }
 

@@ -11,7 +11,7 @@ use super::{
 use crate::cli_tools::runtime::DelegateTools;
 use crate::error::{HaexError, Result};
 use crate::storage::providers::{self as storage, Provider, ProviderCapability, ProviderKind};
-use crate::vault_gate::VaultDb;
+use crate::vault_gate::{ChildRegistry, VaultDb};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -54,7 +54,7 @@ pub(crate) async fn add(
     args: AddProviderArgs,
     now: i64,
 ) -> Result<AddProviderResult> {
-    add_with(db, args, now, None).await
+    add_with(db, args, now, None, ChildRegistry::default()).await
 }
 
 /// [`add`] with the tools of the open vault, which a delegate's first model refresh needs: a
@@ -64,6 +64,7 @@ pub(crate) async fn add_with(
     args: AddProviderArgs,
     now: i64,
     tools: Option<DelegateTools>,
+    children: ChildRegistry,
 ) -> Result<AddProviderResult> {
     if args.name.trim().is_empty() {
         return Err(HaexError::InvalidInput {
@@ -172,7 +173,7 @@ pub(crate) async fn add_with(
         provider.kind,
         ProviderKind::ApiKey | ProviderKind::CliDelegate
     ) {
-        match do_refresh_with(db, &provider, tools).await {
+        match do_refresh_with(db, &provider, tools, children).await {
             Ok(count) => (Some(count), None),
             Err(e) => (None, Some(format_haex_error(&e))),
         }
