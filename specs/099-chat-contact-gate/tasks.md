@@ -147,7 +147,7 @@ description: 'Task list for the chat contact gate (spec 099)'
 - [x] T039 [US4] `src-tauri/src/chat/peer/store.rs` `list` and `src-tauri/src/chat/search.rs`: leave out direct threads whose `peer_vault` is blocked, in the list of requests too (a request a not-yet-synced own device re-created after a decline never shows); `ChatConversation.peerBlocked`; two-device test of that case in `src-tauri/src/chat/peer/own_devices_tests.rs`; opening a conversation by thread id still works for a blocked peer
 - [x] T040 [P] [US4] "Sperren" in the conversation menu of `src/components/chat/PeerConversation.vue` and on the contact page `src/components/contacts/EntryPage.vue`, both with a confirmation and the action `contacts.blockContact`; for `peerBlocked` the composer is replaced by "Entsperren"
 - [x] T041 [P] [US4] `src/components/settings/ContactsBlockedSetting.vue` and `src/composables/useContactCards.ts`: entries show the contact's or the kept card's name and the address, "Verlauf ansehen" (opens the chat at the entry's `threadId`) and "Entsperren" (action `contacts.unblock`); i18n de/en
-- [ ] T042 [US4] Run `cargo test --lib contacts` and `cargo test --lib chat::peer` separately; run `scripts/e2e/scenarios/extension-contacts.test.ts` and `agent-contacts.test.ts` expectations still hold (a hidden contact is no result), plus the frontend checks; fix findings
+- [x] T042 [US4] Run `cargo test --lib contacts` and `cargo test --lib chat::peer` separately; run `scripts/e2e/scenarios/extension-contacts.test.ts` and `agent-contacts.test.ts` expectations still hold (a hidden contact is no result), plus the frontend checks; fix findings
 
 **Checkpoint**: all stories work on their own.
 
