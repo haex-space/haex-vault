@@ -198,6 +198,9 @@ pub struct ContactHeader {
     pub has_card: bool,
     /// The own contact, "Ich" (spec 060).
     pub is_self: bool,
+    /// A card of the contact names a blocked vault: hidden everywhere but on the phones (spec 099
+    /// research R11).
+    pub blocked: bool,
 }
 
 /// A value for a new contact or a new value of an existing one.

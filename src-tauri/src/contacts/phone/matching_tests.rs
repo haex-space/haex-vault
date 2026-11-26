@@ -48,6 +48,7 @@ fn data(id: i64, given: &str, family: &str, phone: &str) -> RawData {
 fn header(id: &str, name: &str, phone: &str) -> ContactHeader {
     ContactHeader {
         is_self: false,
+        blocked: false,
         id: id.to_owned(),
         name: name.to_owned(),
         given_name: None,

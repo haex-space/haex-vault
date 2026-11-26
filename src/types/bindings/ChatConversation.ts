@@ -51,4 +51,9 @@ blockedByPeer: boolean,
 /**
  * Request: when its stranger knocked last (spec 099 FR-003).
  */
-requestLastAt: number | null, };
+requestLastAt: number | null,
+/**
+ * Direct: this vault blocked the other one (spec 099 FR-015); only the list of blocked
+ * conversations has these.
+ */
+peerBlocked: boolean, };

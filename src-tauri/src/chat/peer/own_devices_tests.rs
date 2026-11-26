@@ -159,6 +159,7 @@ async fn a_knock_on_two_own_devices_is_one_request_and_one_notification() {
                 store::ListFilter {
                     kind: None,
                     requests: true,
+                    blocked: false,
                 },
             )?)
         })
@@ -192,4 +193,57 @@ async fn wait_for_knock(device: &ChatDevice, thread: Uuid, after: Option<i64>) -
         );
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
+}
+
+/// Spec 099 T039: the laptop declines a stranger's request while the phone is closed; the phone then
+/// takes the same knock and makes a request of its own. Once the block arrives through the sync, the
+/// phone shows no request.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_request_an_own_device_made_after_a_decline_never_shows() {
+    let (_relay, url) = mock_relay().await;
+    let anna = ChatDevice::genesis(std::slice::from_ref(&url));
+    let anna_phone = anna.link();
+    let ben = ChatDevice::genesis(&[url]);
+    ben.learn(&anna).await;
+    anna_phone.start().await;
+    anna_phone.stop();
+    anna.start().await;
+    ben.start().await;
+
+    ben.send(&anna, "Hallo, wir kennen uns vom Markt");
+    let thread = anna.thread_with(&ben);
+    wait_for_knock(&anna, thread, None).await;
+    anna.db
+        .write_blocking(move |tx| {
+            Ok(super::requests::answer(
+                tx,
+                thread,
+                super::requests::Answer::Decline,
+                super::delivery::now_ms(),
+            )?)
+        })
+        .expect("decline");
+    anna.stop();
+
+    anna_phone.clock.advance(1_000);
+    anna_phone.start().await;
+    wait_for_knock(&anna_phone, thread, None).await;
+    anna_phone.stop();
+    anna_phone.member.device.pull_from(&anna.member.device);
+    let own = anna_phone.me.vault_hex.clone();
+    let requests = anna_phone
+        .db
+        .read_blocking(move |r| {
+            Ok(store::list(
+                r,
+                &own,
+                store::ListFilter {
+                    kind: None,
+                    requests: true,
+                    blocked: false,
+                },
+            )?)
+        })
+        .expect("list");
+    assert!(requests.is_empty(), "no request: {requests:?}");
 }

@@ -25,4 +25,9 @@ hasCard: boolean,
 /**
  * The own contact, "Ich" (spec 060).
  */
-isSelf: boolean, };
+isSelf: boolean,
+/**
+ * A card of the contact names a blocked vault: hidden everywhere but on the phones (spec 099
+ * research R11).
+ */
+blocked: boolean, };

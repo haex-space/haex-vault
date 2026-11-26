@@ -127,6 +127,9 @@ pub struct Conversation {
     /// Request: when its stranger knocked last (spec 099 FR-003).
     #[ts(type = "number | null")]
     pub request_last_at: Option<i64>,
+    /// Direct: this vault blocked the other one (spec 099 FR-015); only the list of blocked
+    /// conversations has these.
+    pub peer_blocked: bool,
 }
 
 /// Filter of the list (FR-002).
@@ -137,6 +140,10 @@ pub struct ListFilter {
     /// `true`: only requests; otherwise requests are left out (they have their own area).
     #[serde(default)]
     pub requests: bool,
+    /// `true`: only the conversations of blocked vaults, which every other list leaves out (spec
+    /// 099 FR-015), for opening one by its id.
+    #[serde(default)]
+    pub blocked: bool,
 }
 
 /// How long the preview of the last message may be, in characters.
@@ -155,6 +162,7 @@ struct Row0 {
     peer_answered: bool,
     blocked_by_peer: bool,
     request_last_at: Option<i64>,
+    peer_blocked: bool,
 }
 
 /// Every conversation matching `filter`, newest activity first. `own_vault` is the vault identity
@@ -167,6 +175,15 @@ pub fn list(q: &mut impl Query, own_vault: &str, filter: ListFilter) -> Result<V
            SELECT 1 FROM chat_peer_messages m WHERE m.thread_id = t.id\
          ))"
     };
+    // A blocked vault's conversations, requests included, show nowhere but in their own list.
+    let blocked_clause = if filter.blocked {
+        "t.state <> 'request' AND t.kind = 'direct' AND t.peer_vault IN \
+           (SELECT vault_pubkey FROM haex_contacts_blocked_vaults)"
+    } else {
+        "(t.peer_vault IS NULL OR t.peer_vault NOT IN \
+           (SELECT vault_pubkey FROM haex_contacts_blocked_vaults))"
+    };
+    let state_clause = if filter.blocked { "1" } else { state_clause };
     let kind = filter.kind.map(ConversationKind::as_str);
     let sql = format!(
         "SELECT t.id, t.kind, t.state, t.title, t.peer_vault, t.muted, \
@@ -183,9 +200,10 @@ pub fn list(q: &mut impl Query, own_vault: &str, filter: ListFilter) -> Result<V
             OR EXISTS (SELECT 1 FROM chat_deliveries d \
               JOIN chat_peer_messages m ON m.id = d.message_id \
               WHERE m.thread_id = t.id AND d.delivered_at IS NOT NULL)), \
-           t.peer_blocked_at IS NOT NULL, t.request_last_at \
+           t.peer_blocked_at IS NOT NULL, t.request_last_at, \
+           t.peer_vault IN (SELECT vault_pubkey FROM haex_contacts_blocked_vaults) \
          FROM chat_threads t \
-         WHERE {state_clause} AND (?2 IS NULL OR t.kind = ?2) \
+         WHERE {state_clause} AND {blocked_clause} AND (?2 IS NULL OR t.kind = ?2) \
          ORDER BY last_at DESC, t.id"
     );
     let rows = q.query_map(&sql, params![own_vault, kind], row0)?;
@@ -209,6 +227,7 @@ fn row0(row: &Row<'_>) -> haex_crdt::rusqlite::Result<Row0> {
         peer_answered: row.get(9)?,
         blocked_by_peer: row.get(10)?,
         request_last_at: row.get(11)?,
+        peer_blocked: row.get::<_, Option<bool>>(12)?.unwrap_or(false),
     })
 }
 
@@ -245,6 +264,7 @@ fn resolve_peer(q: &mut impl Query, row: Row0) -> Result<Conversation> {
         peer_answered: row.peer_answered,
         blocked_by_peer: row.blocked_by_peer,
         request_last_at: row.request_last_at,
+        peer_blocked: row.peer_blocked,
     })
 }
 

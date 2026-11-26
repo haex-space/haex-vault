@@ -601,3 +601,94 @@ async fn the_own_contact_takes_name_parts_and_details_even_from_empty() {
     assert!(cleared.values.is_empty());
     assert!(vault.service.get(&Caller::User, &[], &own()).await.is_ok());
 }
+
+/// Spec 099 T032 (quickstart Q5): a contact whose card names a blocked vault is left out of the
+/// list and the search, reads as missing and so does its photo; the phone's readers still see it.
+/// Unblocking shows it again with all its values.
+#[tokio::test]
+async fn a_blocked_contact_is_hidden_everywhere_but_on_the_phone() {
+    use crate::contacts::card::{format, own_card, received};
+    let ben = crate::contacts::service::test_support::card_vault();
+    let text = ben
+        .db
+        .write_blocking(|tx| {
+            own_card::refresh(tx).map_err(haex_crdt::Error::from)?;
+            own_card::stored_text(tx).map_err(haex_crdt::Error::from)
+        })
+        .expect("ben's card")
+        .expect("a card");
+    let card = format::parse(&text).expect("card");
+    let vault = crate::sync::keys::hex(&card.card.vault);
+    let mara = test_vault();
+    let anna = mara
+        .service
+        .create(&Caller::User, &[], anna())
+        .await
+        .expect("create");
+    let id = anna.id.clone();
+    mara.db
+        .write_blocking(move |tx| Ok(received::save(tx, &id, &card).map(|_| ())?))
+        .expect("save the card");
+    let mut photo = Vec::new();
+    image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(32, 32, image::Rgb([9, 0, 0])))
+        .write_to(
+            &mut std::io::Cursor::new(&mut photo),
+            image::ImageFormat::Png,
+        )
+        .expect("a png");
+    let anna = mara
+        .service
+        .set_photo(&Caller::User, &anna.id, photo)
+        .await
+        .expect("photo");
+    let hash = anna.photo.clone().expect("a photo hash");
+
+    mara.service
+        .set_blocked(&Caller::User, vault.clone(), true)
+        .await
+        .expect("block");
+    let listed = mara.service.list(&Caller::User, &[]).await.expect("list");
+    assert!(!listed.iter().any(|header| header.id == anna.id));
+    assert!(mara
+        .service
+        .search(&Caller::User, &[], "Anna")
+        .await
+        .expect("search")
+        .is_empty());
+    assert!(matches!(
+        mara.service.get(&Caller::User, &[], &anna.id).await,
+        Err(HaexError::ContactsNotFound)
+    ));
+    assert!(matches!(
+        mara.service.photo(&Caller::User, &[], &hash).await,
+        Err(HaexError::ContactsNotFound)
+    ));
+    let on_phone = mara
+        .db
+        .read_blocking(|q| crate::contacts::store::headers(q).map_err(haex_crdt::Error::from))
+        .expect("headers");
+    let header = on_phone
+        .iter()
+        .find(|header| header.id == anna.id)
+        .expect("the phone's readers see it");
+    assert!(header.blocked);
+
+    mara.service
+        .set_blocked(&Caller::User, vault, false)
+        .await
+        .expect("unblock");
+    let back = mara
+        .service
+        .get(&Caller::User, &[], &anna.id)
+        .await
+        .expect("visible again");
+    assert_eq!(back.values, anna.values);
+    assert_eq!(back.photo, anna.photo);
+    assert!(mara
+        .service
+        .list(&Caller::User, &[])
+        .await
+        .expect("list")
+        .iter()
+        .any(|header| header.id == anna.id && !header.blocked));
+}

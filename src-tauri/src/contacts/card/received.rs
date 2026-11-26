@@ -275,7 +275,7 @@ pub fn replace(tx: &mut CrdtTransaction<'_>, contact_id: &str, card: &SignedCard
     Ok(())
 }
 
-/// A blocked vault (FR-039).
+/// A blocked vault (FR-039), with whom it stands for (spec 099 FR-015, FR-016).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[ts(
     export,
@@ -287,6 +287,13 @@ pub struct BlockedVault {
     pub vault_pubkey: String,
     pub npub: String,
     pub blocked_at: String,
+    /// The contact the block hides, when a contact holds the vault.
+    pub contact_id: Option<String>,
+    /// The hidden contact's name, else the name on the card the entry kept.
+    pub name: Option<String>,
+    /// The direct conversation with the vault, for "Verlauf ansehen"; `None` before this vault has
+    /// an identity.
+    pub thread_id: Option<String>,
 }
 
 pub fn blocked(q: &mut impl Query) -> Result<Vec<BlockedVault>> {
@@ -295,20 +302,69 @@ pub fn blocked(q: &mut impl Query) -> Result<Vec<BlockedVault>> {
         &[],
         |r| Ok((r.get(0)?, r.get(1)?)),
     )?;
-    Ok(rows
-        .into_iter()
-        .map(|(vault_pubkey, blocked_at)| {
-            let bytes = data_encoding::HEXLOWER.decode(vault_pubkey.as_bytes()).ok();
-            let npub = bytes
-                .and_then(|bytes| <[u8; 32]>::try_from(bytes).ok())
-                .map_or_else(|| vault_pubkey.clone(), |key| npub(&key));
-            BlockedVault {
-                vault_pubkey,
-                npub,
-                blocked_at,
+    let own = crate::sync::keys::vault_pubkey(q)?.map(|own| hex(&own));
+    let mut entries = Vec::with_capacity(rows.len());
+    for (vault_pubkey, blocked_at) in rows {
+        let key = data_encoding::HEXLOWER
+            .decode(vault_pubkey.as_bytes())
+            .ok()
+            .and_then(|bytes| <[u8; 32]>::try_from(bytes).ok());
+        let (mut contact_id, mut name) = (None, None);
+        if let Some(key) = key {
+            if let Some((id, _)) = stored(q, &key)? {
+                name = Some(crate::contacts::store::load(q, &id)?.name);
+                contact_id = Some(id);
+            } else {
+                name = blocked_card(q, &key)?.map(|card| card.card.name);
             }
-        })
-        .collect())
+        }
+        entries.push(BlockedVault {
+            npub: key.map_or_else(|| vault_pubkey.clone(), |key| npub(&key)),
+            thread_id: own.as_deref().map(|own| {
+                crate::chat::peer::ids::direct_thread_id(own, &vault_pubkey).to_string()
+            }),
+            vault_pubkey,
+            blocked_at,
+            contact_id,
+            name,
+        });
+    }
+    Ok(entries)
+}
+
+/// The contacts one of whose cards names a blocked vault: hidden everywhere but on the phones
+/// (spec 099 research R11).
+pub fn hidden_contacts(q: &mut impl Query) -> Result<BTreeSet<String>> {
+    Ok(q.query_map(
+        "SELECT DISTINCT c.contact_id FROM haex_contacts_cards c \
+           JOIN haex_contacts_blocked_vaults b ON b.vault_pubkey = c.vault_pubkey",
+        &[],
+        |r| r.get(0),
+    )?
+    .into_iter()
+    .collect())
+}
+
+/// Whether a block hides `contact_id` (research R11).
+pub fn is_hidden(q: &mut impl Query, contact_id: &str) -> Result<bool> {
+    let found: Option<i64> = q.query_row(
+        "SELECT 1 FROM haex_contacts_cards c \
+           JOIN haex_contacts_blocked_vaults b ON b.vault_pubkey = c.vault_pubkey \
+         WHERE c.contact_id = ?1 LIMIT 1",
+        params![contact_id],
+        |r| r.get(0),
+    )?;
+    Ok(found.is_some())
+}
+
+/// The vaults (hex) the cards of `contact_id` name, each once.
+pub fn vaults_of_contact(q: &mut impl Query, contact_id: &str) -> Result<Vec<String>> {
+    Ok(q.query_map(
+        "SELECT DISTINCT vault_pubkey FROM haex_contacts_cards WHERE contact_id = ?1 \
+         ORDER BY vault_pubkey",
+        params![contact_id],
+        |r| r.get(0),
+    )?)
 }
 
 pub fn is_blocked(q: &mut impl Query, vault: &[u8; 32]) -> Result<bool> {
@@ -366,12 +422,21 @@ pub fn block_with_card(
     Ok(())
 }
 
-pub fn unblock(tx: &mut CrdtTransaction<'_>, vault_pubkey: &str) -> Result<()> {
+/// Removes the block entry of `vault_pubkey`; answers whether there was one.
+pub fn unblock(tx: &mut CrdtTransaction<'_>, vault_pubkey: &str) -> Result<bool> {
+    let present: Option<i64> = tx.query_row(
+        "SELECT 1 FROM haex_contacts_blocked_vaults WHERE vault_pubkey = ?1",
+        params![vault_pubkey],
+        |r| r.get(0),
+    )?;
+    if present.is_none() {
+        return Ok(false);
+    }
     tx.execute(
         "DELETE FROM haex_contacts_blocked_vaults WHERE vault_pubkey = ?1",
         params![vault_pubkey],
     )?;
-    Ok(())
+    Ok(true)
 }
 
 #[cfg(test)]

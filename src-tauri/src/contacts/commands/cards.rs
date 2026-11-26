@@ -78,6 +78,17 @@ pub struct VaultArgs {
     pub vault_pubkey: String,
 }
 
+#[derive(Debug, Deserialize, TS)]
+#[ts(
+    export,
+    export_to = "../../src/types/bindings/",
+    rename = "ContactsBlockContactArgs"
+)]
+#[serde(rename_all = "camelCase")]
+pub struct BlockContactArgs {
+    pub contact_id: String,
+}
+
 /// What the share dialog shows for a contact.
 #[tauri::command]
 pub async fn contacts_share_options(
@@ -134,6 +145,18 @@ pub async fn contacts_blocked(state: State<'_, AppState>) -> Result<Vec<BlockedV
     service(&state)?.blocked(&Caller::User).await
 }
 
+/// Blocks a stored contact with every vault of it (spec 099 FR-014); the contact is hidden then.
+#[tauri::command]
+pub async fn contacts_block_contact(
+    state: State<'_, AppState>,
+    args: BlockContactArgs,
+) -> Result<()> {
+    service(&state)?
+        .block_contact(&Caller::User, args.contact_id)
+        .await
+}
+
+/// Blocks a vault; a vault a contact holds blocks that contact (spec 099 FR-014).
 #[tauri::command]
 pub async fn contacts_block(state: State<'_, AppState>, args: VaultArgs) -> Result<()> {
     service(&state)?
@@ -141,6 +164,8 @@ pub async fn contacts_block(state: State<'_, AppState>, args: VaultArgs) -> Resu
         .await
 }
 
+/// Allows a vault again: restores the contact the block hid, or makes one from the kept card (spec
+/// 099 FR-016).
 #[tauri::command]
 pub async fn contacts_unblock(state: State<'_, AppState>, args: VaultArgs) -> Result<()> {
     service(&state)?

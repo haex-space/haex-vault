@@ -52,6 +52,7 @@ fn list(device: &ChatDevice, requests: bool) -> Vec<Conversation> {
                 ListFilter {
                     kind: None,
                     requests,
+                    blocked: false,
                 },
             )?)
         })

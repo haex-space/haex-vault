@@ -87,14 +87,15 @@ fn check_identity(q: &mut impl crate::storage::query::Query, contact_id: &str) -
 }
 
 impl ContactsService {
-    /// The headers of the contacts the caller may see.
+    /// The headers of the contacts the caller may see; a blocked contact is hidden (spec 099
+    /// research R11).
     pub async fn list(&self, caller: &Caller, grants: &[Grant]) -> Result<Vec<ContactHeader>> {
         let scope = authorize_list(caller, grants)?;
         let mut headers = self
             .db()
             .read(|q| store::headers(q).map_err(Into::into))
             .await?;
-        headers.retain(|header| scope.covers(&header.groups));
+        headers.retain(|header| !header.blocked && scope.covers(&header.groups));
         Ok(headers)
     }
 
@@ -110,7 +111,8 @@ impl ContactsService {
         Ok(headers)
     }
 
-    /// One contact; outside the caller's scope it is `ContactsNotFound`, like a missing one.
+    /// One contact; outside the caller's scope or hidden by a block it is `ContactsNotFound`, like
+    /// a missing one.
     pub async fn get(&self, caller: &Caller, grants: &[Grant], id: &str) -> Result<Contact> {
         let id = id.to_owned();
         let (caller, grants) = (caller.clone(), grants.to_vec());
@@ -118,6 +120,9 @@ impl ContactsService {
             .read(move |q| {
                 let groups =
                     store::group_ids_if_exists(q, &id)?.ok_or(HaexError::ContactsNotFound)?;
+                if crate::contacts::card::received::is_hidden(q, &id)? {
+                    return Err(HaexError::ContactsNotFound.into());
+                }
                 authorize_read(&caller, &grants, &groups).map_err(HaexError::from)?;
                 Ok(store::load(q, &id)?)
             })
@@ -336,7 +341,9 @@ impl ContactsService {
         self.db()
             .read(move |q| {
                 let visible = store::headers(q)?.into_iter().any(|header| {
-                    header.photo.as_deref() == Some(hash.as_str()) && scope.covers(&header.groups)
+                    header.photo.as_deref() == Some(hash.as_str())
+                        && !header.blocked
+                        && scope.covers(&header.groups)
                 });
                 if !visible {
                     return Err(HaexError::ContactsNotFound.into());
