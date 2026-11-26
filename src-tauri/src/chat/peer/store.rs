@@ -266,7 +266,7 @@ fn resolve_peer(
             peer_card_name = request_card(q, id)?.map(|card| card.card.name);
         }
     }
-    let last_delivery = if row.kind == ConversationKind::Note || row.last_text.is_none() {
+    let last_delivery = if row.kind == ConversationKind::Note {
         None
     } else {
         messages::last_delivery(q, own_vault, &row.id, show_read)?
