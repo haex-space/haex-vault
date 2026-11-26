@@ -22,7 +22,7 @@ use haex_lib::providers::delegate_credential::{self, KIND_DEVICE_CODE, VAULT_SCO
 use marketplace_fixture::vault;
 
 const CODE: &str = "placeholder-device-code-of-the-run-test";
-const TRANSCRIPT: &str = r#"{"type":"system","subtype":"init","permission_mode":"supervise","protocol_version":1}
+const TRANSCRIPT: &str = r#"{"type":"system","subtype":"init","permission_mode":"DEFAULT","protocol_version":1}
 {"type":"event","event":{"type":"text_delta","content":"Hello"}}
 {"type":"event","event":{"type":"text_delta","content":" from Abacus"}}
 {"type":"result","subtype":"success","is_error":false,"result":"Hello from Abacus","token_usage":{"inputTokens":3,"outputTokens":4},"errors":[]}

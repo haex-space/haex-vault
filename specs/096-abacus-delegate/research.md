@@ -424,3 +424,23 @@ control request spend credits?
 
 The adapter therefore lists the account's models from the program (`abacus_models.rs`) instead of one entry for the
 account default.
+
+## 15. Ungated and the mode `init` reports (2026-11-26)
+
+Linux x64, version 2.10.23, the same account as section 12, in a throwaway home without settings files.
+
+- **The program's own full-autonomy mode.** Its code maps `--permission-mode unsupervised` to its internal mode `YOLO`
+  ("Runs any command without asking"; `bypasspermissions` is an accepted alias). In `YOLO` a tool call is allowed without
+  a request unless an ask rule, an ask hook or a critical removal applies, or the tool is `ask_user_question`.
+- **Measured.** Started with `--permission-mode unsupervised` and no `--settings`, a prompt asking to read a file, run
+  `ls`, write a file and run `touch` ran all four without a single `can_use_tool` request; the files were created.
+- **What `init` reports.** `permission_mode` is the internal name, not the flag: `YOLO` for `unsupervised`, and `DEFAULT`
+  for `supervise` (all seven runs of section 12). The adapter compared it with `supervise`, so every request in the app
+  ended with "did not start in its approving mode"; the stub tests had used the flag name.
+
+**Decision**: `Ungated` (spec 009) runs `--permission-mode unsupervised` without the ask-rule settings file, as Claude
+Code's `bypassPermissions` and Codex's `approvalPolicy: "never"` do. A request the program still sends is rejected and
+never reaches the approval bridge (`Ungated` has no way to ask, as with Claude Code). The `init` check compares with
+`DEFAULT` for `Standard` and `YOLO` for `Ungated`. FR-010 is unchanged: under a posture that asks, nothing weaker is
+offered; `Ungated` is the person's own posture, not a fallback. `GatedPermissive` stays unavailable until its deny rules
+are mapped to Abacus' tool names and inputs.
