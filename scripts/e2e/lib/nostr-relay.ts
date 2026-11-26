@@ -56,6 +56,57 @@ export function createRelay(port: number, launch: LaunchRelay): NostrRelay {
   }
 }
 
+/** The parts of a stored event a scenario looks at. */
+export interface RelayEvent {
+  id: string
+  pubkey: string
+  kind: number
+  tags: string[][]
+}
+
+/**
+ * The events the relay at `url` holds for `filter` (NIP-01 `REQ` until `EOSE`): what a scenario
+ * checks when the devices' own state does not show that something left them.
+ */
+export async function relayEvents(
+  url: string,
+  filter: Record<string, unknown>,
+  limitMs = 5_000,
+): Promise<RelayEvent[]> {
+  const socket = new WebSocket(url)
+  const events: RelayEvent[] = []
+  try {
+    return await new Promise<RelayEvent[]>((done, fail) => {
+      const timer = setTimeout(
+        () =>
+          fail(
+            new Error(`the Nostr test relay did not answer in ${limitMs} ms`),
+          ),
+        limitMs,
+      )
+      socket.onerror = () => {
+        clearTimeout(timer)
+        fail(new Error(`the Nostr test relay at ${url} is not reachable`))
+      }
+      socket.onopen = () => socket.send(JSON.stringify(['REQ', 'q', filter]))
+      socket.onmessage = (message) => {
+        const [type, , payload] = JSON.parse(String(message.data)) as [
+          string,
+          string,
+          RelayEvent,
+        ]
+        if (type === 'EVENT') events.push(payload)
+        if (type === 'EOSE') {
+          clearTimeout(timer)
+          done(events)
+        }
+      }
+    })
+  } finally {
+    socket.close()
+  }
+}
+
 let built: Promise<string> | undefined
 
 /** Builds the relay once per process and returns its path. */
