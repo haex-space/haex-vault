@@ -120,23 +120,20 @@ function onDrop(event: DragEvent) {
         @dragleave="dropping = false"
         @drop="onDrop"
       >
-        <button
-          type="button"
-          class="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground"
-          :class="hasChildren ? '' : 'invisible'"
-          :aria-label="
+        <UiButtonIcon
+          :label="
             isOpen
               ? t('passwords.folders.collapse')
               : t('passwords.folders.expand')
           "
+          size="icon-sm"
+          :class="['size-6', hasChildren ? '' : 'invisible']"
           :aria-expanded="isOpen"
           @click="toggleOpen"
-        >
-          <Icon
+          ><Icon
             :name="isOpen ? 'lucide:chevron-down' : 'lucide:chevron-right'"
             class="size-4"
-          />
-        </button>
+        /></UiButtonIcon>
         <button
           type="button"
           class="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left"

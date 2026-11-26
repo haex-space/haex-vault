@@ -50,15 +50,11 @@ async function pickFiles() {
 
 <template>
   <div class="flex min-w-0 shrink-0 items-center">
-    <button
-      type="button"
-      class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground outline-none transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+    <UiButtonAdd
+      :label="t('chat.composer.attachments.attachButton')"
+      size="icon-sm"
       :disabled="disabled"
-      :aria-label="t('chat.composer.attachments.attachButton')"
-      :title="t('chat.composer.attachments.attachButton')"
       @click="pickFiles"
-    >
-      <Icon name="lucide:plus" class="h-4 w-4" :aria-hidden="true" />
-    </button>
+    />
   </div>
 </template>

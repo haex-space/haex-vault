@@ -135,20 +135,16 @@ const choices: { choice: SyncRulePendingChoice; icon: string }[] = [
               t('files.syncRules.pending.at', { place: labels[item.side] })
             }}</span>
           </div>
-          <UiButton
+          <UiButtonIcon
             v-for="entry in choices"
             :key="entry.choice"
-            type="button"
-            variant="ghost"
+            :label="t(`files.syncRules.pending.one.${entry.choice}`)"
             size="icon-sm"
             :disabled="busy"
-            :aria-label="t(`files.syncRules.pending.one.${entry.choice}`)"
-            :tooltip="t(`files.syncRules.pending.one.${entry.choice}`)"
             :data-testid="`files-sync-rule-pending-${entry.choice}-${item.path}`"
             @click="resolveAsync([item.path], entry.choice)"
-          >
-            <Icon :name="entry.icon" class="size-4" />
-          </UiButton>
+            ><Icon :name="entry.icon" class="size-4"
+          /></UiButtonIcon>
         </li>
       </ul>
     </div>

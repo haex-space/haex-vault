@@ -107,20 +107,12 @@ function remove(workspaceId: string) {
               :aria-label="t('wm.attention')"
             />
           </button>
-          <button
+          <UiButtonDelete
             v-if="wm.workspaces.length > 1"
-            type="button"
-            class="shrink-0 rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+            :label="t('wm.workspaces.delete')"
             :class="wm.compact ? 'p-3.5' : 'p-1.5'"
-            :aria-label="t('wm.workspaces.delete')"
             @click="remove(row.workspace.id)"
-          >
-            <Icon
-              name="lucide:trash-2"
-              class="h-4 w-4 max-md:h-5 max-md:w-5"
-              :aria-hidden="true"
-            />
-          </button>
+          />
         </div>
 
         <UiButton variant="outline" class="justify-start gap-2" @click="create">

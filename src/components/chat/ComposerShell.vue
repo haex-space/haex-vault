@@ -107,30 +107,23 @@ function onEnter(event: KeyboardEvent) {
             @transcript="(text, autoSend) => emit('transcript', text, autoSend)"
           />
           <template v-if="!voiceRecording">
-            <UiButton
+            <UiButtonIcon
               v-if="showCancel"
-              class="shrink-0"
+              :label="t('chat.cancel')"
               size="icon-sm"
               variant="destructive"
-              type="button"
-              :aria-label="t('chat.cancel')"
-              :title="t('chat.cancel')"
               @click="emit('abort')"
-            >
-              <Icon name="lucide:square" class="h-3.5 w-3.5 fill-current" />
-            </UiButton>
-            <UiButton
+              ><Icon name="lucide:square" class="size-4"
+            /></UiButtonIcon>
+            <UiButtonIcon
               v-else
-              class="shrink-0"
+              :label="t('chat.send')"
               size="icon-sm"
               type="submit"
               :disabled="!input.trim() || sendDisabled"
-              :aria-label="t('chat.send')"
-              :title="t('chat.send')"
               :data-testid="sendTestId"
-            >
-              <Icon name="lucide:arrow-up" class="h-3.5 w-3.5" />
-            </UiButton>
+              ><Icon name="lucide:arrow-up" class="size-4"
+            /></UiButtonIcon>
           </template>
         </div>
       </div>

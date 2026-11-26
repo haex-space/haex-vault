@@ -138,26 +138,18 @@ onMounted(() => panel.value?.focus())
         entry.name
       }}</span>
       <template v-if="sameKind.length > 1">
-        <UiButton
-          variant="ghost"
-          size="icon"
-          :aria-label="t('files.viewer.previous')"
-          :tooltip="t('files.viewer.previous')"
+        <UiButtonIcon
+          :label="t('files.viewer.previous')"
           data-testid="files-viewer-previous"
           @click="step(-1)"
-        >
-          <Icon name="lucide:chevron-left" class="size-4" />
-        </UiButton>
-        <UiButton
-          variant="ghost"
-          size="icon"
-          :aria-label="t('files.viewer.next')"
-          :tooltip="t('files.viewer.next')"
+          ><Icon name="lucide:chevron-left" class="size-4"
+        /></UiButtonIcon>
+        <UiButtonIcon
+          :label="t('files.viewer.next')"
           data-testid="files-viewer-next"
           @click="step(1)"
-        >
-          <Icon name="lucide:chevron-right" class="size-4" />
-        </UiButton>
+          ><Icon name="lucide:chevron-right" class="size-4"
+        /></UiButtonIcon>
       </template>
       <UiButtonOpenExternal
         v-if="!isAndroid"

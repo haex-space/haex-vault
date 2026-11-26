@@ -2740,7 +2740,6 @@
       "attachments": "Has attachments"
     },
     "reveal": "Show {field}",
-    "revealHint": "Show",
     "hideHint": "Hide",
     "copy": "Copy {field}",
     "copied": "{field} copied. The clipboard is cleared in {seconds} s.",

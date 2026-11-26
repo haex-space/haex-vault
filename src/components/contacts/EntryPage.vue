@@ -194,44 +194,27 @@ async function removePhotoAsync() {
           data-testid="contacts-edit"
           @click="router.push(`/entry/${contact.id}/edit`)"
         />
-        <UiButton
+        <UiButtonIcon
           v-if="!contact.isSelf"
-          variant="ghost"
-          size="icon"
-          :aria-label="t('contacts.message.action')"
+          :label="t('contacts.message.action')"
           :aria-disabled="!contact.card"
           :class="{ 'opacity-50': !contact.card }"
-          :tooltip="
-            contact.card
-              ? t('contacts.message.action')
-              : t('contacts.message.needsCard')
-          "
           data-testid="contacts-message"
           @click="messageContact"
-        >
-          <Icon name="lucide:message-circle" class="size-4" />
-        </UiButton>
-        <UiButton
-          variant="ghost"
-          size="icon"
-          :aria-label="t('contacts.share.action')"
-          :tooltip="t('contacts.share.action')"
+          ><Icon name="lucide:message-circle" class="size-4"
+        /></UiButtonIcon>
+        <UiButtonIcon
+          :label="t('contacts.share.action')"
           data-testid="contacts-share-open"
           @click="shareOpen = true"
-        >
-          <Icon name="lucide:share-2" class="size-4" />
-        </UiButton>
-        <UiButton
+          ><Icon name="lucide:share-2" class="size-4"
+        /></UiButtonIcon>
+        <UiButtonDelete
           v-if="!contact.isSelf"
-          variant="ghost"
-          size="icon"
-          :aria-label="t('contacts.delete.title')"
-          :tooltip="t('contacts.delete.title')"
+          :label="t('contacts.delete.title')"
           data-testid="contacts-delete"
           @click="deleteOpen = true"
-        >
-          <Icon name="lucide:trash-2" class="size-4 text-destructive" />
-        </UiButton>
+        />
       </div>
     </div>
 

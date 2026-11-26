@@ -130,36 +130,21 @@ function move(index: number, by: -1 | 1) {
           />
         </div>
         <div class="flex shrink-0 items-center">
-          <UiButton
-            type="button"
-            variant="ghost"
-            size="icon"
+          <UiButtonMoveUp
+            :label="t('passwords.pass.moveUp')"
             :disabled="index === 0"
-            :aria-label="t('passwords.pass.moveUp')"
             @click="move(index, -1)"
-          >
-            <Icon name="lucide:arrow-up" class="size-4" />
-          </UiButton>
-          <UiButton
-            type="button"
-            variant="ghost"
-            size="icon"
+          />
+          <UiButtonMoveDown
+            :label="t('passwords.pass.moveDown')"
             :disabled="index === codes.length - 1"
-            :aria-label="t('passwords.pass.moveDown')"
             @click="move(index, 1)"
-          >
-            <Icon name="lucide:arrow-down" class="size-4" />
-          </UiButton>
-          <UiButton
-            type="button"
-            variant="ghost"
-            size="icon"
-            :aria-label="t('passwords.pass.removeCode')"
+          />
+          <UiButtonDelete
+            :label="t('passwords.pass.removeCode')"
             :data-testid="`wallet-code-remove-${index}`"
             @click="remove(index)"
-          >
-            <Icon name="lucide:trash-2" class="size-4" />
-          </UiButton>
+          />
         </div>
       </div>
       <UiInput

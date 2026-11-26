@@ -29,15 +29,11 @@ async function openSystemAsync() {
 <template>
   <ShadcnDropdownMenu>
     <ShadcnDropdownMenuTrigger as-child>
-      <UiButton
-        variant="ghost"
-        size="icon"
-        :aria-label="t('contacts.open.mail')"
-        :tooltip="t('contacts.open.mail')"
+      <UiButtonIcon
+        :label="t('contacts.open.mail')"
         data-testid="contacts-open-mail"
-      >
-        <Icon name="lucide:mail" class="size-4" />
-      </UiButton>
+        ><Icon name="lucide:mail" class="size-4"
+      /></UiButtonIcon>
     </ShadcnDropdownMenuTrigger>
     <ShadcnDropdownMenuContent align="end">
       <ShadcnDropdownMenuItem

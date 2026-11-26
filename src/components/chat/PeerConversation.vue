@@ -254,38 +254,24 @@ watch(
           :protection="peer.protection.value"
         />
         <!-- Notes never notify, so they have nothing to mute (FR-002b); a request is answered. -->
-        <UiButton
+        <UiButtonIcon
           v-if="
             conversation.kind !== 'note' && conversation.state !== 'request'
           "
-          type="button"
-          variant="ghost"
-          size="icon"
-          :aria-label="
-            conversation.muted ? t('chat.peer.unmute') : t('chat.peer.mute')
-          "
-          :tooltip="
+          :label="
             conversation.muted ? t('chat.peer.unmute') : t('chat.peer.mute')
           "
           data-testid="chat-peer-mute"
           @click="emit('mute', conversation.id, !conversation.muted)"
-        >
-          <Icon
+          ><Icon
             :name="conversation.muted ? 'lucide:bell' : 'lucide:bell-off'"
-            class="h-4 w-4"
-          />
-        </UiButton>
-        <UiButton
-          type="button"
-          variant="ghost"
-          size="icon"
-          :aria-label="t('chat.peer.delete')"
-          :tooltip="t('chat.peer.delete')"
+            class="size-4"
+        /></UiButtonIcon>
+        <UiButtonDelete
+          :label="t('chat.peer.delete')"
           data-testid="chat-peer-delete"
           @click="confirmDelete = true"
-        >
-          <Icon name="lucide:trash-2" class="h-4 w-4" />
-        </UiButton>
+        />
       </header>
       <ChatProtectionExplanation
         v-if="showProtection && peer.protection.value"
@@ -346,18 +332,13 @@ watch(
           />
         </template>
         <template v-if="canAttach" #controls>
-          <UiButton
-            type="button"
-            variant="ghost"
-            size="icon"
+          <UiButtonIcon
+            :label="t('chat.peer.attach')"
             :disabled="sending || preparingFiles"
-            :aria-label="t('chat.peer.attach')"
-            :tooltip="t('chat.peer.attach')"
             data-testid="chat-peer-attach"
             @click="attach"
-          >
-            <Icon name="lucide:paperclip" class="h-4 w-4" />
-          </UiButton>
+            ><Icon name="lucide:paperclip" class="size-4"
+          /></UiButtonIcon>
         </template>
         <template #above>
           <p

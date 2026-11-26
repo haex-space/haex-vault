@@ -35,50 +35,34 @@ const { t } = useI18n()
       <span class="mr-auto" data-testid="files-selection-count">{{
         t('files.selection.count', { count: selected }, selected)
       }}</span>
-      <UiButton
-        variant="ghost"
-        size="icon"
-        :aria-label="t('files.actions.copy')"
-        :tooltip="t('files.actions.copy')"
+      <UiButtonIcon
+        :label="t('files.actions.copy')"
         data-testid="files-action-copy"
         @click="emit('run', 'copy')"
-      >
-        <Icon name="lucide:copy" class="size-4" />
-      </UiButton>
-      <UiButton
-        variant="ghost"
-        size="icon"
+        ><Icon name="lucide:copy" class="size-4"
+      /></UiButtonIcon>
+      <UiButtonIcon
+        :label="t('files.actions.cut')"
         :disabled="readOnly"
-        :aria-label="t('files.actions.cut')"
-        :tooltip="t('files.actions.cut')"
         data-testid="files-action-cut"
         @click="emit('run', 'cut')"
-      >
-        <Icon name="lucide:scissors" class="size-4" />
-      </UiButton>
+        ><Icon name="lucide:scissors" class="size-4"
+      /></UiButtonIcon>
       <template v-if="split">
-        <UiButton
-          variant="ghost"
-          size="icon"
+        <UiButtonIcon
+          :label="`${t('files.actions.copyToOther')} (F5)`"
           :disabled="readOnlyTarget"
-          :aria-label="t('files.actions.copyToOther')"
-          :tooltip="`${t('files.actions.copyToOther')} (F5)`"
           data-testid="files-bar-copy-other"
           @click="emit('run', 'copyToOther')"
-        >
-          <Icon name="lucide:files" class="size-4" />
-        </UiButton>
-        <UiButton
-          variant="ghost"
-          size="icon"
+          ><Icon name="lucide:files" class="size-4"
+        /></UiButtonIcon>
+        <UiButtonIcon
+          :label="`${t('files.actions.moveToOther')} (F6)`"
           :disabled="readOnly || readOnlyTarget"
-          :aria-label="t('files.actions.moveToOther')"
-          :tooltip="`${t('files.actions.moveToOther')} (F6)`"
           data-testid="files-bar-move-other"
           @click="emit('run', 'moveToOther')"
-        >
-          <Icon name="lucide:folder-input" class="size-4" />
-        </UiButton>
+          ><Icon name="lucide:folder-input" class="size-4"
+        /></UiButtonIcon>
       </template>
       <UiButtonEdit
         :label="t('files.actions.rename')"
@@ -86,17 +70,12 @@ const { t } = useI18n()
         data-testid="files-action-rename"
         @click="emit('run', 'rename')"
       />
-      <UiButton
-        variant="ghost"
-        size="icon"
+      <UiButtonDelete
+        :label="t('files.actions.delete')"
         :disabled="readOnly"
-        :aria-label="t('files.actions.delete')"
-        :tooltip="t('files.actions.delete')"
         data-testid="files-action-delete"
         @click="emit('run', 'delete')"
-      >
-        <Icon name="lucide:trash-2" class="size-4" />
-      </UiButton>
+      />
     </template>
     <span v-else class="mr-auto text-muted-foreground">{{
       t('files.clipboard.waiting')

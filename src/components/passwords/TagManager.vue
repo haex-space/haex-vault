@@ -180,19 +180,15 @@ async function confirmDeleteAsync() {
                   :data-testid="`passwords-tag-rename-${selected.id}`"
                   @click="start(selected)"
                 />
-                <UiButton
+                <UiButtonIcon
                   v-if="store.displayTags.length > 1"
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  class="size-8 text-muted-foreground hover:bg-background hover:text-foreground focus-visible:text-foreground"
-                  :aria-label="t('passwords.tags.merge')"
-                  :tooltip="t('passwords.tags.merge')"
+                  :label="t('passwords.tags.merge')"
+                  size="icon-sm"
+                  class="text-muted-foreground hover:bg-background hover:text-foreground focus-visible:text-foreground"
                   data-testid="passwords-tag-merge"
                   @click="startMerge(selected)"
-                >
-                  <Icon name="lucide:merge" class="size-4" aria-hidden="true" />
-                </UiButton>
+                  ><Icon name="lucide:merge" class="size-4"
+                /></UiButtonIcon>
                 <UiButtonDelete
                   :label="t('passwords.tags.delete')"
                   :data-testid="`passwords-tag-delete-${selected.id}`"

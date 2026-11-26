@@ -86,16 +86,16 @@ function remove(key: string, name: string) {
               :data-testid="`passwords-alias-${index}`"
             >
               {{ name }}
-              <button
+              <UiButtonClose
                 v-if="!readonly"
-                type="button"
-                class="rounded-full hover:text-destructive"
-                :aria-label="t('passwords.aliases.remove', { name })"
+                class="size-5 rounded-full"
+                icon-class="size-3"
+                hover="destructive"
+                :label="t('passwords.aliases.remove', { name })"
+                size="icon-sm"
                 :data-testid="`passwords-alias-remove-${index}`"
                 @click="remove(row.key, name)"
-              >
-                <Icon name="lucide:x" class="size-3" />
-              </button>
+              />
             </ShadcnBadge>
           </div>
         </template>

@@ -112,42 +112,24 @@ function credentialsLine(market: MarketplaceView): string | null {
           :data-testid="`settings-marketplace-toggle-${market.id}`"
           @update:model-value="setEnabledAsync(market, $event === true)"
         />
-        <UiButton
-          type="button"
-          variant="ghost"
-          size="icon"
+        <UiButtonMoveUp
+          :label="
+            t('settings.extensions.marketplaces.moveUp', { name: market.name })
+          "
           :disabled="index === 0"
-          :aria-label="
-            t('settings.extensions.marketplaces.moveUp', { name: market.name })
-          "
-          :tooltip="
-            t('settings.extensions.marketplaces.moveUp', { name: market.name })
-          "
           :data-testid="`settings-marketplace-up-${market.id}`"
           @click="moveAsync(index, -1)"
-        >
-          <Icon name="lucide:arrow-up" class="size-4" />
-        </UiButton>
-        <UiButton
-          type="button"
-          variant="ghost"
-          size="icon"
+        />
+        <UiButtonMoveDown
+          :label="
+            t('settings.extensions.marketplaces.moveDown', {
+              name: market.name,
+            })
+          "
           :disabled="index === markets.length - 1"
-          :aria-label="
-            t('settings.extensions.marketplaces.moveDown', {
-              name: market.name,
-            })
-          "
-          :tooltip="
-            t('settings.extensions.marketplaces.moveDown', {
-              name: market.name,
-            })
-          "
           :data-testid="`settings-marketplace-down-${market.id}`"
           @click="moveAsync(index, 1)"
-        >
-          <Icon name="lucide:arrow-down" class="size-4" />
-        </UiButton>
+        />
         <UiButton
           type="button"
           variant="outline"

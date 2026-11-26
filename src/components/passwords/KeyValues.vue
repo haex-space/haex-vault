@@ -83,17 +83,11 @@ function setValue(index: number, value: string) {
           </template>
         </UiInput>
       </div>
-      <UiButton
-        type="button"
-        variant="ghost"
-        size="icon"
-        class="shrink-0"
-        :aria-label="t('passwords.editor.removeField')"
+      <UiButtonDelete
+        :label="t('passwords.editor.removeField')"
         :data-testid="`passwords-kv-remove-${index}`"
         @click="remove(index)"
-      >
-        <Icon name="lucide:trash-2" class="size-4" />
-      </UiButton>
+      />
       <PasswordsReferenceField
         class="basis-full"
         :text="field.value"

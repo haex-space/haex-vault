@@ -28,8 +28,10 @@ export default defineNuxtConfig({
   // and #178: the focus ring of fields is no longer half transparent (it read as disabled).
   // #186 adds `UiButtonCopy` with `external`, `UiButtonDelete`, `UiButtonDownload` and the named icon
   // buttons (close, back, edit, add, open-external, menu, info, refresh) on `UiButtonIcon`.
+  // #187 gives them the primary hover (`hover` prop), a slot on `UiButtonIcon`, and adds
+  // `UiButtonReveal`, `UiButtonMoveUp`, `UiButtonMoveDown`, `UiButtonSave` and `UiButtonLink`.
   extends: [
-    'github:haex-space/haextension/packages/haex-ui#d0bcc969c82ed8e5682b03da9b611766dd42eb42',
+    'github:haex-space/haextension/packages/haex-ui#cba33a1dd154f22412344c5bc313a581cb8f1d59',
   ],
   build: {
     transpile: ['reka-ui'],
