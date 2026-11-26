@@ -7,6 +7,12 @@
 > accepted is not given up after 24 hours: it keeps being tried, and a message without a receipt is
 > sent again after 1, 3 and then every 7 days.
 
+> **Amended by spec 099** ([contract](../../099-chat-contact-gate/contracts/nostr-chat-gate.md)): a direct
+> message of a vault without a stored, unblocked card stores no message and no attachment; it leaves a
+> request and gets no receipt of any kind. A receipt may carry an `answer` (`accepted` or `blocked`) that
+> tells the sender the recipient accepted or declined it; a blocked notice is the only event that goes
+> to a blocked vault.
+
 Layers, keys and checks: [research R1, R2, R4, R5](../research.md). Every event below is the JSON
 content of a **rumor**; the rumor is sealed (kind 13, signed by the sender's device key) and gift-wrapped
 (kind 1059, one-time key, NIP-44 v2) to **one device key** of a recipient. One wrap per recipient
@@ -56,6 +62,8 @@ key is an own device other than this one; it is stored in the notes, causes no r
 notification.
 Reject a group op whose `at` is more than five minutes ahead of the receiver's current time (R9), then
 check `v` is known. Any failure: drop silently, no receipt.
+Spec 099: a direct message that passes these checks from a vault without a stored card is not stored;
+it leaves only a request (or nothing, with requests from strangers off).
 
 ### `type: "message"`
 
@@ -152,7 +160,10 @@ uploading device needs `files` for R13). `delivered` and `read` come from one de
 that inserted the message, or where it was read); each `files` item identifies the event, attachment
 index and device key, and comes from **every** device that stored that file. Batched per conversation,
 at most every 2 s.
-Never to a blocked vault; `read` never for an unaccepted request or with read receipts off.
+Never to a blocked vault, except the blocked notice of spec 099; no receipt for a request (spec 099
+FR-005); `read` never with read receipts off. The optional `answer`, `answerSequence` and
+`answerDecisionHlc` of an accepted or blocked notice are specified in spec 099's
+[contract](../../099-chat-contact-gate/contracts/nostr-chat-gate.md).
 
 ## Publishing
 

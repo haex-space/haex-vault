@@ -118,6 +118,9 @@ scenario('chat-contact-gate', { timeoutMs: 420_000 }, async (ctx) => {
     }),
   )
   await acceptCard(anna, cardText)
+  // SC-002 and SC-003 (task T045) are timed from the answer to the other side's view and printed
+  // into the job log, to compare with 072 SC-002 (5 s).
+  const acceptedAt = Date.now()
   assert.deepEqual(await conversations(anna, true), [], 'the request ended')
   await ctx.waitFor(
     'Ben’s waiting messages to reach Anna',
@@ -126,6 +129,9 @@ scenario('chat-contact-gate', { timeoutMs: 420_000 }, async (ctx) => {
       return texts.length === 2
     },
     { timeoutMs: 90_000, fixed: true },
+  )
+  console.log(
+    `SC-002: accept to Ben's messages on Anna ${Date.now() - acceptedAt} ms`,
   )
   assert.deepEqual(
     (await messagesOf(anna, request!.id)).map((m) => m.text),
@@ -158,6 +164,7 @@ scenario('chat-contact-gate', { timeoutMs: 420_000 }, async (ctx) => {
       args: { threadId: claraRequest!.id, answer: 'decline' },
     }),
   )
+  const declinedAt = Date.now()
   assert.deepEqual(await conversations(anna, true), [])
   const blocked = unwrap<{ vaultPubkey: string }[]>(
     'contacts_blocked',
@@ -174,6 +181,9 @@ scenario('chat-contact-gate', { timeoutMs: 420_000 }, async (ctx) => {
         (c) => c.id === claraThread && c.blockedByPeer,
       ),
     { timeoutMs: 60_000, fixed: true },
+  )
+  console.log(
+    `SC-003: decline to the block on Clara ${Date.now() - declinedAt} ms`,
   )
   const claraMessages = await messagesOf(clara, claraThread)
   assert.equal(claraMessages[0]?.failedReason, 'blocked')
