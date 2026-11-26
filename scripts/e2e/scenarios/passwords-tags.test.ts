@@ -239,6 +239,13 @@ scenario('passwords-tags', {}, async (ctx) => {
     return shown.login === '5' && shown.pass === '5'
   })
   ctx.step('usage: 5 in the password manager and 5 in Wallet, not 10')
+  // Choosing a tag closes the picker. An Escape sent while it still closes does not reach the
+  // manager, which then stays open over the window.
+  await ctx.waitFor(
+    'the picker to close',
+    async () =>
+      (await testIds(instance, '^passwords-tag-picker-search$')).length === 0,
+  )
   await pressEscape(instance)
   await ctx.waitFor('the manager to close', () => dialogClosed(instance))
 
