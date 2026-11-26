@@ -12,6 +12,7 @@ use super::offer::FIND_ACTIONS_TOOL_NAME;
 use super::profile_gate::permits;
 use super::{Tool, ToolRegistry};
 use crate::agent_memory::gate::visible_at;
+use crate::chat::turn::images::NEED_IMAGES;
 use crate::mcp_server::grants::{MemoryLevel, Rights};
 
 #[cfg(test)]
@@ -37,16 +38,20 @@ pub fn tool_names_line(
     (!names.is_empty()).then(|| format!("{HEAD} {}.", names.join(", ")))
 }
 
-/// The chat's `overview` of the extensions with the line after it, naming what `rights` and the
-/// memory `level` let the turn use.
+/// The chat's extension overview followed by searchable names allowed by the profile, memory
+/// level and model capabilities.
 pub fn with_names(
     overview: Option<String>,
     registry: &ToolRegistry,
     rights: &Rights,
     level: MemoryLevel,
+    accepts_images: bool,
 ) -> Option<String> {
     let names = tool_names_line(registry, |tool| {
-        permits(rights, tool).is_ok() && visible_at(level, tool.name())
+        let name = tool.name();
+        permits(rights, tool).is_ok()
+            && visible_at(level, name)
+            && (accepts_images || !NEED_IMAGES.contains(&name))
     });
     [overview, names]
         .into_iter()
@@ -56,7 +61,7 @@ pub fn with_names(
 
 fn searchable(tool: &dyn Tool) -> bool {
     match tool.source() {
-        EXTENSION_SOURCE => true,
+        EXTENSION_SOURCE => tool.match_entry().is_some(),
         ACTION_SOURCE => {
             tool.name() != FIND_ACTIONS_TOOL_NAME
                 && tool.name() != ASK_USER_TOOL_NAME

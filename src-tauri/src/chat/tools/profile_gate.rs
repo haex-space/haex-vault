@@ -52,7 +52,7 @@ pub fn permits(rights: &Rights, tool: &dyn Tool) -> Result<(), Missing> {
                 return Ok(());
             };
             if matches!(
-                tool.name(),
+                def.action_id.as_str(),
                 "browser.credentials.fill" | "browser.entry.fill"
             ) && rights.passwords.is_none()
             {

@@ -421,10 +421,9 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             }
             crate::chat::tools::profile_gate::retain_permitted(&rights, &registry, &mut tools);
             // Spec 065 FR-063: a model that is shown no pictures works with element numbers.
-            crate::chat::turn::images::retain_usable(
-                &mut tools,
-                crate::chat::turn::images::accepts_images(model_capabilities.as_ref()),
-            );
+            let accepts_images =
+                crate::chat::turn::images::accepts_images(model_capabilities.as_ref());
+            crate::chat::turn::images::retain_usable(&mut tools, accepts_images);
             overview = extensions_overview(&crate::chat::tools::profile_gate::permitted_summaries(
                 &rights, &registry,
             ));
@@ -436,6 +435,7 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
                     &registry,
                     &rights,
                     memory_level,
+                    accepts_images,
                 );
             }
         }
