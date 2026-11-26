@@ -724,6 +724,36 @@ the devices of its vaults: _geschützt_, _Erneuerung ausstehend_, _wird wiederhe
 _wartet auf Schlüssel_; the weakest over the devices wins. Notes have none.
 _Avoid_: "verschlüsselt" for it: the content is encrypted in every state.
 
+### Gedächtnis der Agenten (spec 097)
+
+**Gedächtnis** (memory):
+The one set of pages of a vault that the user and their agents write and read across
+conversations, synced to every own device. The local agent, cloud models and Abo-Agents reach
+it alike, as the rights group "Gedächtnis" of the Agentenprofil allows (aus, lesen, lesen und
+schreiben; "Standard" reads and writes from the factory); external agents never do. Passwords,
+keys and tokens never go into it. The user sees and edits it under "KI → Gedächtnis".
+_Avoid_: "Erinnerungen" or "Notizen" for it (Notes are their own app).
+
+**Seite** (page):
+One page of the Gedächtnis: a title, a one-line description and a Markdown text, with its origin
+(who wrote it, on which device, when, and who changed it last). A title is taken once; two pages
+with one title arise only when two devices write before they sync, and both are marked.
+
+**Verweis (Gedächtnis)** (pointer):
+`[[Titel]]` in the text of a Seite, naming another page by its title; it opens that page, and a
+pointer to no page offers to create it. Not the **Verweis (Platzhalter)** of passwords.
+_Avoid_: "Link" in the UI.
+
+**Inhaltsverzeichnis** (table of contents):
+Title and description of the pages, newest first, that a model is given at the start of a
+conversation, sized by its context and fixed for that conversation; the rest it finds by
+searching.
+
+**Fremder Inhalt** (foreign content):
+What neither the user nor haex-vault wrote: what the browser and the web search return, what
+extension tools return (mail), files and messages from contacts, and what an Abo-Agent's own
+tools read. After it, every write of that conversation to the Gedächtnis asks the user first.
+
 ### Internationalisierung (i18n)
 
 All user-visible text uses `@nuxtjs/i18n`. Backend commands and
