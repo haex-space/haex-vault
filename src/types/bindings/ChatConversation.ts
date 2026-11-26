@@ -6,60 +6,60 @@ import type { ChatDeliveryState } from "./ChatDeliveryState";
 /**
  * One entry of the conversation list (FR-001, contracts/ipc.md).
  */
-export type ChatConversation = { id: string, kind: ChatConversationKind, state: ChatConversationState, 
+export type ChatConversation = { id: string, kind: ChatConversationKind, state: ChatConversationState,
 /**
  * Agent: the thread title; group: its name; direct: empty (the window shows the contact).
  */
-title: string, 
+title: string,
 /**
  * Direct: the other vault identity, hex.
  */
-peerVault: string | null, 
+peerVault: string | null,
 /**
  * Direct: the address-book contact holding the other vault's card, if any.
  */
-peerContactId: string | null, 
+peerContactId: string | null,
 /**
  * Direct: the name on the other vault's stored card, shown when there is no contact.
  */
-peerCardName: string | null, 
+peerCardName: string | null,
 /**
  * Direct: the stored card names no Nostr-Relay, so messages go over the own ones (US2
  * scenario 8, shown as a hint).
  */
-peerWithoutRelays: boolean, muted: boolean, 
+peerWithoutRelays: boolean, muted: boolean,
 /**
  * Messages of others after `last_read_at` (FR-001, FR-022).
  */
-unread: number, 
+unread: number,
 /**
  * The start of the last contact message, if any, its lines run together so the list can show
  * two of them.
  */
-lastText: string | null, 
+lastText: string | null,
 /**
  * Direct and group: where the newest message stands when it is an own one, so the list shows
  * its delivery state as a messenger does; `None` for a message of someone else, the notes and
  * a conversation without messages. A group shows its least advanced recipient.
  */
-lastDelivery: ChatDeliveryState | null, 
+lastDelivery: ChatDeliveryState | null,
 /**
  * Newest activity: the last message or the thread's own `updated_at`.
  */
-lastAt: number, 
+lastAt: number,
 /**
  * Direct: something ever came back from the other vault, a message or a receipt (spec 099
  * FR-005a: without it the window explains a missing _delivered_ carefully).
  */
-peerAnswered: boolean, 
+peerAnswered: boolean,
 /**
  * Direct: the other vault answered that it takes no messages from this one (spec 099 FR-010).
  */
-blockedByPeer: boolean, 
+blockedByPeer: boolean,
 /**
  * Request: when its stranger knocked last (spec 099 FR-003).
  */
-requestLastAt: number | null, 
+requestLastAt: number | null,
 /**
  * Direct: this vault blocked the other one (spec 099 FR-015); only the list of blocked
  * conversations has these.
