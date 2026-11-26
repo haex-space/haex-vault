@@ -59,6 +59,18 @@ scenario('chat-note-files', { timeoutMs: 420_000 }, async (ctx) => {
       },
     }),
   )
+  // The phone downloads the file from a loopback address, which it allows only for its own chosen
+  // server. The preference reaches it through the sync, so the phone must hold it before it closes;
+  // the laptop is offline when the phone opens again.
+  await ctx.waitFor(
+    'the phone to hold the Blossom server',
+    async () =>
+      unwrap<string | null>(
+        'chat_blossom_server',
+        await phone.page.invoke('chat_blossom_server'),
+      ) === blossom.url,
+    { timeoutMs: 40_000, fixed: true },
+  )
   // The laptop wraps for the phone only with the phone's chat key record (spec 095), which the phone
   // publishes when it opens; a phone closed before that would get nothing.
   await ctx.waitFor(
