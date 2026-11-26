@@ -724,6 +724,25 @@ the devices of its vaults: _geschützt_, _Erneuerung ausstehend_, _wird wiederhe
 _wartet auf Schlüssel_; the weakest over the devices wins. Notes have none.
 _Avoid_: "verschlüsselt" for it: the content is encrypted in every state.
 
+**Fremde Vault** (stranger, spec 099):
+A vault that is neither a contact of the Adressbuch nor gesperrt. Only contacts may write into the
+chat; a message of a Fremde Vault leaves at most an Anfrage. In the UI: "Fremde" ("Anfragen von
+Fremden zulassen").
+
+**Anfrage** (request, spec 099):
+What a message of a Fremde Vault leaves on the receiving vault: the sender's name and Visitenkarte
+and when it knocked, never text or files of the message, and one per vault however often it
+knocks. It has two answers: "Annehmen" stores the Visitenkarte as a contact, "Ablehnen" puts the
+vault on the block list; the sender is told either way.
+_Avoid_: "Nachrichtenanfrage", "Kontaktanfrage" (nothing of the message is kept).
+
+**Gesperrt** (blocked, spec 099):
+A vault on the block list of spec 051, whether declined as an Anfrage or blocked as a contact
+("Sperren"). Its messages are dropped, it is told once, and its contact is hidden everywhere but on
+the phones, not deleted. "Entsperren" in the settings restores the contact, or makes one from the
+Visitenkarte a declined Anfrage left.
+_Avoid_: "blockiert" in what the user reads; "abgelehnt" for a blocked contact.
+
 ### Gedächtnis der Agenten (spec 097)
 
 **Gedächtnis** (memory):

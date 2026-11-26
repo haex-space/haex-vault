@@ -579,7 +579,7 @@
       "tooLong": "Der Text ist zu lang (höchstens 1.000.000 Zeichen).",
       "tooLarge": "Die Nachricht ist zu groß.",
       "resendElsewhere": "Diese Nachricht wurde auf einem anderen deiner Geräte geschrieben. Sende sie von dort erneut.",
-      "resendBlocked": "Der Empfänger hat dich blockiert. Du kannst erneut senden, sobald er dich wieder akzeptiert.",
+      "resendBlocked": "Der Empfänger hat dich gesperrt. Du kannst erneut senden, sobald er dich wieder annimmt.",
       "modelNotInProfile": "Dieses Modell gehört nicht zum aktiven Agentenprofil. Wähle ein anderes Modell oder ein anderes Agentenprofil."
     },
     "notify": {
@@ -4584,10 +4584,10 @@
       "accept": "Übernehmen",
       "accepted": "Bei {name} gespeichert",
       "stale": "Der Kontakt hat sich seit der Vorschau geändert. Die Vorschau ist neu geladen, bitte noch einmal wählen.",
-      "blocked": "Diese Vault ist blockiert.",
-      "block": "Vault blockieren",
+      "blocked": "Diese Vault ist gesperrt.",
+      "block": "Vault sperren",
       "problem": {
-        "blocked": "Diese Vault ist blockiert.",
+        "blocked": "Diese Vault ist gesperrt.",
         "mismatch": "Dieser Kontakt hat eine andere Vault-Identität. Wähle einen neuen Kontakt.",
         "needsValue": "Wähle, welche Angabe ersetzt wird."
       }
