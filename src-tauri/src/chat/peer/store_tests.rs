@@ -222,7 +222,10 @@ async fn unread_counts_only_others_messages_after_the_last_read() {
         .find(|c| c.id == direct.to_string())
         .expect("listed");
     assert_eq!(entry.unread, 2);
-    assert_eq!(entry.last_text.as_deref(), Some("Kommst du heute Abend?"));
+    assert_eq!(
+        entry.last_text.as_deref(),
+        Some("Kommst du heute Abend? Ich koche.")
+    );
     assert_eq!(entry.last_at, 7);
 
     vault
