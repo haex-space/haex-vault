@@ -13,16 +13,6 @@ defineProps<{
 
 const { t } = useI18n()
 const { errString } = useErrorString()
-
-/** The outcome of a copy is visible nowhere else, so it is a toast. */
-async function onCopy(npub: string) {
-  try {
-    await navigator.clipboard.writeText(npub)
-    toast.success(t('settings.federation.identityCopied'))
-  } catch (error) {
-    toast.error(errString(error))
-  }
-}
 </script>
 
 <template>
@@ -33,13 +23,16 @@ async function onCopy(npub: string) {
       :description="t('settings.federation.identityDescription')"
     >
       <template #default>
-        <UiButton
-          variant="outline"
+        <UiButtonCopy
+          size="icon-sm"
+          :labels="{
+            copy: t('settings.federation.identityCopy'),
+            copied: t('settings.federation.identityCopied'),
+          }"
+          :value="identity.npub"
           data-testid="settings-identity-copy"
-          @click="onCopy(identity.npub)"
-        >
-          {{ t('settings.federation.identityCopy') }}
-        </UiButton>
+          @error="toast.error(errString($event))"
+        />
       </template>
     </SettingsRow>
     <li class="px-4 py-3">
