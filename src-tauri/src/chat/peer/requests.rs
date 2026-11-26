@@ -7,6 +7,7 @@
 //! ([`follow_switch`]).
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
@@ -98,6 +99,8 @@ pub(crate) async fn follow_switch(
     mut changes: broadcast::Receiver<Arc<Vec<String>>>,
     token: CancellationToken,
 ) {
+    let initial_retry_delay = Duration::from_secs(1);
+    let mut retry_delay = initial_retry_delay;
     loop {
         let removed = match db.read(|r| Ok(settings::allow_strangers(r)?)).await {
             Ok(true) => Ok(0),
@@ -107,8 +110,17 @@ pub(crate) async fn follow_switch(
         match removed {
             Ok(0) => {}
             Ok(removed) => log::info!("chat: requests are off, removed {removed}"),
-            Err(error) => log::warn!("chat: removing the requests failed: {error}"),
+            Err(error) => {
+                log::warn!("chat: removing the requests failed: {error}");
+                tokio::select! {
+                    () = token.cancelled() => return,
+                    () = tokio::time::sleep(retry_delay) => {}
+                }
+                retry_delay = (retry_delay * 2).min(Duration::from_secs(30));
+                continue;
+            }
         }
+        retry_delay = initial_retry_delay;
         loop {
             let received = tokio::select! {
                 () = token.cancelled() => return,
