@@ -74,32 +74,21 @@ pub fn remove_when_off(tx: &mut CrdtTransaction<'_>) -> Result<usize> {
     if settings::allow_strangers(tx)? {
         return Ok(0);
     }
-    let threads: Vec<(String, bool)> = tx.query_map(
-        "SELECT t.id, COALESCE(t.created_at < t.request_first_at, 0) OR EXISTS (\
-           SELECT 1 FROM chat_peer_messages m WHERE m.thread_id = t.id\
-         ) FROM chat_threads t WHERE t.kind = 'direct' AND t.state = 'request'",
+    tx.execute(
+        "UPDATE chat_members SET card = NULL WHERE card IS NOT NULL AND thread_id IN (\
+           SELECT id FROM chat_threads WHERE kind = 'direct' AND state = 'request'\
+         )",
         params![],
-        |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
-    let mut removed = 0;
-    for (id, has_conversation) in threads {
-        if has_conversation {
-            // The request can sync ahead of the earlier messages. Keep the thread if it
-            // predates its request or already holds a message on this device.
-            tx.execute(
-                "UPDATE chat_members SET card = NULL WHERE thread_id = ?1 AND card IS NOT NULL",
-                params![id],
-            )?;
-            removed += tx.execute(
-                "UPDATE chat_threads SET state = 'active', request_first_at = NULL, \
-                 request_last_at = NULL WHERE id = ?1",
-                params![id],
-            )?;
-        } else if let Ok(id) = Uuid::parse_str(&id) {
-            removed += usize::from(store::delete(tx, id)?);
-        }
-    }
-    Ok(removed)
+    // An empty direct thread stays hidden. Keeping its ID and members lets accepted history
+    // sync in later without an intervening tombstone for the conversation.
+    Ok(tx.execute(
+        "UPDATE chat_threads SET state = CASE WHEN EXISTS (\
+           SELECT 1 FROM chat_peer_messages m WHERE m.thread_id = chat_threads.id\
+         ) THEN 'active' ELSE 'closed' END, request_first_at = NULL, request_last_at = NULL \
+         WHERE kind = 'direct' AND state = 'request'",
+        params![],
+    )?)
 }
 
 /// Runs [`remove_when_off`] at session start and on changes to preferences or chat threads.

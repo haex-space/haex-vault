@@ -19,6 +19,7 @@ use crate::chat::peer::envelope;
 use crate::chat::peer::files::test_server::BlossomTestServer;
 use crate::chat::peer::files::transfers::Picked;
 use crate::chat::peer::messages::{self, DeliveryState};
+use crate::chat::peer::receive::{insert_message, MessageRow};
 use crate::chat::peer::requests::{self, Answer};
 use crate::chat::peer::settings;
 use crate::chat::peer::store::{self, Conversation, ConversationState, ListFilter};
@@ -523,5 +524,37 @@ async fn switching_requests_off_removes_them_here_and_where_the_switch_arrives()
         .send(Arc::new(vec!["chat_threads".to_owned()]))
         .expect("a listener");
     eventually("the late request removed", || list(&phone, true).is_empty()).await;
+
+    let thread_id = phone.thread_with(&clara);
+    assert!(list(&phone, false).is_empty());
+    let peer = clara.me.vault_hex.clone();
+    let inserted_by = phone.me.device_uuid.clone();
+    phone
+        .db
+        .write_blocking(move |tx| {
+            insert_message(
+                tx,
+                &MessageRow {
+                    id: uuid::Uuid::new_v4(),
+                    thread_id,
+                    event_id: "accepted-earlier",
+                    sender_vault: &peer,
+                    sender_device: "earlier-device",
+                    text: "Verlauf von einem anderen Gerät",
+                    sent_at: 10,
+                    received_at: 10,
+                    inserted_by: &inserted_by,
+                },
+            )?;
+            Ok(())
+        })
+        .expect("accepted history arrives later");
+    let conversations = list(&phone, false);
+    let restored = conversations.first().expect("the history is visible");
+    assert_eq!(restored.id, thread_id.to_string());
+    assert_eq!(
+        restored.last_text.as_deref(),
+        Some("Verlauf von einem anderen Gerät")
+    );
     token.cancel();
 }

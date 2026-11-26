@@ -71,7 +71,8 @@ pub enum ConversationState {
     Active,
     /// Started by a vault without a confirmed contact, or a group invitation (FR-040).
     Request,
-    /// A group the user left or was removed from: readable, no composer (FR-055).
+    /// A group the user left, or a dismissed direct request with history that synced later.
+    /// The conversation is readable without a composer.
     Closed,
 }
 
@@ -162,7 +163,9 @@ pub fn list(q: &mut impl Query, own_vault: &str, filter: ListFilter) -> Result<V
     let state_clause = if filter.requests {
         "t.state = 'request'"
     } else {
-        "t.state <> 'request'"
+        "t.state <> 'request' AND (t.kind <> 'direct' OR t.state <> 'closed' OR EXISTS (\
+           SELECT 1 FROM chat_peer_messages m WHERE m.thread_id = t.id\
+         ))"
     };
     let kind = filter.kind.map(ConversationKind::as_str);
     let sql = format!(
@@ -273,6 +276,10 @@ pub fn open_direct(
     }
     let id = ids::direct_thread_id(own_vault, peer_vault);
     if kind_of(tx, id)?.is_some() {
+        tx.execute(
+            "UPDATE chat_threads SET state = 'active' WHERE id = ?1 AND kind = 'direct' AND state = 'closed'",
+            params![id.to_string()],
+        )?;
         return Ok(id);
     }
     tx.execute(

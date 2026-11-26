@@ -97,13 +97,14 @@ PARKED`, as `noDevices` does). While it is set, a new message to that vault is s
   settings like the read receipts (generic preferences command, `"true"` | `"false"` checked in
   `validate_value`). The setting and what follows from it stay apart (operator, 2026-11-26): the chat
   session follows changes to preferences and chat threads, whether written on this device or received
-  through the sync. While off it removes request-only threads and clears the request from earlier
-  conversations, preserving their history (R2). This happens without notice or block
+  through the sync. While off it clears the request and its carried card, preserving any conversation
+  history (R2). An empty closed thread stays hidden and keeps its ID so accepted history can sync
+  into it later. This happens without notice or block
   (`requests::follow_switch`). It also runs once when the session starts.
-- **Rationale**: flipping the switch by hand and receiving it through the sync must act the same. Sync
-  propagates deletions known to the writing device; each receiving device removes its own requests,
-  including requests it had before the preference synced. Receiving reads the preference in the same
-  transaction as R1, so no new request appears in between.
+- **Rationale**: flipping the switch by hand and receiving it through the sync must act the same.
+  Each device clears its own open requests, including ones that arrive through sync while the setting
+  is off. Receiving reads the preference in the same transaction as R1, so a new stranger's message
+  leaves no request locally.
 - **Alternatives considered**: a dedicated command that writes the preference and removes the requests
   in one transaction, with a hook in the sync to do the same on applying a synced value — couples the
   sync to the chat and treats the two ways of switching differently.
