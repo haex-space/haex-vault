@@ -60,19 +60,17 @@ fn writes_and_reads_of_own_tables_have_the_sdk_result_shape() {
 fn the_current_date_and_time_keywords_work_as_drizzle_writes_them() {
     // Drizzle inlines a `sql\`(CURRENT_TIMESTAMP)\`` default into the INSERT.
     let s = setup();
-    s.sql(
-        "INSERT INTO t:pages (id, body) VALUES (?, (CURRENT_TIMESTAMP))",
-        json!(["p1"]),
-    )
-    .unwrap();
-    let now = s
+    let inserted = s
         .sql(
-            "SELECT body = datetime('now'), CURRENT_DATE = date('now'), \
-             CURRENT_TIME = time('now') FROM t:pages",
-            json!([]),
+            "INSERT INTO t:pages (id, body) VALUES (?, (CURRENT_TIMESTAMP)) \
+             RETURNING body = datetime('now'), CURRENT_DATE = date('now'), \
+             CURRENT_TIME = time('now')",
+            json!(["p1"]),
         )
         .unwrap();
-    assert_eq!(now.rows, vec![vec![json!(1), json!(1), json!(1)]]);
+    // SQLite holds `now` constant for one statement step; checking in a later statement can cross
+    // the second boundary and make the timestamp comparison flaky.
+    assert_eq!(inserted.rows, vec![vec![json!(1), json!(1), json!(1)]]);
 }
 
 #[test]
