@@ -29,6 +29,7 @@ import {
   type HeaderArea,
   type LayoutControl,
 } from '~/lib/wm/headerLayout'
+import { WM_SEARCH_OPEN } from '~/lib/wm/overlay'
 import type { WmHeaderControl } from '~/types/bindings/WmHeaderControl'
 import type { WmHeaderDescription } from '~/types/bindings/WmHeaderDescription'
 import type { WmHeaderEvent } from '~/types/bindings/WmHeaderEvent'
@@ -67,10 +68,14 @@ const buttons = useTemplateRef<HTMLElement>('buttons')
 const { width } = useElementSize(root, undefined, { box: 'border-box' })
 
 const searches = useHeaderSearches((event, tab) => emit('event', event, tab))
+const searchOpen = inject(WM_SEARCH_OPEN, ref<string | null>(null))
 
 /** Sends the search text of `tab` that is still waiting (the window manager calls it before the
  * tab's route changes). */
-defineExpose({ flushSearch: (tab: string) => searches.flush(tab) })
+defineExpose({
+  flushSearch: (tab: string) => searches.flush(tab),
+  openSearch,
+})
 
 /** What is drawn: the description most recently applied (at most one per animation frame). */
 const shown = shallowRef<WmHeaderDescription | null>(props.description)
@@ -209,6 +214,18 @@ const searchOf = (control: WmHeaderControl) =>
   control.type === 'search'
     ? searches.fieldFor(control.id, control.value)
     : undefined
+
+/**
+ * The user started typing with no field in focus: the first enabled search of the header opens, and
+ * its field takes the focus, so the character that is being typed lands in it. `false` while the
+ * description has no enabled search, so the key stays what it was.
+ */
+function openSearch(): boolean {
+  const control = searchControls.value.find((c) => !c.disabled)
+  if (!control) return false
+  searchOpen.value = control.id
+  return true
+}
 
 // A focused control that moves into the menu hands its focus to the menu button (FR-016).
 watch(
