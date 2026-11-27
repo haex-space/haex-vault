@@ -5,6 +5,7 @@ import { test } from 'node:test'
 
 import {
   createToolNotices,
+  DELEGATE_OWN_WEB_KEY,
   delegateNoticeKey,
   noticeKey,
   restrictedKey,
@@ -95,6 +96,27 @@ test('what an agent profile does not give has a text per kind, in both languages
       )
     }
     assert.ok(texts.open, `${language}: open`)
+  }
+})
+
+test("the notice about a delegate's own web access shows once per conversation (spec 102 FR-013)", async () => {
+  const notices = createToolNotices()
+  assert.equal(notices.showOwnWeb('a'), true)
+  assert.equal(notices.showOwnWeb('a'), false)
+  assert.equal(notices.showOwnWeb('b'), true)
+  // It does not use up another notice of the same conversation.
+  assert.equal(notices.show('a', 'unsupported'), true)
+
+  const { readFileSync } = await import('node:fs')
+  for (const language of ['de', 'en']) {
+    const texts = JSON.parse(
+      readFileSync(
+        new URL(`../src/i18n/locales/${language}.json`, import.meta.url),
+        'utf8',
+      ),
+    ).chat.toolNotice
+    const key = DELEGATE_OWN_WEB_KEY.split('.').at(-1) ?? ''
+    assert.ok(texts[key]?.includes('{name}'), `${language}: ${key}`)
   }
 })
 

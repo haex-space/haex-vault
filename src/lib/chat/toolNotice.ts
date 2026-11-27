@@ -1,5 +1,6 @@
 // The notice about a model's tool use, shown once per conversation and state (spec 032 US4,
 // FR-016/017/023, research R11). Pure, so the Node check scripts can load it.
+import type { AgentKind } from '../../types/bindings/AgentKind.ts'
 import type { DelegateStatus } from '../../types/bindings/DelegateStatus.ts'
 
 /** What the backend decided for a turn (`chat-tool-availability`). */
@@ -58,6 +59,16 @@ export interface CompactionEvent {
   state: 'summarising' | 'done' | 'failed' | 'cancelled'
 }
 
+/** The payload of `chat-delegate-own-web` (spec 102 FR-013): a delegate used its own web access,
+ * which its program cannot block (Abacus' server-side web search and page fetch). */
+export interface DelegateOwnWebEvent {
+  threadId: string
+  delegateKind: AgentKind
+}
+
+/** The i18n key of the notice about a delegate's own web access. */
+export const DELEGATE_OWN_WEB_KEY = 'chat.toolNotice.delegateOwnWeb'
+
 /** The i18n key of the notice for what the profile does not give, one per kind. */
 export function restrictedKey(missing: ProfileMissing): string {
   return `chat.agentProfile.restricted.${missing.kind}`
@@ -88,6 +99,13 @@ export function createToolNotices() {
             ? missing.name
             : ''
       const key = `${threadId}:profile:${profileId}:${missing.kind}:${detail}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    },
+    /** The notice about a delegate's own web access: once per conversation (spec 102 FR-013). */
+    showOwnWeb(threadId: string): boolean {
+      const key = `${threadId}:ownWeb`
       if (seen.has(key)) return false
       seen.add(key)
       return true

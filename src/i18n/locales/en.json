@@ -423,6 +423,7 @@
       "unsupported": "This model cannot call tools, so it chats without them. A model that can, such as Claude or a Qwen3 model, can change settings and open apps for you.",
       "delegateOff": "{name} reaches HaexVault's tools only through the MCP access, and that is off on this device. Turn it on in Settings under AI → External access.",
       "delegateStatusUnknown": "MCP access for {name} could not be checked right now.",
+      "delegateOwnWeb": "{name} used its own web access instead of HaexVault's agent browser. HaexVault cannot turn that access off.",
       "retry": "Check again"
     },
     "permission": {

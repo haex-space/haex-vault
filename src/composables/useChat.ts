@@ -13,6 +13,7 @@
 import type { PendingApproval, RiskClass } from '~/lib/chat/prompts'
 import type {
   CompactionEvent,
+  DelegateOwnWebEvent,
   ProfileRestrictedEvent,
   ToolAvailability,
 } from '~/lib/chat/toolNotice'
@@ -558,6 +559,15 @@ export function useChat() {
     )
   }
 
+  /** Subscribes to `chat-delegate-own-web` (spec 102 FR-013) and returns the unlisten function. */
+  async function onDelegateOwnWeb(
+    handler: (e: DelegateOwnWebEvent) => void,
+  ): Promise<UnlistenFn> {
+    return await listen<DelegateOwnWebEvent>('chat-delegate-own-web', (ev) =>
+      handler(ev.payload),
+    )
+  }
+
   /** Subscribes to `chat-compaction` (spec 086) and returns the unlisten function. */
   async function onCompaction(
     handler: (e: CompactionEvent) => void,
@@ -664,6 +674,7 @@ export function useChat() {
     onToolAvailability,
     onProfileRestricted,
     onCompaction,
+    onDelegateOwnWeb,
     onModelLoadProgress,
     modelLoadStatusAsync,
     onModelLoadStatus,

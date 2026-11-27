@@ -296,6 +296,7 @@ const {
 const {
   toolNotice,
   handleToolAvailability,
+  handleDelegateOwnWeb,
   handleProfileRestricted,
   handleCompaction,
   dismissToolNotice,
@@ -400,6 +401,7 @@ onMounted(async () => {
           chat.onToolAvailability(handleToolAvailability),
           chat.onProfileRestricted(handleProfileRestricted),
           chat.onCompaction(handleCompaction),
+          chat.onDelegateOwnWeb(handleDelegateOwnWeb),
           ...promptSubscriptions(chat, wmTab, chatTranscript),
         ],
         unlisteners,
