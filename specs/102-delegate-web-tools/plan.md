@@ -49,16 +49,16 @@ server's start condition and connection gate; the removal of the `delegateOff` n
 
 _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
-| Principle                                       | Check                                                                                                       |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| I. No secrets in git                            | Pass. The Abacus run of R4 keeps the device code in the child's environment and scratchpad.                 |
-| II. No local absolute paths in versioned config | Pass. No config file is added; the probes' paths stay in the scratchpad.                                    |
-| III. Device-independent identity                | Pass. Not touched.                                                                                          |
-| IV. Cross-repo references pin revisions         | Pass. No cross-repo content.                                                                                |
-| V. External sources opt-in                      | Pass. No external source.                                                                                   |
-| VI. Self-modifying instructions review-gated    | Pass. The delegate instruction (`DELEGATE_INSTRUCTION`) is unchanged (FR-009); all changes go through a PR. |
-| VII. Relay unavailability never blocks local    | Pass. Not touched.                                                                                          |
-| VIII. No concealment instructions               | Pass. A refused block and a start without HaexVault's tools are shown to the person (FR-007, FR-012).       |
+| Principle                                       | Check                                                                                                  |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| I. No secrets in git                            | Pass. The Abacus run of R4 keeps the device code in the child's environment and scratchpad.            |
+| II. No local absolute paths in versioned config | Pass. No config file is added; the probes' paths stay in the scratchpad.                               |
+| III. Device-independent identity                | Pass. Not touched.                                                                                     |
+| IV. Cross-repo references pin revisions         | Pass. No cross-repo content.                                                                           |
+| V. External sources opt-in                      | Pass. No external source.                                                                              |
+| VI. Self-modifying instructions review-gated    | Pass. The delegate instruction gains an Abacus sentence (FR-009) in a reviewed PR; no run rewrites it. |
+| VII. Relay unavailability never blocks local    | Pass. Not touched.                                                                                     |
+| VIII. No concealment instructions               | Pass. A refused block and a start without HaexVault's tools are shown to the person (FR-007, FR-012).  |
 
 Re-check after Phase 1: unchanged, pass.
 
@@ -87,7 +87,8 @@ src-tauri/src/adapters/cli_delegate/
 ├── web_block_tests.rs      # NEW: arguments per vendor and mode, confirmations, catalog vs. checked versions
 ├── claude.rs               # build_command adds the block; the init line is confirmed before the first chunk
 ├── codex.rs                # build_command adds the block; after `initialize`, config/read + experimentalFeature/list
-├── abacus.rs               # build_command adds the deny rules in both modes
+├── abacus.rs               # build_command adds the deny rules in both modes; the prompt gets the Abacus sentence
+├── haex_mcp.rs             # the instruction per vendor: Abacus' own web tools named (FR-009)
 ├── abacus_models.rs        # the catalog run gets the same arguments (one builder)
 ├── mod.rs                  # `mod web_block;`
 └── *_tests.rs              # existing builder tests learn the new arguments
@@ -114,7 +115,7 @@ command builder and the start-up read).
 ## Phases of delivery
 
 - **PR A (P1, US1)**: `web_block.rs`, the three builders, the Claude and Codex confirmations, stub tests, the Abacus deny
-  rules (measured, research R4).
+  rules (measured, research R4), the Abacus sentence of the instruction.
 - **PR B (P1, US2)**: the server with the vault, the connection gate while the external access is off, the removal of
   `delegateOff` and the notice of FR-012, the external access text.
 - **Operator run**: the quickstart per vendor and mode, with the external access on and off.

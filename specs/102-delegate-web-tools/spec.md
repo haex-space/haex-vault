@@ -178,7 +178,9 @@ confirm the request ends with a visible reason instead of running without the bl
   The spec and the Settings text that describes the block MUST name them as residuals; under "Standard" each shell call
   remains a question to the person.
 - **FR-009**: The instruction to a delegate MUST stay: HaexVault's agent browser is the way to the web, and a failure is
-  reported as what failed. With FR-004 every delegate in the chat gets it.
+  reported as what failed. With FR-004 every delegate in the chat gets it. For a vendor whose own web tools cannot be
+  blocked (Abacus, FR-001), the instruction MUST name those tools as the program calls them and ask the model not to use
+  them; this is a request, not a block, and the residual of FR-008 stays named.
 - **FR-010**: The block MUST NOT change what a delegate may do otherwise: its file, shell, edit and computer-use tools,
   HaexVault's tools and the person's approval posture stay as they are.
 - **FR-011**: The external access MUST govern only programs outside HaexVault. While it is off, HaexVault MUST refuse every
