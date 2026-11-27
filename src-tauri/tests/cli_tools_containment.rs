@@ -47,7 +47,7 @@ echo x > "$HOME/wrote-home"
 echo x > "$TMPDIR/wrote-tmp"
 echo x > "$CLAUDE_CONFIG_DIR/wrote-config"
 cat <<'EOF'
-{"type":"system","subtype":"init"}
+{"type":"system","subtype":"init","tools":["Task","Bash","Read"],"mcp_servers":[]}
 {"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"ok"}}}
 {"type":"result","is_error":false,"subtype":"success","result":"ok","usage":{"input_tokens":1,"output_tokens":1}}
 EOF
