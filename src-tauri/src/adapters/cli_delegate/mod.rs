@@ -52,6 +52,7 @@ mod process_tests;
 mod subagents;
 #[cfg(test)]
 mod subagents_tests;
+mod web_block;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

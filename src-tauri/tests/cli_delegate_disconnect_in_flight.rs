@@ -29,7 +29,7 @@ use haex_lib::storage::providers::{self as storage, Provider, ProviderCapability
 use haex_lib::storage::query;
 
 const PASSPHRASE: &str = "cli-delegate-disconnect-in-flight-test";
-const STUB_TRANSCRIPT: &str = r#"{"type":"system","subtype":"init"}
+const STUB_TRANSCRIPT: &str = r#"{"type":"system","subtype":"init","tools":["Task","Bash","Edit","Read","Write"],"mcp_servers":[]}
 {"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"still here"}}}
 {"type":"result","is_error":false,"subtype":"success","result":"still here","usage":{"input_tokens":1,"output_tokens":2}}
 "#;

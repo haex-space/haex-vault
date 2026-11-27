@@ -14,6 +14,7 @@
 //! extract the stream-json parser into `claude_protocol.rs` and leave process
 //! setup/shutdown in this module.
 
+use std::collections::VecDeque;
 use std::path::Path;
 use std::process::Stdio;
 use std::time::{Duration, Instant};
@@ -32,6 +33,7 @@ use super::autonomy::{self, AutonomyMode};
 use super::haex_mcp;
 use super::process::{configure_process_group, map_spawn_error, ChildLifecycle};
 use super::subagents;
+use super::web_block;
 use super::{build_transcript_prompt, DelegateChatContext, DelegateVendor};
 
 /// Caps how much of a `claude` stderr we keep around for an error
@@ -43,6 +45,10 @@ const MAX_STDERR_BYTES: usize = 64 * 1024;
 /// call site below) — mirrors `codex.rs`'s `HANDSHAKE_TIMEOUT` for the
 /// analogous wait on Codex's own startup handshake.
 const STARTUP_PROBE_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// How many lines may come before the `system`/`init` line (hook and status lines) before the
+/// start counts as one without it (spec 102 FR-007).
+const MAX_LINES_BEFORE_INIT: usize = 64;
 
 /// What one `stream-json` line means for the stream. `pub(super)` so
 /// `claude_tests.rs` can exercise it directly without spawning a real
@@ -229,6 +235,8 @@ pub(super) fn build_command(
     // The vault's own installation, never a name looked up on the host (spec 094 FR-003).
     let mut cmd = Command::new(&runtime.executable);
     cmd.args(&runtime.vendor.config_args);
+    // Its own web tools and "Claude in Chrome" off in every mode (spec 102, research R1).
+    cmd.args(web_block::claude_args());
     cmd.arg("-p")
         .arg("--output-format")
         .arg("stream-json")
@@ -296,7 +304,7 @@ pub(super) fn build_command(
 /// appended, if any) becomes the reason of a generic `AdapterError::Http`.
 /// Called on every startup failure path below regardless of mode — a
 /// spawned child and its background tasks must not be left running just
-/// because the failure happened before the `Ungated`-only peek-ahead
+/// because the failure happened before the read up to the init line
 /// (code review). The unsupported-mode classification itself still only
 /// ever matches in practice for `Ungated`: `Standard`/`GatedPermissive`
 /// send `--permission-mode default`, a value every `claude` accepts, so
@@ -328,6 +336,22 @@ async fn classify_exit_error(
         format!("{fallback}: {stderr_text}")
     };
     AdapterError::Http { reason }
+}
+
+/// Ends a start that is refused before its stream exists: the child, its stderr reader and the
+/// approval listener (if any) end with it.
+async fn abandon_start(
+    child: &mut ChildLifecycle,
+    stderr_task: tokio::task::JoinHandle<Vec<u8>>,
+    listener_task: Option<tokio::task::JoinHandle<()>>,
+) {
+    child.terminate_and_reap().await;
+    stderr_task.abort();
+    let _ = stderr_task.await;
+    if let Some(task) = listener_task {
+        task.abort();
+        let _ = task.await;
+    }
 }
 
 /// Starts one isolated Claude Code invocation and exposes its output as an adapter stream.
@@ -372,7 +396,11 @@ pub(super) async fn spawn_claude_invocation(
         }
     }
     let haex = haex_mcp::server_for(&context, DelegateVendor::Claude, req.thread_id, &model).await;
-    let system_prompt = haex_mcp::with_instruction(req.system_prompt.as_deref(), haex.is_some());
+    let system_prompt = haex_mcp::with_instruction(
+        req.system_prompt.as_deref(),
+        DelegateVendor::Claude,
+        haex.is_some(),
+    );
     let system_prompt_path = system_prompt.as_deref().map(|system_prompt| {
         let path = tmp.path().join("system-prompt.txt");
         (path, system_prompt)
@@ -495,7 +523,7 @@ pub(super) async fn spawn_claude_invocation(
     // `shutdown()` alone does not release the underlying pipe fd — only
     // `Drop` does. The success path used to return (and thus drop `stdin`)
     // almost immediately after this point, so the child always saw EOF
-    // quickly; the `Ungated` peek-ahead below now keeps this function
+    // quickly; the read up to the init line below now keeps this function
     // running longer, so `stdin` must be dropped explicitly or a child that
     // actually reads its prompt from stdin (any real `claude`, and any
     // stub written to behave like one) deadlocks waiting for EOF.
@@ -503,20 +531,48 @@ pub(super) async fn spawn_claude_invocation(
 
     let mut reader = BufReader::new(stdout).lines();
 
-    // Reactive classification (spec FR-013/SC-006, tasks.md T009/T022): a
-    // slower-to-reject `claude` may accept the prompt write but still exit
-    // before emitting any `stream-json` line. Unlike Codex's synchronous
-    // `thread/start`, Claude has no separate handshake call to fail — the
-    // only way to detect this before committing to the stream is to race
-    // "first line" against "process already exited" once, here, before
-    // returning. `GatedPermissive` sends the exact same flags as `Standard`
-    // (only the approval bridge's decision function differs), so it can
-    // never hit this path and is not worth the same peek — scoped to
-    // `Ungated` only.
-    let mut peeked_line: Option<String> = None;
-    if autonomy_mode == AutonomyMode::Ungated {
+    // Every mode reads up to the `system`/`init` line before the stream is returned: it must show
+    // the web block (spec 102 FR-007, research R1), and nothing of the answer reaches the chat
+    // before. The lines before it are kept for the stream. The same read is the reactive
+    // classification of spec 009 (FR-013/SC-006, tasks.md T009/T022): a slower-to-reject `claude`
+    // may accept the prompt write but still exit before emitting any `stream-json` line, and
+    // Claude has no separate handshake call to fail as Codex's `thread/start` does.
+    let mut peeked_lines: VecDeque<String> = VecDeque::new();
+    loop {
         match tokio::time::timeout(STARTUP_PROBE_TIMEOUT, reader.next_line()).await {
-            Ok(Ok(Some(line))) => peeked_line = Some(line),
+            Ok(Ok(Some(line))) => {
+                let message = serde_json::from_str::<serde_json::Value>(&line).ok();
+                let kind = |key: &str| {
+                    message
+                        .as_ref()
+                        .and_then(|m| m.get(key))
+                        .and_then(|v| v.as_str())
+                        .map(str::to_owned)
+                };
+                let is_init = kind("type").as_deref() == Some("system")
+                    && kind("subtype").as_deref() == Some("init");
+                let is_result = kind("type").as_deref() == Some("result");
+                peeked_lines.push_back(line);
+                if is_init {
+                    let checked = message
+                        .as_ref()
+                        .map_or(Ok(()), web_block::confirm_claude_init);
+                    if let Err(reason) = checked {
+                        abandon_start(&mut child, stderr_task, listener_task).await;
+                        return Err(AdapterError::Unavailable { reason });
+                    }
+                    break;
+                }
+                if is_result || peeked_lines.len() >= MAX_LINES_BEFORE_INIT {
+                    abandon_start(&mut child, stderr_task, listener_task).await;
+                    return Err(AdapterError::Unavailable {
+                        reason: web_block::refusal(
+                            DelegateVendor::Claude,
+                            "no init line before its answer",
+                        ),
+                    });
+                }
+            }
             Ok(Ok(None)) => {
                 return Err(classify_exit_error(
                     &mut child,
@@ -566,16 +622,16 @@ pub(super) async fn spawn_claude_invocation(
         let start = Instant::now();
         let mut ttft_ms = None;
         let mut saw_result = false;
-        let mut peeked_line = peeked_line;
+        let mut peeked_lines = peeked_lines;
         let mut agent_tracker = subagents::Tracker::new();
         // Spec 097 R7: the agent's own tools mark the conversation, and haex-vault's server waits
         // for this reader before it decides a write of the memory.
         let mut watch = crate::agent_memory::watch::Watch::start(thread_id, database);
 
         loop {
-            // The line already consumed by the peek-ahead above (if any)
-            // must be processed first, before reading any further.
-            let line = if let Some(line) = peeked_line.take() {
+            // The lines already consumed by the read up to the init line above must be processed
+            // first, before reading any further.
+            let line = if let Some(line) = peeked_lines.pop_front() {
                 Ok(Some(line))
             } else {
                 tokio::select! {

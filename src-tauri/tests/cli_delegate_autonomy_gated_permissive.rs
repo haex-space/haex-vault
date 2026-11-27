@@ -96,6 +96,7 @@ async fn claude_gated_permissive_with_no_deny_rules_emits_no_approval_prompt() {
         r#"#!/bin/sh
 cat >/dev/null
 cat <<'EOF'
+{"type":"system","subtype":"init","tools":["Task","Bash","Read"],"mcp_servers":[]}
 {"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"ok"}}}
 {"type":"result","is_error":false,"subtype":"success","result":"ok","usage":{"input_tokens":1,"output_tokens":1}}
 EOF
@@ -169,6 +170,10 @@ def send(msg):
 
 req = read()  # initialize
 send({"jsonrpc": "2.0", "id": req["id"], "result": {}})
+req = read()  # config/read (spec 102)
+send({"jsonrpc": "2.0", "id": req["id"], "result": {"config": {"web_search": "disabled"}}})
+req = read()  # experimentalFeature/list (spec 102)
+send({"jsonrpc": "2.0", "id": req["id"], "result": {"data": [{"name": n, "enabled": False} for n in ("browser_use", "browser_use_external", "browser_use_full_cdp_access", "browser_annotation_api", "in_app_browser")], "nextCursor": None}})
 req = read()  # thread/start
 send({"jsonrpc": "2.0", "id": req["id"], "result": {"thread": {"id": "fake-thread"}}})
 req = read()  # turn/start

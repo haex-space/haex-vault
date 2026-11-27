@@ -6,8 +6,10 @@ use super::autonomy::AutonomyMode;
 use super::claude::{build_command, McpArgs};
 use super::haex_mcp::{
     claude_config, codex_config, with_instruction, write_claude_config, write_codex_config,
-    ApproveBridge, HaexServer, CLAUDE_HAEX_TOOLS, DELEGATE_INSTRUCTION,
+    ApproveBridge, HaexServer, ABACUS_WEB_INSTRUCTION, ABACUS_WEB_WITHOUT_HAEX, CLAUDE_HAEX_TOOLS,
+    DELEGATE_INSTRUCTION,
 };
+use super::DelegateVendor;
 use crate::cli_tools::runtime::DelegateRuntime;
 
 fn haex(slug: &str) -> HaexServer {
@@ -173,16 +175,42 @@ fn debug_output_never_shows_the_pass() {
 
 #[test]
 fn a_delegate_with_haex_reads_the_instruction_after_the_given_prompt() {
-    let with = with_instruction(Some("Answer briefly."), true).expect("prompt");
+    for vendor in [DelegateVendor::Claude, DelegateVendor::Codex] {
+        let with = with_instruction(Some("Answer briefly."), vendor, true).expect("prompt");
+        assert!(with.starts_with("Answer briefly.\n\n"));
+        assert!(with.contains("browser_search"));
+        assert!(with.contains("extension"));
+        assert!(!with.contains("web_search_text_only"));
+        assert_eq!(
+            with_instruction(None, vendor, true).as_deref(),
+            Some(DELEGATE_INSTRUCTION)
+        );
+        assert_eq!(
+            with_instruction(Some("x"), vendor, false).as_deref(),
+            Some("x")
+        );
+        assert_eq!(with_instruction(None, vendor, false), None);
+    }
+}
+
+/// Spec 102 FR-009: Abacus' own web tools cannot be blocked, so every start names them, with and
+/// without haex-vault's server.
+#[test]
+fn abacus_is_asked_not_to_use_its_own_web_tools_on_every_start() {
+    let with =
+        with_instruction(Some("Answer briefly."), DelegateVendor::Abacus, true).expect("prompt");
     assert!(with.starts_with("Answer briefly.\n\n"));
-    assert!(with.contains("browser_search"));
-    assert!(with.contains("extension"));
-    assert_eq!(
-        with_instruction(None, true).as_deref(),
-        Some(DELEGATE_INSTRUCTION)
-    );
-    assert_eq!(with_instruction(Some("x"), false).as_deref(), Some("x"));
-    assert_eq!(with_instruction(None, false), None);
+    assert!(with.contains(DELEGATE_INSTRUCTION));
+    assert!(with.contains("web_search_text_only"));
+    assert!(with.contains("scrape_url_content"));
+    assert!(with.find(DELEGATE_INSTRUCTION) < with.find(ABACUS_WEB_INSTRUCTION));
+    assert!(!with.contains(ABACUS_WEB_WITHOUT_HAEX));
+
+    let without = with_instruction(None, DelegateVendor::Abacus, false).expect("prompt");
+    assert!(!without.contains(DELEGATE_INSTRUCTION));
+    assert!(without.contains("web_search_text_only"));
+    assert!(without.contains("scrape_url_content"));
+    assert!(without.ends_with(ABACUS_WEB_WITHOUT_HAEX));
 }
 
 /// Spec 097 T068: the system prompt handed to Claude Code and Codex keeps the memory block of the
@@ -193,7 +221,8 @@ fn the_memory_block_reaches_the_abo_agent() {
         Some("Du bist hilfreich."),
         Some("## Memory\n- Mail-Stil: Kurz (the user, 2026-11-20)"),
     );
-    let handed = with_instruction(given.as_deref(), true).expect("a prompt");
+    let handed =
+        with_instruction(given.as_deref(), DelegateVendor::Claude, true).expect("a prompt");
     let memory = handed.find("## Memory").expect("the block");
     assert!(handed.contains("- Mail-Stil: Kurz"));
     assert!(memory < handed.find(DELEGATE_INSTRUCTION).expect("the instruction"));

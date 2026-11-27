@@ -21,7 +21,7 @@ use haex_lib::cli_tools::runtime::DelegateRuntime;
 
 /// Canned `stream-json` transcript matching the real event shapes
 /// captured live in research.md §1.
-const STUB_TRANSCRIPT: &str = r#"{"type":"system","subtype":"init"}
+const STUB_TRANSCRIPT: &str = r#"{"type":"system","subtype":"init","tools":["Task","Bash","Edit","Read","Write"],"mcp_servers":[]}
 {"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello"}}}
 {"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":" world"}}}
 {"type":"result","is_error":false,"subtype":"success","result":"Hello world","usage":{"input_tokens":3,"output_tokens":2}}

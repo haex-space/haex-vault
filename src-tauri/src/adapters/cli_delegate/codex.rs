@@ -25,11 +25,16 @@ use super::approval_bridge;
 use super::autonomy::{self, ApprovalRequestPayload, AutonomyMode, NetworkContext};
 use super::haex_mcp;
 use super::process::{configure_process_group, map_spawn_error, ChildLifecycle};
+use super::web_block;
 use super::{build_transcript_prompt, DelegateChatContext, DelegateVendor};
 
 const CLIENT_NAME: &str = "haex";
 const CLIENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(30);
+/// How long the stderr of a failed start is still read after the program ended.
+const STDERR_DRAIN_TIMEOUT: Duration = Duration::from_secs(2);
+/// How many pages of `experimentalFeature/list` are read at most; 0.169.0 answers in one.
+const MAX_FEATURE_PAGES: usize = 16;
 pub(super) const MAX_STDERR_BYTES: usize = 64 * 1024;
 
 /// The vault's own installation, with the switches the vendor always gets (no update check, no
@@ -38,6 +43,8 @@ pub(super) const MAX_STDERR_BYTES: usize = 64 * 1024;
 pub(super) fn build_command(runtime: &DelegateRuntime, run: &RunFolder) -> Command {
     let mut cmd = Command::new(&runtime.executable);
     cmd.args(&runtime.vendor.config_args);
+    // Its own web search and browser features off in every mode (spec 102, research R2).
+    cmd.args(web_block::codex_args());
     cmd.arg("app-server").arg("--stdio");
     cmd.current_dir(run.path())
         .stdin(Stdio::piped())
@@ -453,6 +460,19 @@ pub(super) async fn read_limited<R: AsyncRead + Unpin>(mut reader: R) -> Vec<u8>
     output
 }
 
+/// `error` of a failed start with the program's stderr added to a generic reason, so a switch the
+/// program refused (`Error: Unknown feature flag: …`) reaches the person (spec 102 FR-007). A
+/// typed reason (`Unavailable`, refused credentials) stays as it is.
+pub(super) fn with_stderr(error: AdapterError, stderr: &str) -> AdapterError {
+    let stderr = stderr.trim();
+    match error {
+        AdapterError::Http { reason } if !stderr.is_empty() => AdapterError::Http {
+            reason: format!("{reason}: {stderr}"),
+        },
+        other => other,
+    }
+}
+
 /// Starts one isolated Codex app-server session and exposes its output as an adapter stream.
 pub(super) async fn spawn_codex_app_server(
     runtime: DelegateRuntime,
@@ -503,7 +523,7 @@ pub(super) async fn spawn_codex_app_server(
         .ok_or_else(|| AdapterError::Http {
             reason: "failed to capture codex stderr".into(),
         })?;
-    let stderr_task = tokio::spawn(read_limited(stderr));
+    let mut stderr_task = tokio::spawn(read_limited(stderr));
     let mut lines = BufReader::new(stdout).lines();
     let mut next_id = 1_i64;
     let mut startup = HaexStartup::default();
@@ -525,6 +545,48 @@ pub(super) async fn spawn_codex_app_server(
             &workspace_root,
         )
         .await?;
+        // Before any thread: the program must report its web block (spec 102 FR-007, research R2).
+        let config_read = call_with_timeout(
+            &mut stdin,
+            &mut lines,
+            &mut next_id,
+            &mut startup,
+            "config/read",
+            json!({"includeLayers": false}),
+            &context,
+            original_thread_id,
+            autonomy_mode,
+            &workspace_root,
+        )
+        .await?;
+        let mut features = Vec::new();
+        let mut cursor: Option<String> = None;
+        for _ in 0..MAX_FEATURE_PAGES {
+            let mut params = json!({});
+            if let Some(cursor) = &cursor {
+                params["cursor"] = json!(cursor);
+            }
+            let page = call_with_timeout(
+                &mut stdin,
+                &mut lines,
+                &mut next_id,
+                &mut startup,
+                "experimentalFeature/list",
+                params,
+                &context,
+                original_thread_id,
+                autonomy_mode,
+                &workspace_root,
+            )
+            .await?;
+            features.extend(page["data"].as_array().cloned().unwrap_or_default());
+            cursor = page["nextCursor"].as_str().map(str::to_owned);
+            if cursor.is_none() {
+                break;
+            }
+        }
+        web_block::confirm_codex(&config_read, &features)
+            .map_err(|reason| AdapterError::Unavailable { reason })?;
         // `Ungated` sets the delegate's own native full-autonomy mechanism
         // (research.md §2): `approvalPolicy: "never"` means Codex never
         // emits an approval callback at all, and `sandbox` is made
@@ -542,6 +604,7 @@ pub(super) async fn spawn_codex_app_server(
             // than relying on file-based discovery.
             "developerInstructions": haex_mcp::with_instruction(
                 req.system_prompt.as_deref(),
+                DelegateVendor::Codex,
                 haex.is_some(),
             ),
         });
@@ -628,8 +691,16 @@ pub(super) async fn spawn_codex_app_server(
     };
     if let Err(error) = handshake.await {
         child.terminate_and_reap().await;
-        stderr_task.abort();
-        let _ = stderr_task.await;
+        // The child is gone, so its stderr ends: a program that refused a switch at start
+        // (`Unknown feature flag`, spec 102 FR-007) says so there.
+        let stderr = match tokio::time::timeout(STDERR_DRAIN_TIMEOUT, &mut stderr_task).await {
+            Ok(read) => read.unwrap_or_default(),
+            Err(_) => {
+                stderr_task.abort();
+                Vec::new()
+            }
+        };
+        let error = with_stderr(error, &String::from_utf8_lossy(&stderr));
         // Reactive classification (spec FR-013/SC-006, tasks.md T009/T022):
         // an installed `codex` too old to accept `approvalPolicy`/`sandbox`
         // rejects `thread/start` with a JSON-RPC error, which surfaces here
