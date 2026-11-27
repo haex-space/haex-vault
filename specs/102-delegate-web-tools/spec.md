@@ -38,7 +38,9 @@ operator task." (operator, 2026-11-27)
   ordinary commands (`curl`, `wget`, a script). Tool names cannot block that; it is named here as a residual for the later
   OS sandbox. Under "Standard" every shell call is already put to the person. (3) Computer use stays: a person must be
   able to ask a delegate to find, tidy or do something on their computer. HaexVault's isolation means HaexVault itself
-  leaves as few traces on the system as possible; it does not keep a delegate away from the person's computer.
+  leaves as few traces on the system as possible; it does not keep a delegate away from the person's computer. (4) Abacus
+  runs its web search and page fetch on its own server, where no rule of the program reaches them (measured, research
+  R4). They stay, named as a residual; Abacus' own browser is blocked like the others' (2026-11-27).
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -131,7 +133,9 @@ confirm the request ends with a visible reason instead of running without the bl
 ### Functional Requirements
 
 - **FR-001**: Every start of a subscription delegate in the chat (Claude Code, Codex, Abacus AI) MUST have the delegate's
-  own web tools blocked: web search, web fetch and any tool of the program that loads a web page for the model.
+  own web tools blocked: web search, web fetch and any tool of the program that loads a web page for the model. Excepted
+  are web tools that run on the vendor's server, out of reach of the program's switches and rules (Abacus' web search and
+  page fetch, operator decision 4); they are residuals under FR-008.
 - **FR-002**: Every start MUST have the delegate's own browser features blocked, including browsers the program ships with
   or installs itself, browser commands its own skills or plugins allow themselves, and features that drive a browser of
   the person (such as "Claude in Chrome"). Computer use is not part of the block.
@@ -151,8 +155,8 @@ confirm the request ends with a visible reason instead of running without the bl
   a block switch, or whose new web tool is not covered, MUST NOT be offered.
 - **FR-007**: If a delegate's program refuses a block switch at start or reports a state without the block, the request
   MUST end with a reason the person can read; nothing runs without the block and no other backend is tried.
-- **FR-008**: Network access through a delegate's shell (`curl`, `wget`, a script) and a browser opened through computer
-  use are not covered by this feature. The spec, the delegate documentation and the Settings text that describe the block
+- **FR-008**: Network access through a delegate's shell (`curl`, `wget`, a script), a browser opened through computer
+  use, and web tools that run on the vendor's server (Abacus' web search and page fetch) are not covered by this feature. The spec, the delegate documentation and the Settings text that describe the block
   MUST name them as residuals; under "Standard" each shell call remains a question to the person.
 - **FR-009**: The instruction to a delegate with HaexVault's server MUST stay: HaexVault's agent browser is the way to the
   web, and a failure is reported as what failed.
@@ -169,7 +173,8 @@ confirm the request ends with a visible reason instead of running without the bl
 ### Measurable Outcomes
 
 - **SC-001**: In a run per vendor (Claude Code, Codex, Abacus) and per mode ("Standard", "Ungated"), asked to open a website
-  and to search the web, 0 of the delegate's own web tools or browser commands run.
+  and to search the web, 0 of the delegate's own web tools or browser commands run, apart from the server-side residual
+  of FR-001.
 - **SC-002**: With the MCP access on, the same requests are answered through HaexVault's agent browser in every run where
   the delegate does them at all.
 - **SC-003**: With the MCP access off, 0 browser profiles, sockets or downloads of a delegate's own browser appear outside

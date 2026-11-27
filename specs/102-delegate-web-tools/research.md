@@ -57,11 +57,12 @@ on (operator decision 3). After `initialize`, call `config/read` and `experiment
 **Alternatives considered**: putting the switches into `catalog.json`'s `config_args`. Rejected: those also reach the
 sign-in and install runs, and the confirmation needs the same list in code; one list in code serves both start and check.
 
-## R3. Abacus AI: deny rules on the command line, in both modes
+## R3. Abacus AI: deny rules in the settings file, in both modes
 
-**Decision**: start every Abacus delegate with `--disallowed-tools` naming its web search, its page fetch, and its bundled
-browser command in the spellings its rules can match (`Bash(agent-browser:*)`, `Bash(npx agent-browser:*)`), in
-"Standard" and in "Ungated". The exact names are those confirmed by R4.
+**Decision**: every Abacus start passes a settings file whose `permissions.deny` holds `Bash(agent-browser *)`,
+`Bash(agent-browser)` and `Bash(npx agent-browser *)`: in "Standard" next to the ask rule `*` in the file it already gets,
+in "Ungated" as a file with only these deny rules. Its web search and page fetch cannot be blocked from the program (R4);
+the operator named them a residual (spec decision 4, FR-001, FR-008).
 
 **Rationale**:
 
@@ -73,28 +74,33 @@ browser command in the spellings its rules can match (`Bash(agent-browser:*)`, `
   tool name for every other tool (`web_search_text_only` for "WebSearch", `scrape_url_content` for "Fetch"). A compound
   command is judged per segment and a denied segment denies the whole command, so `export X=...; agent-browser open ...`
   is caught.
-- The command-line flag works without a settings file, which "Ungated" does not pass today (spec 096 #1176).
 - Abacus' init line carries no tool list and `get_settings` reports only configured rules, so there is no confirmation at
   start; the version check (R5) and the measured run (R4) stand in for it.
 
-**Alternatives considered**: deny rules in the `--settings` file. They work the same, but "Ungated" would need a settings
-file only for them, and the file is written to the run folder; the flag is simpler.
+**Alternatives considered**: `--disallowed-tools` on the command line. Its help says "comma- or space-separated", so
+`Bash(npx agent-browser *)` would be cut at its space; the settings file takes each rule whole.
 
-## R4. Abacus rule names and background shells (open, needs a real run)
+## R4. Abacus: what its rules can block (measured 2026-11-27)
 
-**Open questions**:
+Three real runs with the operator's sign-in (a few credits), each asking Abacus to search the web, fetch a page, run
+`agent-browser --version`, `npx agent-browser --version` and `export X=1; agent-browser --version`, and start a background
+shell (`shell_start`).
 
-1. Does a deny rule match the internal name (`web_search_text_only`, `scrape_url_content`), the display name
-   (`WebSearch`, `Fetch`), or both? The plan passes both until the run decides.
-2. Does `shell_start` (a background shell) go through the same `Bash` rule check? Its rule key in the code read is the tool
-   name, not `Bash`. If it is not covered, `shell_start` needs its own deny rule with the browser command, or, if its rules
-   cannot name a command, the residual of spec FR-008 grows by it and the spec says so.
-3. Does `--disallowed-tools` take several rules after one flag, or one rule per flag? The start without a model call
-   (a catalog request, as in spec 096) can show a parse error without credits; the run settles the rest.
+| Run                                                                          | Web search, page fetch | Browser commands                                    |
+| ---------------------------------------------------------------------------- | ---------------------- | --------------------------------------------------- |
+| "Standard", ask `*`, `--disallowed-tools` with internal names and `:*` rules | ran, no question       | asked (rule did not match)                          |
+| "Standard", settings: ask `*`, deny with both name forms and `*` rules       | ran, no question       | refused by the rule, no question                    |
+| "Ungated", settings: deny `*` rules only                                     | ran                    | refused by the rule ("denied by a permission rule") |
 
-**How**: one real run per mode, asking Abacus to search the web, fetch a page, open a page with its browser, and start
-the browser in a background shell; record which calls were refused by the program without a question. It uses the
-operator's sign-in and costs a few credits.
+**Findings**:
+
+- The rule syntax is `Bash(<command> *)`, as in the program's own description (`Bash(git log *)`), not `:*`. With it the
+  bundled browser is refused in both modes, also through `npx` and behind `export X=1;`.
+- Web search (`web_search_text_only`) and page fetch (`scrape_url_content`) run in Abacus' server loop: they never reached
+  the program's permission check (no question even under ask `*`), and no deny form stopped them. No setting turns them
+  off (all 47 setting definitions read through `list_setting_definitions`). They leave nothing on the computer, cannot sign
+  in or act on a website, and bring the result into the conversation as foreign content.
+- `shell_start` is not in the print mode's tool set; the model said so in each run. Background shells are no path here.
 
 ## R5. Recording the block per vendor and checking new versions
 
@@ -121,6 +127,6 @@ version only arrives through the catalog anyway.
 
 - Shell network: `curl`, `wget`, a script in the delegate's shell. Under "Standard" every shell call is put to the person.
 - Computer use: Codex' `computer_use` stays on, and a delegate can open a desktop browser through it.
-- Abacus: anything its rules cannot name (R4).
+- Abacus: its web search and page fetch, which run on its server (R4).
 
 They are named in the delegate documentation and in the Settings text about the delegates.

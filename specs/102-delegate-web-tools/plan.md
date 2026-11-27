@@ -9,8 +9,8 @@
 Every start of a subscription delegate gets its own web tools and browser switched off by the program itself, in every
 autonomy mode and whether or not the MCP access is on; computer use and everything else stay. Claude Code starts with an
 allow-list of its built-in tools without `WebFetch`/`WebSearch` and with `--no-chrome`; Codex with `web_search="disabled"`
-and five browser features disabled; Abacus with command-line deny rules for its web search, page fetch and bundled browser
-command. Where the program reports its state at start (Claude's init line, Codex' `config/read` and
+and five browser features disabled; Abacus with deny rules for its bundled browser command in its settings file, in both
+modes (its web search and page fetch run on its server and are a named residual). Where the program reports its state at start (Claude's init line, Codex' `config/read` and
 `experimentalFeature/list`), HaexVault checks it and ends the request with a readable reason if the block is missing. One
 module records the block per vendor and the program versions it was checked against; a test over the shipped catalog
 fails for a tested version without that check. Details and measurements in [research.md](research.md).
@@ -21,12 +21,12 @@ fails for a tested version without that check. Details and measurements in [rese
 
 **Primary Dependencies**: none new; `serde_json`, `tokio`, `semver` and the existing delegate drivers.
 
-**Storage**: N/A. No table, no file; the block is arguments on each start.
+**Storage**: N/A. No table; the block is arguments on each start, for Abacus a settings file in the run folder (as today).
 
 **Testing**: `cargo test` with sibling `*_tests.rs` files (unit tests on the command builders and the confirmations, the
 catalog test of R5); the existing unix stub delegates in `src-tauri/tests/` extended with init lines and app-server answers
 with and without the block; Node checks for the Settings text keys. Real-program checks are manual
-([quickstart.md](quickstart.md)); the Abacus run of research R4 costs a few credits.
+([quickstart.md](quickstart.md)); research R4 was measured with real Abacus runs on 2026-11-27.
 
 **Target Platform**: desktop (Linux, macOS, Windows), where delegates run. Android/iOS: no delegates.
 
@@ -102,10 +102,10 @@ command builder and the start-up read).
 ## Phases of delivery
 
 - **PR A (P1, US1+US2)**: `web_block.rs`, the three builders, the Claude and Codex confirmations, stub tests, the Abacus
-  deny rules with both name forms (research R4 open), the test of R6 for the notice.
-- **Operator run**: research R4 (Abacus names, background shells) and the quickstart per vendor and mode.
-- **PR B (P2, US3 + polish)**: the catalog test of R5 with the checked versions, the Abacus names narrowed to what R4
-  measured, the Settings line, spec 096 pointer, research R4 recorded as measured.
+  deny rules (measured, research R4), the test of R6 for the notice.
+- **Operator run**: the quickstart per vendor and mode.
+- **PR B (P2, US3 + polish)**: the catalog test of R5 with the checked versions, the Settings line naming the residuals,
+  spec 096 pointer.
 
 ## Complexity Tracking
 
