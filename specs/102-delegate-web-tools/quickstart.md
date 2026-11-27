@@ -26,6 +26,10 @@ In "Standard" and "Ungated", ask Abacus to run `agent-browser --version`, `npx a
 `export X=1; agent-browser --version`. Expect each to be refused with "Tool was denied by a permission rule", without a
 question. Its web search and page fetch still run (server-side residual).
 
+Then, in the chat, ask Abacus five times to look something up on the web and once to open a page. Count how often it uses
+HaexVault's `browser_search`/`browser_open` and how often its own `web_search_text_only`/`scrape_url_content` (the
+instruction of spec FR-009 asks it not to). Record the count in research R4; it measures the request, not a block.
+
 ## 4. A new program version
 
 Before a version is added to `catalog.json`:
