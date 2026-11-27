@@ -444,3 +444,7 @@ never reaches the approval bridge (`Ungated` has no way to ask, as with Claude C
 `DEFAULT` for `Standard` and `YOLO` for `Ungated`. FR-010 is unchanged: under a posture that asks, nothing weaker is
 offered; `Ungated` is the person's own posture, not a fallback. `GatedPermissive` stays unavailable until its deny rules
 are mapped to Abacus' tool names and inputs.
+
+**Since spec 102**: `Ungated` does pass a settings file again, with deny rules only: every start blocks Abacus' bundled
+browser (`agent-browser`), in every mode (spec 102 research R3/R4). It holds no ask rules, so the paragraph above still
+holds for approvals.

@@ -117,12 +117,14 @@ command builder and the start-up read).
 ## Phases of delivery
 
 - **PR A (P1, US1)**: `web_block.rs`, the three builders, the Claude and Codex confirmations, stub tests, the Abacus deny
-  rules (measured, research R4), the Abacus sentence of the instruction.
+  rules (measured, research R4), the Abacus sentence of the instruction. Delivered: #1182, merged 2026-11-27.
 - **PR B (P1, US2)**: the server with the vault, the connection gate while the external access is off, the removal of
-  `delegateOff` and the notice of FR-012, the external access text.
+  `delegateOff` and the notice of FR-012, the external access text. Delivered: #1183, merged 2026-11-27; the notice
+  became a queue per conversation in review, so each affected start keeps its reason.
 - **Operator run**: the quickstart per vendor and mode, with the external access on and off.
 - **PR C (P2, US3 + polish)**: the catalog test of R5 with the checked versions, the Settings line naming the residuals,
-  spec 096 pointer.
+  spec 096 pointer. The check over the checked versions runs in tests only (`#[cfg(test)]`), as nothing at runtime
+  needs it.
 
 ## Complexity Tracking
 

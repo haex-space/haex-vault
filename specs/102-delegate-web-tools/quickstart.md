@@ -47,5 +47,5 @@ Before a version is added to `catalog.json`:
   a `--disable`.
 - Abacus: check that the bundled browser is still called `agent-browser` (its built-in skills' `allowed-tools`) and that
   no new tool reaches the web from the computer; repeat §3.
-- Then, once T024 and T025 are complete, add the version to the vendor's `checked_versions` in `web_block.rs`; the
-  catalog test will fail without it. This version gate is pending until the catalog work lands.
+- Then add the version to the vendor's `checked_versions` in `web_block.rs`; the catalog test
+  (`every_version_of_the_shipped_catalog_was_checked_against_the_block`) fails without it.
