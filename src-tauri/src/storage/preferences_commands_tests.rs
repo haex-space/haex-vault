@@ -75,17 +75,19 @@ fn the_chat_file_server_is_none_or_an_address_a_file_may_go_to() {
 }
 
 #[test]
-fn the_added_blossom_servers_are_a_list_of_addresses_with_a_short_badge() {
+fn the_added_blossom_servers_are_a_list_of_addresses_with_a_short_name() {
     for value in [
         "[]",
         r#"[{"url":"https://files.example.com"}]"#,
+        r#"[{"url":"https://files.example.com","name":"Mein Server"}]"#,
+        // Saved before the name was called a name.
         r#"[{"url":"https://files.example.com","badge":"Mein Server"}]"#,
     ] {
         validate_value("chat.blossom.servers", value).expect("a list of servers");
     }
     let too_long = format!(
-        r#"[{{"url":"https://files.example.com","badge":"{}"}}]"#,
-        "x".repeat(25)
+        r#"[{{"url":"https://files.example.com","name":"{}"}}]"#,
+        "x".repeat(41)
     );
     for value in [
         "",
