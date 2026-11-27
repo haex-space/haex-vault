@@ -42,6 +42,7 @@ const restrictedByThread = reactive(new Map<string, ToolNotice>())
 // A delegate's residual own-web notice must survive notices emitted by other threads and profile
 // restrictions in the same thread until that conversation can show and dismiss it.
 const ownWebByThread = reactive(new Map<string, ToolNotice>())
+const unavailableByThread = reactive(new Map<string, ToolNotice[]>())
 
 /**
  * The tool-use notice of the open conversation: set by `chat-tool-availability` the first time
@@ -77,13 +78,20 @@ export function useToolNotice(activeThreadId: Ref<string | null>) {
     if (key && notices.show(e.threadId, e.state)) show(e.threadId, key)
   }
 
-  /** A delegate's start has no haex-vault tools (spec 102 FR-012): the notice with the reason, once
-   * per conversation and reason. */
+  /** Every delegate start without HaexVault tools gets a notice with its reason (spec 102 FR-012). */
   function handleDelegateToolsUnavailable(e: DelegateToolsUnavailableEvent) {
-    if (notices.showUnavailable(e.threadId, e.reason))
-      show(e.threadId, DELEGATE_UNAVAILABLE_KEY, e.delegateKind, {
-        reason: e.reason,
-      })
+    if (!notices.showUnavailable()) return
+    const pending = unavailableByThread.get(e.threadId) ?? []
+    unavailableByThread.set(e.threadId, [
+      ...pending,
+      {
+        key: DELEGATE_UNAVAILABLE_KEY,
+        params: {
+          name: DELEGATE_NAMES[e.delegateKind] ?? '',
+          reason: e.reason,
+        },
+      },
+    ])
   }
 
   /** A delegate used its own web access, which its program cannot block (spec 102 FR-013): the
@@ -131,6 +139,7 @@ export function useToolNotice(activeThreadId: Ref<string | null>) {
   const toolNotice = computed(
     () =>
       (activeThreadId.value && ownWebByThread.get(activeThreadId.value)) ||
+      (activeThreadId.value && unavailableByThread.get(activeThreadId.value)?.[0]) ||
       (activeThreadId.value && restrictedByThread.get(activeThreadId.value)) ||
       (current.value && current.value.threadId === activeThreadId.value
         ? current.value.notice
@@ -141,6 +150,13 @@ export function useToolNotice(activeThreadId: Ref<string | null>) {
     const threadId = activeThreadId.value
     if (!threadId) return
     if (ownWebByThread.delete(threadId)) return
+    const unavailable = unavailableByThread.get(threadId)
+    if (unavailable?.length) {
+      const remaining = unavailable.slice(1)
+      if (remaining.length) unavailableByThread.set(threadId, remaining)
+      else unavailableByThread.delete(threadId)
+      return
+    }
     if (restrictedByThread.delete(threadId)) return
     if (current.value?.threadId === threadId) current.value = null
   }

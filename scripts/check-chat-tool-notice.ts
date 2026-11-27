@@ -55,12 +55,10 @@ test('an offered turn in between does not use up a later notice', () => {
   assert.equal(notices.show('a', 'offeredUnverified'), true)
 })
 
-test('a delegate start without haex-vault tools shows once per conversation and reason (spec 102 FR-012)', async () => {
+test('each delegate start without haex-vault tools gets its own notice (spec 102 FR-012)', async () => {
   const notices = createToolNotices()
-  assert.equal(notices.showUnavailable('a', 'not running'), true)
-  assert.equal(notices.showUnavailable('a', 'not running'), false)
-  assert.equal(notices.showUnavailable('a', 'profile'), true)
-  assert.equal(notices.showUnavailable('b', 'not running'), true)
+  assert.equal(notices.showUnavailable(), true)
+  assert.equal(notices.showUnavailable(), true)
 
   const { readFileSync } = await import('node:fs')
   for (const language of ['de', 'en']) {

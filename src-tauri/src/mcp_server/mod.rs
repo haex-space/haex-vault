@@ -217,17 +217,25 @@ impl McpServer {
                 .mcp_http
                 .then(|| kept_port.unwrap_or(0))
                 .filter(|_| enabled);
-            if let Some(running) = slot.running.as_mut() {
+            let applied = if let Some(running) = slot.running.as_mut() {
                 match running.set_external(enabled, http_port).await {
                     Ok(()) => {
                         if let Ok(db) = state.database() {
                             keep_port(&db, device, running, kept_port).await;
                         }
+                        true
                     }
-                    Err(error) => log::warn!("mcp server: {error}"),
+                    Err(error) => {
+                        log::warn!("mcp server: {error}");
+                        false
+                    }
                 }
+            } else {
+                false
+            };
+            if applied {
+                slot.external = enabled;
             }
-            slot.external = enabled;
             drop(slot);
             self.notifier()(Notice::Changed);
             return;
