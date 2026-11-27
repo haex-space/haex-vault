@@ -87,6 +87,7 @@ use self::server::{Limits, Notice, Notifier, Running, StartArgs, StartError};
 use crate::adapters::cli_delegate::haex_mcp::HaexAccess;
 use crate::chat::session::ChatState;
 use crate::state::AppState;
+use crate::vault_gate::VaultDb;
 
 /// The state of the access as the settings show it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
@@ -105,6 +106,8 @@ pub enum McpRunState {
 struct Slot {
     running: Option<Running>,
     in_use: bool,
+    /// The device's external access as last applied.
+    external: bool,
 }
 
 /// The MCP access of this process; a Tauri managed state.
@@ -189,7 +192,10 @@ impl McpServer {
             .unwrap_or_else(|| Arc::new(|_| {}))
     }
 
-    /// Stops a running server and starts it again when `enabled`.
+    /// Applies the device's external access `enabled` (spec 102 FR-011): on a platform with
+    /// delegates the server runs whatever it says and only opens or closes itself to programs
+    /// outside haex-vault, so delegates keep their connections; elsewhere it runs only while the
+    /// access is on.
     pub async fn apply(&self, state: &AppState, chat: &ChatState, device: Uuid, enabled: bool) {
         let _configuration = self.configuration.lock().await;
         self.apply_locked(state, chat, device, enabled).await;
@@ -197,20 +203,43 @@ impl McpServer {
 
     async fn apply_locked(&self, state: &AppState, chat: &ChatState, device: Uuid, enabled: bool) {
         let mut slot = self.slot.lock().await;
+        let runs = enabled || crate::platform::capabilities().cli_delegates;
+        let switchable = slot
+            .running
+            .as_ref()
+            .is_some_and(|running| !running.core().token.is_cancelled());
+        if runs && switchable {
+            let kept_port = match state.database() {
+                Ok(db) if enabled => read_kept_port(&db, device).await,
+                _ => None,
+            };
+            let http_port = crate::platform::capabilities()
+                .mcp_http
+                .then(|| kept_port.unwrap_or(0))
+                .filter(|_| enabled);
+            if let Some(running) = slot.running.as_mut() {
+                match running.set_external(enabled, http_port).await {
+                    Ok(()) => {
+                        if let Ok(db) = state.database() {
+                            keep_port(&db, device, running, kept_port).await;
+                        }
+                    }
+                    Err(error) => log::warn!("mcp server: {error}"),
+                }
+            }
+            slot.external = enabled;
+            drop(slot);
+            self.notifier()(Notice::Changed);
+            return;
+        }
         if let Some(running) = slot.running.take() {
             running.stop(CloseReason::Disabled).await;
         }
         slot.in_use = false;
-        if enabled {
+        if runs {
             match state.database() {
                 Ok(db) => {
-                    let kept_port = db
-                        .read(move |q| settings::read_http_port(q, device))
-                        .await
-                        .unwrap_or_else(|error| {
-                            log::warn!("mcp server: could not read the HTTP port: {error}");
-                            None
-                        });
+                    let kept_port = read_kept_port(&db, device).await;
                     let capabilities = crate::platform::capabilities();
                     let args = StartArgs {
                         db: db.clone(),
@@ -230,27 +259,25 @@ impl McpServer {
                         limits: Limits::default(),
                         http_port: capabilities.mcp_http.then(|| kept_port.unwrap_or(0)),
                         program_way: capabilities.mcp_helper,
+                        external: enabled,
                     };
                     match server::start(args).await {
                         Ok(running) => {
-                            let port = running.http_address().map(|address| address.port());
-                            if let Some(port) = port.filter(|port| Some(*port) != kept_port) {
-                                if let Err(error) = db
-                                    .write(move |tx| settings::write_http_port(tx, device, port))
-                                    .await
-                                {
-                                    log::warn!("mcp server: could not keep the HTTP port: {error}");
-                                }
-                            }
+                            keep_port(&db, device, &running, kept_port).await;
                             slot.running = Some(running);
+                            self.delegates.set_unavailable(None);
                         }
-                        Err(StartError::InUse) => slot.in_use = true,
-                        Err(error) => log::warn!("mcp server: {error}"),
+                        Err(error) => {
+                            log::warn!("mcp server: {error}");
+                            slot.in_use = error == StartError::InUse;
+                            self.delegates.set_unavailable(Some(error.to_string()));
+                        }
                     }
                 }
                 Err(error) => log::warn!("mcp server: no open vault: {error}"),
             }
         }
+        slot.external = enabled;
         drop(slot);
         self.notifier()(Notice::Changed);
     }
@@ -282,11 +309,40 @@ impl McpServer {
         if !vault_open {
             return McpRunState::NoVault;
         }
+        // The state of the external access: a server that runs for the delegates alone is "off"
+        // to the person (spec 102 FR-011).
         let slot = self.slot.lock().await;
-        match (&slot.running, slot.in_use) {
-            (Some(running), _) if !running.core().token.is_cancelled() => McpRunState::Running,
+        match (&slot.running, slot.in_use && slot.external) {
+            (Some(running), _)
+                if !running.core().token.is_cancelled() && running.core().external() =>
+            {
+                McpRunState::Running
+            }
             (_, true) => McpRunState::InUse,
             _ => McpRunState::Off,
+        }
+    }
+}
+
+/// The HTTP port this device used last, so an agent's configuration stays valid.
+async fn read_kept_port(db: &VaultDb, device: Uuid) -> Option<u16> {
+    db.read(move |q| settings::read_http_port(q, device))
+        .await
+        .unwrap_or_else(|error| {
+            log::warn!("mcp server: could not read the HTTP port: {error}");
+            None
+        })
+}
+
+/// Keeps the port the HTTP way of `running` listens on, when it is a new one.
+async fn keep_port(db: &VaultDb, device: Uuid, running: &Running, kept_port: Option<u16>) {
+    let port = running.http_address().map(|address| address.port());
+    if let Some(port) = port.filter(|port| Some(*port) != kept_port) {
+        if let Err(error) = db
+            .write(move |tx| settings::write_http_port(tx, device, port))
+            .await
+        {
+            log::warn!("mcp server: could not keep the HTTP port: {error}");
         }
     }
 }
@@ -312,7 +368,9 @@ pub(crate) fn end_browser_session<R: Runtime>(app: &AppHandle<R>, agent: Uuid) {
     });
 }
 
-/// Starts the access for the vault that just opened, when this device turned it on (FR-001).
+/// Starts the server for the vault that just opened: open to programs outside when this device
+/// turned the access on (FR-001), for the delegates in the chat alone otherwise, on a platform that
+/// has them (spec 102 FR-004, FR-011).
 pub fn start_for_active_instance<R: Runtime>(app: &AppHandle<R>, state: &AppState) {
     if !settings::available() {
         return;
@@ -336,8 +394,8 @@ pub fn start_for_active_instance<R: Runtime>(app: &AppHandle<R>, state: &AppStat
                 .unwrap_or(false),
             Err(_) => false,
         };
-        if enabled {
-            server.apply(&state, &chat, device, true).await;
+        if enabled || crate::platform::capabilities().cli_delegates {
+            server.apply(&state, &chat, device, enabled).await;
         }
     });
     if let Err(error) = spawned {

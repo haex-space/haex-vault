@@ -17,6 +17,7 @@ use hyper_util::rt::TokioIo;
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::transport::streamable_http_server::{StreamableHttpServerConfig, StreamableHttpService};
 use tokio::net::TcpListener;
+use tokio_util::sync::CancellationToken;
 use tower_service::Service as _;
 
 use super::http_session::{HttpAgent, HttpSession, SessionCount};
@@ -82,8 +83,14 @@ pub fn too_large(headers: &HeaderMap) -> bool {
         .is_some_and(|length| length > MAX_BODY_BYTES as u64)
 }
 
-/// Serves the HTTP way on `listener` until the server stops.
-pub(super) async fn serve(core: Arc<Core>, oauth: Arc<OAuthState>, listener: TcpListener) {
+/// Serves the HTTP way on `listener` until `stop` fires: when the server stops, or when the
+/// external access is turned off (spec 102 FR-011); `stop` is a child of the server's token.
+pub(super) async fn serve(
+    core: Arc<Core>,
+    oauth: Arc<OAuthState>,
+    listener: TcpListener,
+    stop: CancellationToken,
+) {
     let port = match listener.local_addr() {
         Ok(address) => address.port(),
         Err(error) => {
@@ -102,7 +109,7 @@ pub(super) async fn serve(core: Arc<Core>, oauth: Arc<OAuthState>, listener: Tcp
         .enforce_origin_validation()
         .with_legacy_session_mode(true)
         .with_max_request_body_bytes(MAX_BODY_BYTES)
-        .with_cancellation_token(core.token.child_token());
+        .with_cancellation_token(stop.child_token());
     let factory = {
         let (core, manager, sessions) = (Arc::clone(&core), Arc::clone(&manager), sessions.clone());
         move || HttpSession::new(&core, &manager, &sessions, MAX_SESSIONS)
@@ -116,7 +123,7 @@ pub(super) async fn serve(core: Arc<Core>, oauth: Arc<OAuthState>, listener: Tcp
     log::info!("mcp server: the HTTP way listens on port {port}");
     loop {
         let accepted = tokio::select! {
-            _ = core.token.cancelled() => break,
+            _ = stop.cancelled() => break,
             accepted = listener.accept() => accepted,
         };
         let stream = match accepted {
@@ -127,7 +134,7 @@ pub(super) async fn serve(core: Arc<Core>, oauth: Arc<OAuthState>, listener: Tcp
                 continue;
             }
         };
-        let (context, token) = (Arc::clone(&context), core.token.clone());
+        let (context, token) = (Arc::clone(&context), stop.clone());
         tokio::spawn(async move {
             let service = hyper::service::service_fn(move |request| {
                 let context = Arc::clone(&context);

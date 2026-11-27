@@ -5,11 +5,11 @@ use tempfile::TempDir;
 use super::autonomy::AutonomyMode;
 use super::claude::{build_command, McpArgs};
 use super::haex_mcp::{
-    claude_config, codex_config, with_instruction, write_claude_config, write_codex_config,
-    ApproveBridge, HaexServer, ABACUS_WEB_INSTRUCTION, ABACUS_WEB_WITHOUT_HAEX, CLAUDE_HAEX_TOOLS,
-    DELEGATE_INSTRUCTION,
+    claude_config, codex_config, server_for, with_instruction, write_claude_config,
+    write_codex_config, ApproveBridge, HaexAccess, HaexServer, ABACUS_WEB_INSTRUCTION,
+    ABACUS_WEB_WITHOUT_HAEX, CLAUDE_HAEX_TOOLS, DELEGATE_INSTRUCTION, EVENT_TOOLS_UNAVAILABLE,
 };
-use super::DelegateVendor;
+use super::{DelegateChatContext, DelegateVendor};
 use crate::cli_tools::runtime::DelegateRuntime;
 
 fn haex(slug: &str) -> HaexServer {
@@ -226,4 +226,82 @@ fn the_memory_block_reaches_the_abo_agent() {
     let memory = handed.find("## Memory").expect("the block");
     assert!(handed.contains("- Mail-Stil: Kurz"));
     assert!(memory < handed.find(DELEGATE_INSTRUCTION).expect("the instruction"));
+}
+
+/// An access that has no server for any start, for a reason.
+struct Refusing;
+
+#[async_trait::async_trait]
+impl HaexAccess for Refusing {
+    async fn server_for(
+        &self,
+        _vendor: DelegateVendor,
+        _thread: Option<uuid::Uuid>,
+        _model: &str,
+    ) -> Result<HaexServer, String> {
+        Err("the active agent profile does not offer this model".to_owned())
+    }
+}
+
+fn recording_context(
+    events: std::sync::Arc<std::sync::Mutex<Vec<(String, serde_json::Value)>>>,
+) -> DelegateChatContext {
+    DelegateChatContext {
+        pending_tool_approvals: Default::default(),
+        emit: std::sync::Arc::new(move |event: &str, payload: serde_json::Value| {
+            events.lock().unwrap().push((event.to_owned(), payload));
+        }),
+        database: None,
+        children: Default::default(),
+        haex: Some(std::sync::Arc::new(Refusing)),
+        deny_rules: Vec::new(),
+        tools: None,
+    }
+}
+
+/// Spec 102 FR-012: a chat start without haex-vault's server tells the chat why; a job start (no
+/// thread) and a context without the access stay quiet.
+#[tokio::test]
+async fn a_chat_start_without_the_server_tells_the_chat_why() {
+    let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let context = recording_context(std::sync::Arc::clone(&events));
+    let thread = uuid::Uuid::new_v4();
+
+    for vendor in [
+        DelegateVendor::Claude,
+        DelegateVendor::Codex,
+        DelegateVendor::Abacus,
+    ] {
+        assert!(server_for(&context, vendor, Some(thread), "m")
+            .await
+            .is_none());
+    }
+    assert!(server_for(&context, DelegateVendor::Claude, None, "m")
+        .await
+        .is_none());
+    let seen = events.lock().unwrap().clone();
+    assert_eq!(
+        seen,
+        ["claudeCodeDelegate", "codexDelegate", "abacusDelegate"]
+            .map(|kind| (
+                EVENT_TOOLS_UNAVAILABLE.to_owned(),
+                serde_json::json!({
+                    "threadId": thread,
+                    "delegateKind": kind,
+                    "reason": "the active agent profile does not offer this model",
+                })
+            ))
+            .to_vec()
+    );
+
+    let quiet = DelegateChatContext {
+        haex: None,
+        ..recording_context(std::sync::Arc::clone(&events))
+    };
+    assert!(
+        server_for(&quiet, DelegateVendor::Claude, Some(thread), "m")
+            .await
+            .is_none()
+    );
+    assert_eq!(events.lock().unwrap().len(), 3);
 }

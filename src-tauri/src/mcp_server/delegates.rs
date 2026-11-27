@@ -11,8 +11,6 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError, Weak};
 
 use async_trait::async_trait;
-use serde::Serialize;
-use ts_rs::TS;
 use uuid::Uuid;
 
 use super::connection::now_millis;
@@ -125,9 +123,19 @@ pub struct DelegateHub {
     /// Keyed by the pass's hash, like a stored credential.
     passes: Passes,
     core: Mutex<Weak<Core>>,
+    /// Why the server did not start, while it does not run (spec 102 FR-012).
+    unavailable: Mutex<Option<String>>,
 }
 
 impl DelegateHub {
+    /// Records why the server did not start (`None` once it runs), for the next delegate start.
+    pub(super) fn set_unavailable(&self, reason: Option<String>) {
+        *self
+            .unavailable
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = reason;
+    }
+
     /// The server that answers delegates now.
     pub(super) fn attach(&self, core: &Arc<Core>) {
         *self.core.lock().unwrap_or_else(PoisonError::into_inner) = Arc::downgrade(core);
@@ -191,12 +199,21 @@ impl HaexAccess for DelegateHub {
         vendor: DelegateVendor,
         thread: Option<Uuid>,
         model: &str,
-    ) -> Option<HaexServer> {
-        // Every refusal below says why: a delegate without haex-vault's server answers that haex-vault's
-        // tools are not available, and nothing else shows where the server was withheld.
+    ) -> Result<HaexServer, String> {
+        // Every refusal below says why, to the log and to the chat (spec 102 FR-012): a delegate
+        // without haex-vault's server answers without haex-vault's tools.
+        let refuse = |reason: String| {
+            log::info!("mcp server: no HaexVault tools for a delegate: {reason}");
+            reason
+        };
         let Some(core) = self.core() else {
-            log::info!("mcp server: no HaexVault tools for a delegate, the server is not running");
-            return None;
+            let reason = self
+                .unavailable
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone()
+                .unwrap_or_else(|| "HaexVault's server is not running".to_owned());
+            return Err(refuse(reason));
         };
         let kind = kind_of(vendor);
         let agent = model_delegate_id(core.device, kind, model);
@@ -229,20 +246,18 @@ impl HaexAccess for DelegateHub {
         match written {
             Ok(true) => {}
             Ok(false) => {
-                log::info!(
-                    "mcp server: no HaexVault tools for the delegate model {model}, the active agent \
-                     profile does not offer it"
-                );
-                return None;
+                return Err(refuse(
+                    "the active agent profile does not offer this model".to_owned(),
+                ))
             }
             Err(error) => {
-                log::warn!("mcp server: could not write a delegate: {error}");
-                return None;
+                return Err(refuse(format!(
+                    "the delegate could not be written: {error}"
+                )))
             }
         }
         let executable = super::helper::executable()
-            .inspect_err(|error| log::warn!("mcp server: no path for a delegate: {error}"))
-            .ok()?;
+            .map_err(|error| refuse(format!("HaexVault's helper was not found: {error}")))?;
         let (credential, guard) = self
             .issue(DelegatePass {
                 kind,
@@ -250,11 +265,11 @@ impl HaexAccess for DelegateHub {
                 thread,
                 model: model.to_owned(),
             })
-            .inspect_err(|error| log::warn!("mcp server: no pass for a delegate: {error}"))
-            .ok()?;
+            .map_err(|error| refuse(format!("no pass could be made: {error}")))?;
+        let slug = slug_of(kind).ok_or_else(|| refuse("the delegate has no name".to_owned()))?;
         let args = vec![
             super::helper::FLAG.to_owned(),
-            slug_of(kind)?.to_owned(),
+            slug.to_owned(),
             "--vault".to_owned(),
             core.device.to_string(),
             "--delegate-token".to_owned(),
@@ -266,24 +281,8 @@ impl HaexAccess for DelegateHub {
                 .to_string_lossy()
                 .into_owned(),
         ];
-        Some(HaexServer::new(executable, args, guard))
+        Ok(HaexServer::new(executable, args, guard))
     }
-}
-
-/// Whether a delegate has haex-vault's tools, as the chat shows it (FR-025).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "../../src/types/bindings/")]
-pub enum DelegateStatus {
-    /// The MCP access is off; no delegate gets haex-vault's tools.
-    Off,
-    /// The delegate gets haex-vault's tools as far as the profile of its model allows (FR-029).
-    Available,
-}
-
-/// The status of the delegates: off while the MCP access is, else available.
-pub fn status() -> DelegateStatus {
-    DelegateStatus::Available
 }
 
 /// Admits a delegate's connection by its pass: the technical row must be there and not blocked.

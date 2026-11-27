@@ -850,7 +850,6 @@ pub fn run() {
             mcp_server::manage_commands::mcp_agent_unblock,
             mcp_server::manage_commands::mcp_agent_log_clear,
             mcp_server::commands::mcp_setup_snippet,
-            mcp_server::commands::mcp_delegate_status,
             files::agent::commands::files_folder_names,
             files::agent::commands::files_agent_check,
             platform::insets::device_insets,

@@ -18,7 +18,7 @@ use haex_lib::adapters::cli_delegate::haex_mcp::HaexAccess;
 use haex_lib::adapters::cli_delegate::DelegateVendor;
 use haex_lib::agent_profiles::{store, Subject};
 use haex_lib::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
-use haex_lib::mcp_server::delegates::{self, model_delegate_id, DelegatePass};
+use haex_lib::mcp_server::delegates::{model_delegate_id, DelegatePass};
 use haex_lib::mcp_server::grants::{default_rights, BrowserRights, OperateLevel, Rights};
 use haex_lib::mcp_server::hello::CloseReason;
 use haex_lib::mcp_server::helper::exit;
@@ -239,12 +239,14 @@ async fn two_models_of_a_provider_have_the_profile_they_are_in_and_one_the_profi
         .delegates
         .server_for(DelegateVendor::Claude, Some(THREAD), MODEL)
         .await
-        .is_some());
-    assert!(fx
+        .is_ok());
+    // Spec 102 FR-012: the start learns why, for the chat.
+    let reason = fx
         .delegates
         .server_for(DelegateVendor::Claude, Some(THREAD), OTHER_MODEL)
         .await
-        .is_none());
+        .expect_err("no server for a model the profile does not offer");
+    assert!(reason.contains("profile does not offer"), "{reason}");
     server.stop(CloseReason::Disabled).await;
 }
 
@@ -274,10 +276,10 @@ async fn a_pass_of_an_unknown_start_opens_nothing_and_with_the_access_off_there_
     fx.no_question().await;
 
     server.stop(CloseReason::Disabled).await;
-    assert!(fx
+    let reason = fx
         .delegates
         .server_for(DelegateVendor::Claude, None, MODEL)
         .await
-        .is_none());
-    assert_eq!(delegates::status(), delegates::DelegateStatus::Available);
+        .expect_err("no server while it does not run");
+    assert!(reason.contains("not running"), "{reason}");
 }

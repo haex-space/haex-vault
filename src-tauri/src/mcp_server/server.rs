@@ -6,6 +6,7 @@ use std::collections::HashSet;
 use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
@@ -112,6 +113,10 @@ pub struct StartArgs {
     pub http_port: Option<u16>,
     /// The program way (`--mcp-agent` over a socket or pipe); a phone has none (research R12).
     pub program_way: bool,
+    /// Whether programs outside haex-vault may connect: the device's external access (spec 102
+    /// FR-011). Without it the HTTP way is closed and the program way admits only delegates'
+    /// passes.
+    pub external: bool,
 }
 
 /// What every connection of one running server shares.
@@ -136,9 +141,16 @@ pub struct Core {
     /// Agents the user declined without remembering it; until the vault closes.
     declined: Mutex<HashSet<(Transport, String)>>,
     closing: Mutex<CloseReason>,
+    /// See [`StartArgs::external`]; changes while the server runs.
+    external: AtomicBool,
 }
 
 impl Core {
+    /// Whether programs outside haex-vault may connect now (spec 102 FR-011).
+    pub fn external(&self) -> bool {
+        self.external.load(Ordering::SeqCst)
+    }
+
     pub fn declined(&self, slug: &str, transport: Transport) -> bool {
         self.declined
             .lock()
@@ -172,11 +184,43 @@ impl Core {
     }
 }
 
+/// The HTTP way while it runs: where it listens, its own stop and its task.
+struct HttpWay {
+    address: SocketAddr,
+    stop: CancellationToken,
+    task: JoinHandle<()>,
+}
+
+impl HttpWay {
+    async fn start(core: &Arc<Core>, port: u16) -> Result<Self, StartError> {
+        let listener = http::bind(port)
+            .await
+            .map_err(|error| StartError::Io(error.to_string()))?;
+        let address = listener
+            .local_addr()
+            .map_err(|error| StartError::Io(error.to_string()))?;
+        // A child of the server's token: it also ends when the vault closes.
+        let stop = core.token.child_token();
+        let oauth = Arc::new(OAuthState::default());
+        let task = tokio::spawn(http::serve(Arc::clone(core), oauth, listener, stop.clone()));
+        Ok(Self {
+            address,
+            stop,
+            task,
+        })
+    }
+
+    async fn stop(self) {
+        self.stop.cancel();
+        let _ = self.task.await;
+    }
+}
+
 /// A running server.
 pub struct Running {
     core: Arc<Core>,
     accept: Option<JoinHandle<()>>,
-    http: Option<(SocketAddr, JoinHandle<()>)>,
+    http: Option<HttpWay>,
 }
 
 impl Running {
@@ -186,7 +230,30 @@ impl Running {
 
     /// Where the HTTP way listens, when it runs.
     pub fn http_address(&self) -> Option<SocketAddr> {
-        self.http.as_ref().map(|(address, _)| *address)
+        self.http.as_ref().map(|way| way.address)
+    }
+
+    /// Opens or closes the server to programs outside haex-vault (spec 102 FR-011), without a
+    /// restart: running delegates keep their connections. Turning it off closes the HTTP way and
+    /// ends every connection that is not a delegate's; turning it on opens the HTTP way on
+    /// `http_port` (`Some(0)` picks a free one, `None` where the platform has none).
+    pub async fn set_external(
+        &mut self,
+        external: bool,
+        http_port: Option<u16>,
+    ) -> Result<(), StartError> {
+        self.core.external.store(external, Ordering::SeqCst);
+        if external {
+            if let (None, Some(port)) = (&self.http, http_port) {
+                self.http = Some(HttpWay::start(&self.core, port).await?);
+            }
+        } else {
+            if let Some(way) = self.http.take() {
+                way.stop().await;
+            }
+            self.core.live.close_outside(CloseReason::Disabled);
+        }
+        Ok(())
     }
 
     /// Ends every connection with `reason` and the open dialogs and prompts, and removes the
@@ -198,8 +265,8 @@ impl Running {
         if let Some(accept) = self.accept {
             let _ = accept.await;
         }
-        if let Some((_, http)) = self.http {
-            let _ = http.await;
+        if let Some(way) = self.http {
+            way.stop().await;
         }
     }
 }
@@ -218,14 +285,7 @@ pub async fn start(args: StartArgs) -> Result<Running, StartError> {
     } else {
         None
     };
-    let http_listener = match args.http_port {
-        Some(port) => Some(
-            http::bind(port)
-                .await
-                .map_err(|error| StartError::Io(error.to_string()))?,
-        ),
-        None => None,
-    };
+    let http_port = args.http_port.filter(|_| args.external);
     let core = Arc::new(Core {
         db: args.db,
         device: args.device,
@@ -246,20 +306,15 @@ pub async fn start(args: StartArgs) -> Result<Running, StartError> {
         token: args.parent.child_token(),
         declined: Mutex::new(HashSet::new()),
         closing: Mutex::new(CloseReason::VaultClosed),
+        external: AtomicBool::new(args.external),
     });
-    core.delegates.attach(&core);
-    let accept = listener.map(|listener| tokio::spawn(accept_loop(Arc::clone(&core), listener)));
-    let http = match http_listener {
-        Some(listener) => {
-            let address = listener
-                .local_addr()
-                .map_err(|error| StartError::Io(error.to_string()))?;
-            let oauth = Arc::new(OAuthState::default());
-            let serving = tokio::spawn(http::serve(Arc::clone(&core), oauth, listener));
-            Some((address, serving))
-        }
+    // The HTTP way first: a port that cannot be bound leaves nothing running.
+    let http = match http_port {
+        Some(port) => Some(HttpWay::start(&core, port).await?),
         None => None,
     };
+    core.delegates.attach(&core);
+    let accept = listener.map(|listener| tokio::spawn(accept_loop(Arc::clone(&core), listener)));
     log::info!("mcp server: listening");
     Ok(Running { core, accept, http })
 }
