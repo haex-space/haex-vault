@@ -48,6 +48,15 @@ operator task." (operator, 2026-11-27)
   HaexVault starts itself in the chat is no external access: it gets HaexVault's tools on every start, whether the
   external access is on or off.
 
+## Clarifications
+
+### Session 2026-11-27
+
+- Q: How long does HaexVault's server run while the external access is off? → A: While a vault is open; its local
+  endpoint stays where it is today (the system's runtime folder, removed when the server stops).
+- Q: Should the chat show when Abacus used its own (server-side) web search or page fetch? → A: Yes, one notice per
+  conversation.
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - A delegate opens websites only through HaexVault's agent browser (Priority: P1)
@@ -188,12 +197,16 @@ confirm the request ends with a visible reason instead of running without the bl
 - **FR-011**: The external access MUST govern only programs outside HaexVault. While it is off, HaexVault MUST refuse every
   connection that is not a delegate HaexVault started for the current start, and MUST NOT open anything a program outside
   could reach without a delegate's pass. Its Settings text MUST say that it is for programs outside HaexVault and that
-  delegates in the chat do not need it. On a platform without delegates (Android, iOS) the server keeps running only
-  while the external access is on.
+  delegates in the chat do not need it. On a platform with delegates the server runs while a vault is open, with its
+  local endpoint where it is today (the system's runtime folder, removed when the server stops); on a platform without
+  delegates (Android, iOS) it keeps running only while the external access is on.
 - **FR-012**: If HaexVault's tools cannot be provided for a delegate start in the chat, for any reason (the server does
   not run, the active agent profile does not offer the model, a pass cannot be made, the helper cannot be found), the
   chat MUST say so for that start with the reason; the delegate's block still holds. The notice that asked the person to turn on the external access for a delegate
   (`chat.toolNotice.delegateOff`) and the status it rests on are removed (no compatibility path).
+
+- **FR-013**: When a delegate uses one of its own web tools that cannot be blocked (Abacus' web search or page fetch,
+  FR-001), the chat MUST show once per conversation that it used its own web access instead of HaexVault's agent browser.
 
 ### Key Entities
 

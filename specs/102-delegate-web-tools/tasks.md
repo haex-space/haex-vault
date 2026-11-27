@@ -110,6 +110,15 @@ Result<(), String>`; the reason text of contracts/web-block.md ("{vendor} starte
 - [ ] T012 [US1] Model jobs (spec 055) use the same builders: add one test per vendor in the job adapter's tests (find the
       call sites of `claude::build_command`, `codex::build_command`, `abacus::build_command` outside the chat path) that a
       job start carries the block.
+- [ ] T032 [US1] `src-tauri/src/adapters/cli_delegate/abacus.rs` (`parse_line` and the drive loop): recognise the stream
+      events `web_search_results` and `collapsible` with `title: "Web Access"` (research R4) and, for a chat start, emit
+      `chat-delegate-own-web` `{ threadId, delegateKind }` through `DelegateChatContext.emit`, once per start; the events
+      keep flowing to the chat as today. `abacus_tests.rs`: both lines from the recorded transcript trigger it, other
+      `collapsible` titles and a job start do not. Spec FR-013.
+- [ ] T033 [US1] `src/composables/useToolNotice.ts`, `src/lib/chat/toolNotice.ts`, `scripts/check-chat-tool-notice.ts`,
+      `src/i18n/locales/de.json`, `en.json`: listen to `chat-delegate-own-web` and show
+      `chat.toolNotice.delegateOwnWeb` ("{name} hat seinen eigenen Webzugang benutzt statt HaexVaults Agent-Browser")
+      once per conversation; `pnpm check:chat-state` covers the once rule.
 - [ ] T013 [US1] PR A gate: `cargo clippy --all-targets -- -D warnings`, `cargo test` for `adapters::cli_delegate` and the
       `cli_delegate_*` integration tests (CI), Prettier; push branch `feat/102-pr-a-web-block` (from `origin/main`,
       `--no-track`), PR as haex-space.
@@ -217,7 +226,9 @@ Settings view of the autonomy modes shows the block and the residuals.
 - Phase 1 → Phase 3 (US1) and Phase 4 (US2) in parallel up to T018; they touch different modules
   (`adapters/cli_delegate/` vs. `mcp_server/` and the chat notice). T019 changes the drivers' call of `server_for` and
   meets PR A there.
-- Within US1: T002–T004 before T005; T005 before T006–T012; T006 before T007, T008 before T009.
+- Within US1: T002–T004 before T005; T005 before T006–T012; T006 before T007, T008 before T009; T032 before T033; all
+  before the gate T013 (T032/T033 were added by the clarification and keep their numbers).
+- T033 and T020 both change `useToolNotice.ts`/`toolNotice.ts`: whichever PR lands second rebases.
 - Within US2: T014–T015 before T016–T018; T016 before T017 and T018; T018 before T019 (the kept start error); T019
   before T020; T021 any time. T019 touches the three drivers that PR A changes: base PR B on PR A or rebase after it.
 - US3 needs T005 (the module) only; T024 before T025.
