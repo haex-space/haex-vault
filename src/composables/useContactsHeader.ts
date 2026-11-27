@@ -1,15 +1,17 @@
 import { contactsHeader, contactsHeaderCommand } from '~/lib/contacts/header'
-import { NEW_CONTACT } from '~/lib/contacts/registry'
+import type { ContactsActions } from '~/composables/useContactsActions'
 
 /**
  * The first row of the address book is its window's header (spec 093-app-headers, US2; the row of
  * spec 051, FR-002 and FR-004 before). The sidebar button, the search bound to `?q=` of the place
- * and "+" (a new contact, reading a Visitenkarte in) come from the description of
+ * and "+" (a new contact, a new group, reading a Visitenkarte in) come from the description of
  * `lib/contacts/header.ts`; this holds the state it is derived from and what its events do.
  */
 export function useContactsHeader(
   sidebarVisible: () => boolean,
   toggleSidebar: () => void,
+  /** From `provideContactsActions`: the frame that calls this provides them, so it cannot inject. */
+  actions: ContactsActions,
 ) {
   const { t } = useI18n()
   const router = useTabRouter()
@@ -29,18 +31,6 @@ export function useContactsHeader(
       if (value !== query.value) query.value = value
     },
   )
-
-  /** A new contact starts in the group the list shows. */
-  function newContact() {
-    const group = router.route.path.startsWith('/group/')
-      ? router.route.params.id
-      : undefined
-    void router.push(
-      group
-        ? `/entry/${NEW_CONTACT}/edit?group=${encodeURIComponent(group)}`
-        : `/entry/${NEW_CONTACT}/edit`,
-    )
-  }
 
   useWmHeader(
     () =>
@@ -64,7 +54,10 @@ export function useContactsHeader(
           router.setQuery({ q: command.text.trim() ? command.text : null })
           break
         case 'newContact':
-          newContact()
+          actions.newContact()
+          break
+        case 'newGroup':
+          actions.newGroup()
           break
         case 'import':
           void router.push('/import')
