@@ -7,14 +7,16 @@
 //! `event` lines (the text
 //! arrives as `text_delta` events), answers every `can_use_tool` control request through the
 //! approval bridge with `accept` or `reject` and nothing else (never a persistent variant), and
-//! sees the turn end with a `result` line. The account's device code is an entry of the password
+//! sees the turn end with a `result` line. A request for a tool of haex-vault's own server is
+//! accepted without the bridge in every mode: that server checks the call against the agent
+//! profile and the chat's approval mode and asks itself, as for Claude Code's `--allowedTools`. The account's device code is an entry of the password
 //! manager; it reaches the process as `CODELLM_DEVICE_CODE` after containment and never as a
 //! file or an argument. `ABACUS_API_KEY` is never set.
 //!
 //! `Ungated` (spec 009) runs the program's own full-autonomy mode instead, as Claude Code's
 //! `bypassPermissions` and Codex's `approvalPolicy: "never"` do: `--permission-mode unsupervised`
 //! with a settings file without the ask rule, so no tool call asks (research §15); a request the
-//! program still sends is rejected, nothing reaches the approval bridge. In both modes the settings
+//! program still sends for its own tools is rejected, nothing reaches the approval bridge. In both modes the settings
 //! file denies the bundled browser (spec 102); the program's server-side web search and page fetch
 //! are out of reach of its rules and are only shown to the person (spec 102 FR-013). `GatedPermissive` needs its own decision
 //! on what Abacus' tool names and inputs mean for the deny rules (spec 096 US3), so it ends with
@@ -197,6 +199,9 @@ pub(super) enum Line {
         tool_name: String,
         input: Value,
     },
+    /// The program asks to run a tool of haex-vault's own server, which checks the call against
+    /// the agent profile and the chat's approval mode itself.
+    HaexTool { request_id: String },
     /// A control request of a kind the adapter does not answer.
     UnknownRequest { request_id: String },
     /// The turn ended.
@@ -209,6 +214,21 @@ pub(super) enum Line {
     },
     /// Anything else: the vendor adds message types between versions.
     Other,
+}
+
+/// Whether a `can_use_tool` request is for a tool of haex-vault's server: an MCP call
+/// (`endpoint` `mcp_call`) whose `server_id` is [`haex_mcp::SERVER_NAME`], the name the run's MCP
+/// config gives it (version 2.10.23, read from its code).
+fn is_haex_tool(tool: Option<&Value>) -> bool {
+    let Some(tool) = tool else {
+        return false;
+    };
+    tool.get("endpoint").and_then(Value::as_str) == Some("mcp_call")
+        && tool
+            .get("args")
+            .and_then(|args| args.get("server_id"))
+            .and_then(Value::as_str)
+            == Some(haex_mcp::SERVER_NAME)
 }
 
 fn count(value: Option<&Value>) -> Option<usize> {
@@ -271,6 +291,11 @@ pub(super) fn parse_line(line: &str) -> Line {
             // `args`; `displayName` is the program's label.
             let call = request.and_then(|r| r.get("request"));
             let tool = call.and_then(|c| c.get("tool"));
+            if is_haex_tool(tool) {
+                return Line::HaexTool {
+                    request_id: request_id.to_owned(),
+                };
+            }
             let tool_name = call
                 .and_then(|c| c.get("tool_name").or_else(|| c.get("toolName")))
                 .or_else(|| tool.and_then(|t| t.get("name")))
@@ -764,6 +789,19 @@ async fn drive(
                     matches!(decision, crate::chat::tools::ApprovalDecision::Allow)
                 };
                 let answer = approval_answer(&request_id, allow);
+                let write = tokio::select! {
+                    () = cancel.cancelled() => return Outcome::Done,
+                    write = write_line(stdin, &answer) => write,
+                };
+                if write.is_err() {
+                    return Outcome::Ended;
+                }
+            }
+            Line::HaexTool { request_id } => {
+                // haex-vault's server decides about its own tools by the agent profile and the
+                // chat's approval mode and asks the person itself; the program must not ask again
+                // (as Claude Code's `--allowedTools mcp__haex`), in every mode.
+                let answer = approval_answer(&request_id, true);
                 let write = tokio::select! {
                     () = cancel.cancelled() => return Outcome::Done,
                     write = write_line(stdin, &answer) => write,
