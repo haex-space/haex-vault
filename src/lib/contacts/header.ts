@@ -20,6 +20,7 @@ export type ContactsHeaderCommand =
   | { kind: 'sidebar' }
   | { kind: 'search'; text: string }
   | { kind: 'newContact' }
+  | { kind: 'newGroup' }
   | { kind: 'import' }
 
 export function contactsHeader(
@@ -65,6 +66,12 @@ export function contactsHeader(
           },
           {
             type: 'item',
+            id: 'newGroup',
+            label: t('contacts.groups.new'),
+            icon: 'lucide:users',
+          },
+          {
+            type: 'item',
             id: 'import',
             label: t('contacts.import.menu'),
             icon: 'lucide:scan-qr-code',
@@ -90,9 +97,11 @@ export function contactsHeaderCommand(
       if (event.kind !== 'click') return null
       return event.value === 'new'
         ? { kind: 'newContact' }
-        : event.value === 'import'
-          ? { kind: 'import' }
-          : null
+        : event.value === 'newGroup'
+          ? { kind: 'newGroup' }
+          : event.value === 'import'
+            ? { kind: 'import' }
+            : null
     default:
       return null
   }

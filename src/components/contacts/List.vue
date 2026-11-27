@@ -123,26 +123,28 @@ function secondLine(header: (typeof shown.value)[number]): string {
       <ul
         class="flex flex-col divide-y divide-background overflow-hidden rounded-xl bg-muted"
       >
-        <li>
-          <button
-            type="button"
-            class="flex min-h-14 w-full items-center gap-3 px-3 py-2 text-left hover:bg-foreground/5"
-            :data-testid="`contacts-row-${split.own.id}`"
-            @click="open(split.own.id, true)"
-          >
-            <ContactsAvatar :name="split.own.name" :photo="split.own.photo" />
-            <span class="flex min-w-0 flex-1 flex-col">
-              <span
-                class="truncate font-medium"
-                data-testid="contacts-row-name"
-                >{{ contactTitle(split.own, titleLabels) }}</span
-              >
-              <span class="truncate text-sm text-muted-foreground">{{
-                secondLine(split.own)
-              }}</span>
-            </span>
-          </button>
-        </li>
+        <ContactsContextMenu :contact="split.own">
+          <li>
+            <button
+              type="button"
+              class="flex min-h-14 w-full items-center gap-3 px-3 py-2 text-left hover:bg-foreground/5"
+              :data-testid="`contacts-row-${split.own.id}`"
+              @click="open(split.own.id, true)"
+            >
+              <ContactsAvatar :name="split.own.name" :photo="split.own.photo" />
+              <span class="flex min-w-0 flex-1 flex-col">
+                <span
+                  class="truncate font-medium"
+                  data-testid="contacts-row-name"
+                  >{{ contactTitle(split.own, titleLabels) }}</span
+                >
+                <span class="truncate text-sm text-muted-foreground">{{
+                  secondLine(split.own)
+                }}</span>
+              </span>
+            </button>
+          </li>
+        </ContactsContextMenu>
       </ul>
     </section>
     <section
@@ -156,48 +158,56 @@ function secondLine(header: (typeof shown.value)[number]): string {
       <ul
         class="flex flex-col divide-y divide-background overflow-hidden rounded-xl bg-muted"
       >
-        <li v-for="header in section.headers" :key="header.id">
-          <button
-            type="button"
-            class="flex min-h-14 w-full items-center gap-3 px-3 py-2 text-left hover:bg-foreground/5"
-            :aria-pressed="selecting ? selected.has(header.id) : undefined"
-            :data-testid="`contacts-row-${header.id}`"
-            @click="open(header.id)"
-          >
-            <ShadcnCheckbox
-              v-if="selecting"
-              :model-value="selected.has(header.id)"
-              tabindex="-1"
-              class="pointer-events-none"
-              :data-testid="`contacts-row-check-${header.id}`"
-            />
-            <ContactsAvatar :name="header.name" :photo="header.photo" />
-            <span class="flex min-w-0 flex-1 flex-col">
-              <span
-                class="truncate font-medium"
-                data-testid="contacts-row-name"
-                >{{ header.name || t('contacts.noName') }}</span
-              >
-              <span class="truncate text-sm text-muted-foreground">{{
-                secondLine(header)
-              }}</span>
-            </span>
-            <Icon
-              v-if="header.issue"
-              name="lucide:circle-alert"
-              class="size-4 shrink-0 text-destructive"
-              :aria-label="t(`settings.contacts.phone.issues.${header.issue}`)"
-              :data-testid="`contacts-row-issue-${header.id}`"
-            />
-            <Icon
-              v-else-if="header.targets.length"
-              name="lucide:smartphone"
-              class="size-4 shrink-0 text-muted-foreground"
-              :aria-label="t('contacts.targets.onPhone')"
-              :data-testid="`contacts-row-on-phone-${header.id}`"
-            />
-          </button>
-        </li>
+        <ContactsContextMenu
+          v-for="header in section.headers"
+          :key="header.id"
+          :contact="header"
+        >
+          <li>
+            <button
+              type="button"
+              class="flex min-h-14 w-full items-center gap-3 px-3 py-2 text-left hover:bg-foreground/5"
+              :aria-pressed="selecting ? selected.has(header.id) : undefined"
+              :data-testid="`contacts-row-${header.id}`"
+              @click="open(header.id)"
+            >
+              <ShadcnCheckbox
+                v-if="selecting"
+                :model-value="selected.has(header.id)"
+                tabindex="-1"
+                class="pointer-events-none"
+                :data-testid="`contacts-row-check-${header.id}`"
+              />
+              <ContactsAvatar :name="header.name" :photo="header.photo" />
+              <span class="flex min-w-0 flex-1 flex-col">
+                <span
+                  class="truncate font-medium"
+                  data-testid="contacts-row-name"
+                  >{{ header.name || t('contacts.noName') }}</span
+                >
+                <span class="truncate text-sm text-muted-foreground">{{
+                  secondLine(header)
+                }}</span>
+              </span>
+              <Icon
+                v-if="header.issue"
+                name="lucide:circle-alert"
+                class="size-4 shrink-0 text-destructive"
+                :aria-label="
+                  t(`settings.contacts.phone.issues.${header.issue}`)
+                "
+                :data-testid="`contacts-row-issue-${header.id}`"
+              />
+              <Icon
+                v-else-if="header.targets.length"
+                name="lucide:smartphone"
+                class="size-4 shrink-0 text-muted-foreground"
+                :aria-label="t('contacts.targets.onPhone')"
+                :data-testid="`contacts-row-on-phone-${header.id}`"
+              />
+            </button>
+          </li>
+        </ContactsContextMenu>
       </ul>
     </section>
   </div>

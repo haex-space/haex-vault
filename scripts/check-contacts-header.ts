@@ -72,7 +72,7 @@ test('the test ids of today stay: controls by name, entries as <menu>-<entry>', 
   assert.ok(add?.type === 'menu')
   assert.deepEqual(
     add.items.flatMap((i) => (i.type === 'item' ? [i.id] : [])),
-    ['new', 'import'],
+    ['new', 'newGroup', 'import'],
   )
 })
 
@@ -92,6 +92,9 @@ test('events stand for the commands the toolbar had', () => {
   assert.equal(cmd({ id: 'q', kind: 'submit', value: 'beck' }), null)
   assert.deepEqual(cmd({ id: 'add', kind: 'click', value: 'new' }), {
     kind: 'newContact',
+  })
+  assert.deepEqual(cmd({ id: 'add', kind: 'click', value: 'newGroup' }), {
+    kind: 'newGroup',
   })
   assert.deepEqual(cmd({ id: 'add', kind: 'click', value: 'import' }), {
     kind: 'import',
