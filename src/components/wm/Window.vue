@@ -8,7 +8,7 @@
  * component providing `useWmTab()` itself, so Vue's provide/inject stays
  * correctly scoped per tab even with several mounted at once (research R8).
  */
-import { computed, provide, ref, watch } from 'vue'
+import { computed, onMounted, provide, ref, watch } from 'vue'
 import { getAppDefinition } from '~/lib/wm/apps'
 import { windowDisplayRect } from '~/lib/wm/geometry'
 import { startsTyping } from '~/lib/wm/typeToSearch'
@@ -185,22 +185,19 @@ const header = useTemplateRef<{
 }>('header')
 const frame = useTemplateRef<HTMLElement>('frame')
 
-// Typing with no field in focus opens the header's search and seeds it with that character. The
-// field focuses asynchronously, so it cannot rely on the browser inserting the key into it.
-// VueUse's own check only knows A-Z and 0-9 by key code, so `startsTyping` decides instead; the key
-// must be aimed at this window or, with nothing focused, at the page (a dialog or another window's
-// field is not it), and only the active window reacts.
-onStartTyping((event) => header.value?.openSearch(event.key), {
-  isTypedCharValid: (event) => {
-    if (!props.active || props.window.minimized || searchOpen.value)
-      return false
-    const target = event.target
-    const owns =
-      target === document.body ||
-      (target instanceof Node && !!frame.value?.contains(target))
-    return startsTyping(event, owns)
-  },
-})
+// Use a non-passive keydown listener: openSearch inserts the first character before the input
+// focuses, so prevent its browser default only when this window handled that character.
+function onTypeToSearch(event: KeyboardEvent) {
+  if (!props.active || props.window.minimized || searchOpen.value) return
+  const target = event.target
+  const owns =
+    target === document.body ||
+    (target instanceof Node && !!frame.value?.contains(target))
+  if (!startsTyping(event, owns)) return
+  if (header.value?.openSearch(event.key)) event.preventDefault()
+}
+onMounted(() => document.addEventListener('keydown', onTypeToSearch))
+onScopeDispose(() => document.removeEventListener('keydown', onTypeToSearch))
 onScopeDispose(
   wm.registerHeaderFlusher((tab) => header.value?.flushSearch(tab)),
 )

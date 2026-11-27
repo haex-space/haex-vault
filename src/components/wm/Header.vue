@@ -79,6 +79,13 @@ defineExpose({
 
 /** What is drawn: the description most recently applied (at most one per animation frame). */
 const shown = shallowRef<WmHeaderDescription | null>(props.description)
+let appliedOwner = props.owner
+let appliedDescription: WmHeaderDescription | null = props.description
+let queuedCharacters: {
+  character: string
+  owner?: string
+  description: WmHeaderDescription | null
+}[] = []
 // A search is a button at the start of the row, whichever area the app gave it; only its field
 // opens in the middle (`HeaderSearchPopover`).
 const entries = computed<Entry[]>(() => {
@@ -105,6 +112,14 @@ function describe(next: WmHeaderDescription | null, owner?: string) {
     AREAS.flatMap((area) => next?.[area] ?? []),
     owner,
   )
+  appliedOwner = owner
+  appliedDescription = next
+  const queued = queuedCharacters
+  queuedCharacters = []
+  for (const entry of queued) {
+    if (entry.owner === owner && entry.description === next)
+      openCurrentSearch(entry.character)
+  }
 }
 describe(props.description, props.owner)
 
@@ -224,13 +239,29 @@ const searchOf = (control: WmHeaderControl) =>
  * appending the character. `false` while the description has no enabled search, so the key stays
  * what it was.
  */
-function openSearch(character: string): boolean {
+function openCurrentSearch(character: string): boolean {
   const control = searchControls.value.find((c) => !c.disabled)
   if (!control) return false
   const field = searches.fieldFor(control.id, control.value)
   field.type(field.text.value + character)
   searchOpen.value = control.id
   return true
+}
+
+function openSearch(character: string): boolean {
+  if (appliedOwner !== props.owner || appliedDescription !== props.description) {
+    const hasEnabledSearch = AREAS.flatMap(
+      (area) => props.description?.[area] ?? [],
+    ).some((control) => control.type === 'search' && !control.disabled)
+    if (!hasEnabledSearch) return false
+    queuedCharacters.push({
+      character,
+      owner: props.owner,
+      description: props.description,
+    })
+    return true
+  }
+  return openCurrentSearch(character)
 }
 
 // A focused control that moves into the menu hands its focus to the menu button (FR-016).
