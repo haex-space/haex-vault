@@ -30,8 +30,9 @@ export default defineNuxtConfig({
   // buttons (close, back, edit, add, open-external, menu, info, refresh) on `UiButtonIcon`.
   // #187 gives them the primary hover (`hover` prop), a slot on `UiButtonIcon`, and adds
   // `UiButtonReveal`, `UiButtonMoveUp`, `UiButtonMoveDown`, `UiButtonSave` and `UiButtonLink`.
+  // #188 gives the copy, delete and download buttons the same plain colour as the other icon buttons.
   extends: [
-    'github:haex-space/haextension/packages/haex-ui#cba33a1dd154f22412344c5bc313a581cb8f1d59',
+    'github:haex-space/haextension/packages/haex-ui#2f3f7540b64add5e08b4866e82258752fad1ae99',
   ],
   build: {
     transpile: ['reka-ui'],
