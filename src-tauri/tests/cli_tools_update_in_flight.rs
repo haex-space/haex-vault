@@ -45,6 +45,7 @@ cat >/dev/null
 echo $$ > "$HOME/pid-{version}"
 echo "$CLAUDE_CONFIG_DIR" > "$HOME/run-folder-{version}"
 echo started > "$HOME/started-{version}"
+echo '{{"type":"system","subtype":"init","tools":["Task","Bash","Read"],"mcp_servers":[]}}'
 while [ ! -f "$HOME/go" ]; do sleep 0.05; done
 cat <<'EOF'
 {{"type":"stream_event","event":{{"type":"content_block_delta","delta":{{"type":"text_delta","text":"from {version}"}}}}}}

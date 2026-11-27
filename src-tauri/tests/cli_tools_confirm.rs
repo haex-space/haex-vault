@@ -22,6 +22,7 @@ const VERSION: &str = "1.0.0";
 const CLAUDE_OK: &str = r#"#!/bin/sh
 cat >/dev/null
 cat <<'EOF'
+{"type":"system","subtype":"init","tools":["Task","Bash","Read"],"mcp_servers":[]}
 {"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"ok"}}}
 {"type":"result","is_error":false,"subtype":"success","result":"ok","usage":{"input_tokens":1,"output_tokens":1}}
 EOF
@@ -29,6 +30,7 @@ EOF
 
 const CLAUDE_ERROR_RESULT: &str = r#"#!/bin/sh
 cat >/dev/null
+echo '{"type":"system","subtype":"init","tools":["Task","Bash","Read"],"mcp_servers":[]}'
 echo '{"type":"result","is_error":true,"subtype":"error","result":"Invalid API key"}'
 "#;
 
@@ -38,6 +40,7 @@ const CLAUDE_NO_RESULT: &str = "#!/bin/sh\ncat >/dev/null\necho 'could not conne
 /// A run that is still going when the user stops it.
 const CLAUDE_SLOW: &str = r#"#!/bin/sh
 cat >/dev/null
+echo '{"type":"system","subtype":"init","tools":["Task","Bash","Read"],"mcp_servers":[]}'
 echo '{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"so far"}}}'
 sleep 30
 "#;
@@ -46,8 +49,10 @@ fn codex(turn: &str, after: &str) -> String {
     format!(
         r#"#!/bin/sh
 read a; echo '{{"id":1,"result":{{}}}}'
-read b; echo '{{"id":2,"result":{{"thread":{{"id":"t1"}}}}}}'
-read c; echo '{{"id":3,"result":{{}}}}'
+read b; echo '{{"id":2,"result":{{"config":{{"web_search":"disabled"}}}}}}'
+read c; echo '{{"id":3,"result":{{"data":[{{"name":"browser_use","enabled":false}},{{"name":"browser_use_external","enabled":false}},{{"name":"browser_use_full_cdp_access","enabled":false}},{{"name":"browser_annotation_api","enabled":false}},{{"name":"in_app_browser","enabled":false}}],"nextCursor":null}}}}'
+read d; echo '{{"id":4,"result":{{"thread":{{"id":"t1"}}}}}}'
+read e; echo '{{"id":5,"result":{{}}}}'
 echo '{{"method":"item/agentMessage/delta","params":{{"delta":"hi"}}}}'
 {turn}
 {after}
