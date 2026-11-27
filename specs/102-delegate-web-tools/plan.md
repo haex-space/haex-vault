@@ -96,7 +96,8 @@ src-tauri/src/mcp_server/
 ├── mod.rs                  # the server starts with the vault; `mcp.enabled` sets `external` instead of start/stop
 ├── server.rs               # StartArgs gains `external: bool`; HTTP endpoint only when external
 ├── connection.rs / hello.rs # while not external, a hello that is not a running delegate pass is closed
-├── commands.rs             # `mcp_delegate_status` loses `off`; toggling the access changes `external` live
+├── delegates.rs            # `server_for` returns the reason instead of a silent `None` (FR-012)
+├── commands.rs             # `mcp_delegate_status` removed; toggling the access changes `external` live
 └── *_tests.rs              # endpoint gate with and without external access
 src-tauri/tests/
 └── cli_delegate_*_run.rs   # stub transcripts with and without the block (Claude init, Codex answers)

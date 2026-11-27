@@ -150,7 +150,8 @@ confirm the request ends with a visible reason instead of running without the bl
 
 ### Functional Requirements
 
-- **FR-001**: Every start of a subscription delegate in the chat (Claude Code, Codex, Abacus AI) MUST have the delegate's
+- **FR-001**: Every start of a subscription delegate (Claude Code, Codex, Abacus AI), in the chat and in model jobs
+  (spec 055), MUST have the delegate's
   own web tools blocked: web search, web fetch and any tool of the program that loads a web page for the model. Excepted
   are web tools that run on the vendor's server, out of reach of the program's switches and rules (Abacus' web search and
   page fetch, operator decision 4); they are residuals under FR-008.
@@ -178,17 +179,20 @@ confirm the request ends with a visible reason instead of running without the bl
   The spec and the Settings text that describes the block MUST name them as residuals; under "Standard" each shell call
   remains a question to the person.
 - **FR-009**: The instruction to a delegate MUST stay: HaexVault's agent browser is the way to the web, and a failure is
-  reported as what failed. With FR-004 every delegate in the chat gets it. For a vendor whose own web tools cannot be
-  blocked (Abacus, FR-001), the instruction MUST name those tools as the program calls them and ask the model not to use
-  them; this is a request, not a block, and the residual of FR-008 stays named.
+  reported as what failed. Every start with HaexVault's server gets it (with FR-004, every chat start unless FR-012
+  applies). For a vendor whose own web tools cannot be blocked (Abacus, FR-001), every start, with or without the
+  server, MUST name those tools as the program calls them and ask the model not to use them; this is a request, not a
+  block, and the residual of FR-008 stays named.
 - **FR-010**: The block MUST NOT change what a delegate may do otherwise: its file, shell, edit and computer-use tools,
   HaexVault's tools and the person's approval posture stay as they are.
 - **FR-011**: The external access MUST govern only programs outside HaexVault. While it is off, HaexVault MUST refuse every
   connection that is not a delegate HaexVault started for the current start, and MUST NOT open anything a program outside
   could reach without a delegate's pass. Its Settings text MUST say that it is for programs outside HaexVault and that
-  delegates in the chat do not need it.
-- **FR-012**: If HaexVault's tools cannot be provided for a delegate start, the chat MUST say so with the reason; the
-  delegate's block still holds. The notice that asked the person to turn on the external access for a delegate
+  delegates in the chat do not need it. On a platform without delegates (Android, iOS) the server keeps running only
+  while the external access is on.
+- **FR-012**: If HaexVault's tools cannot be provided for a delegate start in the chat, for any reason (the server does
+  not run, the active agent profile does not offer the model, a pass cannot be made, the helper cannot be found), the
+  chat MUST say so for that start with the reason; the delegate's block still holds. The notice that asked the person to turn on the external access for a delegate
   (`chat.toolNotice.delegateOff`) and the status it rests on are removed (no compatibility path).
 
 ### Key Entities

@@ -43,7 +43,9 @@ An init line without a `tools` field also ends the request (the block cannot be 
 | `config/read`              | `config.web_search == "disabled"`                         |
 | `experimentalFeature/list` | each of the five features is listed with `enabled: false` |
 
-A missing feature, an error answer or another value ends the request. An unknown feature name in the arguments already
+`experimentalFeature/list` pages: its result is `{ data, nextCursor }` (0.169.0 answered 215 features with
+`nextCursor: null`); HaexVault follows `nextCursor` until it is `null` before judging. A missing feature, an error answer
+or another value ends the request. An unknown feature name in the arguments already
 ends the program at start (`Unknown feature flag`); its stderr becomes the reason.
 
 ## Abacus AI

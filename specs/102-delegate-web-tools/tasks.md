@@ -72,35 +72,41 @@ it ends with `AdapterError::Unavailable`; the builders' arguments match [contrac
 - [ ] T005 [US1] `web_block.rs`: `CLAUDE_TOOLS` (the allow-list of contracts/web-block.md as one comma-separated value),
       `claude_args()`, `CODEX_DISABLED_FEATURES`, `codex_args()`, `ABACUS_DENY_RULES`, and the pure confirmations
       `confirm_claude_init(&Value) -> Result<(), String>` and `confirm_codex(config_read: &Value, features: &Value) ->
-    Result<(), String>`; the reason text of contracts/web-block.md ("{vendor} started without its web block ({what});
+Result<(), String>`; the reason text of contracts/web-block.md ("{vendor} started without its web block ({what});
       nothing was run."). Makes T002–T004 pass.
 - [ ] T006 [US1] `src-tauri/src/adapters/cli_delegate/claude.rs` `build_command`: add `web_block::claude_args()` after
-      the catalog's `config_args`, in every autonomy mode; `claude_tests.rs` asserts the arguments for each mode and that
-      `--allowedTools mcp__haex` stays for a start with HaexVault's server.
+      the catalog's `config_args`, in every autonomy mode; `claude_tests.rs` asserts the arguments for each mode, that
+      `--allowedTools mcp__haex` stays for a start with HaexVault's server, and that the block sets no environment variable
+      (the command's `get_envs()` equals that of a start without the block; spec FR-005).
 - [ ] T007 [US1] `claude.rs` `spawn_claude_invocation`: read the first `system/init` line before any chunk reaches the
       chat and run `confirm_claude_init`; on refusal terminate the child (`classify_exit_error` path) and return
       `AdapterError::Unavailable` with the reason. Extend the stub of `src-tauri/tests/cli_delegate_claude.rs` to print an
       init line with and without `WebFetch`: with it the request ends with the reason and no answer text, without it the
       answer arrives.
 - [ ] T008 [US1] `src-tauri/src/adapters/cli_delegate/codex.rs` `build_command`: add `web_block::codex_args()` after
-      the catalog's `config_args` and before `app-server`; `codex_tests.rs` asserts the order.
+      the catalog's `config_args` and before `app-server`; `codex_tests.rs` asserts the order and that the block sets no
+      environment variable (spec FR-005).
 - [ ] T009 [US1] `codex.rs` `spawn_codex_app_server`: after `initialize`/`initialized` and before `thread/start`, send
-      `config/read` (`includeLayers: false`) and `experimentalFeature/list`, pass both results to `confirm_codex`, and on
-      refusal stop the app-server and return `AdapterError::Unavailable`. The request/answer plumbing stays in `codex.rs`,
-      the judgement in `web_block.rs` (the file's maintainability exception). Extend the stub app-server used by
-      `src-tauri/tests/cli_delegate_codex_live.rs` (or its unit stub) to answer both requests, once with the block and once
-      with `browser_use` enabled.
+      `config/read` (`includeLayers: false`) and `experimentalFeature/list`, following `nextCursor` until it is `null` and
+      joining the pages' `data`, pass both results to `confirm_codex`, and on refusal stop the app-server and return
+      `AdapterError::Unavailable`. The request/answer plumbing stays in `codex.rs`, the judgement in `web_block.rs` (the
+      file's maintainability exception). Extend the stub app-server used by `src-tauri/tests/cli_delegate_codex_live.rs`
+      (or its unit stub) to answer both requests: once with the block, once with `browser_use` enabled, once with the list
+      split over two pages, and once exiting at start with `Error: Unknown feature flag: browser_use` on stderr, whose text
+      must reach the chat as the reason (spec FR-007, SC-005).
 - [ ] T010 [US1] `src-tauri/src/adapters/cli_delegate/abacus.rs`: replace `approval_settings()` by
       `run_settings(asks: bool) -> Value` holding `permissions.deny = ABACUS_DENY_RULES` always and `permissions.ask = ["*"]`
       only when `asks`; write the file and pass `--settings` in "Standard" and "Ungated" (today only when `asks`); keep
       `APPROVAL_SETTINGS_FILE` as the file name. `abacus_models.rs` gets the same file through `build_command`. Update
-      `abacus_tests.rs`: both modes pass `--settings`, the file of "Ungated" has no `ask`, the file of "Standard" has both.
+      `abacus_tests.rs`: both modes pass `--settings`, the file of "Ungated" has no `ask`, the file of "Standard" has both,
+      and the block sets no environment variable (spec FR-005).
       Update `src-tauri/tests/cli_delegate_abacus_run.rs` where it reads the settings path.
 - [ ] T011 [US1] `src-tauri/src/adapters/cli_delegate/haex_mcp.rs`: `with_instruction` takes the vendor; for
-      `DelegateVendor::Abacus` the instruction gains one sentence naming `web_search_text_only` ("WebSearch") and
-      `scrape_url_content` ("Fetch") as tools not to use, with HaexVault's agent browser as the way to the web (spec
-      FR-009). Callers in `claude.rs`, `codex.rs`, `abacus.rs` pass their vendor. `haex_mcp_tests.rs`: the Abacus text
-      names both tools, Claude's and Codex' text is unchanged.
+      `DelegateVendor::Abacus` every start gets one sentence naming `web_search_text_only` ("WebSearch") and
+      `scrape_url_content` ("Fetch") as tools not to use, with or without HaexVault's server; with the server it adds
+      HaexVault's agent browser as the way to the web (spec FR-009). Callers in `claude.rs`, `codex.rs`, `abacus.rs` pass
+      their vendor. `haex_mcp_tests.rs`: the Abacus text names both tools with and without the server, Claude's and Codex'
+      text is unchanged.
 - [ ] T012 [US1] Model jobs (spec 055) use the same builders: add one test per vendor in the job adapter's tests (find the
       call sites of `claude::build_command`, `codex::build_command`, `abacus::build_command` outside the chat path) that a
       job start carries the block.
@@ -138,16 +144,25 @@ program's credential is refused; the HTTP endpoint is closed; turning the access
       `!external`, any hello that is not a delegate pass gets the unknown-client answer and is closed; the delegate branch is
       unchanged.
 - [ ] T018 [US2] `src-tauri/src/mcp_server/mod.rs` (`apply`/`apply_locked` and the vault-open start around line 332): the
-      server starts when a vault opens whatever `mcp.enabled` says, with `external = enabled`; `mcp_configure` changing the
-      access calls `set_external` instead of stopping and starting; a start error is kept in the slot with its text.
-- [ ] T019 [US2] `src-tauri/src/mcp_server/delegates.rs` and `commands.rs`: `DelegateStatus` becomes `Available |
-    Unavailable { reason }` (the kept start error) instead of `Available | Off`; `mcp_delegate_status` answers it.
-      Regenerate the binding `src/types/bindings/DelegateStatus.ts` and strip trailing spaces.
+      server starts when a vault opens whatever `mcp.enabled` says, with `external = enabled`, on platforms with delegates
+      (`capabilities().cli_delegates`); elsewhere (Android, iOS) it keeps starting only while `mcp.enabled` is on.
+      `mcp_configure` changing the access calls `set_external` instead of stopping and starting; a start error is kept in
+      the slot with its text, for T019.
+- [ ] T019 [US2] `src-tauri/src/adapters/cli_delegate/haex_mcp.rs` (`HaexAccess::server_for`, `server_for`) and
+      `src-tauri/src/mcp_server/delegates.rs` (`DelegateHub::server_for`): return `Result<HaexServer, String>`; each of
+      the five paths that today log and return `None` (no running server with the kept start error, model not offered by
+      the active profile, write error, no helper path, no pass) returns its reason. The three drivers (`claude.rs`,
+      `codex.rs`, `abacus.rs`) emit `chat-delegate-tools-unavailable` `{ threadId, delegateKind, reason }` through
+      `DelegateChatContext.emit` for a chat start and run the turn without HaexVault's server; a job start only logs.
+      Remove `mcp_delegate_status`, `DelegateStatus` and `src/types/bindings/DelegateStatus.ts`. Tests: each reason in
+      `src-tauri/tests/mcp_server_delegates.rs`, the event in one driver test per vendor.
 - [ ] T020 [US2] `src/lib/chat/toolNotice.ts`, `src/composables/useToolNotice.ts`, `scripts/check-chat-tool-notice.ts`:
-      `delegateNoticeKey` maps `unavailable` to `chat.toolNotice.delegateUnavailable` with `{name}` and `{reason}`;
-      `delegateOff` is gone. `pnpm check:chat-state` covers both answers.
-- [ ] T021 [P] [US2] `src/i18n/locales/de.json` and `en.json`: remove `chat.toolNotice.delegateOff`; add
-      `chat.toolNotice.delegateUnavailable` ("{name} hat in diesem Zug keine HaexVault-Werkzeuge: {reason}"); rewrite
+      drop `delegateNoticeKey` and the `mcp_delegate_status` call; listen to `chat-delegate-tools-unavailable` and show
+      `chat.toolNotice.delegateUnavailable` with `{name}` and `{reason}` once per conversation and reason. The check
+      `pnpm check:chat-state` covers the once-per-reason rule.
+- [ ] T021 [P] [US2] `src/i18n/locales/de.json` and `en.json`: remove `chat.toolNotice.delegateOff` and
+      `delegateStatusUnknown`; add `chat.toolNotice.delegateUnavailable` ("{name} hat für diese Antwort keine
+      HaexVault-Werkzeuge: {reason}"); rewrite
       `settings.locations.ai.access.description`, its `keywords` and `actions.settings.agents.mcp.enable` so they say the
       access is for programs outside HaexVault (an editor such as VS Code) and that the agents in the chat do not need it;
       the same sentence in `src/components/settings/agents/AccessView.vue` where it explains the switch.
@@ -187,8 +202,8 @@ Settings view of the autonomy modes shows the block and the residuals.
 
 ## Phase 6: Operator runs and polish
 
-- [ ] T028 (operator) quickstart §1 per vendor and mode with the external access off; record per vendor in research a
-      "Measured" line (SC-001, SC-002, SC-004, SC-003 traces).
+- [ ] T028 (operator) quickstart §1 per vendor and mode with the external access off, then once per vendor with it on
+      (SC-002 "on and off"); record per vendor in research a "Measured" line (SC-001, SC-002, SC-004, SC-003 traces).
 - [ ] T029 (operator) quickstart §2: a program outside refused while off, connecting while on; profile without browser.
 - [ ] T030 (operator, credits) quickstart §3: Abacus' browser refused in both modes; count own web tool use vs.
       HaexVault's browser after T011; record in research R4.
@@ -199,10 +214,12 @@ Settings view of the autonomy modes shows the block and the residuals.
 
 ## Dependencies & Execution Order
 
-- Phase 1 → Phase 3 (US1) and Phase 4 (US2) in parallel; they touch different modules (`adapters/cli_delegate/` vs.
-  `mcp_server/` and the chat notice). T011 and T019 meet only in their tests' expectations, not in files.
+- Phase 1 → Phase 3 (US1) and Phase 4 (US2) in parallel up to T018; they touch different modules
+  (`adapters/cli_delegate/` vs. `mcp_server/` and the chat notice). T019 changes the drivers' call of `server_for` and
+  meets PR A there.
 - Within US1: T002–T004 before T005; T005 before T006–T012; T006 before T007, T008 before T009.
-- Within US2: T014–T015 before T016–T018; T016 before T017 and T018; T019 before T020; T021 any time.
+- Within US2: T014–T015 before T016–T018; T016 before T017 and T018; T018 before T019 (the kept start error); T019
+  before T020; T021 any time. T019 touches the three drivers that PR A changes: base PR B on PR A or rebase after it.
 - US3 needs T005 (the module) only; T024 before T025.
 - Operator runs need PR A and PR B merged (T028, T029) and T011 (T030).
 

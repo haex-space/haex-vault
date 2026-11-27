@@ -128,8 +128,11 @@ through the helper on the local endpoint with `--delegate-token`; `hello.rs` mar
 **Decision**: the server runs while a vault is open, whatever the external access says. The external access decides two
 things only: whether the HTTP endpoint is open, and whether the local endpoint accepts anything but a delegate's pass.
 While it is off, a connection whose hello is not a delegate with a known, running pass is closed before any tool is
-listed (spec FR-011). `delegateOff`, its i18n texts and the `off` answer of `mcp_delegate_status` go; a start without the
-server (bind failed) shows a notice with the reason (FR-012).
+listed (spec FR-011). `delegateOff`, its i18n texts, `mcp_delegate_status` and `DelegateStatus` go. `server_for` today
+returns `None` silently (only a log line) on five paths: no running server, the model not offered by the active profile,
+a write error, no helper path, no pass (`mcp_server/delegates.rs`). It returns the reason instead, and the driver emits
+it to the chat for that start through the context's `EventEmitter` (FR-012); a job start only logs. On Android and iOS,
+which have no delegates, the server keeps starting only with the access on.
 
 **Rationale**: the pass already exists, lives only in the process and ends with the start (spec 021), so it is a sufficient
 gate on the local endpoint. HTTP is the way programs like an editor connect; keeping it closed while the access is off

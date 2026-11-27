@@ -10,6 +10,8 @@ Spec FR-004, FR-011, FR-012; research R6.
 | open  | off             | runs; accepts delegate passes only                    | closed                           |
 | none  | either          | stopped                                               | stopped                          |
 
+On a platform without delegates (Android, iOS) the server keeps today's rule: it runs only while the access is on.
+
 Turning the access on or off changes the two right-hand columns without a restart of the vault; a running delegate keeps
 its connection either way. Connections of programs outside that are open when the access is turned off are closed
 (as today when the server stops).
@@ -22,7 +24,10 @@ listed, with the same answer as an unknown client.
 
 ## What the chat shows
 
-- `chat.toolNotice.delegateOff` and the `off` answer of `mcp_delegate_status` are removed.
-- When `DelegateHub::server_for` returns no server for a chat start (the server could not start), the turn runs without
-  HaexVault's tools and the chat shows once per conversation: "{name} has no HaexVault tools for this turn: {reason}."
-  The web block of the delegate is unchanged.
+- `chat.toolNotice.delegateOff`, `mcp_delegate_status` and the `DelegateStatus` binding are removed.
+- `HaexAccess::server_for` returns `Result<HaexServer, String>`; every path that today logs and returns `None` (server not
+  running, model not offered by the active profile, write error, no helper path, no pass) returns its reason instead.
+- For a chat start (a thread is known) the driver emits `chat-delegate-tools-unavailable` through the context's
+  `EventEmitter` with `{ threadId, delegateKind, reason }` and runs the turn without HaexVault's tools. The chat shows
+  "{name} has no HaexVault tools for this answer: {reason}" once per conversation and reason. The web block of the
+  delegate is unchanged. A job start (no thread) only logs.
