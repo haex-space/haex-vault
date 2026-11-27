@@ -18,11 +18,11 @@ Run by the operator with their own accounts, in a vault with the delegates insta
    open the page; no folder like `/tmp/ab-profile`, no browser socket and no download appear outside the vault
    (`find /tmp ~ -newer <marker> -maxdepth 2` before and after) (SC-003).
 
-## 3. Abacus rule names (research R4)
+## 3. Abacus' browser (research R4)
 
-In "Standard" and "Ungated", ask Abacus to: search the web; fetch a page; open a page with its browser; start its browser
-in a background shell. Record per call whether the program refused it without a question, and with which rule. Narrow the
-deny rules in `web_block.rs` to the forms that matched and record the result in research R4.
+In "Standard" and "Ungated", ask Abacus to run `agent-browser --version`, `npx agent-browser --version` and
+`export X=1; agent-browser --version`. Expect each to be refused with "Tool was denied by a permission rule", without a
+question. Its web search and page fetch still run (server-side residual).
 
 ## 4. A new program version
 
@@ -32,6 +32,6 @@ Before a version is added to `catalog.json`:
   compare the init line's `tools` with the allow-list; add a new non-web tool to the allow-list, leave a new web tool out.
 - Codex: `codex features list` in a throwaway `CODEX_HOME`; any new feature that loads web pages or drives a browser gets
   a `--disable`.
-- Abacus: compare its tool names (`web_search_text_only`, `scrape_url_content`, the bundled browser command) with the deny
-  rules, and repeat §3 if they changed.
+- Abacus: check that the bundled browser is still called `agent-browser` (its built-in skills' `allowed-tools`) and that
+  no new tool reaches the web from the computer; repeat §3.
 - Then add the version to the vendor's `checked_versions` in `web_block.rs`; the catalog test fails without it.

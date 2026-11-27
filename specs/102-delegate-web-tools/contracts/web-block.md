@@ -48,14 +48,22 @@ ends the program at start (`Unknown feature flag`); its stderr becomes the reaso
 
 ## Abacus AI
 
-**Arguments** (in "Standard" and "Ungated"):
+**Settings file** (`--settings`, in "Standard" and "Ungated"; in "Standard" the same file also holds the ask rule `*`):
 
-```text
---disallowed-tools web_search_text_only scrape_url_content WebSearch Fetch Bash(agent-browser:*) Bash(npx agent-browser:*)
+```json
+{
+  "permissions": {
+    "deny": [
+      "Bash(agent-browser *)",
+      "Bash(agent-browser)",
+      "Bash(npx agent-browser *)"
+    ]
+  }
+}
 ```
 
-Both name forms of the two web tools until research R4 measures which one the rules match; a `shell_start` rule follows
-R4. **Confirmation**: none at start (the program reports no tool list); the version check stands in.
+Measured in both modes (research R4). Its web search and page fetch run on Abacus' server and are a named residual (spec
+FR-001, FR-008). **Confirmation**: none at start (the program reports no tool list); the version check stands in.
 
 ## Reason shown to the person
 
