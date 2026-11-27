@@ -314,9 +314,7 @@ async fn call(
                             reason: web_block::refusal(DelegateVendor::Codex, &reason),
                         });
                     }
-                    return Err(AdapterError::Http {
-                        reason,
-                    });
+                    return Err(AdapterError::Http { reason });
                 }
                 return Ok(value.get("result").cloned().unwrap_or(Value::Null));
             }
