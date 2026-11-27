@@ -196,8 +196,11 @@ const rowEntries = (area: HeaderArea) =>
   )
 const searchControls = computed(() =>
   entries.value
-    .filter((e) => e.control.type === 'search')
-    .map((e) => e.control),
+    .map((e) => e.control)
+    .filter(
+      (control): control is Extract<WmHeaderControl, { type: 'search' }> =>
+        control.type === 'search',
+    ),
 )
 const overflowControls = computed(() =>
   entries.value
