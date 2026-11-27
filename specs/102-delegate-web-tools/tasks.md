@@ -138,27 +138,27 @@ program's credential is refused; the HTTP endpoint is closed; turning the access
 
 ### Tests for User Story 2
 
-- [ ] T014 [P] [US2] `src-tauri/tests/mcp_server_delegates.rs`: with the access off, `DelegateHub::server_for` returns a
+- [x] T014 [P] [US2] `src-tauri/tests/mcp_server_delegates.rs`: with the access off, `DelegateHub::server_for` returns a
       server and a connection with that start's pass is admitted; a pass of an ended start is refused.
-- [ ] T015 [P] [US2] `src-tauri/tests/mcp_server.rs` (local endpoint) and `mcp_server_http.rs`: with the access off, a hello
+- [x] T015 [P] [US2] `src-tauri/tests/mcp_server.rs` (local endpoint) and `mcp_server_http.rs`: with the access off, a hello
       with a registered program's credential and a registration request are closed before `tools/list` answers; the HTTP
       port is not bound; after turning the access on, both work without restarting the server's core; after turning it off
       again, an open program connection is closed and a running delegate's connection stays.
 
 ### Implementation for User Story 2
 
-- [ ] T016 [US2] `src-tauri/src/mcp_server/server.rs`: `StartArgs.external: bool`; the HTTP listener only when `external`;
+- [x] T016 [US2] `src-tauri/src/mcp_server/server.rs`: `StartArgs.external: bool`; the HTTP listener only when `external`;
       `Running::set_external(bool)` that opens or closes the HTTP listener and, when turned off, closes every live session
       that is not a delegate (`Live`/`CloseReason::Disabled`).
-- [ ] T017 [US2] `src-tauri/src/mcp_server/connection.rs` (hello handling around the `greeting.delegate` branch): while
+- [x] T017 [US2] `src-tauri/src/mcp_server/connection.rs` (hello handling around the `greeting.delegate` branch): while
       `!external`, any hello that is not a delegate pass gets the unknown-client answer and is closed; the delegate branch is
       unchanged.
-- [ ] T018 [US2] `src-tauri/src/mcp_server/mod.rs` (`apply`/`apply_locked` and the vault-open start around line 332): the
+- [x] T018 [US2] `src-tauri/src/mcp_server/mod.rs` (`apply`/`apply_locked` and the vault-open start around line 332): the
       server starts when a vault opens whatever `mcp.enabled` says, with `external = enabled`, on platforms with delegates
       (`capabilities().cli_delegates`); elsewhere (Android, iOS) it keeps starting only while `mcp.enabled` is on.
       `mcp_configure` changing the access calls `set_external` instead of stopping and starting; a start error is kept in
       the slot with its text, for T019.
-- [ ] T019 [US2] `src-tauri/src/adapters/cli_delegate/haex_mcp.rs` (`HaexAccess::server_for`, `server_for`) and
+- [x] T019 [US2] `src-tauri/src/adapters/cli_delegate/haex_mcp.rs` (`HaexAccess::server_for`, `server_for`) and
       `src-tauri/src/mcp_server/delegates.rs` (`DelegateHub::server_for`): return `Result<HaexServer, String>`; each of
       the five paths that today log and return `None` (no running server with the kept start error, model not offered by
       the active profile, write error, no helper path, no pass) returns its reason. The three drivers (`claude.rs`,
@@ -166,11 +166,11 @@ program's credential is refused; the HTTP endpoint is closed; turning the access
       `DelegateChatContext.emit` for a chat start and run the turn without HaexVault's server; a job start only logs.
       Remove `mcp_delegate_status`, `DelegateStatus` and `src/types/bindings/DelegateStatus.ts`. Tests: each reason in
       `src-tauri/tests/mcp_server_delegates.rs`, the event in one driver test per vendor.
-- [ ] T020 [US2] `src/lib/chat/toolNotice.ts`, `src/composables/useToolNotice.ts`, `scripts/check-chat-tool-notice.ts`:
+- [x] T020 [US2] `src/lib/chat/toolNotice.ts`, `src/composables/useToolNotice.ts`, `scripts/check-chat-tool-notice.ts`:
       drop `delegateNoticeKey` and the `mcp_delegate_status` call; listen to `chat-delegate-tools-unavailable` and show
       `chat.toolNotice.delegateUnavailable` with `{name}` and `{reason}` for each affected start. The check
       `pnpm check:chat-state` covers the per-start rule.
-- [ ] T021 [P] [US2] `src/i18n/locales/de.json` and `en.json`: remove `chat.toolNotice.delegateOff` and
+- [x] T021 [P] [US2] `src/i18n/locales/de.json` and `en.json`: remove `chat.toolNotice.delegateOff` and
       `delegateStatusUnknown`; add `chat.toolNotice.delegateUnavailable` ("{name} hat für diese Antwort keine
       HaexVault-Werkzeuge: {reason}"); rewrite
       `settings.locations.ai.access.description`, its `keywords` and `actions.settings.agents.mcp.enable` so they say the
@@ -178,7 +178,9 @@ program's credential is refused; the HTTP endpoint is closed; turning the access
       the same sentence in `src/components/settings/agents/AccessView.vue` where it explains the switch.
 - [ ] T022 [US2] `scripts/e2e/scenarios/mcp-agent.test.ts` and `android-mcp-agent.test.ts`: check whether a scenario
       relies on the server being down with the access off (e.g. "no socket while off") and adjust it to "refused while
-      off"; run the e2e workflow on the branch before merge (`gh workflow run ci.yml --ref <branch>`).
+      off"; run the e2e workflow on the branch before merge (`gh workflow run ci.yml --ref <branch>`). Checked: no
+      scenario relies on it ("off by default" reads the Settings state, which stays `off` while the server runs for
+      delegates; Android keeps today's rule); the e2e run is still open.
 - [ ] T023 [US2] PR B gate: `cargo clippy`, `cargo test` for `mcp_server` and the `mcp_server_*` integration tests (CI),
       `pnpm typecheck`, `pnpm check:chat-state`, Prettier; push branch `feat/102-pr-b-delegate-server`, PR as
       haex-space.
