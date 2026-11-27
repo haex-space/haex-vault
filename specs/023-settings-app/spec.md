@@ -497,6 +497,19 @@ einer bestimmten Breite verschwindet die Seitenleiste, das Symbol in der Werkzeu
   Knopf im Feld leeren es erst und schließen es dann. Orte mit Parametern (ein
   HuggingFace-Repo) sind keine Treffer. Suchbegriffe liegen auf Deutsch und
   Englisch vor (FR-020).
+- **FR-025** _(added 2026-11-27, operator)_: Controls in a settings row MUST line up the
+  same way in every view. On a narrow row (below `@lg`, a container query on the row itself, so
+  it follows the width of the window or dialog, not of the screen) a field — a `SettingsSelect` or a text field — is the whole
+  width of the row, and the buttons of the row (icon buttons, "+", a button group) sit
+  right-aligned in a line below it; switches stay at the right of the title. From `@lg` on
+  the control sits beside the title, the field at a fixed width (a size of
+  `SettingsField`: `xs` 7rem, `sm` 10rem, `md` 14rem, `lg` 16rem, `xl` 18rem) and the
+  buttons next to it. A row does not hard-code its own widths: a text field sits in
+  `<SettingsField size="…">` (`src/components/settings/Field.vue`), a `SettingsSelect` is
+  handled by the select itself, and `Row.vue` makes both full width through
+  `data-settings-field`. `scripts/check-vue-templates.ts` fails a `UiInput` or `UiTextarea`
+  that sits in a `SettingsRow` without `SettingsField`. The buttons are the haex-ui ones
+  (`UiButtonAdd`, `UiButtonEdit`, `UiButtonDelete`, `UiButtonIcon`, …).
 
 ### Key Entities
 

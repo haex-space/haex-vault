@@ -93,7 +93,7 @@ onMounted(loadAsync)
       "
       :label-for="`extension-limit-${key}`"
     >
-      <div class="w-40 max-w-full">
+      <SettingsField size="sm">
         <UiInput
           :id="`extension-limit-${key}`"
           v-model="draft[key]"
@@ -105,7 +105,7 @@ onMounted(loadAsync)
           @blur="commitAsync(key)"
           @keydown.enter.prevent="commitAsync(key)"
         />
-      </div>
+      </SettingsField>
     </SettingsRow>
   </SettingsGroup>
 </template>

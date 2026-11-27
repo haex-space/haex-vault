@@ -112,26 +112,28 @@ onMounted(reloadAsync)
         :title="t('agentProfiles.create.label')"
         label-for="agent-profile-new"
       >
-        <div class="flex w-72 max-w-full items-center gap-2">
-          <UiInput
-            id="agent-profile-new"
-            v-model="name"
-            type="text"
-            :placeholder="t('agentProfiles.create.placeholder')"
-            :labels="fieldLabels.input.value"
-            :disabled="busy"
-            data-testid="agent-profile-new"
-            @keydown.enter.prevent="createAsync"
-          />
-          <UiButtonAdd
-            :label="t('agentProfiles.create.add')"
-            variant="outline"
-            :loading="busy"
-            :disabled="!name.trim()"
-            data-testid="agent-profile-add"
-            @click="createAsync"
-          />
-        </div>
+        <SettingsField size="xl">
+          <div class="flex items-center gap-2">
+            <UiInput
+              id="agent-profile-new"
+              v-model="name"
+              type="text"
+              :placeholder="t('agentProfiles.create.placeholder')"
+              :labels="fieldLabels.input.value"
+              :disabled="busy"
+              data-testid="agent-profile-new"
+              @keydown.enter.prevent="createAsync"
+            />
+            <UiButtonAdd
+              :label="t('agentProfiles.create.add')"
+              variant="outline"
+              :loading="busy"
+              :disabled="!name.trim()"
+              data-testid="agent-profile-add"
+              @click="createAsync"
+            />
+          </div>
+        </SettingsField>
       </SettingsRow>
     </SettingsGroup>
   </section>

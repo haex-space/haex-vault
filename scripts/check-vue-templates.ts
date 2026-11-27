@@ -143,6 +143,71 @@ for (const filename of files) {
   }
 }
 
+// Spec 023-settings-app (FR-025): a text field in a settings row is the whole width of the row on a
+// narrow window and has a fixed width beside the title from `md` on. That is `SettingsField`'s job
+// (`SettingsSelect` does it by itself), so a row must not hold a text field on its own or inside a div
+// with a width of its own (`w-56 max-w-full`): the field would stay narrow and ragged on a phone.
+const TEXT_FIELDS = new Set(['UiInput', 'UiTextarea'])
+type TemplateNode = {
+  type: number
+  tag?: string
+  props?: {
+    type: number
+    name: string
+    value?: { content: string }
+    rawName?: string
+  }[]
+  children?: TemplateNode[]
+}
+const isElement = (node: TemplateNode) => node.type === 1
+const staticClass = (node: TemplateNode) =>
+  node.props?.find((prop) => prop.type === 6 && prop.name === 'class')?.value
+    ?.content ?? ''
+const holdsTextField = (node: TemplateNode): boolean =>
+  (node.children ?? []).some(
+    (child) =>
+      isElement(child) &&
+      (TEXT_FIELDS.has(child.tag ?? '') || holdsTextField(child)),
+  )
+/** The row's own content: a `<template v-if>` wrapper is looked through, a named slot is not. */
+function rowContent(node: TemplateNode): TemplateNode[] {
+  return (node.children ?? []).filter(isElement).flatMap((child) => {
+    if (child.tag !== 'template') return [child]
+    const slot = child.props?.some(
+      (prop) => prop.type === 7 && prop.name === 'slot',
+    )
+    return slot ? [] : rowContent(child)
+  })
+}
+function checkSettingsRows(node: TemplateNode, filename: string) {
+  if (isElement(node) && node.tag === 'SettingsRow') {
+    for (const child of rowContent(node)) {
+      if (TEXT_FIELDS.has(child.tag ?? '')) {
+        failures.push({
+          filename,
+          message: `settings field: <${child.tag}> sits directly in a <SettingsRow> — wrap it in <SettingsField> (spec 023 FR-025)`,
+        })
+      } else if (
+        child.tag === 'div' &&
+        /(^|\s)(?:min-|max-)?w-(?:\d|\[)/.test(staticClass(child)) &&
+        holdsTextField(child)
+      ) {
+        failures.push({
+          filename,
+          message: `settings field: a <div class="${staticClass(child)}"> gives a text field in a <SettingsRow> a fixed width — use <SettingsField size="…"> instead (spec 023 FR-025)`,
+        })
+      }
+    }
+  }
+  for (const child of node.children ?? []) checkSettingsRows(child, filename)
+}
+for (const filename of files) {
+  if (!filename.startsWith('src/')) continue
+  const { descriptor } = parse(readFileSync(filename, 'utf8'), { filename })
+  const ast = descriptor.template?.ast as TemplateNode | undefined
+  if (ast) checkSettingsRows(ast, filename)
+}
+
 function describe(error: unknown) {
   const detail = error as {
     message?: string
@@ -165,7 +230,8 @@ if (failures.length > 0) {
       (f) =>
         !f.message.startsWith('direct write') &&
         !f.message.startsWith('palette color') &&
-        !f.message.startsWith('unresolved component'),
+        !f.message.startsWith('unresolved component') &&
+        !f.message.startsWith('settings field'),
     )
   ) {
     console.error(
@@ -178,5 +244,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `${files.length} Vue templates compile; no direct writes outside the action catalog; no palette colors; no component tag without its folder prefix.`,
+  `${files.length} Vue templates compile; no direct writes outside the action catalog; no palette colors; no component tag without its folder prefix; no text field in a settings row without its width wrapper.`,
 )

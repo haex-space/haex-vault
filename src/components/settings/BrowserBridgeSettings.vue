@@ -120,18 +120,19 @@ watch(() => bridgeStore.changes, reloadAsync)
         :description="t('browserBridge.settings.portHint')"
         label-for="browser-bridge-port"
       >
-        <UiInput
-          id="browser-bridge-port"
-          ref="portInput"
-          v-model="port"
-          class="w-28"
-          inputmode="numeric"
-          :disabled="busy || !available"
-          :label="t('browserBridge.settings.port')"
-          data-testid="browser-bridge-port"
-          @blur="savePort"
-          @keydown.enter.prevent="savePort"
-        />
+        <SettingsField size="xs">
+          <UiInput
+            id="browser-bridge-port"
+            ref="portInput"
+            v-model="port"
+            inputmode="numeric"
+            :disabled="busy || !available"
+            :label="t('browserBridge.settings.port')"
+            data-testid="browser-bridge-port"
+            @blur="savePort"
+            @keydown.enter.prevent="savePort"
+          />
+        </SettingsField>
         <template v-if="port && !portValid" #below>
           <p class="text-xs text-destructive" role="alert">
             {{ t('browserBridge.settings.portInvalid') }}
