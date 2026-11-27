@@ -127,6 +127,43 @@ pub(super) fn confirm_codex(config_read: &Value, features: &[Value]) -> Result<(
     Ok(())
 }
 
+/// The program versions the block of a vendor was checked against (quickstart §4). A version the
+/// catalog lists must be here, so a new version cannot ship before its block was checked (FR-006, SC-005).
+#[cfg(test)]
+pub(super) fn checked_versions(vendor: DelegateVendor) -> &'static [&'static str] {
+    match vendor {
+        DelegateVendor::Claude => &["2.1.311"],
+        DelegateVendor::Codex => &["0.169.0"],
+        DelegateVendor::Abacus => &["2.10.23"],
+    }
+}
+
+/// Every version `catalog` lists is in its vendor's [`checked_versions`]; a vendor without a
+/// delegate has no block at all. The error names each gap and the check to run.
+#[cfg(test)]
+pub(super) fn check_catalog(catalog: &crate::cli_tools::catalog::Catalog) -> Result<(), String> {
+    let mut gaps = Vec::new();
+    for entry in &catalog.vendors {
+        let Some(vendor) = DelegateVendor::parse(&entry.vendor) else {
+            gaps.push(format!("{} has no web block", entry.vendor));
+            continue;
+        };
+        for version in &entry.versions {
+            if !checked_versions(vendor).contains(&version.version.as_str()) {
+                gaps.push(format!("{} {}", entry.vendor, version.version));
+            }
+        }
+    }
+    if gaps.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "the web block was not checked against {}: run specs/102-delegate-web-tools/quickstart.md \
+         §4, then add the version to checked_versions in web_block.rs",
+        gaps.join(", ")
+    ))
+}
+
 /// Whether a line of Abacus' stream reports one of its own server-side web tools: a web search
 /// (`web_search_results`) or a page fetch (`collapsible` with the program's fixed title
 /// "Web Access"), research R4.
