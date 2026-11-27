@@ -81,23 +81,25 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
         "
         label-for="agent-memory-search"
       >
-        <div class="flex w-72 max-w-full items-center gap-2">
-          <UiInput
-            id="agent-memory-search"
-            v-model="query"
-            type="search"
-            :placeholder="t('settings.agentMemory.searchPlaceholder')"
-            :labels="fieldLabels.input.value"
-            data-testid="agent-memory-search"
-            @update:model-value="onQuery"
-          />
-          <UiButtonAdd
-            :label="t('settings.agentMemory.add')"
-            variant="outline"
-            data-testid="agent-memory-add"
-            @click="addPage"
-          />
-        </div>
+        <SettingsField size="xl">
+          <div class="flex items-center gap-2">
+            <UiInput
+              id="agent-memory-search"
+              v-model="query"
+              type="search"
+              :placeholder="t('settings.agentMemory.searchPlaceholder')"
+              :labels="fieldLabels.input.value"
+              data-testid="agent-memory-search"
+              @update:model-value="onQuery"
+            />
+            <UiButtonAdd
+              :label="t('settings.agentMemory.add')"
+              variant="outline"
+              data-testid="agent-memory-add"
+              @click="addPage"
+            />
+          </div>
+        </SettingsField>
       </SettingsRow>
     </SettingsGroup>
 

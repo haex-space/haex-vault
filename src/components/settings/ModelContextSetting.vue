@@ -302,7 +302,7 @@ const effectiveText = computed(() => {
         data-testid="model-context-length"
         @update:model-value="pickContext"
       />
-      <div v-if="typing" class="w-44 max-w-full">
+      <SettingsField v-if="typing" size="sm">
         <UiInput
           v-model="typed"
           type="text"
@@ -316,7 +316,7 @@ const effectiveText = computed(() => {
           @blur="commitTypedAsync"
           @keydown.enter.prevent="commitTypedAsync"
         />
-      </div>
+      </SettingsField>
       <UiButton
         v-if="!isDefaultSetting(setting)"
         type="button"

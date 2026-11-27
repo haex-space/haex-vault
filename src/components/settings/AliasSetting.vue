@@ -61,7 +61,7 @@ async function commitAsync() {
       :title="t('settings.alias.label')"
       label-for="settings-alias-input"
     >
-      <div class="w-56 max-w-full">
+      <SettingsField>
         <UiInput
           id="settings-alias-input"
           v-model="localValue"
@@ -78,7 +78,7 @@ async function commitAsync() {
           @blur="commitAsync"
           @keydown.enter.prevent="commitAsync"
         />
-      </div>
+      </SettingsField>
     </SettingsRow>
   </SettingsGroup>
 </template>

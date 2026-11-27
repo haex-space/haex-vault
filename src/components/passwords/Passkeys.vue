@@ -135,7 +135,7 @@ async function confirmDeleteAsync() {
         </UiButton>
       </template>
       <template v-else-if="!readonly && editing === passkey.id">
-        <div class="w-40">
+        <SettingsField size="sm">
           <UiInput
             v-model="nickname"
             :aria-label="t('passwords.passkeys.nickname')"
@@ -143,7 +143,7 @@ async function confirmDeleteAsync() {
             @keydown.enter.prevent="saveRenameAsync(passkey)"
             @keydown.esc.prevent="editing = null"
           />
-        </div>
+        </SettingsField>
         <UiButton type="button" size="sm" @click="saveRenameAsync(passkey)">{{
           t('passwords.save')
         }}</UiButton>

@@ -4,7 +4,11 @@
  * of description, the control on the right (default slot). With `to` the whole row is a button
  * that pushes that location and ends in a chevron; with `navigates` it is the same button but
  * emits `select`, for a caller that navigates with more than a path. On a narrow window the control wraps below the
- * text instead of squeezing it. With `fields` the row is one key and its value (an entry's fields):
+ * text instead of squeezing it (spec 023 FR-025): fields (`SettingsSelect`, `SettingsField` around a
+ * text field) are then the whole width of the row and the buttons of the row sit right-aligned
+ * below them; from `@lg` on the control sits beside the title at its own width. The row is its own
+ * container, so this follows the width the row has, not the screen's: a narrow window on a wide
+ * screen, a dialog and a phone all behave the same. With `fields` the row is one key and its value (an entry's fields):
  * the same everywhere, title above value in a narrow container and side by side from `@lg` on, never
  * depending on how long a value happens to be. `backdrop` renders behind the row, e.g. a download progress bar;
  * `below` spans the row's width under it, e.g. an error.
@@ -44,7 +48,7 @@ const BASE = computed(() =>
 </script>
 
 <template>
-  <li class="relative">
+  <li class="@container relative">
     <slot name="backdrop" />
     <component
       :is="isButton ? 'button' : 'div'"
@@ -85,7 +89,7 @@ const BASE = computed(() =>
         :class="
           fields
             ? 'flex min-w-0 max-w-full items-center gap-2 @lg:flex-1'
-            : 'flex w-full max-w-full shrink-0 flex-wrap items-center justify-end gap-2 md:w-auto md:justify-start'
+            : 'flex w-full max-w-full shrink-0 flex-wrap items-center justify-end gap-2 @lg:w-auto @lg:justify-start @max-lg:[&>[data-settings-field]]:w-full'
         "
       >
         <slot />

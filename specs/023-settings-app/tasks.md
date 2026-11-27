@@ -214,6 +214,8 @@ description: 'Task list for spec 023-settings-app'
   - Done 2026-09-26 on operator feedback.
 - [x] T053b [US6] Settings search (FR-023, research R13): `keywordsKey`/`settingKeys` in `src/lib/settings/registry.ts`, `src/lib/settings/search.ts`, search field and hits in `Sidebar.vue`, keywords de/en, tests in `scripts/check-settings.ts`
   - Done 2026-09-26 on operator feedback.
+- [x] T053d [US6] FR-025: fields in a settings row are full width on a narrow window and the row's buttons sit right-aligned below them; new `src/components/settings/Field.vue` (`SettingsField`, sizes `xs`–`xl`), `data-settings-field` on the `SettingsSelect` trigger and the `Row.vue` rule, every text field in a row moved into `SettingsField`, a template check in `scripts/check-vue-templates.ts`
+  - Done 2026-11-27. The breakpoint is a container query (`@lg`) on the row itself (`Row.vue` is `@container`), so a narrow window on a wide screen and a dialog behave like a phone.
 - [x] T054 [US6] Operator: run quickstart S15 and S19
   - Done 2026-09-27: operator confirmed S15 and S19.
 

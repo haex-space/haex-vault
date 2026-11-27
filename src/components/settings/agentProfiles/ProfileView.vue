@@ -155,7 +155,7 @@ watch(() => mcp.changes, reloadAsync)
           :title="t('agentProfiles.profile.name')"
           label-for="agent-profile-name-input"
         >
-          <div class="w-56 max-w-full">
+          <SettingsField>
             <UiInput
               id="agent-profile-name-input"
               v-model="name"
@@ -165,7 +165,7 @@ watch(() => mcp.changes, reloadAsync)
               @blur="renameAsync"
               @keydown.enter.prevent="renameAsync"
             />
-          </div>
+          </SettingsField>
         </SettingsRow>
         <SettingsRow
           :title="t('agentProfiles.profile.active')"
