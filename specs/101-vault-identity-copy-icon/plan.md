@@ -6,17 +6,17 @@
 
 ## Summary
 
-Replace the text button in the Federation vault identity row with haex-ui's `UiButtonIcon` and the copy icon. Retain the localized clipboard toasts and existing test identifier.
+Replace the text button in the Federation vault identity row with haex-ui's `UiButtonCopy`. Retain the error toast and existing test identifier.
 
 ## Technical Context
 
 **Language/Version**: TypeScript and Vue 3, as used by the existing UI
 
-**Primary Dependencies**: Pinned haex-ui Nuxt layer (`UiButtonIcon`) and Vue I18n
+**Primary Dependencies**: Pinned haex-ui Nuxt layer (`UiButtonCopy`) and Vue I18n
 
 **Storage**: N/A
 
-**Testing**: The existing `sync-identity` scenario continues to check the success toast.
+**Testing**: The existing `sync-identity` scenario waits for the copy button's copied state.
 
 **Target Platform**: haex-vault desktop application
 
@@ -34,7 +34,7 @@ _Gate: checked before research and after design._
 
 - No secrets or local absolute paths are introduced.
 - The public identity remains read-only; only its existing copy action changes presentation.
-- The icon has a stable accessible name. Clipboard success and failure appear in localized toasts.
+- The icon has a localized accessible name, which becomes the copied label while the check shows. Clipboard failure appears in an error toast.
 - The control remains accessible and follows existing component conventions.
 - Work is isolated on the dedicated `fix/vault-identity-copy-icon` topic branch and will land through a pull request.
 
@@ -62,7 +62,7 @@ src/components/settings/VaultIdentityRow.vue  # icon-only copy action
 
 ## Design Summary
 
-Use `UiButtonIcon` in the current `SettingsRow` slot with the copy icon and the localized `identityCopy` label. Keep the existing `onCopy` handler for `identity.npub` so it awaits the Clipboard API before showing a toast.
+Use `UiButtonCopy` in the current `SettingsRow` slot with the localized `identityCopy`/`identityCopied` labels and `identity.npub` as value; its `error` event feeds the error toast.
 
 ## Complexity Tracking
 

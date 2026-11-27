@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
-import { successToasts } from '../lib/toasts.ts'
 import {
   exists,
   npubIsEditable,
@@ -35,9 +34,12 @@ scenario('sync-identity', { timeoutMs: 240_000 }, async (ctx) => {
     )
   }
   await laptop.page.click('settings-identity-copy')
-  await ctx.waitFor(
-    'a toast to say it copied',
-    async () => (await successToasts(laptop.page)).length > 0,
+  // The copy button shows its check, and with it the name "Kopiert", for a moment.
+  await ctx.waitFor('the copy button to say it copied', () =>
+    laptop.page.exec<boolean>(
+      `return document.querySelector(arguments[0])?.getAttribute('aria-label') === 'Kopiert'`,
+      ['[data-testid="settings-identity-copy"]'],
+    ),
   )
   ctx.step('copied')
 
