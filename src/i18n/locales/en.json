@@ -421,10 +421,8 @@
     "toolNotice": {
       "unverified": "Nobody has checked yet whether this model can operate HaexVault. It gets the tools anyway; if it answers oddly, try another model.",
       "unsupported": "This model cannot call tools, so it chats without them. A model that can, such as Claude or a Qwen3 model, can change settings and open apps for you.",
-      "delegateOff": "{name} reaches HaexVault's tools only through the MCP access, and that is off on this device. Turn it on in Settings under AI → External access.",
-      "delegateStatusUnknown": "MCP access for {name} could not be checked right now.",
-      "delegateOwnWeb": "{name} used its own web access instead of HaexVault's agent browser. HaexVault cannot turn that access off.",
-      "retry": "Check again"
+      "delegateUnavailable": "{name} has no HaexVault tools for this answer: {reason}",
+      "delegateOwnWeb": "{name} used its own web access instead of HaexVault's agent browser. HaexVault cannot turn that access off."
     },
     "permission": {
       "modeLabel": "Approval",
@@ -884,7 +882,7 @@
         },
         "access": {
           "title": "External access",
-          "description": "Turn the MCP access on or off and set up Claude Code, Codex and other agents",
+          "description": "Turn the MCP access for programs outside HaexVault on or off and set it up, for example for an editor",
           "keywords": "MCP access external agents connect Claude Code Codex setup configuration HTTP switch",
           "log": {
             "title": "Log"
@@ -4824,7 +4822,7 @@
     },
     "settings": {
       "enabled": "Access for external agents",
-      "enabledHint": "Agents on this device may connect and ask to be registered",
+      "enabledHint": "Programs outside HaexVault on this device, such as an editor like VS Code, may connect and ask to be registered. The subscription agents in the chat do not need this access.",
       "state": "State"
     },
     "state": {
