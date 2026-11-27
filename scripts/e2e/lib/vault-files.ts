@@ -14,6 +14,8 @@ const ANDROID_PREFIX = 'android:'
 const READ_TRIES = 3
 /** The diagnostic log of a vault, relative to the vault's folder. */
 const LOG_FILE = 'logs/haex.log'
+/** The snapshot shared by the Android settings screen. */
+const SHARED_LOG_COPY = 'cache/diagnostic-log/haex-diagnostic-log.txt'
 
 const sha256 = (bytes: Buffer) =>
   createHash('sha256').update(bytes).digest('hex')
@@ -25,6 +27,8 @@ export interface VaultFiles {
   remove: (vault: string) => void
   /** The text of the vault's diagnostic log (`logs/haex.log`, spec 098), or null while it does not exist. */
   log: (vault: string) => string | null
+  /** The app-cache snapshot made for Android's share sheet, or null when it does not exist. */
+  sharedLogCopy: () => string | null
 }
 
 export function vaultFiles(root: string): VaultFiles {
@@ -51,9 +55,20 @@ export function vaultFiles(root: string): VaultFiles {
       remove: (vault) => void adb.runAs(PACKAGE, `rm -rf vaults/${vault}`),
       log: (vault) => {
         const file = `vaults/${vault}/${LOG_FILE}`
-        const found = adb.runAs(PACKAGE, `ls ${file} 2>&1`).toString()
-        if (found.includes('No such file')) return null
+        const exists = adb
+          .runAs(PACKAGE, `[ -f '${file}' ] && echo yes || echo no`)
+          .toString()
+          .trim()
+        if (exists !== 'yes') return null
         return adb.runAs(PACKAGE, `cat ${file}`).toString()
+      },
+      sharedLogCopy: () => {
+        const exists = adb
+          .runAs(PACKAGE, `[ -f '${SHARED_LOG_COPY}' ] && echo yes || echo no`)
+          .toString()
+          .trim()
+        if (exists !== 'yes') return null
+        return adb.runAs(PACKAGE, `cat '${SHARED_LOG_COPY}'`).toString()
       },
     }
   }
@@ -66,5 +81,6 @@ export function vaultFiles(root: string): VaultFiles {
       const file = join(dir, vault, LOG_FILE)
       return existsSync(file) ? readFileSync(file, 'utf8') : null
     },
+    sharedLogCopy: () => null,
   }
 }

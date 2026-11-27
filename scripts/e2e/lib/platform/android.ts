@@ -146,6 +146,8 @@ export function phoneControls(adb: Adb): PhoneControls {
     },
     frontPackage: () =>
       frontPackage(adb.shell('dumpsys', 'activity', 'activities')),
+    appInFront: () =>
+      frontPackage(adb.shell('dumpsys', 'activity', 'activities')) === PACKAGE,
     frontDetail: () =>
       adb
         .shell('dumpsys', 'activity', 'activities')

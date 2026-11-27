@@ -7,10 +7,7 @@ import {
   openSettings,
   waitForLocation,
 } from '../lib/settings.ts'
-import { createAdb } from '../lib/platform/adb.ts'
-import { PACKAGE } from '../lib/platform/android.ts'
-
-const LOG_COPY = 'cache/diagnostic-log/haex-diagnostic-log.txt'
+import { vaultFiles } from '../lib/vault-files.ts'
 
 // Spec 098, quickstart steps 1, 2 and 6 (US1 FR-002, US3): the "Protokoll" setting of "Grundeinstellung"
 // switches to "Ausführlich" at once and shows when it ends, and back to "Standard"; a computer offers
@@ -55,19 +52,18 @@ scenario('diagnostic-log-setting', {}, async (ctx) => {
 
   if (phone === undefined) return
 
-  const adb = createAdb(process.env.ANDROID_SERIAL ?? '')
   await instance.click('diagnostic-log-share')
   await ctx.waitFor(
     "the system's share sheet",
     async () => {
       const front = phone.frontPackage()
-      return front !== undefined && front !== PACKAGE
+      return front !== undefined && !phone.appInFront()
     },
     { timeoutMs: 20_000 },
   )
-  const copy = adb.runAs(PACKAGE, `ls -la ${LOG_COPY} 2>&1`).toString()
+  const copy = vaultFiles(instance.root).sharedLogCopy()
   assert.ok(
-    copy.includes('haex-diagnostic-log.txt') && !copy.includes('No such file'),
+    copy !== null,
     `the copy of the log is in the cache folder the provider exposes: ${copy}`,
   )
   ctx.step(`the share sheet is open (${phone.frontPackage()}) over the copy`)
@@ -75,7 +71,7 @@ scenario('diagnostic-log-setting', {}, async (ctx) => {
   phone.back()
   await ctx.waitFor(
     'the app to be in front again',
-    async () => phone.frontPackage() === PACKAGE,
+    async () => phone.appInFront(),
     { timeoutMs: 20_000 },
   )
   assert.equal(
