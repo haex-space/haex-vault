@@ -1037,7 +1037,7 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-35-google_apis-x86_64-4cores-v1
+          key: avd-35-google_apis-x86_64-4cores-4gb-v1
 
       - name: Create the emulator snapshot
         if: steps.avd-cache.outputs.cache-hit != 'true'
@@ -1048,6 +1048,9 @@ jobs:
           arch: x86_64
           force-avd-creation: false
           cores: 4
+          # The default AVD has 2 GB, of which about 1 GB stayed free: the web view's renderer died
+          # under the 500-tag picker and other heavy pages. The snapshot depends on this size.
+          ram-size: 4096M
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: false
           script: echo "snapshot created"
@@ -1070,6 +1073,7 @@ jobs:
           arch: x86_64
           force-avd-creation: false
           cores: 4
+          ram-size: 4096M
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: scripts/ci/android-e2e.sh ${{ matrix.shard }} 3 ${{ runner.temp }}/apk/x86_64/debug/app-x86_64-debug.apk
