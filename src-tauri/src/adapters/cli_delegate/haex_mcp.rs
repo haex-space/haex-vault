@@ -31,17 +31,42 @@ pub const DELEGATE_INSTRUCTION: &str = "You work inside haex and have its tools 
     named after the extension) and use it; only when none fits, say that no installed extension \
     can do it. Never claim you cannot use haex tools without having looked at the list.";
 
-/// `system_prompt` with [`DELEGATE_INSTRUCTION`] when the delegate has haex-vault's server.
-pub fn with_instruction(system_prompt: Option<&str>, haex: bool) -> Option<String> {
-    if !haex {
+/// What Abacus reads on every start about its own web tools, which run on its server where no rule
+/// of the program reaches them (spec 102 FR-009, research R4): a request, not a block.
+pub const ABACUS_WEB_INSTRUCTION: &str = "Do not use your own web search \
+    (`web_search_text_only`, shown as WebSearch) or your own page fetch (`scrape_url_content`, \
+    shown as Fetch).";
+
+/// What Abacus reads after [`ABACUS_WEB_INSTRUCTION`] when haex-vault's server is not there for
+/// this start.
+pub const ABACUS_WEB_WITHOUT_HAEX: &str = "If a task needs the web, say that haex's agent \
+    browser is not available for this answer.";
+
+/// `system_prompt` with [`DELEGATE_INSTRUCTION`] when the delegate has haex-vault's server, and,
+/// for Abacus, the sentence about its own web tools on every start.
+pub fn with_instruction(
+    system_prompt: Option<&str>,
+    vendor: DelegateVendor,
+    haex: bool,
+) -> Option<String> {
+    let mut parts: Vec<&str> = system_prompt
+        .filter(|given| !given.trim().is_empty())
+        .into_iter()
+        .collect();
+    if haex {
+        parts.push(DELEGATE_INSTRUCTION);
+    }
+    if vendor == DelegateVendor::Abacus {
+        parts.push(ABACUS_WEB_INSTRUCTION);
+        if !haex {
+            parts.push(ABACUS_WEB_WITHOUT_HAEX);
+        }
+    }
+    if parts.is_empty() {
+        // A given prompt of only whitespace stays as it was given.
         return system_prompt.map(str::to_owned);
     }
-    Some(
-        match system_prompt.filter(|given| !given.trim().is_empty()) {
-            Some(given) => format!("{given}\n\n{DELEGATE_INSTRUCTION}"),
-            None => DELEGATE_INSTRUCTION.to_owned(),
-        },
-    )
+    Some(parts.join("\n\n"))
 }
 
 /// How a delegate starts haex-vault's server. Its arguments carry the pass, so `Debug` hides them; the

@@ -434,9 +434,16 @@ async fn the_command_line_is_the_contract_and_the_child_has_the_device_code_and_
         settings_path.ends_with(&format!("/{APPROVAL_SETTINGS_FILE}")),
         "{settings_path}"
     );
-    // Every tool call asks, a read-only one too (research §12).
+    // Every tool call asks, a read-only one too (research §12), and the bundled browser is denied
+    // (spec 102 research R4).
     let settings: Value = serde_json::from_str(&fixture.read("settings")).unwrap();
-    assert_eq!(settings, json!({ "permissions": { "ask": ["*"] } }));
+    assert_eq!(
+        settings,
+        json!({ "permissions": {
+            "ask": ["*"],
+            "deny": ["Bash(agent-browser *)", "Bash(agent-browser)", "Bash(npx agent-browser *)"],
+        } })
+    );
     let env = fixture.read("env");
     assert!(
         env.contains(&format!("CODELLM_DEVICE_CODE={CODE}")),
@@ -720,7 +727,7 @@ fn ungated_body() -> String {
 }
 
 #[tokio::test]
-async fn ungated_runs_unsupervised_without_the_ask_rule() {
+async fn ungated_runs_unsupervised_with_the_deny_rules_only() {
     let fixture = Fixture::new().await;
     let program = fixture.stub(&ungated_body());
     let adapter = fixture.adapter(&program, fixture.context());
@@ -730,14 +737,24 @@ async fn ungated_runs_unsupervised_without_the_ask_rule() {
 
     assert_eq!(text, "Hello");
     assert!(done.is_some() && error.is_none(), "{error:?}");
+    let args = fixture.read("args");
+    let (args, settings_path) = args.trim().rsplit_once(' ').unwrap();
     assert_eq!(
-        fixture.read("args").trim(),
+        args,
         "-p --input-format stream-json --output-format stream-json --include-partial-messages \
-         --permission-mode unsupervised --no-agents-md"
+         --permission-mode unsupervised --no-agents-md --settings"
     );
     assert!(
-        fixture.read("settings").is_empty(),
-        "no settings file is handed over"
+        settings_path.ends_with(&format!("/{APPROVAL_SETTINGS_FILE}")),
+        "{settings_path}"
+    );
+    // The browser's deny rules only: nothing asks (spec 102 research R4).
+    let settings: Value = serde_json::from_str(&fixture.read("settings")).unwrap();
+    assert_eq!(
+        settings,
+        json!({ "permissions": {
+            "deny": ["Bash(agent-browser *)", "Bash(agent-browser)", "Bash(npx agent-browser *)"],
+        } })
     );
     assert!(fixture
         .read("env")
@@ -947,7 +964,14 @@ fn the_command_names_the_vaults_program_and_never_a_host_lookup() {
     let run = runtime.run_folder().unwrap();
 
     let settings = run.path().join(APPROVAL_SETTINGS_FILE);
-    let command = build_command(&runtime, "abacusai", None, Some(&settings), &run);
+    let command = build_command(
+        &runtime,
+        "abacusai",
+        None,
+        &settings,
+        AutonomyMode::Standard,
+        &run,
+    );
 
     assert_eq!(
         command.as_std().get_program(),
@@ -1296,4 +1320,123 @@ async fn after_a_connect_a_request_and_a_stop_no_log_line_holds_the_email_the_co
 
 fn fixture_record(fixture: &Fixture) -> crate::cli_tools::record::Record {
     crate::cli_tools::record::Record::new(VaultPaths::new(fixture.dir.path()).records_dir("stub"))
+}
+
+// ---- Spec 102: Abacus' own web tools ----
+
+/// The two lines 2.10.23 writes when it used its server-side web search and page fetch
+/// (spec 102 research R4).
+const OWN_WEB_SEARCH: &str = r#"{"type":"event","event":{"type":"web_search_results","query":"Rust","resultType":"web","results":[]}}"#;
+const OWN_PAGE_FETCH: &str = r#"{"type":"event","event":{"type":"collapsible","content":"Looked at https://example.org","isSpinny":true,"title":"Web Access"}}"#;
+
+/// A context that records every event the adapter emits.
+fn recording(fixture: &Fixture, events: Arc<Mutex<Vec<(String, Value)>>>) -> DelegateChatContext {
+    DelegateChatContext {
+        emit: Arc::new(move |event: &str, payload: Value| {
+            events.lock().unwrap().push((event.to_owned(), payload));
+        }),
+        ..fixture.context()
+    }
+}
+
+/// Spec 102 FR-013: the chat learns once per start that Abacus used its own web access.
+#[tokio::test]
+async fn own_web_use_is_reported_to_the_chat_once() {
+    let fixture = Fixture::new().await;
+    let program = fixture.stub(&format!(
+        "cat <<'EOF'\n{INIT_UNSUPERVISED}\n{OWN_WEB_SEARCH}\n{OWN_PAGE_FETCH}\n{HELLO}\n{OK_RESULT}\nEOF"
+    ));
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let adapter = fixture.adapter(&program, recording(&fixture, Arc::clone(&events)));
+    let thread = uuid::Uuid::new_v4();
+    let mut req = ungated("abacusai");
+    req.thread_id = Some(thread);
+
+    let (text, done, error) = collect(adapter.stream_chat(req).await.unwrap()).await;
+
+    assert_eq!(text, "Hello");
+    assert!(done.is_some() && error.is_none(), "{error:?}");
+    let own: Vec<_> = events
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|(name, _)| name == "chat-delegate-own-web")
+        .map(|(_, payload)| payload.clone())
+        .collect();
+    assert_eq!(
+        own,
+        vec![json!({ "threadId": thread, "delegateKind": "abacusDelegate" })]
+    );
+}
+
+/// A job start has no chat: nothing is emitted for it.
+#[tokio::test]
+async fn own_web_use_of_a_job_start_is_not_emitted() {
+    let fixture = Fixture::new().await;
+    let program = fixture.stub(&format!(
+        "cat <<'EOF'\n{INIT_UNSUPERVISED}\n{OWN_WEB_SEARCH}\n{HELLO}\n{OK_RESULT}\nEOF"
+    ));
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let adapter = fixture.adapter(&program, recording(&fixture, Arc::clone(&events)));
+
+    collect(adapter.stream_chat(ungated("abacusai")).await.unwrap()).await;
+
+    assert!(events
+        .lock()
+        .unwrap()
+        .iter()
+        .all(|(name, _)| name != "chat-delegate-own-web"));
+}
+
+#[test]
+fn own_web_lines_are_recognised_and_other_collapsibles_are_not() {
+    assert_eq!(parse_line(OWN_WEB_SEARCH), Line::OwnWeb);
+    assert_eq!(parse_line(OWN_PAGE_FETCH), Line::OwnWeb);
+    assert_eq!(
+        parse_line(
+            r#"{"type":"event","event":{"type":"collapsible","title":"Thinking","content":"x"}}"#
+        ),
+        Line::Other
+    );
+}
+
+/// Spec 102 FR-009: the prompt asks Abacus not to use its own web tools, also without
+/// haex-vault's server.
+#[tokio::test]
+async fn the_prompt_names_abacus_own_web_tools() {
+    let fixture = Fixture::new().await;
+    let program = fixture.stub(&ungated_body());
+    let adapter = fixture.adapter(&program, fixture.context());
+
+    collect(adapter.stream_chat(ungated("abacusai")).await.unwrap()).await;
+
+    let sent: Value = serde_json::from_str(fixture.read("input").trim()).unwrap();
+    let prompt = sent["message"]["content"].as_str().unwrap();
+    assert!(prompt.contains("web_search_text_only"), "{prompt}");
+    assert!(prompt.contains("scrape_url_content"), "{prompt}");
+}
+
+/// Spec 102 FR-005: the block is a settings file, never a variable: the command sets nothing
+/// beyond containment.
+#[test]
+fn the_web_block_sets_no_environment_variable() {
+    let dir = TempDir::new().unwrap();
+    let runtime =
+        DelegateRuntime::for_stub("abacusai", dir.path().join("vault-abacusai"), dir.path());
+    let run = runtime.run_folder().unwrap();
+    let settings = run.path().join(APPROVAL_SETTINGS_FILE);
+    let envs = |cmd: &std::process::Command| {
+        let mut envs: Vec<_> = cmd
+            .get_envs()
+            .map(|(k, v)| (k.to_owned(), v.map(|v| v.to_owned())))
+            .collect();
+        envs.sort();
+        envs
+    };
+    for mode in [AutonomyMode::Standard, AutonomyMode::Ungated] {
+        let command = build_command(&runtime, "abacusai", None, &settings, mode, &run);
+        let mut contained = std::process::Command::new(&runtime.executable);
+        runtime.contain(&mut contained, &run);
+        assert_eq!(envs(command.as_std()), envs(&contained), "{mode:?}");
+    }
 }

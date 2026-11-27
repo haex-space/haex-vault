@@ -18,9 +18,10 @@ use crate::model_capabilities::ModelCapabilities;
 use crate::vault_gate::{ChildRegistry, VaultDb};
 
 use super::abacus::{
-    approval_settings, build_command, fatal_reason, read_credential, read_stderr_tail,
-    startup_error, write_line, APPROVAL_SETTINGS_FILE, DEVICE_CODE_ENV,
+    build_command, fatal_reason, read_credential, read_stderr_tail, startup_error, write_line,
+    write_run_settings, DEVICE_CODE_ENV,
 };
+use super::autonomy::AutonomyMode;
 use super::process::{configure_process_group, map_spawn_error, ChildLifecycle};
 use super::DelegateVendor;
 
@@ -130,13 +131,8 @@ pub(super) async fn list_models(
         reason: format!("failed to create the run folder for abacusai: {error}"),
     })?;
     // The same start as a request, so the program is in the same posture; no model runs here.
-    let settings = run.path().join(APPROVAL_SETTINGS_FILE);
-    tokio::fs::write(&settings, approval_settings().to_string())
-        .await
-        .map_err(|error| AdapterError::Http {
-            reason: format!("failed to write the approval settings for abacusai: {error}"),
-        })?;
-    let mut command = build_command(&runtime, "", None, Some(&settings), &run);
+    let settings = write_run_settings(&run, true).await?;
+    let mut command = build_command(&runtime, "", None, &settings, AutonomyMode::Standard, &run);
     command.env(DEVICE_CODE_ENV, credential.secret());
     drop(credential);
     configure_process_group(&mut command);

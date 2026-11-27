@@ -1,7 +1,7 @@
 //! The Abacus AI delegate: the vault's copy of `abacusai` driven in its JSON-lines mode, one
 //! process per request (spec 096 FR-007 to FR-010, `data-model.md` §4).
 //!
-//! The program runs as `-p --input-format stream-json --output-format stream-json
+//! In `Standard` the program runs as `-p --input-format stream-json --output-format stream-json
 //! --permission-mode supervise --settings <run>/haex-approval-settings.json`, whose ask rule `*`
 //! makes every tool call, also a read-only one, a request: the host writes one `user` line, reads
 //! `event` lines (the text
@@ -13,8 +13,10 @@
 //!
 //! `Ungated` (spec 009) runs the program's own full-autonomy mode instead, as Claude Code's
 //! `bypassPermissions` and Codex's `approvalPolicy: "never"` do: `--permission-mode unsupervised`
-//! without the settings file, so no tool call asks (research §15); a request the program still
-//! sends is rejected, nothing reaches the approval bridge. `GatedPermissive` needs its own decision
+//! with a settings file without the ask rule, so no tool call asks (research §15); a request the
+//! program still sends is rejected, nothing reaches the approval bridge. In both modes the settings
+//! file denies the bundled browser (spec 102); the program's server-side web search and page fetch
+//! are out of reach of its rules and are only shown to the person (spec 102 FR-013). `GatedPermissive` needs its own decision
 //! on what Abacus' tool names and inputs mean for the deny rules (spec 096 US3), so it ends with
 //! "autonomy mode unavailable" before anything starts.
 
@@ -39,8 +41,12 @@ use super::autonomy::{ApprovalRequestPayload, AutonomyMode, AutonomyUnavailable}
 use super::codex::MAX_STDERR_BYTES;
 use super::process::{configure_process_group, map_spawn_error, ChildLifecycle};
 use super::{
-    approval_bridge, build_transcript_prompt, haex_mcp, DelegateChatContext, DelegateVendor,
+    approval_bridge, build_transcript_prompt, haex_mcp, web_block, DelegateChatContext,
+    DelegateVendor,
 };
+
+/// The event that tells the chat Abacus used its own web access (spec 102 FR-013).
+pub(super) const EVENT_OWN_WEB: &str = "chat-delegate-own-web";
 
 /// The environment variable that carries the device code to the program.
 pub(super) const DEVICE_CODE_ENV: &str = "CODELLM_DEVICE_CODE";
@@ -56,16 +62,36 @@ pub(super) fn permission_mode(mode: AutonomyMode) -> Option<(&'static str, &'sta
     }
 }
 
-/// The settings file every run hands the program (`--settings`), in the run folder. Measured
-/// (research §12): in `supervise` the program runs read-only tools (`read`, also outside the
-/// working folder, and `bash ls`) without a `can_use_tool` request; with the ask rule `*` every
-/// tool call reaches the approval bridge, also when a config in the vault home asks for `YOLO` and
-/// allows everything.
+/// The settings file every run hands the program (`--settings`), in the run folder, in every
+/// served mode. Measured (research §12): in `supervise` the program runs read-only tools (`read`,
+/// also outside the working folder, and `bash ls`) without a `can_use_tool` request; with the ask
+/// rule `*` every tool call reaches the approval bridge, also when a config in the vault home asks
+/// for `YOLO` and allows everything. Its deny rules block the bundled browser in both modes
+/// (spec 102 research R4); deny is judged before ask and before the YOLO auto-allow.
 pub(super) const APPROVAL_SETTINGS_FILE: &str = "haex-approval-settings.json";
 
-/// The content of [`APPROVAL_SETTINGS_FILE`]: every tool call asks.
-pub(super) fn approval_settings() -> Value {
-    json!({ "permissions": { "ask": ["*"] } })
+/// The content of [`APPROVAL_SETTINGS_FILE`]: the web block's deny rules always, and the ask rule
+/// `*` when every tool call asks (`Standard`).
+pub(super) fn run_settings(asks: bool) -> Value {
+    let mut permissions = json!({ "deny": web_block::ABACUS_DENY_RULES });
+    if asks {
+        permissions["ask"] = json!(["*"]);
+    }
+    json!({ "permissions": permissions })
+}
+
+/// Writes [`run_settings`] into the run folder and returns its path.
+pub(super) async fn write_run_settings(
+    run: &RunFolder,
+    asks: bool,
+) -> Result<std::path::PathBuf, AdapterError> {
+    let settings = run.path().join(APPROVAL_SETTINGS_FILE);
+    tokio::fs::write(&settings, run_settings(asks).to_string())
+        .await
+        .map_err(|error| AdapterError::Http {
+            reason: format!("failed to write the run settings for abacusai: {error}"),
+        })?;
+    Ok(settings)
 }
 
 /// The release gate of spec 096 T034. Open since T035 recorded (research §12, 2026-11-24) that
@@ -115,23 +141,19 @@ pub(super) fn chosen_model(model_id: &str) -> Option<&str> {
     (!model_id.is_empty() && model_id != DelegateVendor::Abacus.as_str()).then_some(model_id)
 }
 
-/// The vault's own installation started in its JSON-lines mode, contained to the vault. With
-/// `approval_settings` (the file of [`approval_settings`]) it runs in `supervise` and every tool call
-/// asks; without, it runs `unsupervised` (`Ungated`). The device code is not set here: it is set on
-/// the child after containment, in [`spawn_abacus_invocation`].
+/// The vault's own installation started in its JSON-lines mode, contained to the vault, in the
+/// permission mode of `mode` (a served one) with `settings` (the file of [`run_settings`]). The
+/// device code is not set here: it is set on the child after containment, in
+/// [`spawn_abacus_invocation`].
 pub(super) fn build_command(
     runtime: &DelegateRuntime,
     model_id: &str,
     mcp_config: Option<&Path>,
-    approval_settings: Option<&Path>,
+    settings: &Path,
+    mode: AutonomyMode,
     run: &RunFolder,
 ) -> Command {
-    let mode = if approval_settings.is_some() {
-        AutonomyMode::Standard
-    } else {
-        AutonomyMode::Ungated
-    };
-    let (flag, _) = permission_mode(mode).expect("both modes are served");
+    let (flag, _) = permission_mode(mode).expect("a served mode");
     let mut cmd = Command::new(&runtime.executable);
     cmd.args(&runtime.vendor.config_args);
     cmd.arg("-p")
@@ -149,9 +171,7 @@ pub(super) fn build_command(
     if let Some(config) = mcp_config {
         cmd.arg("--mcp-config").arg(config);
     }
-    if let Some(settings) = approval_settings {
-        cmd.arg("--settings").arg(settings);
-    }
+    cmd.arg("--settings").arg(settings);
     cmd.current_dir(run.path())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -169,6 +189,8 @@ pub(super) enum Line {
     Text(String),
     /// An `error` event; the turn's `result` follows.
     EventError(String),
+    /// The program used its own server-side web search or page fetch (spec 102 FR-013).
+    OwnWeb,
     /// The program asks to run a tool. `input` is what it reports of the call.
     Approval {
         request_id: String,
@@ -223,6 +245,7 @@ pub(super) fn parse_line(line: &str) -> Line {
                         .unwrap_or("the tool reported an error")
                         .to_owned(),
                 ),
+                _ if event.is_some_and(web_block::abacus_own_web_use) => Line::OwnWeb,
                 _ => Line::Other,
             }
         }
@@ -499,27 +522,22 @@ async fn spawn_abacus_invocation_with_coverage(
     let haex = haex_mcp::server_for(&context, DelegateVendor::Abacus, req.thread_id, &model).await;
     let mcp_config = haex_mcp::write_claude_config(run.path(), None, haex.as_ref()).await?;
     let transcript = build_transcript_prompt(&req);
-    let prompt = match haex_mcp::with_instruction(req.system_prompt.as_deref(), haex.is_some()) {
+    let prompt = match haex_mcp::with_instruction(
+        req.system_prompt.as_deref(),
+        DelegateVendor::Abacus,
+        haex.is_some(),
+    ) {
         Some(system) => format!("{system}\n\n{transcript}"),
         None => transcript,
     };
 
-    let settings = if asks {
-        let settings = run.path().join(APPROVAL_SETTINGS_FILE);
-        tokio::fs::write(&settings, approval_settings().to_string())
-            .await
-            .map_err(|error| AdapterError::Http {
-                reason: format!("failed to write the approval settings for abacusai: {error}"),
-            })?;
-        Some(settings)
-    } else {
-        None
-    };
+    let settings = write_run_settings(&run, asks).await?;
     let mut command = build_command(
         &runtime,
         &req.model_id,
         mcp_config.as_deref(),
-        settings.as_deref(),
+        &settings,
+        mode,
         &run,
     );
     // After containment, on this child alone: the base layer removed every host variable of the
@@ -659,6 +677,7 @@ async fn drive(
     let mut ttft_ms = None;
     let mut streamed = false;
     let mut mode_confirmed = false;
+    let mut own_web_reported = false;
     let reported_mode = permission_mode(mode).map(|(_, reported)| reported);
     let mut pending = first;
     loop {
@@ -796,6 +815,22 @@ async fn drive(
                     total_ms: start.elapsed().as_millis() as u64,
                 }));
                 return Outcome::Finished;
+            }
+            Line::OwnWeb => {
+                // Its server-side web tools cannot be blocked (spec 102 research R4): the chat
+                // shows that they were used, once per start; a job start has no chat.
+                if let (Some(thread), false) = (thread_id, own_web_reported) {
+                    own_web_reported = true;
+                    (context.emit)(
+                        EVENT_OWN_WEB,
+                        json!({
+                            "threadId": thread,
+                            "delegateKind": crate::mcp_server::delegates::kind_of(
+                                DelegateVendor::Abacus
+                            ),
+                        }),
+                    );
+                }
             }
             Line::EventError(_) | Line::Other => {}
         }

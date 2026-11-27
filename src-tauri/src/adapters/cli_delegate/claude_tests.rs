@@ -355,3 +355,54 @@ fn the_legacy_synthetic_vendor_id_omits_the_model_flag() {
     // CLI's own default exactly like an empty id does.
     assert!(!model_args(DelegateVendor::Claude.as_str()).contains(&"--model".to_string()));
 }
+
+/// The environment a command sets, by name.
+fn envs(cmd: &std::process::Command) -> Vec<(String, Option<String>)> {
+    let mut envs: Vec<_> = cmd
+        .get_envs()
+        .map(|(k, v)| {
+            (
+                k.to_string_lossy().into_owned(),
+                v.map(|v| v.to_string_lossy().into_owned()),
+            )
+        })
+        .collect();
+    envs.sort();
+    envs
+}
+
+/// Spec 102 FR-001 to FR-003: every mode, also a job start without any MCP server, gets the
+/// allow-list without the web tools and `--no-chrome`, after the catalog's arguments.
+#[test]
+fn every_mode_starts_with_the_web_block() {
+    for mode in [
+        AutonomyMode::Standard,
+        AutonomyMode::Ungated,
+        AutonomyMode::GatedPermissive,
+    ] {
+        let (_dir, runtime, run) = stub_runtime();
+        let cmd = build_command(&runtime, "claude-opus-5", None, None, &run, mode, None);
+        let args: Vec<String> = cmd
+            .as_std()
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        let tools = args.iter().position(|a| a == "--tools").expect("--tools");
+        assert_eq!(args[tools + 1], super::web_block::CLAUDE_TOOLS, "{mode:?}");
+        assert!(args.contains(&"--no-chrome".to_owned()), "{mode:?}");
+        assert!(!args[tools + 1].contains("WebFetch"));
+        assert!(!args[tools + 1].contains("WebSearch"));
+        assert!(tools < args.iter().position(|a| a == "-p").expect("-p"));
+    }
+}
+
+/// Spec 102 FR-005: the block is arguments only; the command sets no variable beyond the
+/// containment every start gets.
+#[test]
+fn the_web_block_sets_no_environment_variable() {
+    let (_dir, runtime, run) = stub_runtime();
+    let cmd = build_command(&runtime, "", None, None, &run, AutonomyMode::Ungated, None);
+    let mut contained = std::process::Command::new(&runtime.executable);
+    runtime.contain(&mut contained, &run);
+    assert_eq!(envs(cmd.as_std()), envs(&contained));
+}

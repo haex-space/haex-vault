@@ -7,8 +7,9 @@ use serde_json::json;
 use super::autonomy::ApprovalRequestPayload;
 use super::codex::{
     build_codex_payload, build_command, build_request, categorize_line, haex_startup_of,
-    turn_completed_failure, HaexStartup, Line,
+    turn_completed_failure, with_stderr, HaexStartup, Line,
 };
+use crate::adapters::AdapterError;
 use crate::cli_tools::runtime::DelegateRuntime;
 
 /// Spec 094 FR-003, FR-011: the vault's own program by its path, the vendor's switches before the
@@ -233,4 +234,69 @@ fn the_start_of_haexs_mcp_server_is_read_from_its_status_notification() {
         None
     );
     assert_eq!(haex_startup_of(method, &json!({"name": "haex"})), None);
+}
+
+/// Spec 102 FR-001, FR-002, FR-005: the web block comes after the catalog's switches and before
+/// the subcommand, `computer_use` stays, and the block sets no variable beyond containment.
+#[test]
+fn the_command_carries_the_web_block_before_the_subcommand() {
+    let dir = tempfile::TempDir::new().unwrap();
+    let runtime = DelegateRuntime::for_stub("codex", dir.path().join("stub-codex"), dir.path());
+    let run = runtime.run_folder().unwrap();
+    let cmd = build_command(&runtime, &run);
+    let args: Vec<String> = cmd
+        .as_std()
+        .get_args()
+        .map(|a| a.to_string_lossy().into_owned())
+        .collect();
+    let subcommand = args.iter().position(|a| a == "app-server").unwrap();
+    let block = super::web_block::codex_args();
+    let start = args
+        .windows(block.len())
+        .position(|window| window == block.as_slice())
+        .expect("the web block");
+    assert!(start + block.len() <= subcommand);
+    assert!(start >= runtime.vendor.config_args.len());
+    assert!(!args.iter().any(|a| a == "computer_use"));
+
+    let mut contained = std::process::Command::new(&runtime.executable);
+    runtime.contain(&mut contained, &run);
+    let envs = |cmd: &std::process::Command| {
+        let mut envs: Vec<_> = cmd
+            .get_envs()
+            .map(|(k, v)| (k.to_owned(), v.map(|v| v.to_owned())))
+            .collect();
+        envs.sort();
+        envs
+    };
+    assert_eq!(envs(cmd.as_std()), envs(&contained));
+}
+
+/// Spec 102 FR-007: a switch the program refused at start reaches the person with its own words;
+/// a typed reason stays as it is.
+#[test]
+fn a_failed_start_carries_the_programs_stderr() {
+    let error = with_stderr(
+        AdapterError::Http {
+            reason: "failed to read app-server response to initialize: eof".into(),
+        },
+        "Error: Unknown feature flag: browser_use\n",
+    );
+    assert!(
+        error
+            .to_string()
+            .contains("Unknown feature flag: browser_use"),
+        "{error}"
+    );
+    let typed = with_stderr(
+        AdapterError::Unavailable {
+            reason:
+                "codex started without its web block (browser_use is enabled); nothing was run."
+                    .into(),
+        },
+        "noise",
+    );
+    assert!(!typed.to_string().contains("noise"));
+    let quiet = with_stderr(AdapterError::Http { reason: "x".into() }, "  \n");
+    assert!(matches!(quiet, AdapterError::Http { reason } if reason == "x"));
 }
