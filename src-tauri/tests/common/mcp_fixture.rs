@@ -107,6 +107,8 @@ pub struct Fixture {
     pub http_port: Option<u16>,
     /// `false` is a phone: no socket for the helper (research R12).
     pub program_way: bool,
+    /// The device's external access (spec 102 FR-011); `false` admits delegates' passes only.
+    pub external: bool,
     /// The profiles a test made, by the rights they give: agents with the same rights share one.
     pub profiles: Mutex<Vec<(Rights, Uuid)>>,
     /// `(actionId, caller)` of every action the fake window ran.
@@ -207,6 +209,7 @@ pub fn fixture_with(call_timeout: Duration) -> Fixture {
         delegates: Arc::default(),
         http_port: None,
         program_way: true,
+        external: true,
         profiles: Mutex::new(Vec::new()),
         window_calls,
         notices: Arc::new(Mutex::new(Vec::new())),
@@ -276,6 +279,7 @@ impl Fixture {
             limits: self.limits,
             http_port: self.http_port,
             program_way: self.program_way,
+            external: self.external,
         })
         .await
         .expect("the server starts")

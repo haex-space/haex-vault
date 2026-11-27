@@ -140,4 +140,25 @@ impl Live {
             session.link().end(reason);
         }
     }
+
+    /// Ends every connection that is not a delegate's start (spec 102 FR-011): what a program
+    /// outside haex-vault opened, also one still waiting for its registration.
+    pub fn close_outside(&self, reason: CloseReason) {
+        let outside: Vec<Session> = self
+            .entries
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .filter(|entry| {
+                entry
+                    .session
+                    .agent()
+                    .is_none_or(|agent| super::delegates::live_model(agent.id).is_none())
+            })
+            .map(|entry| entry.session.clone())
+            .collect();
+        for session in outside {
+            session.link().end(reason);
+        }
+    }
 }

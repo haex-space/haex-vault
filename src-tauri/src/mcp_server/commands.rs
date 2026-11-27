@@ -10,9 +10,7 @@ use uuid::Uuid;
 
 use super::agent_log::{self, AgentLogEntry};
 use super::connection::now_millis;
-use super::delegates::{self, DelegateStatus};
 use super::prompts::{CallDecision, RegistrationAnswer, RegistrationDecision};
-use super::registry::AgentKind;
 use super::settings;
 use super::{McpRunState, McpServer};
 use crate::chat::session::ChatState;
@@ -300,34 +298,4 @@ pub fn snippet(client: SnippetClient, executable: &str, device: Uuid) -> String 
             serde_json::to_string_pretty(&config).unwrap_or_default()
         }
     }
-}
-
-#[derive(Debug, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "../../src/types/bindings/")]
-pub struct McpDelegateArgs {
-    /// `claudeCodeDelegate` or `codexDelegate`.
-    pub kind: AgentKind,
-}
-
-fn delegate_kind(kind: AgentKind) -> Result<AgentKind> {
-    match delegates::slug_of(kind) {
-        Some(_) => Ok(kind),
-        None => Err(HaexError::InvalidInput {
-            reason: "no delegate".to_owned(),
-        }),
-    }
-}
-
-/// Whether the delegate `kind` has haex-vault's tools in the chat (spec 021 US6, FR-025).
-#[tauri::command]
-pub async fn mcp_delegate_status(
-    server: State<'_, McpServer>,
-    args: McpDelegateArgs,
-) -> Result<DelegateStatus> {
-    delegate_kind(args.kind)?;
-    Ok(match server.core().await {
-        Some(_) => delegates::status(),
-        None => DelegateStatus::Off,
-    })
 }

@@ -183,6 +183,11 @@ async fn admit(core: &Arc<Core>, greeting: &Greeting) -> Admission {
             Err(reason) => Admission::Rejected(reason),
         };
     }
+    // Without the external access only the delegates haex-vault started come in (spec 102
+    // FR-011); a program outside hears that the access is off, as before when no server ran.
+    if !core.external() {
+        return Admission::Rejected(RejectReason::Disabled);
+    }
     let device = core.device;
     if let Some(credential) = greeting.token.clone() {
         let found = core

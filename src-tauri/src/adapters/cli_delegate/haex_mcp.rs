@@ -99,26 +99,46 @@ impl std::fmt::Debug for HaexServer {
 #[async_trait]
 pub trait HaexAccess: Send + Sync {
     /// haex-vault's server for a start of `vendor` with the model `model` (`<provider id>:<remote id>`) in
-    /// the chat thread `thread`; `None` while the access is off or the active agent profile does not
-    /// offer the model. What the delegate may do is the profile of that model.
+    /// the chat thread `thread`, or why there is none for it (the server does not run, the active agent
+    /// profile does not offer the model, no pass could be made). What the delegate may do is the
+    /// profile of that model.
     async fn server_for(
         &self,
         vendor: DelegateVendor,
         thread: Option<Uuid>,
         model: &str,
-    ) -> Option<HaexServer>;
+    ) -> Result<HaexServer, String>;
 }
 
+/// The event that tells the chat a delegate's start has no haex-vault tools, and why (spec 102
+/// FR-012).
+pub const EVENT_TOOLS_UNAVAILABLE: &str = "chat-delegate-tools-unavailable";
+
 /// haex-vault's server for this start, if the context has the access (a job has none, spec 055).
+/// A chat start without it tells the chat why (spec 102 FR-012) and runs without haex-vault's tools;
+/// its own web tools stay blocked.
 pub async fn server_for(
     context: &DelegateChatContext,
     vendor: DelegateVendor,
     thread: Option<Uuid>,
     model: &str,
 ) -> Option<HaexServer> {
-    match &context.haex {
-        Some(access) => access.server_for(vendor, thread, model).await,
-        None => None,
+    let access = context.haex.as_ref()?;
+    match access.server_for(vendor, thread, model).await {
+        Ok(server) => Some(server),
+        Err(reason) => {
+            if let Some(thread) = thread {
+                (context.emit)(
+                    EVENT_TOOLS_UNAVAILABLE,
+                    json!({
+                        "threadId": thread,
+                        "delegateKind": crate::mcp_server::delegates::kind_of(vendor),
+                        "reason": reason,
+                    }),
+                );
+            }
+            None
+        }
     }
 }
 
