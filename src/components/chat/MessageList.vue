@@ -13,6 +13,7 @@ import { marked } from 'marked'
 import type { Message } from '~/composables/useChat'
 import { fromToolName } from '~/lib/actions/agentTools'
 import { ALL_ACTIONS } from '~/lib/actions/catalog'
+import { dayLabel, dayStarts, messageDateTime } from '~/lib/chat/messageTime'
 import { originLabel } from '~/lib/chat/toolOrigin'
 import { prettyToolText } from '~/lib/chat/toolText'
 import type { Provider } from '~/composables/useProviders'
@@ -33,7 +34,18 @@ const emit = defineEmits<{
   toggleReasoning: [messageId: string, expanded: boolean]
 }>()
 
-const { t, locale } = useI18n()
+const { t, d, locale } = useI18n()
+
+/** The messages that open a new calendar day get a heading above them. */
+const newDays = computed(() => dayStarts(props.activeMessages))
+
+function dayHeading(at: number): string {
+  return dayLabel(at, new Date(), {
+    today: t('chat.day.today'),
+    yesterday: t('chat.day.yesterday'),
+    date: (date) => d(date, { dateStyle: 'medium' }),
+  })
+}
 
 /** Tool rows of an action show the action's localized title, an extension's tool its extension
  * and title (spec 018), other tools their own name. */
@@ -122,6 +134,14 @@ function renderMarkdown(content: string): string {
       </p>
     </div>
     <template v-for="m in activeMessages" :key="m.id">
+      <div
+        v-if="newDays.has(m.id)"
+        class="mx-auto mb-4 flex max-w-3xl items-center gap-2 text-xs text-muted-foreground"
+      >
+        <span class="h-px flex-1 bg-border" />
+        <span>{{ dayHeading(m.createdAt) }}</span>
+        <span class="h-px flex-1 bg-border" />
+      </div>
       <!-- Older messages the agent summarised to fit its context (spec 086): a line, not a bubble. The
            messages it covers stay above it, unchanged. -->
       <details
@@ -260,6 +280,7 @@ function renderMarkdown(content: string): string {
             </div>
             <div
               class="rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm [overflow-wrap:anywhere]"
+              :title="messageDateTime(m.createdAt, locale)"
               :class="{
                 'whitespace-pre-wrap':
                   m.role === 'user' || m.role === 'tool_call',

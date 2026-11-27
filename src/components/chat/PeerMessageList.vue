@@ -10,6 +10,7 @@
 import type { ChatPeerAttachment } from '@bindings/ChatPeerAttachment'
 import type { ChatPeerMessage } from '@bindings/ChatPeerMessage'
 import { textFile } from '~/lib/chat/longText'
+import { messageTime } from '~/lib/chat/messageTime'
 
 const props = defineProps<{
   messages: ChatPeerMessage[]
@@ -34,23 +35,6 @@ const sorted = computed(() =>
     a.sortAt === b.sortAt ? a.id.localeCompare(b.id) : a.sortAt - b.sortAt,
   ),
 )
-
-function sameDay(a: Date, b: Date) {
-  return a.toDateString() === b.toDateString()
-}
-
-function time(at: number) {
-  const date = new Date(at)
-  return sameDay(date, new Date())
-    ? date.toLocaleTimeString(locale.value, {
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    : date.toLocaleString(locale.value, {
-        dateStyle: 'short',
-        timeStyle: 'short',
-      })
-}
 
 function reason(code: string | null) {
   const key = `chat.delivery.reason.${code ?? 'unknown'}`
@@ -105,7 +89,7 @@ function reason(code: string | null) {
         <span
           class="flex items-center justify-end gap-1 text-[0.7rem] opacity-70"
         >
-          {{ time(message.sentAt) }}
+          {{ messageTime(message.sentAt, new Date(), locale) }}
           <ChatDeliveryMark
             v-if="message.own && message.delivery"
             :state="message.delivery"

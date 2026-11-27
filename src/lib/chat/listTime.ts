@@ -21,7 +21,7 @@ export interface ListTimeLabels {
 const MINUTE = 60_000
 
 /** Whole calendar days from `date` to `now` (0 = same day), by local midnights. */
-function daysBetween(date: Date, now: Date): number {
+export function daysBetween(date: Date, now: Date): number {
   const start = (d: Date) =>
     new Date(d.getFullYear(), d.getMonth(), d.getDate())
   return Math.round((start(now).getTime() - start(date).getTime()) / 86_400_000)
