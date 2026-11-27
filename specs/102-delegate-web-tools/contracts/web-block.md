@@ -67,6 +67,10 @@ ends the program at start (`Unknown feature flag`); its stderr becomes the reaso
 Measured in both modes (research R4). Its web search and page fetch run on Abacus' server and are a named residual (spec
 FR-001, FR-008). **Confirmation**: none at start (the program reports no tool list); the version check stands in.
 
+**Visible use** (spec FR-013): a stream event `web_search_results`, or `collapsible` with `title: "Web Access"`, in a chat
+start makes the driver emit `chat-delegate-own-web` `{ threadId, delegateKind }` through the context's `EventEmitter`;
+the chat shows "{name} used its own web access instead of HaexVault's agent browser" once per conversation.
+
 ## Reason shown to the person
 
 `AdapterError::Unavailable` with the text "{vendor} started without its web block ({what}); nothing was run." The chat

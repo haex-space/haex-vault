@@ -101,6 +101,11 @@ shell (`shell_start`).
   off (all 47 setting definitions read through `list_setting_definitions`). They leave nothing on the computer, cannot sign
   in or act on a website, and bring the result into the conversation as foreign content.
 - `shell_start` is not in the print mode's tool set; the model said so in each run. Background shells are no path here.
+- The stream shows the two server-side tools without their internal names: a web search as
+  `{"type":"event","event":{"type":"web_search_results","query":…,"results":[…]}}`, a page fetch as
+  `{"type":"event","event":{"type":"collapsible","title":"Web Access","content":"Looked at <url>"}}`. These two events
+  are what spec FR-013 recognises; `title` is the program's own fixed label, not text of the person.
+- One such run cost about 21 credits (`credits` event).
 
 ## R5. Recording the block per vendor and checking new versions
 

@@ -87,7 +87,8 @@ src-tauri/src/adapters/cli_delegate/
 ├── web_block_tests.rs      # NEW: arguments per vendor and mode, confirmations, catalog vs. checked versions
 ├── claude.rs               # build_command adds the block; the init line is confirmed before the first chunk
 ├── codex.rs                # build_command adds the block; after `initialize`, config/read + experimentalFeature/list
-├── abacus.rs               # build_command adds the deny rules in both modes; the prompt gets the Abacus sentence
+├── abacus.rs               # build_command adds the deny rules in both modes; the prompt gets the Abacus sentence;
+│                           #      its server-side web use emits `chat-delegate-own-web` (FR-013)
 ├── haex_mcp.rs             # the instruction per vendor: Abacus' own web tools named (FR-009)
 ├── abacus_models.rs        # the catalog run gets the same arguments (one builder)
 ├── mod.rs                  # `mod web_block;`
@@ -102,7 +103,7 @@ src-tauri/src/mcp_server/
 src-tauri/tests/
 └── cli_delegate_*_run.rs   # stub transcripts with and without the block (Claude init, Codex answers)
 src/lib/chat/toolNotice.ts, src/composables/useToolNotice.ts  # `delegateOff` removed; a notice for a start without
-                            #      HaexVault's tools with its reason (FR-012)
+                            #      HaexVault's tools with its reason (FR-012); a notice for own web use (FR-013)
 src/i18n/locales/{de,en}.json   # settings.autonomyMode.webBlock (block + residuals, FR-008); the external access
                             #      text says it is for programs outside HaexVault (FR-011); delegateOff removed
 src/components/…            # the Settings views showing both texts (files found in tasks)
