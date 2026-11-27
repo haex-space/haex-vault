@@ -1,7 +1,6 @@
 // The notice about a model's tool use, shown once per conversation and state (spec 032 US4,
 // FR-016/017/023, research R11). Pure, so the Node check scripts can load it.
 import type { AgentKind } from '../../types/bindings/AgentKind.ts'
-import type { DelegateStatus } from '../../types/bindings/DelegateStatus.ts'
 
 /** What the backend decided for a turn (`chat-tool-availability`). */
 export type ToolAvailability =
@@ -15,23 +14,25 @@ export function noticeKey(state: ToolAvailability): string | null {
     case 'unsupported':
       return 'chat.toolNotice.unsupported'
     case 'delegate':
-      // Delegate turns need their MCP status to decide which notice, if any, applies.
+      // A delegate has haex-vault's tools on every start, as far as the agent profile of its model
+      // allows (spec 102 FR-004, spec 083 FR-029); a start without them sends
+      // `chat-delegate-tools-unavailable`.
       return null
     case 'offered':
       return null
   }
 }
 
-/** The notice of a delegate turn by its MCP status; with the access on, the agent profile of its
- * model decides what it may do (spec 083 FR-029) and there is nothing to say. */
-export function delegateNoticeKey(status: DelegateStatus): string | null {
-  switch (status) {
-    case 'off':
-      return 'chat.toolNotice.delegateOff'
-    case 'available':
-      return null
-  }
+/** The payload of `chat-delegate-tools-unavailable` (spec 102 FR-012): a delegate's start has no
+ * haex-vault tools, and why. */
+export interface DelegateToolsUnavailableEvent {
+  threadId: string
+  delegateKind: AgentKind
+  reason: string
 }
+
+/** The i18n key of the notice about a delegate start without haex-vault's tools. */
+export const DELEGATE_UNAVAILABLE_KEY = 'chat.toolNotice.delegateUnavailable'
 
 /** What an agent profile does not give the model of a turn (Rust `profile_gate::Missing`). It names
  * no level: it never says the model may only read. */
@@ -99,6 +100,14 @@ export function createToolNotices() {
             ? missing.name
             : ''
       const key = `${threadId}:profile:${profileId}:${missing.kind}:${detail}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    },
+    /** The notice about a delegate start without haex-vault's tools: once per conversation and
+     * reason (spec 102 FR-012). */
+    showUnavailable(threadId: string, reason: string): boolean {
+      const key = `${threadId}:unavailable:${reason}`
       if (seen.has(key)) return false
       seen.add(key)
       return true

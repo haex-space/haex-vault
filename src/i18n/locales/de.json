@@ -421,10 +421,8 @@
     "toolNotice": {
       "unverified": "Noch hat niemand geprüft, ob dieses Modell HaexVault bedienen kann. Es bekommt die Werkzeuge trotzdem; antwortet es seltsam, probiere ein anderes Modell.",
       "unsupported": "Dieses Modell kann keine Werkzeuge aufrufen und chattet deshalb ohne sie. Ein Modell, das es kann, etwa Claude oder ein Qwen3-Modell, kann für dich Einstellungen ändern und Apps öffnen.",
-      "delegateOff": "{name} erreicht haex-Werkzeuge nur über den MCP-Zugang, und der ist auf diesem Gerät aus. Du schaltest ihn in den Einstellungen unter KI → Externer Zugang ein.",
-      "delegateStatusUnknown": "Der MCP-Zugang für {name} konnte gerade nicht geprüft werden.",
-      "delegateOwnWeb": "{name} hat seinen eigenen Webzugang benutzt statt HaexVaults Agent-Browser. Diesen Zugang kann HaexVault nicht abschalten.",
-      "retry": "Erneut prüfen"
+      "delegateUnavailable": "{name} hat für diese Antwort keine HaexVault-Werkzeuge: {reason}",
+      "delegateOwnWeb": "{name} hat seinen eigenen Webzugang benutzt statt HaexVaults Agent-Browser. Diesen Zugang kann HaexVault nicht abschalten."
     },
     "permission": {
       "modeLabel": "Freigabe",
@@ -884,7 +882,7 @@
         },
         "access": {
           "title": "Externer Zugang",
-          "description": "MCP-Zugang für Claude Code, Codex und andere Agenten ein- und ausschalten und einrichten",
+          "description": "MCP-Zugang für Programme außerhalb von HaexVault ein- und ausschalten und einrichten, etwa für einen Editor",
           "keywords": "MCP Zugang extern Agenten verbinden Claude Code Codex Einrichtung Konfiguration HTTP Schalter",
           "log": {
             "title": "Protokoll"
@@ -4824,7 +4822,7 @@
     },
     "settings": {
       "enabled": "Zugang für externe Agenten",
-      "enabledHint": "Agenten auf diesem Gerät dürfen sich verbinden und um Registrierung bitten",
+      "enabledHint": "Programme außerhalb von HaexVault auf diesem Gerät, etwa ein Editor wie VS Code, dürfen sich verbinden und um Registrierung bitten. Die Abo-Agenten im Chat brauchen diesen Zugang nicht.",
       "state": "Zustand"
     },
     "state": {

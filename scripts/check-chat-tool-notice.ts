@@ -6,13 +6,12 @@ import { test } from 'node:test'
 import {
   createToolNotices,
   DELEGATE_OWN_WEB_KEY,
-  delegateNoticeKey,
+  DELEGATE_UNAVAILABLE_KEY,
   noticeKey,
   restrictedKey,
   type ProfileMissing,
   type ToolAvailability,
 } from '../src/lib/chat/toolNotice.ts'
-import type { DelegateStatus } from '../src/types/bindings/DelegateStatus.ts'
 
 const STATES: ToolAvailability[] = [
   'offered',
@@ -56,17 +55,27 @@ test('an offered turn in between does not use up a later notice', () => {
   assert.equal(notices.show('a', 'offeredUnverified'), true)
 })
 
-const DELEGATE_STATUSES: DelegateStatus[] = ['off', 'available']
+test('a delegate start without haex-vault tools shows once per conversation and reason (spec 102 FR-012)', async () => {
+  const notices = createToolNotices()
+  assert.equal(notices.showUnavailable('a', 'not running'), true)
+  assert.equal(notices.showUnavailable('a', 'not running'), false)
+  assert.equal(notices.showUnavailable('a', 'profile'), true)
+  assert.equal(notices.showUnavailable('b', 'not running'), true)
 
-test('a delegate with the access on needs no notice (spec 083 FR-029)', () => {
-  assert.equal(delegateNoticeKey('available'), null)
-})
-
-test('only the access being off has a text of its own', () => {
-  const keys = DELEGATE_STATUSES.map(delegateNoticeKey).filter(
-    (key) => key !== null,
-  )
-  assert.deepEqual(keys, ['chat.toolNotice.delegateOff'])
+  const { readFileSync } = await import('node:fs')
+  for (const language of ['de', 'en']) {
+    const texts = JSON.parse(
+      readFileSync(
+        new URL(`../src/i18n/locales/${language}.json`, import.meta.url),
+        'utf8',
+      ),
+    ).chat.toolNotice
+    const key = DELEGATE_UNAVAILABLE_KEY.split('.').at(-1) ?? ''
+    assert.ok(texts[key]?.includes('{name}'), `${language}: ${key}`)
+    assert.ok(texts[key]?.includes('{reason}'), `${language}: ${key}`)
+    // The notice that sent the person to the external access is gone (spec 102 FR-012).
+    assert.equal(texts.delegateOff, undefined, `${language}: delegateOff`)
+  }
 })
 
 const MISSING: ProfileMissing[] = [
