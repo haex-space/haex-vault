@@ -420,6 +420,19 @@ async function replaceLocation(
       .catch(() => false)
     if (loaded) return
     if (Date.now() >= end) {
+      // Tauri can redirect legacy app URLs to a canonical workspace URL. In a WebView, the
+      // navigation may finish without a load event for the requested URL. The scenario checks the
+      // app route after navigate returns, so accept a completed same-origin redirect here.
+      const redirected = await client
+        .execute<boolean>(
+          `const requested = new URL(arguments[0]);
+           const current = new URL(location.href);
+           return current.origin === requested.origin &&
+             document.readyState === 'complete'`,
+          [url],
+        )
+        .catch(() => false)
+      if (redirected) return
       throw new Error(`timed out after ${deadlineMs} ms loading ${url}`)
     }
     await new Promise((resolve) => setTimeout(resolve, 50))
