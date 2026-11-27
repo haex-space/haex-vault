@@ -91,8 +91,20 @@ scenario(
     )
     assert.equal(verbose.level, 'verbose')
     assert.ok(verbose.untilMs !== null, 'verbose has an end')
-    await consoleLine(first, 'debug', 'probe-debug-verbose')
-    await waitForLogLine(ctx, first, 'probe-debug-verbose')
+    // The interface learns the new level from the status event, a moment after the command
+    // returned (slower on a phone): a debug line written before that is dropped, so it is repeated.
+    await ctx.waitFor(
+      '"probe-debug-verbose" in the log',
+      async () => {
+        await consoleLine(first, 'debug', 'probe-debug-verbose')
+        await new Promise((resolve) => setTimeout(resolve, 500))
+        return (
+          vaultFiles(first.root).log(VAULT)?.includes('probe-debug-verbose') ===
+          true
+        )
+      },
+      { timeoutMs: LOG_TIMEOUT_MS },
+    )
     ctx.step('console.debug reaches the log at "Ausführlich"')
 
     // The end by restart: close the vault (the app ends), start again, open the same vault.
