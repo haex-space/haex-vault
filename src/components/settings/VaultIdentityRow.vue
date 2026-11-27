@@ -4,7 +4,6 @@
  * rights of spaces and shares, as `npub`; not an address to invite the vault at. It can be copied
  * and not changed; the private key is shown nowhere (FR-002).
  */
-import { Copy } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import type { VaultPublicIdentity } from '@bindings/VaultPublicIdentity'
 
@@ -14,15 +13,6 @@ defineProps<{
 
 const { t } = useI18n()
 const { errString } = useErrorString()
-
-async function onCopy(npub: string) {
-  try {
-    await navigator.clipboard.writeText(npub)
-    toast.success(t('settings.federation.identityCopied'))
-  } catch (error) {
-    toast.error(errString(error))
-  }
-}
 </script>
 
 <template>
@@ -33,12 +23,15 @@ async function onCopy(npub: string) {
       :description="t('settings.federation.identityDescription')"
     >
       <template #default>
-        <UiButtonIcon
+        <UiButtonCopy
           size="icon-sm"
-          :icon="Copy"
-          :label="t('settings.federation.identityCopy')"
+          :labels="{
+            copy: t('settings.federation.identityCopy'),
+            copied: t('settings.federation.identityCopied'),
+          }"
+          :value="identity.npub"
           data-testid="settings-identity-copy"
-          @click="onCopy(identity.npub)"
+          @error="toast.error(errString($event))"
         />
       </template>
     </SettingsRow>
