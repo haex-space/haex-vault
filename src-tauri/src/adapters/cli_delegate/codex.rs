@@ -308,8 +308,14 @@ async fn call(
                 value,
             } if response_id == id => {
                 if let Some(error) = value.get("error") {
+                    let reason = format!("codex {method} failed: {error}");
+                    if matches!(method, "config/read" | "experimentalFeature/list") {
+                        return Err(AdapterError::Unavailable {
+                            reason: web_block::refusal(DelegateVendor::Codex, &reason),
+                        });
+                    }
                     return Err(AdapterError::Http {
-                        reason: format!("codex {method} failed: {error}"),
+                        reason,
                     });
                 }
                 return Ok(value.get("result").cloned().unwrap_or(Value::Null));

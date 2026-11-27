@@ -168,8 +168,8 @@ program's credential is refused; the HTTP endpoint is closed; turning the access
       `src-tauri/tests/mcp_server_delegates.rs`, the event in one driver test per vendor.
 - [ ] T020 [US2] `src/lib/chat/toolNotice.ts`, `src/composables/useToolNotice.ts`, `scripts/check-chat-tool-notice.ts`:
       drop `delegateNoticeKey` and the `mcp_delegate_status` call; listen to `chat-delegate-tools-unavailable` and show
-      `chat.toolNotice.delegateUnavailable` with `{name}` and `{reason}` once per conversation and reason. The check
-      `pnpm check:chat-state` covers the once-per-reason rule.
+      `chat.toolNotice.delegateUnavailable` with `{name}` and `{reason}` for each affected start. The check
+      `pnpm check:chat-state` covers the per-start rule.
 - [ ] T021 [P] [US2] `src/i18n/locales/de.json` and `en.json`: remove `chat.toolNotice.delegateOff` and
       `delegateStatusUnknown`; add `chat.toolNotice.delegateUnavailable` ("{name} hat für diese Antwort keine
       HaexVault-Werkzeuge: {reason}"); rewrite
