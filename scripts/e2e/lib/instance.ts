@@ -260,6 +260,8 @@ export interface PhoneControls extends ContactControls {
   allowAllFiles(): void
   /** The package whose activity is in front, e.g. the system's settings. */
   frontPackage(): string | undefined
+  /** Whether this application's activity is in front. */
+  appInFront(): boolean
   /** The line of the system's activity dump that names the resumed activity, for a failure message. */
   frontDetail(): string
   /**
