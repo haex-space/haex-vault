@@ -5,22 +5,24 @@
 //! --permission-mode supervise --settings <run>/haex-approval-settings.json`, whose ask rule `*`
 //! makes every tool call, also a read-only one, a request: the host writes one `user` line, reads
 //! `event` lines (the text
-//! arrives as `text_delta` events), answers every `can_use_tool` control request through the
-//! approval bridge with `accept` or `reject` and nothing else (never a persistent variant), and
-//! sees the turn end with a `result` line. A request for a tool of haex-vault's own server is
+//! arrives as `text_delta` events), answers every other `can_use_tool` control request through
+//! the approval bridge with `accept` or `reject` and nothing else (never a persistent variant),
+//! and sees the turn end with a `result` line. A request for a tool of haex-vault's own server is
 //! accepted without the bridge in every mode: that server checks the call against the agent
-//! profile and the chat's approval mode and asks itself, as for Claude Code's `--allowedTools`. The account's device code is an entry of the password
-//! manager; it reaches the process as `CODELLM_DEVICE_CODE` after containment and never as a
-//! file or an argument. `ABACUS_API_KEY` is never set.
+//! profile and the chat's approval mode and asks itself, as for Claude Code's
+//! `--allowedTools mcp__haex`. The account's device code is an entry of the password manager; it
+//! reaches the process as `CODELLM_DEVICE_CODE` after containment and never as a file or an
+//! argument. `ABACUS_API_KEY` is never set.
 //!
 //! `Ungated` (spec 009) runs the program's own full-autonomy mode instead, as Claude Code's
 //! `bypassPermissions` and Codex's `approvalPolicy: "never"` do: `--permission-mode unsupervised`
 //! with a settings file without the ask rule, so no tool call asks (research §15); a request the
-//! program still sends for its own tools is rejected, nothing reaches the approval bridge. In both modes the settings
-//! file denies the bundled browser (spec 102); the program's server-side web search and page fetch
-//! are out of reach of its rules and are only shown to the person (spec 102 FR-013). `GatedPermissive` needs its own decision
-//! on what Abacus' tool names and inputs mean for the deny rules (spec 096 US3), so it ends with
-//! "autonomy mode unavailable" before anything starts.
+//! program still sends for its own tools is rejected, nothing reaches the approval bridge. In
+//! both modes the settings file denies the bundled browser (spec 102); the program's server-side
+//! web search and page fetch are out of reach of its rules and are only shown to the person (spec
+//! 102 FR-013). `GatedPermissive` needs its own decision on what Abacus' tool names and inputs
+//! mean for the deny rules (spec 096 US3), so it ends with "autonomy mode unavailable" before
+//! anything starts.
 
 use std::path::Path;
 use std::process::Stdio;
