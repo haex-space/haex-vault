@@ -423,6 +423,7 @@
       "unsupported": "Dieses Modell kann keine Werkzeuge aufrufen und chattet deshalb ohne sie. Ein Modell, das es kann, etwa Claude oder ein Qwen3-Modell, kann für dich Einstellungen ändern und Apps öffnen.",
       "delegateOff": "{name} erreicht haex-Werkzeuge nur über den MCP-Zugang, und der ist auf diesem Gerät aus. Du schaltest ihn in den Einstellungen unter KI → Externer Zugang ein.",
       "delegateStatusUnknown": "Der MCP-Zugang für {name} konnte gerade nicht geprüft werden.",
+      "delegateOwnWeb": "{name} hat seinen eigenen Webzugang benutzt statt HaexVaults Agent-Browser. Diesen Zugang kann HaexVault nicht abschalten.",
       "retry": "Erneut prüfen"
     },
     "permission": {

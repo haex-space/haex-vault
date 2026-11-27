@@ -5,6 +5,8 @@ import { topicKeyOf } from '~/lib/agents/rights'
 import {
   createToolNotices,
   type CompactionEvent,
+  DELEGATE_OWN_WEB_KEY,
+  type DelegateOwnWebEvent,
   delegateNoticeKey,
   noticeKey,
   restrictedKey,
@@ -100,6 +102,13 @@ export function useToolNotice(activeThreadId: Ref<string | null>) {
     if (key && notices.show(e.threadId, e.state)) show(e.threadId, key)
   }
 
+  /** A delegate used its own web access, which its program cannot block (spec 102 FR-013): the
+   * notice, once per conversation. */
+  function handleDelegateOwnWeb(e: DelegateOwnWebEvent) {
+    if (notices.showOwnWeb(e.threadId))
+      show(e.threadId, DELEGATE_OWN_WEB_KEY, e.delegateKind)
+  }
+
   /** A call the agent profile of the chat's model turned away: the notice, once per conversation
    * and profile (spec 083 US5). */
   function handleProfileRestricted(e: ProfileRestrictedEvent) {
@@ -148,6 +157,7 @@ export function useToolNotice(activeThreadId: Ref<string | null>) {
   return {
     toolNotice,
     handleToolAvailability,
+    handleDelegateOwnWeb,
     handleProfileRestricted,
     handleCompaction,
     dismissToolNotice,
