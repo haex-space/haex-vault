@@ -11,6 +11,7 @@
 import { computed, provide, ref, watch } from 'vue'
 import { getAppDefinition } from '~/lib/wm/apps'
 import { windowDisplayRect } from '~/lib/wm/geometry'
+import { startsTyping } from '~/lib/wm/typeToSearch'
 import {
   WM_OVERFLOW_OPEN,
   WM_OVERLAY,
@@ -178,7 +179,27 @@ const requestClose = () => void runCloseWindow(windowTarget())
 
 // A tab's route changes (Back, Forward, a push) send the search text this header still merges
 // first, so the app gets it while it shows the route it was typed on.
-const header = useTemplateRef<{ flushSearch(tab: string): void }>('header')
+const header = useTemplateRef<{
+  flushSearch(tab: string): void
+  openSearch(): boolean
+}>('header')
+const frame = useTemplateRef<HTMLElement>('frame')
+
+// Typing with no field in focus opens the header's search (the field takes the focus, so the
+// character lands in it). VueUse's own check only knows A-Z and 0-9 by key code, so `startsTyping`
+// decides instead; the key must be aimed at this window or, with nothing focused, at the page (a
+// dialog or another window's field is not it), and only the active window reacts.
+onStartTyping(() => header.value?.openSearch(), {
+  isTypedCharValid: (event) => {
+    if (!props.active || props.window.minimized || searchOpen.value)
+      return false
+    const target = event.target
+    const owns =
+      target === document.body ||
+      (target instanceof Node && !!frame.value?.contains(target))
+    return startsTyping(event, owns)
+  },
+})
 onScopeDispose(
   wm.registerHeaderFlusher((tab) => header.value?.flushSearch(tab)),
 )
@@ -204,6 +225,7 @@ const RESIZE_HANDLES: { direction: ResizeDirection; class: string }[] = [
 <template>
   <div
     v-show="!window.minimized"
+    ref="frame"
     class="absolute flex flex-col overflow-hidden rounded-lg border bg-background shadow-lg"
     :class="
       active
