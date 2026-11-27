@@ -42,7 +42,7 @@ pub(super) const CODEX_DISABLED_FEATURES: [&str; 5] = [
 pub(super) const ABACUS_DENY_RULES: [&str; 3] = [
     "Bash(agent-browser *)",
     "Bash(agent-browser)",
-    "Bash(npx agent-browser *)",
+    "Bash(npx *agent-browser*)",
 ];
 
 /// The arguments every Claude Code start gets, after the catalog's `config_args`.

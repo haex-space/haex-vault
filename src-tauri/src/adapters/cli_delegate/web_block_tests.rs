@@ -97,7 +97,7 @@ fn abacus_denies_its_bundled_browser_in_its_own_rule_syntax() {
         [
             "Bash(agent-browser *)",
             "Bash(agent-browser)",
-            "Bash(npx agent-browser *)"
+            "Bash(npx *agent-browser*)"
         ]
     );
 }

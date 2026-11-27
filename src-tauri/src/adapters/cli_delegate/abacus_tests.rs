@@ -441,7 +441,7 @@ async fn the_command_line_is_the_contract_and_the_child_has_the_device_code_and_
         settings,
         json!({ "permissions": {
             "ask": ["*"],
-            "deny": ["Bash(agent-browser *)", "Bash(agent-browser)", "Bash(npx agent-browser *)"],
+            "deny": ["Bash(agent-browser *)", "Bash(agent-browser)", "Bash(npx *agent-browser*)"],
         } })
     );
     let env = fixture.read("env");
@@ -753,7 +753,7 @@ async fn ungated_runs_unsupervised_with_the_deny_rules_only() {
     assert_eq!(
         settings,
         json!({ "permissions": {
-            "deny": ["Bash(agent-browser *)", "Bash(agent-browser)", "Bash(npx agent-browser *)"],
+            "deny": ["Bash(agent-browser *)", "Bash(agent-browser)", "Bash(npx *agent-browser*)"],
         } })
     );
     assert!(fixture

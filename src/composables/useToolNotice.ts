@@ -41,6 +41,9 @@ export interface ToolNotice {
 // Profile notices are shared by all mounted chat tabs. The event listener that receives an event
 // first must not keep the only copy in its own tab's local state.
 const restrictedByThread = reactive(new Map<string, ToolNotice>())
+// A delegate's residual own-web notice must survive notices emitted by other threads and profile
+// restrictions in the same thread until that conversation can show and dismiss it.
+const ownWebByThread = reactive(new Map<string, ToolNotice>())
 
 /**
  * The tool-use notice of the open conversation: set by `chat-tool-availability` the first time
@@ -105,8 +108,11 @@ export function useToolNotice(activeThreadId: Ref<string | null>) {
   /** A delegate used its own web access, which its program cannot block (spec 102 FR-013): the
    * notice, once per conversation. */
   function handleDelegateOwnWeb(e: DelegateOwnWebEvent) {
-    if (notices.showOwnWeb(e.threadId))
-      show(e.threadId, DELEGATE_OWN_WEB_KEY, e.delegateKind)
+    if (!notices.showOwnWeb(e.threadId)) return
+    ownWebByThread.set(e.threadId, {
+      key: DELEGATE_OWN_WEB_KEY,
+      params: { name: DELEGATE_NAMES[e.delegateKind] ?? '' },
+    })
   }
 
   /** A call the agent profile of the chat's model turned away: the notice, once per conversation
@@ -143,6 +149,7 @@ export function useToolNotice(activeThreadId: Ref<string | null>) {
   /** The notice to show now, if any. */
   const toolNotice = computed(
     () =>
+      (activeThreadId.value && ownWebByThread.get(activeThreadId.value)) ||
       (activeThreadId.value && restrictedByThread.get(activeThreadId.value)) ||
       (current.value && current.value.threadId === activeThreadId.value
         ? current.value.notice
@@ -150,8 +157,11 @@ export function useToolNotice(activeThreadId: Ref<string | null>) {
   )
 
   function dismissToolNotice() {
-    if (activeThreadId.value) restrictedByThread.delete(activeThreadId.value)
-    current.value = null
+    const threadId = activeThreadId.value
+    if (!threadId) return
+    if (ownWebByThread.delete(threadId)) return
+    if (restrictedByThread.delete(threadId)) return
+    if (current.value?.threadId === threadId) current.value = null
   }
 
   return {

@@ -58,7 +58,7 @@ ends the program at start (`Unknown feature flag`); its stderr becomes the reaso
     "deny": [
       "Bash(agent-browser *)",
       "Bash(agent-browser)",
-      "Bash(npx agent-browser *)"
+      "Bash(npx *agent-browser*)"
     ]
   }
 }

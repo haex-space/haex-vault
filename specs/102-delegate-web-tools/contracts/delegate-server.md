@@ -29,5 +29,5 @@ listed, with the same answer as an unknown client.
   running, model not offered by the active profile, write error, no helper path, no pass) returns its reason instead.
 - For a chat start (a thread is known) the driver emits `chat-delegate-tools-unavailable` through the context's
   `EventEmitter` with `{ threadId, delegateKind, reason }` and runs the turn without HaexVault's tools. The chat shows
-  "{name} has no HaexVault tools for this answer: {reason}" once per conversation and reason. The web block of the
+  "{name} has no HaexVault tools for this answer: {reason}" for each affected start. The web block of the
   delegate is unchanged. A job start (no thread) only logs.

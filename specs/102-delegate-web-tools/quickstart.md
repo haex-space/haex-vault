@@ -2,7 +2,10 @@
 
 Run by the operator with their own accounts, in a vault with the delegates installed. Abacus runs cost a few credits.
 
-## 1. Per delegate, "Standard" and "Ungated", external access off
+## 1. Per delegate, "Standard" and "Ungated", external access off (pending PR B)
+
+Run this section after PR B makes HaexVault's tools available to delegates while external access
+is off. Until then, the delegate has no HaexVault tools in this configuration.
 
 1. Settings → AI → External access: off. The agent profile of the delegate's model gives "Browser: read and change".
 2. In a new chat with the delegate: "Open https://example.org and tell me the heading." Then: "Search the web for the
@@ -10,7 +13,9 @@ Run by the operator with their own accounts, in a vault with the delegates insta
 3. Expect: the work goes through HaexVault's agent browser (its calls appear as HaexVault tool calls); the delegate's own
    web search, web fetch or browser is never asked about and never runs, apart from Abacus' server-side search and fetch
    (SC-001, SC-002, SC-004); no folder like `/tmp/ab-profile`, no browser socket and no download appear outside the vault
-   (`find /tmp ~ -newer <marker> -maxdepth 2` before and after) (SC-003).
+   (SC-003). Before and after, recursively inspect `/tmp` and the delegate's home directory, including nested cache,
+   config, and browser profile directories (for example with `find /tmp "$HOME" -newer <marker>`); also inspect any
+   custom temporary or profile locations configured for that delegate.
 
 ## 2. Programs outside HaexVault
 
@@ -22,9 +27,10 @@ Run by the operator with their own accounts, in a vault with the delegates insta
 
 ## 3. Abacus' browser (research R4)
 
-In "Standard" and "Ungated", ask Abacus to run `agent-browser --version`, `npx agent-browser --version` and
-`export X=1; agent-browser --version`. Expect each to be refused with "Tool was denied by a permission rule", without a
-question. Its web search and page fetch still run (server-side residual).
+In "Standard" and "Ungated", ask Abacus to run `agent-browser --version`, `npx agent-browser --version`,
+`npx --yes agent-browser --version`, `npx -y agent-browser --version` and `export X=1; agent-browser --version`.
+Expect each to be refused with "Tool was denied by a permission rule", without a question. Its web search and page fetch
+still run (server-side residual).
 
 Then, in the chat, ask Abacus five times to look something up on the web and once to open a page. Count how often it uses
 HaexVault's `browser_search`/`browser_open` and how often its own `web_search_text_only`/`scrape_url_content` (the
@@ -41,4 +47,5 @@ Before a version is added to `catalog.json`:
   a `--disable`.
 - Abacus: check that the bundled browser is still called `agent-browser` (its built-in skills' `allowed-tools`) and that
   no new tool reaches the web from the computer; repeat §3.
-- Then add the version to the vendor's `checked_versions` in `web_block.rs`; the catalog test fails without it.
+- Then, once T024 and T025 are complete, add the version to the vendor's `checked_versions` in `web_block.rs`; the
+  catalog test will fail without it. This version gate is pending until the catalog work lands.

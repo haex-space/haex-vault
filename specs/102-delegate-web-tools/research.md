@@ -60,7 +60,7 @@ sign-in and install runs, and the confirmation needs the same list in code; one 
 ## R3. Abacus AI: deny rules in the settings file, in both modes
 
 **Decision**: every Abacus start passes a settings file whose `permissions.deny` holds `Bash(agent-browser *)`,
-`Bash(agent-browser)` and `Bash(npx agent-browser *)`: in "Standard" next to the ask rule `*` in the file it already gets,
+`Bash(agent-browser)` and `Bash(npx *agent-browser*)`: in "Standard" next to the ask rule `*` in the file it already gets,
 in "Ungated" as a file with only these deny rules. Its web search and page fetch cannot be blocked from the program (R4);
 the operator named them a residual (spec decision 4, FR-001, FR-008).
 
@@ -78,7 +78,8 @@ the operator named them a residual (spec decision 4, FR-001, FR-008).
   start; the version check (R5) and the measured run (R4) stand in for it.
 
 **Alternatives considered**: `--disallowed-tools` on the command line. Its help says "comma- or space-separated", so
-`Bash(npx agent-browser *)` would be cut at its space; the settings file takes each rule whole.
+`Bash(npx *agent-browser*)` covers npx options such as `--yes` and `-y` before the executable; the settings file takes
+each rule whole.
 
 ## R4. Abacus: what its rules can block (measured 2026-11-27)
 
