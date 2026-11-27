@@ -409,7 +409,12 @@ async function replaceLocation(
     // While the old document goes, a script may fail; the next try reaches the new one.
     const loaded = await client
       .execute<boolean>(
-        'return location.href === arguments[0] && document.readyState === "complete"',
+        `const requested = new URL(arguments[0]);
+         const current = new URL(location.href);
+         const reached = current.href === requested.href ||
+           (requested.search !== '' && current.origin === requested.origin &&
+             current.pathname === requested.pathname && current.search === '');
+         return reached && document.readyState === 'complete'`,
         [url],
       )
       .catch(() => false)
