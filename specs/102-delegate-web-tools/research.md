@@ -117,11 +117,32 @@ of which versions were checked grows.
 features. Rejected: it would refuse a vault's installed version over a tool that has nothing to do with the web, and a
 version only arrives through the catalog anyway.
 
-## R6. The notice without the MCP access
+## R6. HaexVault's server for delegates without the external access (spec FR-004, FR-011, FR-012)
 
-**Finding**: the notice already covers Abacus. A delegate turn emits `chat-tool-availability` with the delegate's kind
-(`chat/send.rs`), the frontend maps `abacusDelegate` to "Abacus AI" (`useToolNotice.ts`), and `mcp_delegate_status` answers
-`off` when the access is off. Spec FR-004 needs a test that proves it for Abacus, no new code.
+**Today** (read 2026-11-27): `McpServer` in `mcp_server/mod.rs` starts `server::start` only while the device's
+`mcp.enabled` is on, with the local endpoint (`program_way`, a Unix socket in the user's runtime folder or a named pipe)
+and, where the platform has it, the HTTP endpoint on `127.0.0.1`. `server::start` attaches the core to the `DelegateHub`;
+without a running server `DelegateHub::server_for` answers `None` ("the server is not running"). A delegate connects
+through the helper on the local endpoint with `--delegate-token`; `hello.rs` marks such a connection `delegate: true`.
+
+**Decision**: the server runs while a vault is open, whatever the external access says. The external access decides two
+things only: whether the HTTP endpoint is open, and whether the local endpoint accepts anything but a delegate's pass.
+While it is off, a connection whose hello is not a delegate with a known, running pass is closed before any tool is
+listed (spec FR-011). `delegateOff`, its i18n texts and the `off` answer of `mcp_delegate_status` go; a start without the
+server (bind failed) shows a notice with the reason (FR-012).
+
+**Rationale**: the pass already exists, lives only in the process and ends with the start (spec 021), so it is a sufficient
+gate on the local endpoint. HTTP is the way programs like an editor connect; keeping it closed while the access is off
+leaves nothing reachable without a pass. The socket lies where it lies today with the access on (the runtime folder, a
+`tmpfs` on Linux, removed when the server stops).
+
+**Alternatives considered**:
+
+- Start the server only for the time a delegate runs. Fewer minutes with a socket, but a start and stop per turn, and
+  parallel turns (ADR 0021) would share and race over one server; rejected.
+- A second, delegate-only server in the run folder inside the vault. No socket outside the vault, but a second copy of
+  the server's state and Unix socket paths are limited to about 100 bytes, which a vault path can exceed; rejected for
+  now, noted for the OS sandbox spec.
 
 ## R7. Residuals (spec FR-008)
 
@@ -129,4 +150,4 @@ version only arrives through the catalog anyway.
 - Computer use: Codex' `computer_use` stays on, and a delegate can open a desktop browser through it.
 - Abacus: its web search and page fetch, which run on its server (R4).
 
-They are named in the delegate documentation and in the Settings text about the delegates.
+They are named in the Settings text about the autonomy modes of the delegates.

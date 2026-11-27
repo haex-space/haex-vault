@@ -7,7 +7,9 @@
 ## Summary
 
 Every start of a subscription delegate gets its own web tools and browser switched off by the program itself, in every
-autonomy mode and whether or not the MCP access is on; computer use and everything else stay. Claude Code starts with an
+autonomy mode; computer use and everything else stay. In exchange every delegate in the chat gets HaexVault's tools,
+including its agent browser, whether or not the external access is on: HaexVault's server runs while a vault is open, and
+the external access only opens it to programs outside HaexVault (research R6). Claude Code starts with an
 allow-list of its built-in tools without `WebFetch`/`WebSearch` and with `--no-chrome`; Codex with `web_search="disabled"`
 and five browser features disabled; Abacus with deny rules for its bundled browser command in its settings file, in both
 modes (its web search and page fetch run on its server and are a named residual). Where the program reports its state at start (Claude's init line, Codex' `config/read` and
@@ -40,8 +42,8 @@ never falls back to another backend (FR-007); nothing besides the web tools and 
 about 500 lines (`codex.rs` already carries a maintainability exception, so its new check goes into the new module);
 cargo with the memory-limited flags of this machine, or CI only while the app runs.
 
-**Scale/Scope**: three vendors, three command builders, two confirmations, one module, one Settings line, one test over
-the catalog.
+**Scale/Scope**: three vendors, three command builders, two confirmations, one module, one test over the catalog; the
+server's start condition and connection gate; the removal of the `delegateOff` notice; two Settings texts.
 
 ## Constitution Check
 
@@ -56,7 +58,7 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 | V. External sources opt-in                      | Pass. No external source.                                                                                   |
 | VI. Self-modifying instructions review-gated    | Pass. The delegate instruction (`DELEGATE_INSTRUCTION`) is unchanged (FR-009); all changes go through a PR. |
 | VII. Relay unavailability never blocks local    | Pass. Not touched.                                                                                          |
-| VIII. No concealment instructions               | Pass. A refused block is shown to the person (FR-007).                                                      |
+| VIII. No concealment instructions               | Pass. A refused block and a start without HaexVault's tools are shown to the person (FR-007, FR-012).       |
 
 Re-check after Phase 1: unchanged, pass.
 
@@ -71,7 +73,8 @@ specs/102-delegate-web-tools/
 ├── data-model.md        # Phase 1: the web block record
 ├── quickstart.md        # Phase 1: real-program checks, incl. the check of a new version
 ├── contracts/
-│   └── web-block.md     # Phase 1: arguments and confirmation per vendor
+│   ├── web-block.md     # Phase 1: arguments and confirmation per vendor
+│   └── delegate-server.md # Phase 1: when the server runs and whom it accepts
 └── tasks.md             # Phase 2 ($speckit-tasks)
 ```
 
@@ -88,10 +91,19 @@ src-tauri/src/adapters/cli_delegate/
 ├── abacus_models.rs        # the catalog run gets the same arguments (one builder)
 ├── mod.rs                  # `mod web_block;`
 └── *_tests.rs              # existing builder tests learn the new arguments
+src-tauri/src/mcp_server/
+├── mod.rs                  # the server starts with the vault; `mcp.enabled` sets `external` instead of start/stop
+├── server.rs               # StartArgs gains `external: bool`; HTTP endpoint only when external
+├── connection.rs / hello.rs # while not external, a hello that is not a running delegate pass is closed
+├── commands.rs             # `mcp_delegate_status` loses `off`; toggling the access changes `external` live
+└── *_tests.rs              # endpoint gate with and without external access
 src-tauri/tests/
 └── cli_delegate_*_run.rs   # stub transcripts with and without the block (Claude init, Codex answers)
-src/i18n/locales/{de,en}.json   # settings.autonomyMode.webBlock: the block and its residuals (FR-008)
-src/components/…            # the Settings view of the autonomy modes shows the line (file found in tasks)
+src/lib/chat/toolNotice.ts, src/composables/useToolNotice.ts  # `delegateOff` removed; a notice for a start without
+                            #      HaexVault's tools with its reason (FR-012)
+src/i18n/locales/{de,en}.json   # settings.autonomyMode.webBlock (block + residuals, FR-008); the external access
+                            #      text says it is for programs outside HaexVault (FR-011); delegateOff removed
+src/components/…            # the Settings views showing both texts (files found in tasks)
 specs/096-abacus-delegate/research.md  # §16 pointer to spec 102 for the deny rules in "Ungated"
 ```
 
@@ -101,10 +113,12 @@ command builder and the start-up read).
 
 ## Phases of delivery
 
-- **PR A (P1, US1+US2)**: `web_block.rs`, the three builders, the Claude and Codex confirmations, stub tests, the Abacus
-  deny rules (measured, research R4), the test of R6 for the notice.
-- **Operator run**: the quickstart per vendor and mode.
-- **PR B (P2, US3 + polish)**: the catalog test of R5 with the checked versions, the Settings line naming the residuals,
+- **PR A (P1, US1)**: `web_block.rs`, the three builders, the Claude and Codex confirmations, stub tests, the Abacus deny
+  rules (measured, research R4).
+- **PR B (P1, US2)**: the server with the vault, the connection gate while the external access is off, the removal of
+  `delegateOff` and the notice of FR-012, the external access text.
+- **Operator run**: the quickstart per vendor and mode, with the external access on and off.
+- **PR C (P2, US3 + polish)**: the catalog test of R5 with the checked versions, the Settings line naming the residuals,
   spec 096 pointer.
 
 ## Complexity Tracking

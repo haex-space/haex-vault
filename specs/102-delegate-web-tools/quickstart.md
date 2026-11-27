@@ -2,21 +2,23 @@
 
 Run by the operator with their own accounts, in a vault with the delegates installed. Abacus runs cost a few credits.
 
-## 1. MCP access on, per delegate, "Standard" and "Ungated"
+## 1. Per delegate, "Standard" and "Ungated", external access off
 
-1. Settings → AI → External access: on.
+1. Settings → AI → External access: off. The agent profile of the delegate's model gives "Browser: read and change".
 2. In a new chat with the delegate: "Open https://example.org and tell me the heading." Then: "Search the web for the
    current Rust release."
 3. Expect: the work goes through HaexVault's agent browser (its calls appear as HaexVault tool calls); the delegate's own
-   web search, web fetch or browser is never asked about and never runs (SC-001, SC-002, SC-004).
-
-## 2. MCP access off
-
-1. Settings → AI → External access: off.
-2. Same requests as §1 in "Ungated".
-3. Expect: the notice "{name} reaches haex tools only through the MCP access …" appears once; the delegate says it cannot
-   open the page; no folder like `/tmp/ab-profile`, no browser socket and no download appear outside the vault
+   web search, web fetch or browser is never asked about and never runs, apart from Abacus' server-side search and fetch
+   (SC-001, SC-002, SC-004); no folder like `/tmp/ab-profile`, no browser socket and no download appear outside the vault
    (`find /tmp ~ -newer <marker> -maxdepth 2` before and after) (SC-003).
+
+## 2. Programs outside HaexVault
+
+1. External access off, a delegate turn running: connect an MCP client (an editor, or the app's helper `--mcp-agent` with a
+   registered program's credential). Expect: refused (SC-003).
+2. External access on: the same client connects as before; the delegate of §1 still works.
+3. Profile without the browser: ask a delegate to open a page. Expect: the profile notice of spec 083 says the browser is
+   not given; the delegate's own browser does not run.
 
 ## 3. Abacus' browser (research R4)
 

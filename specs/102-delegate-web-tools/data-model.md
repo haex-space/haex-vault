@@ -20,3 +20,10 @@ Nothing is stored. The one entity is a constant per vendor in `src-tauri/src/ada
   no other backend is tried (spec FR-007).
 
 **State**: none. The block is computed per start; a change of the person's settings never touches it.
+
+## Server state (existing, one field more)
+
+`StartArgs`/`Running` of `mcp_server::server` gain `external: bool`, read from the device preference `mcp.enabled`
+(unchanged key). It decides whether the HTTP endpoint is open and whether the local endpoint accepts anything but a
+running delegate pass ([contracts/delegate-server.md](contracts/delegate-server.md)). The delegate pass (spec 021) is
+unchanged: made per start, held only in the process, ended with the start.

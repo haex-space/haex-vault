@@ -34,4 +34,6 @@
 - Program names, versions and the existing notice key are named because the feature is about those programs and that
   notice; the switches themselves are left to research and the plan.
 - The two scope decisions (block always, shell network as a residual) were taken by the operator on 2026-11-27 before the
-  spec was written, so no clarification marker was needed.
+  spec was written, so no clarification marker was needed. Decisions 3–5 (computer use stays, Abacus' server-side web
+  tools as a residual, delegates independent of the external access) followed the same day; re-validated after each,
+  all items still pass.
