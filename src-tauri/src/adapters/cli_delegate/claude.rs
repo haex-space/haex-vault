@@ -587,7 +587,7 @@ pub(super) async fn spawn_claude_invocation(
                 abandon_start(&mut child, stderr_task, listener_task).await;
                 return Err(AdapterError::Http {
                     reason: format!("failed to read claude stdout: {e}"),
-                })
+                });
             }
             // A silent `claude` that neither emits output nor exits would
             // otherwise hang this probe indefinitely — cancellation aside
