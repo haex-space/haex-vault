@@ -771,7 +771,8 @@
     "autonomyMode": {
       "standardDescription": "Tool-Aufrufe durchlaufen dieselbe Freigabe-Regel wie bei allen anderen Modellen (Manuell/Automatisch/Plan, im Chat einstellbar).",
       "ungatedDescription": "Der Abo-Agent läuft komplett eigenständig, mit seinem eigenen vollständigen Autonomie-Mechanismus — HaexVault greift nicht ein und fragt nicht nach.",
-      "gated_permissiveDescription": "Der Abo-Agent darf frei agieren, aber die unten festgelegten Verbotsregeln bleiben tabu — ohne Rückfrage, jede Aktion wird protokolliert."
+      "gated_permissiveDescription": "Der Abo-Agent darf frei agieren, aber die unten festgelegten Verbotsregeln bleiben tabu — ohne Rückfrage, jede Aktion wird protokolliert.",
+      "webBlock": "In jedem Modus sind die eigene Websuche und der eigene Browser der Abo-Agenten aus; Webseiten öffnen sie über den Agent-Browser von HaexVault. Über ihre Shell, über Computer Use und bei Abacus AI über dessen Websuche auf dem Abacus-Server erreichen sie das Web trotzdem."
     },
     "denyRules": {
       "workspace_escape": "Workspace verlassen",

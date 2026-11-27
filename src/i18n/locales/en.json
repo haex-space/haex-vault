@@ -771,7 +771,8 @@
     "autonomyMode": {
       "standardDescription": "Tool calls go through the same approval rule as every other model (Manual/Auto/Plan, adjustable in chat).",
       "ungatedDescription": "The subscription agent runs fully on its own, using its own native full-autonomy mechanism — HaexVault does not intervene or ask.",
-      "gated_permissiveDescription": "The subscription agent can act freely, but the deny rules set below stay off-limits — no prompts, every action is logged."
+      "gated_permissiveDescription": "The subscription agent can act freely, but the deny rules set below stay off-limits — no prompts, every action is logged.",
+      "webBlock": "In every mode the subscription agents’ own web search and browser are off; they open websites through HaexVault’s agent browser. Through their shell, through computer use and, for Abacus AI, through its web search on the Abacus server they can still reach the web."
     },
     "denyRules": {
       "workspace_escape": "Workspace escape",

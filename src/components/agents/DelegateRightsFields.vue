@@ -63,6 +63,12 @@ function toggle(category: DenyCategory, checked: boolean) {
   <p class="px-1 text-xs text-muted-foreground">
     {{ t('mcpAgents.delegate.hint') }}
   </p>
+  <p
+    class="px-1 text-xs text-muted-foreground"
+    data-testid="mcp-delegate-web-block"
+  >
+    {{ t('settings.autonomyMode.webBlock') }}
+  </p>
   <SettingsGroup
     v-if="autonomy === 'gated_permissive'"
     :label="t('mcpAgents.delegate.denyTitle')"
