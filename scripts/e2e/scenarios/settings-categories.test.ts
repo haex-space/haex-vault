@@ -66,7 +66,12 @@ scenario('settings-categories', {}, async (ctx) => {
     instance.exec<{ left: number; top: number; tab: string }>(
       `const rect = document.querySelector('[data-testid="settings-title"]').getBoundingClientRect()
        const frame = document.querySelector('[data-testid="settings-title"]').closest('[data-wm-window-id]')
-       return { left: Math.round(rect.left), top: Math.round(rect.top), tab: frame.getAttribute('aria-label') }`,
+       const frameRect = frame.getBoundingClientRect()
+       return {
+         left: Math.round(rect.left - frameRect.left),
+         top: Math.round(rect.top - frameRect.top),
+         tab: frame.getAttribute('aria-label'),
+       }`,
     )
 
   // Compare sibling category pages. The first category fixture above is a nested settings page
