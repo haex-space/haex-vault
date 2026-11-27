@@ -242,17 +242,20 @@ impl Running {
         external: bool,
         http_port: Option<u16>,
     ) -> Result<(), StartError> {
-        self.core.external.store(external, Ordering::SeqCst);
-        if external {
-            if let (None, Some(port)) = (&self.http, http_port) {
-                self.http = Some(HttpWay::start(&self.core, port).await?);
-            }
-        } else {
+        if !external {
+            self.core.external.store(false, Ordering::SeqCst);
             if let Some(way) = self.http.take() {
                 way.stop().await;
             }
             self.core.live.close_outside(CloseReason::Disabled);
+            return Ok(());
         }
+        if let (None, Some(port)) = (&self.http, http_port) {
+            // Do not admit outside program connections until the requested HTTP path is ready.
+            let way = HttpWay::start(&self.core, port).await?;
+            self.http = Some(way);
+        }
+        self.core.external.store(true, Ordering::SeqCst);
         Ok(())
     }
 

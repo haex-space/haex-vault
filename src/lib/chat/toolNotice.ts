@@ -104,12 +104,8 @@ export function createToolNotices() {
       seen.add(key)
       return true
     },
-    /** The notice about a delegate start without haex-vault's tools: once per conversation and
-     * reason (spec 102 FR-012). */
-    showUnavailable(threadId: string, reason: string): boolean {
-      const key = `${threadId}:unavailable:${reason}`
-      if (seen.has(key)) return false
-      seen.add(key)
+    /** Every delegate start without haex-vault's tools needs its own notice (spec 102 FR-012). */
+    showUnavailable(): boolean {
       return true
     },
     /** The notice about a delegate's own web access: once per conversation (spec 102 FR-013). */
