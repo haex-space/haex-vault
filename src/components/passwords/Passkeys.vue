@@ -7,9 +7,10 @@
  * opens the source) and offers only "Verweis lösen". There is no button to create one and a key is
  * never shown.
  */
+import { formatTimeAgoIntl } from '@vueuse/core'
 import { toast } from 'vue-sonner'
 import type { PasskeyView } from '@bindings/PasskeyView'
-import { displayTitle, relativeTime } from '~/lib/passwords/format'
+import { displayTitle } from '~/lib/passwords/format'
 
 const props = defineProps<{
   itemId: string
@@ -23,6 +24,7 @@ const emit = defineEmits<{
 
 const { t, d, locale } = useI18n()
 const { errString } = useErrorString()
+const now = useSharedNow()
 const router = useTabRouter()
 const { renamePasskeyAsync, deletePasskeyAsync, passkeyUnlinkAsync } =
   usePasswords()
@@ -54,7 +56,12 @@ function ago(stamp: string): string {
   const date = new Date(stamp)
   return Number.isNaN(date.getTime())
     ? stamp
-    : relativeTime(date, new Date(), locale.value)
+    : // A clock a little ahead of this one reads as just now, not as a future time.
+      formatTimeAgoIntl(
+        new Date(Math.min(date.getTime(), now.value.getTime())),
+        { locale: locale.value },
+        now.value,
+      )
 }
 
 function sourceTitle(passkey: PasskeyView): string {

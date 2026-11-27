@@ -126,26 +126,3 @@ export function fileKind(fileName: string): FileKind {
   const kind = viewerKind(fileName)
   return kind === 'pdf' || kind === 'text' ? kind : 'other'
 }
-
-const RELATIVE_STEPS: readonly [Intl.RelativeTimeFormatUnit, number][] = [
-  ['year', 365 * 24 * 3600],
-  ['month', 30 * 24 * 3600],
-  ['day', 24 * 3600],
-  ['hour', 3600],
-  ['minute', 60],
-]
-
-/** A past time as text in the largest fitting unit ("vor 2 Tagen", "yesterday", "now"; spec 036
- * FR-007), in the language `locale`. A time that is not in the past reads as now. */
-export function relativeTime(then: Date, now: Date, locale: string): string {
-  const seconds = Math.max(
-    0,
-    Math.round((now.getTime() - then.getTime()) / 1000),
-  )
-  const format = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
-  for (const [unit, length] of RELATIVE_STEPS) {
-    if (seconds >= length)
-      return format.format(-Math.floor(seconds / length), unit)
-  }
-  return format.format(0, 'second')
-}
