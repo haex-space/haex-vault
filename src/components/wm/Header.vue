@@ -249,7 +249,10 @@ function openCurrentSearch(character: string): boolean {
 }
 
 function openSearch(character: string): boolean {
-  if (appliedOwner !== props.owner || appliedDescription !== props.description) {
+  if (
+    appliedOwner !== props.owner ||
+    appliedDescription !== props.description
+  ) {
     const hasEnabledSearch = AREAS.flatMap(
       (area) => props.description?.[area] ?? [],
     ).some((control) => control.type === 'search' && !control.disabled)
