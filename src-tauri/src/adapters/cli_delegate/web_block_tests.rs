@@ -1,9 +1,11 @@
 use serde_json::{json, Value};
 
 use super::{
-    abacus_own_web_use, claude_args, codex_args, confirm_claude_init, confirm_codex,
-    ABACUS_DENY_RULES, CLAUDE_TOOLS, CODEX_DISABLED_FEATURES,
+    abacus_own_web_use, check_catalog, checked_versions, claude_args, codex_args,
+    confirm_claude_init, confirm_codex, ABACUS_DENY_RULES, CLAUDE_TOOLS, CODEX_DISABLED_FEATURES,
 };
+use crate::adapters::cli_delegate::DelegateVendor;
+use crate::cli_tools::catalog::Catalog;
 
 /// The tools of the init line of claude 2.1.311 with `--tools` set (research R1).
 fn claude_init(tools: &[&str], servers: Value) -> Value {
@@ -202,4 +204,42 @@ fn abacus_server_side_web_use_is_recognised_from_its_events() {
     assert!(!abacus_own_web_use(
         &json!({ "type": "text_delta", "content": "Web Access" })
     ));
+}
+
+#[test]
+fn every_version_of_the_shipped_catalog_was_checked_against_the_block() {
+    // FR-006, SC-005: a version enters the catalog only after quickstart §4.
+    check_catalog(Catalog::shipped()).unwrap_or_else(|gap| panic!("{gap}"));
+    assert_eq!(checked_versions(DelegateVendor::Claude), ["2.1.311"]);
+    assert_eq!(checked_versions(DelegateVendor::Codex), ["0.169.0"]);
+    assert_eq!(checked_versions(DelegateVendor::Abacus), ["2.10.23"]);
+}
+
+#[test]
+fn a_catalog_version_without_a_check_fails_and_points_at_the_quickstart() {
+    let mut catalog = Catalog::shipped().clone();
+    let codex = catalog
+        .vendors
+        .iter_mut()
+        .find(|entry| entry.vendor == "codex")
+        .expect("codex is shipped");
+    let mut newer = codex.versions[0].clone();
+    newer.version = "9.0.0".to_owned();
+    codex.versions.insert(0, newer);
+
+    let gap = check_catalog(&catalog).expect_err("an unchecked version");
+    assert!(gap.contains("codex 9.0.0"), "{gap}");
+    assert!(gap.contains("quickstart.md §4"), "{gap}");
+    assert!(!gap.contains("claude"), "{gap}");
+}
+
+#[test]
+fn a_catalog_vendor_without_a_delegate_has_no_block() {
+    let mut catalog = Catalog::shipped().clone();
+    let mut other = catalog.vendors[0].clone();
+    other.vendor = "other".to_owned();
+    catalog.vendors.push(other);
+
+    let gap = check_catalog(&catalog).expect_err("no block");
+    assert!(gap.contains("other has no web block"), "{gap}");
 }
