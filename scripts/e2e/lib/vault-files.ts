@@ -3,7 +3,7 @@
 // Linux the files lie below the instance's data root, on Android in the app's data directory,
 // reached through `run-as` (debug builds only).
 import { createHash } from 'node:crypto'
-import { readFileSync, rmSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { createAdb } from './platform/adb.ts'
 import { PACKAGE } from './platform/android.ts'
@@ -12,6 +12,8 @@ import { DATABASE_FILE, VAULT_DIR } from './platform/linux.ts'
 const ANDROID_PREFIX = 'android:'
 /** How often a vault file is read through adb before the scenario gives up. */
 const READ_TRIES = 3
+/** The diagnostic log of a vault, relative to the vault's folder. */
+const LOG_FILE = 'logs/haex.log'
 
 const sha256 = (bytes: Buffer) =>
   createHash('sha256').update(bytes).digest('hex')
@@ -21,6 +23,8 @@ export interface VaultFiles {
   read: (vault: string) => Buffer
   /** Removes the folder of the vault with everything in it. */
   remove: (vault: string) => void
+  /** The text of the vault's diagnostic log (`logs/haex.log`, spec 098), or null while it does not exist. */
+  log: (vault: string) => string | null
 }
 
 export function vaultFiles(root: string): VaultFiles {
@@ -45,6 +49,12 @@ export function vaultFiles(root: string): VaultFiles {
         )
       },
       remove: (vault) => void adb.runAs(PACKAGE, `rm -rf vaults/${vault}`),
+      log: (vault) => {
+        const file = `vaults/${vault}/${LOG_FILE}`
+        const found = adb.runAs(PACKAGE, `ls ${file} 2>&1`).toString()
+        if (found.includes('No such file')) return null
+        return adb.runAs(PACKAGE, `cat ${file}`).toString()
+      },
     }
   }
   const dir = join(root, ...VAULT_DIR)
@@ -52,5 +62,9 @@ export function vaultFiles(root: string): VaultFiles {
     read: (vault) => readFileSync(join(dir, vault, DATABASE_FILE)),
     remove: (vault) =>
       rmSync(join(dir, vault), { recursive: true, force: true }),
+    log: (vault) => {
+      const file = join(dir, vault, LOG_FILE)
+      return existsSync(file) ? readFileSync(file, 'utf8') : null
+    },
   }
 }
