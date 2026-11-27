@@ -1,16 +1,11 @@
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { scenario } from '../lib/scenario.ts'
 import type { ScenarioContext } from '../lib/scenario.ts'
 import { createAndUnlock, openLauncher, unwrap } from '../lib/flows.ts'
 import { PROCESS_END_LIMIT_MS } from '../lib/close-promises.ts'
-import { createAdb } from '../lib/platform/adb.ts'
-import { PACKAGE } from '../lib/platform/android.ts'
-import { VAULT_DIR } from '../lib/platform/linux.ts'
+import { vaultFiles } from '../lib/vault-files.ts'
 
 const VAULT = 'e2e-log-trace'
-const ANDROID_PREFIX = 'android:'
 const LOG_TIMEOUT_MS = 15_000
 
 type Instance = Awaited<ReturnType<ScenarioContext['startInstance']>>
@@ -19,19 +14,6 @@ type Level = 'standard' | 'verbose'
 interface LogStatus {
   level: Level
   untilMs: number | null
-}
-
-/** The vault's `logs/haex.log` as text, or null while it does not exist (spec 098). */
-function readLog(root: string): string | null {
-  if (root.startsWith(ANDROID_PREFIX)) {
-    const adb = createAdb(root.slice(ANDROID_PREFIX.length))
-    const path = `vaults/${VAULT}/logs/haex.log`
-    const found = adb.runAs(PACKAGE, `ls ${path} 2>&1`).toString()
-    if (found.includes('No such file')) return null
-    return adb.runAs(PACKAGE, `cat ${path}`).toString()
-  }
-  const file = join(root, ...VAULT_DIR, VAULT, 'logs', 'haex.log')
-  return existsSync(file) ? readFileSync(file, 'utf8') : null
 }
 
 async function status(instance: Instance): Promise<LogStatus> {
@@ -57,7 +39,7 @@ async function waitForLogLine(
 ): Promise<void> {
   await ctx.waitFor(
     `"${text}" in the log`,
-    () => readLog(instance.root)?.includes(text) === true,
+    () => vaultFiles(instance.root).log(VAULT)?.includes(text) === true,
     { timeoutMs: LOG_TIMEOUT_MS },
   )
 }
@@ -75,7 +57,7 @@ scenario(
     await createAndUnlock(first, { name: VAULT, passphrase })
     await ctx.waitFor(
       'the log of the vault to exist after the unlock',
-      () => readLog(first.root) !== null,
+      () => vaultFiles(first.root).log(VAULT) !== null,
       { timeoutMs: LOG_TIMEOUT_MS },
     )
     ctx.step('the log exists after the unlock')
@@ -83,7 +65,7 @@ scenario(
     assert.equal((await status(first)).level, 'standard')
     await consoleLine(first, 'error', 'probe-ui-error')
     await waitForLogLine(ctx, first, 'probe-ui-error')
-    const log = readLog(first.root) ?? ''
+    const log = vaultFiles(first.root).log(VAULT) ?? ''
     const line = log.split('\n').find((l) => l.includes('probe-ui-error'))
     assert.ok(line?.includes('[ui]'), `the UI line has the prefix: ${line}`)
     ctx.step('a console error of the interface stands in the log with [ui]')
@@ -94,7 +76,9 @@ scenario(
     await consoleLine(first, 'error', 'probe-barrier-standard')
     await waitForLogLine(ctx, first, 'probe-barrier-standard')
     assert.ok(
-      !(readLog(first.root) ?? '').includes('probe-debug-standard'),
+      !(vaultFiles(first.root).log(VAULT) ?? '').includes(
+        'probe-debug-standard',
+      ),
       'console.debug reached the log at "Standard"',
     )
     ctx.step('console.debug stays out at "Standard"')
