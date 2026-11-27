@@ -217,12 +217,15 @@ const searchOf = (control: WmHeaderControl) =>
 
 /**
  * The user started typing with no field in focus: the first enabled search of the header opens, and
- * its field takes the focus, so the character that is being typed lands in it. `false` while the
- * description has no enabled search, so the key stays what it was.
+ * the field gets the character before it takes focus. This preserves an existing filter by
+ * appending the character. `false` while the description has no enabled search, so the key stays
+ * what it was.
  */
-function openSearch(): boolean {
+function openSearch(character: string): boolean {
   const control = searchControls.value.find((c) => !c.disabled)
   if (!control) return false
+  const field = searches.fieldFor(control.id, control.value)
+  field.type(field.text.value + character)
   searchOpen.value = control.id
   return true
 }

@@ -181,15 +181,16 @@ const requestClose = () => void runCloseWindow(windowTarget())
 // first, so the app gets it while it shows the route it was typed on.
 const header = useTemplateRef<{
   flushSearch(tab: string): void
-  openSearch(): boolean
+  openSearch(character: string): boolean
 }>('header')
 const frame = useTemplateRef<HTMLElement>('frame')
 
-// Typing with no field in focus opens the header's search (the field takes the focus, so the
-// character lands in it). VueUse's own check only knows A-Z and 0-9 by key code, so `startsTyping`
-// decides instead; the key must be aimed at this window or, with nothing focused, at the page (a
-// dialog or another window's field is not it), and only the active window reacts.
-onStartTyping(() => header.value?.openSearch(), {
+// Typing with no field in focus opens the header's search and seeds it with that character. The
+// field focuses asynchronously, so it cannot rely on the browser inserting the key into it.
+// VueUse's own check only knows A-Z and 0-9 by key code, so `startsTyping` decides instead; the key
+// must be aimed at this window or, with nothing focused, at the page (a dialog or another window's
+// field is not it), and only the active window reacts.
+onStartTyping((event) => header.value?.openSearch(event.key), {
   isTypedCharValid: (event) => {
     if (!props.active || props.window.minimized || searchOpen.value)
       return false
