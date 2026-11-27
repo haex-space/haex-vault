@@ -176,12 +176,15 @@ program's credential is refused; the HTTP endpoint is closed; turning the access
       `settings.locations.ai.access.description`, its `keywords` and `actions.settings.agents.mcp.enable` so they say the
       access is for programs outside HaexVault (an editor such as VS Code) and that the agents in the chat do not need it;
       the same sentence in `src/components/settings/agents/AccessView.vue` where it explains the switch.
-- [ ] T022 [US2] `scripts/e2e/scenarios/mcp-agent.test.ts` and `android-mcp-agent.test.ts`: check whether a scenario
+- [x] T022 [US2] `scripts/e2e/scenarios/mcp-agent.test.ts` and `android-mcp-agent.test.ts`: check whether a scenario
       relies on the server being down with the access off (e.g. "no socket while off") and adjust it to "refused while
       off"; run the e2e workflow on the branch before merge (`gh workflow run ci.yml --ref <branch>`). Checked: no
       scenario relies on it ("off by default" reads the Settings state, which stays `off` while the server runs for
-      delegates; Android keeps today's rule); the e2e run is still open.
-- [ ] T023 [US2] PR B gate: `cargo clippy`, `cargo test` for `mcp_server` and the `mcp_server_*` integration tests (CI),
+      delegates; Android keeps today's rule). E2E run 46001726957 on 6a042afdb: `mcp-agent` passed; the 114 failing
+      scenarios (`settings-categories` and the Android shards, `android-mcp-agent` among them) are the same set that
+      failed on main 0c02c471a before spec 102, so `android-mcp-agent` stays unconfirmed until main's Android e2e is
+      green.
+- [x] T023 [US2] PR B gate: `cargo clippy`, `cargo test` for `mcp_server` and the `mcp_server_*` integration tests (CI),
       `pnpm typecheck`, `pnpm check:chat-state`, Prettier; push branch `feat/102-pr-b-delegate-server`, PR as
       haex-space.
 
@@ -198,16 +201,16 @@ its residuals.
 **Independent Test**: adding a version to `catalog.json` without adding it to `checked_versions` fails a test; the
 Settings view of the autonomy modes shows the block and the residuals.
 
-- [ ] T024 [P] [US3] `web_block_tests.rs`: for each vendor of `Catalog::shipped()`, every listed version is in that
+- [x] T024 [P] [US3] `web_block_tests.rs`: for each vendor of `Catalog::shipped()`, every listed version is in that
       vendor's `checked_versions`; a test catalog with an extra version fails the check with a message pointing at
       quickstart §4.
-- [ ] T025 [US3] `web_block.rs`: `checked_versions` per vendor (`claude` 2.1.311, `codex` 0.169.0, `abacusai` 2.10.23)
+- [x] T025 [US3] `web_block.rs`: `checked_versions` per vendor (`claude` 2.1.311, `codex` 0.169.0, `abacusai` 2.10.23)
       and the check function T024 calls.
-- [ ] T026 [P] [US3] `src/i18n/locales/de.json`, `en.json`: `settings.autonomyMode.webBlock` — in every mode the agents'
+- [x] T026 [P] [US3] `src/i18n/locales/de.json`, `en.json`: `settings.autonomyMode.webBlock` — in every mode the agents'
       own web search and browser are off and websites go through HaexVault's agent browser; through their shell, through
       computer use and, for Abacus, through its server-side web search they can still reach the web. Show it under the
       autonomy mode choice (find the component that renders `settings.autonomyMode.*Description`).
-- [ ] T027 [P] [US3] `specs/096-abacus-delegate/research.md`: a §16 pointer — "Ungated" passes a settings file with deny
+- [x] T027 [P] [US3] `specs/096-abacus-delegate/research.md`: a §16 pointer — "Ungated" passes a settings file with deny
       rules since spec 102 (research R3 there).
 
 ---
