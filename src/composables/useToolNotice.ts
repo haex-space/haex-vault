@@ -139,7 +139,8 @@ export function useToolNotice(activeThreadId: Ref<string | null>) {
   const toolNotice = computed(
     () =>
       (activeThreadId.value && ownWebByThread.get(activeThreadId.value)) ||
-      (activeThreadId.value && unavailableByThread.get(activeThreadId.value)?.[0]) ||
+      (activeThreadId.value &&
+        unavailableByThread.get(activeThreadId.value)?.[0]) ||
       (activeThreadId.value && restrictedByThread.get(activeThreadId.value)) ||
       (current.value && current.value.threadId === activeThreadId.value
         ? current.value.notice
