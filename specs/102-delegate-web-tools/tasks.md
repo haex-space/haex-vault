@@ -34,7 +34,7 @@ CARGO_INCREMENTAL=0` and `env -u CC -u CXX -u AR` inside a memory-limited scope;
 
 ## Phase 1: Setup
 
-- [ ] T001 Create `src-tauri/src/adapters/cli_delegate/web_block.rs` with its module documentation (spec 102, research
+- [x] T001 Create `src-tauri/src/adapters/cli_delegate/web_block.rs` with its module documentation (spec 102, research
       R1–R5) and the sibling `web_block_tests.rs` (`#[cfg(test)] #[path = "web_block_tests.rs"] mod tests;`); declare
       `mod web_block;` in `src-tauri/src/adapters/cli_delegate/mod.rs`.
 
@@ -55,38 +55,38 @@ it ends with `AdapterError::Unavailable`; the builders' arguments match [contrac
 
 ### Tests for User Story 1
 
-- [ ] T002 [P] [US1] `web_block_tests.rs`: Claude's arguments are `--tools <allow-list>` and `--no-chrome`, the
+- [x] T002 [P] [US1] `web_block_tests.rs`: Claude's arguments are `--tools <allow-list>` and `--no-chrome`, the
       allow-list holds every name of contracts/web-block.md and neither `WebFetch` nor `WebSearch`; Codex' arguments are
       `-c web_search="disabled"` plus the five `--disable` pairs and never `computer_use`; Abacus' deny rules are the three
       `Bash(...)` rules; the arguments are the same for `Standard`, `Ungated` and `GatedPermissive`.
-- [ ] T003 [P] [US1] `web_block_tests.rs`: the Claude confirmation accepts an init line whose `tools` lacks both web tools
+- [x] T003 [P] [US1] `web_block_tests.rs`: the Claude confirmation accepts an init line whose `tools` lacks both web tools
       and whose `mcp_servers` has no `claude-in-chrome`; it refuses one with `WebFetch`, one with `WebSearch`, one with a
       connected `claude-in-chrome`, and one without a `tools` field, each with a reason naming what was found.
-- [ ] T004 [P] [US1] `web_block_tests.rs`: the Codex confirmation accepts a `config/read` result with
+- [x] T004 [P] [US1] `web_block_tests.rs`: the Codex confirmation accepts a `config/read` result with
       `web_search: "disabled"` and an `experimentalFeature/list` result with the five features `enabled: false`; it refuses
       `web_search` `"live"` or `"cached"` or missing, a feature `enabled: true`, a feature missing from the list, and an
       error answer. Answers are recorded from the 0.169.0 probe of research R2.
 
 ### Implementation for User Story 1
 
-- [ ] T005 [US1] `web_block.rs`: `CLAUDE_TOOLS` (the allow-list of contracts/web-block.md as one comma-separated value),
+- [x] T005 [US1] `web_block.rs`: `CLAUDE_TOOLS` (the allow-list of contracts/web-block.md as one comma-separated value),
       `claude_args()`, `CODEX_DISABLED_FEATURES`, `codex_args()`, `ABACUS_DENY_RULES`, and the pure confirmations
       `confirm_claude_init(&Value) -> Result<(), String>` and `confirm_codex(config_read: &Value, features: &Value) ->
 Result<(), String>`; the reason text of contracts/web-block.md ("{vendor} started without its web block ({what});
       nothing was run."). Makes T002–T004 pass.
-- [ ] T006 [US1] `src-tauri/src/adapters/cli_delegate/claude.rs` `build_command`: add `web_block::claude_args()` after
+- [x] T006 [US1] `src-tauri/src/adapters/cli_delegate/claude.rs` `build_command`: add `web_block::claude_args()` after
       the catalog's `config_args`, in every autonomy mode; `claude_tests.rs` asserts the arguments for each mode, that
       `--allowedTools mcp__haex` stays for a start with HaexVault's server, and that the block sets no environment variable
       (the command's `get_envs()` equals that of a start without the block; spec FR-005).
-- [ ] T007 [US1] `claude.rs` `spawn_claude_invocation`: read the first `system/init` line before any chunk reaches the
+- [x] T007 [US1] `claude.rs` `spawn_claude_invocation`: read the first `system/init` line before any chunk reaches the
       chat and run `confirm_claude_init`; on refusal terminate the child (`classify_exit_error` path) and return
       `AdapterError::Unavailable` with the reason. Extend the stub of `src-tauri/tests/cli_delegate_claude.rs` to print an
       init line with and without `WebFetch`: with it the request ends with the reason and no answer text, without it the
       answer arrives.
-- [ ] T008 [US1] `src-tauri/src/adapters/cli_delegate/codex.rs` `build_command`: add `web_block::codex_args()` after
+- [x] T008 [US1] `src-tauri/src/adapters/cli_delegate/codex.rs` `build_command`: add `web_block::codex_args()` after
       the catalog's `config_args` and before `app-server`; `codex_tests.rs` asserts the order and that the block sets no
       environment variable (spec FR-005).
-- [ ] T009 [US1] `codex.rs` `spawn_codex_app_server`: after `initialize`/`initialized` and before `thread/start`, send
+- [x] T009 [US1] `codex.rs` `spawn_codex_app_server`: after `initialize`/`initialized` and before `thread/start`, send
       `config/read` (`includeLayers: false`) and `experimentalFeature/list`, following `nextCursor` until it is `null` and
       joining the pages' `data`, pass both results to `confirm_codex`, and on refusal stop the app-server and return
       `AdapterError::Unavailable`. The request/answer plumbing stays in `codex.rs`, the judgement in `web_block.rs` (the
@@ -94,28 +94,29 @@ Result<(), String>`; the reason text of contracts/web-block.md ("{vendor} starte
       (or its unit stub) to answer both requests: once with the block, once with `browser_use` enabled, once with the list
       split over two pages, and once exiting at start with `Error: Unknown feature flag: browser_use` on stderr, whose text
       must reach the chat as the reason (spec FR-007, SC-005).
-- [ ] T010 [US1] `src-tauri/src/adapters/cli_delegate/abacus.rs`: replace `approval_settings()` by
+- [x] T010 [US1] `src-tauri/src/adapters/cli_delegate/abacus.rs`: replace `approval_settings()` by
       `run_settings(asks: bool) -> Value` holding `permissions.deny = ABACUS_DENY_RULES` always and `permissions.ask = ["*"]`
       only when `asks`; write the file and pass `--settings` in "Standard" and "Ungated" (today only when `asks`); keep
       `APPROVAL_SETTINGS_FILE` as the file name. `abacus_models.rs` gets the same file through `build_command`. Update
       `abacus_tests.rs`: both modes pass `--settings`, the file of "Ungated" has no `ask`, the file of "Standard" has both,
       and the block sets no environment variable (spec FR-005).
       Update `src-tauri/tests/cli_delegate_abacus_run.rs` where it reads the settings path.
-- [ ] T011 [US1] `src-tauri/src/adapters/cli_delegate/haex_mcp.rs`: `with_instruction` takes the vendor; for
+- [x] T011 [US1] `src-tauri/src/adapters/cli_delegate/haex_mcp.rs`: `with_instruction` takes the vendor; for
       `DelegateVendor::Abacus` every start gets one sentence naming `web_search_text_only` ("WebSearch") and
       `scrape_url_content` ("Fetch") as tools not to use, with or without HaexVault's server; with the server it adds
       HaexVault's agent browser as the way to the web (spec FR-009). Callers in `claude.rs`, `codex.rs`, `abacus.rs` pass
       their vendor. `haex_mcp_tests.rs`: the Abacus text names both tools with and without the server, Claude's and Codex'
       text is unchanged.
-- [ ] T012 [US1] Model jobs (spec 055) use the same builders: add one test per vendor in the job adapter's tests (find the
+- [x] T012 [US1] Model jobs (spec 055) use the same builders: add one test per vendor in the job adapter's tests (find the
       call sites of `claude::build_command`, `codex::build_command`, `abacus::build_command` outside the chat path) that a
-      job start carries the block.
-- [ ] T032 [US1] `src-tauri/src/adapters/cli_delegate/abacus.rs` (`parse_line` and the drive loop): recognise the stream
+      job start carries the block. Done: jobs start through the same `stream_chat` path with `haex: None`; the builder
+      tests with no MCP server (`every_mode_starts_with_the_web_block`, the Codex and Abacus builder tests) cover them.
+- [x] T032 [US1] `src-tauri/src/adapters/cli_delegate/abacus.rs` (`parse_line` and the drive loop): recognise the stream
       events `web_search_results` and `collapsible` with `title: "Web Access"` (research R4) and, for a chat start, emit
       `chat-delegate-own-web` `{ threadId, delegateKind }` through `DelegateChatContext.emit`, once per start; the events
       keep flowing to the chat as today. `abacus_tests.rs`: both lines from the recorded transcript trigger it, other
       `collapsible` titles and a job start do not. Spec FR-013.
-- [ ] T033 [US1] `src/composables/useToolNotice.ts`, `src/lib/chat/toolNotice.ts`, `scripts/check-chat-tool-notice.ts`,
+- [x] T033 [US1] `src/composables/useToolNotice.ts`, `src/lib/chat/toolNotice.ts`, `scripts/check-chat-tool-notice.ts`,
       `src/i18n/locales/de.json`, `en.json`: listen to `chat-delegate-own-web` and show
       `chat.toolNotice.delegateOwnWeb` ("{name} hat seinen eigenen Webzugang benutzt statt HaexVaults Agent-Browser")
       once per conversation; `pnpm check:chat-state` covers the once rule.
