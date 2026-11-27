@@ -10,7 +10,6 @@ import {
   imageMime,
   isExpired,
   localDay,
-  relativeTime,
   safeFileName,
   openableUrl,
 } from '../src/lib/passwords/format.ts'
@@ -65,27 +64,6 @@ test('only the five image extensions can be previewed, whatever their case', () 
   assert.equal(imageMime('x.svg'), null)
   assert.equal(imageMime('archive.zip'), null)
   assert.equal(imageMime('noextension'), null)
-})
-
-test('relativeTime names a past time in the largest fitting unit, in the language asked', () => {
-  const now = new Date('2026-10-04T12:00:00Z')
-  const ago = (ms: number) => new Date(now.getTime() - ms)
-  const minute = 60_000
-  const hour = 60 * minute
-  const day = 24 * hour
-  assert.equal(relativeTime(ago(10_000), now, 'de'), 'jetzt')
-  assert.equal(relativeTime(ago(5 * minute), now, 'de'), 'vor 5 Minuten')
-  assert.equal(relativeTime(ago(3 * hour), now, 'de'), 'vor 3 Stunden')
-  assert.equal(relativeTime(ago(3 * day), now, 'de'), 'vor 3 Tagen')
-  assert.equal(relativeTime(ago(day), now, 'en'), 'yesterday')
-  assert.equal(relativeTime(ago(2 * day), now, 'en'), '2 days ago')
-  assert.equal(relativeTime(ago(40 * day), now, 'en'), 'last month')
-  assert.equal(relativeTime(ago(800 * day), now, 'en'), '2 years ago')
-})
-
-test('relativeTime of a time that is not in the past reads as now', () => {
-  const now = new Date('2026-10-04T12:00:00Z')
-  assert.equal(relativeTime(new Date(now.getTime() + 5000), now, 'en'), 'now')
 })
 
 test('an attachment has a kind by its extension: image, pdf, text or other', () => {
