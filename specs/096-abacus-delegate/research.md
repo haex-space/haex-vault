@@ -448,3 +448,18 @@ are mapped to Abacus' tool names and inputs.
 **Since spec 102**: `Ungated` does pass a settings file again, with deny rules only: every start blocks Abacus' bundled
 browser (`agent-browser`), in every mode (spec 102 research R3/R4). It holds no ask rules, so the paragraph above still
 holds for approvals.
+
+## 16. HaexVault's own tools are asked about once (2026-11-27)
+
+Reported by the operator: with HaexVault's agent browser in the agent profile, every click of Abacus asked for approval.
+
+- **Why.** The ask rule `*` also matches the tools of HaexVault's MCP server, and the program checks deny, then ask,
+  then allow (`explain()` in 2.10.23), so an `allow` rule for `mcp__haex` cannot win over it. Each call reached the
+  approval bridge, which rates every name but a few read tools as risky and asks even in Auto. HaexVault's server then
+  decided again by the agent profile and the chat's approval mode.
+- **What the request looks like.** For an MCP tool 2.10.23 sends `tool.endpoint` `mcp_call` with `tool.args.server_id`
+  (the name in the run's MCP config) and `tool.args.tool_name` (its code: `G8`, `dNt`).
+
+**Decision**: a request with `endpoint` `mcp_call` and `server_id` `haex` is accepted without the bridge, in every
+mode; HaexVault's server checks and asks itself, as for Claude Code's `--allowedTools mcp__haex`. Every other request,
+another server's tools included, still goes to the bridge.

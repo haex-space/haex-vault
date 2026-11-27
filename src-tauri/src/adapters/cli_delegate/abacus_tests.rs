@@ -114,6 +114,57 @@ fn a_tool_request_as_the_program_sends_it_names_the_tool_and_its_arguments() {
     );
 }
 
+/// A `can_use_tool` request for a tool of an MCP server, in the shape version 2.10.23 builds it
+/// (`tool.endpoint` `mcp_call`, `tool.args.server_id` and `tool_name`).
+fn mcp_request(server: &str, endpoint: &str) -> String {
+    json!({
+        "type": "control_request",
+        "request_id": "perm-5",
+        "request": {
+            "subtype": "can_use_tool",
+            "tool_call_id": "t5",
+            "request": {
+                "type": "generic",
+                "tool": {
+                    "id": "t5",
+                    "name": "mcp_call",
+                    "args": { "server_id": server, "tool_name": "browser_click", "arguments": { "ref": 3 } },
+                    "status": "executing",
+                    "endpoint": endpoint
+                },
+                "displayName": "browser_click",
+                "toolName": format!("mcp__{server}__browser_click")
+            }
+        }
+    })
+    .to_string()
+}
+
+#[test]
+fn a_request_for_a_haex_vault_tool_is_left_to_haex_vaults_own_check() {
+    // HaexVault's server checks its tools against the agent profile and the chat's approval mode
+    // itself, as with Claude Code's `--allowedTools mcp__haex`: the program must not ask again.
+    assert_eq!(
+        parse_line(&mcp_request("haex", "mcp_call")),
+        Line::HaexTool {
+            request_id: "perm-5".into()
+        }
+    );
+}
+
+#[test]
+fn a_request_for_another_servers_tool_or_a_built_in_tool_still_asks() {
+    assert!(matches!(
+        parse_line(&mcp_request("other", "mcp_call")),
+        Line::Approval { .. }
+    ));
+    // Only an MCP call counts: a built-in tool with an argument of the same name is asked about.
+    assert!(matches!(
+        parse_line(&mcp_request("haex", "bash")),
+        Line::Approval { .. }
+    ));
+}
+
 #[test]
 fn a_tool_request_with_unknown_fields_still_asks_and_never_allows_on_its_own() {
     let line = r#"{"type":"control_request","request_id":"perm-2","request":{"subtype":"can_use_tool","tool_call_id":"t2","request":{"something":"else"}}}"#;
@@ -1089,6 +1140,41 @@ async fn a_program_that_closes_its_input_before_the_answer_ends_the_request_with
 
     assert!(done.is_none(), "no result was reached");
     assert!(error.is_some(), "the request ends with an error");
+}
+
+#[tokio::test]
+async fn a_haex_vault_tool_is_accepted_without_the_bridge_in_every_mode() {
+    // haex-vault's server asks itself (agent profile and the chat's approval mode): asking here
+    // too made every click of the agent browser a question, also with the browser in the profile.
+    for (asked, init) in [
+        (request("abacusai"), INIT),
+        (ungated("abacusai"), INIT_UNSUPERVISED),
+    ] {
+        let fixture = Fixture::new().await;
+        set_permission_mode(&fixture.db, "manual").await;
+        let answer = fixture.path("answer");
+        let program = fixture
+            .stub(&asking_body(&answer, &mcp_request("haex", "mcp_call")).replacen(INIT, init, 1));
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let adapter = fixture.adapter(
+            &program,
+            fixture.answering(ApprovalDecision::Deny, seen.clone()),
+        );
+
+        let (_, done, error) = collect(adapter.stream_chat(asked).await.unwrap()).await;
+
+        assert!(done.is_some() && error.is_none(), "{init}: {error:?}");
+        let reply: Value = serde_json::from_str(fixture.read("answer").trim()).unwrap();
+        assert_eq!(reply["response"]["request_id"], "perm-5", "{init}");
+        assert_eq!(
+            reply["response"]["response"]["decision"], "accept",
+            "{init}"
+        );
+        assert!(
+            seen.lock().unwrap().is_empty(),
+            "{init}: the bridge was not asked"
+        );
+    }
 }
 
 /// Sets the vault's permission mode (`chat.permission_mode`).
