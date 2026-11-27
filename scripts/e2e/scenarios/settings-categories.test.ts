@@ -68,6 +68,11 @@ scenario('settings-categories', {}, async (ctx) => {
        const frame = document.querySelector('[data-testid="settings-title"]').closest('[data-wm-window-id]')
        return { left: Math.round(rect.left), top: Math.round(rect.top), tab: frame.getAttribute('aria-label') }`,
     )
+
+  // Compare sibling category pages. The first category fixture above is a nested settings page
+  // with a back button, whose title row has a different height from a category page.
+  await instance.click('settings-category-chat')
+  await waitForLocation(instance, 'chat')
   const first = await titleBox()
   for (const id of CATEGORIES) {
     await instance.click(`settings-category-${id}`)
