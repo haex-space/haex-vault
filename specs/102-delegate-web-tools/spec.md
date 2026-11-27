@@ -24,7 +24,7 @@ operator task." (operator, 2026-11-27)
   Asked to open a website, it wanted to start its own bundled browser through its shell, with a browser profile under
   `/tmp/ab-profile`, that is outside the vault's folder. Under "Standard" the person was asked and could decline; under
   "Ungated" it would have run without a question. Claude Code and Codex have the same kind of own web tools; Codex also has
-  its own browser and computer-use features.
+  its own browser features, and Claude Code can drive the person's Chrome ("Claude in Chrome").
 - **Why it matters.** HaexVault's agent browser runs inside the vault's isolation, under the agent profile's rights
   (spec 083) and with its own approvals before buying, paying and sending. A delegate's own web tools and browser bypass all
   of that: they keep cookies and profiles where HaexVault does not look, act on websites without HaexVault's approvals, and
@@ -36,7 +36,9 @@ operator task." (operator, 2026-11-27)
   autonomy mode and also when the device's MCP access is off. Without the access the delegate has no web at all, and the
   existing notice explains how to turn the access on. (2) A delegate with a shell can still reach the network with
   ordinary commands (`curl`, `wget`, a script). Tool names cannot block that; it is named here as a residual for the later
-  OS sandbox. Under "Standard" every shell call is already put to the person.
+  OS sandbox. Under "Standard" every shell call is already put to the person. (3) Computer use stays: a person must be
+  able to ask a delegate to find, tidy or do something on their computer. HaexVault's isolation means HaexVault itself
+  leaves as few traces on the system as possible; it does not keep a delegate away from the person's computer.
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -88,20 +90,22 @@ browser runs, no file is written outside the vault's folder, and the notice is s
 
 ### User Story 3 - The person can see that the block holds (Priority: P2)
 
-The person or a maintainer can check, per delegate, which of its own web tools and browser features are blocked, and a
-change of the delegate's program version cannot quietly undo the block.
+The block holds for every version of a delegate's program. The person or a maintainer can check, per delegate, which of
+its own web tools and browser features are blocked, and a new program version cannot quietly bring a web tool or browser
+past the block.
 
-**Why this priority**: The block rests on switches of programs HaexVault does not control. A new version that renames or
-drops a switch must not reopen the gap unnoticed.
+**Why this priority**: The block rests on switches of programs HaexVault does not control. A new version that adds a web
+tool, or renames or drops a switch, must not reopen the gap unnoticed.
 
-**Independent Test**: Read the recorded block per delegate and version; start a delegate whose program refuses the block
-switches and confirm the request ends with a visible reason instead of running without the block.
+**Independent Test**: Read the recorded block per delegate; start a delegate whose program refuses the block switches and
+confirm the request ends with a visible reason instead of running without the block.
 
 **Acceptance Scenarios**:
 
-1. **Given** a tested program version, **When** a delegate starts, **Then** it starts with every block switch recorded for
-   that vendor.
-2. **Given** a program that rejects a block switch or does not confirm it, **When** a delegate starts, **Then** the request
+1. **Given** any offered program version, **When** a delegate starts, **Then** it starts with the vendor's block.
+2. **Given** a new program version with a web tool or browser feature the block does not name yet, **When** that version is
+   checked before it is offered, **Then** the new tool is either covered by the block or the version is not offered.
+3. **Given** a program that rejects a block switch or does not confirm it, **When** a delegate starts, **Then** the request
    ends with a reason the person can read and nothing runs without the block.
 
 ---
@@ -112,6 +116,8 @@ switches and confirm the request ends with a visible reason instead of running w
   command): the block still wins.
 - The delegate reaches the same browser through another spelling (a wrapper command such as `npx`, a full path): the block
   covers the spellings the program's own rules can name; anything beyond that is shell network (residual, FR-008).
+- A delegate uses computer use to open a browser on the person's desktop: computer use stays allowed (operator decision 3),
+  so this is a residual like shell network (FR-008), not a breach of the block.
 - Model jobs (spec 055) run delegates in "Ungated" without HaexVault's server: they have no web either, until a later spec
   gives jobs tools (recorded as planned).
 - "Gated (permissive)" with a deny rule for network access: the block applies before any of the person's deny rules; the
@@ -126,8 +132,9 @@ switches and confirm the request ends with a visible reason instead of running w
 
 - **FR-001**: Every start of a subscription delegate in the chat (Claude Code, Codex, Abacus AI) MUST have the delegate's
   own web tools blocked: web search, web fetch and any tool of the program that loads a web page for the model.
-- **FR-002**: Every start MUST have the delegate's own browser and computer-use features blocked, including browsers the
-  program ships with or installs itself and browser commands its own skills or plugins allow themselves.
+- **FR-002**: Every start MUST have the delegate's own browser features blocked, including browsers the program ships with
+  or installs itself, browser commands its own skills or plugins allow themselves, and features that drive a browser of
+  the person (such as "Claude in Chrome"). Computer use is not part of the block.
 - **FR-003**: The block of FR-001 and FR-002 MUST hold in every autonomy mode ("Standard", "Ungated", "Gated (permissive)")
   and MUST NOT depend on the person's answer: a blocked tool is refused by the program, never put to the person as a
   question.
@@ -137,18 +144,20 @@ switches and confirm the request ends with a visible reason instead of running w
 - **FR-005**: The block MUST be enforced by the delegate's program through its own switches or deny rules, set by HaexVault
   on every start; it MUST NOT rest on the instruction to the model alone and MUST NOT rely on environment variables for its
   effect.
-- **FR-006**: The block switches MUST be recorded per vendor and checked for each program version before that version is
-  offered (spec 094's tested versions). A version whose program refuses a block switch, or for which a switch is not
-  confirmed, MUST NOT be offered.
+- **FR-006**: The block MUST hold for every offered program version. The block switches MUST be recorded per vendor, and a
+  web tool or browser feature that a new program version brings MUST NOT be available to the delegate before it has been
+  checked: when the program lets HaexVault name the tools that are allowed, new tools stay off by that; otherwise the
+  block is checked for completeness when a version is added to spec 094's tested versions. A version whose program refuses
+  a block switch, or whose new web tool is not covered, MUST NOT be offered.
 - **FR-007**: If a delegate's program refuses a block switch at start or reports a state without the block, the request
   MUST end with a reason the person can read; nothing runs without the block and no other backend is tried.
-- **FR-008**: Network access through a delegate's shell (`curl`, `wget`, a script) is not covered by this feature. The
-  spec, the delegate documentation and the Settings text that describe the block MUST name it as a residual until the OS
-  sandbox exists; under "Standard" each shell call remains a question to the person.
+- **FR-008**: Network access through a delegate's shell (`curl`, `wget`, a script) and a browser opened through computer
+  use are not covered by this feature. The spec, the delegate documentation and the Settings text that describe the block
+  MUST name them as residuals; under "Standard" each shell call remains a question to the person.
 - **FR-009**: The instruction to a delegate with HaexVault's server MUST stay: HaexVault's agent browser is the way to the
   web, and a failure is reported as what failed.
-- **FR-010**: The block MUST NOT change what a delegate may do otherwise: its file, shell and edit tools, HaexVault's tools
-  and the person's approval posture stay as they are.
+- **FR-010**: The block MUST NOT change what a delegate may do otherwise: its file, shell, edit and computer-use tools,
+  HaexVault's tools and the person's approval posture stay as they are.
 
 ### Key Entities
 
@@ -178,5 +187,6 @@ switches and confirm the request ends with a visible reason instead of running w
 - A real run per vendor needs the operator's accounts and is an operator task; an Abacus run costs a few credits.
 - No backward compatibility: there are no users yet, so no conversation or setting from before needs a migration.
 - HaexVault's agent browser itself (spec 021, 083), the built-in chat models and an OS sandbox are out of scope.
+- HaexVault's own computer-use tools are out of scope; they would be a later spec of their own.
 - The notice for an absent MCP access exists (`chat.toolNotice.delegateOff`); this feature only makes sure it covers every
   delegate vendor.
