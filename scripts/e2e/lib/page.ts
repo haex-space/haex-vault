@@ -403,7 +403,10 @@ async function replaceLocation(
   url: string,
   deadlineMs = 15_000,
 ): Promise<void> {
-  await client.execute('location.replace(arguments[0]); return true', [url])
+  await client.execute(
+    'window.__haexE2eLeaving = true; location.replace(arguments[0]); return true',
+    [url],
+  )
   const end = Date.now() + deadlineMs
   for (;;) {
     // While the old document goes, a script may fail; the next try reaches the new one.
@@ -411,28 +414,21 @@ async function replaceLocation(
       .execute<boolean>(
         `const requested = new URL(arguments[0]);
          const current = new URL(location.href);
+         const leaving = window.__haexE2eLeaving === true;
+         const canonicalFederationPath = requested.pathname.startsWith('/federation/')
+           ? requested.pathname.replace(/^\\/federation\\//, '/workspace/')
+           : null;
          const reached = current.href === requested.href ||
            (requested.search !== '' && current.origin === requested.origin &&
-             current.pathname === requested.pathname && current.search === '');
+             current.pathname === requested.pathname && current.search === '' && !leaving) ||
+           (canonicalFederationPath !== null && current.origin === requested.origin &&
+             current.pathname === canonicalFederationPath && current.search === '');
          return reached && document.readyState === 'complete'`,
         [url],
       )
       .catch(() => false)
     if (loaded) return
     if (Date.now() >= end) {
-      // Tauri can redirect legacy app URLs to a canonical workspace URL. In a WebView, the
-      // navigation may finish without a load event for the requested URL. The scenario checks the
-      // app route after navigate returns, so accept a completed same-origin redirect here.
-      const redirected = await client
-        .execute<boolean>(
-          `const requested = new URL(arguments[0]);
-           const current = new URL(location.href);
-           return current.origin === requested.origin &&
-             document.readyState === 'complete'`,
-          [url],
-        )
-        .catch(() => false)
-      if (redirected) return
       throw new Error(`timed out after ${deadlineMs} ms loading ${url}`)
     }
     await new Promise((resolve) => setTimeout(resolve, 50))
