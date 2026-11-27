@@ -132,7 +132,9 @@ fn request() -> ChatRequest {
 
 /// Runs `adapter` to its end and says whether it ended with `Done`.
 async fn run_to_the_end(adapter: &CliDelegateAdapter) -> bool {
-    let mut stream = adapter.stream_chat(request()).await.expect("starts");
+    let Ok(mut stream) = adapter.stream_chat(request()).await else {
+        return false;
+    };
     let mut done = false;
     while let Some(chunk) = stream.next().await {
         match chunk {
