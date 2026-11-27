@@ -225,8 +225,6 @@ fn an_acknowledgement_that_comes_before_emit_returns_still_counts() {
     let fast = another_frame(&s, Arc::clone(&emitter) as Arc<dyn Emit>);
     emitter.frame.set(fast.session.frame.clone()).unwrap();
     let session = s.start(&fast);
-    // The first acknowledgement makes the frame one that is waited for.
-    ack(&fast, &session, 1).unwrap();
     let started = Instant::now();
     s.write(&fast, &session, FLOOD).unwrap();
     s.recorded.waited_for_output(&session, "flood-42");
