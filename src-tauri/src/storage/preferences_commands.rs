@@ -82,15 +82,16 @@ fn is_valid_files_value(key: &str, value: &str) -> bool {
 /// Checks the value of a key that has a fixed set of choices or shape; every other key takes any
 /// value. Spec 034: the clipboard clearing time of the password manager (0, 15, 30, 60 or 120
 /// seconds). Spec 042: the workspace background.
-/// The list of Blossom-Servers the user added: `[{"url": "https://…", "badge": "Mein Server"}]`.
+/// The list of Blossom-Servers the user added: `[{"url": "https://…", "name": "Mein Server"}]`.
 fn validate_blossom_servers(value: &str) -> Result<()> {
-    use crate::chat::peer::settings::{MAX_BADGE_CHARS, MAX_BLOSSOM_SERVERS};
+    use crate::chat::peer::settings::{MAX_BLOSSOM_SERVERS, MAX_NAME_CHARS};
     #[derive(serde::Deserialize)]
     #[serde(deny_unknown_fields)]
     struct Entry {
         url: String,
-        #[serde(default)]
-        badge: String,
+        // `badge` is what the name was called before it became the name of the server.
+        #[serde(default, alias = "badge")]
+        name: String,
     }
     let invalid = |reason: &str| HaexError::InvalidInput {
         reason: format!(
@@ -109,8 +110,8 @@ fn validate_blossom_servers(value: &str) -> Result<()> {
                 "every server needs an https address without credentials",
             ));
         }
-        if entry.badge.chars().count() > MAX_BADGE_CHARS {
-            return Err(invalid("a badge is too long"));
+        if entry.name.chars().count() > MAX_NAME_CHARS {
+            return Err(invalid("a name is too long"));
         }
     }
     Ok(())
@@ -145,7 +146,7 @@ pub(crate) fn validate_value(key: &str, value: &str) -> Result<()> {
             reason: format!("{key} must be empty or an https address without credentials"),
         });
     }
-    // The servers the user added to the choice: a list of addresses with an optional badge.
+    // The servers the user added to the choice: a list of addresses with an optional name.
     if key == crate::chat::peer::settings::KEY_BLOSSOM_SERVERS {
         validate_blossom_servers(value)?;
     }

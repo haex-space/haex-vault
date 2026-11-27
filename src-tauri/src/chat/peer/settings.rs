@@ -21,11 +21,11 @@ pub const KEY_BLOSSOM_SERVER: &str = "chat.blossom.server";
 /// blob anonymously and honoured `DELETE` (spec 072 research R12, tested 2026-11-25).
 pub const DEFAULT_BLOSSOM_SERVER: &str = "https://nostr.download";
 /// The Blossom-Servers the user added to the choice, for the whole vault: a JSON list of
-/// `{"url": …, "badge": …}`, the badge being an optional short label of the user's own.
+/// `{"url": …, "name": …}`, the name being an optional short one of the user's own.
 pub const KEY_BLOSSOM_SERVERS: &str = "chat.blossom.servers";
-/// Most servers the list takes, and the longest badge (in characters).
+/// Most servers the list takes, and the longest name (in characters).
 pub const MAX_BLOSSOM_SERVERS: usize = 20;
-pub const MAX_BADGE_CHARS: usize = 24;
+pub const MAX_NAME_CHARS: usize = 40;
 /// Files up to this many bytes download by themselves, per device (FR-036).
 pub const KEY_AUTO_LIMIT: &str = "chat.download.autoLimit";
 /// The id of the password-manager entry that holds the Blossom upload key, for the whole vault;
