@@ -401,6 +401,10 @@
     },
     "retry": "Erneut versuchen",
     "retrying": "Wird erneut versucht…",
+    "day": {
+      "today": "Heute",
+      "yesterday": "Gestern"
+    },
     "tool": {
       "call": "Tool-Aufruf: {name}",
       "result": "Tool-Ergebnis",
