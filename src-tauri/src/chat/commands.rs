@@ -248,7 +248,8 @@ pub async fn abort_current_generation(
             chat.abort_turn_by_id(turn_id);
             Ok(())
         }
-        None | Some(AbortGenerationArgs {
+        None
+        | Some(AbortGenerationArgs {
             thread_id: None,
             idempotency_key: None,
         }) => abort_turn(&chat),
