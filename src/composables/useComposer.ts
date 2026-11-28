@@ -53,6 +53,7 @@ export function useComposer(
 ) {
   let sendGeneration = 0
   let sendInvocationStarted = false
+  let activeSendIdempotencyKey: string | null = null
 
   // Live sub-agent activity for the Claude Code delegate (spec
   // 011-composer-toolbar-parity Story 2) — reset at the start of every send
@@ -102,6 +103,7 @@ export function useComposer(
       reasoningOption: effortLevel.value,
       attachments: attachments.value.map((a) => ({ path: a.path })),
     }
+    activeSendIdempotencyKey = request.idempotencyKey ?? null
     pendingSend.value = null
     if (!retry) attachments.value = []
     turnSetupPending.value = true
@@ -112,6 +114,7 @@ export function useComposer(
       if (generation !== sendGeneration) return
       sendInvocationStarted = true
       const result = await chat.sendMessageAsync(request)
+      activeSendIdempotencyKey = null
       activeThreadId.value = result.threadId
       const queuedApprovals = pendingPromptsByThread.get(result.threadId)
       if (queuedApprovals) {
@@ -242,6 +245,7 @@ export function useComposer(
       lastError.value = errString(e)
       busy.value = false
       turnSetupPending.value = false
+      if (!sendInvocationStarted) activeSendIdempotencyKey = null
     }
   }
 
@@ -268,7 +272,13 @@ export function useComposer(
     }
     try {
       // Only the open conversation's turn stops; the others go on (spec 068 research R1).
-      await chat.abortAsync(activeThreadId.value)
+      if (activeThreadId.value) {
+        await chat.abortAsync(activeThreadId.value)
+      } else if (sendInvocationStarted && activeSendIdempotencyKey) {
+        // A new conversation has no thread id until send_message replies; target its deterministic
+        // turn id through the send key so stopping it cannot cancel other parked conversations.
+        await chat.abortAsync(null, activeSendIdempotencyKey)
+      }
     } catch (e: unknown) {
       lastError.value = errString(e)
     }

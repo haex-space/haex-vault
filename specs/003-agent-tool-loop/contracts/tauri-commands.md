@@ -26,10 +26,12 @@ Args/Result-Contract-Bruch, nur mehr Events pro Aufruf.
 — inklusive eines aktuell laufenden Tool-Prozesses und eines offenen `tool-permission-request`
 (spec.md FR-009/FR-010). Weiterhin idempotent.
 
-**Ergänzt durch Spec 068 (PR B, parallele Antworten)**: optional `args: { threadId }`. Mit
-`threadId` bricht der Command nur die Antwort dieser Unterhaltung ab (samt ihren offenen Freigaben und
-Auswahlen); die Antworten anderer Unterhaltungen laufen weiter. Ohne `threadId` bricht er alle
-laufenden Antworten ab, wie bisher. Dazu `abort_turn_by_id(args: { turnId })`: bricht eine Antwort
+**Ergänzt durch Spec 068 (PR B, parallele Antworten)**: optional `args: { threadId }` oder
+`args: { idempotencyKey }`. Mit `threadId` bricht der Command nur die Antwort dieser Unterhaltung ab;
+`idempotencyKey` zielt auf einen noch nicht bestätigten Send in einer neuen Unterhaltung, die ihre
+`threadId` noch nicht zurückgegeben hat. In beiden Fällen bleiben die Antworten anderer
+Unterhaltungen samt ihren offenen Freigaben und Auswahlen unberührt. Ohne beide Angaben bricht er
+alle laufenden Antworten ab, wie bisher. Dazu `abort_turn_by_id(args: { turnId })`: bricht eine Antwort
 über die ID ihrer Assistenten-Nachricht ab; eine Antwort, die nicht läuft, ist kein Fehler.
 
 ## Neue Commands

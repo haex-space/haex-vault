@@ -372,9 +372,14 @@ export function useChat() {
    * of other conversations go on (spec 068 research R1). Stopping a turn that is not running is not
    * an error.
    */
-  async function abortAsync(threadId?: string | null): Promise<void> {
-    if (threadId) {
-      await invoke('abort_current_generation', { args: { threadId } })
+  async function abortAsync(
+    threadId?: string | null,
+    idempotencyKey?: string | null,
+  ): Promise<void> {
+    if (threadId || idempotencyKey) {
+      await invoke('abort_current_generation', {
+        args: { threadId, idempotencyKey },
+      })
       return
     }
     await invoke('abort_current_generation')

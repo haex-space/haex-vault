@@ -19,7 +19,7 @@ use crate::storage::models as models_store;
 
 pub use super::send::SendMessageResult;
 use super::send::{start_turn, StartTurn};
-use super::send_admission::{resolve_idempotent_send, IdempotentSend};
+use super::send_admission::{derive_message_ids, resolve_idempotent_send, IdempotentSend};
 use super::session::ChatState;
 
 pub(crate) const PREF_LAST_ACTIVE_MODEL: &str = "chat.last_active_model_id";
@@ -220,6 +220,9 @@ pub struct AbortGenerationArgs {
     /// for callers that do not know a conversation).
     #[serde(default)]
     pub thread_id: Option<Uuid>,
+    /// The in-flight send's idempotency key, used before a new conversation has returned its thread id.
+    #[serde(default)]
+    pub idempotency_key: Option<String>,
 }
 
 /// Stops the turn of one conversation (`threadId`), or every running turn without one. The other
@@ -229,12 +232,26 @@ pub async fn abort_current_generation(
     chat: State<'_, ChatState>,
     args: Option<AbortGenerationArgs>,
 ) -> Result<()> {
-    match args.and_then(|args| args.thread_id) {
-        Some(thread_id) => {
+    match args {
+        Some(AbortGenerationArgs {
+            thread_id: Some(thread_id),
+            ..
+        }) => {
             chat.abort_turn_of_thread(thread_id);
             Ok(())
         }
-        None => abort_turn(&chat),
+        Some(AbortGenerationArgs {
+            idempotency_key: Some(key),
+            ..
+        }) => {
+            let turn_id = derive_message_ids(&key).1;
+            chat.abort_turn_by_id(turn_id);
+            Ok(())
+        }
+        None | Some(AbortGenerationArgs {
+            thread_id: None,
+            idempotency_key: None,
+        }) => abort_turn(&chat),
     }
 }
 
