@@ -34,7 +34,7 @@ impl ChatState {
     /// and a chat load of a local model that is in memory, exclusive for a local model activation or
     /// a chat load that has to put the engine into memory.
     /// Refused while an exclusive operation runs, and, for an engine load, while any turn runs.
-    pub fn acquire_for_load(&self, model_id: &str, mode: LoadMode) -> Result<LoadGuard> {
+    pub(crate) fn acquire_for_load(&self, model_id: &str, mode: LoadMode) -> Result<LoadGuard> {
         let shared = self
             .operation
             .clone()
