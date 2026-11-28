@@ -9,10 +9,12 @@ pub mod choices;
 pub mod commands;
 pub mod compact;
 pub mod default_model;
+pub(crate) mod delegate_context;
 pub mod eval;
 pub mod events;
 pub mod local_model;
 pub mod model_loading;
+pub mod model_lock;
 pub mod pasted_attachments;
 pub mod peer;
 pub mod reply_language;
@@ -24,7 +26,10 @@ pub mod thread_commands;
 pub mod tools;
 pub mod turn;
 pub mod turn_control;
+pub(crate) mod turn_model;
 pub mod turn_slots;
 
 #[cfg(test)]
 mod session_tests;
+#[cfg(test)]
+mod turn_model_tests;

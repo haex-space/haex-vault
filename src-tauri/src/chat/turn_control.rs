@@ -29,7 +29,7 @@ impl TurnPermit {
     }
 }
 
-fn in_progress() -> HaexError {
+pub(super) fn in_progress() -> HaexError {
     HaexError::InvalidInput {
         reason: "a chat or vault operation is still in progress".into(),
     }

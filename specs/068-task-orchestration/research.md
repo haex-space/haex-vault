@@ -93,6 +93,21 @@ verschachtelt, Schritt für Schritt, ohne Fehler; zwei Sequenzen gleichzeitig gi
 bleibt offen). Cloud-Modelle und Delegates laufen wirklich parallel. Das Fenster zeigt das Warten
 noch nicht eigens an.
 
+**Umsetzung für den direkten Chat (T012, 2026-11-28, Entscheidung des Operators)**: Ein lokales
+Modell ist genug, verschiedene Cloud-Modelle in verschiedenen Unterhaltungen müssen gleichzeitig
+laufen. Die globale `session` ist das Modell der Unterhaltung, die im Fenster offen ist (geladen beim
+Öffnen, ersetzt durch eine Wahl im Modellmenü). Eine Antwort hängt nicht mehr davon ab: Beim Start
+nimmt `turn_model::session_for_turn` das Modell ihrer eigenen Unterhaltung (`last_model_id` des
+Threads) und hält es bis zum Ende. Ein Anbieter-Modell oder ein Delegate bekommt einen eigenen
+Adapter, außer es ist schon das offene; ein lokales Modell nimmt die Engine im Speicher; eine neue
+Unterhaltung und ein nicht mehr ladbares Modell nehmen das offene Modell wie bisher. Das Laden oder
+Wählen eines Anbieter-Modells, eines Delegates oder eines lokalen Modells, das schon im Speicher
+ist, nimmt nur einen geteilten Platz auf der Betriebssperre (`model_lock::acquire_for_load`) und wird
+nicht mehr abgelehnt, solange Antworten anderer Unterhaltungen laufen. Nur das Laden einer lokalen
+Engine ist allein und wird weiter abgelehnt, solange irgendeine Antwort läuft. Eine Wahl für eine
+Unterhaltung, deren eigene Antwort läuft, wird abgelehnt. Bleibt offen: Stufen des Orchestrators mit
+eigenem Modell (PR C) und zwei lokale Sequenzen (T004).
+
 ## R3 — Der Orchestrator ist eine Antwort mit eigenem Werkzeugsatz
 
 **Entscheidung**: Der Orchestrator läuft als normale Antwort (`run_turn`) mit seinem Modell, aber
