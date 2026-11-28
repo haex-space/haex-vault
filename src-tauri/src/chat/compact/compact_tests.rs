@@ -1,6 +1,7 @@
 //! The turn's compaction against a real temporary vault and a model that answers by script: the order of
 //! the steps, what a request keeps, what is stored (spec 086 US3).
 
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
 use serde_json::Value;
@@ -131,6 +132,7 @@ async fn run(
     let mut request = request_of(history);
     let emit = events.emitter();
     let cancel = CancellationToken::new();
+    let reads = HashSet::new();
     let source = Source {
         adapter: model,
         request_model_id: "m",
@@ -139,6 +141,7 @@ async fn run(
         db,
         thread_id: thread,
         limit: LIMIT,
+        reads: &reads,
         language: None,
         cancel: &cancel,
         emit: &emit,

@@ -22,6 +22,9 @@ mod choices;
 pub mod fit;
 #[cfg(test)]
 mod fit_tests;
+mod ghost;
+#[cfg(test)]
+mod ghost_tests;
 pub mod guard;
 pub(crate) mod images;
 mod persist;

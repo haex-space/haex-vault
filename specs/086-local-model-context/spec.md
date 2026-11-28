@@ -118,6 +118,12 @@ A conversation, its tool results and the page I just read use up the context. Ha
 **Fitting and compaction**
 
 - **FR-012**: A request MUST be fitted to the context of the model before it is sent, when the adapter reports a limit: first a tool result is read in a smaller part (a browser page, a listing), then old tool results are left out oldest first, the largest result of the latest round is cut, and only then older messages are summarised. The stored rows MUST NOT change by fitting.
+- **FR-012a**: A tool result that is left out (FR-012) MUST be replaced by a ghost header, not by a fixed sentence: the
+  name of the tool, its arguments cut to a short length, whether it returned a result or an error, and its size in
+  characters. A tool that only reads (risk class `Safe`) adds that the model may call it again if it needs the result; a
+  tool that changes anything gets no such hint, so the model never repeats an action it has already taken. A ghost is never
+  left out again, never larger than the result it replaces (the result stays then), and names nothing that the call in the
+  request does not already show.
 - **FR-013**: A tool that returns pages or listings MUST take the budget of one result into account (at most a quarter of the context, never below a usable minimum), and say in its result that it was cut and how to read on.
 - **FR-014**: When fitting is not enough, the older messages MUST be summarised by the model of the conversation. The summary MUST be stored as a row of the session with the messages it covers, shown in the history as "older messages summarised", and the covered messages MUST stay in the history unchanged and readable.
 - **FR-015**: A stored summary MUST be used in a request only where the request would not fit without it. The newest messages, the person's latest message and the open tool round MUST stay verbatim.

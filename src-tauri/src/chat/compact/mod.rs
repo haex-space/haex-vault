@@ -15,6 +15,8 @@
 pub mod select;
 pub mod summarize;
 
+use std::collections::HashSet;
+
 use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
@@ -53,6 +55,9 @@ pub struct Source<'a> {
     pub thread_id: Uuid,
     /// The model's context in tokens.
     pub limit: usize,
+    /// The names of the tools that only read; the header of a result that is left out says they may be
+    /// called again (FR-012a).
+    pub reads: &'a HashSet<String>,
     /// The language the summary is written in: the one of the turn (the interface language for a typed
     /// one); `None` when it is not known, and the model then follows the person.
     pub language: Option<ReplyLanguage>,
@@ -150,7 +155,7 @@ pub async fn prepare(
     // figure stays on the safe side for the rest.
     let scale = chars_per_token(request, first);
     let original = Original::of(request);
-    leave_out_old_results(request, room, scale);
+    leave_out_old_results(request, room, scale, source.reads);
     if tokens(request, room, &count) <= room {
         return state;
     }
@@ -158,18 +163,18 @@ pub async fn prepare(
     // A summary, stored or new, if one can be had.
     let stored = latest_summary(history);
     let fitted = match stored {
-        Some(applied) => try_summary(&original, request, history, applied, room, scale, &count),
+        Some(applied) => try_summary(&original, request, history, applied, room, scale, source),
         None => false,
     };
     if fitted {
         state.used = true;
-        fit(request, source.limit, &count);
+        fit(request, source.limit, &count, source.reads);
         return state;
     }
     match write_new(source, history, stored, scale).await {
         Ok(Some((covers, text, row))) => {
             original.apply(request, history, covers, &text);
-            leave_out_old_results(request, room, scale);
+            leave_out_old_results(request, room, scale, source.reads);
             state.used = true;
             state.wrote = row;
             announce(source, "done");
@@ -184,35 +189,41 @@ pub async fn prepare(
                     applied.covers,
                     &history[applied.summary].content,
                 );
-                leave_out_old_results(request, room, scale);
+                leave_out_old_results(request, room, scale, source.reads);
                 tokens(request, source.limit, &count) <= source.limit
             });
             if kept {
                 state.used = true;
             } else {
-                original.restore_and_leave_out(request, room, scale);
+                original.restore_and_leave_out(request, room, scale, source.reads);
             }
         }
         Err(SummaryError::Cancelled) => {
             // The notice of the summary goes away with the turn.
             announce(source, "cancelled");
-            original.restore_and_leave_out(request, room, scale);
+            original.restore_and_leave_out(request, room, scale, source.reads);
         }
         Err(SummaryError::Failed(reason)) => {
             log::warn!("chat: the conversation could not be summarised: {reason}");
             state.failed = true;
             announce(source, "failed");
-            original.restore_and_leave_out(request, room, scale);
+            original.restore_and_leave_out(request, room, scale, source.reads);
         }
     }
-    fit(request, source.limit, &count);
+    fit(request, source.limit, &count, source.reads);
     state
 }
 
 impl Original {
-    fn restore_and_leave_out(&self, request: &mut ChatRequest, room: usize, scale: f64) {
+    fn restore_and_leave_out(
+        &self,
+        request: &mut ChatRequest,
+        room: usize,
+        scale: f64,
+        reads: &HashSet<String>,
+    ) {
         self.restore(request);
-        leave_out_old_results(request, room, scale);
+        leave_out_old_results(request, room, scale, reads);
     }
 }
 
@@ -224,7 +235,7 @@ fn try_summary(
     applied: Applied,
     room: usize,
     scale: f64,
-    count: crate::chat::turn::fit::Count<'_>,
+    source: &Source<'_>,
 ) -> bool {
     original.apply(
         request,
@@ -232,8 +243,9 @@ fn try_summary(
         applied.covers,
         &history[applied.summary].content,
     );
-    leave_out_old_results(request, room, scale);
-    if tokens(request, room, count) <= room {
+    leave_out_old_results(request, room, scale, source.reads);
+    let count = |request: &ChatRequest| source.adapter.count_tokens(request);
+    if tokens(request, room, &count) <= room {
         return true;
     }
     original.restore(request);

@@ -590,6 +590,11 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
     // where that is not enough (spec 086).
     if let Some(limit) = session.adapter.context_limit() {
         let request_model_id = request.model_id.clone();
+        let reads = chat
+            .tool_registry
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .read_only_names();
         let source = crate::chat::compact::Source {
             adapter: session.adapter.as_ref(),
             request_model_id: &request_model_id,
@@ -598,6 +603,7 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             db: &db,
             thread_id,
             limit,
+            reads: &reads,
             language: reply_language,
             cancel: &cancel_token,
             emit: &*turn.emit,

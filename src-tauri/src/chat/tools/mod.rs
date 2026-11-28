@@ -297,6 +297,16 @@ impl ToolRegistry {
         self.tools.iter()
     }
 
+    /// The names of the tools that only read ([`RiskClass::Safe`]): a result of theirs that was left out of
+    /// a request may be fetched again (spec 086 FR-012a).
+    pub fn read_only_names(&self) -> std::collections::HashSet<String> {
+        self.tools
+            .iter()
+            .filter(|tool| tool.risk_class() == RiskClass::Safe)
+            .map(|tool| tool.name().to_owned())
+            .collect()
+    }
+
     /// The texts of every extension tool for the matched offer (spec 018).
     pub fn match_entries(&self) -> Vec<extension_offer::MatchEntry> {
         self.tools

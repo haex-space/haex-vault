@@ -124,6 +124,12 @@ else is as before. Open PR A.
       both locale files. The texts of the two notices (`chat.compaction.*`). Lint, typecheck.
 - [x] T025 [US3] Voice (checked: `assistant/turn.rs` starts its turn through `chat::send::start_turn`, so it runs through `prepare`; the summary takes a model call before the first word, like a slow model, and the assistant's own cue is unchanged): check that a voice turn (spec 066) goes through `send.rs` and so through `prepare`, and that the spoken
       "thinking" cue covers the summarising state; add the one test or the note to the PR that settles it.
+- [ ] T029 [US3] Ghost headers (FR-012a). In `src-tauri/src/chat/turn/ghost.rs` build the header from the tool call that has the result's
+      `call_id` (name, arguments cut to 80 characters, result or error, size, the re-call hint for a reading tool) and use it in
+      `leave_out_old_results` in place of the fixed sentence; `fit`, `leave_out_old_results` and `compact::Source` take the names of the reading
+      tools, which `ToolRegistry::read_only_names` reads from the risk classes (no second list). A result without its call in the
+      request gets a header with the size only. Tests in `fit_tests.rs` and `ghost_tests.rs`: reading and changing tool, error,
+      cut arguments, no growth and no second ghost, compaction keeps using the header.
 
 **Checkpoint C**: quickstart M4 and M5. Open PR C.
 
