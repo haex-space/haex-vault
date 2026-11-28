@@ -10,7 +10,7 @@
 //   thesvg.kinds.json   { kinds: { kind: slug } }, the image of this set for a kind
 //   thesvg.colors.json  { slug: '#rrggbb' } for every slug the table and the roles use
 import { execFileSync } from 'node:child_process'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { writeFileSync } from 'node:fs'
 import path from 'node:path'
 
 import {
@@ -130,6 +130,12 @@ function headOf(clone: string): string {
   }).trim()
 }
 
+function readPinnedFile(clone: string, commit: string, file: string): string {
+  return execFileSync('git', ['-C', clone, 'show', `${commit}:${file}`], {
+    encoding: 'utf8',
+  })
+}
+
 /** Writes `<setsDir>/thesvg/` from the clone of thesvg. */
 export function prepareThesvg(clone: string, setsDir: string = SETS_DIR): void {
   const source = readJson(path.join(setsDir, 'thesvg.source.json'))
@@ -141,9 +147,9 @@ export function prepareThesvg(clone: string, setsDir: string = SETS_DIR): void {
     fail(`the clone is at ${head}, thesvg.source.json pins ${source.commit}`)
   }
 
-  const fill = readJson(
-    path.join(clone, 'src', 'data', 'ui', 'looks', 'fill.json'),
-  )
+  const fill = JSON.parse(
+    readPinnedFile(clone, source.commit, 'src/data/ui/looks/fill.json'),
+  ) as unknown
   const svgs = readStringMap(fill, 'fill.json')
   const kinds = readKinds(path.join(setsDir, 'kinds.json'))
   const table = readTable(path.join(setsDir, 'thesvg.kinds.json'))
@@ -161,7 +167,7 @@ export function prepareThesvg(clone: string, setsDir: string = SETS_DIR): void {
   if (problems.length > 0)
     fail(`the build inputs have problems:\n${problems.join('\n')}`)
 
-  const license = readFileSync(path.join(clone, 'LICENSE'), 'utf8')
+  const license = readPinnedFile(clone, source.commit, 'LICENSE')
   if (!license.startsWith('MIT License'))
     fail('the LICENSE of the clone is not the MIT License')
 

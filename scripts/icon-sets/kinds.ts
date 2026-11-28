@@ -151,7 +151,11 @@ export function imageOf(
 
 /** Maps every extension, file name and folder name to the image of its kind in a set. */
 export function resolveKinds(kinds: Kinds, table: StringMap): Resolved {
-  const resolved: Resolved = { extensions: {}, names: {}, folders: {} }
+  const resolved: Resolved = {
+    extensions: Object.create(null) as StringMap,
+    names: Object.create(null) as StringMap,
+    folders: Object.create(null) as StringMap,
+  }
   for (const [id, kind] of Object.entries(kinds)) {
     const image = imageOf(kinds, table, id)
     if (image === undefined) continue

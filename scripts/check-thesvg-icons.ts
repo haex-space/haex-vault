@@ -266,6 +266,52 @@ test('the build writes the pack source from a valid clone (US3 scenario 1)', () 
   }
 })
 
+test('the build reads the pinned SVGs and license when the clone has local edits', () => {
+  const f = fixture()
+  try {
+    const fillPath = path.join(
+      f.clone,
+      'src',
+      'data',
+      'ui',
+      'looks',
+      'fill.json',
+    )
+    const licensePath = path.join(f.clone, 'LICENSE')
+    const pinnedLicense = readFileSync(licensePath, 'utf8')
+
+    prepareThesvg(f.clone, f.sets)
+    const expectedIcon = readFileSync(
+      path.join(f.sets, 'thesvg', 'icons', 'file-code.svg'),
+      'utf8',
+    )
+
+    const editedSvgs = JSON.parse(readFileSync(fillPath, 'utf8'))
+    editedSvgs['file-code'] = editedSvgs['file-code'].replaceAll(
+      'currentColor',
+      '#ffffff',
+    )
+    writeFileSync(fillPath, JSON.stringify(editedSvgs))
+    writeFileSync(licensePath, 'MIT License\nlocally edited license\n')
+
+    prepareThesvg(f.clone, f.sets)
+
+    assert.equal(
+      readFileSync(
+        path.join(f.sets, 'thesvg', 'icons', 'file-code.svg'),
+        'utf8',
+      ),
+      expectedIcon,
+    )
+    assert.equal(
+      readFileSync(path.join(f.sets, 'thesvg', 'LICENSE'), 'utf8'),
+      pinnedLicense,
+    )
+  } finally {
+    f.cleanup()
+  }
+})
+
 test('the build refuses a clone at another commit and names both (US3 scenario 2)', () => {
   const f = fixture()
   try {

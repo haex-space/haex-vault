@@ -62,7 +62,7 @@ description: 'Task list for spec 103-file-icon-set-thesvg'
 - [x] T018 [US1] Run `nix develop --command node scripts/icon-sets/prepare.ts thesvg <clone at the pinned commit>` and commit `src-tauri/icon-sets/thesvg/`
 - [x] T019 [US1] `src-tauri/src/files/icons/builtin.rs`: `THESVG_ZIP = include_bytes!("../../../icon-sets/thesvg.zip")`, `THESVG` lazy pack, `pack()`, `zip_bytes()`, `display_name()` → `"theSVG"`, doc comment; build the ZIP with the ignored test (`nix develop --command cargo test -j 4 files::icons::builtin::tests::build_bundled_packs -- --ignored`) and commit `thesvg.zip`
 - [x] T020 [P] [US1] `src/i18n/locales/en.json` and `de.json`: `settings.iconSet.sets.thesvg` = "theSVG" next to `lucide`, `phosphor`, `material` (both files in step)
-- [x] T021 [US1] Run T010–T013 (`nix develop --command cargo test -j 4 files::icons storage::preferences_commands sync::icon_set_sync`) and `node --test scripts/check-thesvg-icons.ts scripts/check-file-icons.ts`; fix findings
+- [x] T021 [US1] Run T010–T013 (`nix develop --command cargo test --manifest-path src-tauri/Cargo.toml -j 4 files::icons`, `nix develop --command cargo test --manifest-path src-tauri/Cargo.toml -j 4 storage::preferences_commands`, and `nix develop --command cargo test --manifest-path src-tauri/Cargo.toml -j 4 sync::icon_set_sync`) and `node --test scripts/check-thesvg-icons.ts scripts/check-file-icons.ts`; fix findings
 
 **Checkpoint**: theSVG can be chosen and works.
 
@@ -92,7 +92,7 @@ description: 'Task list for spec 103-file-icon-set-thesvg'
 
 - [x] T028 [P] `src-tauri/icon-sets/SOURCES.md`: add "theSVG (`thesvg/`)" — source address, commit SHA, the command, license MIT (Copyright (c) 2025 thesvg.org), the look (fill), the colouring rule and table, the counts; add the new files to the header; no local path
 - [ ] T029 (dark and light checked by rendering all images, 2026-11-28; only the phone is open) Look at the set on both colour schemes (quickstart §4 step 3) and on an Android phone (step 5); adjust `thesvg.colors.json` if a colour looks wrong, rebuild; the phone check stays open until a device is at hand
-- [x] T030 (eslint could not run in the worktree without `nuxt prepare`; left to CI) Run `nix develop --command pnpm exec prettier --check` on the changed files, the project's typecheck, `node --test scripts/check-thesvg-icons.ts scripts/check-file-icons.ts`, and the targeted cargo tests of T021; fix findings
+- [x] T030 Run ESLint and Prettier in the project's devShell, the project's typecheck, `node --test scripts/check-thesvg-icons.ts scripts/check-file-icons.ts`, and the three separate Cargo test invocations in T021; fix findings
 - [x] T031 Tick this file, update the 103 row in `plans/README.md` ("umgesetzt …"), note the open phone check in the PR text
 - [x] T032 Give the places of the side bar (home, downloads, pictures, documents, desktop, videos, music, public, templates, projects) their own coloured images in theSVG, matched by folder name like Material; test in `src-tauri/src/files/icons/thesvg_tests.rs`
 - [x] T033 One mapping for every set (R7): `src-tauri/icon-sets/kinds.json` (extensions, names, folder names in four languages → kinds with parents), `thesvg.kinds.json` and `phosphor.kinds.json` (kind → image), `scripts/icon-sets/kinds.ts` used by `prepare.ts` (Phosphor, Material folder names) and `thesvg.ts`, tests in `scripts/check-icon-kinds.ts`; remove `thesvg.mapping.json` and `phosphor.mapping.json`; rebuild all packs

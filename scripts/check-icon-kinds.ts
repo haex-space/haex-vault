@@ -91,9 +91,29 @@ test('resolving gives every extension, name and folder name the image of its kin
     code: 'c',
     'folder-downloads': 'd',
   })
-  assert.deepEqual(resolved.extensions, { c: 'c', rs: 'c' })
-  assert.deepEqual(resolved.names, { makefile: 'c' })
-  assert.deepEqual(resolved.folders, { downloads: 'd', 'bilder-x': 'd' })
+  assert.deepEqual({ ...resolved.extensions }, { c: 'c', rs: 'c' })
+  assert.deepEqual({ ...resolved.names }, { makefile: 'c' })
+  assert.deepEqual({ ...resolved.folders }, { downloads: 'd', 'bilder-x': 'd' })
+})
+
+test('names matching Object.prototype keys are stored as own mapping keys', () => {
+  const resolved = resolveKinds(
+    {
+      code: { extensions: ['__proto__'], names: ['__proto__'] },
+      'folder-special': { extensions: [], names: ['__proto__'] },
+    },
+    { code: 'code-image', 'folder-special': 'folder-image' },
+  )
+
+  assert.equal(Object.getPrototypeOf(resolved.extensions), null)
+  assert.equal(Object.getPrototypeOf(resolved.names), null)
+  assert.equal(Object.getPrototypeOf(resolved.folders), null)
+  assert.equal(Object.hasOwn(resolved.extensions, '__proto__'), true)
+  assert.equal(resolved.extensions['__proto__'], 'code-image')
+  assert.equal(Object.hasOwn(resolved.names, '__proto__'), true)
+  assert.equal(resolved.names['__proto__'], 'code-image')
+  assert.equal(Object.hasOwn(resolved.folders, '__proto__'), true)
+  assert.equal(resolved.folders['__proto__'], 'folder-image')
 })
 
 test('a kind that the table names but kinds.json does not have is named', () => {

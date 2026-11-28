@@ -22,7 +22,8 @@ Expected: the log names the icons, the extensions and names, the colours; no err
 ## 3. Rust checks
 
 ```text
-nix develop --command cargo test -j 4 files::icons storage::preferences_commands
+nix develop --command cargo test --manifest-path src-tauri/Cargo.toml -j 4 files::icons
+nix develop --command cargo test --manifest-path src-tauri/Cargo.toml -j 4 storage::preferences_commands
 ```
 
 Expected: the pack opens and passes the checks, equals what its source directory packs to; `rs`, `zip`,
