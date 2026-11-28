@@ -16,8 +16,11 @@
 //! token let such a result through, the engine refused the prompt and every later message of the
 //! conversation with it.
 
+use std::collections::HashSet;
+
 use serde_json::Value;
 
+use super::ghost::{ghost, is_ghost};
 use crate::adapters::types::{ChatRequest, ChatRole};
 
 /// How many characters one token is taken to be where nothing is measured: right for German text,
@@ -47,7 +50,6 @@ const MIN_PAGE_ELEMENTS: usize = 10;
 /// What one element of a page result takes in characters, as a figure for how many to drop at once.
 const ELEMENT_CHARS: usize = 90;
 
-const LEFT_OUT: &str = "[An earlier tool result was left out to fit the context.]";
 const CUT_NOTE: &str = "\n[…the rest of this tool result did not fit the context and was cut. \
 Ask for less, or read on in smaller parts.]";
 const PAGE_CUT_NOTE: &str = "The text and the list of elements were shortened to fit the context; \
@@ -205,11 +207,17 @@ fn latest_from(request: &ChatRequest) -> usize {
 
 /// Shrinks the tool results of `request` until it fits `limit_tokens` or nothing more can go.
 /// Returns whether anything was changed. The two stages are [`leave_out_old_results`] and [`cut_latest`];
-/// compaction (spec 086) runs between them.
+/// compaction (spec 086) runs between them. `reads` names the tools that only read: the header of a result
+/// that is left out says that those may be called again.
 ///
 /// With a tokenizer (`count`), the request is measured, shrunk by the characters per token it has, and
 /// measured again, until it fits or nothing more can go; without one it is shrunk once by the estimate.
-pub fn fit(request: &mut ChatRequest, limit_tokens: usize, count: Count<'_>) -> bool {
+pub fn fit(
+    request: &mut ChatRequest,
+    limit_tokens: usize,
+    count: Count<'_>,
+    reads: &HashSet<String>,
+) -> bool {
     let mut scale = unmeasured();
     let mut changed = false;
     for _ in 0..MEASURES {
@@ -229,7 +237,7 @@ pub fn fit(request: &mut ChatRequest, limit_tokens: usize, count: Count<'_>) -> 
                 figure
             };
         }
-        let left_out = leave_out_old_results(request, limit_tokens, scale);
+        let left_out = leave_out_old_results(request, limit_tokens, scale, reads);
         let cut = cut_latest(request, limit_tokens, scale);
         if !(left_out || cut) {
             break;
@@ -243,28 +251,52 @@ pub fn fit(request: &mut ChatRequest, limit_tokens: usize, count: Count<'_>) -> 
 }
 
 /// The first stage: the results of earlier rounds are left out whole, oldest first, until the request
-/// fits `limit_tokens` at `chars_per_token`. Returns whether anything was changed.
+/// fits `limit_tokens` at `chars_per_token`. Each is replaced by a header that names its call (see
+/// [`ghost`]); a result the header would not make smaller stays. Returns whether anything was changed.
 pub fn leave_out_old_results(
     request: &mut ChatRequest,
     limit_tokens: usize,
     chars_per_token: f64,
+    reads: &HashSet<String>,
 ) -> bool {
     let budget = budget_chars(limit_tokens, chars_per_token);
     let mut size = size_in_chars(request);
-    let latest_from = latest_from(request);
     let mut changed = false;
-    for message in &mut request.messages[..latest_from] {
+    for at in 0..latest_from(request) {
         if size <= budget {
             break;
         }
-        if let ChatRole::ToolResult { content, .. } = &mut message.role {
-            let before = content.chars().count();
-            if content != LEFT_OUT && before > LEFT_OUT.chars().count() {
-                *content = LEFT_OUT.to_owned();
-                size = size.saturating_sub(before - LEFT_OUT.chars().count());
-                changed = true;
-            }
+        let ChatRole::ToolResult {
+            call_id,
+            content,
+            is_error,
+        } = &request.messages[at].role
+        else {
+            continue;
+        };
+        if is_ghost(content) {
+            continue;
         }
+        let before = content.chars().count();
+        let call = request.messages[..at]
+            .iter()
+            .rev()
+            .find_map(|message| match &message.role {
+                ChatRole::ToolCall { id, name, input } if id == call_id => {
+                    Some((name.as_str(), input))
+                }
+                _ => None,
+            });
+        let header = ghost(call, *is_error, before, reads);
+        let after = header.chars().count();
+        if after >= before {
+            continue;
+        }
+        if let ChatRole::ToolResult { content, .. } = &mut request.messages[at].role {
+            *content = header;
+        }
+        size = size.saturating_sub(before - after);
+        changed = true;
     }
     changed
 }

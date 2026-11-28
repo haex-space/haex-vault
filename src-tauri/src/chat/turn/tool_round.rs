@@ -439,13 +439,17 @@ impl TurnRunner<'_> {
         if let Some(found) = search_result {
             widen_offer(&registry, &mut self.request.tools, &found, &self.kept_tools);
         }
+        let reads = registry.read_only_names();
         drop(registry);
         // What the model is sent must fit its context, or the engine refuses the whole prompt.
         let adapter = &self.session.adapter;
         if let Some(limit) = adapter.context_limit() {
-            super::fit::fit(&mut self.request, limit, &|request| {
-                adapter.count_tokens(request)
-            });
+            super::fit::fit(
+                &mut self.request,
+                limit,
+                &|request| adapter.count_tokens(request),
+                &reads,
+            );
         }
     }
 

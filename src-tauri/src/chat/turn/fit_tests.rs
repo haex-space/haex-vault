@@ -1,6 +1,9 @@
+use std::collections::HashSet;
+
 use serde_json::json;
 
-use super::fit::{estimate_tokens, estimated, fit, size_in_chars};
+use super::fit::{estimate_tokens, estimated, fit, leave_out_old_results, size_in_chars};
+use super::ghost::GHOST_START;
 use crate::adapters::types::{ChatMessage, ChatRequest, ChatRole, ToolSpec};
 
 fn request(messages: Vec<ChatMessage>) -> ChatRequest {
@@ -22,6 +25,11 @@ fn request(messages: Vec<ChatMessage>) -> ChatRequest {
         reasoning_option: None,
         capabilities: None,
     }
+}
+
+/// No tool counts as one that only reads.
+fn reads() -> HashSet<String> {
+    HashSet::new()
 }
 
 fn message(role: ChatRole, content: &str) -> ChatMessage {
@@ -74,7 +82,7 @@ fn a_request_that_fits_is_left_alone() {
     ]);
     let before = request.messages.clone();
 
-    assert!(!fit(&mut request, 8192, &estimated));
+    assert!(!fit(&mut request, 8192, &estimated, &reads()));
 
     assert_eq!(request.messages, before);
 }
@@ -106,9 +114,9 @@ fn earlier_results_are_left_out_oldest_first_until_it_fits() {
     ]);
 
     // 4096 tokens: the budget is 3072 tokens = 9216 characters; two pages of 8000 do not fit.
-    assert!(fit(&mut request, 4096, &estimated));
+    assert!(fit(&mut request, 4096, &estimated, &reads()));
 
-    assert!(content_of(&request, 2).starts_with("[An earlier tool result was left out"));
+    assert!(content_of(&request, 2).starts_with(GHOST_START));
     assert_eq!(content_of(&request, 7), "kurz", "the latest result stays");
     assert!(
         size_in_chars(&request) <= 3 * (4096 - 1024),
@@ -124,7 +132,7 @@ fn the_latest_round_is_cut_at_the_end_when_it_alone_does_not_fit() {
     let page = format!("{}{}", "a".repeat(2_000), "b".repeat(30_000));
     let mut request = request(vec![user("Öffne a"), call("1"), result("1", &page)]);
 
-    assert!(fit(&mut request, 8192, &estimated));
+    assert!(fit(&mut request, 8192, &estimated, &reads()));
 
     let content = content_of(&request, 2);
     assert!(content.starts_with(&"a".repeat(2_000)), "the start is kept");
@@ -143,7 +151,7 @@ fn the_largest_result_of_the_latest_round_is_cut_first() {
         result("2", &"l".repeat(30_000)),
     ]);
 
-    assert!(fit(&mut request, 8192, &estimated));
+    assert!(fit(&mut request, 8192, &estimated, &reads()));
 
     assert_eq!(content_of(&request, 3), "s".repeat(2_000));
     assert!(content_of(&request, 4).contains("did not fit the context"));
@@ -154,7 +162,7 @@ fn what_cannot_be_shrunk_is_left_as_it_is_and_nothing_loops() {
     let long = "u".repeat(60_000);
     let mut request = request(vec![user(&long), call("1"), result("1", "kurz")]);
 
-    assert!(!fit(&mut request, 4096, &estimated));
+    assert!(!fit(&mut request, 4096, &estimated, &reads()));
 
     assert_eq!(
         request.messages[0].content, long,
@@ -167,13 +175,13 @@ fn what_cannot_be_shrunk_is_left_as_it_is_and_nothing_loops() {
 fn a_result_is_never_cut_below_a_usable_size_and_a_second_run_changes_nothing() {
     let mut request = request(vec![user("x"), call("1"), result("1", &"p".repeat(40_000))]);
 
-    assert!(fit(&mut request, 2048, &estimated));
+    assert!(fit(&mut request, 2048, &estimated, &reads()));
     let once = request.messages.clone();
     let kept = content_of(&request, 2).chars().count();
     assert!(kept >= 1_500, "{kept}");
 
     assert!(
-        !fit(&mut request, 2048, &estimated),
+        !fit(&mut request, 2048, &estimated, &reads()),
         "already as small as it goes"
     );
     assert_eq!(request.messages, once);
@@ -204,7 +212,7 @@ fn a_page_result_is_shrunk_by_its_structure_and_stays_valid_json_with_its_elemen
     let page = page_result(20_000, 300);
     let mut request = request(vec![user("Öffne a"), call("1"), result("1", &page)]);
 
-    assert!(fit(&mut request, 8192, &estimated));
+    assert!(fit(&mut request, 8192, &estimated, &reads()));
 
     let content = content_of(&request, 2);
     let value: serde_json::Value = serde_json::from_str(content).expect("still JSON");
@@ -229,7 +237,7 @@ fn a_page_result_at_its_floors_is_left_as_it_is_instead_of_cut_through_its_json(
     let page = page_result(500, 10);
     let mut request = request(vec![user("x"), call("1"), result("1", &page)]);
 
-    fit(&mut request, 1024, &estimated);
+    fit(&mut request, 1024, &estimated, &reads());
 
     serde_json::from_str::<serde_json::Value>(content_of(&request, 2)).expect("still JSON");
 }
@@ -264,14 +272,14 @@ fn a_request_the_estimate_lets_through_is_shrunk_by_its_measured_size() {
     assert!(estimate_tokens(&request) <= 4096 - 1024);
     assert!(json_dense(&request).unwrap() > 4096);
 
-    assert!(fit(&mut request, 4096, &json_dense));
+    assert!(fit(&mut request, 4096, &json_dense, &reads()));
 
     assert!(
         json_dense(&request).unwrap() <= 4096 - 1024,
         "{:?}",
         json_dense(&request)
     );
-    assert!(content_of(&request, 2).starts_with("[An earlier tool result was left out"));
+    assert!(content_of(&request, 2).starts_with(GHOST_START));
 }
 
 #[test]
@@ -284,7 +292,7 @@ fn a_measured_request_that_fits_is_left_alone_even_when_the_estimate_says_otherw
     let before = request.messages.clone();
     assert!(estimate_tokens(&request) > 4096);
 
-    assert!(!fit(&mut request, 8192, &|_| Some(3_000)));
+    assert!(!fit(&mut request, 8192, &|_| Some(3_000), &reads()));
 
     assert_eq!(request.messages, before);
 }
@@ -305,11 +313,147 @@ fn a_latest_round_denser_than_the_rest_still_ends_within_the_context() {
         result("1", &"j".repeat(20_000)),
     ]);
 
-    assert!(fit(&mut request, 8192, &dense_latest));
+    assert!(fit(&mut request, 8192, &dense_latest, &reads()));
 
     assert!(
         dense_latest(&request).unwrap() <= 8192 - 1024,
         "{:?}",
         dense_latest(&request)
     );
+}
+
+fn named_call(id: &str, name: &str, input: serde_json::Value) -> ChatMessage {
+    message(
+        ChatRole::ToolCall {
+            id: id.to_owned(),
+            name: name.to_owned(),
+            input,
+        },
+        "",
+    )
+}
+
+fn failed(id: &str, content: &str) -> ChatMessage {
+    message(
+        ChatRole::ToolResult {
+            call_id: id.to_owned(),
+            content: content.to_owned(),
+            is_error: true,
+        },
+        "",
+    )
+}
+
+/// An old round of a reading and a changing tool and a short latest round, over a context of 4096 tokens.
+fn two_old_rounds() -> ChatRequest {
+    let big = "x".repeat(8_000);
+    request(vec![
+        user("Mails"),
+        named_call("1", "mail_search", json!({ "query": "rechnung" })),
+        result("1", &big),
+        named_call("2", "mail_delete", json!({ "id": "m-17" })),
+        result("2", &big),
+        user("und weiter"),
+        call("3"),
+        result("3", "kurz"),
+    ])
+}
+
+#[test]
+fn a_left_out_result_names_its_call_and_a_reading_tool_may_be_called_again() {
+    let mut request = two_old_rounds();
+    let reads = HashSet::from(["mail_search".to_owned()]);
+
+    assert!(fit(&mut request, 4096, &estimated, &reads));
+
+    assert_eq!(
+        content_of(&request, 2),
+        format!(
+            "{GHOST_START} mail_search({{\"query\":\"rechnung\"}}) returned a result of 8000 characters. \
+             Call it again if you need it.]"
+        )
+    );
+}
+
+#[test]
+fn a_left_out_result_of_a_changing_tool_does_not_invite_a_second_call() {
+    let mut request = two_old_rounds();
+    let reads = HashSet::from(["mail_search".to_owned()]);
+
+    // Both old results have to go: 4096 tokens leave 9216 characters, the two pages are 16000.
+    leave_out_old_results(&mut request, 1500, 3.0, &reads);
+
+    let ghost = content_of(&request, 4);
+    assert!(ghost.starts_with(GHOST_START), "{ghost}");
+    assert!(ghost.contains("mail_delete({\"id\":\"m-17\"}) returned a result of 8000 characters"));
+    assert!(!ghost.contains("again"), "{ghost}");
+}
+
+#[test]
+fn a_failed_call_is_named_as_an_error() {
+    let mut request = request(vec![
+        user("Öffne a"),
+        call("1"),
+        failed("1", &"e".repeat(8_000)),
+        user("nochmal"),
+        call("2"),
+        result("2", "kurz"),
+    ]);
+
+    leave_out_old_results(&mut request, 1500, 3.0, &reads());
+
+    assert!(
+        content_of(&request, 2).contains("returned an error of 8000 characters"),
+        "{}",
+        content_of(&request, 2)
+    );
+}
+
+#[test]
+fn a_result_without_its_call_in_the_request_gets_a_header_with_its_size() {
+    let mut request = request(vec![
+        user("Öffne a"),
+        result("lost", &"x".repeat(8_000)),
+        user("weiter"),
+        call("2"),
+        result("2", "kurz"),
+    ]);
+
+    leave_out_old_results(&mut request, 1500, 3.0, &reads());
+
+    assert_eq!(
+        content_of(&request, 1),
+        format!("{GHOST_START} it was a result of 8000 characters.]")
+    );
+}
+
+#[test]
+fn a_header_is_not_left_out_again_and_never_grows_the_request() {
+    let mut request = two_old_rounds();
+    leave_out_old_results(&mut request, 1500, 3.0, &reads());
+    let after_first = request.messages.clone();
+
+    let changed = leave_out_old_results(&mut request, 1500, 3.0, &reads());
+
+    assert!(!changed, "a header stays as it is");
+    assert_eq!(request.messages, after_first);
+}
+
+#[test]
+fn a_result_smaller_than_its_header_stays() {
+    let mut request = request(vec![
+        user("Öffne a"),
+        call("1"),
+        result("1", "ok"),
+        call("2"),
+        result("2", &"x".repeat(8_000)),
+        user("weiter"),
+        call("3"),
+        result("3", "kurz"),
+    ]);
+
+    leave_out_old_results(&mut request, 1500, 3.0, &reads());
+
+    assert_eq!(content_of(&request, 2), "ok");
+    assert!(content_of(&request, 4).starts_with(GHOST_START));
 }
