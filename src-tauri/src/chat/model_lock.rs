@@ -9,6 +9,7 @@
 
 use tokio::sync::{OwnedRwLockReadGuard, OwnedRwLockWriteGuard};
 
+use super::model_loading::LoadMode;
 use super::session::ChatState;
 use super::turn_control::in_progress;
 use crate::error::Result;
@@ -30,9 +31,10 @@ impl LoadGuard {
 
 impl ChatState {
     /// Takes the place a load of `model_id` needs: shared for a provider's model (`<provider>:<id>`)
-    /// and for a local model that is in memory, exclusive for a local model that has to be loaded.
+    /// and a chat load of a local model that is in memory, exclusive for a local model activation or
+    /// a chat load that has to put the engine into memory.
     /// Refused while an exclusive operation runs, and, for an engine load, while any turn runs.
-    pub fn acquire_for_load(&self, model_id: &str) -> Result<LoadGuard> {
+    pub fn acquire_for_load(&self, model_id: &str, mode: LoadMode) -> Result<LoadGuard> {
         let shared = self
             .operation
             .clone()
@@ -40,7 +42,9 @@ impl ChatState {
             .map_err(|_| in_progress())?;
         // Looked up under the shared place: an activation that would unload the engine takes the lock
         // exclusively and is refused while this guard lives.
-        if model_id.contains(':') || self.session_for_local_model(model_id).is_some() {
+        if model_id.contains(':')
+            || (mode == LoadMode::Chat && self.session_for_local_model(model_id).is_some())
+        {
             return Ok(LoadGuard::Shared(shared));
         }
         drop(shared);

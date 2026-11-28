@@ -455,7 +455,7 @@ pub(super) async fn load_model_command(
 ) -> Result<LoadedModelInfo> {
     // A provider's model or a local model in memory loads beside the running turns; an engine load
     // is alone (spec 068 T012, `model_lock`).
-    let _operation = chat.acquire_for_load(&model_id)?;
+    let _operation = chat.acquire_for_load(&model_id, mode)?;
     let (vault_generation, load_id) = chat.begin_model_load();
     let identity = LoadIdentity {
         vault_generation,

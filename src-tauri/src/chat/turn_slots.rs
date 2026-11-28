@@ -198,6 +198,9 @@ impl TurnSlots {
         if !state.slots.contains_key(&turn_id) {
             return Err(Refused::AlreadyRunning);
         }
+        if state.model_picks.contains(&thread_id) {
+            return Err(Refused::ThreadBusy);
+        }
         if state
             .slots
             .iter()
