@@ -20,7 +20,7 @@ Args/Result-Contract-Bruch, nur mehr Events pro Aufruf.
 
 ### `abort_current_generation() -> ()`
 
-**Args/Result unverändert.**
+**Result unverändert.** Die optionalen Args sind in Spec 068 erweitert.
 
 **Verhalten geändert**: bricht nicht mehr nur den LLM-Stream ab, sondern den gesamten laufenden Turn
 — inklusive eines aktuell laufenden Tool-Prozesses und eines offenen `tool-permission-request`
