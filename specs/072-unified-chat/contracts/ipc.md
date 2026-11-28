@@ -85,6 +85,9 @@ is reachable only with that scope and still confirms itself (mcp_server/dispatch
 - The loaded model's info carries a flag `injectable` (name decided in T166): false for a delegate and
   for an adapter that cannot take a user message after tool results; the window shows "Jetzt senden"
   only when it is true and the chip's conversation is the running one.
-- Enter entries use no new command: they go out through `send_message` when no turn runs (FR-094). A
-  stop uses the existing `abort_current_generation`; discarding chips and returning texts after an error
-  (FR-103, FR-107) happen in the window only.
+- Enter entries use no new command: they go out through `send_message` when their conversation's turn
+  has ended (FR-094). A stop uses the existing `abort_current_generation` and changes nothing in the
+  queue: the cancelled turn closes its inbox, hands back what it did not take, and ends with
+  `chat-turn-complete` (finish reason cancelled), which the window treats like a normal end and drains
+  from (FR-103). Returning texts after an error (FR-107) and discarding on closing the app happen in
+  the window only.

@@ -238,9 +238,11 @@ The one change to the agent's turn in this spec; reasons in [research.md](./rese
 - **Where the button is offered.** A flag `injectable` on the loaded model's info (false for delegates
   and for adapters that failed the T165 check); with the chip's conversation being the running one
   (T166).
-- **Stop and error.** A stop discards only the stopped conversation's entries; an error returns the
-  conversation's texts and attachments to the input field, or holds them until the conversation is
-  opened (T167).
+- **Stop and error.** A stop interrupts only the running turn, as today (`abort_turn`); the queue is
+  untouched and drains when the cancelled turn's `chat-turn-complete` arrives. The inbox hands back
+  what the stopped turn did not take. An error returns the conversation's texts and attachments to the
+  input field, or holds them until the conversation is opened (T167). Only closing the app and locking
+  the vault discard entries.
 - **Not covered by the turn loop:** delegates (no step loop) and the round-cap wrap-up; both fall back
   to the queue.
 

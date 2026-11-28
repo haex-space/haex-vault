@@ -452,9 +452,10 @@ code exists; these are new. No iroh protocol is added (R7).
 
 **Decision** (operator 2026-11-28): while the agent answers, Enter queues a message and Ctrl+Enter, or
 the "Jetzt senden" button of a queued chip, injects it before the model's next call; Shift+Enter stays
-the line break. The queue is per conversation: chips show only where they were typed. A stop discards
-the stopped conversation's chips; a turn that fails returns the texts and attachments to the input
-field; closing the app discards everything. This amends R20: PR Q touches `chat/turn/` and
+the line break. The queue is per conversation: chips show only where they were typed. A stop only
+interrupts the running turn of its conversation and leaves the queue alone, so the chips go out
+afterwards in order; a turn that fails returns the texts and attachments to the input field; closing the
+app (and locking the vault) discards everything. This amends R20: PR Q touches `chat/turn/` and
 `ChatState`, in three places only: an inbox in `ChatState`, the injection point after a stored tool
 round, and the `latest_from` boundary of `fit.rs`.
 
@@ -494,12 +495,21 @@ considered and dropped: it rests on the single lock.
 when their conversation is open; otherwise they wait with the conversation. Texts first in typed
 order with blank lines, an existing draft last, attachments attached again once each.
 
+**Stop** (operator 2026-11-28, reversing the first answer): a stop is not an end of the queue, it only
+interrupts the running turn (`abort_turn`: cancel token, pending approvals dropped, rows of an
+interrupted round not stored, finish reason cancelled). The queue is window state and the cancelled
+turn still emits `chat-turn-complete`, so the drain is the same as after a normal finish. The races:
+an entry still in the inbox is handed back unstored when the turn ends, so it is a plain chip again;
+an entry the runner already took is stored and reported inside the turn task, and a stop reaches that
+task only through the cancel token, so taking and storing cannot be split; an injected row whose turn
+is stopped before its answer stays in the history and is read by the next turn, which is the same
+state a normal turn would leave, minus the answer.
+
 **Rejected**: (1) abort-and-restart as "immediately": throws away running tool work and answer text;
 the operator chose injection. (2) Persisting the queue as rows: sync and cleanup for something that
 must not outlive the window. (3) Injecting in the middle of a streaming step: the adapters stream one
-response per request; a change of the request during it is not possible. (4) Discarding all
-conversations' chips on a stop: the stop button shows for any running turn, so it would delete chips
-of a conversation the person never stopped.
+response per request; a change of the request during it is not possible. (4) Discarding chips on a
+stop: the operator wants a stop to interrupt the turn only.
 
 **Risks**: (a) some chat templates and wire formats may not accept a user message directly after tool
 results: tested per adapter in T165, and such an adapter is reported as not injectable (T166). (b)

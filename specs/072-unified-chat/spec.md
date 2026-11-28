@@ -69,10 +69,14 @@ sowie dateien hatte ich gehofft, wir können nostr dafür nutzen".
 - Q: How do waiting messages look? → A: As chips above the input field, each with an X to withdraw
   it. A waiting message is not in the history; it enters the history only when it is actually sent.
 - Q: How many messages may wait, and what ends the queue? → A: Several, in the order they were typed.
-  Stopping the turn or closing the app discards the queue; nothing goes out silently later. _Refined
-  later the same day, see the three entries below._
+  Closing the app (and locking the vault) discards the queue; nothing goes out silently later. _Refined
+  later the same day, see the entries below; a stop does not end the queue._
+- Q: What does the stop button do to waiting messages? → A: Nothing. A stop only interrupts the running
+  turn of its conversation (the running step and its tool calls); the queue is not discarded. Afterwards
+  the entries go out as usual, in the order typed: the first starts the next turn, the rest follow as
+  their turns end (operator 2026-11-28; this reverses "stopping the turn discards the queue").
 - Q: What happens to the queue when the turn ends with an error? → A: The queued texts go back into the
-  input field, so nothing typed is lost; a stop or cancel still discards them (operator 2026-11-28).
+  input field, so nothing typed is lost (operator 2026-11-28).
   Several texts come back in the order typed, separated by a blank line, with their attachments
   attached again; a draft that is already in the field stays, after them.
 - Q: One queue for the chat or one per conversation? → A: One per conversation (per Verlauf). A chip
@@ -460,7 +464,8 @@ Enter with a second message and again with a third: two chips, no history rows. 
 second message is sent, then the third, in order. Start another such turn, press Ctrl+Enter with a
 correction after the first round: the history shows it between the tool rows and the answer, and the
 answer takes it into account. Queue a chip with Enter and press "Jetzt senden": same result. Press the
-stop button with two chips: both vanish and nothing is sent. Let a turn fail with two chips: both texts
+stop button with two chips: the turn stops, the first chip starts the next turn and the second follows
+it. Let a turn fail with two chips: both texts
 are in the input field.
 
 **Acceptance Scenarios**:
@@ -482,15 +487,17 @@ are in the input field.
    next step sees the message as a normal user message at that place. Nothing of the running turn is
    cancelled or repeated.
 5. **Given** a chip marked "Wird eingefügt", **When** the turn ends without another model call (the
-   agent was already writing its final answer, or the round cap ended it), **Then** the message was not
+   agent was already writing its final answer, the round cap ended it, or Anna stopped it), **Then** the message was not
    injected; it is a plain queue chip again (with its button) and is sent as the next turn in its place
    in the queue.
 6. **Given** any chip, queued or marked "Wird eingefügt", **When** Anna presses its X, **Then** the chip
    is removed and nothing is sent; for a "Wird eingefügt" chip this holds only until the message was
    taken, after that it is in the history and the chip and its X are gone.
-7. **Given** chips, **When** Anna stops the turn with the stop button, **Then** the chips of the
-   conversation whose turn was stopped disappear and nothing of them is sent later; messages that were
-   already injected stay in the history; chips of other conversations stay.
+7. **Given** chips, **When** Anna stops the turn with the stop button, **Then** only the running turn of
+   that conversation is interrupted (its step and tool calls); the chips stay, and afterwards they go
+   out as usual: the first starts the next turn, the rest follow as their turns end, in the order
+   typed. A message that was already injected stays in the history; one that was not yet taken is a
+   plain chip again and goes out in its place. Chips of other conversations are not touched.
 8. **Given** chips, **When** the app is closed or the vault is locked, **Then** they are gone at the next
    opening; no queue is stored in the vault or sent to other devices.
 9. **Given** a model that runs its own agent loop (a delegate, spec 032), **When** Anna presses
@@ -576,8 +583,19 @@ are in the input field.
   another conversation's turn): the send of its next entry waits as a typed send does, and when the
   wait ends it follows the failed-send path (FR-094); no entry is lost.
 - The stop button is pressed while Anna looks at another conversation than the running turn's (the
-  button shows for any running turn): the stopped conversation's chips are discarded, her own chips of
-  the open conversation stay and go out in their turn.
+  button shows for any running turn): that turn is interrupted; chips of every conversation, hers
+  included, stay and go out when their own conversation's turn is over.
+- A stop lands while a tool round is open (calls running or an approval waiting): as today, the calls
+  are cancelled, pending approvals are dropped and the rows of the interrupted round are not stored;
+  the turn ends as cancelled. An injection waiting in the inbox is not taken (the round never ends), so
+  it becomes a plain chip again (FR-097) and goes out as the next turn.
+- A stop lands after a message was injected: the injected row is in the history (FR-098) and stays,
+  and it gets no answer from the stopped turn; the next turn, started by the first chip or by the
+  person's next message, reads it as part of the history. No chip is shown for it and nothing is sent
+  again.
+- A stop lands while an injection is _taken in_ but not yet processed: it is either stored and reported
+  (then the stop leaves it in the history) or given back unstored (then it is a plain chip); never
+  both, never neither (FR-103).
 - An entry is sent into a conversation that is not open, and the model of that conversation's session
   differs from the one loaded: the send loads it as opening that conversation and sending would, which
   can take a while for a large local model; the person is not asked first (see Assumptions).
@@ -829,11 +847,12 @@ are in the input field.
   enters it only when it is sent. The chips show no success message; a refused entry is an error toast
   (at most 10 entries per conversation, FR-104).
 - **FR-094**: The entries of a conversation MUST be sent one at a time, in the order typed, and only
-  after that conversation's own turn has ended: when it ends with a normal finish, the first entry MUST
-  be sent as an ordinary new turn in that conversation, and the next one only after that turn ended. No
-  order is defined between the entries of different conversations. If the send fails (the chat stayed
-  busy beyond the wait of a typed send, or an error), the entry follows the existing failed-send path
-  (toast, retry) and that conversation's queue does not go on until the person decides.
+  after that conversation's own turn has ended: when it ends with a normal finish or a stop, the first
+  entry MUST be sent as an ordinary new turn in that conversation, and the next one only after that turn
+  ended. No order is defined between the entries of different conversations. A turn that ends with an
+  error does not send them (FR-107). If the send fails (the chat stayed busy beyond the wait of a typed
+  send, or an error), the entry follows the existing failed-send path (toast, retry) and that
+  conversation's queue does not go on until the person decides.
 - **FR-095**: A new command `chat_inject_message` (conversation, text, attachments, idempotency key) MUST
   hand the message to the running turn of that conversation. Ctrl+Enter and the button "Jetzt
   senden" of a chip MUST both use it, the button with the key the entry already has. The host MUST
@@ -866,20 +885,23 @@ are in the input field.
   fitting, not as earlier results to leave out. Compaction (spec 086 FR-015) keeps the latest user
   message and the open tool round verbatim, an injected message included.
 - **FR-101**: A message that is queued or injected while a tool approval waits MUST NOT answer, change or
-  time out the approval; it is taken after the round as in FR-096. A stop of the turn discards it as in
-  FR-103.
+  time out the approval; it is taken after the round as in FR-096. A stop drops the approval as today and leaves the message as FR-103 says.
 - **FR-102**: A model that runs its own agent loop (a delegate, spec 032 R14) has no step to inject
   into: Ctrl+Enter MUST act as Enter there and the chips MUST have no "Jetzt senden" button. The same
   holds for an adapter whose request builder cannot take a user message directly after tool results
-  (tested per adapter). The window learns this from the loaded model, so the button is not shown where
+  (tested per adapter, task T165), where the message is queued as the next turn instead. The window learns this from the loaded model, so the button is not shown where
   it could do nothing. Local and remote adapters share the one injection point.
-- **FR-103**: A stop of the turn MUST discard the entries of the conversation whose turn was stopped and
-  its inbox; entries of other conversations stay. A turn that ends with an error MUST not discard its
-  conversation's entries but return them as FR-107 says. Locking the vault and closing the app MUST
-  discard every entry and every inbox. A queue MUST NOT be written to the vault, to disk or to another
-  device. Messages already injected stay in the history.
+- **FR-103**: A stop MUST interrupt only the running turn of its conversation (its running step and tool
+  calls, as today); it MUST NOT discard, return or reorder the queue entries of any conversation. When
+  the turn has ended, the entries go out by FR-094. At the end of a turn (stop included) its inbox MUST
+  be closed under the same lock that guards taking an entry, so that every entry that was _taken in_
+  is either stored and reported before the close or given back unstored after it: never lost, never
+  sent twice. An entry already injected stays in the history. A turn that ends with an error MUST NOT
+  send the entries but return them as FR-107 says. Locking the vault and closing the app MUST discard
+  every entry and every inbox, and nothing else does. A queue MUST NOT be written to the vault, to disk
+  or to another device.
 - **FR-104**: At most 10 entries MAY wait per conversation; the eleventh is refused with an error
-  toast. An entry that was withdrawn or discarded sends nothing, ever.
+  toast. An entry that was withdrawn, or discarded by closing the app, sends nothing, ever.
 - **FR-105**: FR-090 to FR-107 apply to agent conversations of the chat app only. Contact, group and note
   conversations keep their own send and outbox (US2, FR-002b); spoken rounds of the voice assistant
   (spec 066) are not queued and still take the chat as before.
@@ -892,7 +914,7 @@ are in the input field.
   attachments attached again (in the same order, once each). A draft already in the field MUST stay,
   after them and separated by a blank line, with its attachments after theirs. Nothing is sent. If the
   conversation is not the open one, the texts and attachments MUST be held with it and put into the
-  field by the same rule when it is opened. A turn that was stopped does not return its texts (FR-103).
+  field by the same rule when it is opened. A stop does not return the texts; they are sent (FR-103).
 
 ### Key Entities
 
@@ -948,9 +970,10 @@ are in the input field.
   promoted with the button "Jetzt senden", during the first of two tool rounds are each in the request
   of the third model call after the results of round one, and the stored rows read: user, tool rows,
   injected user row, answer.
-- **SC-014**: In an automated test, a stop with three entries in the stopped conversation and two in
-  another leaves no send from the first three within 60 seconds and no trace of them in the vault; the
-  other two still go out, in order.
+- **SC-014**: In an automated test with three entries in the stopped conversation and two in another, a
+  stop interrupts only the running turn, then the first three go out as three turns in the order typed
+  and the other two after their own conversation's turn, none lost and none twice, in 20 of 20 runs;
+  after the app is closed and opened again no entry exists.
 - **SC-015**: With a model context of 8,192 tokens, an injection after a large tool result never ends in
   the engine refusing the prompt (spec 086 SC-006 holds).
 - **SC-016**: In an automated test with entries queued in two conversations, each conversation's entries
@@ -985,8 +1008,9 @@ are in the input field.
 - The queue is state of the window and the inbox is state of the running turn; neither is stored, so a
   restart loses them on purpose (FR-103). The limit of 10 entries is a first value the plan may adjust
   with a reason.
-- Every adapter takes a user message after tool results either as it is or with a small change in its
-  request builder; task T165 checks it for each adapter before Ctrl+Enter is switched on there.
+- Task T165 exists because some chat templates and provider APIs may reject or mishandle a user message
+  placed directly after tool results, so it is tested per adapter, and an adapter that fails falls back
+  to queuing the message as the next turn instead of injecting it.
 - The tools of a turn are chosen from the first message (spec 018, 082, 087); an injected message does
   not choose them again, since the tool search of the turn is the way to more tools.
 - A delegate (spec 032) cannot be steered from the host: its answer is whole until it ends, so only
@@ -1011,4 +1035,4 @@ are in the input field.
   queued the message on purpose.
 - The stop button shows for any running turn, whichever conversation is open (existing behaviour);
   spec 068 R1 makes `abort_current_generation` abort the active conversation's turn. Either way a stop
-  discards the stopped conversation's entries (FR-103), not those of other conversations.
+  only interrupts that turn and leaves every queue as it is (FR-103).
