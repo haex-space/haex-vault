@@ -1,4 +1,4 @@
-import { computed, reactive, ref, type Ref } from 'vue'
+import { computed, reactive, type Ref } from 'vue'
 import type {
   AgentActivityEvent,
   LoadedModelInfo,

@@ -157,9 +157,9 @@ impl TurnSlots {
     /// Names the conversation of a turn that started a new one: it is known once the send is stored.
     pub fn set_thread(&self, turn_id: Uuid, thread_id: Uuid) -> Result<(), Refused> {
         let mut slots = lock(&self.slots);
-        let Some(slot) = slots.get(&turn_id) else {
+        if !slots.contains_key(&turn_id) {
             return Err(Refused::AlreadyRunning);
-        };
+        }
         if slots
             .iter()
             .any(|(id, other)| *id != turn_id && other.thread_id == Some(thread_id))
