@@ -52,6 +52,12 @@ import {
   writeJson,
 } from './common.ts'
 import type { Origin, Roles, StringMap } from './common.ts'
+import {
+  addKindFolderNames,
+  readKinds,
+  resolveKinds,
+  tableProblems,
+} from './kinds.ts'
 import { prepareThesvg } from './thesvg.ts'
 
 // Grey tones that stand in for `currentColor`; close to text-muted-foreground.
@@ -101,37 +107,17 @@ const MATERIAL_ROLES: Roles = {
   text: 'document',
 }
 
-// The standard folders of a home directory under their German, French and Spanish names (the
-// folders xdg-user-dirs creates): Material knows only the English names, so `Bilder` and `Musik`
-// would be plain folders. Each name takes the image of its English counterpart.
-const LOCALIZED_FOLDERS: Record<string, string[]> = {
-  desktop: ['schreibtisch', 'bureau', 'escritorio'],
-  documents: ['dokumente', 'documentos'],
-  downloads: ['téléchargements', 'descargas'],
-  music: ['musik', 'musique', 'música'],
-  pictures: ['bilder', 'imágenes'],
-  public: ['öffentlich', 'público'],
-  videos: ['vidéos', 'vídeos'],
-  templates: ['vorlagen', 'modèles', 'plantillas'],
-  projects: ['projekte', 'projets', 'proyectos'],
-}
-
 /** Adds the localized names of the standard folders to the manifest of Material. */
-function addLocalizedFolderNames(): void {
+function localizeMaterialFolders(): void {
   const manifestFile = path.join(SETS_DIR, 'material', 'icon-theme.json')
   const manifest = readJson(manifestFile)
   if (!isRecord(manifest)) fail('material: the manifest is not an object')
   const folderNames = readStringMap(manifest.folderNames, 'folderNames')
-  let added = 0
-  for (const [english, names] of Object.entries(LOCALIZED_FOLDERS)) {
-    const id = folderNames[english]
-    if (id === undefined) fail(`material has no folder image for ${english}`)
-    for (const name of names) {
-      if (name in folderNames) continue
-      folderNames[name] = id
-      added += 1
-    }
-  }
+  const added = addKindFolderNames(
+    readKinds(path.join(SETS_DIR, 'kinds.json')),
+    folderNames,
+    'material',
+  )
   manifest.folderNames = folderNames
   writeJson(manifestFile, manifest)
   console.log(`material: ${added} localized folder names`)
@@ -152,17 +138,25 @@ function preparePhosphor(clone: string): void {
     }
   }
 
-  const mapping = readStringMap(
-    readJson(path.join(SETS_DIR, 'phosphor.mapping.json')),
-    'phosphor.mapping.json',
+  const kinds = readKinds(path.join(SETS_DIR, 'kinds.json'))
+  const table = readStringMap(
+    (
+      readJson(path.join(SETS_DIR, 'phosphor.kinds.json')) as {
+        kinds?: unknown
+      }
+    ).kinds,
+    'phosphor.kinds.json',
   )
-  for (const [extension, name] of Object.entries(mapping)) {
+  const problems = tableProblems(kinds, table, 'phosphor.kinds.json')
+  for (const [kind, name] of Object.entries(table)) {
     if (!names.includes(name)) {
-      fail(
-        `mapping ${extension} -> ${name}: ${name} is not in phosphor.icons.txt`,
+      problems.push(
+        `kind ${kind} -> ${name}: ${name} is not in phosphor.icons.txt`,
       )
     }
   }
+  if (problems.length > 0) fail(problems.join('\n'))
+  const resolved = resolveKinds(kinds, table)
   for (const [role, name] of Object.entries(PHOSPHOR_ROLES)) {
     if (!names.includes(name))
       fail(`role ${role} -> ${name}: not in phosphor.icons.txt`)
@@ -191,11 +185,13 @@ function preparePhosphor(clone: string): void {
     iconDefinitions,
     file: 'file',
     folder: 'folder',
-    fileExtensions: mapping,
+    fileExtensions: resolved.extensions,
+    fileNames: resolved.names,
     light: {
       file: 'file-light',
       folder: 'folder-light',
-      fileExtensions: mapValues(mapping, (name) => `${name}-light`),
+      fileExtensions: mapValues(resolved.extensions, (name) => `${name}-light`),
+      fileNames: mapValues(resolved.names, (name) => `${name}-light`),
     },
     'x-haex': { roles: PHOSPHOR_ROLES, origin: PHOSPHOR_ORIGIN },
   }
@@ -203,7 +199,7 @@ function preparePhosphor(clone: string): void {
   copyFileSync(path.join(clone, 'LICENSE'), path.join(outDir, 'LICENSE'))
   addStateIcons('phosphor')
   console.log(
-    `phosphor: ${names.length} icons, ${names.length * 2} images, ${Object.keys(mapping).length} extensions`,
+    `phosphor: ${names.length} icons, ${names.length * 2} images, ${Object.keys(resolved.extensions).length} extensions, ${Object.keys(resolved.names).length} names`,
   )
 }
 
@@ -265,7 +261,7 @@ function prepareMaterial(vsix: string, apacheText: string): void {
   copyFileSync(apacheText, path.join(outDir, 'LICENSE-APACHE-2.0'))
   writeFileSync(path.join(outDir, 'NOTICE'), MATERIAL_NOTICE)
   addStateIcons('material')
-  addLocalizedFolderNames()
+  localizeMaterialFolders()
 
   const manifestSize = statSync(path.join(outDir, 'icon-theme.json')).size
   const withStyle = files.filter((name) =>
@@ -304,7 +300,7 @@ function main(): void {
     addStateIcons('phosphor')
     addStateIcons('material')
     addStateIcons('thesvg')
-    addLocalizedFolderNames()
+    localizeMaterialFolders()
   } else {
     fail(
       'usage: prepare.ts phosphor|material|thesvg <source> [<apache text>] | states',

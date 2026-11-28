@@ -26,13 +26,22 @@ They are named by the roles `encryptedFolder`, `lockedFolder`, `folderNoAccess`,
 project's own drawings; the license metadata of each bundled pack remains unchanged, and these
 drawings are not part of the upstream icon sources.
 
-## Standard folders by their German, French and Spanish names
+## One mapping of file kinds for all sets (`kinds.json`)
 
-Material knows the English names of the folders of a home directory (`images`, `documents`,
-`music` …). `prepare.ts` (`addLocalizedFolderNames`, also `prepare.ts states`) adds the names that
-xdg-user-dirs creates in German, French and Spanish (`Bilder`, `Dokumente`, `Musik`,
-`Schreibtisch`, `Öffentlich`, `Vorlagen`, `Projekte` …) to `folderNames`, each with the image of its
-English counterpart.
+`kinds.json` says which extensions, file names and folder names belong to which kind of entry (`rust`,
+`pdf`, `readme`, `folder-downloads` …; the folder kinds carry the English, German, French and Spanish
+names that xdg-user-dirs creates: `downloads`, `Bilder`, `Dokumente`, `Musique` …). It does not know any
+icon set. A kind can have a parent (`rust` → `code`).
+
+- A set with its own images says only which image stands for a kind: `thesvg.kinds.json` and
+  `phosphor.kinds.json` (`{ "kinds": { "<kind>": "<image>" } }`). `scripts/icon-sets/kinds.ts` turns that
+  into the manifest tables: a kind without an image of the set takes the one of its nearest parent;
+  without one up the chain the entry gets the generic image of the set.
+- Material brings its own mapping from upstream. `prepare.ts` only gives every name of a folder kind the
+  image Material already has for another name of that kind (`Bilder` like `pictures`).
+- **A new set** needs its table `<set>.kinds.json` and a build in `scripts/icon-sets/`; never a new list
+  of extensions. `pnpm check:file-icons` checks `kinds.json` (lower case, every extension once, parent
+  chains) and that every table names only existing kinds.
 
 ## Phosphor (`phosphor/`)
 
@@ -43,7 +52,8 @@ English counterpart.
 - Selection rule: exactly the icons listed in `phosphor.icons.txt` (the
   file-type icons `file-*`, `file`, `folder`, `folder-simple`, `folder-lock`,
   `folder-simple-lock`, `folder-open`; never a `*-logo` icon), and the
-  extensions of `phosphor.mapping.json` (hand-written, checked against the list).
+  kinds of `phosphor.kinds.json` (hand-written, checked against the list; the extensions come from the shared
+  `kinds.json`).
 - Light and dark: every image is written twice, `<name>.svg` with light strokes
   (`#c9c9c9`, main part of the manifest, dark scheme) and `<name>.light.svg`
   with dark strokes (`#4a4a4a`, block `light`, light scheme).
@@ -88,10 +98,10 @@ English counterpart.
   (`thesvg.colors.json`, the palette of Material) and changes nothing else. Every colour has a relative
   luminance between 0.10 and 0.65, so each image reads on the dark and on the light scheme and the
   set has no `light` block.
-- Selection rule: the icons named by `thesvg.mapping.json` (extension or lower-case file name to
-  slug) and the role table `ROLE_SLUGS` in `scripts/icon-sets/thesvg.ts` (folder, file, image, video,
+- Selection rule: the icons named by `thesvg.kinds.json` (kind to slug; the extensions, names and folder
+  names come from the shared `kinds.json`) and the role table `ROLE_SLUGS` in `scripts/icon-sets/thesvg.ts` (folder, file, image, video,
   audio, PDF, text); the five state images come from `haex-states/`.
-- Counts: 19 icons, 162 extensions, 46 file names, 24 images with the states; ZIP size 15547 bytes.
+- Counts: 29 icons, 162 extensions, 46 file names, 37 folder names, 34 images with the states.
 
 ## Lucide (no pack)
 

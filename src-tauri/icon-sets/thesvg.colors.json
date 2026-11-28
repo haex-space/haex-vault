@@ -24,5 +24,8 @@
   "book-open-text": "#42a5f5",
   "monitor": "#29b6f6",
   "film": "#ffa726",
-  "headphones": "#ec407a"
+  "headphones": "#ec407a",
+  "share-2": "#26c6da",
+  "layout-template": "#ab47bc",
+  "folder-kanban": "#5c6bc0"
 }

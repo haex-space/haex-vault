@@ -1,0 +1,466 @@
+{
+  "kinds": {
+    "image": {
+      "extensions": [
+        "gif",
+        "webp",
+        "bmp",
+        "avif",
+        "ico",
+        "tif",
+        "tiff",
+        "heic",
+        "heif",
+        "jxl",
+        "raw",
+        "psd",
+        "xcf"
+      ]
+    },
+    "png": {
+      "parent": "image",
+      "extensions": [
+        "png"
+      ]
+    },
+    "jpg": {
+      "parent": "image",
+      "extensions": [
+        "jpg",
+        "jpeg"
+      ]
+    },
+    "svg": {
+      "parent": "image",
+      "extensions": [
+        "svg"
+      ]
+    },
+    "video": {
+      "extensions": [
+        "mp4",
+        "mkv",
+        "mov",
+        "webm",
+        "avi",
+        "m4v",
+        "wmv",
+        "flv",
+        "3gp",
+        "mpg",
+        "mpeg",
+        "ogv"
+      ]
+    },
+    "audio": {
+      "extensions": [
+        "mp3",
+        "flac",
+        "wav",
+        "ogg",
+        "oga",
+        "m4a",
+        "aac",
+        "opus",
+        "wma",
+        "aiff",
+        "aif",
+        "mid",
+        "midi"
+      ]
+    },
+    "pdf": {
+      "extensions": [
+        "pdf"
+      ]
+    },
+    "archive": {
+      "extensions": [
+        "zip",
+        "7z",
+        "tar",
+        "gz",
+        "tgz",
+        "bz2",
+        "tbz2",
+        "xz",
+        "txz",
+        "zst",
+        "rar",
+        "jar",
+        "war",
+        "apk",
+        "deb",
+        "rpm",
+        "iso",
+        "dmg"
+      ]
+    },
+    "text": {
+      "extensions": [
+        "txt",
+        "text",
+        "tex"
+      ]
+    },
+    "document": {
+      "parent": "text",
+      "extensions": [
+        "doc",
+        "docx",
+        "odt",
+        "rtf"
+      ]
+    },
+    "log": {
+      "parent": "text",
+      "extensions": [
+        "log"
+      ]
+    },
+    "spreadsheet": {
+      "extensions": [
+        "tsv",
+        "xls",
+        "xlsx",
+        "xlsm",
+        "ods",
+        "numbers"
+      ]
+    },
+    "csv": {
+      "parent": "spreadsheet",
+      "extensions": [
+        "csv"
+      ]
+    },
+    "presentation": {
+      "extensions": [
+        "ppt",
+        "pptx",
+        "odp",
+        "key"
+      ]
+    },
+    "markdown": {
+      "extensions": [
+        "md",
+        "markdown",
+        "mdx"
+      ]
+    },
+    "code": {
+      "extensions": [
+        "svelte",
+        "astro",
+        "go",
+        "kt",
+        "kts",
+        "java",
+        "rb",
+        "php",
+        "sh",
+        "bash",
+        "zsh",
+        "fish",
+        "ps1",
+        "bat",
+        "cmd",
+        "swift",
+        "lua",
+        "zig",
+        "nix",
+        "dart",
+        "scala",
+        "clj",
+        "ex",
+        "exs",
+        "erl",
+        "hs",
+        "ml",
+        "r",
+        "jl",
+        "pl",
+        "pm",
+        "xsl",
+        "graphql",
+        "gql",
+        "proto",
+        "tf",
+        "vim",
+        "wasm",
+        "xml"
+      ],
+      "names": [
+        "dockerfile",
+        "makefile",
+        "justfile",
+        "cmakelists.txt",
+        "rakefile",
+        "gemfile"
+      ]
+    },
+    "rust": {
+      "parent": "code",
+      "extensions": [
+        "rs"
+      ]
+    },
+    "typescript": {
+      "parent": "code",
+      "extensions": [
+        "ts"
+      ]
+    },
+    "tsx": {
+      "parent": "code",
+      "extensions": [
+        "tsx"
+      ]
+    },
+    "javascript": {
+      "parent": "code",
+      "extensions": [
+        "js",
+        "mjs",
+        "cjs"
+      ]
+    },
+    "jsx": {
+      "parent": "code",
+      "extensions": [
+        "jsx"
+      ]
+    },
+    "python": {
+      "parent": "code",
+      "extensions": [
+        "py",
+        "pyw"
+      ]
+    },
+    "vue": {
+      "parent": "code",
+      "extensions": [
+        "vue"
+      ]
+    },
+    "c": {
+      "parent": "code",
+      "extensions": [
+        "c",
+        "h"
+      ]
+    },
+    "cpp": {
+      "parent": "code",
+      "extensions": [
+        "cpp",
+        "hpp",
+        "cc",
+        "cxx",
+        "hh"
+      ]
+    },
+    "csharp": {
+      "parent": "code",
+      "extensions": [
+        "cs"
+      ]
+    },
+    "sql": {
+      "parent": "code",
+      "extensions": [
+        "sql"
+      ]
+    },
+    "css": {
+      "parent": "code",
+      "extensions": [
+        "css",
+        "scss",
+        "sass",
+        "less"
+      ]
+    },
+    "html": {
+      "parent": "code",
+      "extensions": [
+        "html",
+        "htm"
+      ]
+    },
+    "json": {
+      "parent": "code",
+      "extensions": [
+        "json",
+        "jsonc",
+        "json5",
+        "jsonl",
+        "ndjson"
+      ]
+    },
+    "config": {
+      "parent": "code",
+      "names": [
+        ".gitignore",
+        ".gitattributes",
+        ".gitmodules",
+        ".editorconfig",
+        ".prettierrc",
+        ".eslintrc",
+        "tsconfig.json",
+        "package.json",
+        "nuxt.config.ts",
+        "vite.config.ts",
+        "cargo.toml",
+        "docker-compose.yml",
+        "docker-compose.yaml",
+        "compose.yaml"
+      ]
+    },
+    "yaml": {
+      "parent": "config",
+      "extensions": [
+        "yaml",
+        "yml"
+      ]
+    },
+    "ini": {
+      "parent": "config",
+      "extensions": [
+        "toml",
+        "ini",
+        "conf",
+        "cfg",
+        "properties",
+        "editorconfig"
+      ]
+    },
+    "env": {
+      "extensions": [
+        "env"
+      ],
+      "names": [
+        ".env",
+        ".env.local",
+        ".env.example",
+        ".env.development",
+        ".env.production",
+        ".env.test"
+      ]
+    },
+    "lock": {
+      "extensions": [
+        "lock"
+      ],
+      "names": [
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "yarn.lock",
+        "cargo.lock",
+        "flake.lock",
+        "composer.lock",
+        "gemfile.lock",
+        "poetry.lock",
+        "bun.lockb"
+      ]
+    },
+    "license": {
+      "names": [
+        "license",
+        "license.md",
+        "license.txt",
+        "licence",
+        "copying",
+        "notice",
+        "unlicense"
+      ]
+    },
+    "readme": {
+      "names": [
+        "readme",
+        "readme.md",
+        "readme.txt",
+        "readme.markdown"
+      ]
+    },
+    "folder-desktop": {
+      "names": [
+        "desktop",
+        "schreibtisch",
+        "bureau",
+        "escritorio"
+      ]
+    },
+    "folder-documents": {
+      "names": [
+        "documents",
+        "docs",
+        "dokumente",
+        "documentos"
+      ]
+    },
+    "folder-downloads": {
+      "names": [
+        "downloads",
+        "download",
+        "téléchargements",
+        "descargas"
+      ]
+    },
+    "folder-music": {
+      "names": [
+        "music",
+        "musik",
+        "musique",
+        "música"
+      ]
+    },
+    "folder-pictures": {
+      "names": [
+        "pictures",
+        "images",
+        "photos",
+        "bilder",
+        "imágenes"
+      ]
+    },
+    "folder-public": {
+      "names": [
+        "public",
+        "öffentlich",
+        "público"
+      ]
+    },
+    "folder-videos": {
+      "names": [
+        "videos",
+        "movies",
+        "vidéos",
+        "vídeos"
+      ]
+    },
+    "folder-templates": {
+      "names": [
+        "templates",
+        "vorlagen",
+        "modèles",
+        "plantillas"
+      ]
+    },
+    "folder-projects": {
+      "names": [
+        "projects",
+        "projekte",
+        "projets",
+        "proyectos"
+      ]
+    },
+    "folder-home": {
+      "names": [
+        "home"
+      ]
+    }
+  }
+}

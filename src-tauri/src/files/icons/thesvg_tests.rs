@@ -43,7 +43,7 @@ fn every_kind_of_file_has_an_image_of_its_own_in_both_schemes() {
 
 #[test]
 fn a_folder_and_an_unknown_file_get_the_generic_images() {
-    assert_eq!(dark(&dir("Projects")), "icons/folder.svg");
+    assert_eq!(dark(&dir("Zettel")), "icons/folder.svg");
     assert_eq!(dark(&file("zz-no-such.file-kind")), "icons/file.svg");
 }
 
@@ -59,6 +59,11 @@ fn the_places_of_the_side_bar_get_an_image_of_their_own_in_both_schemes() {
         ("documents", "icons/book-open-text.svg"),
         ("desktop", "icons/monitor.svg"),
         ("Schreibtisch", "icons/monitor.svg"),
+        ("Téléchargements", "icons/download.svg"),
+        ("Imágenes", "icons/images.svg"),
+        ("Vorlagen", "icons/layout-template.svg"),
+        ("Projekte", "icons/folder-kanban.svg"),
+        ("Öffentlich", "icons/share-2.svg"),
         ("videos", "icons/film.svg"),
         ("music", "icons/headphones.svg"),
     ] {

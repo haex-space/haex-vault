@@ -13,11 +13,15 @@ No database table, migration or sync change: the set is built into the app like 
 
 ## Checked-in build inputs (`src-tauri/icon-sets/`)
 
-- `thesvg.mapping.json`: `{ "extensions": { "<extension, no dot>": "<source slug>" }, "names": { "<lower-case file name>": "<source slug>" } }`. Every slug MUST exist in
-  `fill.json` of the pinned clone; every key MUST be in lower case; an extension has no leading dot.
+- `kinds.json` (shared by all sets, `scripts/icon-sets/kinds.ts`): `{ "kinds": { "<kind>": { "parent"?: "<kind>", "extensions"?: ["<no dot>"], "names"?: ["<lower case>"] } } }`. A kind whose id starts with
+  `folder-` carries folder names, has no parent and no extensions; every other kind's `names` are file
+  names. Every extension and every name appears once; every key MUST be in lower case; parent chains have
+  no cycles.
+- `thesvg.kinds.json`: `{ "kinds": { "<kind>": "<source slug>" } }`, the image of theSVG for a kind. Every
+  kind MUST exist in `kinds.json`; every slug MUST exist in `fill.json` of the pinned clone.
 - The role table (`folder`, `file`, `image`, `video`, `audio`, `pdf`, `text` → slug) is the constant
   `ROLE_SLUGS` in `scripts/icon-sets/thesvg.ts`.
-- `thesvg.colors.json`: `{ "<slug>": "#rrggbb" }` for every slug used by the mapping and the roles (and no colour for an unused slug); the
+- `thesvg.colors.json`: `{ "<slug>": "#rrggbb" }` for every slug used by the table and the roles (and no colour for an unused slug); the
   relative luminance of every colour MUST lie between 0.10 and 0.65 (FR-005).
 - `thesvg.source.json`: `{ "repository": "https://github.com/glincker/thesvg", "commit": "<sha>" }`; the
   build fails when the clone's HEAD differs.

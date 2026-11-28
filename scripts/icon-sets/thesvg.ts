@@ -4,10 +4,11 @@
 // from the command line only.
 //
 // Inputs, all checked in next to the result (data-model.md):
-//   thesvg.source.json   repository and the pinned commit; the clone must be at that commit
-//   thesvg.mapping.json  { extensions, names, folders: { key: slug } }, keys in lower case; folders
-//                        are the places of the side bar (home, downloads …) and folders named so
-//   thesvg.colors.json   { slug: '#rrggbb' } for every slug the mapping and the roles use
+//   thesvg.source.json  repository and the pinned commit; the clone must be at that commit
+//   kinds.json          the mapping of extensions, file names and folder names to kinds, shared by
+//                       every set (kinds.ts)
+//   thesvg.kinds.json   { kinds: { kind: slug } }, the image of this set for a kind
+//   thesvg.colors.json  { slug: '#rrggbb' } for every slug the table and the roles use
 import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
@@ -23,6 +24,8 @@ import {
   writeJson,
 } from './common.ts'
 import type { Origin, Roles, StringMap } from './common.ts'
+import { readKinds, resolveKinds, tableProblems } from './kinds.ts'
+import type { Kinds } from './kinds.ts'
 
 /** The role images of the set, by source slug (the states come from `haex-states/`). */
 export const ROLE_SLUGS: Roles = {
@@ -73,33 +76,29 @@ export function colorize(svg: string, color: string): string {
 }
 
 export type MappingInput = {
-  mapping: {
-    extensions: StringMap
-    names: StringMap
-    folders?: StringMap
-  }
+  kinds: Kinds
+  /** The image (a slug of the source) of this set for a kind. */
+  table: StringMap
   roles: Roles
   colors: StringMap
   slugs: ReadonlySet<string>
 }
 
-/** Every slug the mapping and the roles use. */
+/** Every slug the table and the roles use. */
 export function usedSlugs(
-  input: Pick<MappingInput, 'mapping' | 'roles'>,
+  input: Pick<MappingInput, 'table' | 'roles'>,
 ): Set<string> {
   return new Set([
-    ...Object.values(input.mapping.extensions),
-    ...Object.values(input.mapping.names),
-    ...Object.values(input.mapping.folders ?? {}),
+    ...Object.values(input.table),
     ...Object.values(input.roles).filter(
       (slug): slug is string => slug !== undefined,
     ),
   ])
 }
 
-/** The problems of the build inputs (data-model.md rules 1 to 3); empty when they are fine. */
+/** The problems of the build inputs (data-model.md rules 1 and 2); empty when they are fine. */
 export function checkMapping(input: MappingInput): string[] {
-  const problems: string[] = []
+  const problems = tableProblems(input.kinds, input.table, 'thesvg.kinds.json')
   const used = usedSlugs(input)
   for (const slug of [...used].sort()) {
     if (!input.slugs.has(slug))
@@ -116,29 +115,13 @@ export function checkMapping(input: MappingInput): string[] {
     if (!used.has(slug))
       problems.push(`${slug}: has a colour but nothing uses it`)
   }
-  for (const [kind, map] of Object.entries(input.mapping)) {
-    for (const key of Object.keys(map)) {
-      if (key !== key.toLowerCase())
-        problems.push(`${kind} ${key}: must be in lower case`)
-      if (kind === 'extensions' && key.startsWith('.')) {
-        problems.push(`${kind} ${key}: an extension is written without its dot`)
-      }
-    }
-  }
   return problems
 }
 
-function readMapping(file: string): MappingInput['mapping'] {
+function readTable(file: string): StringMap {
   const raw = readJson(file)
-  if (!isRecord(raw)) fail('thesvg.mapping.json is not an object')
-  return {
-    extensions: readStringMap(raw.extensions, 'thesvg.mapping.json extensions'),
-    names: readStringMap(raw.names, 'thesvg.mapping.json names'),
-    folders:
-      raw.folders === undefined
-        ? {}
-        : readStringMap(raw.folders, 'thesvg.mapping.json folders'),
-  }
+  if (!isRecord(raw)) fail(`${path.basename(file)} is not an object`)
+  return readStringMap(raw.kinds, `${path.basename(file)} kinds`)
 }
 
 function headOf(clone: string): string {
@@ -162,13 +145,15 @@ export function prepareThesvg(clone: string, setsDir: string = SETS_DIR): void {
     path.join(clone, 'src', 'data', 'ui', 'looks', 'fill.json'),
   )
   const svgs = readStringMap(fill, 'fill.json')
-  const mapping = readMapping(path.join(setsDir, 'thesvg.mapping.json'))
+  const kinds = readKinds(path.join(setsDir, 'kinds.json'))
+  const table = readTable(path.join(setsDir, 'thesvg.kinds.json'))
   const colors = readStringMap(
     readJson(path.join(setsDir, 'thesvg.colors.json')),
     'thesvg.colors.json',
   )
   const problems = checkMapping({
-    mapping,
+    kinds,
+    table,
     roles: ROLE_SLUGS,
     colors,
     slugs: new Set(Object.keys(svgs)),
@@ -183,7 +168,7 @@ export function prepareThesvg(clone: string, setsDir: string = SETS_DIR): void {
   const outDir = path.join(setsDir, 'thesvg')
   freshDir(path.join(outDir, 'icons'))
   const iconDefinitions: Record<string, { iconPath: string }> = {}
-  for (const slug of [...usedSlugs({ mapping, roles: ROLE_SLUGS })].sort()) {
+  for (const slug of [...usedSlugs({ table, roles: ROLE_SLUGS })].sort()) {
     writeFileSync(
       path.join(outDir, 'icons', `${slug}.svg`),
       colorize(svgs[slug], colors[slug]),
@@ -191,13 +176,14 @@ export function prepareThesvg(clone: string, setsDir: string = SETS_DIR): void {
     iconDefinitions[slug] = { iconPath: `icons/${slug}.svg` }
   }
 
+  const resolved = resolveKinds(kinds, table)
   const manifest = {
     iconDefinitions,
     file: ROLE_SLUGS.file,
     folder: ROLE_SLUGS.folder,
-    fileExtensions: mapping.extensions,
-    fileNames: mapping.names,
-    folderNames: mapping.folders ?? {},
+    fileExtensions: resolved.extensions,
+    fileNames: resolved.names,
+    folderNames: resolved.folders,
     'x-haex': { roles: { ...ROLE_SLUGS }, origin: ORIGIN },
   }
   writeJson(path.join(outDir, 'icon-theme.json'), manifest)
@@ -208,6 +194,6 @@ export function prepareThesvg(clone: string, setsDir: string = SETS_DIR): void {
   )
   addStateIcons('thesvg', setsDir)
   console.log(
-    `thesvg: ${Object.keys(iconDefinitions).length} icons, ${Object.keys(mapping.extensions).length} extensions, ${Object.keys(mapping.names).length} names, ${Object.keys(mapping.folders ?? {}).length} folder names`,
+    `thesvg: ${Object.keys(iconDefinitions).length} icons, ${Object.keys(resolved.extensions).length} extensions, ${Object.keys(resolved.names).length} names, ${Object.keys(resolved.folders).length} folder names`,
   )
 }

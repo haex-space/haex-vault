@@ -15,8 +15,8 @@ Expected: the log names the icons, the extensions and names, the colours; no err
 
 ## 2. Build refuses what it should (US3)
 
-- `node --test scripts/check-thesvg-icons.ts`: colour range, mapping rules and missing-slug cases pass.
-- Rename one slug in a copy of the mapping to a missing one: the build stops and names it.
+- `pnpm check:file-icons`: colour range, the kinds mapping, the sets' tables and missing-slug cases pass.
+- Rename one slug in a copy of `thesvg.kinds.json` to a missing one: the build stops and names it.
 - Check out another commit in the clone: the build stops and names both commits.
 
 ## 3. Rust checks

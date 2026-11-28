@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
 
+import { parseKinds } from './icon-sets/kinds.ts'
 import {
   checkMapping,
   colorize,
@@ -85,10 +86,14 @@ const colors = {
   'file-code': '#7e57c2',
 }
 const good = {
-  mapping: {
-    extensions: { rs: 'file-code', png: 'image' },
-    names: { readme: 'file' },
-  },
+  kinds: parseKinds({
+    kinds: {
+      image: { extensions: ['png'] },
+      code: { extensions: ['rs'] },
+      readme: { names: ['readme'] },
+    },
+  }),
+  table: { image: 'image', code: 'file-code', readme: 'file' },
   roles: { folder: 'folder', file: 'file', image: 'image' },
   colors,
   slugs: source,
@@ -101,7 +106,7 @@ test('a valid mapping has no problems', () => {
 test('a slug that the source does not have is named (data-model rule 1)', () => {
   const problems = checkMapping({
     ...good,
-    mapping: { extensions: { rs: 'file-codee' }, names: {} },
+    table: { code: 'file-codee' },
   })
   assert.ok(
     problems.some((p) => p.includes('file-codee')),
@@ -114,23 +119,10 @@ test('a slug that the source does not have is named (data-model rule 1)', () => 
   assert.ok(role.some((p) => p.includes('pdf-fil')))
 })
 
-test('a folder name that maps to a missing icon or has capitals is named', () => {
-  const missing = checkMapping({
-    ...good,
-    mapping: { ...good.mapping, folders: { downloads: 'no-such-icon' } },
-  })
-  assert.ok(missing.some((p) => p.includes('no-such-icon')))
-  const capitals = checkMapping({
-    ...good,
-    mapping: { ...good.mapping, folders: { Downloads: 'file' } },
-  })
-  assert.ok(capitals.some((p) => p.includes('Downloads')))
-})
-
 test('a used slug without a colour is named (data-model rule 2)', () => {
   const problems = checkMapping({
     ...good,
-    mapping: { extensions: { rs: 'file-code' }, names: {} },
+    table: { code: 'file-code' },
     colors: { file: '#90a4ae', folder: '#42a5f5', image: '#26a69a' },
   })
   assert.ok(
@@ -146,22 +138,12 @@ test('a colour that is out of range is named with its slug (data-model rule 2)',
   assert.ok(problems.some((p) => p.includes('image') && p.includes('#ffffff')))
 })
 
-test('an extension or name must be lower case and appear once (data-model rule 3)', () => {
-  const upper = checkMapping({
+test('a kind of the table that kinds.json does not have is named', () => {
+  const problems = checkMapping({
     ...good,
-    mapping: { extensions: { PDF: 'file' }, names: {} },
+    table: { ...good.table, 'folder-downloadz': 'file' },
   })
-  assert.ok(upper.some((p) => p.includes('PDF') && p.includes('lower case')))
-  const twice = checkMapping({
-    ...good,
-    mapping: { extensions: { rs: 'file-code' }, names: { rs: 'file' } },
-  })
-  assert.deepEqual(twice, []) // an extension and a name are different namespaces
-  const dotted = checkMapping({
-    ...good,
-    mapping: { extensions: { '.rs': 'file-code' }, names: {} },
-  })
-  assert.ok(dotted.some((p) => p.includes('.rs')))
+  assert.ok(problems.some((p) => p.includes('folder-downloadz')))
 })
 
 // A fake clone of thesvg (a git repository with the files the build reads) and a fake
@@ -177,7 +159,7 @@ function fixture(): {
   const sets = path.join(root, 'sets')
   mkdirSync(path.join(clone, 'src', 'data', 'ui', 'looks'), { recursive: true })
   mkdirSync(sets, { recursive: true })
-  const slugs = [...usedSlugs({ mapping: GOOD_MAPPING, roles: ROLE_SLUGS })]
+  const slugs = [...usedSlugs({ table: GOOD_TABLE, roles: ROLE_SLUGS })]
   const svgs = Object.fromEntries(
     slugs.map((slug) => [
       slug,
@@ -219,9 +201,10 @@ function fixture(): {
       commit,
     }),
   )
+  writeFileSync(path.join(sets, 'kinds.json'), JSON.stringify(GOOD_KINDS))
   writeFileSync(
-    path.join(sets, 'thesvg.mapping.json'),
-    JSON.stringify(GOOD_MAPPING),
+    path.join(sets, 'thesvg.kinds.json'),
+    JSON.stringify({ kinds: GOOD_TABLE }),
   )
   writeFileSync(
     path.join(sets, 'thesvg.colors.json'),
@@ -235,10 +218,17 @@ function fixture(): {
   }
 }
 
-const GOOD_MAPPING = {
-  extensions: { rs: 'file-code' },
-  names: { readme: 'file-text' },
-  folders: { downloads: 'file-code' },
+const GOOD_KINDS = {
+  kinds: {
+    code: { extensions: ['rs'] },
+    readme: { names: ['readme'] },
+    'folder-downloads': { names: ['downloads', 'téléchargements'] },
+  },
+}
+const GOOD_TABLE = {
+  code: 'file-code',
+  readme: 'file-text',
+  'folder-downloads': 'file-code',
 }
 
 test('the build writes the pack source from a valid clone (US3 scenario 1)', () => {
@@ -250,6 +240,7 @@ test('the build writes the pack source from a valid clone (US3 scenario 1)', () 
     )
     assert.equal(manifest.fileExtensions.rs, 'file-code')
     assert.equal(manifest.folderNames.downloads, 'file-code')
+    assert.equal(manifest.folderNames['téléchargements'], 'file-code')
     assert.equal(manifest['x-haex'].origin.license, 'MIT')
     assert.equal(manifest['x-haex'].roles.audio, 'audio-lines')
     assert.equal(
@@ -297,13 +288,13 @@ test('the build refuses a missing icon and a bad colour, naming them (US3)', () 
   const f = fixture()
   try {
     writeFileSync(
-      path.join(f.sets, 'thesvg.mapping.json'),
-      JSON.stringify({ extensions: { rs: 'no-such-icon' }, names: {} }),
+      path.join(f.sets, 'thesvg.kinds.json'),
+      JSON.stringify({ kinds: { code: 'no-such-icon' } }),
     )
     assert.throws(() => prepareThesvg(f.clone, f.sets), /no-such-icon/)
     writeFileSync(
-      path.join(f.sets, 'thesvg.mapping.json'),
-      JSON.stringify(GOOD_MAPPING),
+      path.join(f.sets, 'thesvg.kinds.json'),
+      JSON.stringify({ kinds: GOOD_TABLE }),
     )
     const colors = JSON.parse(
       readFileSync(path.join(f.sets, 'thesvg.colors.json'), 'utf8'),

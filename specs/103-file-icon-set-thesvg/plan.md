@@ -98,7 +98,9 @@ src-tauri/
 ├── icon-sets/
 │   ├── thesvg/                     # NEW: source directory (manifest, icons/, LICENSE, NOTICE)
 │   ├── thesvg.zip                  # NEW: packed, include_bytes!
-│   ├── thesvg.mapping.json         # NEW: extension/name -> slug
+│   ├── kinds.json                  # NEW: shared mapping of extensions, names, folder names -> kind (all sets)
+│   ├── thesvg.kinds.json           # NEW: kind -> slug
+│   ├── phosphor.kinds.json         # NEW: replaces phosphor.mapping.json
 │   ├── thesvg.colors.json          # NEW: slug -> colour
 │   ├── thesvg.source.json          # NEW: repository + pinned commit
 │   └── SOURCES.md                  # + section "theSVG"

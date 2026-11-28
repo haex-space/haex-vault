@@ -47,13 +47,8 @@ at: fill row of the contact sheet).
 
 ## R4 — Extensions and names
 
-**Decision**: a checked-in `src-tauri/icon-sets/thesvg.mapping.json` (extension or name → slug), seeded
-from `phosphor.mapping.json` (82 extensions) and extended to about 100 with names (`readme`, `license`,
-`.env`, `package-lock.json`, `Cargo.lock`, `Dockerfile` …). Roles `image`, `video`, `audio`, `pdf`,
-`text`, `file`, `folder` come from a role table.
-
-**Rationale**: the same shape as Phosphor (extension list + the build). One list per set keeps each
-set's decisions visible.
+**Decision**: superseded by R7. First version: a checked-in `thesvg.mapping.json` (extension or name →
+slug) seeded from `phosphor.mapping.json`; replaced the same day by the shared mapping of R7.
 
 ## R5 — Safety of the bundled SVGs
 
@@ -81,3 +76,25 @@ entry in FR-007's list; FR-017 is unchanged because MIT is already accepted.
 `scripts/icon-sets/common.ts`, add `scripts/icon-sets/thesvg.ts`, and let `prepare.ts` dispatch
 `thesvg`. Pure parts (colour check, mapping rules) are tested with `node --test`
 (`scripts/check-thesvg-icons.ts`, wired like `check:file-icons`).
+
+## R7 — One mapping of kinds for every set (operator, 2026-11-28)
+
+**Decision**: a set-independent `src-tauri/icon-sets/kinds.json` maps extensions, file names and folder
+names (English, German, French, Spanish) to **kinds** (`rust`, `pdf`, `readme`, `folder-downloads`); a kind
+may have a parent (`rust` → `code`, `csv` → `spreadsheet`). A set has only a table kind → image
+(`thesvg.kinds.json`, `phosphor.kinds.json`); a kind without an image takes the one of its nearest parent,
+and without one the entry shows the generic image. Material keeps its upstream mapping and only receives
+the folder names of the shared kinds. The code is `scripts/icon-sets/kinds.ts`, used by `prepare.ts` and
+`thesvg.ts`, checked by `scripts/check-icon-kinds.ts`.
+
+**Rationale**: the operator wants to add further sets later and reuse the same mapping. Phosphor draws one
+image per language (`file-rs`, `file-ts`), theSVG only one for all code: parents let each set be as fine
+as it is. The localized folder names existed twice (a list in `prepare.ts` for Material and the first
+version for theSVG); now they exist once.
+
+**Alternatives considered**: one flat `extension → slug` file per set (the first version; every new set
+repeats 200 entries and drifts); one flat kind per extension without parents (Phosphor's per-language
+images would be lost or every set would need an image for every kind).
+
+**Consequence**: Phosphor gains extensions and file names from the shared mapping (160 extensions and 20
+names instead of 82 extensions); its images stay the same. Material's pack is unchanged.

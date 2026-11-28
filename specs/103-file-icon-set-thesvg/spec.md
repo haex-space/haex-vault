@@ -129,7 +129,9 @@ mapping to a missing icon: it fails and names the icon.
   Markdown, configuration, environment, log, lock, licence and readme files, and archives. The set MUST
   also give the places of the side bar (home, downloads, pictures, documents, desktop, videos, music) an
   image of their own, matched by folder name like Material does (operator, 2026-11-28: one folder image
-  for all of them looked wrong). The mapping MUST be a checked-in list from which the build runs.
+  for all of them looked wrong). The mapping MUST be a checked-in list from which the build runs, and it MUST be the one shared by every
+  set (`kinds.json`): a set only says which of its images stands for a kind, so a further set needs no
+  new list of extensions (operator, 2026-11-28).
 - **FR-003**: The five state images of HaexVault (encrypted, locked, no access, locked file, damaged)
   MUST be part of the set exactly as in Material and Phosphor (spec 053 FR-005).
 - **FR-004**: The set MUST use the **fill** look of the source, in colour: each image gets the colour of
