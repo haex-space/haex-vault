@@ -45,7 +45,8 @@ use crate::storage::{
 };
 
 use super::send_admission::{
-    persist_send_transaction, resolve_idempotent_send, IdempotentSend, PersistedSend,
+    derive_message_ids, persist_send_transaction, resolve_idempotent_send, IdempotentSend,
+    PersistedSend,
 };
 use super::session::ChatState;
 use super::turn::{now_ms, run_turn, start_step_stream, StreamStartError};
@@ -211,21 +212,15 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
     let state = app.state::<AppState>();
     let chat = app.state::<ChatState>();
 
-    // Reserve before reading the vault, while still letting an idempotent
-    // retry return its existing ids when a turn already owns the reservation.
-    let operation = chat.acquire_operation();
+    // Reserve before reading the vault, while still letting an idempotent retry return its existing
+    // ids when a turn already owns the reservation. The turn is named by the assistant message it
+    // will write, which the key already fixes (`derive_message_ids`); a retried send of a running
+    // turn finds that id taken and is refused without touching the live turn's token (spec 068 R1).
     let db = state.database()?;
     let cancel_token = CancellationToken::new();
-    if operation.is_ok() {
-        // Reserve cancellation before the first await, including DB staging.
-        // A busy idempotent replay must never replace the live turn's token.
-        *chat
-            .turn_cancellation
-            .lock()
-            .map_err(|e| HaexError::CrdtInit {
-                reason: format!("chat.turn_cancellation mutex poisoned: {e}"),
-            })? = Some(cancel_token.clone());
-    }
+    let turn_id = derive_message_ids(&turn.idempotency_key).1;
+    // Reserve cancellation before the first await, including DB staging.
+    let permit = chat.begin_turn(turn_id, turn.thread_id, cancel_token.clone());
 
     // Dedup against any prior send sharing this idempotencyKey before
     // minting anything new (contract §send_message). This only guards
@@ -257,7 +252,7 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         IdempotentSend::Fresh { .. } => {}
     }
 
-    let operation = operation?;
+    let permit = permit?;
     let session = {
         let guard = chat.session.lock().map_err(|e| HaexError::CrdtInit {
             reason: format!("chat.session mutex poisoned: {e}"),
@@ -266,6 +261,7 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             reason: "no model loaded".into(),
         })?
     };
+    chat.turns.set_model(turn_id, &session.model_id);
     // A model the active agent profile does not offer is not usable (spec 083 FR-006b); nothing is
     // stored for a turn that is refused here. A model of an Abo-Agent's provider is a model like
     // any other (PR J, FR-027).
@@ -327,6 +323,9 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             assistant_message_id,
         } => (thread_id, user_message_id, assistant_message_id),
     };
+
+    // A conversation this send created is named now, so its turn can be found by it.
+    chat.turns.set_thread(turn_id, thread_id);
 
     // A newly persisted user message lets the built-in agent begin a new browser session after
     // the user stopped its last one (spec 065 FR-016). Do not resume on an idempotent retry or a
@@ -665,7 +664,7 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
     let assistant_db = db.clone();
 
     let spawn_result = state.gate().spawn(async move {
-        let _operation = operation;
+        let _permit = permit;
         let chat_state = app_for_task.state::<ChatState>();
         let mut forward = |name: &'static str, payload: Value| emit(name, payload);
         run_turn(

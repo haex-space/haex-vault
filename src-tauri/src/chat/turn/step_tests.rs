@@ -120,7 +120,10 @@ async fn initial_request_can_be_cancelled_before_response_headers() {
     };
     let chat = Arc::new(ChatState::new());
     let cancel = CancellationToken::new();
-    *chat.turn_cancellation.lock().unwrap() = Some(cancel.clone());
+    let turn_id = Uuid::new_v4();
+    let _permit = chat
+        .begin_turn(turn_id, None, cancel.clone())
+        .expect("the turn gets its slot");
     let task_chat = chat.clone();
     let task = tokio::spawn(async move {
         let request = ChatRequest {
@@ -144,7 +147,7 @@ async fn initial_request_can_be_cancelled_before_response_headers() {
             &cancel,
             &mut 0,
             Uuid::new_v4(),
-            Uuid::new_v4(),
+            turn_id,
             &mut |_, _| {},
         )
         .await

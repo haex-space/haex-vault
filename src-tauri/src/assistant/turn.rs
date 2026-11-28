@@ -241,7 +241,7 @@ pub enum Started {
 
 /// Starts a spoken round. On an error the sink gets nothing further; the caller ends the round.
 pub async fn start(app: &AppHandle, turn: VoiceTurn, sink: Sink) -> Result<Started> {
-    match wait_until_free(app, &turn.language, &sink, &turn.cancel).await {
+    match wait_until_free(app, turn.thread_id, &turn.language, &sink, &turn.cancel).await {
         WaitOutcome::GaveUp => return Ok(Started::GaveUp),
         WaitOutcome::Cancelled => return Ok(Started::Cancelled),
         WaitOutcome::Available => {}
@@ -302,6 +302,7 @@ enum WaitOutcome {
 
 async fn wait_until_free(
     app: &AppHandle,
+    thread_id: Option<Uuid>,
     language: &str,
     sink: &Sink,
     cancel: &CancellationToken,
@@ -310,7 +311,7 @@ async fn wait_until_free(
         return WaitOutcome::Cancelled;
     }
     let chat = app.state::<ChatState>();
-    if !chat.operation_busy() {
+    if !chat.busy_for(thread_id) {
         return WaitOutcome::Available;
     }
     sink(Output::Event(Event::FirstWords));
@@ -322,7 +323,7 @@ async fn wait_until_free(
             _ = tokio::time::sleep(BUSY_POLL) => {}
         }
         waited += BUSY_POLL;
-        if !chat.operation_busy() {
+        if !chat.busy_for(thread_id) {
             return WaitOutcome::Available;
         }
     }

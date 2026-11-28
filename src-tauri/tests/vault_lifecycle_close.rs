@@ -275,9 +275,12 @@ async fn a_second_close_repeats_no_effect() {
 #[tokio::test]
 async fn phase_one_runs_its_effects_once_and_in_order() {
     let session = Session::active();
-    // A turn is running: its cancellation slot holds a live token.
+    // A turn is running: its slot holds a live token.
     let turn = CancellationToken::new();
-    *session.chat.turn_cancellation.lock().unwrap() = Some(turn.clone());
+    let _permit = session
+        .chat
+        .begin_turn(uuid::Uuid::new_v4(), None, turn.clone())
+        .expect("the turn gets its slot");
     *session.recorder.turn_token.lock().unwrap() = Some(turn);
     let context = session.context(ClosePolicy::Exit);
 

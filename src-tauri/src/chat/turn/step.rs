@@ -200,10 +200,11 @@ pub(crate) async fn start_step_stream(
         };
         match started {
             Ok(stream) => {
-                *chat_state
-                    .current_generation
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner()) = Some(stream.abort_handle());
+                // The turn's slot keeps the handle (spec 068 R1): an abort of this turn ends this
+                // generation and no other turn's.
+                chat_state
+                    .turns
+                    .set_generation(assistant_message_id, stream.abort_handle());
                 return Ok(stream);
             }
             Err(AdapterError::UntrustedCertificate { reason }) => {

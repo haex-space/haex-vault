@@ -14,7 +14,7 @@ use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use crate::adapters::{AbortHandle, ProviderAdapter};
+use crate::adapters::ProviderAdapter;
 use crate::chat::choices::PendingChoices;
 use crate::chat::tools::action_bridge::ActionBridge;
 use crate::chat::tools::action_catalog::{ActionCatalog, ExtensionToolCatalog};
@@ -22,6 +22,7 @@ use crate::chat::tools::cli::CliTool;
 use crate::chat::tools::mcp::{self, McpServerConfig};
 use crate::chat::tools::native_action::NativeExecutors;
 use crate::chat::tools::{ApprovalDecision, Tool, ToolRegistry};
+use crate::chat::turn_slots::TurnSlots;
 use crate::storage::providers::ProviderKind;
 use crate::vault_gate::ChildRegistry;
 
@@ -121,24 +122,16 @@ pub struct ActiveSession {
 
 /// Tauri-managed state for the chat runtime. `session` is the loaded model.
 ///
-/// `turn_cancellation` is the current turn's own cancellation signal (T032, renamed from
-/// `tool_cancellation` — spec 016 E2E testing, Stage 4 SC-003: the old name undersold what it
-/// does). `run_turn` is handed a clone of it as `cancel` and races every step of the LLM stream
-/// against it directly (`chat/turn/step.rs`'s `select!`), so this is what actually stops the
-/// stream promptly when `abort_current_generation` cancels the turn — not just an in-flight
-/// `Tool::execute` call or a pending approval wait, though it stops those too. Once that `select!`
-/// exits, the [`AdapterStream`](crate::adapters::AdapterStream) it was reading from goes out of
-/// scope and drops, which aborts the adapter's own generation task as a side effect
-/// (`AdapterStream::drop`) — so cancelling this one token alone is normally enough to unwind
-/// everything on its own.
-///
-/// `current_generation` holds a clone of that same `AdapterStream`'s [`AbortHandle`] directly,
-/// fetched once the stream starts.
-/// `abort_turn` calls both it and `turn_cancellation.cancel()` together: this one lets the
-/// generation task be ended right away, without waiting for `chat/turn/step.rs`'s loop to
-/// actually observe the cancelled token and unwind first — in measurement this made no observable
-/// difference (the cooperative path above is already fast), but it removes the dependency on that
-/// unwind ever happening promptly.
+/// What belongs to one running turn lives in its slot in `turns` (spec 068 R1, ADR 0021): its
+/// cancellation token, the abort handle of the stream in flight, and the approvals and questions it
+/// waits on. `run_turn` is handed a clone of the slot's token as `cancel` and races every step of the
+/// LLM stream against it (`chat/turn/step.rs`'s `select!`), so cancelling that one token stops the
+/// stream promptly, and an in-flight `Tool::execute` or a pending approval wait with it. Once the
+/// `select!` exits, the [`AdapterStream`](crate::adapters::AdapterStream) it was reading from goes out
+/// of scope and drops, which aborts the adapter's own generation task as a side effect
+/// (`AdapterStream::drop`). The slot also holds a clone of that stream's
+/// [`AbortHandle`](crate::adapters::AbortHandle), fetched once the stream starts, so `abort_turn` can
+/// end the generation task right away, without waiting for the loop to observe the cancelled token.
 ///
 /// The vault gate's own drain ladder (`vault_gate/drain.rs`) is a third, independent backstop: it
 /// aborts every task tracked via `VaultGate::spawn` — including whichever task is running
@@ -150,17 +143,20 @@ pub struct ActiveSession {
 ///
 /// `tool_registry` holds every callable tool (host-CLI + MCP); `pending_tool_approvals` holds one
 /// `oneshot::Sender` per open `tool-permission-request`, resolved by `respond_tool_permission` or
-/// dropped on cancellation (data-model.md `PendingToolApproval`). `session` and
-/// `current_generation` are both optional — an idle app has neither.
+/// dropped on cancellation (data-model.md `PendingToolApproval`). `session` is optional — an idle app
+/// has none.
 pub struct ChatState {
-    /// Held across a model load, vault transition, or entire accepted turn.
-    operation: Arc<tokio::sync::Mutex<()>>,
+    /// Held shared across an entire accepted turn and exclusively across a model load, a vault
+    /// transition or a model job's loan (spec 068 R1): turns of different conversations run side
+    /// by side, a load or a transition runs alone. Taken with `try_*` only, never waited on.
+    pub(super) operation: Arc<tokio::sync::RwLock<()>>,
+    /// The running turns, one slot each.
+    pub turns: Arc<TurnSlots>,
     pub session: Arc<Mutex<Option<ActiveSession>>>,
     /// The active local model: loaded in memory until the person unloads it in the settings, and
     /// whatever the chat chooses. A chat session on that model shares its engine, see
     /// [`ChatState::session_for_local_model`].
     local_model: Arc<Mutex<Option<ActiveSession>>>,
-    pub current_generation: Arc<Mutex<Option<AbortHandle>>>,
     pub tool_registry: Arc<Mutex<ToolRegistry>>,
     /// The round trip to the action runner in the webview (spec 032, ADR-0006).
     pub action_bridge: ActionBridge,
@@ -175,7 +171,6 @@ pub struct ChatState {
     pub cancelled_tool_approvals: Arc<Mutex<HashSet<Uuid>>>,
     /// Open `chat-choice-request`s of the running turn (spec 046).
     pub pending_choices: Arc<PendingChoices>,
-    pub turn_cancellation: Arc<Mutex<Option<CancellationToken>>>,
     /// The background check of a local model's tool use (spec 032 FR-018b), at most one.
     tool_check: Arc<Mutex<Option<CancellationToken>>>,
     model_load: Arc<Mutex<ModelLoadRuntime>>,
@@ -187,9 +182,9 @@ impl Clone for ChatState {
     fn clone(&self) -> Self {
         Self {
             operation: Arc::clone(&self.operation),
+            turns: Arc::clone(&self.turns),
             session: Arc::clone(&self.session),
             local_model: Arc::clone(&self.local_model),
-            current_generation: Arc::clone(&self.current_generation),
             tool_registry: Arc::clone(&self.tool_registry),
             action_bridge: self.action_bridge.clone(),
             action_catalog: self.action_catalog.clone(),
@@ -198,7 +193,6 @@ impl Clone for ChatState {
             pending_tool_approvals: Arc::clone(&self.pending_tool_approvals),
             cancelled_tool_approvals: Arc::clone(&self.cancelled_tool_approvals),
             pending_choices: Arc::clone(&self.pending_choices),
-            turn_cancellation: Arc::clone(&self.turn_cancellation),
             tool_check: Arc::clone(&self.tool_check),
             model_load: Arc::clone(&self.model_load),
             children: self.children.clone(),
@@ -218,10 +212,10 @@ impl ChatState {
     pub fn with_children(children: ChildRegistry) -> Self {
         let registry = host_tools(&children, crate::platform::capabilities().command_tool);
         Self {
-            operation: Arc::new(tokio::sync::Mutex::new(())),
+            operation: Arc::new(tokio::sync::RwLock::new(())),
+            turns: Arc::new(TurnSlots::default()),
             session: Arc::new(Mutex::new(None)),
             local_model: Arc::new(Mutex::new(None)),
-            current_generation: Arc::new(Mutex::new(None)),
             tool_registry: Arc::new(Mutex::new(registry)),
             action_bridge: ActionBridge::default(),
             action_catalog: ActionCatalog::default(),
@@ -230,7 +224,6 @@ impl ChatState {
             pending_tool_approvals: Arc::new(Mutex::new(HashMap::new())),
             cancelled_tool_approvals: Arc::new(Mutex::new(HashSet::new())),
             pending_choices: Arc::new(PendingChoices::default()),
-            turn_cancellation: Arc::new(Mutex::new(None)),
             tool_check: Arc::new(Mutex::new(None)),
             model_load: Arc::new(Mutex::new(ModelLoadRuntime {
                 vault_generation: 0,
@@ -423,7 +416,7 @@ impl ChatState {
 
     /// Empties everything a vault session can leave in this state, for the close (spec 013). The
     /// caller has already cancelled the turn through `abort_turn`; this only forgets what is
-    /// left: the loaded model, the turn's abort handle and cancellation slot, both approval maps,
+    /// left: the loaded model, every turn's slot, both approval maps,
     /// and every tool a server contributed. The always-present host-CLI tool stays, as after
     /// [`ChatState::new`]. Dropping the session is what releases the database handle a delegate
     /// adapter holds, so the close calls this before it waits for the drain. Idempotent.
@@ -441,16 +434,7 @@ impl ChatState {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .take();
-        let generation = self
-            .current_generation
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .take();
-        let cancellation = self
-            .turn_cancellation
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .take();
+        let generations = self.turns.clear();
         let pending = std::mem::take(
             &mut *self
                 .pending_tool_approvals
@@ -475,42 +459,24 @@ impl ChatState {
         drop((
             session,
             local_model,
-            generation,
-            cancellation,
+            generations,
             pending,
             tools,
             extension_tools,
         ));
     }
 
-    /// Reject overlapping operations before they can replace another turn's
-    /// cancellation handles or carry a loaded adapter into a different vault.
-    pub fn acquire_operation(&self) -> crate::error::Result<tokio::sync::OwnedMutexGuard<()>> {
-        self.operation
-            .clone()
-            .try_lock_owned()
-            .map_err(|_| crate::error::HaexError::InvalidInput {
+    /// Takes the operation lock exclusively, for a model load, a vault transition or a model job's
+    /// loan: refused while any turn runs or another such operation holds it, so none of them can
+    /// replace the loaded model under a turn or carry an adapter into a different vault.
+    pub fn acquire_operation(
+        &self,
+    ) -> crate::error::Result<tokio::sync::OwnedRwLockWriteGuard<()>> {
+        self.operation.clone().try_write_owned().map_err(|_| {
+            crate::error::HaexError::InvalidInput {
                 reason: "a chat or vault operation is still in progress".into(),
-            })
-    }
-
-    /// Whether a chat turn, model load or vault transition holds the operation lock right now. The
-    /// voice assistant waits on it before it starts a round (spec 066 research R12); the answer can
-    /// be stale a moment later, so `acquire_operation` stays the real check.
-    pub fn operation_busy(&self) -> bool {
-        self.operation.try_lock().is_err()
-    }
-
-    /// Waits until nothing holds the operation lock, at most `max`. A typed message sent while a
-    /// spoken round or a model load ends waits instead of failing (operator 2026-11-03);
-    /// `acquire_operation` afterwards stays the real check.
-    pub async fn wait_until_free(&self, max: std::time::Duration) {
-        const POLL: std::time::Duration = std::time::Duration::from_millis(100);
-        let mut waited = std::time::Duration::ZERO;
-        while self.operation_busy() && waited < max {
-            tokio::time::sleep(POLL).await;
-            waited += POLL;
-        }
+            }
+        })
     }
 
     /// Rebuilds the registry's MCP-sourced tools from a fresh `tools/list`

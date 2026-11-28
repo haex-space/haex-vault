@@ -27,7 +27,7 @@ pub enum ChoiceAnswer {
     Cancel,
 }
 
-/// The open questions of the running turn, and tombstones of the cancelled ones.
+/// The open questions of the running turns, and tombstones of the cancelled ones.
 #[derive(Default)]
 pub struct PendingChoices {
     pending: Mutex<HashMap<Uuid, oneshot::Sender<ChoiceAnswer>>>,
@@ -76,6 +76,18 @@ impl PendingChoices {
         let mut pending = lock(&self.pending);
         lock(&self.cancelled).extend(pending.keys().copied());
         pending.clear();
+    }
+
+    /// Drops the open questions among `ids` (one turn's, spec 068 R1); the other turns' questions stay
+    /// open. An id that is no longer pending is not remembered as cancelled.
+    pub fn cancel_ids(&self, ids: &std::collections::HashSet<Uuid>) {
+        let mut pending = lock(&self.pending);
+        let mut cancelled = lock(&self.cancelled);
+        for id in ids {
+            if pending.remove(id).is_some() {
+                cancelled.insert(*id);
+            }
+        }
     }
 
     /// Forgets everything when the vault closes.

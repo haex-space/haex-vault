@@ -225,6 +225,10 @@ impl TurnRunner<'_> {
                         .lock()
                         .unwrap_or_else(|e| e.into_inner())
                         .insert(request_id, tx);
+                    // Owned by this turn, so stopping another conversation's turn leaves it open.
+                    self.chat_state
+                        .turns
+                        .own_prompt(self.assistant_message_id, request_id);
                     self.emit_event(
                         EVENT_TOOL_PERMISSION_REQUEST,
                         ToolPermissionRequestEvent {
