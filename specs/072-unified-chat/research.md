@@ -447,3 +447,77 @@ conversation, delivery receipt, outbox, blossom. Reused: `presence::wrap_payload
 `PermissionPrompt`, `agent_share_confirm` pattern, `extensions::desktop` notification routing,
 `preferences` accessors, `vault-data-changed`. No existing outbox, receipt, Blossom or group-membership
 code exists; these are new. No iroh protocol is added (R7).
+
+## R22 Message queue and injection into the running turn (US9, 2026-11-28)
+
+**Decision** (operator 2026-11-28): while the agent answers, Enter queues a message and Ctrl+Enter, or
+the "Jetzt senden" button of a queued chip, injects it before the model's next call; Shift+Enter stays
+the line break. The queue is per conversation: chips show only where they were typed. A stop only
+interrupts the running turn of its conversation and leaves the queue alone, so the chips go out
+afterwards in order; a turn that fails returns the texts and attachments to the input field; closing the
+app (and locking the vault) discards everything. This amends R20: PR Q touches `chat/turn/` and
+`ChatState`, in three places only: an inbox in `ChatState`, the injection point after a stored tool
+round, and the `latest_from` boundary of `fit.rs`.
+
+**What the code does today** (read 2026-11-28): the composer blocks sending while `busy`
+(`sendDisabled` in `useAgentModelState.ts`); `send_message` waits up to `SEND_WAIT_WHEN_BUSY` (10 s)
+for a chat held by a model load or a spoken round, then fails. `start_turn` takes the chat's one
+operation lock and `TurnRunner::run` loops `run_step` → `tool_round` until a step asks for no tools;
+a tool round persists its rows, appends them to the request, runs `fit::fit`, and returns
+`Continue`. Nothing reads input between rounds. In the window, `input`, `attachments`, `busy`,
+`turnSetupPending` and the streaming refs are single refs shared by all conversations; the stop
+button shows for any running turn.
+
+**Why the injection point is after the stored round**: the message then has a well-defined place (after
+the tool results, before the next call), the request is consistent (every tool call has its result),
+and nothing running is cancelled. A turn whose last step asked for no tools has no later call; the
+message then has to be the next turn (FR-097).
+
+**Why queue entries stay in the window**: the operator wants them gone on closing the app (FR-103),
+so storing them (vault, CRDT, disk) would only add something to delete. The send of an entry is the
+existing `send_message`, with its idempotency, model checks and attachment reading; the queue adds no
+second send path. Injected entries are the exception: the host needs them in memory (the inbox) and
+persists the user row at the moment it takes them.
+
+**Per conversation, concurrent turns are 068's**: the operator wants several conversations to run
+turns at the same time; that is spec 068 R1 (`TurnSlots`, `operation` as RwLock, T009) with the window
+side in T015, and none of it exists yet (no `TurnSlot` in `src-tauri`, checked 2026-11-28). The queue
+therefore says only this: each conversation has its own queue and it drains when that conversation's
+own turn ends; the inbox is per running turn (a map keyed by thread id now, a `TurnSlot` field later),
+so nothing in PR Q has to change when slots arrive except where the inbox is stored. With today's
+single `operation` Mutex a send in another conversation while a turn runs elsewhere waits up to
+`SEND_WAIT_WHEN_BUSY` or fails, as it does now, and the window's global `busy` still blocks it; a
+conversation's entries wait for the lock if something else holds it after its own turn ended. PR Q
+needs neither T009 nor T015 and can ship first. A rule across conversations (typed-time order) was
+considered and dropped: it rests on the single lock.
+
+**Return after an error** (FR-107): the input field is shared, so the returned texts go into it only
+when their conversation is open; otherwise they wait with the conversation. Texts first in typed
+order with blank lines, an existing draft last, attachments attached again once each.
+
+**Stop** (operator 2026-11-28, reversing the first answer): a stop is not an end of the queue, it only
+interrupts the running turn (`abort_turn`: cancel token, pending approvals dropped, rows of an
+interrupted round not stored, finish reason cancelled). The queue is window state and the cancelled
+turn still emits `chat-turn-complete`, so the drain is the same as after a normal finish. The races:
+an entry still in the inbox is handed back unstored when the turn ends, so it is a plain chip again;
+an entry the runner already took is stored and reported inside the turn task, and a stop reaches that
+task only through the cancel token, so taking and storing cannot be split; an injected row whose turn
+is stopped before its answer stays in the history and is read by the next turn, which is the same
+state a normal turn would leave, minus the answer.
+
+**Rejected**: (1) abort-and-restart as "immediately": throws away running tool work and answer text;
+the operator chose injection. (2) Persisting the queue as rows: sync and cleanup for something that
+must not outlive the window. (3) Injecting in the middle of a streaming step: the adapters stream one
+response per request; a change of the request during it is not possible. (4) Discarding chips on a
+stop: the operator wants a stop to interrupt the turn only.
+
+**Risks**: (a) some chat templates and wire formats may not accept a user message directly after tool
+results: tested per adapter in T165, and such an adapter is reported as not injectable (T166). (b)
+`fit.rs` takes the last non-tool-result message as the start of the latest round: without T161 an
+injected message would make the results the model has not seen count as old (see `latest_from`).
+(c) The first-step tool offer is not repeated for the injected message (assumption in the spec). (d)
+The drain can send into a conversation that is not open (its turn ended while another is open), which
+loads that conversation's session model; for a large local model that is a visible delay the person did not trigger at that moment
+(T168 checks the window's send for this). (e) The window's single `busy` and streaming refs were
+written for one visible turn; T168 must not break the open conversation's view when an entry runs in
+another.
