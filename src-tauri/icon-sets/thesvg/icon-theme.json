@@ -1,0 +1,380 @@
+{
+  "iconDefinitions": {
+    "archive-zip": {
+      "iconPath": "icons/archive-zip.svg"
+    },
+    "audio-lines": {
+      "iconPath": "icons/audio-lines.svg"
+    },
+    "book-open-text": {
+      "iconPath": "icons/book-open-text.svg"
+    },
+    "config-file": {
+      "iconPath": "icons/config-file.svg"
+    },
+    "download": {
+      "iconPath": "icons/download.svg"
+    },
+    "env-file": {
+      "iconPath": "icons/env-file.svg"
+    },
+    "file": {
+      "iconPath": "icons/file.svg"
+    },
+    "file-code": {
+      "iconPath": "icons/file-code.svg"
+    },
+    "file-text": {
+      "iconPath": "icons/file-text.svg"
+    },
+    "film": {
+      "iconPath": "icons/film.svg"
+    },
+    "folder": {
+      "iconPath": "icons/folder.svg"
+    },
+    "folder-kanban": {
+      "iconPath": "icons/folder-kanban.svg"
+    },
+    "headphones": {
+      "iconPath": "icons/headphones.svg"
+    },
+    "house": {
+      "iconPath": "icons/house.svg"
+    },
+    "image": {
+      "iconPath": "icons/image.svg"
+    },
+    "images": {
+      "iconPath": "icons/images.svg"
+    },
+    "json-file": {
+      "iconPath": "icons/json-file.svg"
+    },
+    "layout-template": {
+      "iconPath": "icons/layout-template.svg"
+    },
+    "license-file": {
+      "iconPath": "icons/license-file.svg"
+    },
+    "lockfile": {
+      "iconPath": "icons/lockfile.svg"
+    },
+    "log-file": {
+      "iconPath": "icons/log-file.svg"
+    },
+    "markdown-file": {
+      "iconPath": "icons/markdown-file.svg"
+    },
+    "monitor": {
+      "iconPath": "icons/monitor.svg"
+    },
+    "pdf-file": {
+      "iconPath": "icons/pdf-file.svg"
+    },
+    "presentation-file": {
+      "iconPath": "icons/presentation-file.svg"
+    },
+    "readme-file": {
+      "iconPath": "icons/readme-file.svg"
+    },
+    "share-2": {
+      "iconPath": "icons/share-2.svg"
+    },
+    "spreadsheet": {
+      "iconPath": "icons/spreadsheet.svg"
+    },
+    "video": {
+      "iconPath": "icons/video.svg"
+    },
+    "haex-encrypted-folder": {
+      "iconPath": "icons/haex-encrypted-folder.svg"
+    },
+    "haex-locked-folder": {
+      "iconPath": "icons/haex-locked-folder.svg"
+    },
+    "haex-folder-no-access": {
+      "iconPath": "icons/haex-folder-no-access.svg"
+    },
+    "haex-locked-file": {
+      "iconPath": "icons/haex-locked-file.svg"
+    },
+    "haex-damaged": {
+      "iconPath": "icons/haex-damaged.svg"
+    }
+  },
+  "file": "file",
+  "folder": "folder",
+  "fileExtensions": {
+    "gif": "image",
+    "webp": "image",
+    "bmp": "image",
+    "avif": "image",
+    "ico": "image",
+    "tif": "image",
+    "tiff": "image",
+    "heic": "image",
+    "heif": "image",
+    "jxl": "image",
+    "raw": "image",
+    "psd": "image",
+    "xcf": "image",
+    "png": "image",
+    "jpg": "image",
+    "jpeg": "image",
+    "svg": "image",
+    "mp4": "video",
+    "mkv": "video",
+    "mov": "video",
+    "webm": "video",
+    "avi": "video",
+    "m4v": "video",
+    "wmv": "video",
+    "flv": "video",
+    "3gp": "video",
+    "mpg": "video",
+    "mpeg": "video",
+    "ogv": "video",
+    "mp3": "audio-lines",
+    "flac": "audio-lines",
+    "wav": "audio-lines",
+    "ogg": "audio-lines",
+    "oga": "audio-lines",
+    "m4a": "audio-lines",
+    "aac": "audio-lines",
+    "opus": "audio-lines",
+    "wma": "audio-lines",
+    "aiff": "audio-lines",
+    "aif": "audio-lines",
+    "mid": "audio-lines",
+    "midi": "audio-lines",
+    "pdf": "pdf-file",
+    "zip": "archive-zip",
+    "7z": "archive-zip",
+    "tar": "archive-zip",
+    "gz": "archive-zip",
+    "tgz": "archive-zip",
+    "bz2": "archive-zip",
+    "tbz2": "archive-zip",
+    "xz": "archive-zip",
+    "txz": "archive-zip",
+    "zst": "archive-zip",
+    "rar": "archive-zip",
+    "jar": "archive-zip",
+    "war": "archive-zip",
+    "apk": "archive-zip",
+    "deb": "archive-zip",
+    "rpm": "archive-zip",
+    "iso": "archive-zip",
+    "dmg": "archive-zip",
+    "txt": "file-text",
+    "text": "file-text",
+    "tex": "file-text",
+    "doc": "file-text",
+    "docx": "file-text",
+    "odt": "file-text",
+    "rtf": "file-text",
+    "log": "log-file",
+    "tsv": "spreadsheet",
+    "xls": "spreadsheet",
+    "xlsx": "spreadsheet",
+    "xlsm": "spreadsheet",
+    "ods": "spreadsheet",
+    "numbers": "spreadsheet",
+    "csv": "spreadsheet",
+    "ppt": "presentation-file",
+    "pptx": "presentation-file",
+    "odp": "presentation-file",
+    "key": "presentation-file",
+    "md": "markdown-file",
+    "markdown": "markdown-file",
+    "mdx": "markdown-file",
+    "svelte": "file-code",
+    "astro": "file-code",
+    "go": "file-code",
+    "kt": "file-code",
+    "kts": "file-code",
+    "java": "file-code",
+    "rb": "file-code",
+    "php": "file-code",
+    "sh": "file-code",
+    "bash": "file-code",
+    "zsh": "file-code",
+    "fish": "file-code",
+    "ps1": "file-code",
+    "bat": "file-code",
+    "cmd": "file-code",
+    "swift": "file-code",
+    "lua": "file-code",
+    "zig": "file-code",
+    "nix": "file-code",
+    "dart": "file-code",
+    "scala": "file-code",
+    "clj": "file-code",
+    "ex": "file-code",
+    "exs": "file-code",
+    "erl": "file-code",
+    "hs": "file-code",
+    "ml": "file-code",
+    "r": "file-code",
+    "jl": "file-code",
+    "pl": "file-code",
+    "pm": "file-code",
+    "xsl": "file-code",
+    "graphql": "file-code",
+    "gql": "file-code",
+    "proto": "file-code",
+    "tf": "file-code",
+    "vim": "file-code",
+    "wasm": "file-code",
+    "xml": "file-code",
+    "rs": "file-code",
+    "ts": "file-code",
+    "tsx": "file-code",
+    "js": "file-code",
+    "mjs": "file-code",
+    "cjs": "file-code",
+    "jsx": "file-code",
+    "py": "file-code",
+    "pyw": "file-code",
+    "vue": "file-code",
+    "c": "file-code",
+    "h": "file-code",
+    "cpp": "file-code",
+    "hpp": "file-code",
+    "cc": "file-code",
+    "cxx": "file-code",
+    "hh": "file-code",
+    "cs": "file-code",
+    "sql": "file-code",
+    "css": "file-code",
+    "scss": "file-code",
+    "sass": "file-code",
+    "less": "file-code",
+    "html": "file-code",
+    "htm": "file-code",
+    "json": "json-file",
+    "jsonc": "json-file",
+    "json5": "json-file",
+    "jsonl": "json-file",
+    "ndjson": "json-file",
+    "yaml": "config-file",
+    "yml": "config-file",
+    "toml": "config-file",
+    "ini": "config-file",
+    "conf": "config-file",
+    "cfg": "config-file",
+    "properties": "config-file",
+    "editorconfig": "config-file",
+    "env": "env-file",
+    "lock": "lockfile"
+  },
+  "fileNames": {
+    "dockerfile": "file-code",
+    "makefile": "file-code",
+    "justfile": "file-code",
+    "cmakelists.txt": "file-code",
+    "rakefile": "file-code",
+    "gemfile": "file-code",
+    ".gitignore": "config-file",
+    ".gitattributes": "config-file",
+    ".gitmodules": "config-file",
+    ".editorconfig": "config-file",
+    ".prettierrc": "config-file",
+    ".eslintrc": "config-file",
+    "tsconfig.json": "config-file",
+    "package.json": "config-file",
+    "nuxt.config.ts": "config-file",
+    "vite.config.ts": "config-file",
+    "cargo.toml": "config-file",
+    "docker-compose.yml": "config-file",
+    "docker-compose.yaml": "config-file",
+    "compose.yaml": "config-file",
+    ".env": "env-file",
+    ".env.local": "env-file",
+    ".env.example": "env-file",
+    ".env.development": "env-file",
+    ".env.production": "env-file",
+    ".env.test": "env-file",
+    "package-lock.json": "lockfile",
+    "pnpm-lock.yaml": "lockfile",
+    "yarn.lock": "lockfile",
+    "cargo.lock": "lockfile",
+    "flake.lock": "lockfile",
+    "composer.lock": "lockfile",
+    "gemfile.lock": "lockfile",
+    "poetry.lock": "lockfile",
+    "bun.lockb": "lockfile",
+    "license": "license-file",
+    "license.md": "license-file",
+    "license.txt": "license-file",
+    "licence": "license-file",
+    "copying": "license-file",
+    "notice": "license-file",
+    "unlicense": "license-file",
+    "readme": "readme-file",
+    "readme.md": "readme-file",
+    "readme.txt": "readme-file",
+    "readme.markdown": "readme-file"
+  },
+  "folderNames": {
+    "desktop": "monitor",
+    "schreibtisch": "monitor",
+    "bureau": "monitor",
+    "escritorio": "monitor",
+    "documents": "book-open-text",
+    "docs": "book-open-text",
+    "dokumente": "book-open-text",
+    "documentos": "book-open-text",
+    "downloads": "download",
+    "download": "download",
+    "téléchargements": "download",
+    "descargas": "download",
+    "music": "headphones",
+    "musik": "headphones",
+    "musique": "headphones",
+    "música": "headphones",
+    "pictures": "images",
+    "images": "images",
+    "photos": "images",
+    "bilder": "images",
+    "imágenes": "images",
+    "public": "share-2",
+    "öffentlich": "share-2",
+    "público": "share-2",
+    "videos": "film",
+    "movies": "film",
+    "vidéos": "film",
+    "vídeos": "film",
+    "templates": "layout-template",
+    "vorlagen": "layout-template",
+    "modèles": "layout-template",
+    "plantillas": "layout-template",
+    "projects": "folder-kanban",
+    "projekte": "folder-kanban",
+    "projets": "folder-kanban",
+    "proyectos": "folder-kanban",
+    "home": "house"
+  },
+  "x-haex": {
+    "roles": {
+      "folder": "folder",
+      "file": "file",
+      "image": "image",
+      "video": "video",
+      "audio": "audio-lines",
+      "pdf": "pdf-file",
+      "text": "file-text",
+      "encryptedFolder": "haex-encrypted-folder",
+      "lockedFolder": "haex-locked-folder",
+      "folderNoAccess": "haex-folder-no-access",
+      "lockedFile": "haex-locked-file",
+      "damaged": "haex-damaged"
+    },
+    "origin": {
+      "author": "thesvg.org",
+      "license": "MIT",
+      "source": "https://github.com/glincker/thesvg"
+    }
+  }
+}

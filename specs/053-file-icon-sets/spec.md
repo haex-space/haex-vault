@@ -15,6 +15,12 @@ VS Code als Vorbild) und ein Adwaita-Set; weitere gute Vorschläge sind willkomm
 
 ## Clarifications
 
+### Session 2026-11-28
+
+- Q: Kommt ein weiteres Set dazu? → A: Ja, „theSVG“ als viertes mitgeliefertes Set (Spec 103): die
+  UI-Icons von thesvg.org (MIT) im Stil „fill“, beim Bauen nach Art eingefärbt. FR-007 nennt es;
+  FR-017 bleibt unverändert, weil MIT erlaubt ist (Betreiber, 2026-11-28).
+
 ### Session 2026-10-15
 
 - Q: Wie fallen die Zustände eines Eintrags auf (verschlüsselter Ordner, gesperrt, ohne Zugriff,
@@ -321,9 +327,10 @@ Lizenzseite öffnen und die Angaben zu jedem mitgelieferten Set finden.
   allein das Set durch seine Hell-/Dunkel-Bilder, wie bei VS Code.
 - **FR-007**: HaexVault MUSS diese Sets mitliefern: „Lucide“ (Rückfall, bisheriges Aussehen), „Phosphor“
   (viele Dateitypen: Dokumente, Tabellen, Bilder, Audio, Video, Archive und die häufigen
-  Programmiersprachen als Buchstaben-Symbole, dazu Ordner und Schloss) und „Material“ (das Material
+  Programmiersprachen als Buchstaben-Symbole, dazu Ordner und Schloss) „Material“ (das Material
   Icon Theme mit Ordnern nach Namen und Bildern für die gängigen Dateitypen und Werkzeuge, wie bei VS
-  Code). Weitere Sets DÜRFEN nur mitgeliefert werden, wenn sie FR-017 erfüllen.
+  Code) und „theSVG“ (bunte UI-Icons von thesvg.org für Ordner, Dateien nach Art und Archive, Spec 103).
+  Weitere Sets DÜRFEN nur mitgeliefert werden, wenn sie FR-017 erfüllen.
 - **FR-008**: Jedes Set, mitgeliefert oder eigen, MUSS dasselbe Format haben: ein Manifest im Format
   der Icon-Themes von VS Code (Bilddefinitionen, Dateiendungen, Dateinamen, Ordnernamen, Ordner,
   Hell/Dunkel), ergänzt um die Rollen für die Zustände (FR-005). Eine Angabe, ob ein Set einfarbig ist, gehört

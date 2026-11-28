@@ -1,0 +1,31 @@
+{
+  "kinds": {
+    "image": "image",
+    "video": "video",
+    "audio": "audio-lines",
+    "pdf": "pdf-file",
+    "archive": "archive-zip",
+    "text": "file-text",
+    "spreadsheet": "spreadsheet",
+    "presentation": "presentation-file",
+    "markdown": "markdown-file",
+    "code": "file-code",
+    "json": "json-file",
+    "config": "config-file",
+    "env": "env-file",
+    "lock": "lockfile",
+    "license": "license-file",
+    "readme": "readme-file",
+    "log": "log-file",
+    "folder-home": "house",
+    "folder-downloads": "download",
+    "folder-pictures": "images",
+    "folder-documents": "book-open-text",
+    "folder-desktop": "monitor",
+    "folder-videos": "film",
+    "folder-music": "headphones",
+    "folder-public": "share-2",
+    "folder-templates": "layout-template",
+    "folder-projects": "folder-kanban"
+  }
+}

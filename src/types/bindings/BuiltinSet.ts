@@ -3,4 +3,4 @@
 /**
  * The sets that ship with the app.
  */
-export type BuiltinSet = "lucide" | "phosphor" | "material";
+export type BuiltinSet = "lucide" | "phosphor" | "material" | "thesvg";

@@ -9,10 +9,10 @@ const ALLOWED: [&str; 4] = ["MIT", "ISC", "Apache-2.0", "CC0-1.0"];
 const COPYLEFT: [&str; 6] = ["GPL", "AGPL", "LGPL", "MPL", "CC-BY-SA", "EUPL"];
 
 #[test]
-fn the_page_lists_lucide_phosphor_and_material_in_full() {
+fn the_page_lists_the_four_sets_in_full() {
     let all = licenses();
     let names: Vec<&str> = all.iter().map(|entry| entry.name.as_str()).collect();
-    assert_eq!(names, ["Lucide", "Phosphor", "Material"]);
+    assert_eq!(names, ["Lucide", "Phosphor", "Material", "theSVG"]);
     for entry in &all {
         assert!(!entry.author.trim().is_empty(), "{}: an author", entry.name);
         assert!(
@@ -59,6 +59,10 @@ fn the_texts_are_those_the_licenses_ask_for() {
     assert!(lucide.contains("ISC License"), "Lucide: the ISC text");
     assert!(lucide.contains("MIT License"), "Lucide: the MIT text");
     assert!(text("Phosphor").contains("MIT License"));
+    // theSVG is MIT, copyright thesvg.org; its drawings are its own, so there is no note on marks.
+    let thesvg = text("theSVG");
+    assert!(thesvg.contains("MIT License"), "theSVG: the MIT text");
+    assert!(thesvg.contains("thesvg.org"), "theSVG: its author");
     // Material carries the Apache-2.0 text of Material Design Icons and the note on marks.
     let material = text("Material");
     assert!(

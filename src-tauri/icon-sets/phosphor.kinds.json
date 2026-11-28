@@ -1,0 +1,33 @@
+{
+  "kinds": {
+    "pdf": "file-pdf",
+    "document": "file-doc",
+    "spreadsheet": "file-xls",
+    "presentation": "file-ppt",
+    "archive": "file-zip",
+    "png": "file-png",
+    "jpg": "file-jpg",
+    "image": "file-image",
+    "svg": "file-svg",
+    "audio": "file-audio",
+    "video": "file-video",
+    "rust": "file-rs",
+    "typescript": "file-ts",
+    "tsx": "file-tsx",
+    "javascript": "file-js",
+    "jsx": "file-jsx",
+    "python": "file-py",
+    "vue": "file-vue",
+    "c": "file-c",
+    "cpp": "file-cpp",
+    "csharp": "file-c-sharp",
+    "sql": "file-sql",
+    "css": "file-css",
+    "html": "file-html",
+    "markdown": "file-md",
+    "csv": "file-csv",
+    "ini": "file-ini",
+    "text": "file-txt",
+    "code": "file-code"
+  }
+}

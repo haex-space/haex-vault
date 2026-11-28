@@ -289,7 +289,11 @@ fn encrypted(role: EncryptedRole, state: EncryptedState) -> Option<EncryptedInfo
 
 #[test]
 fn every_state_resolves_for_both_packs_and_never_takes_a_name_or_extension_image() {
-    for set in [BuiltinSet::Phosphor, BuiltinSet::Material] {
+    for set in [
+        BuiltinSet::Phosphor,
+        BuiltinSet::Material,
+        BuiltinSet::Thesvg,
+    ] {
         let plain_file = dark(set, &file("main.rs"));
         let plain_dir = dark(set, &dir("src"));
         let cases = [

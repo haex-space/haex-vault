@@ -97,7 +97,7 @@ specs/053-file-icon-sets/
 src-tauri/
 ├── icon-sets/
 │   ├── phosphor/, material/      # NEU: Quellverzeichnisse (Manifest, Bilder, Lizenztexte)
-│   ├── phosphor.icons.txt, phosphor.mapping.json   # NEU: Auswahl und Endungen für Phosphor
+│   ├── phosphor.icons.txt, phosphor.mapping.json   # NEU: Auswahl und Endungen für Phosphor (seit 103: phosphor.kinds.json + kinds.json)
 │   ├── phosphor.zip, material.zip  # NEU: gepackte Pakete (reproduzierbar, mit include_bytes! eingebunden)
 │   └── SOURCES.md                # NEU: gepinnte Quellen (Adresse, Version, Commit-SHA oder Prüfsumme)
 ├── src/files/icons/
