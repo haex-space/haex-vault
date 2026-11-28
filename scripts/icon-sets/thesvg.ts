@@ -5,7 +5,8 @@
 //
 // Inputs, all checked in next to the result (data-model.md):
 //   thesvg.source.json   repository and the pinned commit; the clone must be at that commit
-//   thesvg.mapping.json  { extensions: { ext: slug }, names: { name: slug } }, keys in lower case
+//   thesvg.mapping.json  { extensions, names, folders: { key: slug } }, keys in lower case; folders
+//                        are the places of the side bar (home, downloads …) and folders named so
 //   thesvg.colors.json   { slug: '#rrggbb' } for every slug the mapping and the roles use
 import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -72,7 +73,11 @@ export function colorize(svg: string, color: string): string {
 }
 
 export type MappingInput = {
-  mapping: { extensions: StringMap; names: StringMap }
+  mapping: {
+    extensions: StringMap
+    names: StringMap
+    folders?: StringMap
+  }
   roles: Roles
   colors: StringMap
   slugs: ReadonlySet<string>
@@ -85,6 +90,7 @@ export function usedSlugs(
   return new Set([
     ...Object.values(input.mapping.extensions),
     ...Object.values(input.mapping.names),
+    ...Object.values(input.mapping.folders ?? {}),
     ...Object.values(input.roles).filter(
       (slug): slug is string => slug !== undefined,
     ),
@@ -128,6 +134,10 @@ function readMapping(file: string): MappingInput['mapping'] {
   return {
     extensions: readStringMap(raw.extensions, 'thesvg.mapping.json extensions'),
     names: readStringMap(raw.names, 'thesvg.mapping.json names'),
+    folders:
+      raw.folders === undefined
+        ? {}
+        : readStringMap(raw.folders, 'thesvg.mapping.json folders'),
   }
 }
 
@@ -187,6 +197,7 @@ export function prepareThesvg(clone: string, setsDir: string = SETS_DIR): void {
     folder: ROLE_SLUGS.folder,
     fileExtensions: mapping.extensions,
     fileNames: mapping.names,
+    folderNames: mapping.folders ?? {},
     'x-haex': { roles: { ...ROLE_SLUGS }, origin: ORIGIN },
   }
   writeJson(path.join(outDir, 'icon-theme.json'), manifest)
@@ -197,6 +208,6 @@ export function prepareThesvg(clone: string, setsDir: string = SETS_DIR): void {
   )
   addStateIcons('thesvg', setsDir)
   console.log(
-    `thesvg: ${Object.keys(iconDefinitions).length} icons, ${Object.keys(mapping.extensions).length} extensions, ${Object.keys(mapping.names).length} names`,
+    `thesvg: ${Object.keys(iconDefinitions).length} icons, ${Object.keys(mapping.extensions).length} extensions, ${Object.keys(mapping.names).length} names, ${Object.keys(mapping.folders ?? {}).length} folder names`,
   )
 }

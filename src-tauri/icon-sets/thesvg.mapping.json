@@ -210,5 +210,23 @@
     "docker-compose.yml": "config-file",
     "docker-compose.yaml": "config-file",
     "compose.yaml": "config-file"
+  },
+  "folders": {
+    "home": "house",
+    "downloads": "download",
+    "download": "download",
+    "pictures": "images",
+    "images": "images",
+    "photos": "images",
+    "bilder": "images",
+    "documents": "book-open-text",
+    "docs": "book-open-text",
+    "dokumente": "book-open-text",
+    "desktop": "monitor",
+    "schreibtisch": "monitor",
+    "videos": "film",
+    "movies": "film",
+    "music": "headphones",
+    "musik": "headphones"
   }
 }

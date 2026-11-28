@@ -6,8 +6,14 @@
     "audio-lines": {
       "iconPath": "icons/audio-lines.svg"
     },
+    "book-open-text": {
+      "iconPath": "icons/book-open-text.svg"
+    },
     "config-file": {
       "iconPath": "icons/config-file.svg"
+    },
+    "download": {
+      "iconPath": "icons/download.svg"
     },
     "env-file": {
       "iconPath": "icons/env-file.svg"
@@ -21,11 +27,23 @@
     "file-text": {
       "iconPath": "icons/file-text.svg"
     },
+    "film": {
+      "iconPath": "icons/film.svg"
+    },
     "folder": {
       "iconPath": "icons/folder.svg"
     },
+    "headphones": {
+      "iconPath": "icons/headphones.svg"
+    },
+    "house": {
+      "iconPath": "icons/house.svg"
+    },
     "image": {
       "iconPath": "icons/image.svg"
+    },
+    "images": {
+      "iconPath": "icons/images.svg"
     },
     "json-file": {
       "iconPath": "icons/json-file.svg"
@@ -41,6 +59,9 @@
     },
     "markdown-file": {
       "iconPath": "icons/markdown-file.svg"
+    },
+    "monitor": {
+      "iconPath": "icons/monitor.svg"
     },
     "pdf-file": {
       "iconPath": "icons/pdf-file.svg"
@@ -286,6 +307,24 @@
     "docker-compose.yml": "config-file",
     "docker-compose.yaml": "config-file",
     "compose.yaml": "config-file"
+  },
+  "folderNames": {
+    "home": "house",
+    "downloads": "download",
+    "download": "download",
+    "pictures": "images",
+    "images": "images",
+    "photos": "images",
+    "bilder": "images",
+    "documents": "book-open-text",
+    "docs": "book-open-text",
+    "dokumente": "book-open-text",
+    "desktop": "monitor",
+    "schreibtisch": "monitor",
+    "videos": "film",
+    "movies": "film",
+    "music": "headphones",
+    "musik": "headphones"
   },
   "x-haex": {
     "roles": {

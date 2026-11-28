@@ -126,8 +126,10 @@ mapping to a missing icon: it fails and names the icon.
 - **FR-002**: The set MUST give an image to these roles: folder, generic file, image, video, audio, PDF,
   and document/text; and MUST map file extensions and file names to the image of their kind: images,
   video, audio, PDF, text and office documents, spreadsheets, presentations, source code, JSON,
-  Markdown, configuration, environment, log, lock, licence and readme files, and archives. The mapping
-  MUST be a checked-in list from which the build runs.
+  Markdown, configuration, environment, log, lock, licence and readme files, and archives. The set MUST
+  also give the places of the side bar (home, downloads, pictures, documents, desktop, videos, music) an
+  image of their own, matched by folder name like Material does (operator, 2026-11-28: one folder image
+  for all of them looked wrong). The mapping MUST be a checked-in list from which the build runs.
 - **FR-003**: The five state images of HaexVault (encrypted, locked, no access, locked file, damaged)
   MUST be part of the set exactly as in Material and Phosphor (spec 053 FR-005).
 - **FR-004**: The set MUST use the **fill** look of the source, in colour: each image gets the colour of
@@ -154,7 +156,7 @@ mapping to a missing icon: it fails and names the icon.
 
 - **theSVG set**: a bundled, non-deletable, non-synced icon set (the choice of it is synced) of roughly
   twenty coloured images, a mapping of about a hundred extensions and names, and the five state images.
-- **Mapping file**: extension or name → source icon slug; **role table**: role → slug; **colour table**:
+- **Mapping file**: extension, file name or folder name → source icon slug; **role table**: role → slug; **colour table**:
   slug → colour. Checked in, input of the build.
 
 ## Relation to existing specs

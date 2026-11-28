@@ -114,6 +114,19 @@ test('a slug that the source does not have is named (data-model rule 1)', () => 
   assert.ok(role.some((p) => p.includes('pdf-fil')))
 })
 
+test('a folder name that maps to a missing icon or has capitals is named', () => {
+  const missing = checkMapping({
+    ...good,
+    mapping: { ...good.mapping, folders: { downloads: 'no-such-icon' } },
+  })
+  assert.ok(missing.some((p) => p.includes('no-such-icon')))
+  const capitals = checkMapping({
+    ...good,
+    mapping: { ...good.mapping, folders: { Downloads: 'file' } },
+  })
+  assert.ok(capitals.some((p) => p.includes('Downloads')))
+})
+
 test('a used slug without a colour is named (data-model rule 2)', () => {
   const problems = checkMapping({
     ...good,
@@ -225,6 +238,7 @@ function fixture(): {
 const GOOD_MAPPING = {
   extensions: { rs: 'file-code' },
   names: { readme: 'file-text' },
+  folders: { downloads: 'file-code' },
 }
 
 test('the build writes the pack source from a valid clone (US3 scenario 1)', () => {
@@ -235,6 +249,7 @@ test('the build writes the pack source from a valid clone (US3 scenario 1)', () 
       readFileSync(path.join(f.sets, 'thesvg', 'icon-theme.json'), 'utf8'),
     )
     assert.equal(manifest.fileExtensions.rs, 'file-code')
+    assert.equal(manifest.folderNames.downloads, 'file-code')
     assert.equal(manifest['x-haex'].origin.license, 'MIT')
     assert.equal(manifest['x-haex'].roles.audio, 'audio-lines')
     assert.equal(

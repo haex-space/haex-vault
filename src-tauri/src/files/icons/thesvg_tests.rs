@@ -48,6 +48,26 @@ fn a_folder_and_an_unknown_file_get_the_generic_images() {
 }
 
 #[test]
+fn the_places_of_the_side_bar_get_an_image_of_their_own_in_both_schemes() {
+    // The sidebar passes the place key (home, downloads …) as the folder name; German folder names
+    // of the same places match too, as does a folder that is only named so.
+    for (name, image) in [
+        ("home", "icons/house.svg"),
+        ("downloads", "icons/download.svg"),
+        ("pictures", "icons/images.svg"),
+        ("Bilder", "icons/images.svg"),
+        ("documents", "icons/book-open-text.svg"),
+        ("desktop", "icons/monitor.svg"),
+        ("Schreibtisch", "icons/monitor.svg"),
+        ("videos", "icons/film.svg"),
+        ("music", "icons/headphones.svg"),
+    ] {
+        assert_eq!(dark(&dir(name)), image, "{name} (dark)");
+        assert_eq!(light(&dir(name)), image, "{name} (light)");
+    }
+}
+
+#[test]
 fn the_pack_covers_at_least_ninety_extensions_and_names() {
     // SC-001: the count of the mapped entries, read from the manifest of the bundled pack.
     let pack = builtin::pack(BuiltinSet::Thesvg).expect("the theSVG pack");
