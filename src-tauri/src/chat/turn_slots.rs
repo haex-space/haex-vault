@@ -57,12 +57,23 @@ pub enum Refused {
     ThreadBusy,
     /// This turn id is registered: a retried send of a turn that is still running.
     AlreadyRunning,
+    /// The vault close has stopped new turns.
+    Closing,
 }
 
 /// The registry of running turns. Cheap to clone through its `Arc`.
-#[derive(Default)]
 pub struct TurnSlots {
     slots: Mutex<HashMap<Uuid, TurnSlot>>,
+    accepting: std::sync::atomic::AtomicBool,
+}
+
+impl Default for TurnSlots {
+    fn default() -> Self {
+        Self {
+            slots: Mutex::new(HashMap::new()),
+            accepting: std::sync::atomic::AtomicBool::new(true),
+        }
+    }
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -78,7 +89,13 @@ impl TurnSlots {
         thread_id: Option<Uuid>,
         cancel: CancellationToken,
     ) -> Result<TurnSlotGuard, Refused> {
+        if !self.accepting.load(std::sync::atomic::Ordering::Acquire) {
+            return Err(Refused::Closing);
+        }
         let mut slots = lock(&self.slots);
+        if !self.accepting.load(std::sync::atomic::Ordering::Acquire) {
+            return Err(Refused::Closing);
+        }
         if slots.contains_key(&turn_id) {
             return Err(Refused::AlreadyRunning);
         }
@@ -138,10 +155,22 @@ impl TurnSlots {
     }
 
     /// Names the conversation of a turn that started a new one: it is known once the send is stored.
-    pub fn set_thread(&self, turn_id: Uuid, thread_id: Uuid) {
-        if let Some(slot) = lock(&self.slots).get_mut(&turn_id) {
-            slot.thread_id = Some(thread_id);
+    pub fn set_thread(&self, turn_id: Uuid, thread_id: Uuid) -> Result<(), Refused> {
+        let mut slots = lock(&self.slots);
+        let Some(slot) = slots.get(&turn_id) else {
+            return Err(Refused::AlreadyRunning);
+        };
+        if slots
+            .iter()
+            .any(|(id, other)| *id != turn_id && other.thread_id == Some(thread_id))
+        {
+            return Err(Refused::ThreadBusy);
         }
+        slots
+            .get_mut(&turn_id)
+            .expect("slot checked above")
+            .thread_id = Some(thread_id);
+        Ok(())
     }
 
     /// Names the model a turn runs on.
@@ -208,6 +237,17 @@ impl TurnSlots {
         let ids: Vec<Uuid> = lock(&self.slots).keys().copied().collect();
         ids.into_iter()
             .filter_map(|id| self.take_for_abort(id))
+            .collect()
+    }
+
+    /// Atomically refuses future turns and takes every current turn for a vault close.
+    pub fn stop_accepting_and_take_all(&self) -> Vec<Taken> {
+        self.accepting
+            .store(false, std::sync::atomic::Ordering::Release);
+        let mut slots = lock(&self.slots);
+        slots
+            .iter_mut()
+            .map(|(id, slot)| take_slot(*id, slot))
             .collect()
     }
 

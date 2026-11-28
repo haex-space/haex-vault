@@ -61,7 +61,7 @@ fn a_new_conversation_is_named_once_it_is_stored() {
         .begin(id, None, CancellationToken::new())
         .expect("first turn");
     assert!(!slots.thread_busy(thread));
-    slots.set_thread(id, thread);
+    slots.set_thread(id, thread).unwrap();
     assert!(slots.thread_busy(thread));
     assert!(
         slots

@@ -59,6 +59,8 @@ export function useThreadSidebar(
     pendingTurnCompletions,
     handleToolCall,
     handleToolResult,
+    activateThreadError,
+    clearThreadError,
     hasPendingTurn,
     waitForTurnTerminal,
   } = chatTranscript
@@ -244,6 +246,7 @@ export function useThreadSidebar(
     pendingToolEvents.delete(threadId)
     pendingTurnCompletions.delete(threadId)
     streams.forget(threadId)
+    clearThreadError(threadId)
     if (editingThreadId.value === threadId) cancelEditing()
     if (activeThreadId.value !== threadId) return
     activeThreadId.value = null
@@ -251,7 +254,9 @@ export function useThreadSidebar(
     streamingMessageId.value = null
     streamingThreadId.value = null
     streamingBuffer.value = ''
-    reasoningByMessage.value = {}
+    reasoningByMessage.value = streams.reasoningOfParked(
+      reasoningByMessage.value,
+    )
     expandedReasoning.value = new Set()
     pendingStreamEvents.clear()
     void resetTextarea()
@@ -306,6 +311,7 @@ export function useThreadSidebar(
     // The turn of the conversation left keeps running parked; the one opened gets its turn back.
     streams.switchTo(id)
     activeThreadId.value = id
+    activateThreadError(id)
     // A continued session answers with the model it used before (spec 006). Fails quietly while
     // another turn holds the chat; the session then sends with the loaded model.
     void chat.useSessionModelAsync(id).catch(() => {})

@@ -64,6 +64,16 @@ export function useChatStreams(refs: StreamRefs) {
     refs.busy.value = true
   }
 
+  /** Parks a turn that completed send setup after the user switched conversations. */
+  function park(
+    threadId: string,
+    messageId: string,
+    buffer = '',
+    retryingMessageId: string | null = null,
+  ) {
+    parked.set(threadId, { threadId, messageId, buffer, retryingMessageId })
+  }
+
   /** Opens `threadId` (or a new conversation, `null`): parks the turn left, restores the one met. */
   function switchTo(threadId: string | null) {
     parkActive(threadId)
@@ -120,6 +130,7 @@ export function useChatStreams(refs: StreamRefs) {
   return {
     parkActive,
     restore,
+    park,
     switchTo,
     parkedForMessage,
     isParked,

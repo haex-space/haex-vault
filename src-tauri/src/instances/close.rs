@@ -15,7 +15,6 @@ use std::time::Duration;
 
 use tauri::{AppHandle, Manager};
 
-use crate::chat::commands::abort_turn;
 use crate::chat::session::ChatState;
 use crate::error::Result;
 use crate::state::AppState;
@@ -110,9 +109,7 @@ pub fn begin_close(ctx: &CloseContext<'_>) -> bool {
         log::warn!("could not read the active vault name: {error}");
         None
     });
-    if let Err(error) = abort_turn(ctx.chat) {
-        log::warn!("could not cancel the running turn: {error}");
-    }
+    ctx.chat.close_turns();
     ctx.voice.cancel_for_close();
     // A model job reads the grants between its steps; it must not hold the vault open.
     ctx.app_state.extensions().model_jobs().cancel_all();

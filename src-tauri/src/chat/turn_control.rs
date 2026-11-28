@@ -116,7 +116,17 @@ impl ChatState {
     /// Ends every turn and drops every open approval and question, also those no slot owns. The
     /// vault close and a stop of the voice assistant use it.
     pub fn abort_all_turns(&self) {
-        for taken in self.turns.take_all_for_abort() {
+        self.abort_taken_turns(self.turns.take_all_for_abort());
+    }
+
+    /// Stops admission and ends all turns as one close operation. A send that races the close is
+    /// either registered before the snapshot and cancelled here, or refused by the registry.
+    pub fn close_turns(&self) {
+        self.abort_taken_turns(self.turns.stop_accepting_and_take_all());
+    }
+
+    fn abort_taken_turns(&self, taken_turns: Vec<Taken>) {
+        for taken in taken_turns {
             self.end_turn(taken);
         }
         let mut pending = self

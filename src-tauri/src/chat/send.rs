@@ -106,7 +106,7 @@ async fn cleanup_staged_send(
     let cleanup = db
         .write(move |tx| {
             msg_store::delete_message(tx, user_message_id)?;
-            if is_new_thread {
+            if is_new_thread && msg_store::list_messages(tx, thread_id)?.is_empty() {
                 thread_store::delete_thread(tx, thread_id)?;
             }
             Ok(())
@@ -324,8 +324,16 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         } => (thread_id, user_message_id, assistant_message_id),
     };
 
-    // A conversation this send created is named now, so its turn can be found by it.
-    chat.turns.set_thread(turn_id, thread_id);
+    // A conversation this send created is named now, so its turn can be found by it. A second
+    // send may have reserved the newly visible thread while this one was being persisted; keep one
+    // active turn per conversation and remove only this send's staged message on that conflict.
+    let is_new_thread = turn.thread_id.is_none();
+    if chat.turns.set_thread(turn_id, thread_id).is_err() {
+        cleanup_staged_send(db.clone(), user_message_id, thread_id, is_new_thread).await?;
+        return Err(HaexError::InvalidInput {
+            reason: "a turn of this conversation is already running".into(),
+        });
+    }
 
     // A newly persisted user message lets the built-in agent begin a new browser session after
     // the user stopped its last one (spec 065 FR-016). Do not resume on an idempotent retry or a
@@ -338,8 +346,6 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
     // `chat.last_active_model_id`: only a pick in the model menu does (`select_model`, spec 002
     // FR-009 as amended 2026-11-02), so continuing a session with its own model does not change
     // what a new session starts with.
-    let is_new_thread = turn.thread_id.is_none();
-
     // Build the request from full history + the just-inserted user turn.
     let capabilities_model_id = session.model_id.clone();
     let (history, model_capabilities) = db

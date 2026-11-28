@@ -65,6 +65,7 @@ export function useChatTranscript(
   >()
   const pendingTurnCompletions = new Map<string, TurnCompleteEvent>()
   const turnTerminalWaiters = new Map<string, Set<() => void>>()
+  const errorsByThread = new Map<string, string>()
 
   function hasPendingTurn(threadId: string): boolean {
     return (
@@ -233,8 +234,10 @@ export function useChatTranscript(
   function applyError(e: MessageErrorEvent) {
     // A failure with its own kind is named in the person's language (spec 043: an untrusted
     // certificate); every other one shows its reason.
-    lastError.value =
+    const message =
       e.kind === undefined ? e.reason : errString({ kind: e.kind })
+    errorsByThread.set(e.threadId, message)
+    if (activeThreadId.value === e.threadId) lastError.value = message
     const list = messagesByThread.value[e.threadId] ?? []
     const idx = list.findIndex((m) => m.id === e.messageId)
     const existing = list[idx]
@@ -242,6 +245,23 @@ export function useChatTranscript(
       list[idx] = { ...existing, finishReason: 'error' }
       messagesByThread.value[e.threadId] = list
     }
+  }
+
+  /** Shows the saved message error for the selected conversation, if any. */
+  function activateThreadError(threadId: string | null) {
+    lastError.value = threadId ? (errorsByThread.get(threadId) ?? null) : null
+  }
+
+  /** Associates a send/setup error with its conversation without disturbing the open one. */
+  function setThreadError(threadId: string, message: string) {
+    errorsByThread.set(threadId, message)
+    if (activeThreadId.value === threadId) lastError.value = message
+  }
+
+  /** Clears a conversation's saved error when it is retried or deleted. */
+  function clearThreadError(threadId: string) {
+    errorsByThread.delete(threadId)
+    if (activeThreadId.value === threadId) lastError.value = null
   }
 
   function handleError(e: MessageErrorEvent) {
@@ -338,7 +358,7 @@ export function useChatTranscript(
     })
     messagesByThread.value[e.threadId] = list
     keepStreamingRowLast(e.threadId)
-    scrollToBottom()
+    if (activeThreadId.value === e.threadId) scrollToBottom()
   }
 
   function handleToolResult(e: ToolResultEvent, restoring = false) {
@@ -372,7 +392,7 @@ export function useChatTranscript(
     })
     messagesByThread.value[e.threadId] = list
     keepStreamingRowLast(e.threadId)
-    scrollToBottom()
+    if (activeThreadId.value === e.threadId) scrollToBottom()
   }
 
   // The sole place `streamingMessageId`/`busy` get cleared — a turn can
@@ -396,9 +416,11 @@ export function useChatTranscript(
       )
       pendingToolEvents.delete(e.threadId)
       await refreshThreads()
-      await scrollToBottom()
+      if (activeThreadId.value === e.threadId) await scrollToBottom()
     } catch (error: unknown) {
-      lastError.value = errString(error)
+      const message = errString(error)
+      errorsByThread.set(e.threadId, message)
+      if (activeThreadId.value === e.threadId) lastError.value = message
     } finally {
       if (streams.isParked(e.threadId)) {
         // A turn of a conversation that is not open ended: only its own parked state goes.
@@ -483,6 +505,9 @@ export function useChatTranscript(
     handleComplete,
     applyError,
     handleError,
+    activateThreadError,
+    setThreadError,
+    clearThreadError,
     handleToolCall,
     handleToolResult,
     applyTurnComplete,

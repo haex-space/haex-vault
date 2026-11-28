@@ -412,7 +412,7 @@ onMounted(async () => {
           chat.onTurnComplete((e) => {
             // A turn ending clears agent-activity state (FR-011, same signal that already clears
             // streamingMessageId/busy) and tab attention (R12) alike.
-            resetAgentActivity()
+            resetAgentActivity(e.assistantMessageId)
             wmTab.clearAttention()
             return handleTurnComplete(e)
           }),
