@@ -173,7 +173,7 @@ fn the_list_shows_the_custom_sets_after_the_built_in_ones() {
     let pack = pack_bytes();
     insert(&db, ID, &pack_hash(&pack), &pack);
     let sets = crate::storage::query::read(&db, |q| super::super::commands::list(q)).expect("list");
-    assert_eq!(sets.len(), 4);
-    assert_eq!(sets[3].name, "Mine");
-    assert!(sets[3].removable && sets[3].state == IconSetState::Ready);
+    assert_eq!(sets.len(), 5);
+    assert_eq!(sets[4].name, "Mine");
+    assert!(sets[4].removable && sets[4].state == IconSetState::Ready);
 }

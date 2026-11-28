@@ -1,7 +1,7 @@
 //! The icon sets of the file browser (spec 053, research R2 to R9). A set tells which image an
 //! entry gets: by its name, its extension or its role (folder, image, a state of encryption).
-//! Three sets ship with the app: Lucide (the default and the fallback for every role another set
-//! does not cover; it has no images, the window draws its symbols), Phosphor and Material (packs
+//! Four sets ship with the app: Lucide (the fallback for every role another set
+//! does not cover; it has no images, the window draws its symbols), Phosphor, Material and theSVG (packs
 //! built into the binary). Custom sets are one synced row each ([`store`]).
 //!
 //! The window asks [`commands::files_icons_resolve`] for the answers of the entries it shows and
@@ -41,16 +41,18 @@ pub enum BuiltinSet {
     Lucide,
     Phosphor,
     Material,
+    Thesvg,
 }
 
 impl BuiltinSet {
-    pub const ALL: [Self; 3] = [Self::Lucide, Self::Phosphor, Self::Material];
+    pub const ALL: [Self; 4] = [Self::Lucide, Self::Phosphor, Self::Material, Self::Thesvg];
 
     pub fn key(self) -> &'static str {
         match self {
             Self::Lucide => "lucide",
             Self::Phosphor => "phosphor",
             Self::Material => "material",
+            Self::Thesvg => "thesvg",
         }
     }
 }
@@ -316,3 +318,6 @@ mod perf_tests;
 #[cfg(test)]
 #[path = "mod_tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "thesvg_tests.rs"]
+mod thesvg_tests;

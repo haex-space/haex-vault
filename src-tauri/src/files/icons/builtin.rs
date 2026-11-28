@@ -1,5 +1,5 @@
-//! The sets that ship with the app (spec 053 FR-007, research R6): Lucide (the standard set, no
-//! images) and the packs of Phosphor and Material, built into the binary. The packs are made from
+//! The sets that ship with the app (spec 053 FR-007, research R6): Lucide (the fallback set, no
+//! images) and the packs of Phosphor, Material and theSVG (spec 103), built into the binary. The packs are made from
 //! the source directories under `src-tauri/icon-sets/` by [`super::pack_dir`] (see the test
 //! `build_bundled_packs` in `builtin_tests.rs`), so the same code reads them as reads a custom set.
 
@@ -10,10 +10,12 @@ use super::{BuiltinSet, IconSetInfo, IconSetLicense, IconSetRef, IconSetState, P
 
 static PHOSPHOR_ZIP: &[u8] = include_bytes!("../../../icon-sets/phosphor.zip");
 static MATERIAL_ZIP: &[u8] = include_bytes!("../../../icon-sets/material.zip");
+static THESVG_ZIP: &[u8] = include_bytes!("../../../icon-sets/thesvg.zip");
 const LUCIDE_LICENSE: &str = include_str!("../../../icon-sets/lucide.LICENSE");
 
 static PHOSPHOR: LazyLock<Option<Arc<Pack>>> = LazyLock::new(|| open(PHOSPHOR_ZIP, "Phosphor"));
 static MATERIAL: LazyLock<Option<Arc<Pack>>> = LazyLock::new(|| open(MATERIAL_ZIP, "Material"));
+static THESVG: LazyLock<Option<Arc<Pack>>> = LazyLock::new(|| open(THESVG_ZIP, "theSVG"));
 
 fn open(bytes: &[u8], name: &str) -> Option<Arc<Pack>> {
     match open_pack(bytes, None) {
@@ -33,6 +35,7 @@ pub fn pack(name: BuiltinSet) -> Option<Arc<Pack>> {
         BuiltinSet::Lucide => None,
         BuiltinSet::Phosphor => PHOSPHOR.clone(),
         BuiltinSet::Material => MATERIAL.clone(),
+        BuiltinSet::Thesvg => THESVG.clone(),
     }
 }
 
@@ -43,6 +46,7 @@ pub fn zip_bytes(name: BuiltinSet) -> &'static [u8] {
         BuiltinSet::Lucide => &[],
         BuiltinSet::Phosphor => PHOSPHOR_ZIP,
         BuiltinSet::Material => MATERIAL_ZIP,
+        BuiltinSet::Thesvg => THESVG_ZIP,
     }
 }
 
@@ -51,6 +55,7 @@ fn display_name(name: BuiltinSet) -> &'static str {
         BuiltinSet::Lucide => "Lucide",
         BuiltinSet::Phosphor => "Phosphor",
         BuiltinSet::Material => "Material",
+        BuiltinSet::Thesvg => "theSVG",
     }
 }
 

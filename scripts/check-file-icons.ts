@@ -15,6 +15,7 @@ import {
 
 const lucide = { kind: 'builtin', name: 'lucide' } as const
 const phosphor = { kind: 'builtin', name: 'phosphor' } as const
+const thesvg = { kind: 'builtin', name: 'thesvg' } as const
 const custom = {
   kind: 'custom',
   id: '0b9a2c52-6a53-4f4e-9a1b-3c1a1d0a77aa',
@@ -30,6 +31,7 @@ const file = (name: string) => ({
 test('the value of a set is the one the preference takes', () => {
   assert.equal(selectionValue(lucide), 'builtin:lucide')
   assert.equal(selectionValue(phosphor), 'builtin:phosphor')
+  assert.equal(selectionValue(thesvg), 'builtin:thesvg')
   assert.equal(selectionValue(custom), `custom:${custom.id}`)
 })
 

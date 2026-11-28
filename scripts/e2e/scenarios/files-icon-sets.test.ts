@@ -6,8 +6,8 @@ import { zipOf } from '../lib/zip.ts'
 import { scenario } from '../lib/scenario.ts'
 import { openSettings, runAction, waitForLocation } from '../lib/settings.ts'
 
-// Spec 053, quickstart §2 steps 1 to 6 (US1, US3): the settings list Material, Phosphor and
-// Lucide with a preview; choosing Phosphor shows the images of the set in the open folder as
+// Spec 053, quickstart §2 steps 1 to 6 (US1, US3): the settings list Material, Phosphor, theSVG
+// (spec 103) and Lucide with a preview; choosing Phosphor shows the images of the set in the open folder as
 // `img` elements (never `svg` elements in the DOM) at once and saves it silently, without a save
 // button; the images differ between the light and the dark scheme; the choice survives a restart.
 // The pictures of the states (no access, locked, damaged) are checked in Rust, `bundled_tests.rs`.
@@ -46,13 +46,18 @@ scenario('files-icon-sets', { timeoutMs: 300_000 }, async (ctx) => {
     files.write('main.rs', 'fn main() {}')
     files.write('daten.csv', 'a;b')
     files.write('unbekannt.zzz', 'x')
-    // 1. The group lists the three sets, Lucide chosen, each with a preview.
+    // 1. The group lists the four sets, Material chosen, each with a preview.
     await openSettings(page)
     await page.click('settings-category-general')
     await page.click('settings-row-general.appearance')
     await waitForLocation(page, 'general.appearance')
     await page.waitForDisplayed('settings-icon-set')
-    for (const id of ['builtin:lucide', 'builtin:phosphor', 'builtin:material'])
+    for (const id of [
+      'builtin:lucide',
+      'builtin:phosphor',
+      'builtin:material',
+      'builtin:thesvg',
+    ])
       await page.waitForDisplayed(SET(id))
     assert.equal(
       await page.exec<string | null>(
@@ -62,7 +67,7 @@ scenario('files-icon-sets', { timeoutMs: 300_000 }, async (ctx) => {
       'checked',
       'Material is chosen at first',
     )
-    ctx.step('the group lists Material, Phosphor and Lucide')
+    ctx.step('the group lists Material, Phosphor, theSVG and Lucide')
 
     // 2. Phosphor at once: img elements in the list, saved silently (the row reads back as
     // chosen), no save button.
@@ -246,7 +251,7 @@ scenario('files-icon-sets', { timeoutMs: 300_000 }, async (ctx) => {
       at: '/general/licenses',
     })
     await waitForLocation(page, 'general.licenses')
-    for (const name of ['Lucide', 'Phosphor', 'Material']) {
+    for (const name of ['Lucide', 'Phosphor', 'Material', 'theSVG']) {
       await page.waitForDisplayed(`settings-license-${name}`)
       const text = await page.exec<string>(
         `return document.querySelector('[data-testid="settings-license-${name}"]').textContent`,

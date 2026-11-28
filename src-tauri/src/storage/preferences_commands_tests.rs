@@ -153,6 +153,7 @@ fn file_browser_preferences_take_only_their_choices() {
         ("files.sort", "modified:desc"),
         ("files.iconSet", "builtin:lucide"),
         ("files.iconSet", "builtin:phosphor"),
+        ("files.iconSet", "builtin:thesvg"),
         (
             "files.iconSet",
             "custom:0b9a2c52-6a53-4f4e-9a1b-3c1a1d0a77aa",

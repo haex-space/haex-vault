@@ -1031,7 +1031,8 @@
       "sets": {
         "lucide": "Lucide",
         "phosphor": "Phosphor",
-        "material": "Material (Standard)"
+        "material": "Material (Standard)",
+        "thesvg": "theSVG"
       },
       "import": {
         "title": "Icon-Set hinzufügen",

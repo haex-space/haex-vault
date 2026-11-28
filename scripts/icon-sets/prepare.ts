@@ -1,5 +1,6 @@
 // Spec 053 (T024): writes the source directories of the two bundled file icon
-// sets, `src-tauri/icon-sets/phosphor/` and `src-tauri/icon-sets/material/`,
+// sets, `src-tauri/icon-sets/phosphor/` and `src-tauri/icon-sets/material/` (the third one,
+// `thesvg/`, is written by `thesvg.ts`, spec 103),
 // from pinned upstream sources. The result is checked in, so every change to a
 // bundled image shows up in a diff (research.md R6). Rust packs the directory
 // into the ZIP; this script never writes a ZIP.
@@ -8,10 +9,11 @@
 //
 //   node scripts/icon-sets/prepare.ts phosphor <clone of phosphor-icons/core>
 //   node scripts/icon-sets/prepare.ts material <unpacked Material Icon Theme VSIX> <Apache-2.0 text>
+//   node scripts/icon-sets/prepare.ts thesvg <clone of glincker/thesvg at the pinned commit>
 //
 // The source paths come from the command line only, never from the script, so
 // no local path ends up in the repository. Environment variables
-// `ICON_SETS_PHOSPHOR`, `ICON_SETS_MATERIAL` and `ICON_SETS_APACHE` stand in
+// `ICON_SETS_PHOSPHOR`, `ICON_SETS_MATERIAL`, `ICON_SETS_APACHE` and `ICON_SETS_THESVG` stand in
 // for the arguments.
 //
 // Pinned sources:
@@ -28,39 +30,33 @@
 import {
   copyFileSync,
   existsSync,
-  mkdirSync,
   readdirSync,
   readFileSync,
-  rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs'
 import path from 'node:path'
 
+import {
+  addStateIcons,
+  fail,
+  freshDir,
+  isRecord,
+  mapValues,
+  normalizeIconPath,
+  pick,
+  readJson,
+  readString,
+  readStringMap,
+  SETS_DIR,
+  writeJson,
+} from './common.ts'
+import type { Origin, Roles, StringMap } from './common.ts'
+import { prepareThesvg } from './thesvg.ts'
+
 // Grey tones that stand in for `currentColor`; close to text-muted-foreground.
 const STROKE_FOR_DARK_SCHEME = '#c9c9c9'
 const STROKE_FOR_LIGHT_SCHEME = '#4a4a4a'
-
-const ROOT = path.resolve(import.meta.dirname, '..', '..')
-const SETS_DIR = path.join(ROOT, 'src-tauri', 'icon-sets')
-
-type RoleKey =
-  | 'folder'
-  | 'folderNoAccess'
-  | 'file'
-  | 'image'
-  | 'video'
-  | 'audio'
-  | 'pdf'
-  | 'text'
-  | 'encryptedFolder'
-  | 'lockedFolder'
-  | 'lockedFile'
-  | 'damaged'
-type Roles = Partial<Record<RoleKey, string>>
-type StringMap = Record<string, string>
-
-type Origin = { author: string; license: string; source: string }
 
 const PHOSPHOR_ORIGIN: Origin = {
   author: 'Phosphor Icons',
@@ -105,41 +101,6 @@ const MATERIAL_ROLES: Roles = {
   text: 'document',
 }
 
-// haex-vault's own coloured images for the states of an entry (a readable encrypted folder, a folder of
-// another vault, a folder without access, a locked file, a damaged one): the same in every
-// bundled set, drawn to be told apart at a glance. They replace the role images of the set.
-const STATES_DIR = path.join(import.meta.dirname, 'haex-states')
-const STATE_IMAGES: Record<string, RoleKey> = {
-  'encrypted-folder': 'encryptedFolder',
-  'locked-folder': 'lockedFolder',
-  'folder-no-access': 'folderNoAccess',
-  'locked-file': 'lockedFile',
-  damaged: 'damaged',
-}
-
-/** Adds the state images to the written source directory of a set and names them as its roles. */
-function addStateIcons(set: string): void {
-  const outDir = path.join(SETS_DIR, set)
-  const manifestFile = path.join(outDir, 'icon-theme.json')
-  const manifest = readJson(manifestFile)
-  if (!isRecord(manifest) || !isRecord(manifest.iconDefinitions))
-    fail(`${set}: the manifest has no iconDefinitions object`)
-  const haex = manifest['x-haex']
-  if (!isRecord(haex) || !isRecord(haex.roles))
-    fail(`${set}: the manifest has no x-haex.roles object`)
-  for (const [name, role] of Object.entries(STATE_IMAGES)) {
-    const id = `haex-${name}`
-    copyFileSync(
-      path.join(STATES_DIR, `${name}.svg`),
-      path.join(outDir, 'icons', `${id}.svg`),
-    )
-    manifest.iconDefinitions[id] = { iconPath: `icons/${id}.svg` }
-    haex.roles[role] = id
-  }
-  writeJson(manifestFile, manifest)
-  console.log(`${set}: ${Object.keys(STATE_IMAGES).length} state images`)
-}
-
 // The standard folders of a home directory under their German, French and Spanish names (the
 // folders xdg-user-dirs creates): Material knows only the English names, so `Bilder` and `Musik`
 // would be plain folders. Each name takes the image of its English counterpart.
@@ -174,74 +135,6 @@ function addLocalizedFolderNames(): void {
   manifest.folderNames = folderNames
   writeJson(manifestFile, manifest)
   console.log(`material: ${added} localized folder names`)
-}
-
-function fail(message: string): never {
-  console.error(`prepare.ts: ${message}`)
-  process.exit(1)
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function readJson(file: string): unknown {
-  return JSON.parse(readFileSync(file, 'utf8'))
-}
-
-function readString(value: unknown, label: string): string {
-  if (typeof value !== 'string') fail(`${label} is not a string`)
-  return value
-}
-
-function readStringMap(value: unknown, label: string): StringMap {
-  if (!isRecord(value)) fail(`${label} is not an object`)
-  const entries = Object.entries(value)
-  if (entries.some(([, entry]) => typeof entry !== 'string')) {
-    fail(`${label} contains a non-string value`)
-  }
-  return Object.fromEntries(entries) as StringMap
-}
-
-function writeJson(file: string, value: unknown): void {
-  writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`)
-}
-
-function freshDir(dir: string): void {
-  rmSync(dir, { recursive: true, force: true })
-  mkdirSync(dir, { recursive: true })
-}
-
-// `iconPath` is relative to the pack root, with `/`, no `./`, no `..`.
-function normalizeIconPath(raw: string): string {
-  const normalized = path.posix.normalize(
-    raw.replace(/^\.\/\.\.\//, '').replace(/^\.\//, ''),
-  )
-  if (
-    normalized.startsWith('/') ||
-    normalized.split('/').includes('..') ||
-    normalized.startsWith('./')
-  ) {
-    fail(`icon path ${raw} does not normalize to a path inside the pack`)
-  }
-  return normalized
-}
-
-function mapValues(map: StringMap, fn: (value: string) => string): StringMap {
-  return Object.fromEntries(
-    Object.entries(map).map(([key, value]) => [key, fn(value)]),
-  )
-}
-
-function pick<T extends object>(
-  source: T,
-  keys: readonly string[],
-): Partial<T> {
-  const picked: Record<string, unknown> = {}
-  for (const key of keys) {
-    if (key in source) picked[key] = (source as Record<string, unknown>)[key]
-  }
-  return picked as Partial<T>
 }
 
 function preparePhosphor(clone: string): void {
@@ -402,16 +295,26 @@ function main(): void {
       )
     }
     prepareMaterial(path.resolve(vsix), path.resolve(apache))
+  } else if (set === 'thesvg') {
+    const clone = first ?? process.env.ICON_SETS_THESVG
+    if (!clone) fail('usage: prepare.ts thesvg <clone of glincker/thesvg>')
+    prepareThesvg(path.resolve(clone))
   } else if (set === 'states') {
     // Adds the state images to the directories as they are, without the upstream sources.
     addStateIcons('phosphor')
     addStateIcons('material')
+    addStateIcons('thesvg')
     addLocalizedFolderNames()
   } else {
     fail(
-      'usage: prepare.ts phosphor|material <source> [<apache text>] | states',
+      'usage: prepare.ts phosphor|material|thesvg <source> [<apache text>] | states',
     )
   }
 }
 
-main()
+try {
+  main()
+} catch (error) {
+  console.error(`prepare.ts: ${error instanceof Error ? error.message : error}`)
+  process.exit(1)
+}

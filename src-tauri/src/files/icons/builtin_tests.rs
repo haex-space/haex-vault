@@ -15,9 +15,10 @@ fn icon_sets_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("icon-sets")
 }
 
-const PACKS: [(BuiltinSet, &str); 2] = [
+const PACKS: [(BuiltinSet, &str); 3] = [
     (BuiltinSet::Phosphor, "phosphor"),
     (BuiltinSet::Material, "material"),
+    (BuiltinSet::Thesvg, "thesvg"),
 ];
 
 /// Writes the ZIPs of the bundled packs from their source directories. Run it after
@@ -122,6 +123,11 @@ fn the_license_of_every_bundled_set_is_open_and_complete() {
         "ISC and the MIT of Feather"
     );
     assert!(text("Phosphor").contains("MIT License"));
+    let thesvg = text("theSVG");
+    assert!(
+        thesvg.contains("MIT License") && thesvg.contains("thesvg.org"),
+        "the MIT text of thesvg.org"
+    );
     let material = text("Material");
     assert!(material.contains("MIT License") && material.contains("Apache License"));
     assert!(
@@ -131,11 +137,11 @@ fn the_license_of_every_bundled_set_is_open_and_complete() {
 }
 
 #[test]
-fn the_list_names_the_three_sets_and_none_can_be_removed() {
+fn the_list_names_the_four_sets_and_none_can_be_removed() {
     let sets = infos();
     assert_eq!(
         sets.iter().map(|set| set.name.as_str()).collect::<Vec<_>>(),
-        ["Lucide", "Phosphor", "Material"]
+        ["Lucide", "Phosphor", "Material", "theSVG"]
     );
     assert!(sets
         .iter()

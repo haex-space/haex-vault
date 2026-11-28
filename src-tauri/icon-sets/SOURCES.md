@@ -1,15 +1,19 @@
 # Bundled file icon sets: sources
 
-The source directories `phosphor/` and `material/` are written by
-`scripts/icon-sets/prepare.ts` (spec 053, research.md R6) from the pinned
-sources below. Do not edit them by hand; change the script or the selection
+The source directories `phosphor/`, `material/` and `thesvg/` are written by
+`scripts/icon-sets/prepare.ts` (spec 053, research.md R6; `thesvg/` by
+`scripts/icon-sets/thesvg.ts`, spec 103) from the pinned sources below. Do not edit them by hand; change the script or the selection
 files and run it again. The script takes the source paths as arguments, so no
 local path is recorded anywhere.
 
 ```text
 node scripts/icon-sets/prepare.ts phosphor <clone of phosphor-icons/core>
 node scripts/icon-sets/prepare.ts material <unpacked VSIX> <Apache-2.0 license text>
+node scripts/icon-sets/prepare.ts thesvg <clone of glincker/thesvg at the pinned commit>
 ```
+
+The ZIPs are built from the directories by the ignored test `build_bundled_packs`
+(`cargo test --lib files::icons::builtin::tests::build_bundled_packs -- --ignored`).
 
 ## States of an entry (`scripts/icon-sets/haex-states/`)
 
@@ -71,6 +75,23 @@ English counterpart.
   `light`; both stay as they are. The `-light` id convention above does not
   apply (the theme has no `-light` ids).
 - ZIP size: 716455 bytes.
+
+## theSVG (`thesvg/`)
+
+- Source: https://github.com/glincker/thesvg (the UI icons of thesvg.org, not its brand logos)
+- Commit: `a417e5a090a1258d727f5837f1413788b6337845` (`thesvg.source.json`; the build fails when the clone is at another commit)
+- License: `MIT` (Copyright (c) 2025 thesvg.org; text in `thesvg/LICENSE`, copied from the clone). The
+  UI icons are original drawings of thesvg.org, not brand marks (its `LICENSING.md` section 1), so the
+  set carries no note on third-party marks.
+- Look: the **fill** look, `src/data/ui/looks/fill.json` (slug to SVG text).
+- Colouring: the source icons use `currentColor`; the build replaces it with one fixed colour per icon
+  (`thesvg.colors.json`, the palette of Material) and changes nothing else. Every colour has a relative
+  luminance between 0.10 and 0.65, so each image reads on the dark and on the light scheme and the
+  set has no `light` block.
+- Selection rule: the icons named by `thesvg.mapping.json` (extension or lower-case file name to
+  slug) and the role table `ROLE_SLUGS` in `scripts/icon-sets/thesvg.ts` (folder, file, image, video,
+  audio, PDF, text); the five state images come from `haex-states/`.
+- Counts: 19 icons, 162 extensions, 46 file names, 24 images with the states; ZIP size 15547 bytes.
 
 ## Lucide (no pack)
 

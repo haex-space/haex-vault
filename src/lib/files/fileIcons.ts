@@ -6,7 +6,7 @@
 /** What the bindings `IconSetRef`, `Scheme` and `IconQuery` carry, restated because the generated
  * files import without file extensions, which `node --test` and the scripts' typecheck cannot load. */
 export type IconSetRef =
-  | { kind: 'builtin'; name: 'lucide' | 'phosphor' | 'material' }
+  | { kind: 'builtin'; name: 'lucide' | 'phosphor' | 'material' | 'thesvg' }
   | { kind: 'custom'; id: string }
 export type Scheme = 'light' | 'dark'
 export type IconQuery = {

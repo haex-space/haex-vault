@@ -13,11 +13,11 @@ No database table, migration or sync change: the set is built into the app like 
 
 ## Checked-in build inputs (`src-tauri/icon-sets/`)
 
-- `thesvg.mapping.json`: `{ "<extension or lower-case name>": "<source slug>" }`. Every slug MUST exist in
-  `fill.json` of the pinned clone; a key appears once (FR-007).
-- `thesvg.roles.json` (or a constant in `thesvg.ts`): role (`folder`, `file`, `image`, `video`, `audio`,
-  `pdf`, `text`) → slug.
-- `thesvg.colors.json`: `{ "<slug>": "#rrggbb" }` for every slug used by the mapping and the roles; the
+- `thesvg.mapping.json`: `{ "extensions": { "<extension, no dot>": "<source slug>" }, "names": { "<lower-case file name>": "<source slug>" } }`. Every slug MUST exist in
+  `fill.json` of the pinned clone; every key MUST be in lower case; an extension has no leading dot.
+- The role table (`folder`, `file`, `image`, `video`, `audio`, `pdf`, `text` → slug) is the constant
+  `ROLE_SLUGS` in `scripts/icon-sets/thesvg.ts`.
+- `thesvg.colors.json`: `{ "<slug>": "#rrggbb" }` for every slug used by the mapping and the roles (and no colour for an unused slug); the
   relative luminance of every colour MUST lie between 0.10 and 0.65 (FR-005).
 - `thesvg.source.json`: `{ "repository": "https://github.com/glincker/thesvg", "commit": "<sha>" }`; the
   build fails when the clone's HEAD differs.
