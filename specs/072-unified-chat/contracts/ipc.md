@@ -72,11 +72,19 @@ is reachable only with that scope and still confirms itself (mcp_server/dispatch
 ## Message queue (US9, PR Q)
 
 - `chat_inject_message` takes `{ threadId, text, attachments: PickedFile[], idempotencyKey: UUID }` and
-  answers `{ outcome: "takenIn" }` or `{ outcome: "noRunningTurn" }`; the window treats the second as an
-  Enter. A retry with the same key returns the same answer for the same message (FR-098).
+  answers `{ outcome: "takenIn" }` or `{ outcome: "noRunningTurn" }`; the host finds the running turn's inbox by `threadId` (one inbox per turn, spec 068 T009 later keeps it in the `TurnSlot`). Ctrl+Enter and the "Jetzt senden"
+  button of a chip both call it; the button passes the key the entry was queued with. On
+  `noRunningTurn` (no turn runs, the turn is another conversation's, or the model cannot take
+  injections) the window keeps or makes the entry a plain queue entry, silently. A retry with the same
+  key returns the same answer for the same message (FR-098).
 - `chat_withdraw_injection` takes `{ idempotencyKey: UUID }` and answers `{ withdrawn: boolean }`; `false`
-  means the turn already took it.
+  means the turn already took it. It backs the X of a chip marked "Wird eingefügt".
 - Event `chat-message-injected` carries `{ threadId, userMessageId, idempotencyKey }` and is emitted
   after the row is stored and before `chat-turn-complete`; the window removes the chip and reloads the
-  list. An entry for which the turn ended without this event stays queued (FR-097).
-- Enter entries use no new command: they go out through `send_message` when a turn has ended (FR-094).
+  list. An entry for which the turn ended without this event becomes a plain queue entry again (FR-097).
+- The loaded model's info carries a flag `injectable` (name decided in T166): false for a delegate and
+  for an adapter that cannot take a user message after tool results; the window shows "Jetzt senden"
+  only when it is true and the chip's conversation is the running one.
+- Enter entries use no new command: they go out through `send_message` when no turn runs (FR-094). A
+  stop uses the existing `abort_current_generation`; discarding chips and returning texts after an error
+  (FR-103, FR-107) happen in the window only.

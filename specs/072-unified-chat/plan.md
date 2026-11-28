@@ -208,24 +208,39 @@ Each slice is mergeable and testable on its own; later ones build on earlier one
 | G   | contact share in chat                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | US6             |
 | H   | agent grant, actions, confirm dialog, MCP scope                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | US7             |
 | I   | remaining settings, Blossom key, presets test (M13), e2e scenarios, polish                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | US8, SC-011     |
-| Q   | message queue (US9, added 2026-11-28): inbox in `ChatState`, injection point in `chat/turn/tool_round.rs`, `chat_inject_message`, chips above the input field                                                                                                                                                                                                                                                                                                                                                                                                         | US9             |
+| Q   | message queue (US9, added 2026-11-28): inbox in `ChatState`, injection point in `chat/turn/tool_round.rs`, `chat_inject_message`, per-conversation chips above the input field                                                                                                                                                                                                                                                                                                                                                                                        | US9             |
 
 ### Message queue (US9, PR Q, added 2026-11-28)
 
 The one change to the agent's turn in this spec; reasons in [research.md](./research.md) R22.
 
 - **Queue in the window, inbox in the turn.** Enter entries live only in the window (`messageQueue.ts`)
-  and are sent through the ordinary `send_message` when a turn ends. Ctrl+Enter entries are also held by
-  the window until the host reports them taken (`chat-message-injected`), so a turn that ends first
-  loses nothing.
+  and are sent through the ordinary `send_message` when no turn runs. Ctrl+Enter and the chip's
+  "Jetzt senden" hand the entry to the host (`chat_inject_message`, the entry's own key); the window
+  keeps it until the host reports it taken (`chat-message-injected`), so a turn that ends first loses
+  nothing.
+- **One queue per conversation.** A chip belongs to the conversation it was typed in and shows only
+  there; each conversation's queue drains when its own turn ends (`chat-turn-complete` carries the
+  thread id), into that conversation (T168 makes `send` independent of the open one). No order across
+  conversations is defined: concurrent turns are spec 068's (R1, T009 `TurnSlots`, T015); today's
+  single lock makes a send wait or fail as it does now, and PR Q can ship before or after them.
+- **Inbox per turn.** The host keeps the inbox per running turn: a map keyed by thread id in
+  `ChatState` until T009, a field of `TurnSlot` after it; never one inbox for the chat.
 - **Injection point.** `TurnRunner::tool_round` (`src-tauri/src/chat/turn/tool_round.rs`): after the
   round is stored and appended to the request, and after the round cap check, before it returns
   `RoundOutcome::Continue` and `run` calls `run_step` again. `inject.rs` takes the inbox there.
 - **Rows.** An injected message is a `user` row whose parent is the turn's current `parent_id`; the
   rows that follow chain to it. Its id is the user id `derive_message_ids` gives the idempotency key;
-  the answer id of that derivation stays unused.
+  the answer id of that derivation stays unused. Attachments are read by the function `start_turn`
+  uses.
 - **Fitting.** `fit::fit` runs once more after the injection; `latest_from` keeps the results before
   the injected message as the open round (T161).
+- **Where the button is offered.** A flag `injectable` on the loaded model's info (false for delegates
+  and for adapters that failed the T165 check); with the chip's conversation being the running one
+  (T166).
+- **Stop and error.** A stop discards only the stopped conversation's entries; an error returns the
+  conversation's texts and attachments to the input field, or holds them until the conversation is
+  opened (T167).
 - **Not covered by the turn loop:** delegates (no step loop) and the round-cap wrap-up; both fall back
   to the queue.
 
