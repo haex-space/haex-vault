@@ -189,7 +189,7 @@ const DEFAULT_INVOKE_HANDLERS: Record<string, InvokeHandler> = {
 }
 
 const RETURN_STATEMENT = `
-    return { send, selectThread, handleToken, handleRetry, handleTurnComplete, handleToolCall,
+    return { send, abort, abortAll, newChat, streams, selectThread, handleToken, handleRetry, handleTurnComplete, handleToolCall,
       reasoningByMessage,
       historyDuration, startEditing, saveThreadTitle, cancelEditing,
       requestDelete, confirmDelete,
@@ -452,6 +452,7 @@ export function createChatState(
     'useErrorString',
     'useChatTranscript',
     'useThreadSidebar',
+    'useChatStreams',
     'useComposer',
     'useComposerAttachments',
     'useChatPermissionMode',
@@ -486,6 +487,7 @@ export function createChatState(
     req('~/composables/useErrorString').useErrorString,
     req('~/composables/useChatTranscript').useChatTranscript,
     req('~/composables/useThreadSidebar').useThreadSidebar,
+    req('~/composables/useChatStreams').useChatStreams,
     req('~/composables/useComposer').useComposer,
     req('~/composables/useComposerAttachments').useComposerAttachments,
     req('~/composables/useChatPermissionMode').useChatPermissionMode,

@@ -2,6 +2,7 @@ import { ref, watch, type Ref } from 'vue'
 import type { Message, Thread, useChat } from '~/composables/useChat'
 import type { PendingPrompt } from '~/lib/chat/prompts'
 import type { useChatTranscript } from '~/composables/useChatTranscript'
+import type { useChatStreams } from '~/composables/useChatStreams'
 
 type HistoryDurationUnit = 'min' | 'h' | 'd'
 
@@ -50,6 +51,7 @@ export function useThreadSidebar(
   pendingPromptsByThread: Map<string, PendingPrompt[]>,
   resetTextarea: () => Promise<void>,
   scrollToBottom: (options?: { force?: boolean }) => Promise<void>,
+  streams: ReturnType<typeof useChatStreams>,
 ) {
   const {
     pendingStreamEvents,
@@ -171,13 +173,13 @@ export function useThreadSidebar(
    */
   async function refreshLoadedMessages(skipThreadId = streamingThreadId.value) {
     const ids = Object.keys(messagesByThread.value).filter(
-      (id) => id !== skipThreadId,
+      (id) => id !== skipThreadId && !streams.isParked(id),
     )
     const loaded = await Promise.all(
       ids.map(async (id) => [id, await chat.listMessagesAsync(id)] as const),
     )
     for (const [id, messages] of loaded) {
-      if (streamingThreadId.value === id) continue
+      if (streamingThreadId.value === id || streams.isParked(id)) continue
       messagesByThread.value[id] = messages
     }
   }
@@ -241,6 +243,7 @@ export function useThreadSidebar(
     pendingPromptsByThread.delete(threadId)
     pendingToolEvents.delete(threadId)
     pendingTurnCompletions.delete(threadId)
+    streams.forget(threadId)
     if (editingThreadId.value === threadId) cancelEditing()
     if (activeThreadId.value !== threadId) return
     activeThreadId.value = null
@@ -264,7 +267,7 @@ export function useThreadSidebar(
       if (needsAbort) {
         const terminal = waitForTurnTerminal(candidate.id)
         try {
-          await chat.abortAsync()
+          await chat.abortAsync(candidate.id)
         } catch {
           deleteError.value = t('chat.threads.deleteCancelFailed')
           return
@@ -300,6 +303,8 @@ export function useThreadSidebar(
       ])
       pendingPrompts.value = []
     }
+    // The turn of the conversation left keeps running parked; the one opened gets its turn back.
+    streams.switchTo(id)
     activeThreadId.value = id
     // A continued session answers with the model it used before (spec 006). Fails quietly while
     // another turn holds the chat; the session then sends with the loaded model.

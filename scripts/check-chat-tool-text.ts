@@ -55,9 +55,10 @@ test('a chat that is still busy is named in words, the same text everywhere', ()
     const errors = JSON.parse(read(`src/i18n/locales/${locale}.json`)).errors
     assert.equal(typeof errors.operationBusy, 'string', locale)
   }
-  // A typed message waits for the chat first (operator 2026-11-03).
+  // A typed message waits for its own conversation, or a load, first (operator 2026-11-03; spec
+  // 068 R1: a turn of another conversation is no reason to wait).
   assert.match(
     read('src-tauri/src/chat/commands.rs'),
-    /pub async fn send_message[\s\S]*?wait_until_free\(SEND_WAIT_WHEN_BUSY\)[\s\S]*?start_turn\(/,
+    /pub async fn send_message[\s\S]*?wait_until_free_for\(args\.thread_id, SEND_WAIT_WHEN_BUSY\)[\s\S]*?start_turn\(/,
   )
 })

@@ -41,6 +41,8 @@ export function useChatTab(deps: {
     lastError: Ref<string | null>
     streamingMessageId: Ref<string | null>
     turnSetupPending: Ref<boolean>
+    /** Whether a turn runs in a conversation that is not open (spec 068 research R1). */
+    parkedTurnRunning: () => boolean
     editingThreadId: Ref<string | null>
     draftTitle: Ref<string>
     editTitleError: Ref<string | null>
@@ -52,6 +54,8 @@ export function useChatTab(deps: {
   confirmDelete: () => Promise<void>
   send: (retry?: boolean) => Promise<void>
   abort: () => Promise<void>
+  /** Stops every running turn, also those of conversations that are not open. */
+  abortAll: () => Promise<void>
   newChat: () => Promise<void> | void
   updatePermissionMode: (mode: PermissionMode) => Promise<void> | void
   /** Spec 072: contact and group conversations next to the agent's. */
@@ -135,12 +139,13 @@ export function useChatTab(deps: {
     const hasActiveReply =
       state.streamingMessageId.value !== null ||
       state.turnSetupPending.value ||
+      state.parkedTurnRunning() ||
       state.pendingPrompts.value.length > 0
     if (!hasActiveReply) return null
     return {
       reasonKey: 'wm.close.activeReply',
       confirmAsync: async () => {
-        await deps.abort()
+        await deps.abortAll()
       },
     }
   })

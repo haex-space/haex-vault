@@ -8,6 +8,7 @@ import type {
 } from '~/composables/useChat'
 import type { PendingPrompt } from '~/lib/chat/prompts'
 import type { useChatTranscript } from '~/composables/useChatTranscript'
+import type { useChatStreams } from '~/composables/useChatStreams'
 import type { ComposerAttachment } from '~/components/chat/ComposerAttachments.vue'
 
 /**
@@ -48,6 +49,7 @@ export function useComposer(
   attachments: Ref<ComposerAttachment[]>,
   pendingPrompts: Ref<PendingPrompt[]>,
   pendingPromptsByThread: Map<string, PendingPrompt[]>,
+  streams: ReturnType<typeof useChatStreams>,
 ) {
   let sendGeneration = 0
   let sendInvocationStarted = false
@@ -265,6 +267,21 @@ export function useComposer(
       return
     }
     try {
+      // Only the open conversation's turn stops; the others go on (spec 068 research R1).
+      await chat.abortAsync(activeThreadId.value)
+    } catch (e: unknown) {
+      lastError.value = errString(e)
+    }
+  }
+
+  /** Stops every running turn, the open conversation's and the parked ones (closing the tab). */
+  async function abortAll() {
+    if (turnSetupPending.value && !sendInvocationStarted) {
+      sendGeneration++
+      busy.value = false
+      turnSetupPending.value = false
+    }
+    try {
       await chat.abortAsync()
     } catch (e: unknown) {
       lastError.value = errString(e)
@@ -273,7 +290,9 @@ export function useComposer(
 
   /** Clears the active conversation so the next send creates a new thread. */
   async function newChat() {
-    if (busy.value || modelLoadPending.value) return
+    // The turn of the conversation left keeps running, parked (spec 068 research R1); only a send
+    // that is still being set up holds the window.
+    if (turnSetupPending.value || modelLoadPending.value) return
     if (activeThreadId.value && pendingPrompts.value.length > 0) {
       const queued = pendingPromptsByThread.get(activeThreadId.value) ?? []
       pendingPromptsByThread.set(activeThreadId.value, [
@@ -282,6 +301,7 @@ export function useComposer(
       ])
       pendingPrompts.value = []
     }
+    streams.switchTo(null)
     activeThreadId.value = null
     // A new session starts with the last model picked in the model menu (spec 006).
     void chat.useSessionModelAsync(null).catch(() => {})
@@ -290,7 +310,10 @@ export function useComposer(
     streamingMessageId.value = null
     streamingThreadId.value = null
     streamingBuffer.value = ''
-    reasoningByMessage.value = {}
+    // What parked turns streamed so far belongs to them, not to the conversation just left.
+    reasoningByMessage.value = streams.reasoningOfParked(
+      reasoningByMessage.value,
+    )
     expandedReasoning.value = new Set()
     pendingStreamEvents.clear()
     void resetTextarea()
@@ -307,6 +330,7 @@ export function useComposer(
   return {
     send,
     abort,
+    abortAll,
     newChat,
     setReasoningExpanded,
     onVoiceTranscript,

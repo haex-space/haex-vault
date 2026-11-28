@@ -105,6 +105,17 @@ const composerRef = useTemplateRef<{ reset: () => Promise<void> } | null>(
 const messagesScroll = useTemplateRef<HTMLElement>('messagesScroll')
 const resetTextarea = async () => composerRef.value?.reset()
 
+// Spec 068 research R1: the turn of a conversation the person left keeps running, parked here; the
+// streaming refs above always describe the turn of the open conversation.
+const streams = useChatStreams({
+  streamingMessageId,
+  streamingThreadId,
+  streamingBuffer,
+  retryingMessageId,
+  busy,
+  turnSetupPending,
+})
+
 // chatTranscript/threadSidebar need each other's functions — resolved via a placeholder swapped for the real refreshThreads once threadSidebar exists.
 let refreshThreadsForTranscript = async () => {}
 const chatTranscript = useChatTranscript(
@@ -124,6 +135,7 @@ const chatTranscript = useChatTranscript(
   () => refreshThreadsForTranscript(),
   scrollToBottom,
   errString,
+  streams,
 )
 const threadSidebar = useThreadSidebar(
   chat,
@@ -141,6 +153,7 @@ const threadSidebar = useThreadSidebar(
   pendingPromptsByThread,
   resetTextarea,
   scrollToBottom,
+  streams,
 )
 refreshThreadsForTranscript = threadSidebar.refreshThreads
 
@@ -255,6 +268,7 @@ async function scrollToBottom({ force = false }: { force?: boolean } = {}) {
 const {
   send,
   abort,
+  abortAll,
   newChat,
   setReasoningExpanded,
   onVoiceTranscript,
@@ -290,6 +304,7 @@ const {
   attachments,
   pendingPrompts,
   pendingPromptsByThread,
+  streams,
 )
 
 // Spec 032 US4: the once-per-conversation notice about a model's tool use.
@@ -337,6 +352,7 @@ const { syncFromLocation, ui } = useChatTab({
     lastError,
     streamingMessageId,
     turnSetupPending,
+    parkedTurnRunning: () => streams.parkedThreadIds().length > 0,
     editingThreadId,
     draftTitle,
     editTitleError,
@@ -348,6 +364,7 @@ const { syncFromLocation, ui } = useChatTab({
   confirmDelete,
   send,
   abort,
+  abortAll,
   newChat,
   updatePermissionMode,
   peer: { ...peers, parkShare: useShareInboxStore().park },
@@ -430,7 +447,7 @@ onBeforeUnmount(() => {
   modelStore.stopListening()
   stopDurationRefresh()
   turnTerminalWaiters.clear()
-  if (streamingMessageId.value || turnSetupPending.value) void abort() // can't reconstruct approvals on remount
+  if (streams.anyRunning()) void abortAll() // can't reconstruct approvals on remount
   for (const unlisten of unlisteners.splice(0)) unlisten()
 })
 </script>
