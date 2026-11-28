@@ -371,13 +371,17 @@ pub async fn select_model(
     model_id: String,
     thread_id: Option<Uuid>,
 ) -> Result<LoadedModelInfo> {
-    // The model of a conversation does not change under its own running turn; other conversations'
-    // turns are no reason to refuse a pick (spec 068 T012).
-    if thread_id.is_some_and(|thread| chat.turns.thread_busy(thread)) {
-        return Err(HaexError::InvalidInput {
-            reason: "a turn of this conversation is still running".into(),
-        });
-    }
+    // Reserve this conversation across the asynchronous load and persisted update. A plain busy
+    // check races a send that starts immediately after it; other conversations remain available.
+    let _thread_pick = thread_id
+        .map(|thread| {
+            chat.turns
+                .reserve_model_pick(thread)
+                .map_err(|_| HaexError::InvalidInput {
+                    reason: "a turn of this conversation is still running".into(),
+                })
+        })
+        .transpose()?;
     let info = load_model_command(
         app,
         state.clone(),

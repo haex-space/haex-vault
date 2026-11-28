@@ -63,14 +63,20 @@ pub enum Refused {
 
 /// The registry of running turns. Cheap to clone through its `Arc`.
 pub struct TurnSlots {
-    slots: Mutex<HashMap<Uuid, TurnSlot>>,
+    state: Mutex<TurnRegistry>,
     accepting: std::sync::atomic::AtomicBool,
+}
+
+#[derive(Default)]
+struct TurnRegistry {
+    slots: HashMap<Uuid, TurnSlot>,
+    model_picks: HashSet<Uuid>,
 }
 
 impl Default for TurnSlots {
     fn default() -> Self {
         Self {
-            slots: Mutex::new(HashMap::new()),
+            state: Mutex::new(TurnRegistry::default()),
             accepting: std::sync::atomic::AtomicBool::new(true),
         }
     }
@@ -92,19 +98,24 @@ impl TurnSlots {
         if !self.accepting.load(std::sync::atomic::Ordering::Acquire) {
             return Err(Refused::Closing);
         }
-        let mut slots = lock(&self.slots);
+        let mut state = lock(&self.state);
         if !self.accepting.load(std::sync::atomic::Ordering::Acquire) {
             return Err(Refused::Closing);
         }
-        if slots.contains_key(&turn_id) {
+        if state.slots.contains_key(&turn_id) {
             return Err(Refused::AlreadyRunning);
         }
         if let Some(thread) = thread_id {
-            if slots.values().any(|slot| slot.thread_id == Some(thread)) {
+            if state.model_picks.contains(&thread)
+                || state
+                    .slots
+                    .values()
+                    .any(|slot| slot.thread_id == Some(thread))
+            {
                 return Err(Refused::ThreadBusy);
             }
         }
-        slots.insert(
+        state.slots.insert(
             turn_id,
             TurnSlot {
                 thread_id,
@@ -123,14 +134,40 @@ impl TurnSlots {
 
     /// Whether `thread_id` has a turn running.
     pub fn thread_busy(&self, thread_id: Uuid) -> bool {
-        lock(&self.slots)
-            .values()
-            .any(|slot| slot.thread_id == Some(thread_id))
+        let state = lock(&self.state);
+        state.model_picks.contains(&thread_id)
+            || state
+                .slots
+                .values()
+                .any(|slot| slot.thread_id == Some(thread_id))
+    }
+
+    /// Reserves a conversation while its model is being picked, so a turn cannot start between
+    /// the busy check and the model/session update. Other conversations remain available.
+    pub fn reserve_model_pick(
+        self: &Arc<Self>,
+        thread_id: Uuid,
+    ) -> Result<ModelPickGuard, Refused> {
+        let mut state = lock(&self.state);
+        if state.model_picks.contains(&thread_id)
+            || state
+                .slots
+                .values()
+                .any(|slot| slot.thread_id == Some(thread_id))
+        {
+            return Err(Refused::ThreadBusy);
+        }
+        state.model_picks.insert(thread_id);
+        Ok(ModelPickGuard {
+            slots: Arc::clone(self),
+            thread_id,
+        })
     }
 
     /// The turn running in `thread_id`, if any.
     pub fn turn_of_thread(&self, thread_id: Uuid) -> Option<Uuid> {
-        lock(&self.slots)
+        lock(&self.state)
+            .slots
             .iter()
             .find(|(_, slot)| slot.thread_id == Some(thread_id))
             .map(|(id, _)| *id)
@@ -138,7 +175,8 @@ impl TurnSlots {
 
     /// Every running turn.
     pub fn running(&self) -> Vec<RunningTurn> {
-        lock(&self.slots)
+        lock(&self.state)
+            .slots
             .iter()
             .map(|(id, slot)| RunningTurn {
                 turn_id: *id,
@@ -151,22 +189,24 @@ impl TurnSlots {
 
     /// Whether any turn runs.
     pub fn any_running(&self) -> bool {
-        !lock(&self.slots).is_empty()
+        !lock(&self.state).slots.is_empty()
     }
 
     /// Names the conversation of a turn that started a new one: it is known once the send is stored.
     pub fn set_thread(&self, turn_id: Uuid, thread_id: Uuid) -> Result<(), Refused> {
-        let mut slots = lock(&self.slots);
-        if !slots.contains_key(&turn_id) {
+        let mut state = lock(&self.state);
+        if !state.slots.contains_key(&turn_id) {
             return Err(Refused::AlreadyRunning);
         }
-        if slots
+        if state
+            .slots
             .iter()
             .any(|(id, other)| *id != turn_id && other.thread_id == Some(thread_id))
         {
             return Err(Refused::ThreadBusy);
         }
-        slots
+        state
+            .slots
             .get_mut(&turn_id)
             .expect("slot checked above")
             .thread_id = Some(thread_id);
@@ -175,7 +215,7 @@ impl TurnSlots {
 
     /// Names the model a turn runs on.
     pub fn set_model(&self, turn_id: Uuid, model_id: &str) {
-        if let Some(slot) = lock(&self.slots).get_mut(&turn_id) {
+        if let Some(slot) = lock(&self.state).slots.get_mut(&turn_id) {
             slot.model_id = Some(model_id.to_owned());
         }
     }
@@ -183,14 +223,14 @@ impl TurnSlots {
     /// Keeps the abort handle of the stream the turn just started, replacing the one of the step
     /// before.
     pub fn set_generation(&self, turn_id: Uuid, handle: AbortHandle) {
-        if let Some(slot) = lock(&self.slots).get_mut(&turn_id) {
+        if let Some(slot) = lock(&self.state).slots.get_mut(&turn_id) {
             slot.generation = Some(handle);
         }
     }
 
     /// Records that `prompt_id` (an approval or a question) is open for `turn_id`.
     pub fn own_prompt(&self, turn_id: Uuid, prompt_id: Uuid) {
-        if let Some(slot) = lock(&self.slots).get_mut(&turn_id) {
+        if let Some(slot) = lock(&self.state).slots.get_mut(&turn_id) {
             slot.open_prompts.insert(prompt_id);
         }
     }
@@ -198,8 +238,9 @@ impl TurnSlots {
     /// Records that `prompt_id` is open for the turn running in `thread_id`. A delegate asks for its
     /// approvals from inside its stream, where only the conversation is known.
     pub fn own_prompt_of_thread(&self, thread_id: Uuid, prompt_id: Uuid) {
-        let mut slots = lock(&self.slots);
-        if let Some(slot) = slots
+        let mut state = lock(&self.state);
+        if let Some(slot) = state
+            .slots
             .values_mut()
             .find(|slot| slot.thread_id == Some(thread_id))
         {
@@ -209,7 +250,7 @@ impl TurnSlots {
 
     /// Records that `prompt_id` is answered or given up.
     pub fn disown_prompt(&self, turn_id: Uuid, prompt_id: Uuid) {
-        if let Some(slot) = lock(&self.slots).get_mut(&turn_id) {
+        if let Some(slot) = lock(&self.state).slots.get_mut(&turn_id) {
             slot.open_prompts.remove(&prompt_id);
         }
     }
@@ -217,7 +258,8 @@ impl TurnSlots {
     /// Takes what is needed to end one turn. The slot stays until its guard drops, so a turn that
     /// was told to stop still counts as running until it has unwound.
     pub fn take_for_abort(&self, turn_id: Uuid) -> Option<Taken> {
-        let mut slots = lock(&self.slots);
+        let mut state = lock(&self.state);
+        let slots = &mut state.slots;
         let slot = slots.get_mut(&turn_id)?;
         Some(take_slot(turn_id, slot))
     }
@@ -225,8 +267,9 @@ impl TurnSlots {
     /// Takes the turn of `thread_id` under the same lock that finds it. This keeps a stop from
     /// missing a new turn if the old one ends and another starts between lookup and cancellation.
     pub fn take_for_thread_abort(&self, thread_id: Uuid) -> Option<Taken> {
-        let mut slots = lock(&self.slots);
-        let (turn_id, slot) = slots
+        let mut state = lock(&self.state);
+        let (turn_id, slot) = state
+            .slots
             .iter_mut()
             .find(|(_, slot)| slot.thread_id == Some(thread_id))?;
         Some(take_slot(*turn_id, slot))
@@ -234,7 +277,7 @@ impl TurnSlots {
 
     /// [`Self::take_for_abort`] for every running turn.
     pub fn take_all_for_abort(&self) -> Vec<Taken> {
-        let ids: Vec<Uuid> = lock(&self.slots).keys().copied().collect();
+        let ids: Vec<Uuid> = lock(&self.state).slots.keys().copied().collect();
         ids.into_iter()
             .filter_map(|id| self.take_for_abort(id))
             .collect()
@@ -244,8 +287,9 @@ impl TurnSlots {
     pub fn stop_accepting_and_take_all(&self) -> Vec<Taken> {
         self.accepting
             .store(false, std::sync::atomic::Ordering::Release);
-        let mut slots = lock(&self.slots);
-        slots
+        let mut state = lock(&self.state);
+        state
+            .slots
             .iter_mut()
             .map(|(id, slot)| take_slot(*id, slot))
             .collect()
@@ -253,7 +297,9 @@ impl TurnSlots {
 
     /// Forgets every slot (the vault closes); a guard that drops later finds nothing to remove.
     pub fn clear(&self) -> Vec<AbortHandle> {
-        let mut slots = lock(&self.slots);
+        let mut state = lock(&self.state);
+        state.model_picks.clear();
+        let slots = &mut state.slots;
         slots
             .drain()
             .filter_map(|(_, slot)| slot.generation)
@@ -261,7 +307,7 @@ impl TurnSlots {
     }
 
     fn remove(&self, turn_id: Uuid) {
-        let removed = lock(&self.slots).remove(&turn_id);
+        let removed = lock(&self.state).slots.remove(&turn_id);
         // Dropped after the guard is gone, so no drop of a handle runs while the lock is held.
         drop(removed);
     }
@@ -273,6 +319,18 @@ fn take_slot(turn_id: Uuid, slot: &mut TurnSlot) -> Taken {
         cancel: slot.cancel.clone(),
         generation: slot.generation.take(),
         open_prompts: std::mem::take(&mut slot.open_prompts),
+    }
+}
+
+/// Keeps a conversation reserved until its model pick and persisted session update finish.
+pub struct ModelPickGuard {
+    slots: Arc<TurnSlots>,
+    thread_id: Uuid,
+}
+
+impl Drop for ModelPickGuard {
+    fn drop(&mut self) {
+        lock(&self.slots.state).model_picks.remove(&self.thread_id);
     }
 }
 
