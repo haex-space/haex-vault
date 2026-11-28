@@ -253,14 +253,10 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
     }
 
     let permit = permit?;
-    let session = {
-        let guard = chat.session.lock().map_err(|e| HaexError::CrdtInit {
-            reason: format!("chat.session mutex poisoned: {e}"),
-        })?;
-        guard.clone().ok_or_else(|| HaexError::InvalidInput {
-            reason: "no model loaded".into(),
-        })?
-    };
+    // The model of this conversation, not whatever another conversation made the open one meanwhile
+    // (spec 068 T012).
+    let session =
+        crate::chat::turn_model::session_for_turn(app, &state, &chat, turn.thread_id).await?;
     chat.turns.set_model(turn_id, &session.model_id);
     // A model the active agent profile does not offer is not usable (spec 083 FR-006b); nothing is
     // stored for a turn that is refused here. A model of an Abo-Agent's provider is a model like

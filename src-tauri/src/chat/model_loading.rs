@@ -24,7 +24,7 @@
 use std::sync::Arc;
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, State};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -226,41 +226,9 @@ pub(crate) async fn load_model_inner(
         // This path only performs bounded database/adapter setup. Await it
         // to completion so cancellation cannot drop a spawn_blocking DB read
         // while a Vault close is waiting to release its Arc.
-        let app_for_emit = app.clone();
-        let turns_for_emit = Arc::clone(&chat.turns);
-        let emit: crate::adapters::cli_delegate::EventEmitter = Arc::new(move |event, payload| {
-            // A delegate asks for its approvals from inside its stream, where only the conversation
-            // is known: the turn running there owns the request, so stopping another conversation's
-            // turn leaves it open (spec 068 R1).
-            if event == crate::chat::events::EVENT_TOOL_PERMISSION_REQUEST {
-                if let (Some(request), Some(thread)) = (
-                    payload
-                        .get("requestId")
-                        .and_then(|v| v.as_str())
-                        .and_then(|v| v.parse::<Uuid>().ok()),
-                    payload
-                        .get("threadId")
-                        .and_then(|v| v.as_str())
-                        .and_then(|v| v.parse::<Uuid>().ok()),
-                ) {
-                    turns_for_emit.own_prompt_of_thread(thread, request);
-                }
-            }
-            let _ = app_for_emit.emit(event, payload);
-        });
-        let delegate_chat_ctx = Some(crate::adapters::cli_delegate::DelegateChatContext {
-            pending_tool_approvals: Arc::clone(&chat.pending_tool_approvals),
-            emit,
-            database: Some(active_database(state)?),
-            children: chat.children().clone(),
-            // Spec 021 US6: a registered delegate gets haex-vault's own MCP server.
-            haex: app
-                .try_state::<crate::mcp_server::McpServer>()
-                .map(|server| server.delegate_access()),
-            deny_rules: Vec::new(),
-            // Spec 094: the tools of this vault, looked up when a run starts.
-            tools: crate::cli_tools::tools_of_open_vault(app, state).ok(),
-        });
+        let delegate_chat_ctx = Some(super::delegate_context::delegate_chat_context(
+            app, state, chat,
+        )?);
         load_api_key_model(state, model_id, provider_id_str, delegate_chat_ctx).await?
     } else if let Some(held) = held {
         held
@@ -403,6 +371,13 @@ pub async fn select_model(
     model_id: String,
     thread_id: Option<Uuid>,
 ) -> Result<LoadedModelInfo> {
+    // The model of a conversation does not change under its own running turn; other conversations'
+    // turns are no reason to refuse a pick (spec 068 T012).
+    if thread_id.is_some_and(|thread| chat.turns.thread_busy(thread)) {
+        return Err(HaexError::InvalidInput {
+            reason: "a turn of this conversation is still running".into(),
+        });
+    }
     let info = load_model_command(
         app,
         state.clone(),
@@ -474,7 +449,9 @@ pub(super) async fn load_model_command(
     integrity_override: bool,
     mode: LoadMode,
 ) -> Result<LoadedModelInfo> {
-    let _operation = chat.acquire_operation()?;
+    // A provider's model or a local model in memory loads beside the running turns; an engine load
+    // is alone (spec 068 T012, `model_lock`).
+    let _operation = chat.acquire_for_load(&model_id)?;
     let (vault_generation, load_id) = chat.begin_model_load();
     let identity = LoadIdentity {
         vault_generation,
