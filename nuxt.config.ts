@@ -62,6 +62,10 @@ export default defineNuxtConfig({
   css: ['~/assets/css/tailwind.css'],
   nitro: {
     publicAssets: [pdfjs('cmaps'), pdfjs('standard_fonts'), pdfjs('wasm')],
+    // Nitro 2.14 (Nuxt 4.7) prerenders both `/` and `/index.html`, and both write `index.html` at the
+    // same time. The longer page can then outlast the shorter one, and its tail ends up in the file after
+    // `</html>`: the web view showed that script text as page text, wide enough to rescale the whole page.
+    prerender: { ignore: ['/index.html'] },
   },
   vite: {
     plugins: [tailwindcss()],
