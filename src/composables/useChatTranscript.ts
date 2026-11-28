@@ -12,6 +12,7 @@ import type {
   useChat,
 } from '~/composables/useChat'
 import type { ChoiceRequestEvent, PendingPrompt } from '~/lib/chat/prompts'
+import type { ParkedStream, useChatStreams } from '~/composables/useChatStreams'
 
 type PendingStreamEvents = {
   tokens: string
@@ -55,6 +56,7 @@ export function useChatTranscript(
   refreshThreads: () => Promise<void>,
   scrollToBottom: (options?: { force?: boolean }) => Promise<void>,
   errString: (e: unknown) => string,
+  streams: ReturnType<typeof useChatStreams>,
 ) {
   const pendingStreamEvents = new Map<string, PendingStreamEvents>()
   const pendingToolEvents = new Map<
@@ -63,10 +65,12 @@ export function useChatTranscript(
   >()
   const pendingTurnCompletions = new Map<string, TurnCompleteEvent>()
   const turnTerminalWaiters = new Map<string, Set<() => void>>()
+  const errorsByThread = new Map<string, string>()
 
   function hasPendingTurn(threadId: string): boolean {
     return (
       streamingThreadId.value === threadId ||
+      streams.isParked(threadId) ||
       (turnSetupPending.value && activeThreadId.value === threadId) ||
       pendingPromptsByThread.has(threadId) ||
       (activeThreadId.value === threadId && pendingPrompts.value.length > 0)
@@ -107,10 +111,19 @@ export function useChatTranscript(
     return pending
   }
 
-  function applyToken(e: TokenEvent, threadId: string) {
-    if (retryingMessageId.value === e.messageId) retryingMessageId.value = null
+  /** Adds a token to the message it belongs to. `parked` is the turn of a conversation that is not
+   * open: its buffer and retry marker are kept with it, and nothing scrolls. */
+  function applyToken(e: TokenEvent, threadId: string, parked?: ParkedStream) {
+    if (parked) {
+      if (parked.retryingMessageId === e.messageId)
+        parked.retryingMessageId = null
+      if (e.delta) parked.buffer += e.delta
+    } else {
+      if (retryingMessageId.value === e.messageId)
+        retryingMessageId.value = null
+      if (e.delta) streamingBuffer.value += e.delta
+    }
     if (e.delta) {
-      streamingBuffer.value += e.delta
       const list = messagesByThread.value[threadId] ?? []
       const idx = list.findIndex((m) => m.id === e.messageId)
       const existing = list[idx]
@@ -126,12 +139,17 @@ export function useChatTranscript(
         [e.messageId]: prev + e.reasoning,
       }
     }
-    scrollToBottom()
+    if (!parked) scrollToBottom()
   }
 
   function handleToken(e: TokenEvent) {
     const threadId = streamingThreadId.value
     if (streamingMessageId.value !== e.messageId || !threadId) {
+      const parked = streams.parkedForMessage(e.messageId)
+      if (parked) {
+        applyToken(e, parked.threadId, parked)
+        return
+      }
       const pending = pendingFor(e.messageId)
       if (e.delta) pending.tokens += e.delta
       if (e.reasoning) pending.reasoning += e.reasoning
@@ -145,26 +163,39 @@ export function useChatTranscript(
    * the reset when the event lands before `send()` installs its placeholder. */
   function handleRetry(e: RetryEvent) {
     const threadId = streamingThreadId.value
-    if (streamingMessageId.value !== e.assistantMessageId || !threadId) {
+    const parked =
+      streamingMessageId.value === e.assistantMessageId && threadId
+        ? undefined
+        : streams.parkedForMessage(e.assistantMessageId)
+    if (
+      !parked &&
+      (streamingMessageId.value !== e.assistantMessageId || !threadId)
+    ) {
       const pending = pendingFor(e.assistantMessageId)
       pending.tokens = ''
       pending.reasoning = ''
       pending.retryReset = true
       return
     }
-    streamingBuffer.value = ''
+    const target = parked ? parked.threadId : (threadId as string)
+    if (parked) {
+      parked.buffer = ''
+      parked.retryingMessageId = e.assistantMessageId
+    } else {
+      streamingBuffer.value = ''
+      retryingMessageId.value = e.assistantMessageId
+    }
     reasoningByMessage.value = {
       ...reasoningByMessage.value,
       [e.assistantMessageId]: '',
     }
-    const list = messagesByThread.value[threadId] ?? []
+    const list = messagesByThread.value[target] ?? []
     const idx = list.findIndex((m) => m.id === e.assistantMessageId)
     const existing = list[idx]
     if (idx !== -1 && existing) {
       list[idx] = { ...existing, content: '' }
-      messagesByThread.value[threadId] = list
+      messagesByThread.value[target] = list
     }
-    retryingMessageId.value = e.assistantMessageId
   }
 
   // `chat-message-complete` fires per step (a turn can have several); it no
@@ -188,6 +219,10 @@ export function useChatTranscript(
 
   function handleComplete(e: MessageCompleteEvent) {
     if (streamingMessageId.value !== e.messageId) {
+      if (streams.parkedForMessage(e.messageId)) {
+        applyComplete(e)
+        return
+      }
       const pending = pendingFor(e.messageId)
       pending.complete = e
       delete pending.error
@@ -199,8 +234,10 @@ export function useChatTranscript(
   function applyError(e: MessageErrorEvent) {
     // A failure with its own kind is named in the person's language (spec 043: an untrusted
     // certificate); every other one shows its reason.
-    lastError.value =
+    const message =
       e.kind === undefined ? e.reason : errString({ kind: e.kind })
+    errorsByThread.set(e.threadId, message)
+    if (activeThreadId.value === e.threadId) lastError.value = message
     const list = messagesByThread.value[e.threadId] ?? []
     const idx = list.findIndex((m) => m.id === e.messageId)
     const existing = list[idx]
@@ -210,8 +247,29 @@ export function useChatTranscript(
     }
   }
 
+  /** Shows the saved message error for the selected conversation, if any. */
+  function activateThreadError(threadId: string | null) {
+    lastError.value = threadId ? (errorsByThread.get(threadId) ?? null) : null
+  }
+
+  /** Associates a send/setup error with its conversation without disturbing the open one. */
+  function setThreadError(threadId: string, message: string) {
+    errorsByThread.set(threadId, message)
+    if (activeThreadId.value === threadId) lastError.value = message
+  }
+
+  /** Clears a conversation's saved error when it is retried or deleted. */
+  function clearThreadError(threadId: string) {
+    errorsByThread.delete(threadId)
+    if (activeThreadId.value === threadId) lastError.value = null
+  }
+
   function handleError(e: MessageErrorEvent) {
     if (streamingMessageId.value !== e.messageId) {
+      if (streams.parkedForMessage(e.messageId)) {
+        applyError(e)
+        return
+      }
       const pending = pendingFor(e.messageId)
       pending.error = e
       delete pending.complete
@@ -300,7 +358,7 @@ export function useChatTranscript(
     })
     messagesByThread.value[e.threadId] = list
     keepStreamingRowLast(e.threadId)
-    scrollToBottom()
+    if (activeThreadId.value === e.threadId) scrollToBottom()
   }
 
   function handleToolResult(e: ToolResultEvent, restoring = false) {
@@ -334,7 +392,7 @@ export function useChatTranscript(
     })
     messagesByThread.value[e.threadId] = list
     keepStreamingRowLast(e.threadId)
-    scrollToBottom()
+    if (activeThreadId.value === e.threadId) scrollToBottom()
   }
 
   // The sole place `streamingMessageId`/`busy` get cleared — a turn can
@@ -358,15 +416,22 @@ export function useChatTranscript(
       )
       pendingToolEvents.delete(e.threadId)
       await refreshThreads()
-      await scrollToBottom()
+      if (activeThreadId.value === e.threadId) await scrollToBottom()
     } catch (error: unknown) {
-      lastError.value = errString(error)
+      const message = errString(error)
+      errorsByThread.set(e.threadId, message)
+      if (activeThreadId.value === e.threadId) lastError.value = message
     } finally {
-      streamingMessageId.value = null
-      streamingThreadId.value = null
-      streamingBuffer.value = ''
-      retryingMessageId.value = null
-      busy.value = false
+      if (streams.isParked(e.threadId)) {
+        // A turn of a conversation that is not open ended: only its own parked state goes.
+        streams.forget(e.threadId)
+      } else {
+        streamingMessageId.value = null
+        streamingThreadId.value = null
+        streamingBuffer.value = ''
+        retryingMessageId.value = null
+        busy.value = false
+      }
     }
   }
 
@@ -406,6 +471,13 @@ export function useChatTranscript(
   }
 
   async function handleTurnComplete(e: TurnCompleteEvent) {
+    const parked = streams.parkedForMessage(e.assistantMessageId ?? '')
+    if (parked && parked.threadId === e.threadId) {
+      // The turn of a conversation that is not open: it ends without touching the open one.
+      await applyTurnComplete(e)
+      resolveTurnTerminal(e.threadId)
+      return
+    }
     if (turnSetupPending.value) {
       pendingTurnCompletions.set(e.threadId, e)
       return
@@ -433,6 +505,9 @@ export function useChatTranscript(
     handleComplete,
     applyError,
     handleError,
+    activateThreadError,
+    setThreadError,
+    clearThreadError,
     handleToolCall,
     handleToolResult,
     applyTurnComplete,

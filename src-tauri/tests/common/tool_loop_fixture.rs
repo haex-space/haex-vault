@@ -282,11 +282,10 @@ pub async fn session_with(adapter: StubAdapter) -> ActiveSession {
 /// `tool-permission-request` events while it is still awaiting them, and
 /// returns every emitted `(event, payload)` in arrival order via a channel
 /// instead of a `Vec` (unlike [`run_scripted_turn`], nothing here can wait
-/// for the whole turn to finish before observing events). Stashes a fresh
-/// `CancellationToken` into `chat_state.turn_cancellation` first, mirroring
-/// what `send_message` does in production, so a test can call
-/// `abort_turn(&chat_state)` exactly like a real `abort_current_generation`
-/// invocation (T032).
+/// for the whole turn to finish before observing events). Registers the turn's slot with a fresh
+/// `CancellationToken` first, mirroring what `send_message` does in production, so a test can call
+/// `abort_turn(&chat_state)` (or `abort_turn_by_id`) exactly like a real
+/// `abort_current_generation` invocation (T032, spec 068 R1).
 #[allow(clippy::too_many_arguments)]
 pub fn spawn_turn(
     db: Database,
@@ -302,10 +301,13 @@ pub fn spawn_turn(
     tokio::sync::mpsc::UnboundedReceiver<(String, Value)>,
 ) {
     let cancel_token = CancellationToken::new();
-    *chat_state.turn_cancellation.lock().unwrap() = Some(cancel_token.clone());
+    let permit = chat_state
+        .begin_turn(assistant_message_id, Some(thread_id), cancel_token.clone())
+        .expect("the turn gets its slot");
 
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
     let handle = tokio::spawn(async move {
+        let _permit = permit;
         let mut emit = move |name: &'static str, payload: Value| {
             let _ = tx.send((name.to_string(), payload));
         };

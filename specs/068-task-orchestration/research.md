@@ -46,6 +46,31 @@ und durch die vorhandenen Turn-Tests abgesichert.
 **Alternative**: Ausführer nur als Modell-Jobs (055) neben dem Chat — verworfen, Jobs haben keine
 Werkzeuge und keine Freigaben.
 
+**Gebaut in PR B (2026-11-28)**: Abweichungen und Festlegungen gegenüber der Entscheidung oben.
+
+- **Turn-ID**: die ID der Assistenten-Nachricht der Antwort. Der Idempotenzschlüssel legt sie fest,
+  bevor etwas gespeichert wird (`derive_message_ids`); jedes Ereignis trägt sie schon (`messageId`,
+  `assistantMessageId`). Ein zusätzliches Feld `turnId` an den Ereignissen (T014) ist deshalb nicht
+  nötig; die Ereignisse tragen außerdem `threadId`. Eine wiederholte Sendung einer laufenden Antwort
+  findet ihre ID belegt und lässt das Token der laufenden unberührt.
+- **Sperre**: `operation` ist ein `RwLock`, nur mit `try_*` benutzt. Antworten nehmen den Lese-Anteil;
+  Modell-Laden, Vault-Übergänge (öffnen, anlegen, importieren, Passphrase ändern) und die Leihe eines
+  Modell-Jobs (`model_jobs/chat_slot.rs`) nehmen den Schreib-Anteil und werden abgelehnt (nicht
+  eingereiht), solange eine Antwort läuft. T006 sagte „ein Laden wartet“: abgelehnt ist das bisherige
+  Verhalten und bleibt; der Job-Slot wartet wie bisher in seiner Schleife.
+- **Eine Antwort je Unterhaltung**: der Slot lehnt eine zweite Antwort derselben Unterhaltung ab, mit
+  der bisherigen Meldung. `send_message` wartet wie bisher bis zu 10 s, aber nur auf die eigene
+  Unterhaltung oder einen laufenden Schreib-Vorgang, nicht auf Antworten anderer Unterhaltungen; der
+  Sprachassistent (066 R12) wartet nach derselben Regel.
+- **Abbruch**: `abort_current_generation { threadId? }` (ohne Unterhaltung: alle Antworten, wie
+  bisher), `abort_turn_by_id`. Freigaben und Auswahlen gehören dem Slot, der sie geöffnet hat; die
+  Freigaben eines Delegates, der sie aus seinem Strom öffnet, ordnet der Emitter in `model_loading.rs`
+  über die `threadId` der Anfrage zu. Der Sprachassistent merkt sich die Turn-ID seiner Runde und
+  bricht nur diese ab.
+- **Fenster**: die Strom-Variablen der Seite beschreiben die Antwort der geöffneten Unterhaltung. Wer
+  eine andere öffnet, parkt die laufende Antwort (`useChatStreams`); ihre Ereignisse landen weiter in
+  ihrer Unterhaltung, und beim Zurückkehren ist ihr Zustand wieder da.
+
 ## R2 — Modell pro Antwort
 
 **Entscheidung**: Eine Antwort bekommt ihr Modell beim Start: Der Orchestrator nutzt sein Modell,
@@ -59,6 +84,14 @@ Nutzer für beide verschiedene lokale Modelle, weist die Einstellung darauf hin,
 Aufgaben warten, bis der Orchestrator nicht spricht, und das Modell gewechselt wird (Leihe nach
 `chat_slot.rs`). Der Spike (T004) misst Speicher und Wartezeit zweier Sequenzen auf dem
 Referenz-Desktop; reicht es nicht, gilt eine Sequenz und die Wartezeit wird angezeigt.
+
+**Befund aus dem Code, nicht gemessen (2026-11-28)**: Der llama.cpp-Adapter bedient heute **eine**
+Erzeugung auf einmal. `LlamaCppAdapter::stream_chat` nimmt pro Schritt (nicht pro Antwort) ein
+`gate`-Mutex des Modells (`llm/llamacpp/adapter.rs`, `model.rs`); eine zweite Anfrage wartet dort und
+gibt auf, wenn ihre Antwort abgebrochen wird. Zwei Antworten auf demselben lokalen Modell laufen also
+verschachtelt, Schritt für Schritt, ohne Fehler; zwei Sequenzen gleichzeitig gibt es nicht (T004
+bleibt offen). Cloud-Modelle und Delegates laufen wirklich parallel. Das Fenster zeigt das Warten
+noch nicht eigens an.
 
 ## R3 — Der Orchestrator ist eine Antwort mit eigenem Werkzeugsatz
 

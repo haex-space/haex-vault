@@ -367,8 +367,21 @@ export function useChat() {
     return { ...result, idempotencyKey }
   }
 
-  /** Aborts the active generation, if one is running. */
-  async function abortAsync(): Promise<void> {
+  /**
+   * Stops the turn of one conversation (`threadId`), or every running turn without one. The turns
+   * of other conversations go on (spec 068 research R1). Stopping a turn that is not running is not
+   * an error.
+   */
+  async function abortAsync(
+    threadId?: string | null,
+    idempotencyKey?: string | null,
+  ): Promise<void> {
+    if (threadId || idempotencyKey) {
+      await invoke('abort_current_generation', {
+        args: { threadId, idempotencyKey },
+      })
+      return
+    }
     await invoke('abort_current_generation')
   }
 

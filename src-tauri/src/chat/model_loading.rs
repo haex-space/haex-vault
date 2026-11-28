@@ -227,7 +227,25 @@ pub(crate) async fn load_model_inner(
         // to completion so cancellation cannot drop a spawn_blocking DB read
         // while a Vault close is waiting to release its Arc.
         let app_for_emit = app.clone();
+        let turns_for_emit = Arc::clone(&chat.turns);
         let emit: crate::adapters::cli_delegate::EventEmitter = Arc::new(move |event, payload| {
+            // A delegate asks for its approvals from inside its stream, where only the conversation
+            // is known: the turn running there owns the request, so stopping another conversation's
+            // turn leaves it open (spec 068 R1).
+            if event == crate::chat::events::EVENT_TOOL_PERMISSION_REQUEST {
+                if let (Some(request), Some(thread)) = (
+                    payload
+                        .get("requestId")
+                        .and_then(|v| v.as_str())
+                        .and_then(|v| v.parse::<Uuid>().ok()),
+                    payload
+                        .get("threadId")
+                        .and_then(|v| v.as_str())
+                        .and_then(|v| v.parse::<Uuid>().ok()),
+                ) {
+                    turns_for_emit.own_prompt_of_thread(thread, request);
+                }
+            }
             let _ = app_for_emit.emit(event, payload);
         });
         let delegate_chat_ctx = Some(crate::adapters::cli_delegate::DelegateChatContext {

@@ -75,8 +75,8 @@ use catalog::list_catalog;
 use chat::action_commands::{respond_action_call, set_agent_actions};
 use chat::choices::respond_choice;
 use chat::commands::{
-    abort_current_generation, inspect_attachment, read_attachment_preview, respond_tool_permission,
-    send_message,
+    abort_current_generation, abort_turn_by_id, inspect_attachment, read_attachment_preview,
+    respond_tool_permission, send_message,
 };
 use chat::default_model::{model_load_status, resolve_default_model, use_session_model};
 use chat::model_loading::{active_model_info, load_model, select_model};
@@ -927,6 +927,7 @@ pub fn run() {
             read_attachment_preview,
             chat::pasted_attachments::stage_pasted_attachment,
             abort_current_generation,
+            abort_turn_by_id,
             respond_tool_permission,
             set_agent_actions,
             respond_action_call,

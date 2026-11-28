@@ -525,6 +525,9 @@ struct RunningTurn {
     round: u64,
     cancel: CancellationToken,
     abort_requested: Arc<std::sync::atomic::AtomicBool>,
+    /// The chat turn of this round (the id of its assistant message), once it has started: a stop
+    /// ends this turn only, never one a window runs beside it (spec 068 R1).
+    chat_turn: Arc<Mutex<Option<Uuid>>>,
 }
 
 struct RealPorts {
@@ -817,10 +820,12 @@ impl Ports for RealPorts {
     ) {
         let cancel = self.gate.token().child_token();
         let abort_requested = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let chat_turn = Arc::new(Mutex::new(None));
         self.turn = Some(RunningTurn {
             round,
             cancel: cancel.clone(),
             abort_requested: Arc::clone(&abort_requested),
+            chat_turn: Arc::clone(&chat_turn),
         });
         let app = self.app.clone();
         let inbox = self.inbox.clone();
@@ -841,22 +846,21 @@ impl Ports for RealPorts {
         });
         let spawned = self.gate.spawn(async move {
             match turn::start(&app, turn, sink).await {
-                Ok(Started::Running(_)) => {
+                Ok(Started::Running(started)) => {
+                    *chat_turn.lock().unwrap_or_else(|e| e.into_inner()) =
+                        Some(started.assistant_message_id);
                     chat_round.store(round, Ordering::Release);
                     // End can arrive after chat::start_turn creates its generation but before
                     // this task publishes that fact to the actor. In that window abort_turn
-                    // cancels the VoiceTurn token but cannot yet safely abort the global chat
-                    // generation. Recheck here, claiming the abort once across both paths.
+                    // cancels the VoiceTurn token but does not yet know the chat turn to stop.
+                    // Recheck here, claiming the abort once across both paths.
                     if round_cancel.is_cancelled()
                         && requested
                             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
                             .is_ok()
                     {
-                        if let Err(error) =
-                            crate::chat::commands::abort_turn(&app.state::<ChatState>())
-                        {
-                            log::warn!("assistant: could not abort a just-started round: {error}");
-                        }
+                        app.state::<ChatState>()
+                            .abort_turn_by_id(started.assistant_message_id);
                     }
                 }
                 Ok(Started::GaveUp | Started::Cancelled) => {}
@@ -884,8 +888,9 @@ impl Ports for RealPorts {
                 .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
                 .is_ok()
         {
-            if let Err(error) = crate::chat::commands::abort_turn(&self.app.state::<ChatState>()) {
-                self.report_error(&error);
+            let started = *turn.chat_turn.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(chat_turn) = started {
+                self.app.state::<ChatState>().abort_turn_by_id(chat_turn);
             }
         }
     }

@@ -113,7 +113,7 @@ async fn give_back(
     app: AppHandle,
     model_id: String,
     vault_generation: u64,
-    operation: tokio::sync::OwnedMutexGuard<()>,
+    operation: tokio::sync::OwnedRwLockWriteGuard<()>,
 ) {
     let chat = app.state::<ChatState>();
     let state = app.state::<AppState>();

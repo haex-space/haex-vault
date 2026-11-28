@@ -115,7 +115,13 @@ impl Tool for McpLikeTool {
 
 /// Fills every slot a vault session can leave behind and returns a weak handle on the adapter,
 /// so a test can see the adapter go away, plus the stream that keeps the generation task alive.
-fn fill_session(chat: &ChatState) -> (std::sync::Weak<IdleAdapter>, AdapterStream) {
+fn fill_session(
+    chat: &ChatState,
+) -> (
+    std::sync::Weak<IdleAdapter>,
+    AdapterStream,
+    crate::chat::turn_control::TurnPermit,
+) {
     let adapter = Arc::new(IdleAdapter);
     let weak = Arc::downgrade(&adapter);
     *chat.session.lock().unwrap() = Some(ActiveSession {
@@ -131,9 +137,12 @@ fn fill_session(chat: &ChatState) -> (std::sync::Weak<IdleAdapter>, AdapterStrea
     let (_tx, rx) = mpsc::unbounded_channel();
     let task = tokio::spawn(std::future::pending::<()>());
     let stream = AdapterStream::new(rx, task.abort_handle());
-    *chat.current_generation.lock().unwrap() = Some(stream.abort_handle());
+    let turn_id = Uuid::new_v4();
+    let permit = chat
+        .begin_turn(turn_id, None, CancellationToken::new())
+        .expect("the turn gets its slot");
+    chat.turns.set_generation(turn_id, stream.abort_handle());
 
-    *chat.turn_cancellation.lock().unwrap() = Some(CancellationToken::new());
     let (sender, _receiver) = oneshot::channel::<ApprovalDecision>();
     chat.pending_tool_approvals
         .lock()
@@ -147,7 +156,7 @@ fn fill_session(chat: &ChatState) -> (std::sync::Weak<IdleAdapter>, AdapterStrea
         .lock()
         .unwrap()
         .register(Arc::new(McpLikeTool));
-    (weak, stream)
+    (weak, stream, permit)
 }
 
 fn registered_tool_names(chat: &ChatState) -> Vec<String> {
@@ -162,7 +171,7 @@ fn registered_tool_names(chat: &ChatState) -> Vec<String> {
 #[tokio::test]
 async fn reset_for_close_leaves_nothing_of_the_vault_session_behind() {
     let chat = ChatState::new();
-    let (adapter, _stream) = fill_session(&chat);
+    let (adapter, _stream, _permit) = fill_session(&chat);
     assert!(adapter.upgrade().is_some());
     assert!(registered_tool_names(&chat).contains(&"mcp_search".to_string()));
 
@@ -173,8 +182,10 @@ async fn reset_for_close_leaves_nothing_of_the_vault_session_behind() {
         adapter.upgrade().is_none(),
         "the adapter, and whatever it holds, must be dropped"
     );
-    assert!(chat.current_generation.lock().unwrap().is_none());
-    assert!(chat.turn_cancellation.lock().unwrap().is_none());
+    assert!(
+        !chat.turns.any_running(),
+        "every turn's slot is forgotten with its stream handle and token"
+    );
     assert!(chat.pending_tool_approvals.lock().unwrap().is_empty());
     assert!(chat.cancelled_tool_approvals.lock().unwrap().is_empty());
     assert_eq!(
@@ -187,7 +198,7 @@ async fn reset_for_close_leaves_nothing_of_the_vault_session_behind() {
 #[tokio::test]
 async fn reset_for_close_is_idempotent() {
     let chat = ChatState::new();
-    let (_adapter, _stream) = fill_session(&chat);
+    let (_adapter, _stream, _permit) = fill_session(&chat);
 
     chat.reset_for_close();
     chat.reset_for_close();

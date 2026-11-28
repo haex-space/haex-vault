@@ -1,4 +1,4 @@
-import { ref, type Ref } from 'vue'
+import { computed, reactive, type Ref } from 'vue'
 import type {
   AgentActivityEvent,
   LoadedModelInfo,
@@ -8,6 +8,7 @@ import type {
 } from '~/composables/useChat'
 import type { PendingPrompt } from '~/lib/chat/prompts'
 import type { useChatTranscript } from '~/composables/useChatTranscript'
+import type { useChatStreams } from '~/composables/useChatStreams'
 import type { ComposerAttachment } from '~/components/chat/ComposerAttachments.vue'
 
 /**
@@ -48,25 +49,35 @@ export function useComposer(
   attachments: Ref<ComposerAttachment[]>,
   pendingPrompts: Ref<PendingPrompt[]>,
   pendingPromptsByThread: Map<string, PendingPrompt[]>,
+  streams: ReturnType<typeof useChatStreams>,
 ) {
   let sendGeneration = 0
   let sendInvocationStarted = false
+  let activeSendIdempotencyKey: string | null = null
 
   // Live sub-agent activity for the Claude Code delegate (spec
-  // 011-composer-toolbar-parity Story 2) — reset at the start of every send
-  // and when the current turn ends, so a stale count never survives into
-  // the next turn.
-  const activeAgentCount = ref(0)
-  const lastAgentBatchSize = ref<number | null>(null)
+  // 011-composer-toolbar-parity Story 2), keyed by turn so parked turns do
+  // not overwrite the activity shown for the open conversation.
+  const agentActivity = reactive(
+    new Map<string, { activeCount: number; batchSize: number | null }>(),
+  )
+  const activeAgentCount = computed(
+    () => agentActivity.get(streamingMessageId.value ?? '')?.activeCount ?? 0,
+  )
+  const lastAgentBatchSize = computed(
+    () => agentActivity.get(streamingMessageId.value ?? '')?.batchSize ?? null,
+  )
 
   function handleAgentActivity(e: AgentActivityEvent) {
-    activeAgentCount.value = e.activeCount
-    if (e.batchSize !== undefined) lastAgentBatchSize.value = e.batchSize
+    const previous = agentActivity.get(e.messageId)
+    agentActivity.set(e.messageId, {
+      activeCount: e.activeCount,
+      batchSize: e.batchSize ?? previous?.batchSize ?? null,
+    })
   }
 
-  function resetAgentActivity() {
-    activeAgentCount.value = 0
-    lastAgentBatchSize.value = null
+  function resetAgentActivity(messageId: string | null) {
+    if (messageId) agentActivity.delete(messageId)
   }
 
   const {
@@ -91,8 +102,7 @@ export function useComposer(
     if (!retry) input.value = ''
     busy.value = true
     lastError.value = null
-    activeAgentCount.value = 0
-    lastAgentBatchSize.value = null
+    const selectedThreadAtStart = activeThreadId.value
     const request = retry ?? {
       threadId: activeThreadId.value,
       content,
@@ -100,6 +110,8 @@ export function useComposer(
       reasoningOption: effortLevel.value,
       attachments: attachments.value.map((a) => ({ path: a.path })),
     }
+    activeSendIdempotencyKey = request.idempotencyKey ?? null
+    if (request.threadId) chatTranscript.clearThreadError(request.threadId)
     pendingSend.value = null
     if (!retry) attachments.value = []
     turnSetupPending.value = true
@@ -108,15 +120,10 @@ export function useComposer(
       // send cannot reserve the chat operation first and use the previously loaded model.
       await chat.useSessionModelAsync(request.threadId ?? null)
       if (generation !== sendGeneration) return
+      const sendModelId = activeModel.value?.modelId ?? null
       sendInvocationStarted = true
       const result = await chat.sendMessageAsync(request)
-      activeThreadId.value = result.threadId
-      const queuedApprovals = pendingPromptsByThread.get(result.threadId)
-      if (queuedApprovals) {
-        // Merge, don't overwrite: see the matching comment in `selectThread`.
-        pendingPrompts.value = [...queuedApprovals, ...pendingPrompts.value]
-        pendingPromptsByThread.delete(result.threadId)
-      }
+      activeSendIdempotencyKey = null
       if (retry) {
         // A replay returns the original IDs without emitting another turn.
         // Recover a completed answer when the initial invoke response was lost.
@@ -126,18 +133,42 @@ export function useComposer(
           (message) => message.id === result.assistantMessageId,
         )
         if (completed?.finishReason) {
-          streamingMessageId.value = result.assistantMessageId
-          streamingThreadId.value = result.threadId
           turnSetupPending.value = false
           pendingStreamEvents.delete(result.assistantMessageId)
           pendingTurnCompletions.delete(result.threadId)
-          await handleTurnComplete({
-            threadId: result.threadId,
-            assistantMessageId: result.assistantMessageId,
-            finishReason: completed.finishReason,
-          })
+          if (activeThreadId.value === selectedThreadAtStart) {
+            activeThreadId.value = result.threadId
+            streamingMessageId.value = result.assistantMessageId
+            streamingThreadId.value = result.threadId
+            await handleTurnComplete({
+              threadId: result.threadId,
+              assistantMessageId: result.assistantMessageId,
+              finishReason: completed.finishReason,
+            })
+          } else {
+            streams.park(result.threadId, result.assistantMessageId)
+            busy.value = activeThreadId.value
+              ? streams.isRunning(activeThreadId.value)
+              : false
+            await handleTurnComplete({
+              threadId: result.threadId,
+              assistantMessageId: result.assistantMessageId,
+              finishReason: completed.finishReason,
+            })
+          }
           return
         }
+      }
+      const showInActiveConversation =
+        activeThreadId.value === selectedThreadAtStart
+      if (showInActiveConversation) activeThreadId.value = result.threadId
+      const queuedApprovals = showInActiveConversation
+        ? pendingPromptsByThread.get(result.threadId)
+        : undefined
+      if (queuedApprovals) {
+        // Merge, don't overwrite: see the matching comment in `selectThread`.
+        pendingPrompts.value = [...queuedApprovals, ...pendingPrompts.value]
+        pendingPromptsByThread.delete(result.threadId)
       }
       // Seed the assistant message placeholder so the UI can show
       // tokens as they stream in.
@@ -168,7 +199,7 @@ export function useComposer(
           parentId: result.userMessageId,
           role: 'assistant',
           content: '',
-          modelId: activeModel.value?.modelId ?? null,
+          modelId: sendModelId,
           promptTokens: null,
           completionTokens: null,
           finishReason: null,
@@ -182,10 +213,17 @@ export function useComposer(
         })
       messagesByThread.value[result.threadId] = list
       turnSetupPending.value = false
-      streamingMessageId.value = result.assistantMessageId
-      streamingThreadId.value = result.threadId
-      streamingBuffer.value = ''
-      retryingMessageId.value = null
+      if (showInActiveConversation) {
+        streamingMessageId.value = result.assistantMessageId
+        streamingThreadId.value = result.threadId
+        streamingBuffer.value = ''
+        retryingMessageId.value = null
+      } else {
+        streams.park(result.threadId, result.assistantMessageId)
+        busy.value = activeThreadId.value
+          ? streams.isRunning(activeThreadId.value)
+          : false
+      }
       reasoningByMessage.value = {
         ...reasoningByMessage.value,
         [result.assistantMessageId]: '',
@@ -201,7 +239,14 @@ export function useComposer(
       const pending = pendingStreamEvents.get(result.assistantMessageId)
       pendingStreamEvents.delete(result.assistantMessageId)
       if (pending?.retryReset) {
-        streamingBuffer.value = ''
+        const parked = streams.parkedForMessage(result.assistantMessageId)
+        if (parked) {
+          parked.buffer = ''
+          parked.retryingMessageId = result.assistantMessageId
+        } else {
+          streamingBuffer.value = ''
+          retryingMessageId.value = result.assistantMessageId
+        }
         reasoningByMessage.value = {
           ...reasoningByMessage.value,
           [result.assistantMessageId]: '',
@@ -226,20 +271,29 @@ export function useComposer(
       } else {
         // A failed list refresh must not turn an accepted send into a retry.
         await refreshThreads().catch((e: unknown) => {
-          lastError.value = errString(e)
+          const message = errString(e)
+          if (showInActiveConversation) lastError.value = message
+          else chatTranscript.setThreadError(result.threadId, message)
         })
       }
       // The reader just sent this message: show it, wherever they had scrolled to.
-      await scrollToBottom({ force: true })
+      if (showInActiveConversation) await scrollToBottom({ force: true })
     } catch (e: unknown) {
       if (generation !== sendGeneration) return
       // The initial invoke may have been accepted even when its response was
       // lost. Keep the exact same key available for a safe retry; stream
       // errors are handled separately and deliberately do not retry.
       pendingSend.value = request
-      lastError.value = errString(e)
-      busy.value = false
+      const message = errString(e)
+      if (request.threadId)
+        chatTranscript.setThreadError(request.threadId, message)
+      if (activeThreadId.value === selectedThreadAtStart)
+        lastError.value = message
+      busy.value = activeThreadId.value
+        ? streams.isRunning(activeThreadId.value)
+        : false
       turnSetupPending.value = false
+      if (!sendInvocationStarted) activeSendIdempotencyKey = null
     }
   }
 
@@ -265,6 +319,27 @@ export function useComposer(
       return
     }
     try {
+      // Only the open conversation's turn stops; the others go on (spec 068 research R1).
+      if (activeThreadId.value) {
+        await chat.abortAsync(activeThreadId.value)
+      } else if (sendInvocationStarted && activeSendIdempotencyKey) {
+        // A new conversation has no thread id until send_message replies; target its deterministic
+        // turn id through the send key so stopping it cannot cancel other parked conversations.
+        await chat.abortAsync(null, activeSendIdempotencyKey)
+      }
+    } catch (e: unknown) {
+      lastError.value = errString(e)
+    }
+  }
+
+  /** Stops every running turn, the open conversation's and the parked ones (closing the tab). */
+  async function abortAll() {
+    if (turnSetupPending.value && !sendInvocationStarted) {
+      sendGeneration++
+      busy.value = false
+      turnSetupPending.value = false
+    }
+    try {
       await chat.abortAsync()
     } catch (e: unknown) {
       lastError.value = errString(e)
@@ -273,7 +348,9 @@ export function useComposer(
 
   /** Clears the active conversation so the next send creates a new thread. */
   async function newChat() {
-    if (busy.value || modelLoadPending.value) return
+    // The turn of the conversation left keeps running, parked (spec 068 research R1); only a send
+    // that is still being set up holds the window.
+    if (turnSetupPending.value || modelLoadPending.value) return
     if (activeThreadId.value && pendingPrompts.value.length > 0) {
       const queued = pendingPromptsByThread.get(activeThreadId.value) ?? []
       pendingPromptsByThread.set(activeThreadId.value, [
@@ -282,7 +359,9 @@ export function useComposer(
       ])
       pendingPrompts.value = []
     }
+    streams.switchTo(null)
     activeThreadId.value = null
+    chatTranscript.activateThreadError(null)
     // A new session starts with the last model picked in the model menu (spec 006).
     void chat.useSessionModelAsync(null).catch(() => {})
     input.value = ''
@@ -290,7 +369,10 @@ export function useComposer(
     streamingMessageId.value = null
     streamingThreadId.value = null
     streamingBuffer.value = ''
-    reasoningByMessage.value = {}
+    // What parked turns streamed so far belongs to them, not to the conversation just left.
+    reasoningByMessage.value = streams.reasoningOfParked(
+      reasoningByMessage.value,
+    )
     expandedReasoning.value = new Set()
     pendingStreamEvents.clear()
     void resetTextarea()
@@ -307,6 +389,7 @@ export function useComposer(
   return {
     send,
     abort,
+    abortAll,
     newChat,
     setReasoningExpanded,
     onVoiceTranscript,

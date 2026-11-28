@@ -1,6 +1,6 @@
 # Parallel turns, and an orchestrator that cannot approve
 
-Status: proposed
+Status: accepted (parallel turns built 2026-11-28, spec 068 PR B)
 Date: 2026-10-28
 
 ## Context
@@ -29,6 +29,23 @@ pending approval and choice. The model of a turn is whatever is loaded.
 - **Executors are the existing agents.** The built-in agent with the stage's model, in a hidden task
   conversation, or a CLI delegate in a project folder. Their tools, approval levels, guardrails and
   limits do not change.
+
+## What PR B built (2026-11-28)
+
+- **Turn id.** A turn is named by the id of the assistant message it writes. The idempotency key
+  fixes that id before anything is stored (`derive_message_ids`), every event of the turn already
+  carries it (`messageId`, `assistantMessageId`), and a retried send of a running turn finds its id
+  taken, so it never replaces the live turn's token.
+- **Locks.** `operation` is a `tokio::sync::RwLock<()>` used with `try_*` only. A turn holds the read
+  side; a model load, a vault transition and a model job's loan hold the write side and are refused
+  (not queued) while any turn runs. One conversation has one turn at a time, enforced by its slot.
+- **Aborts.** `abort_current_generation { threadId? }` stops one conversation's turn (all turns
+  without a thread), `abort_turn_by_id` stops one by id; only that slot's token, stream and the
+  approvals and questions it opened are dropped. The vault close and "close the tab" stop every turn.
+- **One loaded model.** A turn still takes the model that is loaded when it starts. Changing the
+  model to the one another conversation needs is a load, and a load waits for the running turns
+  (refused with the usual message), so two conversations on two different local or cloud models at
+  the same moment are not possible yet; "Model per turn" (research R2) is the follow-up.
 
 ## Consequences
 

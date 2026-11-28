@@ -52,21 +52,21 @@ attribution.
 
 ### Tests first
 
-- [ ] T005 [P] Turn-slot tests in src-tauri/src/chat/turn_slots_tests.rs: insert/remove by turn id, lookup by thread and task, abort one slot leaves others running
-- [ ] T006 [P] Integration test src-tauri/tests/chat_parallel_turns.rs: two scripted turns in different threads run at once; a model load waits for both (write lock); aborting one cancels only its generation, approvals and choices; the other completes
-- [ ] T007 [P] Regression: all existing chat turn tests and `cli_delegate` tests pass unchanged with orchestration off
+- [x] T005 [P] Turn-slot tests in src-tauri/src/chat/turn_slots_tests.rs: insert/remove by turn id, lookup by thread and task, abort one slot leaves others running (built 2026-11-28; the tests of the lock and the aborts on `ChatState` are in src-tauri/src/chat/turn_control_tests.rs)
+- [x] T006 [P] Integration test src-tauri/tests/chat_parallel_turns.rs: two scripted turns in different threads run at once; a model load waits for both (write lock); aborting one cancels only its generation, approvals and choices; the other completes (a load is refused, not queued, while a turn runs: research R1, PR B)
+- [x] T007 [P] Regression: all existing chat turn tests and `cli_delegate` tests pass unchanged with orchestration off (the `cli_delegate` and tool-loop tests are unchanged except the fixture; five tests that set the old `turn_cancellation` or `current_generation` fields or used the lock as a turn were ported to the slot API: `tool_loop_fixture::spawn_turn`, `step_tests`, `session_tests`, `commands_tests`, `vault_lifecycle_close`)
 - [ ] T008 [P] Token-sum tests in src-tauri/src/chat/tokens_tests.rs: tokens of every round add up per turn; stored on the final row
 
 ### Implementation
 
-- [ ] T009 Implement `TurnSlots` in src-tauri/src/chat/turn_slots.rs and switch `ChatState` (src-tauri/src/chat/session.rs): `operation` → `tokio::sync::RwLock<()>` (turns read, loads and vault transitions write); `current_generation` and `turn_cancellation` move into the slot
-- [ ] T010 Add `turn_id` to pending approvals and choices (`pending_tool_approvals`, `pending_choices`) with the smallest change in src-tauri/src/chat/turn/tool_round.rs and src-tauri/src/chat/choices.rs; `abort_turn(turn_id)` drains only that turn
-- [ ] T011 Command `abort_turn_by_id {turnId}`; `abort_current_generation` aborts the turn of the active thread (src-tauri/src/chat/commands.rs)
-- [ ] T012 Model per turn: a turn may carry its own adapter from `model_jobs::ModelSource` / `Providers::adapter` instead of `chat.session`; local models share one `LocalModel` with up to two sequences per T004 (src-tauri/src/model_jobs/local_slot.rs)
-- [ ] T013 Token sums per turn in src-tauri/src/chat/tokens.rs; add columns `turn_tokens_in`, `turn_tokens_out` to `chat_messages` in the PR B migration so T008 can run against this phase's schema
-- [ ] T014 Events carry `turnId` (and `taskId` when set) in src-tauri/src/chat/events.rs
-- [ ] T015 Frontend: several streams keyed by turn id in src/composables/useChatTranscript.ts and src/composables/useChat.ts; extend scripts/check-chat-state.ts
-- [ ] T016 Set ADR-0021 to "accepted" in docs/adr/0021-parallel-turns-and-orchestrator.md
+- [x] T009 Implement `TurnSlots` in src-tauri/src/chat/turn_slots.rs and switch `ChatState` (src-tauri/src/chat/session.rs): `operation` → `tokio::sync::RwLock<()>` (turns read, loads and vault transitions write); `current_generation` and `turn_cancellation` move into the slot
+- [x] T010 Add `turn_id` to pending approvals and choices (`pending_tool_approvals`, `pending_choices`) with the smallest change in src-tauri/src/chat/turn/tool_round.rs and src-tauri/src/chat/choices.rs; `abort_turn(turn_id)` drains only that turn (done by ownership: the slot records the ids of the prompts it opened, so the maps and their many callers keep their types; delegate approvals are owned through their `threadId` in `model_loading.rs`)
+- [x] T011 Command `abort_turn_by_id {turnId}`; `abort_current_generation` aborts the turn of the active thread (src-tauri/src/chat/commands.rs)
+- [ ] T012 (open: a turn still takes the model loaded when it starts, a load waits for the running turns; local sequences are not built, see research R2) Model per turn: a turn may carry its own adapter from `model_jobs::ModelSource` / `Providers::adapter` instead of `chat.session`; local models share one `LocalModel` with up to two sequences per T004 (src-tauri/src/model_jobs/local_slot.rs)
+- [ ] T013 (open: orchestrator-specific, not needed for parallel turns) Token sums per turn in src-tauri/src/chat/tokens.rs; add columns `turn_tokens_in`, `turn_tokens_out` to `chat_messages` in the PR B migration so T008 can run against this phase's schema
+- [x] T014 Events carry `turnId` (and `taskId` when set) in src-tauri/src/chat/events.rs (no new field: the turn id is the assistant message id and every event already carries it as `messageId` or `assistantMessageId`, plus `threadId`; `taskId` comes with PR C)
+- [x] T015 Frontend: several streams keyed by turn id in src/composables/useChatTranscript.ts and src/composables/useChat.ts; extend scripts/check-chat-state.ts (built as parked streams in src/composables/useChatStreams.ts, checked by scripts/check-chat-parallel-turns.ts; not tried in the running app)
+- [x] T016 Set ADR-0021 to "accepted" in docs/adr/0021-parallel-turns-and-orchestrator.md
 
 **Checkpoint (PR B)**: two turns can run at once; nothing visible changes.
 

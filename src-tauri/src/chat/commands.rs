@@ -19,7 +19,7 @@ use crate::storage::models as models_store;
 
 pub use super::send::SendMessageResult;
 use super::send::{start_turn, StartTurn};
-use super::send_admission::{resolve_idempotent_send, IdempotentSend};
+use super::send_admission::{derive_message_ids, resolve_idempotent_send, IdempotentSend};
 use super::session::ChatState;
 
 pub(crate) const PREF_LAST_ACTIVE_MODEL: &str = "chat.last_active_model_id";
@@ -143,12 +143,13 @@ pub const SEND_WAIT_WHEN_BUSY: std::time::Duration = std::time::Duration::from_s
 /// with the voice assistant (spec 066 T038).
 #[tauri::command]
 pub async fn send_message(app: AppHandle, args: SendMessageArgs) -> Result<SendMessageResult> {
-    // A spoken round, a model load or the end of the last turn may still hold the chat for a
-    // moment; the voice assistant waits the same time the other way round (spec 066 R12). A retry
+    // A spoken round, a model load or the end of the last turn of this conversation may still hold
+    // the chat for a moment (a turn of another conversation does not, spec 068 R1); the voice assistant waits the same time the other way round (spec 066 R12). A retry
     // of a send that was already accepted gets its ids back at once, even while its own turn runs.
     let chat = app.state::<ChatState>();
-    if chat.operation_busy() && !is_replay(&app, &args).await {
-        chat.wait_until_free(SEND_WAIT_WHEN_BUSY).await;
+    if chat.busy_for(args.thread_id) && !is_replay(&app, &args).await {
+        chat.wait_until_free_for(args.thread_id, SEND_WAIT_WHEN_BUSY)
+            .await;
     }
     let emitter = app.clone();
     start_turn(
@@ -202,66 +203,71 @@ pub(crate) fn answered_without_the_chat(
         )
 }
 
-/// Cancels the in-flight generation, if any. Idempotent — safe to
-/// call when nothing is running. Split from the `#[tauri::command]`
-/// wrapper so integration tests (`tests/chat_tool_loop.rs`) can trigger the
-/// same cancellation without a live `AppHandle`/`State` — same pattern as
-/// `resolve_idempotent_send` etc. above.
+/// Cancels every running turn and drops every open approval and question. Idempotent — safe to
+/// call when nothing is running. Split from the `#[tauri::command]` wrappers so integration tests
+/// (`tests/chat_tool_loop.rs`) can trigger the same cancellation without a live
+/// `AppHandle`/`State` — same pattern as `resolve_idempotent_send` etc. above. The vault close uses
+/// it; the window stops one turn through [`abort_current_generation`].
 pub fn abort_turn(chat_state: &ChatState) -> Result<()> {
-    {
-        let mut guard = chat_state
-            .current_generation
-            .lock()
-            .map_err(|e| HaexError::CrdtInit {
-                reason: format!("chat.current_generation mutex poisoned: {e}"),
-            })?;
-        if let Some(abort) = guard.take() {
-            abort.abort();
-        }
-    }
-    // The turn's own cooperative signal: `chat/turn/step.rs`'s streaming loop races every step
-    // against this token directly, so this is what actually stops the LLM stream promptly, not
-    // just an in-flight `Tool::execute` (T032, CLI/MCP implementations race their own work
-    // against it too and tear it down on the spot).
-    {
-        let guard = chat_state
-            .turn_cancellation
-            .lock()
-            .map_err(|e| HaexError::CrdtInit {
-                reason: format!("chat.turn_cancellation mutex poisoned: {e}"),
-            })?;
-        if let Some(token) = guard.as_ref() {
-            token.cancel();
-        }
-    }
-    // Dropping every pending sender resolves its `oneshot::Receiver` with
-    // an `Err`, which the turn loop already treats as cancelled rather
-    // than denied (distinct from a `respond_tool_permission` deny).
-    {
-        let mut pending =
-            chat_state
-                .pending_tool_approvals
-                .lock()
-                .map_err(|e| HaexError::CrdtInit {
-                    reason: format!("chat.pending_tool_approvals mutex poisoned: {e}"),
-                })?;
-        let mut cancelled =
-            chat_state
-                .cancelled_tool_approvals
-                .lock()
-                .map_err(|e| HaexError::CrdtInit {
-                    reason: format!("chat.cancelled_tool_approvals mutex poisoned: {e}"),
-                })?;
-        cancelled.extend(pending.keys().copied());
-        pending.clear();
-    }
-    chat_state.pending_choices.cancel_all();
+    chat_state.abort_all_turns();
     Ok(())
 }
 
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AbortGenerationArgs {
+    /// The conversation whose turn to stop. Without it every running turn stops (the old meaning,
+    /// for callers that do not know a conversation).
+    #[serde(default)]
+    pub thread_id: Option<Uuid>,
+    /// The in-flight send's idempotency key, used before a new conversation has returned its thread id.
+    #[serde(default)]
+    pub idempotency_key: Option<String>,
+}
+
+/// Stops the turn of one conversation (`threadId`), or every running turn without one. The other
+/// conversations' turns go on (spec 068 R1).
 #[tauri::command]
-pub async fn abort_current_generation(chat: State<'_, ChatState>) -> Result<()> {
-    abort_turn(&chat)
+pub async fn abort_current_generation(
+    chat: State<'_, ChatState>,
+    args: Option<AbortGenerationArgs>,
+) -> Result<()> {
+    match args {
+        Some(AbortGenerationArgs {
+            thread_id: Some(thread_id),
+            ..
+        }) => {
+            chat.abort_turn_of_thread(thread_id);
+            Ok(())
+        }
+        Some(AbortGenerationArgs {
+            idempotency_key: Some(key),
+            ..
+        }) => {
+            let turn_id = derive_message_ids(&key).1;
+            chat.abort_turn_by_id(turn_id);
+            Ok(())
+        }
+        None
+        | Some(AbortGenerationArgs {
+            thread_id: None,
+            idempotency_key: None,
+        }) => abort_turn(&chat),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AbortTurnByIdArgs {
+    pub turn_id: Uuid,
+}
+
+/// Stops one turn by its id (the id of its assistant message); a turn that is not running is not an
+/// error.
+#[tauri::command]
+pub async fn abort_turn_by_id(chat: State<'_, ChatState>, args: AbortTurnByIdArgs) -> Result<()> {
+    chat.abort_turn_by_id(args.turn_id);
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]

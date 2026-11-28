@@ -23,6 +23,8 @@ pub mod session;
 pub mod thread_commands;
 pub mod tools;
 pub mod turn;
+pub mod turn_control;
+pub mod turn_slots;
 
 #[cfg(test)]
 mod session_tests;

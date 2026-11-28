@@ -62,6 +62,9 @@ impl TurnRunner<'_> {
     /// Emits one question and waits for its answer; `None` when the turn was cancelled meanwhile.
     async fn ask(&mut self, tool_name: &str, choice: ChoiceRequest) -> Option<ChoiceAnswer> {
         let (request_id, receiver) = self.chat_state.pending_choices.open();
+        self.chat_state
+            .turns
+            .own_prompt(self.assistant_message_id, request_id);
         self.emit_event(
             EVENT_CHOICE_REQUEST,
             ChoiceRequestEvent {

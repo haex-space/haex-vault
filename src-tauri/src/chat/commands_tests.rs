@@ -180,15 +180,31 @@ fn a_reasoning_option_is_dropped_without_selectable_options() {
 #[tokio::test]
 async fn operation_reservation_survives_transfer_to_the_turn_task() {
     let chat = std::sync::Arc::new(ChatState::new());
-    let operation = chat.acquire_operation().unwrap();
+    let thread = Uuid::new_v4();
+    let permit = chat
+        .begin_turn(
+            Uuid::new_v4(),
+            Some(thread),
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .unwrap();
     let (finish, wait) = tokio::sync::oneshot::channel();
     let task = tokio::spawn(async move {
-        let _operation = operation;
+        let _permit = permit;
         wait.await.unwrap();
     });
     assert!(
         chat.acquire_operation().is_err(),
-        "a second send/load/vault transition must fail"
+        "a load or vault transition must fail while a turn runs"
+    );
+    assert!(
+        chat.begin_turn(
+            Uuid::new_v4(),
+            Some(thread),
+            tokio_util::sync::CancellationToken::new()
+        )
+        .is_err(),
+        "a second send to the same conversation must fail"
     );
     abort_turn(&chat).unwrap();
     assert!(
