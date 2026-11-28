@@ -44,6 +44,7 @@ before the next starts on top of `main`. Within a slice, tasks carry the label o
 | G   | Phase 8 (US6)                          | T085–T089 | contact share in the chat                                      |
 | H   | Phase 9 (US7)                          | T090–T097 | agent grant, actions, confirmation, MCP                        |
 | I   | Phase 10 (US8 rest), Phase 11 (polish) | T098–T111 | settings, upload key, presets test, e2e, platforms, manual run |
+| Q   | Phase US9 (added 2026-11-28)           | T155–T167 | message queue, injection into the running turn, chips          |
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -426,6 +427,43 @@ human-friendly time at the top right and the delivery state of an own last messa
 
 ---
 
+## Phase: User Story 9 - Write while the agent is answering (Priority: P2) (PR Q, added 2026-11-28)
+
+**Goal**: Enter queues a message while the agent answers, Ctrl+Enter injects it into the running turn
+before the next model call; chips above the input field; stop and closing discard the queue (FR-090 to
+FR-106). Amends research R20: this PR touches `chat/turn/` and `ChatState` (R22).
+
+**Independent Test**: a scripted model with two tool rounds: queue two messages with Enter (they go out
+as two turns in order), inject one with Ctrl+Enter after round one (stored between tool rows and
+answer, seen by the third model call), stop with two chips (nothing sent, nothing stored) (spec US9,
+SC-012 to SC-014).
+
+**Sequencing**: T161 edits `src-tauri/src/chat/turn/fit.rs`; start it after the ghost-header change of
+spec 086 FR-012 has merged, since both change that file.
+
+### Tests for User Story 9
+
+- [ ] T155 [P] [US9] Tests in `src-tauri/src/chat/turn/inbox_tests.rs` (open and close, order, a closed inbox answers _no running turn_, withdraw before and after taken, entry for another conversation, the limit of 10) and the integration test `src-tauri/tests/chat_tool_loop_inject.rs` with a scripted model: injection after round one is stored after the tool rows with the right parents and is in the request of the next step (SC-013); a turn ending without another step gives the entry back unstored (FR-097); a waiting approval is untouched (FR-101); the round-cap wrap-up takes none (FR-096); a replay of the key returns the original row and starts no turn (FR-098); a history rebuilt for a later turn reads user rows between tool rows (FR-098)
+- [ ] T156 [P] [US9] `scripts/check-chat-queue.ts` for the pure logic of T163 (typing order, limit, one send at a time, discard on stop and on error, an unconsumed injection keeps its place, another conversation queues, Enter fallback for a delegate, stable idempotency keys), added to `check:chat-state` in `package.json`
+- [ ] T157 [P] [US9] Tests in `src-tauri/src/chat/turn/fit_tests.rs`: the results before an injected user message at the end of the request still count as the latest round and are not left out (FR-100); an 8,192-token model with an injection after a large result is never refused by the engine (SC-015, with the local test engine of spec 086)
+- [ ] T158 [P] [US9] e2e scenario `scripts/e2e/scenarios/chat-message-queue.test.ts` with the scripted model the other chat scenarios use: Enter queue order, Ctrl+Enter injection, stop discards (SC-012 to SC-014), diagnostics per the rule that tests name what they saw
+
+### Implementation for User Story 9
+
+- [ ] T159 [US9] `src-tauri/src/chat/turn/inbox.rs` (graphify check first, record the candidates): `Inbox { open, entries }` behind `Arc<Mutex<…>>` in `ChatState` next to `turn_cancellation` (`src-tauri/src/chat/session.rs`); opened in `start_turn` (`src-tauri/src/chat/send.rs`) where the operation is taken, closed at every end of `run_turn` before the operation guard drops
+- [ ] T160 [US9] `src-tauri/src/chat/turn/inject.rs` and the injection point in `src-tauri/src/chat/turn/tool_round.rs` (after `gate_offer` and the round cap check, before `RoundOutcome::Continue`; `tool_round.rs` is at 491 lines, so the work lives in `inject.rs`): take the entries in order, store each as a user row (existing `persist_message` and `msg_store::insert_message`, `bump_created_at`, parent from `parent_id`, the key as idempotency key), make it the new parent, push a user `LlmMessage`, read attachments with the one function `start_turn` uses (extract it from `send.rs`, no second copy), run `fit::fit` once as `append_round_to_request` does, emit `chat-message-injected`; none before `wrap_up`; the inbox closes in `finish_turn_as`, `end_cancelled` and `fail`
+- [ ] T161 [US9] `src-tauri/src/chat/turn/fit.rs`: `latest_from` treats a user message directly after tool results at the end of the request as part of the open round (FR-100); see Sequencing
+- [ ] T162 [US9] Commands `chat_inject_message` and `chat_withdraw_injection` in `src-tauri/src/chat/commands.rs`, event `chat-message-injected` in `src-tauri/src/chat/events.rs`, registration in `src-tauri/src/lib.rs`, ts-rs types, a section in `contracts/ipc.md`, wrappers in `src/composables/useChat.ts`
+- [ ] T163 [US9] `src/lib/chat/messageQueue.ts` (pure queue: entries, order, limit, drain, discard) and `src/composables/useMessageQueue.ts`; wire into `useComposer.ts` (`send` enqueues while busy), `useChatTranscript.ts` (`applyTurnComplete` drains after `busy` is cleared; a stop or an error discards; `chat-message-injected` removes the chip and refreshes the list), `useAgentModelState.ts` (`composerInputDisabled` and `sendDisabled` no longer block typing and queueing while busy)
+- [ ] T164 [US9] `src/components/chat/ComposerShell.vue`: `onEnter` keeps its composition guard, Ctrl+Enter emits `sendNow` (`@keydown.enter.ctrl.exact`), Shift+Enter stays a line break; contact, group and note conversations (`PeerConversation.vue`) keep today's behaviour (FR-105); new `src/components/chat/MessageQueueChips.vue` in the `above` slot of `Composer.vue` (X with a label, "Wird eingefügt" mark, no success lines, toast for "Warteschlange voll"); i18n `chat.queue.*` de/en
+- [ ] T165 [US9] Adapter check: a user message directly after tool results, for the local engine (`src-tauri/src/llm/llamacpp/roundtrip_tests.rs`, the chat templates of Gemma and Qwen) and for the Anthropic and OpenAI-compatible request builders (their existing test files); an adapter that cannot take it is changed or listed and treated as Enter (FR-102)
+- [ ] T166 [US9] A delegate has no step loop: the window gets `canInject` from the model state (`isDelegateModel` in `useAgentModelState.ts`) and Ctrl+Enter acts as Enter there (FR-102)
+- [ ] T167 [US9] Checks: `pnpm check:chat-state`, `typecheck`, `lint`, `format:check`, `pnpm generate:ts-types` (revert stray whitespace in `src/types/bindings/`), clippy for the host and `aarch64-linux-android`, `cargo test` for `inbox`, `inject`, `fit` and `chat_tool_loop_inject` only (`-j 4`); add a manual step to `quickstart.md` (Ctrl+Enter during a long tool turn on a real model)
+
+**Checkpoint**: PR Q: write while the agent answers; nothing typed is lost or sent twice.
+
+---
+
 ## Dependencies & Execution Order
 
 - **Setup (T001–T003)** → **Foundational (T004–T008)** → US1 (PR B).
@@ -437,6 +475,7 @@ human-friendly time at the top right and the delivery state of an own last messa
 - **US7 (PR H)** needs PR C (read) and works for files after E.
 - **US8 (PR I)** needs PR E (Blossom settings) and finishes T069's default via T104.
 - **Long messages (PR L)** needs PR E2a (merged); independent of the rest.
+- **Message queue (PR Q)** needs only the agent chat of PR B; T161 waits for the ghost-header change of spec 086 (same file); independent of PR C–M.
 - Merge order: B → C → D → E → F → G → H → I; PR L any time after E.
 
 ### Within each story
@@ -451,6 +490,7 @@ human-friendly time at the top right and the delivery state of an own last messa
 - PR C: all tests T023–T029 in parallel; T040, T043, T045 alongside the service work.
 - PR E: T056–T059 in parallel; T069, T070, T072 alongside T060–T068.
 - PR F: T074–T076 in parallel; T082, T084 alongside T077–T081.
+- PR Q: T155–T158 in parallel; T165 alongside T159–T160; T163, T164 alongside the commands of T162.
 
 ### Parallel example (PR C)
 

@@ -68,3 +68,15 @@ commands (`send_message`, `list_threads`, …; useChat.ts).
 
 MCP (spec 021): data scope `chat.contacts.read` covers the two read actions; `chat.contacts.message.send`
 is reachable only with that scope and still confirms itself (mcp_server/dispatch.rs).
+
+## Message queue (US9, PR Q)
+
+- `chat_inject_message` takes `{ threadId, text, attachments: PickedFile[], idempotencyKey: UUID }` and
+  answers `{ outcome: "takenIn" }` or `{ outcome: "noRunningTurn" }`; the window treats the second as an
+  Enter. A retry with the same key returns the same answer for the same message (FR-098).
+- `chat_withdraw_injection` takes `{ idempotencyKey: UUID }` and answers `{ withdrawn: boolean }`; `false`
+  means the turn already took it.
+- Event `chat-message-injected` carries `{ threadId, userMessageId, idempotencyKey }` and is emitted
+  after the row is stored and before `chat-turn-complete`; the window removes the chip and reloads the
+  list. An entry for which the turn ended without this event stays queued (FR-097).
+- Enter entries use no new command: they go out through `send_message` when a turn has ended (FR-094).

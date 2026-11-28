@@ -447,3 +447,39 @@ conversation, delivery receipt, outbox, blossom. Reused: `presence::wrap_payload
 `PermissionPrompt`, `agent_share_confirm` pattern, `extensions::desktop` notification routing,
 `preferences` accessors, `vault-data-changed`. No existing outbox, receipt, Blossom or group-membership
 code exists; these are new. No iroh protocol is added (R7).
+
+## R22 Message queue and injection into the running turn (US9, 2026-11-28)
+
+**Decision** (operator 2026-11-28): while the agent answers, Enter queues a message and Ctrl+Enter
+injects it before the model's next call; Shift+Enter stays the line break. This amends R20: PR Q
+touches `chat/turn/` and `ChatState`, in three places only: an inbox in `ChatState`, the injection
+point after a stored tool round, and the `latest_from` boundary of `fit.rs`.
+
+**What the code does today** (read 2026-11-28): the composer blocks sending while `busy`
+(`sendDisabled` in `useAgentModelState.ts`); `send_message` waits up to `SEND_WAIT_WHEN_BUSY` (10 s)
+for a chat held by a model load or a spoken round, then fails. `start_turn` takes the chat's one
+operation lock and `TurnRunner::run` loops `run_step` → `tool_round` until a step asks for no tools;
+a tool round persists its rows, appends them to the request, runs `fit::fit`, and returns
+`Continue`. Nothing reads input between rounds.
+
+**Why the injection point is after the stored round**: the message then has a well-defined place (after
+the tool results, before the next call), the request is consistent (every tool call has its result),
+and nothing running is cancelled. A turn whose last step asked for no tools has no later call; the
+message then has to be the next turn (FR-097).
+
+**Why queue entries stay in the window**: the operator wants them gone on stop and on closing the app
+(FR-103), so storing them (vault, CRDT, disk) would only add something to delete. The send of an
+entry is the existing `send_message`, with its idempotency, model checks and attachment reading; the
+queue adds no second send path. Injected entries are the exception: the host needs them in memory
+(the inbox) and persists the user row at the moment it takes them.
+
+**Rejected**: (1) abort-and-restart as "immediately": throws away running tool work and answer text;
+the operator chose injection. (2) Persisting the queue as rows: sync and cleanup for something that
+must not outlive the window. (3) Injecting in the middle of a streaming step: the adapters stream one
+response per request; a change of the request during it is not possible.
+
+**Risks**: (a) some chat templates and wire formats may not accept a user message directly after tool
+results: tested per adapter in T165. (b) `fit.rs` takes the last non-tool-result message as the start
+of the latest round: without T161 an injected message would make the results the model has not seen
+count as old (see `latest_from`). (c) The first-step tool offer is not repeated for the injected
+message (assumption in the spec).

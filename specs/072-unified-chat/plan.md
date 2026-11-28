@@ -189,7 +189,7 @@ scripts/check-settings.ts                    # seven categories
 ```
 
 **Structure Decision**: contact chat lives in a new `chat::peer` module beside the agent chat (`chat::turn`
-untouched, R20), with its own tables but the shared `chat_threads` list (R15). The window keeps one chat
+untouched by PR B–M, R20; PR Q adds one injection point there, R22), with its own tables but the shared `chat_threads` list (R15). The window keeps one chat
 app; agent and peer views are siblings under it.
 
 ## Delivery slices (PRs)
@@ -208,6 +208,26 @@ Each slice is mergeable and testable on its own; later ones build on earlier one
 | G   | contact share in chat                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | US6             |
 | H   | agent grant, actions, confirm dialog, MCP scope                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | US7             |
 | I   | remaining settings, Blossom key, presets test (M13), e2e scenarios, polish                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | US8, SC-011     |
+| Q   | message queue (US9, added 2026-11-28): inbox in `ChatState`, injection point in `chat/turn/tool_round.rs`, `chat_inject_message`, chips above the input field                                                                                                                                                                                                                                                                                                                                                                                                         | US9             |
+
+### Message queue (US9, PR Q, added 2026-11-28)
+
+The one change to the agent's turn in this spec; reasons in [research.md](./research.md) R22.
+
+- **Queue in the window, inbox in the turn.** Enter entries live only in the window (`messageQueue.ts`)
+  and are sent through the ordinary `send_message` when a turn ends. Ctrl+Enter entries are also held by
+  the window until the host reports them taken (`chat-message-injected`), so a turn that ends first
+  loses nothing.
+- **Injection point.** `TurnRunner::tool_round` (`src-tauri/src/chat/turn/tool_round.rs`): after the
+  round is stored and appended to the request, and after the round cap check, before it returns
+  `RoundOutcome::Continue` and `run` calls `run_step` again. `inject.rs` takes the inbox there.
+- **Rows.** An injected message is a `user` row whose parent is the turn's current `parent_id`; the
+  rows that follow chain to it. Its id is the user id `derive_message_ids` gives the idempotency key;
+  the answer id of that derivation stays unused.
+- **Fitting.** `fit::fit` runs once more after the injection; `latest_from` keeps the results before
+  the injected message as the open round (T161).
+- **Not covered by the turn loop:** delegates (no step loop) and the round-cap wrap-up; both fall back
+  to the queue.
 
 ## Complexity Tracking
 
