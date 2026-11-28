@@ -51,7 +51,7 @@ import {
   SETS_DIR,
   writeJson,
 } from './common.ts'
-import type { Origin, Roles, StringMap } from './common.ts'
+import type { Origin, Roles } from './common.ts'
 import {
   addKindFolderNames,
   readKinds,

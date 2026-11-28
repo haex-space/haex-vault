@@ -19,22 +19,15 @@
     },
     "png": {
       "parent": "image",
-      "extensions": [
-        "png"
-      ]
+      "extensions": ["png"]
     },
     "jpg": {
       "parent": "image",
-      "extensions": [
-        "jpg",
-        "jpeg"
-      ]
+      "extensions": ["jpg", "jpeg"]
     },
     "svg": {
       "parent": "image",
-      "extensions": [
-        "svg"
-      ]
+      "extensions": ["svg"]
     },
     "video": {
       "extensions": [
@@ -70,9 +63,7 @@
       ]
     },
     "pdf": {
-      "extensions": [
-        "pdf"
-      ]
+      "extensions": ["pdf"]
     },
     "archive": {
       "extensions": [
@@ -97,57 +88,28 @@
       ]
     },
     "text": {
-      "extensions": [
-        "txt",
-        "text",
-        "tex"
-      ]
+      "extensions": ["txt", "text", "tex"]
     },
     "document": {
       "parent": "text",
-      "extensions": [
-        "doc",
-        "docx",
-        "odt",
-        "rtf"
-      ]
+      "extensions": ["doc", "docx", "odt", "rtf"]
     },
     "log": {
       "parent": "text",
-      "extensions": [
-        "log"
-      ]
+      "extensions": ["log"]
     },
     "spreadsheet": {
-      "extensions": [
-        "tsv",
-        "xls",
-        "xlsx",
-        "xlsm",
-        "ods",
-        "numbers"
-      ]
+      "extensions": ["tsv", "xls", "xlsx", "xlsm", "ods", "numbers"]
     },
     "csv": {
       "parent": "spreadsheet",
-      "extensions": [
-        "csv"
-      ]
+      "extensions": ["csv"]
     },
     "presentation": {
-      "extensions": [
-        "ppt",
-        "pptx",
-        "odp",
-        "key"
-      ]
+      "extensions": ["ppt", "pptx", "odp", "key"]
     },
     "markdown": {
-      "extensions": [
-        "md",
-        "markdown",
-        "mdx"
-      ]
+      "extensions": ["md", "markdown", "mdx"]
     },
     "code": {
       "extensions": [
@@ -202,103 +164,59 @@
     },
     "rust": {
       "parent": "code",
-      "extensions": [
-        "rs"
-      ]
+      "extensions": ["rs"]
     },
     "typescript": {
       "parent": "code",
-      "extensions": [
-        "ts"
-      ]
+      "extensions": ["ts"]
     },
     "tsx": {
       "parent": "code",
-      "extensions": [
-        "tsx"
-      ]
+      "extensions": ["tsx"]
     },
     "javascript": {
       "parent": "code",
-      "extensions": [
-        "js",
-        "mjs",
-        "cjs"
-      ]
+      "extensions": ["js", "mjs", "cjs"]
     },
     "jsx": {
       "parent": "code",
-      "extensions": [
-        "jsx"
-      ]
+      "extensions": ["jsx"]
     },
     "python": {
       "parent": "code",
-      "extensions": [
-        "py",
-        "pyw"
-      ]
+      "extensions": ["py", "pyw"]
     },
     "vue": {
       "parent": "code",
-      "extensions": [
-        "vue"
-      ]
+      "extensions": ["vue"]
     },
     "c": {
       "parent": "code",
-      "extensions": [
-        "c",
-        "h"
-      ]
+      "extensions": ["c", "h"]
     },
     "cpp": {
       "parent": "code",
-      "extensions": [
-        "cpp",
-        "hpp",
-        "cc",
-        "cxx",
-        "hh"
-      ]
+      "extensions": ["cpp", "hpp", "cc", "cxx", "hh"]
     },
     "csharp": {
       "parent": "code",
-      "extensions": [
-        "cs"
-      ]
+      "extensions": ["cs"]
     },
     "sql": {
       "parent": "code",
-      "extensions": [
-        "sql"
-      ]
+      "extensions": ["sql"]
     },
     "css": {
       "parent": "code",
-      "extensions": [
-        "css",
-        "scss",
-        "sass",
-        "less"
-      ]
+      "extensions": ["css", "scss", "sass", "less"]
     },
     "html": {
       "parent": "code",
-      "extensions": [
-        "html",
-        "htm"
-      ]
+      "extensions": ["html", "htm"]
     },
     "json": {
       "parent": "code",
-      "extensions": [
-        "json",
-        "jsonc",
-        "json5",
-        "jsonl",
-        "ndjson"
-      ]
+      "extensions": ["json", "jsonc", "json5", "jsonl", "ndjson"]
     },
     "config": {
       "parent": "code",
@@ -321,26 +239,14 @@
     },
     "yaml": {
       "parent": "config",
-      "extensions": [
-        "yaml",
-        "yml"
-      ]
+      "extensions": ["yaml", "yml"]
     },
     "ini": {
       "parent": "config",
-      "extensions": [
-        "toml",
-        "ini",
-        "conf",
-        "cfg",
-        "properties",
-        "editorconfig"
-      ]
+      "extensions": ["toml", "ini", "conf", "cfg", "properties", "editorconfig"]
     },
     "env": {
-      "extensions": [
-        "env"
-      ],
+      "extensions": ["env"],
       "names": [
         ".env",
         ".env.local",
@@ -351,9 +257,7 @@
       ]
     },
     "lock": {
-      "extensions": [
-        "lock"
-      ],
+      "extensions": ["lock"],
       "names": [
         "package-lock.json",
         "pnpm-lock.yaml",
@@ -378,89 +282,37 @@
       ]
     },
     "readme": {
-      "names": [
-        "readme",
-        "readme.md",
-        "readme.txt",
-        "readme.markdown"
-      ]
+      "names": ["readme", "readme.md", "readme.txt", "readme.markdown"]
     },
     "folder-desktop": {
-      "names": [
-        "desktop",
-        "schreibtisch",
-        "bureau",
-        "escritorio"
-      ]
+      "names": ["desktop", "schreibtisch", "bureau", "escritorio"]
     },
     "folder-documents": {
-      "names": [
-        "documents",
-        "docs",
-        "dokumente",
-        "documentos"
-      ]
+      "names": ["documents", "docs", "dokumente", "documentos"]
     },
     "folder-downloads": {
-      "names": [
-        "downloads",
-        "download",
-        "téléchargements",
-        "descargas"
-      ]
+      "names": ["downloads", "download", "téléchargements", "descargas"]
     },
     "folder-music": {
-      "names": [
-        "music",
-        "musik",
-        "musique",
-        "música"
-      ]
+      "names": ["music", "musik", "musique", "música"]
     },
     "folder-pictures": {
-      "names": [
-        "pictures",
-        "images",
-        "photos",
-        "bilder",
-        "imágenes"
-      ]
+      "names": ["pictures", "images", "photos", "bilder", "imágenes"]
     },
     "folder-public": {
-      "names": [
-        "public",
-        "öffentlich",
-        "público"
-      ]
+      "names": ["public", "öffentlich", "público"]
     },
     "folder-videos": {
-      "names": [
-        "videos",
-        "movies",
-        "vidéos",
-        "vídeos"
-      ]
+      "names": ["videos", "movies", "vidéos", "vídeos"]
     },
     "folder-templates": {
-      "names": [
-        "templates",
-        "vorlagen",
-        "modèles",
-        "plantillas"
-      ]
+      "names": ["templates", "vorlagen", "modèles", "plantillas"]
     },
     "folder-projects": {
-      "names": [
-        "projects",
-        "projekte",
-        "projets",
-        "proyectos"
-      ]
+      "names": ["projects", "projekte", "projets", "proyectos"]
     },
     "folder-home": {
-      "names": [
-        "home"
-      ]
+      "names": ["home"]
     }
   }
 }
