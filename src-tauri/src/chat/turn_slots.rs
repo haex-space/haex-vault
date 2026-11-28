@@ -190,12 +190,17 @@ impl TurnSlots {
     pub fn take_for_abort(&self, turn_id: Uuid) -> Option<Taken> {
         let mut slots = lock(&self.slots);
         let slot = slots.get_mut(&turn_id)?;
-        Some(Taken {
-            turn_id,
-            cancel: slot.cancel.clone(),
-            generation: slot.generation.take(),
-            open_prompts: std::mem::take(&mut slot.open_prompts),
-        })
+        Some(take_slot(turn_id, slot))
+    }
+
+    /// Takes the turn of `thread_id` under the same lock that finds it. This keeps a stop from
+    /// missing a new turn if the old one ends and another starts between lookup and cancellation.
+    pub fn take_for_thread_abort(&self, thread_id: Uuid) -> Option<Taken> {
+        let mut slots = lock(&self.slots);
+        let (turn_id, slot) = slots
+            .iter_mut()
+            .find(|(_, slot)| slot.thread_id == Some(thread_id))?;
+        Some(take_slot(*turn_id, slot))
     }
 
     /// [`Self::take_for_abort`] for every running turn.
@@ -219,6 +224,15 @@ impl TurnSlots {
         let removed = lock(&self.slots).remove(&turn_id);
         // Dropped after the guard is gone, so no drop of a handle runs while the lock is held.
         drop(removed);
+    }
+}
+
+fn take_slot(turn_id: Uuid, slot: &mut TurnSlot) -> Taken {
+    Taken {
+        turn_id,
+        cancel: slot.cancel.clone(),
+        generation: slot.generation.take(),
+        open_prompts: std::mem::take(&mut slot.open_prompts),
     }
 }
 

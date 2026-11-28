@@ -104,8 +104,11 @@ impl ChatState {
 
     /// Ends the turn running in `thread_id`, if any.
     pub fn abort_turn_of_thread(&self, thread_id: Uuid) -> bool {
-        match self.turns.turn_of_thread(thread_id) {
-            Some(turn_id) => self.abort_turn_by_id(turn_id),
+        match self.turns.take_for_thread_abort(thread_id) {
+            Some(taken) => {
+                self.end_turn(taken);
+                true
+            }
             None => false,
         }
     }
